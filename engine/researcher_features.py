@@ -61,8 +61,7 @@ def researcher(e,actor,field):
  if e.r._selected_rule(RESEARCHER)!=RESEARCHER:raise ValueError('selected Researcher class needs its own sourced adapter')
  selected=research_fields(actor)
  if field_id(field) not in selected:raise ValueError('feature requires its acquired Researcher field')
- education=('일반 지식','의학','오컬트학','포켓몬학','기술학')
- if max(S.rank(e.r,actor,skill)[2] for skill in education)<3:raise ValueError('Researcher requires a Novice Education skill')
+ if max(S.rank(e.r,actor,skill)[2] for skill in sorted(S.EDUCATION_SKILLS))<3:raise ValueError('Researcher requires a Novice Education skill')
  return selected
 
 def require(e,actor,uid,field):

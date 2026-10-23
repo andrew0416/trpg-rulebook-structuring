@@ -869,6 +869,8 @@ class _Decoder:
         CSV_ITEMS.upgrade_legacy_cannon(engine, {actor.entity_id:actor for actor in actors})
         import equipment_variant_contracts as EQUIPMENT_VARIANTS
         EQUIPMENT_VARIANTS.upgrade_legacy_slipstream(engine)
+        import martial_artist as MARTIAL
+        MARTIAL.upgrade_legacy(engine)
         _validate_current_state(engine, actors)
         engine._heavy_native_types = (Engine, Rules, Combatant)
         engine.gm.snapshots = {}

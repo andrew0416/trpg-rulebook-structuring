@@ -28,6 +28,7 @@ on:
           - move_revisions
           - rank_revisions
           - retraining
+          - next_revisions
 
 permissions:
   contents: read
@@ -42,10 +43,10 @@ jobs:
       fail-fast: false
       max-parallel: 3
       matrix:
-        suite: ${{ fromJSON(inputs.suite == 'common_checks' && '["common_checks"]' || inputs.suite == 'move_revisions' && '["move_revisions"]' || inputs.suite == 'rank_revisions' && '["rank_revisions"]' || inputs.suite == 'retraining' && '["retraining"]' || '["move_revisions", "rank_revisions", "retraining"]') }}
+        suite: ${{ fromJSON(inputs.suite == 'common_checks' && '["common_checks"]' || inputs.suite == 'move_revisions' && '["move_revisions"]' || inputs.suite == 'rank_revisions' && '["rank_revisions"]' || inputs.suite == 'retraining' && '["retraining"]' || inputs.suite == 'next_revisions' && '["next_revisions"]' || '["move_revisions", "rank_revisions", "retraining"]') }}
     name: ${{ matrix.suite }}
     runs-on: windows-2022
-    timeout-minutes: 40
+    timeout-minutes: 55
     env:
       PYTHONDONTWRITEBYTECODE: '1'
       PYTHONUTF8: '1'

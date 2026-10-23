@@ -11,6 +11,10 @@ import re
 import common_checks as checks
 import composition_derive as COMPOSITION
 
+# ch03:130: Survival is also Education; its Body category remains unchanged.
+EDUCATION_SKILLS=frozenset(('general education','medical education','occult education',
+                            'pokemon education','technology education','survival'))
+
 def key(value):
     if not isinstance(value,str) or not value.strip():
         raise ValueError('nonempty skill/choice identity required')

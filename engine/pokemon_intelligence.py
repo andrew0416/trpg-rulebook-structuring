@@ -13,7 +13,7 @@ from builder import species_lookup
 SOURCE='ch11-running-the-game/포켓몬으로-가득찬-세상/포켓몬의-행동과-지능'
 SKILLS='ch05-pokemon/포켓몬-관리하기/스킬'
 SOCIAL=frozenset(('charm','command','guile','intimidate','intuition'))
-EDUCATION=frozenset(('general education','medical education','occult education','pokemon education','technology education'))
+EDUCATION=S.EDUCATION_SKILLS
 
 def _source(e):
  for uid in (SOURCE,SKILLS):

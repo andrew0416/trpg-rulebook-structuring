@@ -65,16 +65,17 @@ def acquisition_evidence(engine,owner):
     if owner.kind!='trainer' or DIETICIAN not in {_resolve(owner,v,'feat/',names) for v in owner.spec.get('feats',[]) if v in names}:
         raise ValueError('actual acquired Dietician required')
     if engine.r._selected_rule(DIETICIAN)!=DIETICIAN:raise ValueError('selected Dietician source required')
+    import skill_modifiers as SKILLS
+    ordinary={v['rank'] for v in SKILLS._declared_ranks(engine.r)[0].values()}
     acquisition=owner.spec.get('dietician_acquisition')
     if acquisition is None:
         from pokemon_teaching import _acquired_feature
         if not _acquired_feature(owner,CHEF):
             raise ValueError('Dietician requires acquired Chef')
-        import skill_modifiers as SKILLS
-        rank=SKILLS.effective_rank(engine.r,owner,'직감')
+        rank=SKILLS.rank(engine.r,owner,'직감')[2]
         if rank<5:raise ValueError('Dietician requires Expert Intuition at acquisition')
         acquisition={'source':DIETICIAN,'trainer_id':owner.entity_id,'class_source':CHEF,'intuition_rank':rank}
-    elif not isinstance(acquisition,dict) or acquisition.get('source')!=DIETICIAN or acquisition.get('trainer_id')!=owner.entity_id or acquisition.get('class_source')!=CHEF or type(acquisition.get('intuition_rank'))is not int or not 5<=acquisition['intuition_rank']<=6:
+    elif not isinstance(acquisition,dict) or acquisition.get('source')!=DIETICIAN or acquisition.get('trainer_id')!=owner.entity_id or acquisition.get('class_source')!=CHEF or type(acquisition.get('intuition_rank'))is not int or (acquisition['intuition_rank']<5 or acquisition['intuition_rank'] not in ordinary):
         raise ValueError('invalid Dietician acquisition evidence')
     return deepcopy(acquisition)
 

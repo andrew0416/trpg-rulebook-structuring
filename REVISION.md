@@ -12,4 +12,14 @@ Default PTU ordinary ranks remain 1 through 6, and Virtuoso supplies effective r
 
 New regression tests cover native actions, source ownership, rollback and restoration, plus composition of declared ranks with Martial Artist. Integrated game verification runs in GitHub Actions; local integration checks syntax, source/preimage identity, and keyword-only data changes without running the game engine.
 
-The lifetime of a previously accumulated Pummeling bonus after withdrawing its rank provider remains unresolved. This revision introduces no clamp, deletion, or new retraining restriction for that case. Repeated-rank retraining and complete generalization of assistance or extended checks remain outside this revision.
+Further source review separates Pummeling's gain cap from its explicit termination. An earned bonus persists when its rank provider is withdrawn; the current effective rank limits future increases. Native gain observations preserve that history. On restore, valid older tags retain their original bounded validation record without inventing an unobserved past rank. Repeated-rank retraining and generalization of assistance or extended checks retain their existing scope.
+
+
+The full-revision follow-up separates confirmed defects from extension compatibility and regression-only coverage:
+
+- Realized Potential evolution supplies the Pokemon kind and condition state required by the existing shared capability consumer. This restores evolution and its source-specific recalculation/refund path.
+- Rank-dependent Deep Diver, Traceur, Glyph and the accepted defensive-feature adapter consume effective ranks. Potent Venom, Dietician and Mentor preserve the distinction between ordinary prerequisites, declared ordinals and observed effect ranks. Existing source-specific capacities and costs remain.
+- Survival belongs to both the Body category and the Education skill set. Education consumers share that set, and Pokemon Survival uses the existing campaign Education permission and individual-exception mechanism.
+- Pummeling's historical bonus and valid legacy saves follow the gain/lifetime boundary above.
+
+The `next_revisions` packet declares 550 distinct integration checks, including the accepted first-batch regressions. GitHub Actions captures the original physical inputs, actual reads and module origins in encrypted evidence for independent canonical acceptance. Detailed classification records keep separate obligations attached to the same clause; a shared label alone does not close that clause.

@@ -25,8 +25,10 @@ SUITES = {
     "move_revisions": ".ci/suites/move_revisions.json",
     "rank_revisions": ".ci/suites/rank_revisions.json",
     "retraining": ".ci/suites/retraining.json",
+    "next_revisions": ".ci/suites/next_revisions.json",
 }
-NATIVE_TIMEOUT_SECONDS = 1800
+NATIVE_TIMEOUT_SECONDS = 2700
+STAGE_PARENT = Path("D:/trpg-rulebook-structuring/ci")
 VERIFIER = "work/reuse-partials/verify_overlay_tests.py"
 BUNDLE = ".ci/fixtures.zip.enc"
 MANIFEST = ".ci/fixtures-manifest.json"
@@ -83,10 +85,38 @@ def verifier_command(root, suite, output):
     if suite not in SUITES:
         raise ValueError("Unknown CI suite")
     return [
-        sys.executable, "-B", "-u", "-X", "utf8", str(root / VERIFIER),
-        "--auto", SUITES[suite], "--canonical", str(root),
-        "--stage", str(root), "--record", str(output / "verifier"),
+        sys.executable, "-B", "-u", "-X", "utf8", str(root / "tools/ci_physical.py"),
+        "--stage", str(root), "--inputs", str(output / "input-sha256.json"),
+        "--target", SUITES[suite], "--output", str(output),
     ]
+
+
+def copy_stage(root, stage, hashes):
+    stage.mkdir(parents=True, exist_ok=False)
+    for name, expected in hashes.items():
+        source, destination = root / name, stage / name
+        if source.is_symlink() or not source.resolve().is_relative_to(root):
+            raise ValueError("Stage source leaves checkout")
+        if not destination.resolve().is_relative_to(stage):
+            raise ValueError("Stage destination leaves execution root")
+        body = source.read_bytes()
+        if hashlib.sha256(body).hexdigest() != expected:
+            raise ValueError("Tracked source changed before stage copy")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with destination.open("xb") as stream:
+            stream.write(body)
+        if file_hash(destination) != expected:
+            raise ValueError("Stage bytes differ from authenticated source")
+
+
+def execution_stage(suite):
+    run_id = os.environ.get("GITHUB_RUN_ID", uuid4().hex)
+    attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "1")
+    if re.fullmatch("[a-zA-Z0-9-]+", run_id) is None or re.fullmatch("[0-9]+", attempt) is None:
+        raise ValueError("Unsafe CI run identity")
+    if suite not in SUITES:
+        raise ValueError("Unknown CI suite")
+    return (STAGE_PARENT / (run_id + "-" + attempt + "-" + suite)).resolve()
 
 
 def fixture_path(name):
@@ -208,6 +238,7 @@ def encrypt_evidence(root, output, key, temp_root):
     files = [path for path in output.glob("*.log") if path.name != "evidence-encrypt.log"]
     files += list((output / "verifier").glob("tests-*.json"))
     files += list((output / "verifier").glob("tests-*.log"))
+    files += [path for path in (output / "physical").glob("*") if path.is_file()]
     if (output / "input-read-errors.json").exists():
         files.append(output / "input-read-errors.json")
     with tempfile.TemporaryDirectory(prefix="ptk-evidence-", dir=temp_root) as directory:
@@ -333,11 +364,20 @@ def self_check():
         rejects(lambda: restore_fixtures(root, archive, manifest, []))
         for suite, target in SUITES.items():
             command = verifier_command(root, suite, root)
-            assert command[command.index("--auto") + 1] == target
-            assert command[command.index("--canonical") + 1] == str(root)
+            assert command[command.index("--target") + 1] == target
+            assert command[command.index("--inputs") + 1] == str(root / "input-sha256.json")
             assert command[command.index("--stage") + 1] == str(root)
             assert "--cases" not in command and "--mode" not in command
         rejects(lambda: verifier_command(root, "../outside; echo injected", root))
+        stage_source = root / "stage-source"
+        stage_source.mkdir()
+        (stage_source / "tracked.txt").write_bytes(content)
+        pinned = input_hashes(stage_source, ["tracked.txt"])
+        stage_copy = root / "stage-copy"
+        copy_stage(stage_source, stage_copy, pinned)
+        assert input_hashes(stage_copy, pinned) == pinned
+        (stage_source / "tracked.txt").write_bytes(b"changed")
+        rejects(lambda: copy_stage(stage_source, root / "bad-copy", pinned))
         failed = run_command(
             [sys.executable, "-c", "from pathlib import Path; import json; "
              "Path('failed-raw.json').write_text(json.dumps({'successful': False})); "
@@ -398,13 +438,18 @@ def self_check():
             "common_checks", [{**raw, "collected": [*case_ids, undisclosed]}], failed, case_ids))
         evidence = root / "evidence"
         (evidence / "verifier").mkdir(parents=True)
+        (evidence / "physical").mkdir()
         write_json(evidence / "summary.json", summary)
         write_json(evidence / "verifier/tests-synthetic.json", raw)
         (evidence / "verifier/tests-synthetic.log").write_text(marker, encoding="utf-8")
         (evidence / "command.log").write_bytes((root / "failed.log").read_bytes() + marker.encode())
         (evidence / "setup-error.log").write_text(marker, encoding="utf-8")
         (evidence / "input-read-errors.json").write_bytes((root / "changed/input-read-errors.json").read_bytes())
-        raw_paths = ["verifier/tests-synthetic.json", "verifier/tests-synthetic.log",
+        (evidence / "physical/ci-native.json").write_text(marker, encoding="utf-8")
+        (evidence / "physical/ci-native-inputs.zip").write_bytes(b"physical input " + marker.encode())
+        (evidence / "physical/ci-native-events.jsonl").write_text(marker, encoding="utf-8")
+        raw_paths = ["physical/ci-native.json", "physical/ci-native-inputs.zip",
+                     "physical/ci-native-events.jsonl", "verifier/tests-synthetic.json", "verifier/tests-synthetic.log",
                      "command.log", "setup-error.log", "input-read-errors.json"]
         raw_hashes = input_hashes(evidence, raw_paths)
         project = Path(__file__).resolve().parents[1]
@@ -437,6 +482,8 @@ def self_check():
         assert not (rejected / "evidence.zip.enc").exists()
         assert (rejected / "command.log").read_text(encoding="utf-8") == marker
         assert not list(root.glob("ptk-evidence-*"))
+    from ci_physical_selfcheck import self_check as physical_self_check
+    physical_self_check(Path(__file__).resolve().parents[1])
     print("CI adapter self-check passed; no private inputs or game tests used.")
 
 
@@ -457,7 +504,7 @@ def main():
     output = root / "output" / "ci" / uuid4().hex
     output.mkdir(parents=True, exist_ok=False)
     metadata = {
-        "schema_version": 3,
+        "schema_version": 4,
         "started_at": datetime.now(timezone.utc).isoformat(),
         "suite": args.suite,
         "target": SUITES[args.suite],
@@ -466,7 +513,7 @@ def main():
         "python_executable": sys.executable,
         "platform": platform.platform(),
         "ci": {key: os.environ[key] for key in CI_ENVIRONMENT if key in os.environ},
-        "scope": "Public code and authenticated private fixtures; declared suite only. Not canonical publication or clause acceptance evidence.",
+        "scope": "Authenticated frozen CI stage; declared suite only. Physical evidence requires independent acceptance and source/impact review.",
         "input_manifest": "input-sha256.json",
         "input_manifest_after": "input-sha256-after.json",
         "input_comparison": "input-comparison.json",
@@ -475,6 +522,7 @@ def main():
     }
     outcome = {"exit_code": 1, "status": "setup_error"}
     baseline = None
+    stage = None
     public_ids = set()
     temp_root = None
     try:
@@ -487,12 +535,13 @@ def main():
         )
         tracked = [name for name in git(root, "ls-files", "-z").decode("utf-8").split("\0") if name]
         hashes = input_hashes(root, tracked)
-        for required in (*SUITES.values(), VERIFIER, BUNDLE, MANIFEST, "tools/ci_fixtures.mjs"):
+        for required in (SUITES[args.suite], VERIFIER, BUNDLE, MANIFEST,
+                         "tools/ci_fixtures.mjs", "tools/ci_physical.py"):
             if required not in hashes:
                 raise ValueError("The suite, fixed verifier, crypto adapter and fixture bundle/manifest must be Git-tracked")
         # This allowlist controls public display only; the fixed verifier still owns execution.
         for target in SUITES.values():
-            if target.endswith(".json"):
+            if target.endswith(".json") and target in hashes:
                 packet = json.loads((root / target).read_text(encoding="utf-8"))
                 public_ids.update(case for row in packet["completed"].values() for case in row["tests"])
         metadata["fixture_bundle_sha256"] = hashes[BUNDLE]
@@ -502,6 +551,10 @@ def main():
         if fixture_key is None:
             raise ValueError("PTK_FIXTURE_KEY is required to authenticate the private fixtures")
         temp_root = Path(os.environ["RUNNER_TEMP"]).resolve()
+        stage = execution_stage(args.suite)
+        copy_stage(root, stage, hashes)
+        metadata["execution_stage"] = str(stage)
+        metadata["physical_metadata"] = "physical/ci-native.json"
         with tempfile.TemporaryDirectory(prefix="ptk-fixtures-", dir=temp_root) as directory:
             archive = Path(directory).resolve() / "fixtures.zip"
             if not archive.is_relative_to(temp_root):
@@ -511,13 +564,13 @@ def main():
             if restored["exit_code"] != 0:
                 raise ValueError("Fixture decryption failed; see fixture-decrypt.log")
             metadata["fixture_archive_sha256"] = file_hash(archive)
-            hashes.update(restore_fixtures(root, archive, manifest, tracked))
+            hashes.update(restore_fixtures(stage, archive, manifest, tracked))
             metadata["fixture_file_count"] = len(manifest["files"])
         write_json(output / "input-sha256.json", hashes)
         baseline = hashes
-        command = verifier_command(root, args.suite, output)
+        command = verifier_command(stage, args.suite, output)
         outcome = run_command(
-            command, root, output / "command.log", timeout=NATIVE_TIMEOUT_SECONDS)
+            command, stage, output / "command.log", timeout=NATIVE_TIMEOUT_SECONDS)
         metadata["verifier_outcome"] = dict(outcome)
     except Exception as exc:
         metadata["setup_error_type"] = type(exc).__name__
@@ -528,7 +581,7 @@ def main():
     finally:
         if baseline is not None:
             try:
-                comparison = input_drift(root, baseline, output)
+                comparison = input_drift(stage, baseline, output)
                 metadata["inputs_unchanged"] = comparison["unchanged"]
                 if not comparison["unchanged"]:
                     outcome.update(exit_code=1, status="input_drift")

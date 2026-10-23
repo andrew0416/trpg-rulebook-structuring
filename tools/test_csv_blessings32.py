@@ -2,7 +2,7 @@
 from pathlib import Path
 from copy import deepcopy
 import json, sys, unittest
-ROOT=Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
+ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 from engine import Rules,Engine,Combatant
 from builder import build_trainer,build_pokemon
