@@ -1,15 +1,17 @@
 {
   "canonical_completed": 1503,
-  "fixture_files": 299,
-  "fixture_zip_sha256": "7759a139a6d90c46dc07d209bb355932950cb6385d40c74f73a6228e37c40f2d",
-  "scope": "Canonical1503 baseline plus five Opus-followup repair/extension candidates; canonical clause count unchanged",
+  "fixture_files": 300,
+  "fixture_zip_sha256": "2bd38207d9f3d6182bd2a4bc4dc31063f63607a62ae02e41294af32e76ebc387",
+  "scope": "Canonical1503 baseline, five merged revisions, and source-confirmed full-revision candidates; clause count unchanged",
   "revision_groups": [
     "move_revisions",
     "rank_revisions",
-    "retraining"
+    "retraining",
+    "next_revisions"
   ],
   "baseline_source_commit": "64b4a508b9c0043aa3c58f40fe7e25feeeee048f",
   "baseline_public_source_files": 1370,
   "baseline_source_files": 1667,
-  "completion_credit": 0
+  "completion_credit": 0,
+  "next_revision_required_tests": 550
 }

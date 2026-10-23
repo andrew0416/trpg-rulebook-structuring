@@ -1480,7 +1480,10 @@ def validate(engine):
   if row:
    a=row.get('owner');issuer=row.get('issuer')
    if '독' not in p.conditions or row.get('source')!=uid('Potent Venom') or row.get('stat') not in ('atk','def','spa','spd','spe') or a not in index.values() or issuer not in index.values() or not any(x['request_id']==row.get('acquisition') for x in records(a,uid('Potent Venom'))):raise ValueError('actual sourced Potent Venom condition required')
-   C.integer(row.get('rank'),'acquired Potent Venom rank',1,6)
+   import skill_modifiers as S
+   ordinary={v['rank'] for v in S._declared_ranks(engine.r)[0].values()}
+   effects={v['effective_rank'] for v in engine.r.skill_policy.get('rank_effects',{}).values()}
+   if C.integer(row.get('rank'),'acquired Potent Venom rank',1) not in ordinary|effects:raise ValueError('invalid acquired Potent Venom rank')
  return True
 
 

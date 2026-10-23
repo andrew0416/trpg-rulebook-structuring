@@ -987,6 +987,11 @@
       "size": 2679
     },
     {
+      "path": "data/verification/category2-class-csv-clause-status.json",
+      "sha256": "7d67509773bcbe99051c861ce54589189d12565ec4376bc1808703faf8f0a4a2",
+      "size": 4249260
+    },
+    {
       "path": "data/verification/category2-csv-abilities-moves-status.json",
       "sha256": "46b5a73fc9923ec68945c308f88f50707e493dd1f6b08650978987d35db02456",
       "size": 4818285

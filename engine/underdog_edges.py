@@ -209,7 +209,9 @@ def evolution_points(rules,spec,new_species,decision=None):
         if decision is not None:raise ValueError('actual Realized Potential evolution decision required')
         return result
     future=deepcopy(spec);future.update(species=new_species['id'],capabilities=list(new_species.get('capabilities') or []))
-    available=owned(SimpleNamespace(r=rules,spec=future,moves=list(future.get('moves',[]))))
+    # The evolved-sheet projection is an actual Pokemon subject (source_rows already required kind
+    # pokemon) for the shared capability owner; it carries no live round-scoped combat records.
+    available=owned(SimpleNamespace(r=rules,spec=future,moves=list(future.get('moves',[])),kind='pokemon',custom_conditions={}))
     for row in rows:
         config=definition(rules,row['source']);budget=45-sum(new_species['base_stats'].values());reason=None
         if not available:reason='actual Underdog capability lost at evolution'

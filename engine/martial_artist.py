@@ -174,10 +174,16 @@ def after_move(e,row):
   move=MC.event_move(e,event) if event is not None else row.get('target_moves',{}).get(t.entity_id,row['move'])
   if not _punch(e,a,move):continue
   if tag and t.entity_id==tag['target_id']:
-   tag['bonus']=min(S.effective_rank(e.r,a,'전투'),tag['bonus']+1);tag['completion_id']=row['id'];_seal_tag(tag);continue
+   rank=S.effective_rank(e.r,a,'전투')
+   amount=max(tag['bonus'],min(rank,tag['bonus']+1))
+   # The rank caps this gain; a withdrawn rank provider does not end an earned bonus.
+   if amount!=tag['bonus'] or not {'earned_rank','legacy_validation'}.intersection(tag):
+    _observe_gain(row,tag,amount,rank)
+   _seal_tag(tag);continue
   if choice is None or choice.get('target_id',t.entity_id)!=t.entity_id or AP.available(a)<1:continue
   _pay(e,a,1,ACHIEVEMENT)
   tag={'target_id':t.entity_id,'bonus':1,'hit_turn':a.custom_conditions.get('combat_turn_serial',0),'completion_id':row['id'],'acquisition':acquired(a,ACHIEVEMENT)['request_id']}
+  _observe_gain(row,tag,1,S.effective_rank(e.r,a,'전투'))
   _seal_tag(tag);a.spec[TAG]=tag;a.spec[ARMED].pop('pummeling_momentum',None);choice=None
 
 
@@ -352,12 +358,28 @@ def validate(e):
   tag=a.spec.get(TAG)
   if tag is not None:
    require(e,a,achievement='pummeling_momentum')
-   if set(tag)!={'target_id','bonus','hit_turn','completion_id','acquisition','fingerprint'} or tag['target_id'] not in index or tag['acquisition']!=acquired(a,ACHIEVEMENT)['request_id']:raise ValueError('Pummeling Momentum provenance changed')
+   fields={'target_id','bonus','hit_turn','completion_id','acquisition','fingerprint'}
+   if set(tag) not in (fields,fields|{'earned_rank'},fields|{'legacy_validation'}) or tag['target_id'] not in index or tag['acquisition']!=acquired(a,ACHIEVEMENT)['request_id']:raise ValueError('Pummeling Momentum provenance changed')
    import root_resolution as R
    if tag['fingerprint']!=R.fingerprint({k:v for k,v in tag.items() if k!='fingerprint'}):raise ValueError('Pummeling Momentum observation changed')
-   C.integer(tag['bonus'],'Pummeling Momentum bonus',1,S.effective_rank(e.r,a,'전투'));C.integer(tag['hit_turn'],'Pummeling hit turn',0)
+   if 'legacy_validation' in tag:
+    legacy=tag['legacy_validation']
+    if type(legacy) is not dict or set(legacy)!={'tag','rank_at_load'} or type(legacy['tag']) is not dict or set(legacy['tag'])!=fields:raise ValueError('Pummeling legacy validation changed')
+    original=legacy['tag'];cap=C.integer(original['bonus'],'Pummeling accepted legacy bonus',1)
+    C.integer(legacy['rank_at_load'],'Pummeling legacy rank at load',cap)
+    if original['fingerprint']!=R.fingerprint({k:v for k,v in original.items() if k!='fingerprint'}):raise ValueError('Pummeling legacy fingerprint changed')
+    if any(tag[k]!=original[k] for k in fields-{'fingerprint','hit_turn'}):raise ValueError('Pummeling legacy validation changed')
+   else:
+    cap=C.integer(tag['earned_rank'],'Pummeling earned rank',1) if 'earned_rank' in tag else S.effective_rank(e.r,a,'전투')
+   C.integer(tag['bonus'],'Pummeling Momentum bonus',1,cap);C.integer(tag['hit_turn'],'Pummeling hit turn',0)
    completed=getattr(e,'_move_completions',{}).get(tag['completion_id'])
-   if completed is None or completed['actor'] is not a or not (MC.recipient_result(completed,index[tag['target_id']]) or {}).get('hit'):raise ValueError('Pummeling Momentum requires its actual completed hit')
+   result=MC.recipient_result(completed,index[tag['target_id']]) if completed is not None else None
+   if completed is None or completed['phase']!='complete' or completed['actor'] is not a or not result or not result.get('hit') or result.get('cancelled'):raise ValueError('Pummeling Momentum requires its actual completed hit')
+   if 'earned_rank' not in tag and TAG in completed:raise ValueError('Pummeling Momentum earned-rank observation missing')
+   if 'earned_rank' in tag:
+    observation=completed.get(TAG)
+    expected={k:tag[k] for k in ('target_id','bonus','completion_id','acquisition','earned_rank')}
+    if observation!=expected:raise ValueError('Pummeling Momentum earned-rank observation changed')
   if WRESTLE in a.spec:
    require(e,a,achievement='wrestlemania');C.integer(a.spec[WRESTLE],'Wrestlemania actual turn',1)
 
@@ -365,3 +387,24 @@ def validate(e):
 def _seal_tag(row):
  import root_resolution as R
  row['fingerprint']=R.fingerprint({k:v for k,v in row.items() if k!='fingerprint'})
+
+
+def _observe_gain(completed,tag,amount,rank):
+ # Keep the native producer's observation after rank providers are changed or withdrawn.
+ C.integer(amount,'Pummeling Momentum bonus',1,rank)
+ tag.pop('legacy_validation',None)
+ tag.update(bonus=amount,earned_rank=rank,completion_id=completed['id'])
+ completed[TAG]={k:tag[k] for k in ('target_id','bonus','completion_id','acquisition','earned_rank')}
+
+
+def upgrade_legacy(e):
+ """At load only, retain an old tag that passes its original current-rank bound."""
+ import world_entities as W,skill_modifiers as S
+ tags=[(a,a.spec[TAG]) for a in W.actor_index(e).values() if TAG in a.spec and
+       type(a.spec[TAG]) is dict and not {'earned_rank','legacy_validation'}.intersection(a.spec[TAG])]
+ if not tags:return
+ validate(e)
+ for actor,tag in tags:
+  # This proves acceptance at load, not the unrecorded rank of a past gain.
+  tag['legacy_validation']={'tag':deepcopy(tag),'rank_at_load':S.effective_rank(e.r,actor,'전투')}
+  _seal_tag(tag)

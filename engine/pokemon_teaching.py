@@ -444,11 +444,13 @@ def mentor_effect_ranks(rules,actor,skills):
 
 def validate_mentor_ranks(rules,record):
  skills=record.get('mentor_skills');ranks=record.get('mentor_skill_ranks')
- if not isinstance(skills,list) or len(skills)!=2 or len(set(skills))!=2 or any(v not in MENTOR_SKILLS for v in skills) or not isinstance(ranks,list) or len(ranks)!=2 or any(type(v)is not int or v not in (3,4,5,6,8) for v in ranks):
+ ordinary={v['rank'] for v in S._declared_ranks(rules)[0].values()}
+ effects={v['effective_rank'] for v in rules.skill_policy.get('rank_effects',{}).values()}
+ if not isinstance(skills,list) or len(skills)!=2 or len(set(skills))!=2 or any(v not in MENTOR_SKILLS for v in skills) or not isinstance(ranks,list) or len(ranks)!=2 or any(type(v)is not int or v<3 or v not in ordinary|effects for v in ranks):
   raise ValueError('Mentor natural exception requires both actual selected skill ranks')
  witness=record.get('mentor_rank_evidence')
  if witness is None:
-  if any(v>6 for v in ranks):raise ValueError('Mentor effect rank requires historical owned rank-effect evidence')
+  if any(v not in ordinary for v in ranks):raise ValueError('Mentor effect rank requires historical owned rank-effect evidence')
   return ranks
  import trainer_feature_acquisition as A
  if type(witness)is not dict or set(witness)!={'teacher_id','mentor_skills','level','skills','edges','edge_choices','integrity_id'}:

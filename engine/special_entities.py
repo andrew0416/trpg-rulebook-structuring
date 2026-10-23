@@ -298,7 +298,7 @@ def validate_glyph(e,row,index,registry,p):
     if row['status']=='sentry' and len(sentries)!=1:raise ValueError('sentry glyph requires exactly one active linked sentry record')
     if row['status']!='sentry' and sentries:raise ValueError('active sentry cannot reference a non-sentry glyph')
     import skill_modifiers as SKILL
-    limit=SKILL.rank(e.r,creator,'오컬트학')[2]
+    limit=SKILL.effective_rank(e.r,creator,'오컬트학')
     active=sum(x.get('kind')=='glyph' and x.get('creator_id')==row['creator_id'] and x.get('status') in ('active','sentry') for x in registry.values())
     if active>limit:raise ValueError('active glyphs exceed creator Occult rank')
     return {'active_glyph_limit':limit,'stats':None,'unresolved':[] if creator.level==row['creation_level'] else ['C2SPECIAL-CONFLICT-glyph-level-growth'],'creation_legality_certified':False}

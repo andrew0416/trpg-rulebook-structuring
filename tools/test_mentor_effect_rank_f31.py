@@ -6,8 +6,6 @@ import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-if not (ROOT / 'input').is_dir():
-    ROOT = Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
 sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
 import test_category2_mentor_csv as csv_fixture
 import test_category2_mentor_move_state as book_fixture

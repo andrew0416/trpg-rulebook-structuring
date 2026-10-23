@@ -10,7 +10,7 @@ import unittest
 
 
 STAGE = Path(__file__).resolve().parents[1]
-ROOT = Path(r"D:\trpg-rulebook-structuring\ptk-structure-experiment")
+ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(STAGE / "engine"), str(ROOT / "engine"), str(ROOT / "tools")]
 
 from builder import build_trainer

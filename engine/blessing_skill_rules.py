@@ -133,11 +133,7 @@ def _state(actor):
 
 
 def _education_skills(rules):
-    return {
-        skill_id
-        for skill_id in rules.skill_policy["skills"]
-        if skill_id.endswith(" education")
-    }
+    return S.EDUCATION_SKILLS
 
 
 def _category(rules, value):

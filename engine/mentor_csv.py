@@ -7,6 +7,7 @@ import json
 import re
 
 import trainer_feature_acquisition as A
+import skill_modifiers as S
 
 SOURCE = 'C2CSV/input/db/feats.csv:R104:main'
 FEATURE = 'class/멘토'
@@ -58,11 +59,12 @@ def validate_receipt(actor, payload):
             payload['source'] != src or payload['provider'] != {'actor_id': actor.entity_id, 'mode': 'self_acquisition'}):
         raise ValueError('CSV Mentor actual acquisition source/provider mismatch')
     selection = payload['selection']; skills = selection['values']; snap = selection['acquisition_snapshot']
+    ordinary = {v['rank'] for v in S._declared_ranks(actor.r)[0].values()}
     if (selection['kind'] != 'mentor_skill' or selection['required_count'] != 2 or
             len(skills) != 2 or len(set(skills)) != 2 or any(v not in SKILLS for v in skills) or
             set(snap) != {'skills', 'ranks'} or snap['skills'] != skills or
             type(snap['ranks']) is not list or len(snap['ranks']) != 2 or
-            any(type(v) is not int or not 3 <= v <= 6 for v in snap['ranks'])):
+            any(type(v) is not int or v < 3 or v not in ordinary for v in snap['ranks'])):
         raise ValueError('CSV Mentor immutable acquisition skill evidence mismatch')
     if (selection['proofs'] != [{'value': skill, 'rank_at_acquisition': rank} for skill, rank in zip(skills, snap['ranks'])] or
             payload['qualification'] != _qualification(actor, skills, snap['ranks']) or
@@ -210,9 +212,11 @@ def candidate(rules, spec, mid, ranks, *, ancestor=None, type_sync_id='current',
     from builder import species_lookup
     import type_sync as SYNC
     name = species_lookup(rules, spec['species'])['name']; level = spec['level']
-    if type(level) is not int or not 1 <= level <= 100 or len(ranks) != 2 or any(type(v) is not int or v not in (3, 4, 5, 6, 8) for v in ranks):
+    ordinary = {v['rank'] for v in S._declared_ranks(rules)[0].values()}
+    effects = {v['effective_rank'] for v in rules.skill_policy.get('rank_effects', {}).values()}
+    if type(level) is not int or not 1 <= level <= 100 or len(ranks) != 2 or any(type(v) is not int or v < 3 or v not in ordinary | effects for v in ranks):
         raise ValueError('actual Mentor pupil level and selected skill ranks required')
-    if any(v > 6 for v in ranks):
+    if any(v not in ordinary for v in ranks):
         import pokemon_teaching as T
         if rank_record is None or T.validate_mentor_ranks(rules, rank_record) != list(ranks):
             raise ValueError('actual historical Mentor rank-effect evidence required')

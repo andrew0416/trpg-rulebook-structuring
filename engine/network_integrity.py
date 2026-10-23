@@ -145,7 +145,7 @@ def _extra_defense(e,target,feature):
     owned=[*actor.spec.get('edges',[]),*actor.spec.get('poke_edges',[]),*actor.spec.get('feats',[])]
     names={SK.key(x) for x in feature['names']}
     if native and names & {SK.key(DEFENSIVE_HACKING),SK.key('방어적 해킹'),SK.key('Defensive Hacking')}:return native
-    if {SK.key(x) for x in owned} & names:return native+SK.rank(e.r,actor,feature['skill'])[2]
+    if {SK.key(x) for x in owned} & names:return native+SK.effective_rank(e.r,actor,feature['skill'])
     return native
 
 

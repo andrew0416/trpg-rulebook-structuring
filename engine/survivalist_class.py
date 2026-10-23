@@ -351,7 +351,7 @@ def breath_seconds(actor,medium,engine=None):
  talents=talent_set(engine,actor) if engine is not None else talent_projection(actor)
  if 'ocean' not in talents:return 0
  import skill_modifiers as S
- return 60*TALENTS['ocean']['breath_minutes_per_survival_rank']*S.rank(actor.r,actor,'생존')[2]
+ return 60*TALENTS['ocean']['breath_minutes_per_survival_rank']*S.effective_rank(actor.r,actor,'생존')
 
 
 def jump_bonus(actor):
@@ -402,7 +402,7 @@ def evasion_bonus(engine,target,attacker,move):
  opportunity=(isinstance(scope,dict) and scope.get('source')==OPPORTUNITY and scope.get('attacker_id')==attacker.entity_id and scope.get('target_id')==target.entity_id)
  if move.get('id') not in (PUSH,TRIP) and not opportunity:return 0
  import skill_modifiers as S
- return S.rank(engine.r,target,'생존')[2]//2
+ return S.effective_rank(engine.r,target,'생존')//2
 
 
 # ---------------------------------------------------------------- Trapper (ch04:2156-2164)
