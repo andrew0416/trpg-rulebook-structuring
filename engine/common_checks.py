@@ -60,7 +60,8 @@ class AdjustedSkillRoll(SkillRoll):
     dice_count: int=0
 
     def __post_init__(self):
-        validate_request(self.rank,self.modifier,self.helper_rank,len(self.penalties),self.helper_bonus)
+        integer(self.rank,'resolved skill rank',1)
+        validate_request(1,self.modifier,self.helper_rank,len(self.penalties),self.helper_bonus)
         integer(self.dice_count,'resolved skill pool dice count',0)
         object.__setattr__(self,'faces',dice(self.faces,self.dice_count))
         object.__setattr__(self,'penalties',dice(self.penalties))

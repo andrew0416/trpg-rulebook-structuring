@@ -5,6 +5,7 @@
 !/README.md
 !/SOURCE-NOTICES.md
 !/CI.md
+!/REVISION.md
 
 !/.github/
 /.github/*
@@ -17,6 +18,13 @@
 !/.ci/fixtures.zip.enc
 !/.ci/fixtures-manifest.json
 !/.ci/source-snapshot.json
+!/.ci/suites/
+/.ci/suites/*
+!/.ci/suites/*.json
+
+!/examples/
+/examples/*
+!/examples/declared_skill_ranks.py
 
 !/engine/
 /engine/**

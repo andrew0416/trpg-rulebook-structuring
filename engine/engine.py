@@ -5380,7 +5380,7 @@ class Engine:
         if pokemon_plan is not None:
             resolved['modifier']+=pokemon_plan['modifier']
             resolved['pokemon_plan']=pokemon_plan
-        resolved['dice_count']=n if pokemon_plan is None else pokemon_plan['dice_count']
+        resolved['dice_count']=int(expr[:-2]) if pokemon_plan is None else pokemon_plan['dice_count']
         blessing_plan=BLESSINGS.ADVANCED.prepare(
             self,c,skill,resolved,blessing_context,skill_target)
         resolved['modifier']+=blessing_plan['modifier']
@@ -5403,7 +5403,8 @@ class Engine:
         import fashion_items as FASHION
         resolved["modifier"] += TIMING.skill_modifier(c) + training_bonus + FASHION.all_roll_modifier(c)
         if training_bonus:resolved["sources"] += (("training/features",training_bonus,"Focused"),)
-        CHECKS.validate_request(1 if pokemon_plan is not None else n,mods,helper_rank,penalty_count,helper_bonus)
+        # rank() or the Pokemon adapter already validated the selected rank/pool.
+        CHECKS.validate_request(1,mods,helper_rank,penalty_count,helper_bonus)
         faces = CHECKS.dice(fixed,resolved['dice_count']) if fixed is not None else None
         penalties = CHECKS.dice(fixed_penalties,penalty_count) if fixed_penalties is not None else None
         return rank_name,expr,n,faces,penalties,resolved
@@ -5421,7 +5422,7 @@ class Engine:
             self,c,faces,resolved['blessing_skill_plan'])
         penalties = tuple(POOLS.pool(self.rng, penalty_count, fixed=penalties)['faces'])
         mods=resolved["modifier"]+AP_ROLL.bonus(self,c,roll_id,'skill')
-        if resolved.get('skill_stunt') is not None:
+        if resolved.get('skill_stunt') is not None or (resolved.get('pokemon_plan') is None and (int(expr[:-2])!=n or n>6)):
             result=CHECKS.AdjustedSkillRoll(n,faces,mods,helper_rank,penalties,helper_bonus,resolved['dice_count'])
         elif resolved['dice_count']!=n or n>6:
             import researcher_features as RF

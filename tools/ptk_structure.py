@@ -608,7 +608,8 @@ def parse_moves(csv_path):
             rec["reason"] = "data_error"
             fails.append(rec)
             continue
-        kw = KEYWORD_RE.findall(rng + " " + eff)
+        # Effect text may mention other Moves or conditionally grant keywords.
+        kw = KEYWORD_RE.findall(rng)
         if kw:
             rec["keywords"] = sorted(set(kw))
         rec["mech_auto"] = mech
@@ -795,7 +796,7 @@ def build_entities(md_dir, out_dir):
     report += [f"| 기본 데미지(DB) 숫자 보유 | {sum(1 for m in dmg if isinstance(m['damage_base'], int))} | 물리/특수 {len(dmg)} |",
                f"| AC 보유 | {sum(1 for m in M if m['ac'] is not None)} | 전체 {len(M)} |",
                f"| 효과 텍스트 없음(순수 데미지, 헤더만으로 완결) | {len(M) - len(with_eff)} | {len(M)} |",
-               f"| 키워드 보유(범위/효과 텍스트에 키워드 단어) | {sum(1 for m in M if m.get('keywords'))} | {len(M)} |"]
+               f"| 키워드 보유(범위 헤더에 키워드 단어) | {sum(1 for m in M if m.get('keywords'))} | {len(M)} |"]
     for key, lab in labels:
         report.append(f"| {lab} | {cnt(key, with_eff)} | 효과 있음 {len(with_eff)} |")
     none = [m for m in with_eff if not m["mech_auto"] and not m.get("keywords")]

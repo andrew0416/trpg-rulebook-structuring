@@ -1,8 +1,15 @@
 {
   "canonical_completed": 1503,
-  "source_files": 1667,
-  "public_source_files": 1370,
-  "fixture_files": 297,
-  "fixture_zip_sha256": "b0e517ca80ac3f717e9d54e2a919be60a6f3d6eb02a6d7cc9a25ae9a063bba02",
-  "scope": "Frozen current canonical; pending repair candidates are not merged"
+  "fixture_files": 299,
+  "fixture_zip_sha256": "7759a139a6d90c46dc07d209bb355932950cb6385d40c74f73a6228e37c40f2d",
+  "scope": "Canonical1503 baseline plus five Opus-followup repair/extension candidates; canonical clause count unchanged",
+  "revision_groups": [
+    "move_revisions",
+    "rank_revisions",
+    "retraining"
+  ],
+  "baseline_source_commit": "64b4a508b9c0043aa3c58f40fe7e25feeeee048f",
+  "baseline_public_source_files": 1370,
+  "baseline_source_files": 1667,
+  "completion_credit": 0
 }

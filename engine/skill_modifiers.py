@@ -24,52 +24,69 @@ def skill_id(policy, name, *, required=False):
     if required:raise ValueError('unknown PTK skill: '+str(name))
     return normalized  # Existing explicitly named custom skills remain supported.
 
+def _declared_ranks(rules):
+    ranks=rules.mech('gameplay/skill-rank-dice')['by_rank_name']
+    if type(ranks) is not dict or not ranks:raise ValueError('nonempty declared skill rank table required')
+    numbers=set();aliases={}
+    def alias(value,name):
+        if type(value) is not str or not value.strip():raise ValueError('nonempty declared skill rank name required')
+        token=value.casefold()
+        if token in aliases and aliases[token]!=name:raise ValueError('conflicting declared skill rank aliases')
+        aliases[token]=name
+    for name,data in ranks.items():
+        if type(data) is not dict:raise ValueError('declared skill rank record required')
+        number=checks.integer(data.get('rank'),'declared skill rank',1)
+        if number in numbers:raise ValueError('conflicting declared numeric skill ranks')
+        numbers.add(number)
+        if type(data.get('dice')) is not str or not re.fullmatch(r'[1-9][0-9]*d6',data['dice']):
+            raise ValueError('declared skill rank requires a positive d6 pool')
+        alias(name,name)
+        if 'eng' in data:alias(data['eng'],name)
+    for value,name in rules.skill_policy['rank_aliases'].items():
+        if name in ranks:alias(value,name)
+    return ranks,aliases
+
+
 def rank(rules, actor, skill):
     policy=rules.skill_policy
     target=skill_id(policy,skill)
     supplied=[v for k,v in actor.spec.get('skills',{}).items() if skill_id(policy,k)==target]
-    ranks=rules.mech('gameplay/skill-rank-dice')['by_rank_name']
+    ranks,aliases=_declared_ranks(rules)
     def normalize(value):
         if type(value) is int:
-            matches=[name for name,data in ranks.items() if data['dice']==str(value)+'d6']
+            matches=[name for name,data in ranks.items() if data['rank']==value]
             if len(matches)!=1:raise ValueError('unresolved ordinary numeric skill rank')
             return matches[0]
         if not isinstance(value,str):raise ValueError('unresolved skill rank')
-        name=policy['rank_aliases'].get(value.casefold(),value)
-        if name not in ranks:raise ValueError('unresolved skill rank: '+value)
+        name=aliases.get(value.casefold())
+        if name is None:raise ValueError('unresolved skill rank: '+value)
         return name
     import csv_item_form_contracts as CSV_FORMS
     projected=CSV_FORMS.skill_pool_projection(actor,target)
     if actor.kind=='pokemon' and (supplied or projected is not None):
-        # Pokemon pools carry a species-specific constant as well as dice rank.
-        # Validate aliases against the full pool, then return only the dice rank;
-        # researcher_features.native_plan consumes the constant exactly once.
+        # Pokemon species pools retain their dice-rank and constant contract.
         pools=[]
         for value in supplied:
             match=re.fullmatch(r'\s*([1-9][0-9]*)d6\s*([+-]\s*[0-9]+)?\s*',value) if isinstance(value,str) else None
             if match:pools.append((int(match[1]),int((match[2] or '0').replace(' ',''))))
             else:
-                name=normalize(value);expr=ranks[name]['dice']
-                if not re.fullmatch(r'[1-6]d6',expr):raise ValueError('unresolved Pokemon skill dice rank')
-                pools.append((int(expr[0]),0))
+                name=normalize(value)
+                pools.append((int(ranks[name]['dice'][:-2]),0))
         if len(set(pools))>1:raise ValueError('conflicting Pokemon skill pool aliases')
         dice_count,modifier=projected if projected is not None else pools[0]
-        if actor.kind=='pokemon':
-            import baby_templates as BABY
-            dice_count=max(1,dice_count-BABY.skill_rank_penalty(actor))
-        return '포켓몬 스킬',str(dice_count)+'d6',dice_count
-    names={normalize(v) for v in supplied} or {'미숙'}
-    if len(names)!=1:raise ValueError('conflicting skill aliases in actor sheet')
-    name=names.pop()
-    expr=ranks[name]['dice']
-    if not re.fullmatch(r'[1-6]d6',expr):
-        raise ValueError('specialized skill dice require a sourced extension')
-    dice_count=int(expr[0])
-    if actor.kind=='pokemon':
         import baby_templates as BABY
         dice_count=max(1,dice_count-BABY.skill_rank_penalty(actor))
-        name=next((rank_name for rank_name,data in ranks.items() if data['dice']==str(dice_count)+'d6'),name)
-    return name,str(dice_count)+'d6',dice_count
+        return '포켓몬 스킬',str(dice_count)+'d6',dice_count
+    names={normalize(v) for v in supplied} or {normalize('미숙')}
+    if len(names)!=1:raise ValueError('conflicting skill aliases in actor sheet')
+    name=names.pop()
+    data=ranks[name]
+    if actor.kind=='pokemon':
+        import baby_templates as BABY
+        dice_count=max(1,int(data['dice'][:-2])-BABY.skill_rank_penalty(actor))
+        name=next((rank_name for rank_name,row in ranks.items() if row['dice']==str(dice_count)+'d6'),name)
+        return name,str(dice_count)+'d6',dice_count
+    return name,data['dice'],data['rank']
 
 def edge_id(policy, name):
     if not isinstance(name,str):raise ValueError('edge ownership must use an ID or name')

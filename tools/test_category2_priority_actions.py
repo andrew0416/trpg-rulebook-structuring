@@ -79,8 +79,8 @@ class PriorityActionTests(unittest.TestCase):
             self.assertEqual(PRIORITY.classify(self.r, move), {'variant': 'plain', 'move_id': move})
         for move in ('move/힘껏펀치', 'move/리벤지'):
             self.assertEqual(PRIORITY.classify(self.r, move)['variant'], 'limited')
-        # The generated bare keyword comes from the conditional pledge text.
-        self.assertIn('우선', self.r.moves_mech['move/불꽃의맹세']['header']['keywords'])
+        # The conditional pledge text does not grant the base Move Priority.
+        self.assertNotIn('우선', self.r.moves_mech['move/불꽃의맹세']['header']['keywords'])
         self.assertIsNone(PRIORITY.classify(self.r, 'move/불꽃의맹세'))
         self.assertIsNone(PRIORITY.classify(self.r, THUNDER))
 

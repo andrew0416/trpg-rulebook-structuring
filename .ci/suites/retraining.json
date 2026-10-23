@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "retraining",
+  "purpose": "Edge choice withdrawal through native retraining and retained dependencies.",
+  "scope": "Final candidate required_test_ids only. Exact duplicate IDs run once within this suite. The completed key is the existing verifier packet format, not clause acceptance.",
+  "completion_credit": 0,
+  "required_unique_count": 13,
+  "completed": {
+    "opus_retraining_edge_choices_repair": {
+      "source_candidate_id": "opus_retraining_edge_choices_repair",
+      "source_candidate": "opus-repair-followup-20261023/retraining-edge-choices/candidate.json",
+      "source_field": "required_test_ids",
+      "source_candidate_sha256": "7cf748e7dea67efbd2108fe2cb6d4a65bf5c9100d481ccaf82dbb3b6a135ce15",
+      "tests": [
+        "tools.test_retraining_edge_choices.RetrainingEdgeChoiceTests.test_native_single_edge_aliases_restore_rank_roll_receipts_and_retry_once",
+        "tools.test_retraining_edge_choices.RetrainingEdgeChoiceTests.test_other_choice_edge_withdrawal_preserves_virtuoso_and_removes_only_its_bonus",
+        "tools.test_retraining_edge_choices.RetrainingEdgeChoiceTests.test_edge_choice_gm_cost_dependency_and_late_failure_reject_atomically",
+        "tools.test_retraining_edge_choices.RetrainingEdgeChoiceTests.test_multiple_actual_edge_acquisitions_keep_existing_retraining_limit",
+        "tools.test_core_irreversible_retraining.IrreversibleRetrainingTests.test_unused_actual_feature_removes_selection_effect_and_spends_existing_xp_once",
+        "tools.test_core_irreversible_retraining.IrreversibleRetrainingTests.test_move_mentor_and_egg_producers_block_their_actual_teacher_after_forgetting_and_restore",
+        "tools.test_core_irreversible_retraining.IrreversibleRetrainingTests.test_native_and_explicit_skill_provider_dependencies_cannot_be_omitted_or_withdrawn",
+        "tools.test_core_irreversible_retraining.IrreversibleRetrainingTests.test_real_selection_receipt_is_preserved_as_withdrawn_and_not_current_choices",
+        "tools.test_core_irreversible_retraining.IrreversibleRetrainingTests.test_gm_consultation_complete_dependencies_and_late_failure_are_atomic",
+        "tools.test_core_irreversible_retraining.IrreversibleRetrainingTests.test_same_named_independent_source_is_not_the_actual_feature_use",
+        "tools.test_book_martial_artist.MartialArtistTests.test_retraining_achievement_withdraws_its_tag_and_one_stat_tag_but_keeps_class_moves",
+        "tools.test_category2_csv_skill_edges.Tests.test_virtuoso_changes_capability_rank_but_not_dice_and_rejects_repeated_choice",
+        "tools.test_retraining_edge_choices.RetrainingEdgeChoiceTests.test_native_approved_skill_stunt_choice_retires_with_its_source"
+      ]
+    }
+  }
+}

@@ -6,6 +6,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import platform
@@ -19,7 +20,13 @@ import traceback
 from uuid import uuid4
 import zipfile
 
-SUITES = {"common_checks": "tools/test_common_checks.py"}
+SUITES = {
+    "common_checks": "tools/test_common_checks.py",
+    "move_revisions": ".ci/suites/move_revisions.json",
+    "rank_revisions": ".ci/suites/rank_revisions.json",
+    "retraining": ".ci/suites/retraining.json",
+}
+NATIVE_TIMEOUT_SECONDS = 1800
 VERIFIER = "work/reuse-partials/verify_overlay_tests.py"
 BUNDLE = ".ci/fixtures.zip.enc"
 MANIFEST = ".ci/fixtures-manifest.json"
@@ -36,7 +43,7 @@ def write_json(path, value):
 
 
 def git(root, *args):
-    return subprocess.check_output(["git", "-C", str(root), *args])
+    return subprocess.check_output(["git", "-C", str(root), *args], stderr=subprocess.STDOUT)
 
 
 def file_hash(path):
@@ -52,6 +59,34 @@ def input_hashes(root, names):
             raise ValueError(f"Input leaves the checkout: {name}")
         hashes[name] = file_hash(path)
     return hashes
+
+
+def input_drift(root, before, output):
+    after, errors, raw_errors = {}, {}, {}
+    for name in before:
+        try:
+            after.update(input_hashes(root, [name]))
+        except (OSError, ValueError) as exc:
+            after[name] = None
+            errors[name] = type(exc).__name__
+            raw_errors[name] = traceback.format_exc()
+    changed = [name for name in before if before[name] != after[name]]
+    write_json(output / "input-sha256-after.json", after)
+    result = {"unchanged": not changed, "changed_paths": changed, "read_errors": errors}
+    write_json(output / "input-comparison.json", result)
+    if raw_errors:
+        write_json(output / "input-read-errors.json", raw_errors)
+    return result
+
+
+def verifier_command(root, suite, output):
+    if suite not in SUITES:
+        raise ValueError("Unknown CI suite")
+    return [
+        sys.executable, "-B", "-u", "-X", "utf8", str(root / VERIFIER),
+        "--auto", SUITES[suite], "--canonical", str(root),
+        "--stage", str(root), "--record", str(output / "verifier"),
+    ]
 
 
 def fixture_path(name):
@@ -158,6 +193,91 @@ def run_command(command, root, log, timeout=900, env=None):
     return outcome
 
 
+def crypt_file(root, mode, source, destination, key, log):
+    crypto_env = {**os.environ, "PTK_FIXTURE_KEY": key}
+    try:
+        return run_command(
+            ["node", str(root / "tools/ci_fixtures.mjs"), mode, str(source), str(destination)],
+            root, log, env=crypto_env,
+        )
+    finally:
+        crypto_env.pop("PTK_FIXTURE_KEY")
+
+
+def encrypt_evidence(root, output, key, temp_root):
+    files = [path for path in output.glob("*.log") if path.name != "evidence-encrypt.log"]
+    files += list((output / "verifier").glob("tests-*.json"))
+    files += list((output / "verifier").glob("tests-*.log"))
+    if (output / "input-read-errors.json").exists():
+        files.append(output / "input-read-errors.json")
+    with tempfile.TemporaryDirectory(prefix="ptk-evidence-", dir=temp_root) as directory:
+        archive = Path(directory).resolve() / "evidence.zip"
+        if not archive.is_relative_to(temp_root):
+            raise ValueError("Evidence temporary directory leaves RUNNER_TEMP")
+        with zipfile.ZipFile(archive, "x", compression=zipfile.ZIP_DEFLATED) as bundle:
+            for path in sorted(files):
+                if path.is_symlink() or not path.resolve().is_relative_to(output):
+                    raise ValueError("Raw evidence leaves its run directory")
+                bundle.write(path, path.relative_to(output).as_posix())
+        sealed = output / "evidence.zip.enc"
+        result = crypt_file(root, "encrypt", archive, sealed, key, output / "evidence-encrypt.log")
+        if result["exit_code"] != 0:
+            raise RuntimeError("Evidence encryption failed")
+    return {"file": sealed.name, "sha256": file_hash(sealed), "raw_file_count": len(files)}
+
+
+def public_summary(suite, reports, outcome, public_ids):
+    """Only IDs from public packets, fixed statuses and numeric timings leave raw evidence."""
+    def number(value):
+        return value if type(value) in (int, float) and math.isfinite(value) and value >= 0 else None
+
+    summaries = []
+    for details in reports:
+        ids = list(dict.fromkeys(name for name in details.get("collected", [])
+                                if isinstance(name, str) and name in public_ids))
+        tests = {name: {"id": name, "status": "not_run"} for name in ids}
+        for row in details.get("test_durations", []):
+            if row.get("id") in tests and number(row.get("seconds")) is not None:
+                tests[row["id"]].update(status="pass", seconds=number(row["seconds"]))
+        counts = {}
+        for field, status in (("skipped", "skip"), ("expected_failures", "expected_failure"),
+                              ("unexpected_successes", "unexpected_success"),
+                              ("failures", "fail"), ("errors", "error")):
+            rows = details.get(field, [])
+            counts[field] = len(rows)
+            for row in rows:
+                label = row.get("id") if isinstance(row, dict) else row
+                if not isinstance(label, str):
+                    continue
+                holder = re.fullmatch(r"(?:setUpClass|tearDownClass|setUpModule|tearDownModule) \(([A-Za-z0-9_.]+)\)", label)
+                for name in ids:
+                    # Subtest labels may embed private values; publish only their parent ID.
+                    if (label == name or label.startswith((name + " (", name + " ["))
+                            or holder and name.startswith(holder[1] + ".")):
+                        tests[name]["status"] = status
+        for name in details.get("retry_ids", []):
+            if name in tests and tests[name]["status"] == "pass":
+                tests[name]["status"] = "unverified"
+        kind = details.get("kind")
+        summaries.append({
+            "kind": kind if kind in ("run", "collection", "discovery_error", "routing_error") else "unknown",
+            "successful": details.get("successful") is True,
+            "tests_run": number(details.get("tests_run")),
+            "collected_count": len(details.get("collected", [])),
+            "undisplayed_test_count": len(details.get("collected", [])) - len(ids),
+            "status_counts": {status: sum(row["status"] == status for row in tests.values())
+                              for status in sorted({row["status"] for row in tests.values()})},
+            "discovery_error_count": len(details.get("discovery_errors", [])),
+            "result_counts": counts,
+            "timing": {name: number(details.get(name)) for name in
+                       ("elapsed_seconds", "discovery_seconds", "suite_seconds")},
+            "tests": list(tests.values()),
+        })
+    return {"schema_version": 1, "suite": suite, "report_count": len(summaries),
+            "verifier_status": outcome["status"], "verifier_exit_code": outcome["exit_code"],
+            "reports": summaries}
+
+
 def self_check():
     def rejects(call):
         try:
@@ -211,14 +331,25 @@ def self_check():
         with zipfile.ZipFile(archive, "w") as bundle:
             bundle.writestr(link, "target")
         rejects(lambda: restore_fixtures(root, archive, manifest, []))
+        for suite, target in SUITES.items():
+            command = verifier_command(root, suite, root)
+            assert command[command.index("--auto") + 1] == target
+            assert command[command.index("--canonical") + 1] == str(root)
+            assert command[command.index("--stage") + 1] == str(root)
+            assert "--cases" not in command and "--mode" not in command
+        rejects(lambda: verifier_command(root, "../outside; echo injected", root))
         failed = run_command(
-            [sys.executable, "-c", "print('raw failure'); raise SystemExit(7)"],
+            [sys.executable, "-c", "from pathlib import Path; import json; "
+             "Path('failed-raw.json').write_text(json.dumps({'successful': False})); "
+             "print('raw failure'); raise SystemExit(7)"],
             root, root / "failed.log",
         )
         assert failed["exit_code"] == 7 and failed["status"] == "fail"
         assert b"raw failure" in (root / "failed.log").read_bytes()
+        assert json.loads((root / "failed-raw.json").read_text()) == {"successful": False}
         passed = run_command(
-            [sys.executable, "-c", "pass"], root, root / "passed.log",
+            [sys.executable, "-c", "import os; assert 'PTK_FIXTURE_KEY' not in os.environ"],
+            root, root / "passed.log",
         )
         assert passed["exit_code"] == 0 and passed["status"] == "pass"
         timed_out = run_command(
@@ -226,26 +357,107 @@ def self_check():
             root, root / "timeout.log", timeout=0.05,
         )
         assert timed_out["exit_code"] == 124 and timed_out["status"] == "timeout"
+        assert b"CI timeout" in (root / "timeout.log").read_bytes()
+        (root / "public.py").write_bytes(b"public code")
+        (root / name).write_bytes(content)
+        before = input_hashes(root, ["public.py", name])
+        for folder in ("stable", "changed"):
+            (root / folder).mkdir()
+        # Generated logs and JSON are deliberately outside the declared inputs.
+        assert input_drift(root, before, root / "stable")["unchanged"]
+        (root / "public.py").write_bytes(b"changed code")
+        (root / name).unlink()
+        drift = input_drift(root, before, root / "changed")
+        assert not drift["unchanged"]
+        assert set(drift["changed_paths"]) == {"public.py", name}
+        assert name in drift["read_errors"]
+        assert (root / "failed.log").read_bytes().count(b"raw failure") == 1
+        assert json.loads((root / "failed-raw.json").read_text()) == {"successful": False}
+        marker = "PRIVATE_SOURCE_AND_LOCALS_SENTINEL"
+        case_ids = ["tools.test_ci_synthetic.Check.test_" + status
+                    for status in ("pass", "fail", "error", "skip", "expected", "unexpected", "pending")]
+        raw = {
+            "kind": "run", "successful": False, "collected": case_ids, "tests_run": 6,
+            "test_durations": [{"id": name, "seconds": 0.1} for name in case_ids[:-1]],
+            "failures": [{"id": case_ids[1] + " (value='" + marker + "')", "traceback": marker}],
+            "errors": [{"id": case_ids[2], "traceback": marker}],
+            "skipped": [{"id": case_ids[3], "reason": marker}],
+            "expected_failures": [case_ids[4]], "unexpected_successes": [case_ids[5]],
+            "discovery_errors": [marker], "elapsed_seconds": 0.8,
+        }
+        summary = public_summary("common_checks", [raw], failed, case_ids)
+        assert marker not in json.dumps(summary)
+        assert [row["status"] for row in summary["reports"][0]["tests"]] == [
+            "pass", "fail", "error", "skip", "expected_failure", "unexpected_success", "not_run"]
+        assert summary["verifier_exit_code"] == 7
+        assert public_summary("common_checks", [], timed_out, case_ids)["verifier_status"] == "timeout"
+        assert marker not in json.dumps(public_summary("common_checks", [
+            {"kind": "routing_error", "successful": False, "workflow": {"reason": marker}}], failed, case_ids))
+        undisclosed = "tools.test_private.Check.test_" + marker
+        assert marker not in json.dumps(public_summary(
+            "common_checks", [{**raw, "collected": [*case_ids, undisclosed]}], failed, case_ids))
+        evidence = root / "evidence"
+        (evidence / "verifier").mkdir(parents=True)
+        write_json(evidence / "summary.json", summary)
+        write_json(evidence / "verifier/tests-synthetic.json", raw)
+        (evidence / "verifier/tests-synthetic.log").write_text(marker, encoding="utf-8")
+        (evidence / "command.log").write_bytes((root / "failed.log").read_bytes() + marker.encode())
+        (evidence / "setup-error.log").write_text(marker, encoding="utf-8")
+        (evidence / "input-read-errors.json").write_bytes((root / "changed/input-read-errors.json").read_bytes())
+        raw_paths = ["verifier/tests-synthetic.json", "verifier/tests-synthetic.log",
+                     "command.log", "setup-error.log", "input-read-errors.json"]
+        raw_hashes = input_hashes(evidence, raw_paths)
+        project = Path(__file__).resolve().parents[1]
+        key = os.urandom(32).hex()
+        assert "PTK_FIXTURE_KEY" not in os.environ
+        sealed = encrypt_evidence(project, evidence, key, root)
+        assert sealed["raw_file_count"] == len(raw_paths)
+        assert sealed["sha256"] == file_hash(evidence / "evidence.zip.enc")
+        assert marker.encode() not in (evidence / "evidence.zip.enc").read_bytes()
+        assert input_hashes(evidence, raw_paths) == raw_hashes
+        assert not list(root.glob("ptk-evidence-*"))
+        recovered = root / "recovered.zip"
+        result = crypt_file(project, "decrypt", evidence / "evidence.zip.enc", recovered,
+                            key, root / "recovered.log")
+        assert result["exit_code"] == 0
+        with zipfile.ZipFile(recovered) as bundle:
+            assert set(bundle.namelist()) == set(raw_paths)
+            for name in raw_paths:
+                assert hashlib.sha256(bundle.read(name)).hexdigest() == raw_hashes[name]
+        assert "PTK_FIXTURE_KEY" not in os.environ
+        rejected = root / "encryption-failure"
+        rejected.mkdir()
+        (rejected / "command.log").write_text(marker, encoding="utf-8")
+        try:
+            encrypt_evidence(project, rejected, "invalid", root)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("Failed evidence encryption was accepted")
+        assert not (rejected / "evidence.zip.enc").exists()
+        assert (rejected / "command.log").read_text(encoding="utf-8") == marker
+        assert not list(root.glob("ptk-evidence-*"))
     print("CI adapter self-check passed; no private inputs or game tests used.")
 
 
 def main():
+    # Keep the key local; only the two Node crypto children receive it.
+    fixture_key = os.environ.pop("PTK_FIXTURE_KEY", None)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--suite", choices=SUITES, default="common_checks")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--self-check", action="store_true")
     args = parser.parse_args()
     if args.self_check:
+        fixture_key = None
         self_check()
         return 0
 
-    # Only the decrypt child receives the secret; native tests never inherit it.
-    fixture_key = os.environ.pop("PTK_FIXTURE_KEY", None)
     root = args.root.resolve()
     output = root / "output" / "ci" / uuid4().hex
     output.mkdir(parents=True, exist_ok=False)
     metadata = {
-        "schema_version": 1,
+        "schema_version": 3,
         "started_at": datetime.now(timezone.utc).isoformat(),
         "suite": args.suite,
         "target": SUITES[args.suite],
@@ -256,60 +468,106 @@ def main():
         "ci": {key: os.environ[key] for key in CI_ENVIRONMENT if key in os.environ},
         "scope": "Public code and authenticated private fixtures; declared suite only. Not canonical publication or clause acceptance evidence.",
         "input_manifest": "input-sha256.json",
+        "input_manifest_after": "input-sha256-after.json",
+        "input_comparison": "input-comparison.json",
+        "native_timeout_seconds": NATIVE_TIMEOUT_SECONDS,
+        "public_summary": "summary.json",
     }
     outcome = {"exit_code": 1, "status": "setup_error"}
+    baseline = None
+    public_ids = set()
+    temp_root = None
     try:
+        metadata["node_version"] = subprocess.check_output(
+            ["node", "--version"], timeout=10, stderr=subprocess.STDOUT).decode("ascii").strip()
+        metadata["git_version"] = git(root, "--version").decode("ascii").strip()
         metadata["git_sha"] = git(root, "rev-parse", "HEAD").decode("ascii").strip()
         metadata["tracked_changes"] = bool(
             git(root, "status", "--porcelain", "--untracked-files=no")
         )
         tracked = [name for name in git(root, "ls-files", "-z").decode("utf-8").split("\0") if name]
         hashes = input_hashes(root, tracked)
-        for required in (SUITES[args.suite], VERIFIER, BUNDLE, MANIFEST, "tools/ci_fixtures.mjs"):
+        for required in (*SUITES.values(), VERIFIER, BUNDLE, MANIFEST, "tools/ci_fixtures.mjs"):
             if required not in hashes:
                 raise ValueError("The suite, fixed verifier, crypto adapter and fixture bundle/manifest must be Git-tracked")
+        # This allowlist controls public display only; the fixed verifier still owns execution.
+        for target in SUITES.values():
+            if target.endswith(".json"):
+                packet = json.loads((root / target).read_text(encoding="utf-8"))
+                public_ids.update(case for row in packet["completed"].values() for case in row["tests"])
         metadata["fixture_bundle_sha256"] = hashes[BUNDLE]
         metadata["fixture_manifest_sha256"] = hashes[MANIFEST]
         manifest = json.loads((root / MANIFEST).read_text(encoding="utf-8"))
         fixture_rows(manifest, tracked)
         if fixture_key is None:
             raise ValueError("PTK_FIXTURE_KEY is required to authenticate the private fixtures")
-        temp_root = Path(os.environ.get("RUNNER_TEMP", tempfile.gettempdir())).resolve()
+        temp_root = Path(os.environ["RUNNER_TEMP"]).resolve()
         with tempfile.TemporaryDirectory(prefix="ptk-fixtures-", dir=temp_root) as directory:
             archive = Path(directory).resolve() / "fixtures.zip"
             if not archive.is_relative_to(temp_root):
                 raise ValueError("Fixture temporary directory leaves the selected runner temp")
-            decrypt_env = {**os.environ, "PTK_FIXTURE_KEY": fixture_key}
-            fixture_key = None
-            restored = run_command(
-                ["node", str(root / "tools/ci_fixtures.mjs"), "decrypt", str(root / BUNDLE), str(archive)],
-                root, output / "fixture-decrypt.log", env=decrypt_env,
-            )
-            decrypt_env.pop("PTK_FIXTURE_KEY")
+            restored = crypt_file(
+                root, "decrypt", root / BUNDLE, archive, fixture_key, output / "fixture-decrypt.log")
             if restored["exit_code"] != 0:
                 raise ValueError("Fixture decryption failed; see fixture-decrypt.log")
             metadata["fixture_archive_sha256"] = file_hash(archive)
             hashes.update(restore_fixtures(root, archive, manifest, tracked))
             metadata["fixture_file_count"] = len(manifest["files"])
         write_json(output / "input-sha256.json", hashes)
-        command = [
-            sys.executable, "-B", "-u", "-X", "utf8", str(root / VERIFIER),
-            "--auto", SUITES[args.suite], "--canonical", str(root),
-            "--stage", str(root), "--record", str(output / "verifier"),
-        ]
-        outcome = run_command(command, root, output / "command.log")
-    except (OSError, ValueError, subprocess.CalledProcessError, zipfile.BadZipFile):
-        (output / "setup-error.log").write_text(traceback.format_exc(), encoding="utf-8")
+        baseline = hashes
+        command = verifier_command(root, args.suite, output)
+        outcome = run_command(
+            command, root, output / "command.log", timeout=NATIVE_TIMEOUT_SECONDS)
+        metadata["verifier_outcome"] = dict(outcome)
+    except Exception as exc:
+        metadata["setup_error_type"] = type(exc).__name__
+        raw_error = traceback.format_exc()
+        if isinstance(exc, subprocess.CalledProcessError) and exc.output:
+            raw_error += "\n" + exc.output.decode("utf-8", errors="replace")
+        (output / "setup-error.log").write_text(raw_error, encoding="utf-8")
     finally:
-        fixture_key = None
+        if baseline is not None:
+            try:
+                comparison = input_drift(root, baseline, output)
+                metadata["inputs_unchanged"] = comparison["unchanged"]
+                if not comparison["unchanged"]:
+                    outcome.update(exit_code=1, status="input_drift")
+            except Exception as exc:
+                (output / "input-check-error.log").write_text(traceback.format_exc(), encoding="utf-8")
+                metadata["input_check_error_type"] = type(exc).__name__
+                metadata["inputs_unchanged"] = False
+                outcome.update(exit_code=1, status="input_check_error")
+        try:
+            reports = [json.loads(path.read_text(encoding="utf-8"))
+                       for path in sorted((output / "verifier").glob("tests-*.json"))]
+            write_json(output / "summary.json", public_summary(
+                args.suite, reports, metadata.get("verifier_outcome", outcome), public_ids))
+        except Exception as exc:
+            (output / "summary-error.log").write_text(traceback.format_exc(), encoding="utf-8")
+            metadata["summary_error_type"] = type(exc).__name__
+            outcome.update(exit_code=1, status="summary_error")
+        try:
+            if fixture_key is not None:
+                temp_root = temp_root or Path(os.environ["RUNNER_TEMP"]).resolve()
+                metadata["encrypted_evidence"] = encrypt_evidence(root, output, fixture_key, temp_root)
+                metadata["evidence_status"] = "encrypted"
+            else:
+                metadata["evidence_status"] = "unavailable_missing_key"
+                outcome.update(exit_code=1, status="setup_error")
+        except Exception as exc:
+            # Keep detailed packaging errors local; only the type is public.
+            (output / "evidence-error.log").write_text(traceback.format_exc(), encoding="utf-8")
+            metadata["evidence_error_type"] = type(exc).__name__
+            metadata["evidence_status"] = "encryption_failed"
+            outcome.update(exit_code=1, status="evidence_error")
+        finally:
+            fixture_key = None
         metadata.update(outcome)
         metadata["finished_at"] = datetime.now(timezone.utc).isoformat()
         write_json(output / "run.json", metadata)
-    print(f"CI {metadata['status']}: suite={args.suite}, evidence={output}")
-    log = output / "command.log"
-    if log.exists():
-        print(log.read_text(encoding="utf-8", errors="replace"))
+    print(f"CI {metadata['status']}: suite={args.suite}, public_summary={output / 'summary.json'}")
     return metadata["exit_code"]
+
 
 
 if __name__ == "__main__":
