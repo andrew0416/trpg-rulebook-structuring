@@ -1454,6 +1454,7 @@ def effectiveness_hook(engine, a, t, move, mm, mult, ctx):
     te = engine.r.mech("combat/type-effectiveness")["multiplier_by_net_steps"]
     step_of = {1.0: 0, 1.5: 1, 2.0: 2, 3.0: 3, 0.5: -1, 0.25: -2, 0.125: -3}
     steps = step_of.get(mult, 0)
+    immune = mult == 0
     changed = False
     import stellar_tera_blast as STELLAR_TERA
     for e in mm.get("effects_exec", []) + a.registry:
@@ -1464,8 +1465,10 @@ def effectiveness_hook(engine, a, t, move, mm, mult, ctx):
         if e.get("if_target_type") and e.get("as_if_attack_type"):
             if e["if_target_type"] in t.types:
                 m2 = engine.type_multiplier(e["as_if_attack_type"], t)[0]
-                steps = max(steps, step_of.get(m2, 0))
-                changed = True
+                if m2:
+                    steps = step_of[m2] if immune else max(steps, step_of[m2])
+                    immune = False
+                    changed = True
         elif e.get("steps"):
             ok = _eval_cond(engine, a, t, e.get("if", ""), ctx) if e.get("if") else True
             if ok is None:
@@ -1519,11 +1522,13 @@ def effectiveness_hook(engine, a, t, move, mm, mult, ctx):
             and not FIELD.suppresses_ground_immunity(engine,t,{"_ability":"부유"})):
         engine.log(f"    {t.name} 부유 특성으로 땅 기술 무효", "ability/부유")
         return 0.0
-    if grounded and move["type"] == "땅" and mult == 0:
+    if grounded and actual_move["type"] == "땅" and mult == 0:
+        immune = False
         steps = 0
         changed = True
         engine.log(f"    {t.name}은(는) 땅에 떨어진 상태 → 땅 기술 무효 아님", "effect/grounding")
-    resolved = te[str(max(-3, min(3, steps)))] if changed else mult
+    # Resistance/weakness steps cannot turn immunity into a damaging matchup.
+    resolved = te[str(max(-3, min(3, steps)))] if changed and not immune else mult
     resolved = STELLAR_TERA.effectiveness(engine,a,t,move,resolved,ctx)
     import optional_physical_equipment as OPTIONAL_EQUIPMENT
     return OPTIONAL_EQUIPMENT.effectiveness(engine, t, move, resolved)

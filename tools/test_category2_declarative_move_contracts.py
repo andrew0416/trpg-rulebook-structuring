@@ -1,4 +1,4 @@
-"""Direct producer/consumer/lifetime checks for ten reviewed Move clauses."""
+"""Direct producer/consumer/lifetime checks for eleven reviewed Move clauses."""
 from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
@@ -30,7 +30,7 @@ IDS = {
     "C2CSV-MOVE-R0069", "C2CSV-MOVE-R0627", "C2CSV-MOVE-R0129",
     "C2CSV-MOVE-R0757", "C2CSV-MOVE-R0517", "C2CSV-MOVE-R0490",
     "C2CSV-MOVE-R0719", "C2CSV-MOVE-R0370", "C2CSV-MOVE-R0554",
-    "C2CSV-MOVE-R0673",
+    "C2CSV-MOVE-R0673", "C2CSV-MOVE-R0223",
 }
 
 
@@ -59,7 +59,15 @@ class DeclarativeMoveContractTests(unittest.TestCase):
                                                 separators=(",", ":")).encode()).hexdigest()
             self.assertEqual(actual, row["source_row_sha256"], source)
             mechanics = self.r.move_mech(source)[0]
-            if row["executor"] == DMC.NATIVE:
+            if source == "move/3연화살":
+                self.assertEqual(mechanics["effects_exec"], [
+                    {"type":"stage_change","stat":"def","delta":-1,"target":"target"},
+                    {"type":"stage_change","stat":"spd","delta":-1,"target":"target"},
+                    {"type":"multi_target_chain","max":3,"shift_between":2,"distinct_targets":True},
+                    DMC.marker(source,row)])
+                self.assertTrue(row["after_all"])
+                self.assertEqual(row["frequency"],{"kind":"daily","uses":1})
+            elif row["executor"] == DMC.NATIVE:
                 self.assertEqual(mechanics["effects_exec"], [DMC.marker(source, row)])
             else:
                 self.assertIsNotNone(ALTERNATE.definition(self.r, source))
@@ -121,7 +129,17 @@ class DeclarativeMoveContractTests(unittest.TestCase):
         self.assertEqual(user.move_uses, before)
         for index, source in enumerate(others):
             e.d20 = lambda: 1
-            e.use_move(user, target, source)
+            if source == "move/할퀴기":
+                from native_scenario_fixture import prepare_body
+                for actor in (user,target):
+                    prepare_body(e,actor,size=actor.spec["size"],offsets=[(0,0)],reason="observed complete Pass body")
+                row=e.use_pass_move(user,source,(3,1),event_id="last-resort/scratch",
+                    object_adjudications={},source="gm/observed-pass",reason="actual Scratch path through the target")
+                self.assertEqual(row["targets"],[["creature",target.entity_id]])
+                self.assertEqual(row["results"][0]["dealt"],0)
+                self.assertEqual(user.pos,(3,1))
+            else:
+                e.use_move(user, target, source)
             e.end_of_turn(user); e.start_of_turn(target, initiative_count=10); e.end_of_turn(target)
             e.start_round([user, target]); e.start_of_turn(user, initiative_count=20)
         e.use_move(user, target, "move/비장의무기")

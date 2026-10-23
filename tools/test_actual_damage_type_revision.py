@@ -20,6 +20,7 @@ import items as ITEMS
 import world_entities as WORLD
 import csv_item_physical_contracts as PHYSICAL
 import test_category2_class_passive_combat_bulk as FLAME_FIXTURE
+import test_equipment_suppression_sources as SUPPRESSION_FIXTURE
 
 
 class ActualDamageTypeRevisionTests(unittest.TestCase):
@@ -27,12 +28,14 @@ class ActualDamageTypeRevisionTests(unittest.TestCase):
     def setUpClass(cls):
         cls.rules=Rules(ROOT,ruleset='homebrew')
         FLAME_FIXTURE.ClassPassiveCombatBulkTests.setUpClass()
+        cls.suppression_rules=SUPPRESSION_FIXTURE.SuppressionTests.selected_rules()
 
-    def world(self,moves,*,types=('노말',),target_types=('노말',),target_moves=('move/몸통박치기',)):
-        e=Engine(self.rules,seed=49214);e.grid=Grid(20,20)
-        a=Combatant(self.rules,build_pokemon(self.rules,'이브이',30,name='Actual producer',
+    def world(self,moves,*,types=('노말',),target_types=('노말',),target_moves=('move/몸통박치기',),rules=None):
+        rules=rules or self.rules
+        e=Engine(rules,seed=49214);e.grid=Grid(20,20)
+        a=Combatant(rules,build_pokemon(rules,'이브이',30,name='Actual producer',
             moves=list(moves),abilities=[],extra={'types':list(types)}))
-        t=Combatant(self.rules,build_pokemon(self.rules,'이상해꽃',60,name='Actual recipient',
+        t=Combatant(rules,build_pokemon(rules,'이상해꽃',60,name='Actual recipient',
             moves=list(target_moves),abilities=[],side='foe',extra={'types':list(target_types)}))
         e.gm.add_combatant(a,pos=(1,1),side='party',reason='observed source-bounded attacker')
         e.gm.add_combatant(t,pos=(2,1),side='foe',reason='observed actual recipient')
@@ -249,10 +252,11 @@ class ActualDamageTypeRevisionTests(unittest.TestCase):
                 if open_encounter:e.begin_encounter(e.everyone)
                 e,a,t=self.restore(e,a,t)
                 self.assertEqual(a.spec[HOME.KEY],receipt)
-                e.end_scene(e.everyone,round_elapsed_seconds=0)
+                self.assertIsNone(e.round_start_seconds)
+                e.end_scene(e.everyone)
                 self.assertFalse(HOME.tera_active(a));self.assertEqual(a.spec[HOME.KEY]['ended_reason'],'scene_end')
                 self.assertEqual(a.spec[HOME.KEY]['episode_id'],receipt['episode_id'])
-                ended=deepcopy(a.spec[HOME.KEY]);e.end_scene(e.everyone,round_elapsed_seconds=0)
+                ended=deepcopy(a.spec[HOME.KEY]);e.end_scene(e.everyone)
                 self.assertEqual(a.spec[HOME.KEY],ended);self.assertEqual(a.spec['tera_type'],'불꽃')
                 self.assertEqual(a.types,['풀']);self.assertTrue(e.validate_state()['valid'])
 
@@ -455,16 +459,60 @@ class ActualDamageTypeRevisionTests(unittest.TestCase):
         uid='move/천둥차기';e,a,t=self.world([uid],target_types=('땅',))
         self.equip_policy(e,t);self.coat(e,a,t,'move/흙놀이')
         e.gm.choose_alternate_move_type(a,uid,'전기',reason='actual source Electric attack')
+        move=e.r.move(uid);mm=e.r.move_mech(uid)[0];before=e.export_state()
+        self.assertEqual(e.type_multiplier('전기',t)[0],0)
+        self.assertEqual(EXT.effectiveness_hook(e,a,t,move,mm,0,{'actual_damage_type':'전기'}),0)
+        self.assertEqual(e.export_state(),before)
         self.assertEqual(self.hit(e,a,t,uid),0)
         self.assertTrue(any(row['source']=='move/흙놀이' for row in COATS.live(t)))
         self.assertNotIn('weakness_policy',t.spec.get(PHYSICAL.PENDING,{}))
         self.assertTrue(e.validate_state()['valid'])
 
+    def test_native_grounding_uses_actual_ground_tera_and_transport_declines_other_immunity(self):
+        import catalog_move_states as CATALOG
+        uid='move/테라버스트-특수'
+        for grounded in (False,True):
+            with self.subTest(grounded=grounded):
+                e,a,t=self.world([uid,'move/떨어뜨리기'],target_types=('비행',))
+                if grounded:
+                    self.hit(e,a,t,'move/떨어뜨리기');self.next_turn(e,a)
+                    self.assertTrue(CATALOG.grounded(t))
+                self.tera(e,a,'땅');printed=deepcopy(e.r.move(uid))
+                damage=self.hit(e,a,t,uid)
+                self.assertEqual(printed['type'],'노말');self.assertEqual(e.r.move(uid),printed)
+                if grounded:self.assertGreater(damage,0)
+                else:self.assertEqual(damage,0)
+                self.assertTrue(e.validate_state()['valid'])
+                if grounded:
+                    e.gm.set_types(t,['땅','비행'],reason='actual distinct immunity on the grounded recipient')
+                    move=e.r.move('move/대지의힘');mm=e.r.move_mech(move['id'])[0]
+                    # Explicit transport-component input, not a claimed Ground-to-Electric book producer.
+                    self.assertEqual(e.type_multiplier('전기',t)[0],0)
+                    self.assertEqual(EXT.effectiveness_hook(e,a,t,move,mm,0,{'actual_damage_type':'전기'}),0)
+
+    def test_explicit_custom_as_if_type_preserves_two_zero_matchups_and_positive_exception(self):
+        from synthetic_rule_fixture import register_synthetic
+        rules=Rules(ROOT,ruleset='core');uid='test/actual-type-as-if-zero'
+        register_synthetic(rules,uid,name='explicit custom as-if matchup component',kind='entity:move')
+        e,a,t=self.world(['move/몸통박치기'],target_types=('땅','비행'),rules=rules)
+        move={'id':uid,'name':'explicit custom as-if matchup component','type':'땅','class':'특수'}
+        for substitutes,expected in ((('전기',),0),(('얼음',),2.0),(('벌레',),.5),
+                                     (('벌레','전기'),.5),(('전기','전기'),0),(('벌레','얼음'),2.0)):
+            with self.subTest(substitutes=substitutes):
+                mm={'effects_exec':[{'type':'type_effectiveness_override',
+                    'if_target_type':'비행','as_if_attack_type':substitute} for substitute in substitutes]}
+                self.assertEqual(e.type_multiplier('땅',t)[0],0)
+                for substitute in substitutes:
+                    self.assertEqual(e.type_multiplier(substitute,t)[0],{'전기':0,'벌레':.5,'얼음':2.0}[substitute])
+                self.assertEqual(EXT.effectiveness_hook(e,a,t,move,mm,0,{'actual_damage_type':'땅'}),expected)
+
     def test_actual_weakness_policy_keeps_item_presence_optional_use_and_encounter_expiry(self):
         import equipment_suppression as SUPPRESSION
         for mode in ('decline','accept','dropped','destroyed','suppressed'):
             with self.subTest(mode=mode):
-                uid='move/타오르는분노';e,a,t=self.world([uid],target_types=('풀',));self.equip_policy(e,t)
+                uid='move/타오르는분노'
+                rules=self.suppression_rules if mode=='suppressed' else self.rules
+                e,a,t=self.world([uid],target_types=('풀',),rules=rules);self.equip_policy(e,t)
                 if mode=='dropped':ITEMS.drop_item(e,t,selection='actual-type/weakness')
                 elif mode=='destroyed':ITEMS.destroy_equipment(e,t,'actual-type/weakness',reason='actual destruction')
                 elif mode=='suppressed':e.gm.set_ability(t,SUPPRESSION.KLUTZ_NAME,reason='actual item-suppressing ability')

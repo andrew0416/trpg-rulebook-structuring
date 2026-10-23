@@ -1,5 +1,6 @@
 """Source exceptions exercised through the current native state consumers."""
 from copy import deepcopy
+from pathlib import Path
 import json,unittest
 from unittest.mock import patch
 from engine import Rules,Engine,Combatant
@@ -21,7 +22,7 @@ class Table18ItemBoundaries(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         FIX.RemainingCsvItemContractTests.setUpClass()
-        cls.polygon=Rules('D:/trpg-rulebook-structuring/ptk-structure-experiment',ruleset='polygon')
+        cls.polygon=Rules(Path(__file__).resolve().parents[1],ruleset='polygon')
     def setUp(self):self.f=FIX.RemainingCsvItemContractTests();self.r=self.f.r
     def roundtrip(self,e):return CODEC.load_engine(e.r,json.loads(json.dumps(CODEC.dump_engine(e))))
 

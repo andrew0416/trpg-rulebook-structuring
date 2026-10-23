@@ -8,6 +8,7 @@ from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+import hashlib
 import json
 import sys
 import unittest
@@ -16,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
 from builder import build_pokemon, build_trainer, species_lookup
 from engine import Combatant, Engine, Rules
+from ruleset import RuleFilter
 import action_points as AP
 import class_passive_combat as CLASS
 import combat_precision_features as PRECISION
@@ -214,28 +216,85 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
                         self.assertIn(CLASS._source_id(b.owner, p, uid), GRANTS.state(p)['sources'])
 
     def test_explicit_csv_class_passive_ids_keep_exact_acquisition_source(self):
-        sources = {uid: CLASS.CLAUSE_BY_RULE[uid] for uid in
-            (CLASS.SPECIES_SAVANT, CLASS.SHINING_FLAME, CLASS.GLACIAL_ICE)}
-        for kind in BOUNDARIES:
-            with self.subTest(boundary=kind):
-                b = self.boundary(kind, {'feats': list(sources.values()),
-                    'class_passive_choices': {CLASS.SPECIES_SAVANT: {'evolution_group': 'accepted-family'}}})
-                if b.target is not None: b.target.spec['evolution_group'] = 'accepted-family'
-                p = b.run(); rows = GRANTS.state(p)['sources']
-                for uid, source in sources.items():
+        records = {CLASS.SPECIES_SAVANT: 7, CLASS.SHINING_FLAME: 253, CLASS.GLACIAL_ICE: 273}
+        digest = hashlib.sha256((ROOT / 'input/db/feats.csv').read_bytes()).hexdigest()
+        for uid, record in records.items():
+            source = f'C2CSV/input/db/feats.csv:R{record}:main'
+            self.assertEqual(self.rules._selected_rule(source), source)
+            selected = self.rules.select_source_definition(source)
+            self.assertEqual(selected['selected_id'], source)
+            self.assertEqual(selected['source']['file'], 'db/feats.csv')
+            self.assertEqual(selected['source']['record_span'], [record, record])
+            self.assertEqual(selected['source']['sha256'], digest)
+            for kind in BOUNDARIES:
+                with self.subTest(source=source, boundary=kind):
+                    ice = uid == CLASS.GLACIAL_ICE and kind != 'artificial'
+                    species = ('아마루스' if kind == 'fossil' else '바닐프티') if ice else None
+                    b = self.boundary(kind, {'feats': [source],
+                        'class_passive_choices': {CLASS.SPECIES_SAVANT: {'evolution_group': 'accepted-family'}}},
+                        species=species)
+                    if uid == CLASS.SPECIES_SAVANT and b.target is not None:
+                        b.target.spec['evolution_group'] = 'accepted-family'
+                    p = b.run(); rows = GRANTS.state(p)['sources']
                     key = CLASS._source_id(b.owner, p, uid)
-                    if uid == CLASS.SPECIES_SAVANT and b.target is None:
+                    species_bonus = uid == CLASS.SPECIES_SAVANT and b.target is not None
+                    if uid == CLASS.SPECIES_SAVANT and not species_bonus:
                         self.assertNotIn(key, rows)  # No authored CSV family label is invented at birth.
                     else:
                         self.assertEqual(rows[key]['acquisition_source'], source)
                         self.assertEqual(rows[key]['clause_id'], source)
-                enemy = self.participant(b.e, species='꼬부기')
-                b.e.apply_status(enemy, '화상', source='condition/화상', applied_by=b.owner)
-                self.assertEqual(CLASS.damage_roll_modifier(b.e, p, enemy, b.e.r.move('move/화염방사'), 1), 4)
+                        self.assertNotIn('native_clause_id', rows[key])
+                        self.assertNotIn('source_variant', rows[key])
+                    self.assertEqual(p.stats, {stat: p.spec['stats'][stat] + int(species_bonus) for stat in STATS})
+                    for other in records:
+                        if other != uid:
+                            self.assertNotIn(CLASS._source_id(b.owner, p, other), rows)
+                    enemy = self.participant(b.e, species='꼬부기')
+                    fire = b.e.r.move('move/화염방사')
+                    b.e.apply_status(enemy, '화상', source='condition/화상', applied_by=b.owner)
+                    self.assertEqual(CLASS.damage_roll_modifier(b.e, p, enemy, fire, 1),
+                        4 if uid == CLASS.SHINING_FLAME else 0)
+                    self.assertEqual(CLASS.damage_reduction(b.e, enemy, p, fire, 2, False), 4 if ice else 0)
+                    before = deepcopy((p.spec[GRANTS.KEY], p.stats, p.modifiers))
+                    PARTY.project_current_owner(b.e, p)
+                    self.assertEqual((p.spec[GRANTS.KEY], p.stats, p.modifiers), before)
+
+    def test_explicit_csv_passive_restore_preserves_source_and_exclusion_is_atomic(self):
+        rules = Rules(ROOT, ruleset='all')
+        fresh = Rules(ROOT, ruleset='all')
+        with patch.object(self, 'rules', rules):
+            for uid in (CLASS.SPECIES_SAVANT, CLASS.SHINING_FLAME, CLASS.GLACIAL_ICE):
+                source = CLASS.CLAUSE_BY_RULE[uid]
+                with self.subTest(source=source):
+                    b = self.boundary('late_join', {'feats': [source],
+                        'class_passive_choices': {CLASS.SPECIES_SAVANT: {'evolution_group': 'accepted-family'}}},
+                        species='바닐프티' if uid == CLASS.GLACIAL_ICE else None)
+                    b.target.spec['evolution_group'] = 'accepted-family'
+                    p = b.run()
+                    loaded = CODEC.load_engine(fresh, json.loads(json.dumps(CODEC.dump_engine(b.e), ensure_ascii=False)))
+                    restored = WORLD.actor_index(loaded)[p.entity_id]
+                    row = GRANTS.state(restored)['sources'][CLASS._source_id(b.owner, restored, uid)]
+                    self.assertEqual(row['acquisition_source'], source)
+                    self.assertEqual(loaded.r.select_source_definition(source)['source']['file'], 'db/feats.csv')
+                    before = CODEC.dump_engine(loaded)
+                    PARTY.project_current_owner(loaded, restored)
+                    self.assertEqual(CODEC.dump_engine(loaded), before)
+                    old = rules.ruleset
+                    try:
+                        profile = deepcopy(old.profile)
+                        profile['exclude_units'] = [*profile.get('exclude_units', []), source]
+                        rules.ruleset = RuleFilter(profile, name=old.name)
+                        rules._apply_ruleset()
+                        NATIVE.assert_rejected_unchanged(b.e, lambda: PARTY.project_current_owner(b.e, p),
+                            reason_pattern='Excluded rule selection')
+                    finally:
+                        rules.ruleset = old
+                        rules._apply_ruleset()
 
     def species_owner(self, e, species):
         f = SPECIES_FIX.BookSpeciesSavantTests(); f.rules = e.r; f.e = e
         owner = f.trainer('native family projection owner'); f.t = owner
+        owner.spec.setdefault('items', {})['몬스터볼'] = 10
         trio = [f.pokemon(species) for _ in range(3)]
         f.acquire(trio, selected=species)
         return owner
@@ -352,10 +411,15 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
 
     def test_failed_capture_and_invalid_thrower_never_install_owner_effects(self):
         for options in ({'fixed_accuracy': 1}, {'fixed_capture': 1}):
-            b = self.boundary('capture', {'classes': [STATIC.ENDURING], 'feats': [SHINE]})
-            self.assertFalse(b.fixture.catch(b.target, trainer=b.owner, **options))
-            self.assertFalse(b.target.captured); self.assertNotIn('trainer_id', b.target.spec)
-            self.assertEqual(b.target.stats, b.target.spec['stats']); self.assertEqual(self.shine(b.e, b.target), 13)
+            with self.subTest(rolls=options):
+                b = self.boundary('capture', {'classes': [STATIC.ENDURING], 'feats': [SHINE]})
+                rolls = {'fixed_accuracy': 20, 'fixed_capture': 20, **options}
+                self.assertFalse(b.e.throw_ball(b.owner, b.target, **rolls))
+                attempts = b.owner.spec['capture_attempts']
+                self.assertEqual(len(attempts), 1)
+                self.assertEqual(next(iter(attempts.values()))['hit'], 'fixed_capture' in options)
+                self.assertFalse(b.target.captured); self.assertNotIn('trainer_id', b.target.spec)
+                self.assertEqual(b.target.stats, b.target.spec['stats']); self.assertEqual(self.shine(b.e, b.target), 13)
         b = self.boundary('capture', {'feats': [SHINE]})
         fake = Combatant(b.e.r, deepcopy(b.owner.spec))
         NATIVE.assert_rejected_unchanged(b.e, lambda: b.fixture.catch(b.target, trainer=fake), reason_pattern='actual registered')
@@ -436,8 +500,14 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
                 self.assertEqual((restored.spec[GRANTS.KEY], restored.stats, restored.modifiers), expected)
                 self.assertEqual(self.shine(loaded, restored), 15)
                 if kind == 'capture':
-                    before = CODEC.dump_engine(b.e); self.assertFalse(b.fixture.catch(p, trainer=b.owner))
-                    self.assertEqual(CODEC.dump_engine(b.e), before)
+                    expected = CODEC.dump_engine(b.e)
+                    engine_node = expected['nodes'][expected['root']['$ref']]
+                    fields = dict(expected['nodes'][engine_node['attrs']['$ref']]['items'])
+                    # A refused recapture emits one diagnostic; every other saved field stays unchanged.
+                    expected['nodes'][fields['log_lines']['$ref']]['items'].append(
+                        f'    {p.name}: 기절했거나 이미 주인이 있어 포획 불가  => [pokemon/capture-rate]')
+                    self.assertFalse(b.fixture.catch(p, trainer=b.owner))
+                    self.assertEqual(CODEC.dump_engine(b.e), expected)
 
     def test_newly_projected_book_species_retraining_and_transfer_remove_only_old_owner(self):
         for kind in ('capture', 'egg'):

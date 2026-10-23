@@ -30,9 +30,10 @@ MID='move/심판의뭉치'
 
 class FistfulActualTypeTests(unittest.TestCase):
     @classmethod
-    def setUpClass(cls):cls.rules=Rules(ROOT,ruleset='core')
+    def setUpClass(cls):cls.rules=Rules(ROOT,ruleset='fantasy')
 
     def world(self,*,brand=True,fistful=True,target_types=('풀','강철'),spa=4,extra_target=False):
+        self.assertEqual(self.rules._selected_rule(CLASS.BURNING_BRAND),CLASS.BURNING_BRAND)
         e=Engine(self.rules,seed=6242087);e.grid=Grid(18,14)
         feats=[RFS.CRYSTAL,'화염인도자']+([RFS.FISTFUL] if fistful else [])+([CLASS.BURNING_BRAND] if brand else [])
         trainer=Combatant(self.rules,{'name':'Acquired Researcher and Firebringer','kind':'trainer','level':30,
@@ -93,6 +94,12 @@ class FistfulActualTypeTests(unittest.TestCase):
         self.assertNotIn(MID,trainer.moves)
         self.assertIsNone(trainer.spec[RFS.KEY]['held_shard']);self.assertIsNone(trainer.spec[RFS.KEY]['fistful'])
         self.assertFalse(any(sid.startswith('researcher-fistful:') for sid in trainer.spec.get(GRANTS.KEY,{}).get('sources',{})))
+
+    def test_core_profile_still_excludes_fantasy_burning_brand(self):
+        from ruleset import ExcludedRuleSelection
+        core=Rules(ROOT,ruleset="core")
+        with self.assertRaisesRegex(ExcludedRuleSelection,"source:fantasy"):
+            core._selected_rule(CLASS.BURNING_BRAND)
 
     def test_source_fistful_fire_18_19_and_absent_brand_use_actual_hit_and_native_costs(self):
         for face,brand,burns in ((18,True,False),(19,True,True),(19,False,False)):

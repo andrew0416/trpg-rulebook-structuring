@@ -140,7 +140,12 @@ class NativeMoveBatchTests(unittest.TestCase):
         before=self.t.hp
         self.e.use_move_on(self.p,self.t,'move/메탈버스트',self.e.everyone)
         self.assertEqual(before-self.t.hp,amount)
-        self.assertEqual(HISTORY.records(self.t),[])
+        received=HISTORY.records(self.t)
+        self.assertEqual(len(received),1)
+        self.assertEqual(received[0]['application_kind'],'hp_loss')
+        self.assertEqual(received[0]['receipt']['source'],'move/메탈버스트')
+        self.assertEqual(received[0]['move_type'],'강철')
+        self.assertEqual(HISTORY.amount(received[0]),amount)
         self.assertEqual(self.e.effect_stats['held'],0)
         self.assertTrue(self.restore().validate_state()['valid'])
         self.turn(self.t,new_round=True)

@@ -1,7 +1,7 @@
 {
   "canonical_completed": 1503,
   "fixture_files": 301,
-  "fixture_zip_sha256": "7354390d1ebcc32b29a308467401071475b768d9e49da55d62d4e8c568584d0d",
+  "fixture_zip_sha256": "95e78ac9000f95bf58e908811f0242fb5453110df36e4191631181b2f4da3997",
   "scope": "Canonical1503 plus published first550 revisions and source-contract candidate union; no new clause credit.",
   "revision_groups": [
     "move_revisions",
@@ -13,7 +13,7 @@
   "baseline_public_source_files": 1370,
   "baseline_source_files": 1667,
   "completion_credit": 0,
-  "next_revision_required_tests": 465,
+  "next_revision_required_tests": 480,
   "previous_verified_code_commit": "32fc1d5304c52e80eac771e200fe83b05166752b",
   "previous_verified_run": 39901513033
 }

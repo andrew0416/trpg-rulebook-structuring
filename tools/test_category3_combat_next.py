@@ -162,7 +162,8 @@ class CombatTests(unittest.TestCase):
         self.assertEqual(before,self.e.rng.getstate())
     def test_damage_chart_exact_all_28_rows_and_both_execution_modes(self):
         text=(ROOT/'input/ch07-combat.md').read_text(encoding='utf-8').splitlines()
-        chart=self.r.mech('combat/damage-chart')['by_damage_base'];self.t.stats['def']=0
+        chart=self.r.mech('combat/damage-chart')['by_damage_base'];self.t.stats['def']=1
+        self.assertEqual(self.t.staged('def'),1)  # ch05:54 minimum; the table remains exact.
         seen=set()
         for line in text[335:349]:
             cells=[v.strip().replace('**','') for v in line.strip('|').split('|')]
@@ -173,10 +174,10 @@ class CombatTests(unittest.TestCase):
                 self.assertEqual(chart[str(db)],{'dice':cells[vi],'set':{'low':low,'mid':mid,'high':high}})
                 n,faces,bonus=map(int,re.fullmatch(r'(\d+)d(\d+)\+(\d+)',cells[vi]).groups())
                 mv=self.move(db)
-                self.assertEqual(self.e.roll_damage(self.a,self.t,mv,set_damage=True),mid+20)
-                self.assertEqual(self.e.roll_damage(self.a,self.t,mv,fixed_dice=[1]*n),low+20)
-                self.assertEqual(self.e.roll_damage(self.a,self.t,mv,fixed_dice=[faces]*n),high+20)
-                self.assertEqual(self.e.roll_damage(self.a,self.t,mv,crit=True,set_damage=True),2*mid+20)
+                self.assertEqual(self.e.roll_damage(self.a,self.t,mv,set_damage=True),mid+20-1)
+                self.assertEqual(self.e.roll_damage(self.a,self.t,mv,fixed_dice=[1]*n),low+20-1)
+                self.assertEqual(self.e.roll_damage(self.a,self.t,mv,fixed_dice=[faces]*n),high+20-1)
+                self.assertEqual(self.e.roll_damage(self.a,self.t,mv,crit=True,set_damage=True),2*mid+20-1)
         self.assertEqual(seen,set(range(1,29)))
     def test_fixed_damage_dice_validate_count_faces_and_critical_count(self):
         mv=self.move(6)

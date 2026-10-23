@@ -173,8 +173,8 @@
     },
     {
       "path": "data/content-source-identities.json",
-      "sha256": "e5c0f8aab99ce2dba19542840af69e1d4d2dea013ae9b40b440c84edaa093007",
-      "size": 56249
+      "sha256": "02810560a298bad506158dbbe10de8637c998b0107f6fb332237e560fb395674",
+      "size": 57356
     },
     {
       "path": "data/contest-rules.json",

@@ -325,6 +325,9 @@ def validate_world(e,index):
     for target in index.values():
         for timed in CLOCK.records(target):
             if timed['source'] not in (MENACE,DISPLAY):continue
+            # Flinch's Vulnerable child belongs to condition_instances, which
+            # validates its exact envelope and canonical parent in WORLD.
+            if 'flinch_parent_id' in timed:continue
             origin=timed.get('roughneck_origin',{})
             producer=e._effect_dispatch_receipts.get(timed.get('effect_receipt'))
             if not producer or producer.get('roughneck_timed')!={k:timed[k] for k in producer.get('roughneck_timed',{})}:

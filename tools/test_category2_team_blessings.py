@@ -85,7 +85,7 @@ class TeamBlessingTests(unittest.TestCase):
   self.answer(True);self.attack(self.a);self.assertEqual(B.remaining(r),1);self.valid()
  def test_native_side_exchange_preserves_storage_identity_and_spent_count(self):
   r=self.cast();self.answer(True);self.attack(self.p);uid=r['id'];self.begin(self.other)
-  self.e.use_move(self.other,self.a,'move/코트체인지')
+  self.e.use_move(self.other,self.other,'move/코트체인지')
   self.assertIs(B.live(self.a)[0],r);self.assertEqual(r['id'],uid);self.assertEqual(B.side(r),'wild');self.assertEqual(B.remaining(r),1)
   self.attack(self.p);self.assertEqual(B.remaining(r),1)
   self.known(self.a,'물대포');self.begin(self.a)
@@ -128,8 +128,22 @@ class TeamBlessingTests(unittest.TestCase):
   self.assertEqual({x['target_id'] for x in closed['decisions']},{self.a.entity_id,self.p.entity_id})
   self.assertEqual(self.other.move_uses['move/거품'],1);self.assertEqual(B.remaining(closed),0);self.valid()
  def test_zero_damage_from_actual_false_swipe_floor_does_not_spend(self):
-  r=self.cast('리플렉터');self.answer(True);self.known(self.other,'칼등치기');self.p.hp=1
-  self.assertEqual(self.attack(name='칼등치기'),0);self.assertEqual(self.p.hp,1)
+  r=self.cast('리플렉터');self.answer(True);self.known(self.other,'칼등치기')
+  from grid import Grid
+  from native_scenario_fixture import prepare_body
+  self.e.grid=Grid(8,8)
+  import items as ITEMS
+  self.assertTrue(ITEMS.drop_item(self.e,self.p,selection='berry')['changed'])
+  self.assertEqual(tuple(self.e._physical_objects['berry']['location']['cell']),(0,0))
+  for actor,pos in ((self.a,(6,6)),(self.other,(1,1)),(self.p,(2,1))):
+   self.e.gm.set_position(actor,pos,reason='observed actual Pass path')
+   prepare_body(self.e,actor,size=actor.spec['size'],offsets=[(0,0)],reason='observed complete Pass body')
+  self.e.gm.set_hp(self.p,value=1,reason='actual False Swipe floor recipient');self.begin(self.other)
+  with patch.object(type(self.e),'d20',return_value=18):
+   row=self.e.use_pass_move(self.other,'move/칼등치기',(3,1),event_id='blessing/false-swipe',
+    object_adjudications={},source='gm/observed-pass',reason='actual False Swipe path through the recipient')
+  self.assertEqual(row['targets'],[['creature',self.p.entity_id]])
+  self.assertEqual(row['results'][0]['dealt'],0);self.assertEqual(self.p.hp,1)
   self.assertEqual(B.remaining(r),2);self.assertFalse(r['decisions']);self.valid()
  def test_corrupt_capacity_history_scope_and_damage_observation_reject(self):
   for corruption in ['capacity','lifetime','target','damage','scope','duplicate']:
