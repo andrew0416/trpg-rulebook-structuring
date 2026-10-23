@@ -386,7 +386,7 @@ def prepare_gambit(engine,attacker,target,move):
         raise ValueError('explicit Deadly Gambit counter and effect-roll choices required')
     counter=choice['move']
     options=choice.get('options',{})
-    if type(options) is not dict or set(options)-{'weapon_id','struggle_choice','appendage_id','origin_part','set_damage'}:
+    if type(options) is not dict or set(options)-{'weapon_id','struggle_choice','appendage_id','origin_part','set_damage','versatile_stat'}:
         raise ValueError('native Deadly Gambit attack options required')
     if counter is not None:
         import move_state as MOVES
@@ -394,6 +394,8 @@ def prepare_gambit(engine,attacker,target,move):
         import struggle_capabilities as STRUGGLE
         prepared=WEAPONS.prepare(engine,target,engine.r.move(counter),options.get('weapon_id'))
         prepared=STRUGGLE.prepare(engine,target,prepared,options.get('struggle_choice'))
+        import effects_ext as EXT
+        prepared=EXT.prepare_versatile_move(engine,prepared,options.get('versatile_stat'))
         if prepared['class'] not in ('물리','특수') or (counter!='struggle' and WEAPONS.range_spec(engine,prepared,target).get('targets')!=1):
             raise ValueError('Deadly Gambit requires a damaging 1 Target counterattack')
         allowed,reason=F.move_allowed(engine,target,counter,outside_combat=False)
@@ -446,7 +448,7 @@ def critical_damage(engine,attacker,target,move,critical):
     return not RESILIENCE.prevent(engine,target,critical=True,source=move['id'],attacker=attacker)
 
 
-def apply_gambit_damage(engine,attacker,target,move,damage,context,before):
+def apply_gambit_damage(engine,attacker,target,move,damage,context,before,*,actual_damage_type=None):
     """Two pre-damage calculations, then both native HP applications before sync.
 
     The counter retains its actual Move activation and completion. Its damage
@@ -462,11 +464,11 @@ def apply_gambit_damage(engine,attacker,target,move,damage,context,before):
         row['batch']=True
         try:
             HEAVY.apply_attack_damage(engine,incoming['attacker'],incoming['target'],incoming['damage'],incoming['move'],
-                producer=HEAVY.Producer.RESOLVED_HIT,remainder='paired hit native continuations remain',native_context=incoming['context'])
+                producer=HEAVY.Producer.RESOLVED_HIT,remainder='paired hit native continuations remain',native_context=incoming['context'],actual_damage_type=incoming['actual_damage_type'])
             row['incoming_receipt']=DAMAGE.application(requested=incoming['damage'],before=incoming['before'],
                 after=DAMAGE.observe(incoming['target']),source=incoming['move']['id'],damage_class=incoming['move']['class'])
             HEAVY.apply_attack_damage(engine,attacker,target,damage,move,producer=HEAVY.Producer.RESOLVED_HIT,
-                remainder='paired hit native continuations remain',native_context=context)
+                remainder='paired hit native continuations remain',native_context=context,actual_damage_type=actual_damage_type)
             counter_receipt=DAMAGE.application(requested=damage,before=before,after=DAMAGE.observe(target),
                 source=move['id'],damage_class=move['class'])
         finally:
@@ -478,7 +480,7 @@ def apply_gambit_damage(engine,attacker,target,move,damage,context,before):
         row['applied']=True
         return counter_receipt
     if row['counter_id'] is None:return None
-    row['prepared']={'attacker':attacker,'target':target,'move':move,'damage':damage,'context':context,'before':before}
+    row['prepared']={'attacker':attacker,'target':target,'move':move,'damage':damage,'context':context,'before':before,'actual_damage_type':actual_damage_type}
     row['phase']='counter'
     with ACTION.move_grant(engine,target,attacker,row['counter_id'],source=GAMBIT,kind='free') as grant:
         engine.use_move(target,attacker,row['counter_id'],count_use=True,free_action=True,_action_grant=grant,**row['counter_options'])

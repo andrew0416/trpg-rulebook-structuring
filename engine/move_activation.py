@@ -291,7 +291,7 @@ def require_empty_field_scope(e,actor,move_id,token):
  return scope
 
 
-def activate_empty_area(e,actor,move,mm,*,weapon_id=None,struggle_choice=None,aim=None,appendage_id=None,set_damage=False):
+def activate_empty_area(e,actor,move,mm,*,weapon_id=None,struggle_choice=None,aim=None,appendage_id=None,set_damage=False,versatile_stat=None):
  """Atomically execute one mapped area Move that has no creature targets."""
  import area_targets as AREA
  import state_grants as G
@@ -309,7 +309,7 @@ def activate_empty_area(e,actor,move,mm,*,weapon_id=None,struggle_choice=None,ai
    with open_empty_field_scope(staged,staged_actor,move_id,cells,effect_declaration,move=move) as token:
     return staged.use_move(staged_actor,staged_actor,move_id,
        _field_activation=token,weapon_id=weapon_id,
-        struggle_choice=struggle_choice,aim=aim,appendage_id=appendage_id,set_damage=set_damage)
+        struggle_choice=struggle_choice,aim=aim,appendage_id=appendage_id,set_damage=set_damage,versatile_stat=versatile_stat)
   except Exception as error:
    # A HeavyPending is a committed activation prefix, as on the ordinary
    # targeted path. Return a plain marker so the atomic graph can publish its

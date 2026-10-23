@@ -424,7 +424,7 @@ def fistful_of_force(engine,trainer,target,everyone,*,move_type,aim=None,set_dam
  if held is None:raise ValueError('Fistful of Force requires a shard in the main or off hand')
  if move_type not in _shard_types(engine,held['color']):raise ValueError('Judgement type must be one of the held shard colour types')
  if not engine.encounter_active:raise ValueError('Fistful of Force is a Standard attack in an active encounter')
- mid=d['move']
+ mid=d['move'];pending=[]
  def apply(e,t,*others):
   if not F.activation_allowed(t,FISTFUL,d['frequency'],engine=e):raise ValueError('Fistful of Force was already used this scene')
   allowed,reason=F.move_allowed(e,t,mid,outside_combat=False)
@@ -437,20 +437,40 @@ def fistful_of_force(engine,trainer,target,everyone,*,move_type,aim=None,set_dam
   try:
    primary=others[0] if others else t
    result=e.use_move_on(t,primary,mid,list(e.everyone),aim=aim,set_damage=set_damage)
+  except Exception as error:
+   import passive_events as PASSIVE,heavy_injury_adapter as HEAVY
+   if (type(error) is PASSIVE.PassiveEventPending and e._passive_pending==error.event_id
+       and error.event_id in e._passive_events):pending.append((PASSIVE.PassiveEventPending,error.event_id))
+   elif (type(error) is HEAVY.HeavyPending and e._heavy_pending==error.event_id
+         and error.event_id in e._heavy_events):pending.append((HEAVY.HeavyPending,error.event_id))
+   else:raise
+   result=None
   finally:
    s['fistful']=None;G.revoke(t,sid,engine=e)
   e.log('  '+t.name+': 한줌의 힘 - '+held['color']+' 조각 파괴, 심판의뭉치('+move_type+')',SOURCE)
   return {'result':result,'type':move_type,'shard':held,'attack_bonus':_rank(e,t,'오컬트학')*3}
- return G.transition(engine,trainer,apply,participants=(target,) if target is not trainer else (),include_rulings=True,include_grid=engine.grid is not None)
+ result=G.transition(engine,trainer,apply,participants=(target,) if target is not trainer else (),include_rulings=True,include_grid=engine.grid is not None)
+ if pending:
+  exception,event_id=pending[0]
+  raise exception(event_id)
+ return result
 
 
-def prepare_move(engine,attacker,move):
- """use_move_on: Judgement declared through Fistful of Force takes the chosen shard type and its attack substitute."""
+def prepare_move(engine,attacker,move,*,target=None):
+ """Keep the paid Fistful selection on each native recipient and resumed Move."""
  if attacker.kind!='trainer' or not isinstance(move,dict):return move
  st=attacker.spec.get(KEY)
  pending=None if st is None else st.get('fistful')
- if pending is None or move.get('id')!=pending['move']:return move
- return dict(move,type=pending['type'],_researcher_fistful={'attack_value':pending['occult_rank']*3,'type':pending['type'],'source':pending['source']})
+ if pending is not None and move.get('id')==pending['move']:
+  marker={'attack_value':pending['occult_rank']*3,'type':pending['type'],'source':pending['source']}
+ else:
+  import move_activation as ACTIVATION
+  scope=ACTIVATION.current_scope(engine,attacker,target,move.get('id'))
+  row=None if scope is None else getattr(engine,'_move_completions',{}).get(scope.get('completion_id'))
+  if row is None or row['actor'] is not attacker or row['move_id']!=move.get('id'):return move
+  marker=row['move'].get('_researcher_fistful')
+  if marker is None:return move
+ return dict(move,type=marker['type'],_researcher_fistful=deepcopy(marker))
 
 
 def attack_stat_value(engine,attacker,move,value):

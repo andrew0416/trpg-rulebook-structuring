@@ -73,8 +73,8 @@ def dirty_trick(engine,actor,target,trick,*,fixed_accuracy=None,challenger_optio
     def accuracy():
         import precise_actions as PRECISE
         event=PRECISE.attacked(engine,actor,target,move,producer='combat_maneuver')
-        hit,_,_=engine.accuracy_check(actor,target,move,fixed_roll=fixed_accuracy)
-        PRECISE.accuracy(event,hit)
+        hit,natural,_=engine.accuracy_check(actor,target,move,fixed_roll=fixed_accuracy)
+        PRECISE.accuracy(event,hit,natural=natural)
         return hit
     return SM.run(engine,actor,prepared,attack=move,spend=spend,
         aoo=lambda:TURN.trigger_aoo(engine,actor,'치사한 짓',[x for x in TURN.adjacent_enemies(engine,actor) if x is not target]),
@@ -168,8 +168,8 @@ def manipulate(engine,actor,target,kind,*,defender_skill,fixed_accuracy=None,cha
         import precise_actions as PRECISE
         event=PRECISE.attacked(engine,actor,target,move,producer='combat_maneuver')
         if event is not None:event['manipulation']=kind
-        hit,_,_=engine.accuracy_check(actor,target,move,fixed_roll=fixed_accuracy)
-        PRECISE.accuracy(event,hit)
+        hit,natural,_=engine.accuracy_check(actor,target,move,fixed_roll=fixed_accuracy)
+        PRECISE.accuracy(event,hit,natural=natural)
         return hit
     def outcome(won):
         result=_manipulate_outcome(engine,actor,target,kind,status,count) if won else False

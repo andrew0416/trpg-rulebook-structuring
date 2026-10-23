@@ -158,13 +158,19 @@ def _punch(e,a,move):
  return A.active(a,'ability/철주먹') and move.get('id') in E._punch_moves(e.r)
 
 
+def _retain_tag_hit(a,t):
+ """Any real hit retains the tag; only Iron Fist Moves create or increase it."""
+ tag=a.spec.get(TAG)
+ if tag and t.entity_id==tag['target_id'] and t.side!=a.side:
+  tag['hit_turn']=a.custom_conditions.get('combat_turn_serial',0);_seal_tag(tag)
+
+
 def after_move(e,row):
  """One actual completed Move, so Double Strike/Five Strike cannot double-credit."""
  import move_completion as MC
  a=row['actor'];tag=a.spec.get(TAG)
  hits=[t for t in MC.actual_recipients(row) if MC.recipient_result(row,t).get('hit') and not MC.recipient_result(row,t).get('cancelled') and t.side!=a.side]
- if tag and any(t.entity_id==tag['target_id'] for t in hits):
-  tag['hit_turn']=a.custom_conditions.get('combat_turn_serial',0);_seal_tag(tag)
+ for t in hits:_retain_tag_hit(a,t)
  if style(a)!='pummeling_momentum':return
  import skill_modifiers as S,action_points as AP
  choice=a.spec.get(ARMED,{}).get('pummeling_momentum')

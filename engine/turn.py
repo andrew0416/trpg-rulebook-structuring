@@ -621,8 +621,8 @@ def disarm(engine, actor, target, *, attacker_skill, defender_skill, item_name=N
     def accuracy():
         import precise_actions as PRECISE
         event=PRECISE.attacked(engine,actor,target,move,producer='combat_maneuver')
-        hit,_,_=engine.accuracy_check(actor,target,move,fixed_roll=fixed_accuracy)
-        PRECISE.accuracy(event,hit)
+        hit,natural,_=engine.accuracy_check(actor,target,move,fixed_roll=fixed_accuracy)
+        PRECISE.accuracy(event,hit,natural=natural)
         if not hit:__import__('martial_artist').maneuver_failed(engine,actor,target,source,opposed=False)
         return hit
     def outcome(won):

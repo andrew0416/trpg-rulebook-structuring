@@ -104,8 +104,9 @@ def completed_attack_event(e,actor,attack):
  """Read the existing actual accuracy hit in SM.run's completed native maneuver tail."""
  frame=getattr(e,'_native_action_stack',[])
  if not frame or frame[-1]['actor'] is not actor or frame[-1]['source']!=attack['id'] or frame[-1]['kind']!='maneuver':return None
- event=next((row for row in reversed(e._precision_events) if row['kind']=='attack' and row.get('actor') is actor
-             and row['source']==attack['id'] and row.get('producer')=='combat_maneuver'),None)
+ event=next((row for row in e._precision_events if row['id']==frame[-1].get('precision_event_id')
+             and row['kind']=='attack' and row.get('actor') is actor and row['source']==attack['id']
+             and row.get('producer')=='combat_maneuver'),None)
  return event if event is not None and event['round']==e.round_no and event['result']=='accuracy_hit' else None
 
 
@@ -118,11 +119,22 @@ def run(e,actor,prepared,*,spend,aoo,can_continue,accuracy,outcome,opposed=None,
   identity=CONFUSION.observe_action(e,actor,attack)
   if prepared is not None and identity is not None:
    actor.custom_conditions[RECEIPTS][prepared['key']]['confusion_action']=identity
-  return accuracy()
+  hit=accuracy()
+  if prepared is not None:
+   actor.custom_conditions[RECEIPTS][prepared['key']]['precision_event_id']=e._native_action_stack[-1].get('precision_event_id')
+  return hit
  options['accuracy']=observed_accuracy
  with ACTION.resolution(e,actor,attack['id'],kind='maneuver') as frame:
+  if prepared is not None and prepared['record'] is not None:
+   frame['precision_event_id']=prepared['record'].get('precision_event_id')
   result=_run(e,actor,prepared,**options)
   if not isinstance(result,C.PendingDecision) and (prepared is None or actor.custom_conditions[RECEIPTS][prepared['key']]['stage']=='closed'):
+   event=completed_attack_event(e,actor,attack)
+   if event is not None:
+    # Accuracy hit is independent of the opposed effect. Consume existing ranges
+    # before Roughneck can install Menace from this very Terrorize.
+    __import__('combat_modifiers').incoming_status_hit(e,actor,event['target'],attack,{},event.get('natural'))
+    __import__('martial_artist')._retain_tag_hit(actor,event['target'])
    pending=__import__('roughneck').after_maneuver(e,actor,attack)
    if isinstance(pending,C.PendingDecision):result=pending
   if prepared is not None:

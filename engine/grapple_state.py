@@ -406,6 +406,8 @@ def action(e,actor,kind,*,challenger_skill=None,defender_skill=None,challenger_o
                 # An actual atomic damage delivery can replace relation dictionaries.
                 current=_state(staged)['relations'][uid]
                 if not observation.get('hit_prevented'):
+                    # Automatic Struggle has a hit, but no natural face or Iron Fist Move activation.
+                    __import__('martial_artist')._retain_tag_hit(a,b)
                     result['roughneck']=__import__('roughneck').attack_hit(staged,a,b,origin={'kind':'grapple','relation_id':uid,'history_index':len(current['history']),'event_id':event['id']})
                 if gleeful is not None and not observation.get('hit_prevented'):
                     origin={'kind':'grapple','relation_id':uid,'history_index':len(current['history'])}

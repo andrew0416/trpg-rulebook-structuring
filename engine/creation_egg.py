@@ -279,6 +279,7 @@ def commit_birth(engine,owner,egg,pokemon,selected,*,reason,placement):
     PARTY.finish_hatch(engine,owner,pokemon,placement,egg)
     engine.gm.everyone.append(pokemon)
     if engine.everyone is not engine.gm.everyone:engine.everyone.append(pokemon)
+    PARTY.project_current_owner(engine,pokemon)
     import marsupial_state as MARSUPIAL
     MARSUPIAL.finish_birth_placement(engine)
     lineage(engine,pokemon)

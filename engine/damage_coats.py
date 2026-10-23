@@ -39,7 +39,7 @@ def steps(engine,actor,move):
                if r['effect'].get('kind')=='damage_coat' and r['effect']['match_type']==move['type'])
 
 
-def after_damage(engine,attacker,target,move,receipt):
+def after_damage(engine,attacker,target,move,receipt, *, type_multiplier=None):
     import coat_effects as COATS
     absorbed=receipt['net_hp_loss']+receipt['net_temporary_hp_loss']
     actual_hit=(receipt.get('observation_boundary')=='native_attack_application_including_its_hooks'
@@ -59,6 +59,6 @@ def after_damage(engine,attacker,target,move,receipt):
         target.coats.remove(row)
         engine.log('    '+target.name+': typed damage consumed Coat '+row['id'],row['source'])
     import equipment_variant_contracts as EQUIPMENT_VARIANTS
-    EQUIPMENT_VARIANTS.after_attack_damage(engine,attacker,target,move,receipt)
+    EQUIPMENT_VARIANTS.after_attack_damage(engine,attacker,target,move,receipt,type_multiplier=type_multiplier)
     import held_item_reactions as HELD_REACTIONS
     HELD_REACTIONS.after_hit(engine,attacker,target,move,absorbed)

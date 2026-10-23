@@ -310,7 +310,7 @@ def condition(engine,effect,ctx,*,source=None):
  nat=ctx.get('nat')
  if 'on_natural_roll_min' in effect:
   import combat_precision_features as CPF
-  face=CPF.effect_natural(engine,ctx['attacker'],ctx.get('move'),nat)
+  face=CPF.effect_natural(engine,ctx['attacker'],ctx.get('move'),nat,actual_damage_type=ctx.get('actual_damage_type'))
   checks.append(ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual natural accuracy observation') if face is None else known(face>=__import__('combat_modifiers').incoming_status_threshold(ctx['target'],effect.get('status'),effect['on_natural_roll_min'])))
  if effect.get('on_natural_roll')=='even':checks.append(ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual natural accuracy observation') if nat is None else known(nat%2==0))
  if effect.get('if_weather'):checks.append(known(FX.weather_matches(engine,effect['if_weather'],ctx.get('attacker'))))

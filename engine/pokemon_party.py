@@ -122,6 +122,21 @@ def preflight_capture(e,trainer,target,*,acquisition='capture'):
   plan['first_species']=GROWTH.prepare_first_owned_species(e,trainer,target.spec['species'],producer=acquisition)
  return plan
 
+def project_current_owner(e,pokemon):
+ """Project acquired continuous owner effects after actual world registration."""
+ WORLD.require_actors(e,pokemon)
+ import class_passive_combat as CLASS_PASSIVE
+ owner=CLASS_PASSIVE._owner(e,pokemon)
+ import move_state as MOVES
+ MOVES.project_owner_slot_features(owner,(pokemon,))
+ CLASS_PASSIVE.register_all(e,pokemon)
+ import static_trainer_modifiers as STATIC_MODIFIERS
+ STATIC_MODIFIERS.register_all(e,owner,(pokemon,))
+ import items as ITEMS
+ ITEMS.project_owned_pokemon_features(e,owner,(pokemon,))
+ MOVES.validate_actor(pokemon)
+
+
 def _finish_acquisition(e,trainer,target,plan):
  _source(e)
  owner=trainer.spec.get('id');uid=target.spec.get('id')
@@ -138,13 +153,14 @@ def _finish_acquisition(e,trainer,target,plan):
   pokemon.spec['party_location']=dict(row,pokemon_id=uid)
   if row['location']!='carried':pokemon.on_field=False
   if owner:pokemon.spec['trainer_id']=owner
-  if owner:
+  if owner and plan.get('source')=='hatch':
    import move_state as MOVES
    MOVES.project_owner_slot_features(actor,(pokemon,))
    MOVES.validate_actor(pokemon)
   if owner and uid:
    actor.spec.setdefault('pokemon_registry',{})[uid]=row
    actor.spec['pokemon_registry_revision']=actor.spec.get('pokemon_registry_revision',0)+1
+  if owner and plan.get('source')!='hatch':project_current_owner(staged,pokemon)
   import special_entities as SPECIAL
   SPECIAL.sync_prime_placements(staged)
   import marsupial_state as MARSUPIAL

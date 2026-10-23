@@ -126,10 +126,10 @@ def on_faint(c):
  row=c.spec.get(KEY)
  if row is not None and row.get('active') and c.fainted:end_active(c,reason='fainted')
 
-def end_encounter(e):
+def end_scene(e):
  for c in W.actors(e):
   row=c.spec.get(KEY)
-  if row is not None and row.get('active'):end_active(c,reason='encounter_end')
+  if row is not None and row.get('active'):end_active(c,reason='scene_end')
 
 def preflight(e):
  for c in W.actors(e):validate(c)

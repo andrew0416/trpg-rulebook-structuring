@@ -259,7 +259,7 @@ def effect_range_bonus(attacker, move):
     return COMBAT_MODS.effect_range_bonus(attacker, move)
 
 
-def effect_natural(engine, attacker, move, natural):
+def effect_natural(engine, attacker, move, natural, *, actual_damage_type=None):
     # Only threshold comparisons change. Natural-one misses, critical ranges and
     # even/odd effects continue to consume the actual rolled face.
     if natural is None:
@@ -275,7 +275,7 @@ def effect_natural(engine, attacker, move, natural):
     return (natural + accuracy_bonus(engine, attacker, move)
             + (TRAINING.bonus(attacker, "effect") if move else 0)
             + effect_range_bonus(attacker, move)
-            + CLASS_PASSIVE.effect_range_bonus(engine,attacker,move,mechanics)
+            + CLASS_PASSIVE.effect_range_bonus(engine,attacker,move,mechanics,actual_damage_type=actual_damage_type)
             + __import__('type_ace').effect_range(engine,attacker,move)
             + __import__('martial_artist').effect_range(engine,attacker,move)
             + FRAMEWORK.effect_range_bonus(engine,attacker,move)

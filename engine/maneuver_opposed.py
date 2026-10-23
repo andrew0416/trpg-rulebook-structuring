@@ -80,7 +80,7 @@ def _run(e,a,t,source,ac,plans,prepared,outcome,fixed_accuracy,_grant=None,*,con
         if permission['accuracy']=='automatic':hit,nat=True,None
         else:hit,nat,_=e.accuracy_check(a,t,move,situational=_accuracy_bonus,fixed_roll=fixed_accuracy)
         if context is not None:context.update(hit=hit,nat=nat)
-        PRECISE.accuracy(event,hit)
+        PRECISE.accuracy(event,hit,natural=nat)
         if hit:__import__('type_ace').maneuver_hit(e,a,t,source)
         else:__import__('martial_artist').maneuver_failed(e,a,t,source,opposed=False)
         return hit

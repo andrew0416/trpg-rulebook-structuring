@@ -393,13 +393,13 @@ def _actual_hit(move, receipt):
             and receipt.get("source") == move.get("id") and move.get("class") in ("물리", "특수"))
 
 
-def after_attack_damage(engine, attacker, target, move, receipt):
+def after_attack_damage(engine, attacker, target, move, receipt, *, type_multiplier=None):
     if not _actual_hit(move, receipt):
         return None
     balloon = _active(engine, target, "air_balloon")
     if balloon:
         _finish_instance(engine, target, balloon[0], "destroyed", "item/풍선:attack-hit")
-    multiplier = receipt.get("type_multiplier")
+    multiplier = type_multiplier if type_multiplier is not None else receipt.get("type_multiplier")
     if multiplier is None:
         multiplier = engine.type_multiplier(move.get("type"), target)[0]
     if multiplier > 1:

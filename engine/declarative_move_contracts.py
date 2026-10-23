@@ -497,13 +497,18 @@ def begin_move_use(engine, actor, target, move, mechanics, *, targetless=False):
     return actual_type
 
 
-def effective_type(engine, actor, target, move):
+def effective_type(engine, actor, target, move, *, preview=False):
     scopes = getattr(engine, "_event_use_scopes", ())
-    if not scopes:
-        return None
-    current = scopes[-1]
-    if current.get("actor") is actor and current.get("target") is target and current.get("move_id") == move.get("id"):
-        return current.get("declarative_move_type")
+    if scopes:
+        current = scopes[-1]
+        if current.get("actor") is actor and current.get("target") is target and current.get("move_id") == move.get("id"):
+            if "declarative_move_type" in current:
+                return current["declarative_move_type"]
+    if (preview and move.get("type") == "노말" and move.get("class") in ("물리", "특수")
+            and live(actor, "next_normal_attack_type")):
+        if _plasma_conflict(engine, actor, move["id"]):
+            raise ValueError("pending Plasma Fists conflicts with another type override")
+        return "전기"
     return None
 
 

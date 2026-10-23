@@ -22,4 +22,13 @@ The full-revision follow-up separates confirmed defects from extension compatibi
 - Survival belongs to both the Body category and the Education skill set. Education consumers share that set, and Pokemon Survival uses the existing campaign Education permission and individual-exception mechanism.
 - Pummeling's historical bonus and valid legacy saves follow the gain/lifetime boundary above.
 
-The `next_revisions` packet declares 550 distinct integration checks, including the accepted first-batch regressions. GitHub Actions captures the original physical inputs, actual reads and module origins in encrypted evidence for independent canonical acceptance. Detailed classification records keep separate obligations attached to the same clause; a shared label alone does not close that clause.
+The preceding integration passed all 550 distinct required checks in Actions run 39901513033 and was published without new clause credit. GitHub Actions captures the original physical inputs, actual reads and module origins in encrypted evidence for independent canonical acceptance. Detailed classification records keep separate obligations attached to the same clause; a shared label alone does not close that clause.
+
+The current source-contract revision contains these separately reviewed repairs:
+
+- Current owner passives reach newly registered, captured and hatched Pokemon through the existing slot, stat, range and class-feature owners. Existing transfer order and permanent paid effects are preserved.
+- Actual damage type reaches STAB, ordinary Tera damage, typed Coats, thaw, armor and fire-feature consumers; Weakness Policy receives the final effectiveness after reactions. Ordinary Terastal ends with the scene or fainting. Printed source identity and damage receipts remain distinct.
+- Versatile Moves accept an explicit attack-stat choice. Fistful of Force retains its paid shard type and Occult coefficient through inner attacks, pending restoration and later area recipients.
+- Successful ordinary maneuvers carry their actual natural face to existing Menace consumers and retain Pummeling tags. Automatic Grapple hits retain the tag without inventing a natural roll or an Iron Fist gain.
+
+The current `next_revisions` packet declares 465 exact checks, including all three candidates and the affected declared-rank7/10 integration. Runtime results are pending its first Actions execution. R253/R624 burn-range reachability, Stellar questions, Coat self-recipient rules, Fearsome/Intercept timing and other audit families remain separately tracked. A passing sub-contract does not close an entire multi-cause clause.

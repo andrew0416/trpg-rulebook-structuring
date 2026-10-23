@@ -387,7 +387,7 @@ def damage_roll_bonus(engine, actor, move):
     return result + CSV_ITEMS.damage_roll_bonus(engine, actor, move)
 
 
-def after_attack_damage(engine, attacker, target, move, receipt):
+def after_attack_damage(engine, attacker, target, move, receipt, *, type_multiplier=None):
     actual_hit = (isinstance(receipt, dict)
                   and receipt.get("observation_boundary") == "native_attack_application_including_its_hooks"
                   and receipt.get("source") == move.get("id")
@@ -396,7 +396,7 @@ def after_attack_damage(engine, attacker, target, move, receipt):
     if not actual_hit:
         return None
     import csv_item_physical_contracts as CSV_ITEMS
-    CSV_ITEMS.after_attack_damage(engine, attacker, target, move, receipt)
+    CSV_ITEMS.after_attack_damage(engine, attacker, target, move, receipt, type_multiplier=type_multiplier)
     _begin_covert_hit(engine,attacker,target,move)
     for row, registration, _, state in _active(engine, target, "ablative_armor"):
         _advance_ablative(engine, state, row)

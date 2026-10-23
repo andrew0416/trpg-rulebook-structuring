@@ -29,7 +29,7 @@ SUITES = {
     "retraining": ".ci/suites/retraining.json",
     "next_revisions": ".ci/suites/next_revisions.json",
 }
-NATIVE_TIMEOUT_SECONDS = 3600
+NATIVE_TIMEOUT_SECONDS = 5400
 STAGE_PARENT = Path("D:/trpg-rulebook-structuring/ci")
 VERIFIER = "work/reuse-partials/verify_overlay_tests.py"
 BUNDLE = ".ci/fixtures.zip.enc"

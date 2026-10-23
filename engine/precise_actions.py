@@ -28,11 +28,19 @@ def attacked(e,actor,target,move,*,producer="Engine.use_move"):
     # Self-only buffs are not attacks against the actor. Direct self-damage
     # producers can still register an actual damaging hit below.
     if actor is target and move.get("class")=="변화":return None
-    return _record(e,target,"attack",move["id"],actor=actor,producer=producer,
-                   move_class=move["class"],result="activated")
+    event=_record(e,target,"attack",move["id"],actor=actor,producer=producer,
+                  move_class=move["class"],result="activated")
+    frames=getattr(e,'_native_action_stack',[])
+    if event is not None and producer=='combat_maneuver' and frames:
+        frame=frames[-1]
+        if frame['actor'] is actor and frame['source']==move['id'] and frame['kind']=='maneuver':
+            frame['precision_event_id']=event['id']
+    return event
 
-def accuracy(event,hit):
-    if event is not None:event["result"]="accuracy_hit" if hit else "miss"
+def accuracy(event,hit,*,natural=None):
+    if event is None:return
+    event["result"]="accuracy_hit" if hit else "miss"
+    if natural is not None:event["natural"]=natural
 
 def damage_hit(e,actor,target,move,event,facts,damage):
     if event is None:event=attacked(e,actor,target,move,producer="Engine.resolve_attack_damage")

@@ -774,9 +774,9 @@ def _burn_move(mm):
     return "화상" in values or "Burned" in values
 
 
-def effect_range_bonus(engine, attacker, move, mm):
+def effect_range_bonus(engine, attacker, move, mm, *, actual_damage_type=None):
     rainbow = __import__('researcher_fields').effect_range_bonus(engine, attacker, move)
-    if move.get("type") != "불꽃" or not _burn_move(mm):
+    if (actual_damage_type or move.get("type")) != "불꽃" or not _burn_move(mm):
         return rainbow
     result = rainbow
     if _damaging(move) and _declaration(engine, attacker, SHINING_FLAME):
@@ -955,7 +955,7 @@ def end_scene(engine, actors):
             state["contractor"] = None
 
 
-def after_move(engine, attacker, target, move, mm, natural, dealt):
+def after_move(engine, attacker, target, move, mm, natural, dealt, *, actual_damage_type=None):
     if not _damaging(move) or dealt <= 0:
         return
     reckless = _active(engine, attacker, RECKLESS)
@@ -965,7 +965,7 @@ def after_move(engine, attacker, target, move, mm, natural, dealt):
         import effect_lifetimes as LIFETIMES
         effect = {"type": "apply_status", "status": "취약", "target": "self", "duration": "1라운드"}
         LIFETIMES.install(engine, attacker, attacker, effect, RECKLESS, None, None)
-    if move.get("type") != "불꽃" or natural is None or _burn_move(mm):
+    if (actual_damage_type or move.get("type")) != "불꽃" or natural is None or _burn_move(mm):
         return
     if _declaration(engine, attacker, SHINING_FLAME) and natural >= 18:
         engine.apply_status(target, "화상", source=SHINING_FLAME, applied_by=attacker)

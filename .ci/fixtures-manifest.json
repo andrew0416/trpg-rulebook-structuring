@@ -1032,6 +1032,11 @@
       "size": 28518
     },
     {
+      "path": "data/verification/passive-event-runtime-profile.json",
+      "sha256": "e0590d58ab7b02e231ce1d1897ff7a7b37f91e772c49184c1c7d189a855bdc00",
+      "size": 1323
+    },
+    {
       "path": "data/verification/root-semantics.json",
       "sha256": "162ffa1f21e5f7a81815e3d298a2098c9bc33083c84c5916cbdd6cd54002159a",
       "size": 65065

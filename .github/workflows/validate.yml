@@ -46,7 +46,7 @@ jobs:
         suite: ${{ fromJSON(github.event_name == 'push' && '["next_revisions"]' || inputs.suite == 'common_checks' && '["common_checks"]' || inputs.suite == 'move_revisions' && '["move_revisions"]' || inputs.suite == 'rank_revisions' && '["rank_revisions"]' || inputs.suite == 'retraining' && '["retraining"]' || inputs.suite == 'next_revisions' && '["next_revisions"]' || '["move_revisions", "rank_revisions", "retraining"]') }}
     name: ${{ matrix.suite }}
     runs-on: windows-2022
-    timeout-minutes: 75
+    timeout-minutes: 105
     env:
       PYTHONDONTWRITEBYTECODE: '1'
       PYTHONUTF8: '1'

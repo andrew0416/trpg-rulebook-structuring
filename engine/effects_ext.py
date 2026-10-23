@@ -1228,6 +1228,26 @@ def crit_hook(engine, a, t, move, hit, crit, *, natural=None, crit_min=20):
     return crit
 
 
+def prepare_versatile_move(engine, move, selected=None):
+    """ch10:440: explicit attack-stat choice; only Variable class changes class."""
+    selected = move.get('_versatile_attack_stat') if selected is None else selected
+    if '가변' not in (move.get('keywords') or []):
+        if selected is not None:raise ValueError('attack-stat choice requires the Versatile keyword')
+        return move
+    if selected is None:
+        if move.get('class') == '가변':raise ValueError('Versatile Move requires an explicit atk or spa choice')
+        return move
+    if selected not in ('atk','spa'):raise ValueError('Versatile attack stat must be atk or spa')
+    if move.get('prime_unown_instance') or move.get('_unown_use'):
+        raise ValueError('existing Unown instance owns its damage-class selection')
+    from source_context import verified_source
+    verified_source(engine.r,{'file':'input/ch10-index-reference.md',
+        'sha256':'c3a1d783b4f649f0f6e25a9443a90ca8079a6e036c42c6f8797e100127157abe'},label='Versatile keyword')
+    result=dict(move,_versatile_attack_stat=selected)
+    if move.get('class') == '가변':result['class']='물리' if selected=='atk' else '특수'
+    return result
+
+
 def grants_stab(engine, a, move):
     import stellar_tera_blast as STELLAR_TERA
     if STELLAR_TERA.grants_stab(engine,a,move):
@@ -1364,7 +1384,7 @@ def blocks_hit(engine,a,t,move,mm):
 def effective_type(engine, a, t, move, mm, *, consume=True):
     """타입 치환: 집단구타 등 1회 치환, 레지스트리 type_override_moves, alternate_type(사용자 선택 → 유리한 쪽)."""
     import declarative_move_contracts as DECLARATIVE_MOVES
-    declarative=DECLARATIVE_MOVES.effective_type(engine,a,t,move)
+    declarative=DECLARATIVE_MOVES.effective_type(engine,a,t,move,preview=not consume)
     if declarative is not None:
         return declarative
     import stellar_tera_blast as STELLAR_TERA
@@ -1385,9 +1405,12 @@ def effective_type(engine, a, t, move, mm, *, consume=True):
             if cheb(a.pos, zr["center"]) <= zr["radius"]:
                 return r["normal_moves_become"]
     import alternate_move_modes as ALTERNATE
-    explicit=ALTERNATE.effective_type(engine,a,t,move)
+    explicit=ALTERNATE.effective_type(engine,a,t,move,preview=not consume)
     if explicit is not None:
         return explicit
+    # Fistful's paid shard choice owns Judgment's otherwise optional 'any' type.
+    if move.get('_researcher_fistful') is not None:
+        return move['_researcher_fistful']['type']
     counters=a.counters if consume else dict(a.counters)
     best = move["type"]
     best_mult = engine.type_multiplier(move["type"], t)[0]
@@ -1462,21 +1485,21 @@ def effectiveness_hook(engine, a, t, move, mm, mult, ctx):
             changed = True
             engine.log(f"    축복 {b['name']} 발동: 한 단계 더 효과적 (남은 {b['left']})", "effect/blessing")
     import damage_coats as DAMAGE_COATS
-    coat_steps=DAMAGE_COATS.steps(engine,t,move)
+    coat_steps=DAMAGE_COATS.steps(engine,t,dict(move,type=ctx["actual_damage_type"]))
     if coat_steps:steps+=coat_steps;changed=True
     for c in list(t.coats):
         if 'effect_instance' in c:continue
         eff = c.get("effect") if isinstance(c.get("effect"), dict) else {}
-        if eff.get("extra_weakness_step") == move["type"]:
+        if eff.get("extra_weakness_step") == ctx["actual_damage_type"]:
             steps += 1
             changed = True
             t.coats.remove(c)
-            engine.log(f"    코트 {c.get('coat')} 발동: {move['type']}에 한 단계 더 취약 후 소멸", "effect/apply_coat")
-        elif eff.get("resist_once") == move["type"]:
+            engine.log(f"    코트 {c.get('coat')} 발동: {ctx['actual_damage_type']}에 한 단계 더 취약 후 소멸", "effect/apply_coat")
+        elif eff.get("resist_once") == ctx["actual_damage_type"]:
             steps -= 1
             changed = True
             t.coats.remove(c)
-            engine.log(f"    코트 {c.get('coat')} 발동: {move['type']} 1회 저항 후 소멸", "effect/apply_coat")
+            engine.log(f"    코트 {c.get('coat')} 발동: {ctx['actual_damage_type']} 1회 저항 후 소멸", "effect/apply_coat")
     for b in t.blessings:
         if 'effect_instance' in b:continue
         if b["left"] > 0 and "resistance" in b["effect"] and (("physical" in b["on"] and move["class"] == "물리") or ("special" in b["on"] and move["class"] == "특수") or ("damage" in b["on"] and "physical" not in b["on"] and "special" not in b["on"])):
@@ -1767,7 +1790,8 @@ def end_of_turn(engine, c):
                 continue
             HEAVY.apply_attack_damage(engine, a, c, dealt, move,
                 producer=HEAVY.Producer.DELAYED_HIT,
-                remainder="remaining delayed queue and outer turn-end effects have not run; current delayed record already removed")
+                remainder="remaining delayed queue and outer turn-end effects have not run; current delayed record already removed",
+                actual_damage_type=precision_facts.get("actual_damage_type"))
             COMPLETE.finish_target(engine,completion_id,a,c,hit=True,dealt=dealt)
     import declarative_move_contracts as DECLARATIVE_MOVES
     DECLARATIVE_MOVES.end_turn(engine,c)

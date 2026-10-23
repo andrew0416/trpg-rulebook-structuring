@@ -78,7 +78,7 @@ def cond_ok(engine, e, ctx):
     if "on_natural_roll_min" in e:
         m = __import__("combat_modifiers").incoming_status_threshold(ctx["target"],e.get("status"),e["on_natural_roll_min"])
         import combat_precision_features as CPF
-        effect_face = CPF.effect_natural(engine, ctx["attacker"], ctx.get("move"), nat)
+        effect_face = CPF.effect_natural(engine, ctx["attacker"], ctx.get("move"), nat, actual_damage_type=ctx.get("actual_damage_type"))
         if not isinstance(m, int) or effect_face is None or effect_face < m:
             return False, f"natural<{m}"
     if e.get("on_natural_roll") == "even" and (nat is None or nat % 2):

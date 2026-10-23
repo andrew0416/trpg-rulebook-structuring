@@ -57,7 +57,7 @@ def _kernel_state(state):
     return K.State(**{k:state[k] for k in
         ("hp","temporary_hp","injuries","real_max_hp","actor_kind")})
 
-def apply_attack_damage(engine, attacker, target, amount, move, *, producer, remainder, native_context=None):
+def apply_attack_damage(engine, attacker, target, amount, move, *, producer, remainder, native_context=None, actual_damage_type=None):
     """Retain the original hit and halt before caller's remaining effects.
 
     take_damage's existing own primitive/hook behavior is observed, not certified
@@ -101,7 +101,7 @@ def apply_attack_damage(engine, attacker, target, amount, move, *, producer, rem
         hardened_loss=target.injuries
         engine.lose_hp(target,hardened_loss,source='heavily_injured_attack')
     import persistent_conditions as PERSISTENT
-    PERSISTENT.attack_hit(engine,target,move)
+    PERSISTENT.attack_hit(engine,target,move if actual_damage_type is None else dict(move,type=actual_damage_type))
     after = observe(target)
     engine._heavy_sequence += 1
     event_id = f"heavy-attack-{engine._heavy_sequence}"
