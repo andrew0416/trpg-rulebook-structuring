@@ -44,10 +44,13 @@ class DeclaredRankConsumerTests(unittest.TestCase):
         configure(rules)
         return rules
 
-    def pool(self, engine, actor, skill, rank):
+    def pool(self, engine, actor, skill, rank, *, expected_modifier=0):
         self.assertEqual(SK.rank(engine.r, actor, skill)[1:], ('7d6', rank))
         result = engine.skill_roll(actor, skill, fixed=[2] * 7)
-        self.assertEqual((result.rank, result.dice_count, result.total), (rank, 7, 14))
+        self.assertEqual((result.rank, result.dice_count), (rank, 7))
+        self.assertEqual(result.faces, (2,) * 7)
+        self.assertEqual(result.modifier, expected_modifier)
+        self.assertEqual(result.total, 14 + expected_modifier)
 
     def restored(self, engine):
         loaded = CODEC.load_engine(engine.r,
@@ -139,7 +142,8 @@ class DeclaredRankConsumerTests(unittest.TestCase):
         e, a = world['engine'], world['trainer']
         for terrain in ('ocean', 'urban'): SURVIVAL_FIX.master(e, a, terrain)
         SURVIVAL_FIX.talents(e, a, 'ocean', 'urban'); SURVIVAL_FIX.env(e, a, 'urban')
-        self.pool(e, a, '생존', rank)
+        # The selected urban terrain grants Survival checks +2 (ch04:2143).
+        self.pool(e, a, '생존', rank, expected_modifier=2)
         return world
 
     def test_declared_survival_effect_minutes_and_floor_half_evasion_use_ordinal(self):

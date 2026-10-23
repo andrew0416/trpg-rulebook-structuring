@@ -13,7 +13,8 @@ import importlib.util
 import io
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
+import re
 import sys
 import time
 import traceback
@@ -24,6 +25,29 @@ VERIFIER = "work/reuse-partials/verify_overlay_tests.py"
 PREFIX = "ci-native"
 
 
+def safe_id(value):
+    if (not isinstance(value, str)
+            or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}", value) is None
+            or PureWindowsPath(value).is_reserved()):
+        raise ValueError("Unsafe CI path identifier")
+    return value
+
+
+def evidence_references(stage, evidence_id):
+    relative = "data/verification/ci-runs/" + safe_id(evidence_id)
+    destination = stage / relative
+    if not destination.resolve().is_relative_to(stage.resolve()):
+        raise ValueError("Evidence reference leaves execution stage")
+    if destination.exists() or destination.is_symlink():
+        raise FileExistsError("Evidence ID already exists in execution stage")
+    return {
+        "evidence_id": evidence_id,
+        "metadata_path": relative + "/" + PREFIX + ".json",
+        "frozen_inputs": relative + "/" + PREFIX + "-inputs.zip",
+        "raw_log": relative + "/" + PREFIX + ".log",
+    }
+
+
 def run(stage, hashes, target, output):
     physical_open, physical_builtin_open = io.open, builtins.open
     stage, output = stage.resolve(), output.resolve()
@@ -31,6 +55,7 @@ def run(stage, hashes, target, output):
         raise ValueError("Physical evidence and scratch must be outside the input stage")
     if "PTK_FIXTURE_KEY" in os.environ:
         raise ValueError("Native capture must not inherit the fixture key")
+    references = evidence_references(stage, output.name)
     physical = output / "physical"
     physical.mkdir(parents=True, exist_ok=False)
     record = output / "verifier"
@@ -80,6 +105,7 @@ def run(stage, hashes, target, output):
         events.flush()
 
     event("capture_ready", execution_stage=str(stage), started_utc=started,
+          evidence_references=references,
           runtime_test_data_sha256_before=before)
 
     def observe_read(file, args, kwargs):
@@ -255,8 +281,7 @@ def run(stage, hashes, target, output):
             "loaded_module_origins_before_execution": before_execution,
             "loaded_module_origins": origins,
             "physical_open_saved_before_overlay": True,
-            "frozen_inputs": "data/verification/" + PREFIX + "-inputs.zip",
-            "raw_log": "data/verification/" + PREFIX + ".log",
+            **references,
             "actual_read_paths": sorted(reads), "first_actual_read_sha256": reads,
             "input_paths_missing_pre_execution_capture": missing,
             "complete_pre_input_capture": not missing,

@@ -288,7 +288,7 @@
     "pummeling_lifetime": {
       "source_candidate_id": "pummeling_lifetime_revision",
       "source_candidate": "pummeling_lifetime/candidate.json",
-      "source_candidate_sha256": "3a6441efe839dee9d316ef49caa344a7d72d7de77bdab617c0d3d5e2fd86cc99",
+      "source_candidate_sha256": "ddbcf8a25178ae27b2d3e54b6522b3b67527122280cab05015138d26023f69d3",
       "tests": [
         "tools.test_martial_artist_effect_rank.MartialArtistEffectRankTests.test_virtuoso_soft_landing_reduces_four_and_restores",
         "tools.test_martial_artist_effect_rank.MartialArtistEffectRankTests.test_virtuoso_pummeling_reaches_eight_caps_and_restores_seven_and_eight",
@@ -331,7 +331,7 @@
     "rank_consumers": {
       "source_candidate_id": "audit_master_rank_consumers_declared_revision",
       "source_candidate": "rank_consumers/candidate.json",
-      "source_candidate_sha256": "4496189e7480e2d0a02086ec5ae05ccabdab65852a6866c1046511aa986f53dc",
+      "source_candidate_sha256": "0b50a7eb65747b7a819538893cb0e1ec6768bba53610e620fcdb4a5645ceb9c8",
       "tests": [
         "tools.test_master_rank_eight_consumers.PotentVenomVirtuosoTests.test_virtuoso_type_link_rank_eight_adds_eight_and_stays_valid_through_gm_and_json_restore",
         "tools.test_master_rank_eight_consumers.PotentVenomVirtuosoTests.test_ordinary_master_keeps_six_and_impossible_stored_ranks_are_rejected",
@@ -645,5 +645,7 @@
         "tools.test_book_survivalist_trapper.SurvivalistTrapperTests.test_json_and_gm_restores_keep_tools_hazards_and_receipts_and_tampering_is_rejected"
       ]
     }
-  }
+  },
+  "certification_stage_id": "39891250011-1-next_revisions",
+  "attempt_scope": "Full550 reexecution after preserved timeout and two source-confirmed test-fixture repairs."
 }

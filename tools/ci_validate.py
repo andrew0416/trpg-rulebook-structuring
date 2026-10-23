@@ -20,6 +20,8 @@ import traceback
 from uuid import uuid4
 import zipfile
 
+from ci_physical import safe_id
+
 SUITES = {
     "common_checks": "tools/test_common_checks.py",
     "move_revisions": ".ci/suites/move_revisions.json",
@@ -27,7 +29,7 @@ SUITES = {
     "retraining": ".ci/suites/retraining.json",
     "next_revisions": ".ci/suites/next_revisions.json",
 }
-NATIVE_TIMEOUT_SECONDS = 2700
+NATIVE_TIMEOUT_SECONDS = 3600
 STAGE_PARENT = Path("D:/trpg-rulebook-structuring/ci")
 VERIFIER = "work/reuse-partials/verify_overlay_tests.py"
 BUNDLE = ".ci/fixtures.zip.enc"
@@ -109,14 +111,20 @@ def copy_stage(root, stage, hashes):
             raise ValueError("Stage bytes differ from authenticated source")
 
 
-def execution_stage(suite):
+def execution_stage(suite, packet=None):
     run_id = os.environ.get("GITHUB_RUN_ID", uuid4().hex)
     attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "1")
     if re.fullmatch("[a-zA-Z0-9-]+", run_id) is None or re.fullmatch("[0-9]+", attempt) is None:
         raise ValueError("Unsafe CI run identity")
     if suite not in SUITES:
         raise ValueError("Unknown CI suite")
-    return (STAGE_PARENT / (run_id + "-" + attempt + "-" + suite)).resolve()
+    stage_id = (packet["certification_stage_id"] if packet and "certification_stage_id" in packet
+                else run_id + "-" + attempt + "-" + suite)
+    parent = STAGE_PARENT.resolve()
+    stage = parent / safe_id(stage_id)
+    if stage.is_symlink() or stage.resolve().parent != parent:
+        raise ValueError("Execution stage leaves its fixed parent")
+    return stage.resolve()
 
 
 def fixture_path(name):
@@ -369,6 +377,14 @@ def self_check():
             assert command[command.index("--stage") + 1] == str(root)
             assert "--cases" not in command and "--mode" not in command
         rejects(lambda: verifier_command(root, "../outside; echo injected", root))
+        from unittest.mock import patch
+        with patch.dict(os.environ, {"GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "2"}):
+            assert execution_stage("next_revisions").name == "123-2-next_revisions"
+            fixed = {"certification_stage_id": "39891250011-1-next_revisions"}
+            assert execution_stage("next_revisions", fixed).name == fixed["certification_stage_id"]
+            for unsafe in ("../escape", "a/b", "a\\b", "C:escape", ".", "CON", "nul",
+                           "id.", "id ", "", None, 42, "a" * 129):
+                rejects(lambda: execution_stage("next_revisions", {"certification_stage_id": unsafe}))
         stage_source = root / "stage-source"
         stage_source.mkdir()
         (stage_source / "tracked.txt").write_bytes(content)
@@ -540,9 +556,12 @@ def main():
             if required not in hashes:
                 raise ValueError("The suite, fixed verifier, crypto adapter and fixture bundle/manifest must be Git-tracked")
         # This allowlist controls public display only; the fixed verifier still owns execution.
+        selected_packet = None
         for target in SUITES.values():
             if target.endswith(".json") and target in hashes:
                 packet = json.loads((root / target).read_text(encoding="utf-8"))
+                if target == SUITES[args.suite]:
+                    selected_packet = packet
                 public_ids.update(case for row in packet["completed"].values() for case in row["tests"])
         metadata["fixture_bundle_sha256"] = hashes[BUNDLE]
         metadata["fixture_manifest_sha256"] = hashes[MANIFEST]
@@ -551,9 +570,10 @@ def main():
         if fixture_key is None:
             raise ValueError("PTK_FIXTURE_KEY is required to authenticate the private fixtures")
         temp_root = Path(os.environ["RUNNER_TEMP"]).resolve()
-        stage = execution_stage(args.suite)
+        stage = execution_stage(args.suite, selected_packet)
         copy_stage(root, stage, hashes)
         metadata["execution_stage"] = str(stage)
+        metadata["evidence_id"] = output.name
         metadata["physical_metadata"] = "physical/ci-native.json"
         with tempfile.TemporaryDirectory(prefix="ptk-fixtures-", dir=temp_root) as directory:
             archive = Path(directory).resolve() / "fixtures.zip"

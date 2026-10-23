@@ -100,10 +100,10 @@ class PummelingLifetimeTests(unittest.TestCase):
    with self.subTest(change=change):
     original=deepcopy(f.a.spec[MA.TAG]);f.a.spec[MA.TAG].update(change);MA._seal_tag(f.a.spec[MA.TAG])
     with self.assertRaisesRegex(ValueError,'provenance|observation|completed hit'):MA.validate(f.e)
-    f.a.spec[MA.TAG]=original
+    f.a.spec[MA.TAG]=deepcopy(original)
   f.a.spec[MA.TAG].pop('earned_rank');MA._seal_tag(f.a.spec[MA.TAG])
   with self.assertRaisesRegex(ValueError,'earned-rank observation missing'):MA.validate(f.e)
-  f.a.spec[MA.TAG]=original
+  f.a.spec[MA.TAG]=deepcopy(original)
   completed=f.e._move_completions[earned['completion_id']];observation=completed.pop(MA.TAG)
   with self.assertRaisesRegex(ValueError,'earned-rank observation changed'):MA.validate(f.e)
   completed[MA.TAG]=observation;f.restore();f.valid()
