@@ -1,0 +1,57 @@
+name: Validate common checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate.yml'
+      - '.gitattributes'
+      - '.ci/fixtures.zip.enc'
+      - '.ci/fixtures-manifest.json'
+      - 'engine/**'
+      - 'tools/**'
+      - 'tests/**'
+      - 'schema/**'
+      - 'work/reuse-partials/verify_overlay_tests.py'
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Existing test suite
+        type: choice
+        required: true
+        default: common_checks
+        options:
+          - common_checks
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUTF8: '1'
+      CI_SUITE: ${{ inputs.suite || 'common_checks' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
+      - name: Restore authenticated fixtures and run existing verifier
+        shell: pwsh
+        env:
+          PTK_FIXTURE_KEY: ${{ secrets.PTK_FIXTURE_KEY }}
+        run: python -B -X utf8 tools/ci_validate.py --root "$env:GITHUB_WORKSPACE" --suite "$env:CI_SUITE"
+      - name: Preserve this run's evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: validation-common_checks-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/ci/
+          if-no-files-found: warn
+          retention-days: 14

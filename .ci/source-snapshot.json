@@ -1,0 +1,8 @@
+{
+  "canonical_completed": 1503,
+  "source_files": 1667,
+  "public_source_files": 1370,
+  "fixture_files": 297,
+  "fixture_zip_sha256": "b0e517ca80ac3f717e9d54e2a919be60a6f3d6eb02a6d7cc9a25ae9a063bba02",
+  "scope": "Frozen current canonical; pending repair candidates are not merged"
+}

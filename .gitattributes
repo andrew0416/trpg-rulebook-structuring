@@ -1,0 +1,10 @@
+# Preserve the physical bytes used by existing source/evidence hash checks.
+* -text
+
+# These new CI files have no pre-existing byte-hash contracts.
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.github/workflows/*.yml text eol=lf
+tools/ci_validate.py text eol=lf
+tools/ci_fixtures.mjs text eol=lf
+CI.md text eol=lf

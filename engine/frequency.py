@@ -1,0 +1,488 @@
+"""Frequency lifetimes. Moves and feats deliberately have different daily rules.
+Sources: ch03:585, ch10:223-224, ch07:750/754.
+EOT and Scene turn intervals clarified against PTU 1.05 core p337; see data/frequency-source-review.json.
+"""
+import re
+from copy import deepcopy
+import action_points as AP
+
+def parse(raw):
+    # ch03:585 grants One Time Use to features. Its lifetime is not a day,
+    # scene or session; native moves intentionally keep this kind unsupported.
+    if isinstance(raw,dict) and raw.get('kind')=='one_time':
+        uses=raw.get('uses',1)
+        if type(uses) is not int or uses!=1:raise ValueError('One Time Use has exactly one lifetime activation')
+        return 'one_time',1
+    text=str(raw.get('raw','') if isinstance(raw,dict) else raw or '')
+    if re.match(r'^(?:일회용|One[ -]Time(?: Use)?)(?:$|\s|[–—-])',text.strip(),re.I):return 'one_time',1
+    if isinstance(raw,dict) and raw.get('kind') in ('scene','daily','turn','every_other_turn','at_will','static'):
+        uses=raw.get('uses')
+        uses=1 if uses is None else uses
+        if type(uses) is not int or uses<1:raise ValueError('frequency cap must be a positive whole number')
+        return raw['kind'],uses
+    m=re.search(r'(장면|하루|일일)\s*(?:당)?\s*[x×]?\s*(\d+)?',text)
+    if m:return ('scene' if m.group(1)=='장면' else 'daily'),int(m.group(2) or 1)
+    if '턴1회' in text or '턴 1회' in text:return 'every_other_turn',1
+    if not text or text.startswith(('임의','항상','자유')):return 'at_will',1
+    return 'unknown',1
+
+def validate(c):
+    """Read-only shared quota state contract; restoration rules remain distinct."""
+    def count(value,label):
+        if type(value) is not int or value<0:raise ValueError(label+' must be a nonnegative whole number')
+    def mapping(value,label):
+        if not isinstance(value,dict):raise ValueError(label+' must be a mapping')
+        for key in value:
+            if not isinstance(key,str) or not key.strip():raise ValueError(label+' requires source IDs')
+        return value
+    uses=mapping(c.move_uses,'move usage')
+    for value in uses.values():count(value,'move usage')
+    if 'move_uses' in c.spec:
+        saved=mapping(c.spec['move_uses'],'saved move usage')
+        for value in saved.values():count(value,'saved move usage')
+        if saved!=uses:raise ValueError('runtime and saved move usage disagree')
+    for value in mapping(c.spec.get('daily_feat_uses',{}),'legacy daily usage').values():count(value,'legacy daily usage')
+    st=c.spec.get('frequency_state')
+    if st is None:
+        if 'frequency_state' in c.spec:raise ValueError('frequency state must be a mapping')
+        return
+    if not isinstance(st,dict):raise ValueError('frequency state must be a mapping')
+    for key in ('day','scene','turn'):count(st.get(key),'frequency '+key)
+    basis=st.get('daily_basis','day')
+    if basis not in ('day','session'):raise ValueError('unknown daily frequency basis')
+    if basis=='session':count(st.get('session'),'frequency session')
+    for row in mapping(st.get('moves'),'move occurrence ledger').values():
+        if not isinstance(row,dict):raise ValueError('move occurrence must be a mapping')
+        for key in ('day','scene','turn'):
+            count(row.get(key),'move occurrence '+key)
+            if row[key]>st[key]:raise ValueError('move occurrence is ahead of its calendar')
+        if 'at_seconds' in row:count(row['at_seconds'],'move occurrence elapsed seconds')
+    for row in mapping(st.get('activations'),'activation ledger').values():
+        if not isinstance(row,dict):raise ValueError('activation must be a mapping')
+        count(row.get('used'),'activation usage')
+        kind=row.get('kind');period=row.get('period')
+        if kind=='one_time':
+            if period!='lifetime' or row['used']>1:raise ValueError('invalid lifetime activation')
+        elif kind=='turn':
+            if type(period) is not dict or set(period)!={'owner','turn'} or type(period['owner']) is not str or not period['owner'].strip():
+                raise ValueError('turn activation requires explicit owner and turn identity')
+            count(period['turn'],'activation owner turn')
+        elif kind in ('daily','scene'):
+            if kind=='daily' and isinstance(period,list):
+                if len(period)!=2 or period[0]!='session' or basis!='session':raise ValueError('invalid session activation period')
+                count(period[1],'activation session')
+                if period[1]>st['session']:raise ValueError('activation is ahead of its session')
+            else:
+                count(period,'activation period')
+                if period>st['day' if kind=='daily' else 'scene']:raise ValueError('activation is ahead of its calendar')
+        else:raise ValueError('unknown activation frequency kind')
+    for value in mapping(st.get('lifetime_activations',{}),'lifetime receipts').values():
+        count(value,'lifetime usage')
+        if value>1:raise ValueError('invalid lifetime activation receipt')
+    pending=st.get('session_move_refresh_pending',[])
+    if not isinstance(pending,list) or any(not isinstance(x,str) or not x.strip() for x in pending) or len(set(pending))!=len(pending):
+        raise ValueError('pending move restoration requires distinct source IDs')
+
+
+def state(c):
+    validate(c)
+    return c.spec.setdefault('frequency_state',dict(day=0,scene=0,turn=0,moves={},activations={}))
+
+def validate_session_binding(engine,c):
+    """Read-only admission checks, shared by single and batch registration."""
+    st=c.spec.get('frequency_state',{})
+    if not isinstance(st,dict):raise ValueError('frequency state must be a mapping')
+    if not getattr(engine,'session_frequency',False):
+        if st.get('daily_basis')=='session':
+            raise ValueError('session frequency state requires its selected campaign policy')
+        return
+    validate(c)
+    if st.get('daily_basis')=='session':return
+    import resolution_transaction as TX
+    from types import SimpleNamespace
+    for obj in getattr(engine,'_physical_objects',{}).values():
+        physical=obj.get('frequency_state')
+        if not isinstance(physical,dict) or physical.get('calendar_owner_id')!=c.entity_id:continue
+        if physical.get('sha256')!=TX.request_fingerprint({k:v for k,v in physical.items() if k!='sha256'}):
+            raise ValueError('physical frequency state changed before session adoption')
+        calendar={key:st.get(key,0) for key in ('day','scene','turn')}
+        calendar.update(moves={},activations=physical.get('activations'))
+        validate(SimpleNamespace(spec={'frequency_state':calendar},move_uses={}))
+
+
+def bind_session(engine,c):
+    """Bind without refreshing usage; finish admission checks before writes.
+
+    Switching campaign policy or reconstructing an engine is not a witnessed
+    session boundary. Preserve current usage when adopting the session ledger.
+    """
+    validate_session_binding(engine,c)
+    if not getattr(engine,'session_frequency',False):return
+    if c not in engine._time_actors:engine._time_actors.append(c)
+    st=state(c)
+    if st.get('daily_basis')=='session':return
+    st['daily_basis']='session';st.setdefault('session',0)
+    period=['session',st['session']]
+    for entry in st['activations'].values():
+        if entry.get('kind')=='daily' and entry.get('period')==st['day']:
+            entry['period']=list(period)
+    for key,used in c.spec.pop('daily_feat_uses',{}).items():
+        old=st['activations'].get(key,{})
+        active=old.get('used',0) if old.get('kind')=='daily' and old.get('period')==period else 0
+        st['activations'][key]=dict(kind='daily',period=list(period),used=max(active,used))
+    # A physical tool references this calendar, not its current holder. Adopt
+    # its current-day quota at the same real policy boundary as actor quotas.
+    for obj in getattr(engine,'_physical_objects',{}).values():
+        physical=obj.get('frequency_state')
+        if not isinstance(physical,dict) or physical.get('calendar_owner_id')!=c.entity_id:continue
+        for entry in physical['activations'].values():
+            if entry.get('kind')=='daily' and entry.get('period')==st['day']:
+                entry['period']=list(period)
+        _sign_physical(physical)
+
+
+def activation_period(st,kind):
+    if kind=='daily':
+        return ['session',st['session']] if st.get('daily_basis')=='session' else st['day']
+    return st['scene']
+
+
+def refresh_session(engine,c):
+    """Refresh daily activation budgets only; move-rest composition stays open."""
+    bind_session(engine,c);st=state(c);st['session']+=1
+    # Keep spent daily Moves until an independently justified restoration. The
+    # selected optional text does not settle whether a session alone replaces rest.
+    pending=set(st.get('session_move_refresh_pending',[]))
+    pending.update(mid for mid,used in c.move_uses.items() if used>0)
+    st['session_move_refresh_pending']=sorted(pending)
+
+
+def move_frequency(engine,mid,c=None):
+    if c is not None:
+        import move_permissions as PERMISSIONS
+        c=PERMISSIONS.frequency_owner(engine,c,mid)
+        if mid == 'move/잠재파워':
+            import csv_item_capability_contracts as CSV_CAPABILITIES
+            if CSV_CAPABILITIES.hidden_power_frequency(c, None) == 'At-Will':
+                return 'at_will', 1
+    if c is not None:
+        for effect in engine.r.move_mech(mid)[0].get("effects_exec", []):
+            if effect.get("type")=="frequency_rule" and "if_ghost" in effect and "else" in effect:
+                import class_move_grants as CLASS_MOVES
+                ghost = "고스트" in c.types or CLASS_MOVES.uses_ghost_curse(c,mid)
+                import vitamin_moves as VITAMINS
+                import signature_moves as SIGNATURE
+                return SIGNATURE.frequency(c,mid,VITAMINS.frequency(c,mid,parse(effect["if_ghost"] if ghost else effect["else"])))
+    parsed=engine.r.moves_mech.get(mid,{}).get('header',{}).get('frequency')
+    import vitamin_moves as VITAMINS
+    import signature_moves as SIGNATURE
+    return SIGNATURE.frequency(c,mid,VITAMINS.frequency(c,mid,parse(parsed or engine.r.move(mid).get('frequency'))))
+
+def move_allowed(engine,c,mid,*,outside_combat=None):
+    # None preserves the low-level turn-ledger contract used by direct policy
+    # callers. Runtime producers must declare their actual combat context.
+    if outside_combat not in (None,True,False):raise ValueError('outside-combat frequency context must be explicit')
+    if engine.r.move(mid).get('class')=='항상':
+        return False,'상시 기술은 학습 상태이며 직접 발동하는 행동이 아님'
+    if __import__('type_ace').frequency_exception(engine,c,mid):return True,''
+    bind_session(engine,c)
+    kind,cap=move_frequency(engine,mid,c)
+    import boss_transitions as BOSS
+    boss_decision=BOSS.move_allowed(engine,c,mid,kind,cap)
+    if boss_decision is not None:return boss_decision
+    import swarm_transitions as SWARM
+    swarm_decision=SWARM.move_allowed(engine,c,mid,kind,cap)
+    if swarm_decision is not None:return swarm_decision
+    import combat_timing as TIMING
+    if kind!='at_will' and any(record.get('at_will_moves_only') for record in TIMING.records(c)):
+        return False,'위협하기 동안 임의 빈도 기술만 사용 가능'
+    import combat_maneuvers as MANEUVERS
+    allowed,reason=MANEUVERS.move_allowed(engine,c,engine.r.move(mid))
+    if not allowed:return False,reason
+    import move_permissions as PERMISSIONS
+    usage_owner=PERMISSIONS.frequency_owner(engine,c,mid)
+    st=state(usage_owner);last=st['moves'].get(mid,{})
+    count=usage_owner.move_uses.get(mid,0)
+    if kind in ('unknown','one_time'):return False,'빈도 조건 해석 필요'
+    if kind=='daily' and count>=cap and mid in st.get('session_move_refresh_pending',[]):
+        return False,'세션 경계의 일일 기술 복원 조건 미해석'
+    if kind in ('daily','scene') and count>=cap:return False,'사용 횟수 소진'
+    if kind=='scene' and last.get('scene')==st['scene'] and st['turn']-last.get('turn',-2)<2:
+        return False,'장면 기술은 연속된 턴에 반복 사용 불가'
+    if kind=='daily' and last.get('scene')==st['scene']:
+        return False,'일일 기술은 한 장면에 한 번'
+    if kind=='every_other_turn':
+        if outside_combat is not True:
+            # Use turn identity, not last_move: taking another action or waiting
+            # must not bypass the interval or permanently lock the move.
+            if last.get('scene')==st['scene'] and st['turn']-last.get('turn',-2)<2:
+                return False,'매 다른 턴 기술 재사용 대기'
+            if not last and usage_owner.last_move==mid and not __import__('provocateur').refunded_latest(engine,usage_owner,mid):return False,'매 다른 턴 기술 재사용 대기'
+        elif last:
+            # Outside combat an EOT interval is the source's approximately
+            # ten-second world-clock interval, independent of scene. Never infer time from a
+            # turn counter, another action, or a save/load boundary.
+            used_at=last.get('at_seconds')
+            if used_at is None:return False,'전투 밖 턴1회 기술의 마지막 사용 시각 미확인'
+            if used_at>engine.elapsed_seconds:raise ValueError('move occurrence is ahead of the world clock')
+            if engine.elapsed_seconds-used_at<10:return False,'전투 밖 턴1회 기술 10초 재사용 대기'
+    return True,''
+
+def consume_move(engine,c,mid,*,outside_combat=None):
+    if outside_combat not in (None,True,False):raise ValueError('outside-combat frequency context must be explicit')
+    import move_permissions as PERMISSIONS
+    c=PERMISSIONS.frequency_owner(engine,c,mid)
+    bind_session(engine,c)
+    kind,_=move_frequency(engine,mid,c)
+    st=state(c)
+    c.move_uses[mid]=c.move_uses.get(mid,0)+1
+    c.spec['move_uses']=dict(c.move_uses)
+    st['moves'][mid]=dict(day=st['day'],scene=st['scene'],turn=st['turn'],at_seconds=engine.elapsed_seconds)
+    import swarm_transitions as SWARM
+    SWARM.record_move_use(engine,c,mid,kind)
+    import boss_transitions as BOSS
+    BOSS.record_move_use(engine,c,mid,kind)
+
+def start_turn(c):
+    state(c)['turn']+=1
+
+def end_scene(engine,c):
+    import duelist as DUELIST
+    DUELIST.clear(engine,c,'scene_end')
+    validate(c)
+    st=state(c)
+    AP.end_scene(c,request_id='scene:'+str(getattr(engine,'session_epoch',0))+':'+str(st['scene']))
+    st['scene']+=1
+    for mid in list(c.move_uses):
+        if mid in engine.r.moves and move_frequency(engine,mid,c)[0]!='daily':
+            c.move_uses.pop(mid,None)
+    c.spec['move_uses']=dict(c.move_uses)
+    c.last_move=None
+
+def _lifetime_used(st,key):
+    # Keep the once-ever receipt separate so a later temporary frequency change
+    # cannot overwrite its history in the ordinary scene/day projection.
+    ledger=st.get('lifetime_activations',{})
+    if not isinstance(ledger,dict):raise ValueError('lifetime activation ledger must be a mapping')
+    used=ledger.get(key,0)
+    old=st['activations'].get(key,{})
+    if old.get('kind')=='one_time':used=max(used,old.get('used',0))
+    if type(used) is not int or used not in (0,1):raise ValueError('invalid One Time Use receipt')
+    return used
+
+
+def _declared_period(c,st,kind,frequency,engine):
+    if kind!='turn':return activation_period(st,kind)
+    import world_entities as WORLD
+    if engine is None or type(frequency) is not dict:
+        raise ValueError('turn quota requires an engine and explicit turn owner')
+    owner_id=frequency.get('turn_owner_id')
+    if type(owner_id) is not str or not owner_id.strip():raise ValueError('actual turn owner required')
+    owner=WORLD.actor_index(engine).get(owner_id)
+    if owner is None:raise ValueError('actual turn owner required')
+    validate(owner)
+    return {'owner':owner_id,'turn':owner.spec.get('frequency_state',{}).get('turn',0)}
+
+
+def activation_allowed(c,key,frequency,*,engine=None):
+    if engine is not None:bind_session(engine,c)
+    kind,cap=parse(frequency);st=state(c);old=st['activations'].get(key,{})
+    if kind=='one_time':return _lifetime_used(st,key)<1
+    period=_declared_period(c,st,kind,frequency,engine)
+    used=old.get('used',0) if old.get('kind')==kind and old.get('period')==period else 0
+    # Import manual daily usage written by the previous engine version.
+    if kind=='daily' and not old:used=max(used,c.spec.get('daily_feat_uses',{}).get(key,0))
+    return kind not in ('daily','scene','turn') or used<cap
+
+def consume_activation(c,key,frequency,*,engine=None):
+    if engine is not None:bind_session(engine,c)
+    kind,cap=parse(frequency)
+    if kind=='one_time':
+        st=state(c);used=_lifetime_used(st,key)
+        if used:raise ValueError('One Time Use already consumed for this source')
+        st.setdefault('lifetime_activations',{})[key]=1
+        st['activations'][key]=dict(kind='one_time',period='lifetime',used=1)
+        return
+    if kind not in ('daily','scene','turn'):return
+    st=state(c);period=_declared_period(c,st,kind,frequency,engine)
+    old=st['activations'].get(key,{})
+    used=old.get('used',0) if old.get('kind')==kind and old.get('period')==period else 0
+    if kind=='daily' and not old:used=max(used,c.spec.get('daily_feat_uses',{}).get(key,0))
+    st['activations'][key]=dict(kind=kind,period=period,used=used+1)
+
+def new_day(c):
+    # A new day restores daily feats/abilities, not daily Moves: those require
+    # an eligible extended rest or a Pokemon Center.
+    state(c)['day']+=1
+    c.spec.pop('daily_feat_uses',None)
+    __import__('researcher_fields').new_day(c)
+
+
+def _sign_physical(row):
+    import resolution_transaction as TX
+    row['sha256']=TX.request_fingerprint({k:v for k,v in row.items() if k!='sha256'})
+
+
+def physical_owner(engine,obj):
+    """A transient native-quota view; the physical item alone owns its ledger.
+
+    The world has actor calendars, not an engine day. An observed fixed calendar
+    reference therefore supplies periods without making a new holder a reset.
+    No calendar or activation projection is copied onto the holder's sheet.
+    """
+    import world_entities as W, resolution_transaction as TX
+    from types import SimpleNamespace
+    if type(obj) is not dict or getattr(engine,'_physical_objects',{}).get(obj.get('id')) is not obj:
+        raise ValueError('physical frequency requires an actual registered object')
+    row=obj.get('frequency_state')
+    if (type(row) is not dict or set(row)!={'calendar_owner_id','activations','sha256'}
+            or row['sha256']!=TX.request_fingerprint({k:v for k,v in row.items() if k!='sha256'})):
+        raise ValueError('physical frequency state changed or is incomplete')
+    W._text(row['calendar_owner_id'],'physical calendar owner identity')
+    calendar=W.actor_index(engine).get(row['calendar_owner_id'])
+    if calendar is None:raise ValueError('physical frequency requires its observed calendar owner')
+    validate(calendar)
+    observed=calendar.spec.get('frequency_state',{})
+    native={k:observed.get(k,0) for k in ('day','scene','turn')}
+    activations=deepcopy(row['activations'])
+    if getattr(engine,'session_frequency',False):
+        if observed.get('daily_basis')!='session':
+            raise ValueError('physical frequency calendar requires its actual session binding')
+        native.update(daily_basis='session',session=observed.get('session',0))
+    elif observed.get('daily_basis')=='session':
+        raise ValueError('physical session frequency requires its selected campaign policy')
+    native.update(moves={},activations=activations)
+    owner=SimpleNamespace(spec={'frequency_state':native},move_uses={})
+    validate(owner)
+    if any(value['kind']!='daily' for value in row['activations'].values()):
+        raise ValueError('physical calendar adapter supports narrative daily activations only')
+    return owner
+
+
+def _physical_frequency(frequency):
+    kind,cap=parse(frequency)
+    if kind!='daily':raise ValueError('physical calendar adapter requires daily frequency')
+    return cap
+
+
+def bind_physical(engine,obj,calendar_owner,key,frequency,*,used):
+    """Observe a real tool's current daily availability, never infer a refill."""
+    import world_entities as W
+    W.require_actors(engine,calendar_owner)
+    if type(obj) is not dict or getattr(engine,'_physical_objects',{}).get(obj.get('id')) is not obj:
+        raise ValueError('physical frequency requires an actual registered object')
+    W.require_usable_object(obj)
+    cap=_physical_frequency(frequency)
+    if type(used) is not int or not 0<=used<=cap:
+        raise ValueError('physical daily quota requires its observed usage')
+    W._text(key,'physical activation source')
+    if 'frequency_state' in obj:raise ValueError('physical frequency is already bound')
+    bind_session(engine,calendar_owner)
+    period=activation_period(state(calendar_owner),'daily')
+    row={'calendar_owner_id':calendar_owner.entity_id,'activations':{
+        key:{'kind':'daily','period':period,'used':used}}}
+    _sign_physical(row);obj['frequency_state']=row
+    physical_owner(engine,obj)
+
+
+def physical_activation_allowed(engine,obj,key,frequency):
+    _physical_frequency(frequency)
+    return activation_allowed(physical_owner(engine,obj),key,frequency)
+
+
+def consume_physical_activation(engine,obj,key,frequency):
+    _physical_frequency(frequency)
+    owner=physical_owner(engine,obj)
+    if not activation_allowed(owner,key,frequency):raise ValueError('physical daily activation exhausted')
+    consume_activation(owner,key,frequency)
+    obj['frequency_state']['activations']=owner.spec['frequency_state']['activations']
+    _sign_physical(obj['frequency_state'])
+
+def restore_daily_moves(engine,c,center=False,*,request_id=None):
+    bind_session(engine,c)
+    st=state(c)
+    import recovery_receipts as RECOVERY
+    def qualify():
+        observed=[]
+        for mid in c.move_uses:
+            if mid not in engine.r.moves or move_frequency(engine,mid,c)[0]!='daily':continue
+            last=st['moves'].get(mid)
+            observed.append({'move_id':mid,'last_use':deepcopy(last),'current_day':st['day'],
+                             'eligible':bool(center or (last is not None and last['day']<st['day']))})
+        return {'eligible':True,'reason':'Pokemon Center' if center else 'qualified extended rest','moves':observed}
+    def commit():
+        for mid in list(c.move_uses):
+            if mid not in engine.r.moves or move_frequency(engine,mid,c)[0]!='daily':continue
+            last=st['moves'].get(mid)
+            if center or (last is not None and last['day']<st['day']):
+                c.move_uses.pop(mid,None)
+                if mid in st.get('session_move_refresh_pending',[]):st['session_move_refresh_pending'].remove(mid)
+        c.spec['move_uses']=dict(c.move_uses)
+    receipt=RECOVERY.execute(c,resource='daily_move_uses',source='combat/resting',request_id=request_id,
+        policy={'center':center},read=lambda:dict(c.move_uses),qualify=qualify,commit=commit)
+    if request_id is not None:return receipt
+
+def restore_all_moves(c):
+    c.move_uses.clear()
+    c.spec['move_uses']={}
+    state(c)['moves'].clear()
+    state(c).pop('session_move_refresh_pending',None)
+    c.last_move=None
+
+
+def declaration_key(engine,actor,target,source,action,declaration):
+    """Validate an authored quota and derive a collision-free native usage key.
+
+    Actor is the ledger owner. Optional dimensions distinguish actual targets,
+    provider entities and declared actions; period remains in the native ledger.
+    """
+    import json
+    import world_entities as WORLD
+    WORLD.require_actors(engine,actor,target)
+    if type(declaration) is not dict or not {'kind','uses','scope'}<=set(declaration):
+        raise ValueError('frequency declaration requires kind, uses and scope')
+    if set(declaration)-{'kind','uses','scope','provider_id','turn_owner_id'}:
+        raise ValueError('unsupported frequency declaration fields')
+    if declaration['kind'] not in ('at_will','scene','daily','one_time','turn'):
+        raise ValueError('unsupported authored activation frequency')
+    if type(declaration['uses']) is not int or declaration['uses']<1:
+        raise ValueError('explicit positive whole frequency cap required')
+    parse(declaration)
+    scope=declaration['scope']
+    if type(scope) is not list or any(v not in ('target','provider','action') for v in scope) or len(set(scope))!=len(scope):
+        raise ValueError('frequency scope needs distinct known dimensions')
+    if ('provider' in scope)!=('provider_id' in declaration):
+        raise ValueError('provider scope requires exactly one actual provider identity')
+    if type(source) is not str or not source.strip():raise ValueError('selected source identity required')
+    if (declaration['kind']=='turn')!=('turn_owner_id' in declaration):
+        raise ValueError('turn frequency requires exactly one explicit turn owner')
+    dimensions={'source':source}
+    if declaration['kind']=='turn':
+        period=_declared_period(actor,{},'turn',declaration,engine)
+        dimensions['turn_owner']=period['owner']
+    if 'target' in scope:dimensions['target']=target.entity_id
+    if 'provider' in scope:
+        provider=declaration['provider_id']
+        WORLD.entity_identity(engine,provider)
+        dimensions['provider']=provider
+    if 'action' in scope:
+        from action_metadata import ActionCost
+        dimensions['action']=sorted(action.components) if type(action) is ActionCost else action
+    # Unscoped authored activation shares the existing native source pool.
+    return source if not scope and declaration['kind']!='turn' else 'frequency-scope:'+json.dumps(dimensions,sort_keys=True,separators=(',',':'),ensure_ascii=False)
+
+
+def restore_scene_use(engine,c,mid):
+    import move_permissions as P
+    c=P.frequency_owner(engine,c,mid)
+    if move_frequency(engine,mid,c)[0]!='scene':raise ValueError('Scene Move restoration required')
+    st=state(c);c.move_uses[mid]=max(0,c.move_uses.get(mid,0)-1);c.spec['move_uses']=dict(c.move_uses)
+    st['moves'].pop(mid,None)
+
+
+def restore_eot(engine,c,mid):
+    import move_permissions as P
+    c=P.frequency_owner(engine,c,mid)
+    if move_frequency(engine,mid,c)[0]!='every_other_turn':raise ValueError('EOT Move restoration required')
+    state(c)['moves'].pop(mid,None)
+    if c.last_move==mid:c.last_move=None

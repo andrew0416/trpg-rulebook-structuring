@@ -1,0 +1,1490 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "data/abilities-core.json",
+      "sha256": "26165c51f570b4415657c0335e1419f20bbd3e875c8d8a96a21db98b3f14430b",
+      "size": 7332
+    },
+    {
+      "path": "data/abilities-llm.json",
+      "sha256": "d4d6302c6fb36d2ba6225b0c31c9415d6f50163985d435723f965bb873d9e2da",
+      "size": 57284
+    },
+    {
+      "path": "data/abilities-mech.json",
+      "sha256": "419024d4385d85a45ca03da2c9027aa3978ff3d17577a4ca89ad69e12c4e6418",
+      "size": 568586
+    },
+    {
+      "path": "data/abilities-reviewed.json",
+      "sha256": "4b13df3fd2fc594ab8fcd3e422a5fd881d658cf4d4a3773c9cc80080ad1fac93",
+      "size": 29977
+    },
+    {
+      "path": "data/ability-capacity-policy.json",
+      "sha256": "ae04b295a40431104f8024493edb9ad1b55e7895d2fc64056f13708b5cd7f0cb",
+      "size": 960
+    },
+    {
+      "path": "data/ability-native-actions-policy.json",
+      "sha256": "8850b7c4c7c5ffc53356a1d5fce32086ff79db0dab28d8baf4b3f38e0f0d8cdb",
+      "size": 5118
+    },
+    {
+      "path": "data/ability-state-projection-policy.json",
+      "sha256": "27b48d1a1f113f42492a2d0d45c4ba51d5ea65f0ae8f1a956cddb5edf929e258",
+      "size": 17314
+    },
+    {
+      "path": "data/ability-transition-policy.json",
+      "sha256": "22f79a00560424449c1a002ce0cab72864a9206642d439c094b195b755c27b0a",
+      "size": 20310
+    },
+    {
+      "path": "data/acquired-feature-projection-policy.json",
+      "sha256": "04b4420953848fc2184145413d037b58bab6a27a22d4eefa299cc9f58e871672",
+      "size": 45854
+    },
+    {
+      "path": "data/adjudication-guidance.json",
+      "sha256": "6367a99fcb5a203f826908221a762c6320328e3659a788e9a802e740facc1ce9",
+      "size": 1927
+    },
+    {
+      "path": "data/alternate-move-mode-policy.json",
+      "sha256": "0bc4950fb82d884d1031615e6a99c9a58abc64df8edce42c78046678d0fcde26",
+      "size": 1443
+    },
+    {
+      "path": "data/athlete-definitions.json",
+      "sha256": "f3caa5d6a4992fcf00a5edc480662867a280de926e9953810ba2951692b82d4a",
+      "size": 2167
+    },
+    {
+      "path": "data/augmentation-soft-profile-policy.json",
+      "sha256": "9dfa58224d36120e9daa30085a15cbb7988a52a4160139214cbcc4aef504d172",
+      "size": 538
+    },
+    {
+      "path": "data/base-stage-abilities.json",
+      "sha256": "3a53502e621f5b1f48a4616f45b85fa56597cb6d250e6bc9c9e3a54b8a0dc2f1",
+      "size": 4519
+    },
+    {
+      "path": "data/blessing-context-skill-policy.json",
+      "sha256": "0bd503e4d2bd7119609c4ab68832c06b010fd193b8f6ed525339844f567c3d02",
+      "size": 1768
+    },
+    {
+      "path": "data/blessing-effect-policy.json",
+      "sha256": "8fa88ce761c923f517b2f5fd04fa8ec53faf0cbdd244c2ae33f3c77f4bac23ac",
+      "size": 10136
+    },
+    {
+      "path": "data/blessing-observation-policy.json",
+      "sha256": "93d0a0b4c1284639ae15f42e68c2e64c990a06ff59fa0e29fcb831b7579a181a",
+      "size": 10735
+    },
+    {
+      "path": "data/blessing-skill-rules-policy.json",
+      "sha256": "d4e6498ec3d6a21664d52f9966673d872a448d482fbdca324883e622ebad32bf",
+      "size": 5155
+    },
+    {
+      "path": "data/buff-state-direction.json",
+      "sha256": "0c026f37d63ae793553d1df732f5442b2622a12bf9949999d0fa2530cae51e67",
+      "size": 15358
+    },
+    {
+      "path": "data/buff-state-taxonomy.json",
+      "sha256": "374995524d3babf2721f758b8d3300a568cb85f117f3073b5c3142456983225c",
+      "size": 11134
+    },
+    {
+      "path": "data/campaign-reward-policy.json",
+      "sha256": "29e934e5d47c9232acaeeb76c8a76e883566c08359593933cf9932f15ff2710f",
+      "size": 772
+    },
+    {
+      "path": "data/capability-policy.json",
+      "sha256": "7a2d9ba1d5c44df25d1cc411d04f3178ccc29428551d6cf32f0dcbbf2538e8b2",
+      "size": 2661
+    },
+    {
+      "path": "data/category2-encounter-template-policy.json",
+      "sha256": "3ac854beec373ca19af8d75ae42730450728c20a7433b8ead3909e0ed7a96015",
+      "size": 2136
+    },
+    {
+      "path": "data/category2-move-permission-policy.json",
+      "sha256": "224ea1a5bc596b70fc4ea9cccd2fd2ff7ab740296e783c89b23d27775b79ab81",
+      "size": 12062
+    },
+    {
+      "path": "data/category2-special-state-policy.json",
+      "sha256": "1e5aa1f873553f0185081a19d152b6a9aa107c0c309ac46939f4d3140b5eacd4",
+      "size": 207591
+    },
+    {
+      "path": "data/chef-definitions.json",
+      "sha256": "7c49e92a0eb5fdfbe9a7abf8b39f4096a50046bc50a2c9489fa02ddd5c34ab07",
+      "size": 6641
+    },
+    {
+      "path": "data/chronicler-definitions.json",
+      "sha256": "9fa68a463f9d253c17ceeb6850605d1963af73bde37a165505ec9ac0b67e0746",
+      "size": 4127
+    },
+    {
+      "path": "data/class-actor-state-actions-policy.json",
+      "sha256": "af2895e727a4800150a2fa3aae193dc5d7a707e3ac1312e825d6006e1dc72741",
+      "size": 4553
+    },
+    {
+      "path": "data/class-actor-state-reactions-policy.json",
+      "sha256": "3a292ae7820f400f30540c8682196d404eac49d55d41f208e28250406d86f0d1",
+      "size": 3351
+    },
+    {
+      "path": "data/class-passive-combat-policy.json",
+      "sha256": "497bcfa41ea3ab60f1eef3f5d0bb444b99b46c93172ac6b3d9f1af7ad432b4d0",
+      "size": 12571
+    },
+    {
+      "path": "data/class-ranked-move-tables.json",
+      "sha256": "dc5060f8d3da6da3c03465c769179f51e37235a16f37d03c13b4f991360aeb22",
+      "size": 3639
+    },
+    {
+      "path": "data/coat-effect-policy.json",
+      "sha256": "7436fafeec8ff7a5595e0aa3ccc40a7fd6e5bfd5cb9f22a691db359f6f61a1b2",
+      "size": 4691
+    },
+    {
+      "path": "data/conditional-damage-base-policy.json",
+      "sha256": "e96618361a44e86ede7e83ec748b5d65e33d2ed9a1c763621aed6721c016d9ce",
+      "size": 2021
+    },
+    {
+      "path": "data/conditions.json",
+      "sha256": "26620ad9c2965682248e2b21832a39e79f5215e18a3874c0bbf999b18d5ab598",
+      "size": 49133
+    },
+    {
+      "path": "data/content-source-identities.json",
+      "sha256": "e5c0f8aab99ce2dba19542840af69e1d4d2dea013ae9b40b440c84edaa093007",
+      "size": 56249
+    },
+    {
+      "path": "data/contest-rules.json",
+      "sha256": "1726c65d9f8c2585722c5ae59dd1e01eb97e54fb73aa46a6448323a7cddcbafa",
+      "size": 11442
+    },
+    {
+      "path": "data/context-check-policy.json",
+      "sha256": "f15f3a0d2c08b1bf667b00e71d9f3eb6fdcf49297d89c137ff46a10acb8cc59f",
+      "size": 10015
+    },
+    {
+      "path": "data/core-condition-variant-policy.json",
+      "sha256": "8910f75cb222e52771a36f2f1593288461828ab659a39dcf9b83c04662a8ee4d",
+      "size": 516
+    },
+    {
+      "path": "data/core-eldritch-magic-policy.json",
+      "sha256": "71eecbd98199f21707d8f72de229cf7ffec913c29176ad66b6488b3510318d64",
+      "size": 621
+    },
+    {
+      "path": "data/core-rules.json",
+      "sha256": "3eeb24e38c1a9325a7e05c4c097745ea13c5b90660c82fc3239eaab45b41ac64",
+      "size": 40562
+    },
+    {
+      "path": "data/core-unown-imbuement-policy.json",
+      "sha256": "3a86cc9dcec78fcc26bfa8d6fbc7c5664c002c47e99bef47de63169a2ee51589",
+      "size": 878
+    },
+    {
+      "path": "data/core-wired-native.json",
+      "sha256": "d26dff3e16544ae11d16c659cc3c4cc0e7b96e787dbff757f65bbb1028fa4f78",
+      "size": 813
+    },
+    {
+      "path": "data/creatures.json",
+      "sha256": "1f91db5d3c78dd991139c9c693a15fc35e99b71795a83b0c6f75cb59c9cd99ad",
+      "size": 3258
+    },
+    {
+      "path": "data/csv-remaining-item-contract-policy.json",
+      "sha256": "f443b32d7978a988b3f6191cf57eabe0bd9cd7aa5f17394992385ccf73550ab7",
+      "size": 18274
+    },
+    {
+      "path": "data/cultivation-policy.json",
+      "sha256": "80e437a58a3e27f824bf70a59dd2ef285bd36c851acfea3c5fc602e1a5095a12",
+      "size": 5992
+    },
+    {
+      "path": "data/custom-condition-policy.json",
+      "sha256": "3512780a2c63ca779e65f3079d7c580d63b35be49bcab58e8a89481a8babcf59",
+      "size": 4248
+    },
+    {
+      "path": "data/custom/species/silheomche.json",
+      "sha256": "8e5350a2353a692d6c9ff83afeb26e252401edaa25c1c1cb2669dc5885e3b846",
+      "size": 2444
+    },
+    {
+      "path": "data/dancer-definitions.json",
+      "sha256": "5c95e381134c5d772ce4fbc886841ef7c3681053210845793e361dff24932cad",
+      "size": 3970
+    },
+    {
+      "path": "data/declarative-move-contract-policy.json",
+      "sha256": "49a5a7d98a0e64313503545bc2a4c783c597ae56cf5101be049e1d1fa27f39bc",
+      "size": 7520
+    },
+    {
+      "path": "data/digital-program-policy.json",
+      "sha256": "41cf0db0fa87e4432da49f9848db36fd8119812dc7c01bf40b3cf86e276df357",
+      "size": 974
+    },
+    {
+      "path": "data/directive-features-policy.json",
+      "sha256": "e032e8e77fdf8f82d2e309802a6c000a5b808b93b0fd3f4b8a33adadcdaa34c6",
+      "size": 1094
+    },
+    {
+      "path": "data/dynamic-chain-policy.json",
+      "sha256": "6a921575213ec32b72421b567500e5d469bae89c5c38d89a0a5124ae074e2b7f",
+      "size": 14286
+    },
+    {
+      "path": "data/edges-llm.json",
+      "sha256": "c3925569e923ae050f21b26684f0d047ea75c58937b31a5957b52470dc91fcdd",
+      "size": 14421
+    },
+    {
+      "path": "data/edges-reviewed.json",
+      "sha256": "781a75f7b6d32e297673b7e229f2c713533bd1b7b28f3bd97e600c2e99bdc830",
+      "size": 13797
+    },
+    {
+      "path": "data/effect-vocabulary.json",
+      "sha256": "4ece3c6556934afb0b96fd830a456eff63f374ea9b7387dde43faece2ba86ccd",
+      "size": 42738
+    },
+    {
+      "path": "data/encounters/cave.json",
+      "sha256": "634a43a7b8703d4cce5297b2ce52d5afe03fa9b6224f9fe983b5c9b7f2034d7b",
+      "size": 2265
+    },
+    {
+      "path": "data/encounters/lakeside.json",
+      "sha256": "7944b96152a489fc4665e8d1336ae6334ea7ad7f85777d67af8fbf0a1c3605be",
+      "size": 2364
+    },
+    {
+      "path": "data/endure-policy.json",
+      "sha256": "cd962ee5221768806e25481446cb7c72f6d54a92b286c51c65ac81331ccc2b47",
+      "size": 4864
+    },
+    {
+      "path": "data/environmental-capability-policy.json",
+      "sha256": "df0d46dbfeaccb41d27bba96fe680892ab05887c4c340d1559b72bb87b12091f",
+      "size": 1083
+    },
+    {
+      "path": "data/equipment-variant-contract-policy.json",
+      "sha256": "176f0c8dd47cce5ef2aa6af3c278fdefdadb6e0ad286eec80087eb32f87ba0cc",
+      "size": 6187
+    },
+    {
+      "path": "data/event-effect-policy.json",
+      "sha256": "afab9195c39e3142ae3e4a4339cd94d8b24978f7dfc960d88da2305233e13f7d",
+      "size": 17230
+    },
+    {
+      "path": "data/example-species-policy.json",
+      "sha256": "285e540917aa7ac4599f97080a52133f681b564f5c71d2da3f7aac7875d204e9",
+      "size": 4748
+    },
+    {
+      "path": "data/examples/control-mount.json",
+      "sha256": "701358211af757999b28df6f3659619a90447cab56bc31335319fc9e7567d375",
+      "size": 1608
+    },
+    {
+      "path": "data/examples/control-remote.json",
+      "sha256": "dd7559ec8bafce01ed5d18b6ed2dfc5104bab1f133c78b07b2a033410c26c78f",
+      "size": 1736
+    },
+    {
+      "path": "data/examples/control-vehicle.json",
+      "sha256": "0a07373a10395d6b816fb3103a1dadeb8ebde026110dd0a3afafa7aeb2a9a6b6",
+      "size": 2715
+    },
+    {
+      "path": "data/examples/crafting-product-policy.json",
+      "sha256": "da178a2a78a292fa0ff59c6cd1dbdd7a5d2718b68d3fba3cc965d960605603d6",
+      "size": 428
+    },
+    {
+      "path": "data/examples/crafting-recipes.json",
+      "sha256": "bf4f31e56950b69f505272b94eb7ba99ca36e2c67f442768eb76ec086c412e2c",
+      "size": 1955
+    },
+    {
+      "path": "data/examples/cultivation-growth.json",
+      "sha256": "b080339501551e7b600601a927675e1d185802af22fb9fe229bea04f7c021a19",
+      "size": 1602
+    },
+    {
+      "path": "data/examples/cultivation-harvest.json",
+      "sha256": "a1a195b1356e7b457b81f0fed821ece2f1214a4f52182ed223ffd6fbcca51b35",
+      "size": 994
+    },
+    {
+      "path": "data/examples/egg-creation.json",
+      "sha256": "fa3bf94889454adb03a22651f694b99377de539f687364c23e7eb6507ba904b6",
+      "size": 2248
+    },
+    {
+      "path": "data/examples/environment-change.json",
+      "sha256": "9058ae9b42589d926b59cb2e99a0ab77dd40471d64f44f3a4602d49b81ac4fec",
+      "size": 618
+    },
+    {
+      "path": "data/examples/environment-derive.json",
+      "sha256": "20b6ef27158390a7d07c462c9a2b91d01bbc22b488f3f61586052f1138c3482a",
+      "size": 2190
+    },
+    {
+      "path": "data/examples/fossil-creation.json",
+      "sha256": "39cfc68d74a5dfc5700271b11af7823486157945b8beeca59038cc8382e67b81",
+      "size": 1804
+    },
+    {
+      "path": "data/examples/ground-flight-option.json",
+      "sha256": "354cddabd191987a59159f68656247bee362da4cb5f38e740529750369ff9c7d",
+      "size": 1298
+    },
+    {
+      "path": "data/examples/maneuvers-grapple.json",
+      "sha256": "f0cd8d4b12f1029815ab19d48bd494c53b72f5318cc10bbc9b2db7cf66e14c3f",
+      "size": 2089
+    },
+    {
+      "path": "data/examples/maneuvers-opposed.json",
+      "sha256": "73f1432e957bb679cb7d5c2017bb07d318b9bbee7fd736e071299d5aeaf91736",
+      "size": 1585
+    },
+    {
+      "path": "data/examples/network-connection.json",
+      "sha256": "196e83e3803f76ebc14ba8a7f703f78709a3dd24982b97b588a77c4dd118b377",
+      "size": 1030
+    },
+    {
+      "path": "data/examples/network-integrity.json",
+      "sha256": "a0dac5c8b9c551692fc0a5323a1cf7121316db88076e036bbe42bb18597b5a49",
+      "size": 1875
+    },
+    {
+      "path": "data/examples/perception-communicate.json",
+      "sha256": "58795706768d8f3ceb60070a0a5df65a3eb4bf53d77b1dc0f68e3e5de2f2b003",
+      "size": 1492
+    },
+    {
+      "path": "data/examples/perception-observe.json",
+      "sha256": "38e95a7ea3c8cf3c3d3e63287ce5f93b1e2fc27716b045d9c83fbedecd506196",
+      "size": 671
+    },
+    {
+      "path": "data/examples/repair-breach.json",
+      "sha256": "1f7f0c1ea04dd95061b3db739c408f602bfcc0adf8e6fff92d702a78571bdd8d",
+      "size": 782
+    },
+    {
+      "path": "data/examples/repair-restore.json",
+      "sha256": "7eb2d3dfd2968a53cfd172636042dfcd86ff87cc5f11c92e751099c35145c1fa",
+      "size": 2760
+    },
+    {
+      "path": "data/examples/scripting-recovery.json",
+      "sha256": "957c0636b41576175e2f7fdc564cb54a70f868b3db1ce3724286cdfd33dcb613",
+      "size": 2084
+    },
+    {
+      "path": "data/examples/scripting-repulse.json",
+      "sha256": "734cb8309b8bc80143c5f06ff8369d0bfa5f11fed121a394300cc6ca09dcbbf9",
+      "size": 3567
+    },
+    {
+      "path": "data/examples/training-eligibility.json",
+      "sha256": "c7ea83b3d07bcf517c4b371574ddaf49f8f9d0efaa58ab80954ab5a09b5dfbb5",
+      "size": 1083
+    },
+    {
+      "path": "data/examples/training-rewards.json",
+      "sha256": "d3358be7455ccbec3a915f0096a2080afe6c127804b30bfd48821c86750a86d8",
+      "size": 2465
+    },
+    {
+      "path": "data/execution-accuracy-oracles.json",
+      "sha256": "53abee36c9d00e2c6e84b8a47beafe0bd6771d4c37582fd761537c6442888b0a",
+      "size": 47594
+    },
+    {
+      "path": "data/fashion-item-contract-policy.json",
+      "sha256": "873f9d383509f01110eb76857584bf14af7265b0d2707b67483a1f2f026ba291",
+      "size": 1975
+    },
+    {
+      "path": "data/fashionista-definitions.json",
+      "sha256": "8f5a8ae2856a5d7e4c88653fd478968780fb1ffeae7b8cfad6fec5d36b5247ec",
+      "size": 13593
+    },
+    {
+      "path": "data/feat-source-boundary-findings.json",
+      "sha256": "13cab799237f7af9889a78b38032d5e2a309cb0b64e3fcd420727e1ab0ccbca6",
+      "size": 8727
+    },
+    {
+      "path": "data/feats-llm.json",
+      "sha256": "47d459af7452651e648b87bf4578f57e4f058097df7c50990afd931ffbf46e89",
+      "size": 160747
+    },
+    {
+      "path": "data/feats-mech.json",
+      "sha256": "f9019e2f93015ce0495eba3a48f0fe9e01c2675f42da3b893a853b9e5a011d63",
+      "size": 696292
+    },
+    {
+      "path": "data/feats-reviewed.json",
+      "sha256": "76b8390c1295cb8ba73165228b66caf2af8d8c81f695e2b0e4d280e55da93210",
+      "size": 48686
+    },
+    {
+      "path": "data/feature-ability-lessons.json",
+      "sha256": "e14f37c264b4e60c588d23a607d9082c5b73fd3d593f698a396d3f7aaa8005e1",
+      "size": 5021
+    },
+    {
+      "path": "data/field-effect-policy.json",
+      "sha256": "807f850e69190370af7e086678e9b0b5d6d9162ecf1423070559ce0e317986b5",
+      "size": 4010
+    },
+    {
+      "path": "data/fixed-feature-ability-grant-policy.json",
+      "sha256": "9976f49c24f14700ef5f775de4b9edabc5304ec3a0c3fe6f462aa317a37c45ec",
+      "size": 11926
+    },
+    {
+      "path": "data/food-buff-policy.json",
+      "sha256": "5f59efbe24f4a45db974dc118db64e70bd103eac7a36d7b6fb0455c2ed0d385d",
+      "size": 5259
+    },
+    {
+      "path": "data/foundation-source-policy-package.json",
+      "sha256": "f3fa22ceca5b16e85a7c50480f68d1fb0f8d78a5662a59f93798cbad3a57441b",
+      "size": 5911
+    },
+    {
+      "path": "data/frequency-source-review.json",
+      "sha256": "a7134b5e38a20b01a982ef45dc611564f25eb5e9b33548ce02fc50e00b66aceb",
+      "size": 1280
+    },
+    {
+      "path": "data/gm-console-script.txt",
+      "sha256": "940df4e37aec126351697c7a1bc9bc2bfe1d956625e46d883f0e08a2dec04164",
+      "size": 366
+    },
+    {
+      "path": "data/gm-rulings-errata.json",
+      "sha256": "5c42d2911842b737cd09a9969fca06cf4671acaab4749d44e038a63e355bdbc0",
+      "size": 3068
+    },
+    {
+      "path": "data/gm-rulings.json",
+      "sha256": "e07e3a8e55172b3aef853305bb3b3c1c401242cb7cc7f55a6468567f4512485e",
+      "size": 1868
+    },
+    {
+      "path": "data/gmax-move-policy.json",
+      "sha256": "60d2042734186f730c56b79d882adecce3d2a0319a94ba010419c87da050a9ed",
+      "size": 5117
+    },
+    {
+      "path": "data/gravity-source-policy-package.json",
+      "sha256": "e19cdec62cef829484520f2d7bbf4e6e812f7993a4574198762aa783f45e4480",
+      "size": 3533
+    },
+    {
+      "path": "data/ground-flight-option-policy.json",
+      "sha256": "a8f33c34bbdcbcd404142a98ead33e56e1c522ed1fc183acab4903cd5dce2b57",
+      "size": 942
+    },
+    {
+      "path": "data/hazard-state-policy.json",
+      "sha256": "b4dd66001bc25f2592e99b7f95a86a627237248b0ca00142d6cf68275012b193",
+      "size": 8067
+    },
+    {
+      "path": "data/held-item-reaction-policy.json",
+      "sha256": "dec846f64bd318d430b2e22f8da48cecbb2d9df69824764598a440e159713534",
+      "size": 1132
+    },
+    {
+      "path": "data/hm-teaching-policy.json",
+      "sha256": "3ad5cac4825e6203d9309018c1d0008c096aa8db11c53b803642690464dbfada",
+      "size": 935
+    },
+    {
+      "path": "data/homebrew-weather-policy.json",
+      "sha256": "1b2d246c8416c813559d1db1c3c0deb7d06634a91bd0493dc8bd19b7d0138ba9",
+      "size": 5353
+    },
+    {
+      "path": "data/hunter-definitions.json",
+      "sha256": "2c58fc10bdc7539b484cee7451346090c2c1ca22ed063307c05e402f080d4a8c",
+      "size": 4330
+    },
+    {
+      "path": "data/intercept-profiles-policy.json",
+      "sha256": "22c58ac6ba4a6e81dca7582587e2f7734a5ce231623f051db2d2e26c3d061917",
+      "size": 1295
+    },
+    {
+      "path": "data/iron-mind-policy.json",
+      "sha256": "dd93ee6e37eb4203b6705160f7c06013ede60c282edfd90ea5674d7467f40d2c",
+      "size": 573
+    },
+    {
+      "path": "data/item-container-policy.json",
+      "sha256": "8b48345e974eaf95c4b1bac77326c1ab830e407716e8e06dc82b8e7cfca39189",
+      "size": 403
+    },
+    {
+      "path": "data/item-maturation-policy.json",
+      "sha256": "cd35d4e7b4eee49f59150606d93a6016b54ef3dac94d571ab5b3845471b860bb",
+      "size": 457
+    },
+    {
+      "path": "data/items-llm.json",
+      "sha256": "e25d6e14c550df3e5837de0425c82a23697022dedb3337c7107b8e77ec541075",
+      "size": 86027
+    },
+    {
+      "path": "data/items-mech.json",
+      "sha256": "871105167ed9c118ed4089044986d95a7b07aaa50041cbf1b1cc88efe007b895",
+      "size": 425938
+    },
+    {
+      "path": "data/items-reviewed.json",
+      "sha256": "d1aafd83b549920379c9bd449e37674c37eff1a4050da6beba74c1ce947840d8",
+      "size": 103998
+    },
+    {
+      "path": "data/lifetime-consumable-policy.json",
+      "sha256": "6d087a973db7b2ecbe4152058054ae7bd20a6deb59ebfb0b6ba7a6976efcbb55",
+      "size": 635
+    },
+    {
+      "path": "data/local-grass-field-policy.json",
+      "sha256": "970b421cc2f20d4a73229c4a8dc8d92663e8c240b9e22cfaeecdd985a2e73b58",
+      "size": 750
+    },
+    {
+      "path": "data/local-snow-field-policy.json",
+      "sha256": "5a2580937aa12bf87361337b642e148b77e6d8d85d8b63d3d76aefa1a88e1e96",
+      "size": 970
+    },
+    {
+      "path": "data/lookup-tables.json",
+      "sha256": "798465d8c8685454ca0ab0af09f766dce1e1240cda553fefe77a68fb70ecb1fc",
+      "size": 22489
+    },
+    {
+      "path": "data/maintenance-review.json",
+      "sha256": "bb291ac25163da3898716a60aa3c3aab530ac932931354996312b1b4771f6e13",
+      "size": 43823
+    },
+    {
+      "path": "data/martial-artist-definitions.json",
+      "sha256": "41118a0c8a3061f43909d480550af7f745fb1d082711587c5ca88cfe6a7f392f",
+      "size": 2298
+    },
+    {
+      "path": "data/mega-form-policy.json",
+      "sha256": "2078e9573bacefae7c88c31535f35cd7bcd663c88a6484df191bdc7aafae9a26",
+      "size": 25548
+    },
+    {
+      "path": "data/mettle-source-review.json",
+      "sha256": "3580568d864e2f519bd365b9dd4174a83d44df1d518621d3244064ca4439dbba",
+      "size": 1319
+    },
+    {
+      "path": "data/mixed-sweeper-policy.json",
+      "sha256": "c6268ef7e7d8665e534362dc361055b3d6f9451f65461f5058fcb5fdc36505ea",
+      "size": 616
+    },
+    {
+      "path": "data/move-accuracy-policy.json",
+      "sha256": "f18bdaca00e4970bd7afae443816c8e74c01b4ea4e71cddc34614769bcc76644",
+      "size": 52896
+    },
+    {
+      "path": "data/move-capability-policy.json",
+      "sha256": "36bd3b31c55b5ae220c847095f1d08e7e62da383e37ad161c11b1de1a0e0a5b3",
+      "size": 30280
+    },
+    {
+      "path": "data/move-coin-policy.json",
+      "sha256": "0db11e9c4a6b2f00fdb5ca22b0d56f85aa020f5e8f25cda5e2029ed6e1f8ee55",
+      "size": 1810
+    },
+    {
+      "path": "data/move-defense-policy.json",
+      "sha256": "7562b798d9728db5cb37b87edc58ff90714fe586b6e65672347ca46de8aa8580",
+      "size": 1420
+    },
+    {
+      "path": "data/move-type-choice-policy.json",
+      "sha256": "188459ba43eddbd5a0f31f3273cae3863bd8d4bf39d3660d0be88fc148ec136b",
+      "size": 1526
+    },
+    {
+      "path": "data/move-type-sync-policy.json",
+      "sha256": "85f8878112c70e133c1bdf5ea29a13c260ac9a1d4c3a409592b441b39067cf20",
+      "size": 1018
+    },
+    {
+      "path": "data/moves-hand.json",
+      "sha256": "4ab22534501d7dd0ece7329c11274a005844a3e4c85634df124424bfc107e7c6",
+      "size": 2468
+    },
+    {
+      "path": "data/moves-llm-partial.json",
+      "sha256": "b8c689a6e7daf712cd827a518c36ca841f2fa78c74dac20044995c94785f8c78",
+      "size": 27981
+    },
+    {
+      "path": "data/moves-llm-sample.json",
+      "sha256": "4faf7cab6e0eac96d9fa4c6c6dbef0a7c39e82a077973ac75428f8a1adfe8148",
+      "size": 9699
+    },
+    {
+      "path": "data/moves-llm.json",
+      "sha256": "8f60bc07937eb31a7373c0a54626682b5de5999d62ce5366db72574b681ecca7",
+      "size": 71896
+    },
+    {
+      "path": "data/moves-mech.json",
+      "sha256": "ca1e72aba0a044a5cb187aa22cb1c9d0f0c9e6ef1b4a37c918543e2dd1403890",
+      "size": 855163
+    },
+    {
+      "path": "data/moves-reviewed.json",
+      "sha256": "dc1ee05c3f94c21d60812c0d1ab0d2c5bbfd30ca88f8ff0879b623f1c79db180",
+      "size": 84385
+    },
+    {
+      "path": "data/musician-definitions.json",
+      "sha256": "f0c945ec4db78a8d0372d5d9bd68df99e4c2ce145d1042716e49b75b193bf295",
+      "size": 2791
+    },
+    {
+      "path": "data/name-aliases.json",
+      "sha256": "d8148f3e0a829af1564b9e4af4d37b300f6d6f111b118f2a234e69a3ab9c0d1f",
+      "size": 2179
+    },
+    {
+      "path": "data/native-area-hit-effects.json",
+      "sha256": "ccd712899e7620c9ab260c737a4d8ece77046a9a30f15563df0d2c1714f7e3ff",
+      "size": 8450
+    },
+    {
+      "path": "data/native-class-reaction-policy.json",
+      "sha256": "b0f1a2eee47fe7817932ca091c19c2c16c0283b59b45ffcda170ce3f5db273bc",
+      "size": 3303
+    },
+    {
+      "path": "data/native-rule-policy.json",
+      "sha256": "f800739c91d62714cac0ba0ec57ac8c63683c61bb4dce78430ab85c1cece9676",
+      "size": 1736
+    },
+    {
+      "path": "data/optional-move-modes.json",
+      "sha256": "80a73c1179672dd6a9110148137b9ad04ea47de8ad2cea5a70d010ffd79cd4aa",
+      "size": 10553
+    },
+    {
+      "path": "data/optional-physical-equipment-policy.json",
+      "sha256": "42f2e182bc0affc80535c6720e9248a16ac4e4decbfce72cc5bb2687735103bc",
+      "size": 13768
+    },
+    {
+      "path": "data/optional-state-effect-contract-policy.json",
+      "sha256": "b7dd88bd031cfe57f3b2e5790d32255b2ec6c70aea825b05c17b54a27c142973",
+      "size": 10058
+    },
+    {
+      "path": "data/optional-weapon-framework-policy.json",
+      "sha256": "37b10de8ba8c6ac1711eed320c0332a1759dd5cd2bbc70a04c193ada2dc319b5",
+      "size": 5886
+    },
+    {
+      "path": "data/perish-body-policy.json",
+      "sha256": "f7799eaaae58fb42663e808543544e95fbf492011684bbcb562d4a3af854161c",
+      "size": 2596
+    },
+    {
+      "path": "data/physical-object-attack-policy.json",
+      "sha256": "df4245c37634162f6a6acc01c89760d534e4eda774db3fc90ea7b9546de9c972",
+      "size": 16482
+    },
+    {
+      "path": "data/planter-policy.json",
+      "sha256": "36ddeecf579ca77680ed79fab622199ef6aae1138db2e131e8a03d7f67c3804b",
+      "size": 1054
+    },
+    {
+      "path": "data/pledge-state-policy.json",
+      "sha256": "f3f44cbf73700f470f73a31820e3ce6ddd171c702b1d001958a26851873fc2b4",
+      "size": 670
+    },
+    {
+      "path": "data/poke-edge-variants.json",
+      "sha256": "32082ef8a58e9056fa93d4a0c60ac248cc99c77fdb8e0381898b55e12ffdee11",
+      "size": 28756
+    },
+    {
+      "path": "data/pokemon-machines.json",
+      "sha256": "f78f72ae6d9371dc113090762dd1dfde4fdd015389f2b5bc7a552cbc5e6136d3",
+      "size": 17982
+    },
+    {
+      "path": "data/post-resolution-stage-effect-policy.json",
+      "sha256": "03fe6fba86d3bd0cde737d68b41d6604b09f660bed1186bfebc024f1a3333379",
+      "size": 1341
+    },
+    {
+      "path": "data/priority-actions-policy.json",
+      "sha256": "345f9b49b4e7340b3a8b5ae9275f51188d96762f9f1d46933d9db40e1ea09fe7",
+      "size": 3316
+    },
+    {
+      "path": "data/progression-rules.json",
+      "sha256": "e893ed2d598853df0b314eaeb8e34a9cb539daacb839bdf643535955da00a375",
+      "size": 6947
+    },
+    {
+      "path": "data/range-source-review.json",
+      "sha256": "507307a1d567b96d8dd83992803ebc3660151288c6d57de6bdd22c5a7e24b389",
+      "size": 1515
+    },
+    {
+      "path": "data/reactive-ability-policy.json",
+      "sha256": "d29a899d72d97bf2de124bf6504e6f2d04cdd99a3a1e7777f139c6a0cfa36569",
+      "size": 3792
+    },
+    {
+      "path": "data/researcher-fields-definitions.json",
+      "sha256": "5424d6699a29ad551ee2598433aa1ce10b344edaa733829af5bbfab0cb524cc8",
+      "size": 12813
+    },
+    {
+      "path": "data/review-verdicts.json",
+      "sha256": "80866bde01e19be259e47868cdbb52d9efb067ef63ccd39af92b309469dd50d2",
+      "size": 297632
+    },
+    {
+      "path": "data/roll-effect-policy.json",
+      "sha256": "0d6ccbe08700ed275259104a8f888b29d341a1660d2b127c88b313a3fadb5495",
+      "size": 1043
+    },
+    {
+      "path": "data/roughneck-definitions.json",
+      "sha256": "99dbbe1c28365d81fa9e2a98de50c31c8cf0c784869cf54645ae2222c362157c",
+      "size": 3244
+    },
+    {
+      "path": "data/rule-blueprints.json",
+      "sha256": "ba43706bf6869b876cf3a682693cba7ae675ec2345f04132cc8bc46106898dd4",
+      "size": 10975631
+    },
+    {
+      "path": "data/rule-engine-direction.json",
+      "sha256": "b9d09937e8717c8e23656cd0009e43786f10eff3004ff8271bfdc3120f753044",
+      "size": 1982
+    },
+    {
+      "path": "data/rulesets.json",
+      "sha256": "fdc9ce4645ce9b511f09d568fafdea0668afacbdf272144d6958490e762e5d2e",
+      "size": 3381
+    },
+    {
+      "path": "data/scene-feature-ability-grant-policy.json",
+      "sha256": "77dd5497f9fb2f3ea16eb8d702dbeb6877ef4b7cf591d465b4b216c7fe134d43",
+      "size": 10597
+    },
+    {
+      "path": "data/scene-light-policy.json",
+      "sha256": "0318afa3d89a09bc5a1efb6137bbd00886762b2f89476fd706d2dfbddee164b9",
+      "size": 2969
+    },
+    {
+      "path": "data/setup-move-state-policy.json",
+      "sha256": "c7919f4e02fdf27d27ade0d9dcf7b3c49b70ffdc097821913553204c0449154b",
+      "size": 3503
+    },
+    {
+      "path": "data/skill-check-policy.json",
+      "sha256": "0d3a26b478dfa2567ca072e25541975b759bb6c297aa3da5d73188fda82d191b",
+      "size": 7863
+    },
+    {
+      "path": "data/source-audit-manifest.json",
+      "sha256": "8d777c0cf0a22386172e0bc60f175dc08273445d3630d8e0bd8752920b7cacde",
+      "size": 12225
+    },
+    {
+      "path": "data/source-boundary-cases.json",
+      "sha256": "a66ad4ea3157a048e65fba511450505f08ddaf3de11c5110a763a8e026089b48",
+      "size": 3059
+    },
+    {
+      "path": "data/source-catalog.json",
+      "sha256": "45814074ada633a90803b1249034361b902f03ad30733e868582099e9fd3bf1e",
+      "size": 11633
+    },
+    {
+      "path": "data/source-feat-cost-cases.json",
+      "sha256": "2444ab6c55c7697fa0ee03950bb759a5c6ab1bbf16371dd18c1c75bdc7ee3cfa",
+      "size": 41234
+    },
+    {
+      "path": "data/source-frequency-cases.json",
+      "sha256": "49e8128837d40f7daaa706e6941301285f005d62404704b63d393c7e91dc6d00",
+      "size": 342564
+    },
+    {
+      "path": "data/source-location-overrides.json",
+      "sha256": "f97a45f4527f71c13e61589d5996de5f4449c3c3d08cc83f3aa43e9e2ef463e2",
+      "size": 2802
+    },
+    {
+      "path": "data/source-verification-2026-10-10.json",
+      "sha256": "f59ec324bed16f8c81dcdb4a56b2869af95417c3b68985d47ceefd162d2884e5",
+      "size": 127483
+    },
+    {
+      "path": "data/species-classification.json",
+      "sha256": "cb2d62327862a7845b3f2061327cde6bc18991047bd95b07cb9be2e76f69d22d",
+      "size": 795
+    },
+    {
+      "path": "data/stamina-policy.json",
+      "sha256": "e3bd3a37d5676293ac6a2091c4fce201bd5254a9d972a16fa7edabf705a10213",
+      "size": 297
+    },
+    {
+      "path": "data/static-equipment-contract-policy.json",
+      "sha256": "7d889b027c8b7952ad6a2f75078957a888773a4127f3f03d2348de9492536ce6",
+      "size": 2235
+    },
+    {
+      "path": "data/static-feature-state-grants-policy.json",
+      "sha256": "66f510edda3da72939517b7f84fd2c8cd34e55c47faddacc62923d959aca7b66",
+      "size": 46755
+    },
+    {
+      "path": "data/static-trainer-modifier-policy.json",
+      "sha256": "4b9a3cc383a99e302faef9c9cd91efca07900986696a39d2626aa00b73a9e449",
+      "size": 3244
+    },
+    {
+      "path": "data/stellar-tera-blast-policy.json",
+      "sha256": "a14d1d7ae20d746d3e256dbfbe4bf432012699f15cc97eb0d1dfcbc0ba70a273",
+      "size": 1820
+    },
+    {
+      "path": "data/survivalist-csv-policy.json",
+      "sha256": "c229f548adf78cbb50cfb3a2015498bc703d14a91c34f371c79dd21bf9d75c7d",
+      "size": 4959
+    },
+    {
+      "path": "data/survivalist-definitions.json",
+      "sha256": "2d4759db55430fbbe68a5b4bc0239d9320877e2fd22afb7e6d1ea59281b9b754",
+      "size": 9008
+    },
+    {
+      "path": "data/telekinetic-struggle-policy.json",
+      "sha256": "a9e2040261fdf8d72995e1af62fb6101d229eda011fa33590f8e9db2b51e47fa",
+      "size": 1437
+    },
+    {
+      "path": "data/telepathy-policy.json",
+      "sha256": "e5c0f2601134f026bd649755fef648183b1957dc10a69b67a1a34ab115699649",
+      "size": 1309
+    },
+    {
+      "path": "data/temporary-hp-policy.json",
+      "sha256": "a15d0fc2deac459dbb5a2eed9506840bff6ddbaa2dc84db355ab11145cc11007",
+      "size": 1457
+    },
+    {
+      "path": "data/tera-shell-policy.json",
+      "sha256": "58266f8054c62344c0c1a38ef29ed991cb285f2db98180fd0c44ecb1cf03990c",
+      "size": 1915
+    },
+    {
+      "path": "data/test-oracle-findings.json",
+      "sha256": "15b143f08abf4274f7faa9c15080122f78f44fded9f6b2c7ce822420dcb697c6",
+      "size": 1770
+    },
+    {
+      "path": "data/threaded-policy.json",
+      "sha256": "3d02bb1d56221cc71c2cbe4ab27ee718d0d864c79d7a14422af344778f437183",
+      "size": 1332
+    },
+    {
+      "path": "data/throwing-masteries-policy.json",
+      "sha256": "65046a9a7453c73a2bfb1cceb1ac5184f57a93168c48fa8c3dd7614ddabde496",
+      "size": 557
+    },
+    {
+      "path": "data/training-source-policies.json",
+      "sha256": "70176e7b029d155c87edffb5444e74c89ff8f20b8a95657e430cfbcebc83a849",
+      "size": 2235
+    },
+    {
+      "path": "data/tremorsense-policy.json",
+      "sha256": "4aa9e462bb34bf75b5088a5ffde1860daf39dee0066a21d6b476f577e44ea253",
+      "size": 693
+    },
+    {
+      "path": "data/type-ace-definitions.json",
+      "sha256": "215cef6a717b30cd16ebcfb107117498d0c1eb577a0efcaba45f9cf74bb9c075",
+      "size": 32226
+    },
+    {
+      "path": "data/type-sync-policy.json",
+      "sha256": "d690f82ad96f72fa985a14a2dcc25ce8eb3aba43dd52d7a2d0e40218eef32475",
+      "size": 1115
+    },
+    {
+      "path": "data/underdog-negative-bonus-policy.json",
+      "sha256": "26962ac8f438e37389658ed964cd789b8c649ad81f8ce12d0b2e42a842e8524c",
+      "size": 940
+    },
+    {
+      "path": "data/vehicle-native-policy.json",
+      "sha256": "2cb05c617b96c8de2a324af2c159b0534e77a99577521d3cdf9c234341313173",
+      "size": 2679
+    },
+    {
+      "path": "data/verification/category2-edge-work-plan.json",
+      "sha256": "1fb206bde5ff9372ebc617c91cd76c984b7f9065ded2d5c50af9fd31e60b114e",
+      "size": 21666094
+    },
+    {
+      "path": "data/verification/category2-item-table-status.json",
+      "sha256": "9f3155c31ff9482e0d11b6d267170d5f6d7ce5a6d61bb49f4666323c50c39351",
+      "size": 4975125
+    },
+    {
+      "path": "data/verification/category2-optional-clause-status.json",
+      "sha256": "39ee0e1cee9a8d7b6f89ffa19d86a4dd069016e816efe592ef4ee3a4cad4f928",
+      "size": 2014572
+    },
+    {
+      "path": "data/verification/category2-progress.json",
+      "sha256": "e5d09181f5dde171fe8de961a4bf94a16abe13a67e789f9bb4483fb9f0825bd6",
+      "size": 68372
+    },
+    {
+      "path": "data/verification/category2-work-checkpoint.json",
+      "sha256": "fd4b1ab7f3d53a387e21ac9118d8a022d27875791f4cb701bcae115108843a08",
+      "size": 305316
+    },
+    {
+      "path": "data/verification/category3-register.json",
+      "sha256": "a3841c9fd8d59ceed69c185452a9333fde995411e00ee84052636c24bc2ede9c",
+      "size": 2500939
+    },
+    {
+      "path": "data/verification/common-check-semantics.json",
+      "sha256": "5d4c4ae010d2050271ad3a2785cf87e5d878f9b2e4d938c3ca7cdde9ba5bf8ec",
+      "size": 28518
+    },
+    {
+      "path": "data/verification/root-semantics.json",
+      "sha256": "162ffa1f21e5f7a81815e3d298a2098c9bc33083c84c5916cbdd6cd54002159a",
+      "size": 65065
+    },
+    {
+      "path": "data/wallrunner-policy.json",
+      "sha256": "43a0c05130ddea61e382850fede53006d51d6510855805b1df53db172fe67222",
+      "size": 466
+    },
+    {
+      "path": "data/weapon-policy.json",
+      "sha256": "7773705d35ad01631b798844c205911fbb856bc2eec37f7ea67afb5079eb8ae6",
+      "size": 2824
+    },
+    {
+      "path": "data/weather-source-review.json",
+      "sha256": "777a676e4e793c13bdb69deed7ecf63e34db451b6318c0faeeb88b1ebffabec6",
+      "size": 7191
+    },
+    {
+      "path": "input/ch00-front.md",
+      "sha256": "62e0bd4933a5bba4baebf4580e12f14c879d0ca9d555d0775cab5d7605f1b87a",
+      "size": 3305
+    },
+    {
+      "path": "input/ch01-intro.md",
+      "sha256": "ae4c4a1d10f3c14628d1eb3111531b65a3e7106e4f73f6e2cfb398ed7682f6b9",
+      "size": 8176
+    },
+    {
+      "path": "input/ch02-character-creation.md",
+      "sha256": "44f0412c27e93730445a544096951925273bc98d3c729b65f4030f155d8dc000",
+      "size": 79315
+    },
+    {
+      "path": "input/ch03-skills-edges-feats.md",
+      "sha256": "b94e43349794836391501f9aac10009d20746bf946ea0c4b5ff3adf85e982d23",
+      "size": 86212
+    },
+    {
+      "path": "input/ch04-trainer-classes.md",
+      "sha256": "a1a4a213074bc6166507db3e0d4c04ded02c04168c4798c636a4d53911494ac4",
+      "size": 315365
+    },
+    {
+      "path": "input/ch05-pokemon.md",
+      "sha256": "bdfb5d39fec8fede32cac615a7788301336aaceefc46079c8ed7014ea76d174b",
+      "size": 80769
+    },
+    {
+      "path": "input/ch06-gameplay.md",
+      "sha256": "b5719c7b300ff8d5e0eb84b782780d134d949654037e8128203dddd86639d9f6",
+      "size": 29680
+    },
+    {
+      "path": "input/ch07-combat.md",
+      "sha256": "57abb79c4f70c64246cd7927bffe2377e951bdc32dfa4c9a5c14b4ad97618c18",
+      "size": 120816
+    },
+    {
+      "path": "input/ch08-contests.md",
+      "sha256": "aefcf3c32555008ad7c1ca757ae87c57dea71b42faa284895b31c3d8117cd31e",
+      "size": 40168
+    },
+    {
+      "path": "input/ch09-equipment.md",
+      "sha256": "b5aeb6b82af4b05fe0b369368f8b0181ed3b1d22079e8a86a1c4248e6cbf92d2",
+      "size": 79553
+    },
+    {
+      "path": "input/ch10-index-reference.md",
+      "sha256": "c3a1d783b4f649f0f6e25a9443a90ca8079a6e036c42c6f8797e100127157abe",
+      "size": 57041
+    },
+    {
+      "path": "input/ch11-running-the-game.md",
+      "sha256": "5311a50a2c70748465fe6fd73b52a8abbf337a11791509d88a15e19295232dad",
+      "size": 259821
+    },
+    {
+      "path": "input/data/custom/foundation-scripting-examples.md",
+      "sha256": "a466db4d1e0ed6ca2e276a45f3ce8b18227a72dc4514258ac0869bf1ef9d5b60",
+      "size": 444
+    },
+    {
+      "path": "input/db/abilities.csv",
+      "sha256": "87efebd17b0a5fe09c9db060a16a8844cf41be53d65eb35716cf62f80a177fae",
+      "size": 351431
+    },
+    {
+      "path": "input/db/calculator.csv",
+      "sha256": "f7c6cb5b808b90fe877167d66cdf58a8529cf89d0ed3b33967ae0637c42f10f1",
+      "size": 1421
+    },
+    {
+      "path": "input/db/class-data.csv",
+      "sha256": "5d75c059fc17c7d37293c8a3bc6cb9f1a53f51e9361daee7f5ef9cb35e411c82",
+      "size": 94741
+    },
+    {
+      "path": "input/db/damage-table.csv",
+      "sha256": "5ae02d6ea8eca48d036beb27b2b8d3f12e81ea6e234c056eba807b95943de373",
+      "size": 3327
+    },
+    {
+      "path": "input/db/edges.csv",
+      "sha256": "7a773aa7a676b4467ec8fe0c6fc3424549c3c41b2b01aee0c4c368b1abe6c609",
+      "size": 18432
+    },
+    {
+      "path": "input/db/feats.csv",
+      "sha256": "4435ff1c462a211564c85d2c1c9a2ac6e7c790c7545e1ad7056d32888b2367bd",
+      "size": 319541
+    },
+    {
+      "path": "input/db/inventory.csv",
+      "sha256": "e3e6d81649d8d12ae1e610db838e6ea615c077cd634c682429042c545b3bd3f4",
+      "size": 127311
+    },
+    {
+      "path": "input/db/item-data.csv",
+      "sha256": "f78d72f768c4e7bdfcbc406db33be6201ff6d072787a9179fbb1653c43fe98b8",
+      "size": 81421
+    },
+    {
+      "path": "input/db/learnsets.csv",
+      "sha256": "9b2be5bac7189567b97ad957379124f1a001bf016a0ce45ed03f63065a10ea6a",
+      "size": 1642954
+    },
+    {
+      "path": "input/db/moves.csv",
+      "sha256": "ab83f872e5eca67a41db7d126b842f0165437e0fa70bb77ddad832a0b7396c93",
+      "size": 297106
+    },
+    {
+      "path": "input/db/nature-type.csv",
+      "sha256": "8dfab85c42eae96f335348208e377a5ce04d96946090a975e22f0c73ce7a8cee",
+      "size": 4620
+    },
+    {
+      "path": "input/db/poke-edges.csv",
+      "sha256": "8e4bbb735033db781ca011f98885c1b5fe1b900da75a196b9e6f8734ceff946d",
+      "size": 12350
+    },
+    {
+      "path": "input/db/pokebot.csv",
+      "sha256": "54c4dd92131a05f59534b8bfd18660e57cb18fc46d613c1e95f4ab4d762364cb",
+      "size": 12643
+    },
+    {
+      "path": "input/db/pokemon-skills.csv",
+      "sha256": "13513f0b9013f59e2c63bc7f13049fe229796a944312cfc75ce40d28f708dce3",
+      "size": 131882
+    },
+    {
+      "path": "input/db/pokemon.csv",
+      "sha256": "0b6f0fbe200a362b341322227f9d3885addd8dc0e54e2f7734a3c7a9a24b752c",
+      "size": 177131
+    },
+    {
+      "path": "input/db/source-xlsx.json",
+      "sha256": "beb68e130c4ef0fa3750b11e5c4807bb5c8ee563c01d81ee04d10b7e55c282bb",
+      "size": 3718
+    },
+    {
+      "path": "input/db/tm.csv",
+      "sha256": "dd06395776044c0c13e698420aead38907d6969f475caf8485ec2cd1a2259f44",
+      "size": 60179
+    },
+    {
+      "path": "input/db/weight-class.csv",
+      "sha256": "aabd491c7a15cfe561386fd31e957ef00b1ad1e7f5621b22ef11779e79c62b2f",
+      "size": 998
+    },
+    {
+      "path": "input/hb-finance.md",
+      "sha256": "3c813528b5bd62cca98c69c16e75b4e9ddc4fb910a11fd37421ab79ddffeb416",
+      "size": 3577
+    },
+    {
+      "path": "input/hb-terastal.md",
+      "sha256": "f9ec20451b7acf0e44fbf86c818bb408692c7e8c581a8659d724ccb8f65ca6f6",
+      "size": 5765
+    },
+    {
+      "path": "input/hb-weather.md",
+      "sha256": "fd593708dd202b960aa6487c108b21a406e2c07c3eff623b33edb97fff7fea83",
+      "size": 6412
+    },
+    {
+      "path": "input/hb-zmoves.md",
+      "sha256": "da78fc14141b928e225be5f5bf34c352db066b60cb4ebffbc1054feba360c513",
+      "size": 2862
+    },
+    {
+      "path": "input/supp-blessings.md",
+      "sha256": "de4cdcd5c632b18bb2bbc600693362aa3347b4f66c89c724991b944102aa73b6",
+      "size": 101132
+    },
+    {
+      "path": "input/supp-errata.md",
+      "sha256": "90e533bde766c6ffe8fb480dd8e2478e5fddf3ed1fef9a7a1032070245622a3e",
+      "size": 58028
+    },
+    {
+      "path": "input/supp-fantasy.md",
+      "sha256": "a51f5d6592bc1ff12b380f47398db93426b53c58c210810f5041b29eb64b2266",
+      "size": 142603
+    },
+    {
+      "path": "input/supp-polygon-original.pdf",
+      "sha256": "a77531bf881aecca0311ecc7be85f579f275e8016a1be1b75761360ad02d6594",
+      "size": 5222883
+    },
+    {
+      "path": "input/supp-polygon.md",
+      "sha256": "99c41c5de006f3cc0e5d57f1f3e498aa019c557d36f21e938f777b25be253f0e",
+      "size": 156669
+    },
+    {
+      "path": "output/entities/_noise.json",
+      "sha256": "7d9712461449c84af1b4d43ee7b75041f8817f34203812c79eb473fbc8dc6974",
+      "size": 63421
+    },
+    {
+      "path": "output/entities/abilities-failed.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "size": 2
+    },
+    {
+      "path": "output/entities/abilities.json",
+      "sha256": "1910a00a58b0234b6d4bde2e339ea2a62a9799a6ff1fd99cf222ba2f00435468",
+      "size": 995490
+    },
+    {
+      "path": "output/entities/action_type.json",
+      "sha256": "6c5916f7e0b6a88e1027fb5234b9a74e32a39e49a112cb9c8053202323e593c0",
+      "size": 5704
+    },
+    {
+      "path": "output/entities/block.json",
+      "sha256": "7ab475e4a9ce64cd9f27f616bd1a0df5e734f0fb174b37eba9e10d5a4ea8a992",
+      "size": 11041
+    },
+    {
+      "path": "output/entities/capability.json",
+      "sha256": "82b27751f092251d5b747c0c1401aae11632986335f5ba5cbeb4dae30e26cf6f",
+      "size": 39242
+    },
+    {
+      "path": "output/entities/class_mechanics.json",
+      "sha256": "b145b29c07318b7816d2c0a9d4eb075ef67b4c4ce637c2c1b6c1d40ff538cff3",
+      "size": 9211
+    },
+    {
+      "path": "output/entities/classes.json",
+      "sha256": "b89b889bd2c99c8d9458607a197e2debe1fef102c62662f8c697a7b81a5167fd",
+      "size": 19827
+    },
+    {
+      "path": "output/entities/condition.json",
+      "sha256": "83425bab082b93c72446aa1dfe518b64a36575c523c0e60be8322b5d94b18747",
+      "size": 14171
+    },
+    {
+      "path": "output/entities/contest_effect.json",
+      "sha256": "54ef34b30998e3dfbb8737c6ca241268ee318a682935ab3cab04e44e057528b3",
+      "size": 8856
+    },
+    {
+      "path": "output/entities/crafted_item.json",
+      "sha256": "5dc9defaa145deba8873cdf91f0d4cf517b6badc81060656c6312fc82597caed",
+      "size": 15543
+    },
+    {
+      "path": "output/entities/definition.json",
+      "sha256": "828e1fc4b59aaaf9bcca30b903116a339f22b1afb82a8689963bbb66fbba858a",
+      "size": 69069
+    },
+    {
+      "path": "output/entities/edge.json",
+      "sha256": "362d4a1ed36ef632d22c556756c741428c91436ab163f8019fac2f1020b67162",
+      "size": 49261
+    },
+    {
+      "path": "output/entities/edge_sheet.json",
+      "sha256": "469391d1c6835fef0100ec6957e51dbccf3f2f4db9c21ed857dcfec368f11496",
+      "size": 53237
+    },
+    {
+      "path": "output/entities/entity-coverage.md",
+      "sha256": "8ab5f6d85bd4b8480cb5e49adcd18c3f53d47604da82e90fa4156121ccc13944",
+      "size": 4274
+    },
+    {
+      "path": "output/entities/feat.json",
+      "sha256": "c17abda06638cd39e96f454af17e746c454faf9f36ec0df16b4badc5e204b4a5",
+      "size": 861682
+    },
+    {
+      "path": "output/entities/feat_sheet.json",
+      "sha256": "5baad55faca2c7086f34ba38e5456fd8ecffdb01038b81dd699895045b2520d5",
+      "size": 692372
+    },
+    {
+      "path": "output/entities/fields_sheet.json",
+      "sha256": "50d91771629ef52a56cb7a77b33341e1528d3054766b1553e48fedcba8769e8b",
+      "size": 7344
+    },
+    {
+      "path": "output/entities/gift.json",
+      "sha256": "1a982e3a2fb9b94a8f1d3d6b46d9e2251164441bd24066b666e66bd615d65d40",
+      "size": 6728
+    },
+    {
+      "path": "output/entities/item.json",
+      "sha256": "812c59821ae5d46da18389f1b8f48554b387e644a4fe87015f5e03b6677e69e2",
+      "size": 14905
+    },
+    {
+      "path": "output/entities/items_sheet.json",
+      "sha256": "d0b2220ad5a7f3d08da04a8c853ad93b13ec918831e34ffaddebea188680d095",
+      "size": 456671
+    },
+    {
+      "path": "output/entities/keyword.json",
+      "sha256": "45812a9f1979e1acdcd79f69a55eda610a9718549927c9c6d5195932a0d2a24a",
+      "size": 19602
+    },
+    {
+      "path": "output/entities/learnset_links.json",
+      "sha256": "a39085d34ad22ebda4d3333a8a293cc86becd13005bcf8c68dfed310efa8108e",
+      "size": 5910980
+    },
+    {
+      "path": "output/entities/learnsets.json",
+      "sha256": "a359d6649cc5207eebd588ef9c4053bfc09f9c77f926a00c99e33bb586b20c44",
+      "size": 4462108
+    },
+    {
+      "path": "output/entities/legendary_gifts.json",
+      "sha256": "bf340eb614cbf7c02d6b57e36dacda772978b0cbb52acedf7acdf877b542afbd",
+      "size": 126267
+    },
+    {
+      "path": "output/entities/maneuver.json",
+      "sha256": "ee9a0469672ae23d3970a74e0d6694950165cf751a617a795033645f083bdb55",
+      "size": 17410
+    },
+    {
+      "path": "output/entities/moves-failed.json",
+      "sha256": "414da2f45eb48edb42ba7bfa161df795dd13b332078348ec7655b0067e34dcfc",
+      "size": 29848
+    },
+    {
+      "path": "output/entities/moves-unidentified.json",
+      "sha256": "884c94a55fd4e531d1a4399a4c57efdeadd32002fbb6b8e479370e6338a4d463",
+      "size": 104641
+    },
+    {
+      "path": "output/entities/moves.json",
+      "sha256": "e53a01e3277f9556f89e70e12c6e78fed6fcf4b29b967365d2b5f2935e3f0698",
+      "size": 1007724
+    },
+    {
+      "path": "output/entities/poke_edge.json",
+      "sha256": "652551b8ef3bff9fc5d8c72648d7aef044e41d694745d6bc407efe7f561816ce",
+      "size": 41082
+    },
+    {
+      "path": "output/entities/pokebot.json",
+      "sha256": "1799d7c37632590194db4ec618a7076b554fcc7019069e6b4454db9e8cf31ec3",
+      "size": 62585
+    },
+    {
+      "path": "output/entities/pokemon-failed.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "size": 2
+    },
+    {
+      "path": "output/entities/pokemon.json",
+      "sha256": "eeac5716dec2716e27a672bbbef7db330e3b9e1b0b47460df0a15683a9642a89",
+      "size": 1300479
+    },
+    {
+      "path": "output/entities/recipes.json",
+      "sha256": "306912cf1e4c03302f65950759a74200e5dbc8b2a41a5013d488b0123a702fad",
+      "size": 62099
+    },
+    {
+      "path": "output/entities/species_skills.json",
+      "sha256": "b3b795db210c59ccacd92908e330ee52a5b3ef6b24e21ba78817454db02cf259",
+      "size": 1668930
+    },
+    {
+      "path": "output/entities/stat.json",
+      "sha256": "d0ae0662c7332991fea6720fa888cdbf70c10d6d71c625ab7d74d46221b4cd2f",
+      "size": 3948
+    },
+    {
+      "path": "output/entities/techniques.json",
+      "sha256": "b6850db6e774c068b75369c9922b603cbb9d244954bf93f5f39543592bf4f90c",
+      "size": 45264
+    },
+    {
+      "path": "output/entities/tm.json",
+      "sha256": "39247ad01e219d18d4233ad39da26c74df7c5fdad5da20e0d4847725798e44b6",
+      "size": 51821
+    },
+    {
+      "path": "output/entities/weapon_move.json",
+      "sha256": "fc52654fff9f74c95130c97ba5d39360d69f7d6e63329f159bed05c13694d8c5",
+      "size": 17432
+    },
+    {
+      "path": "output/entities/weather.json",
+      "sha256": "e4de9c36573447ca30301657b53f785ae9f9037a33519885cea70bb39d4deeff",
+      "size": 1239
+    },
+    {
+      "path": "output/ruleunits.jsonl",
+      "sha256": "a6254f407f96497c41b62ec27120fd24773527ae7f5de947a716d86984f001a8",
+      "size": 18916253
+    },
+    {
+      "path": "output/source-audit/2026-10-10/ptu-core-1.05.pdf",
+      "sha256": "e5e0371031601c3ad0a04056771c17599a2d8826e5a5102ccd37f9b368108907",
+      "size": 12661816
+    },
+    {
+      "path": "source-audit/core-1.05-martial-abilities.txt",
+      "sha256": "c4b21fb3019b40f30006a9955e2701fe65bd0ea0aff50b056a6cf474c328a3de",
+      "size": 292
+    },
+    {
+      "path": "source-audit/core-drown-out.txt",
+      "sha256": "7d65f4cf1a7a7042889cd1fb1f8264189de5d0742b42cac17eaec9bfd442b075",
+      "size": 226
+    },
+    {
+      "path": "source-audit/core-roughneck-endure.txt",
+      "sha256": "b5b9ed05bef9d6f62579821b6224f5a3e29e413fa0fc21897c7da52f6c6db8a8",
+      "size": 3788
+    },
+    {
+      "path": "source-audit/dataninja-errata-primary.pdf",
+      "sha256": "f754c539e64d40c28c933d43c86a75e2b4089d930b8f9eb0442e52c01fa7fdbb",
+      "size": 359168
+    },
+    {
+      "path": "source-audit/dataninja-errata-primary.txt",
+      "sha256": "0f3f9da70ef5d75f722e3e0837e6d8f26a9b5c8cc1510e7bb63b8c0cca8ac3be",
+      "size": 53853
+    },
+    {
+      "path": "source-audit/type-ace-errata-adoption.json",
+      "sha256": "c233891ff784f4dab30cec10fbdd5920c27ce5ffe5ef3891ca810fcf60bf06fe",
+      "size": 292
+    },
+    {
+      "path": "source-audit/type-ace-held-source-research.md",
+      "sha256": "9f9560bc6dbbb566e3defc954a35a7a5f275a0c96df4f9b8ea134c7ca56df405",
+      "size": 4402
+    }
+  ]
+}

@@ -1,0 +1,361 @@
+"""C02-163 consumes actual owned sources and the existing withdrawal evidence."""
+from copy import deepcopy
+from hashlib import sha256
+from pathlib import Path
+
+import acquisition_withdrawal as WITHDRAWAL
+import acquired_features as ACQUIRED
+import state_grants as GRANTS
+
+
+def _text(value, label):
+    if type(value) is not str or not value.strip():
+        raise ValueError(label + ' required')
+    return value
+
+
+def _owned(actor):
+    if actor.kind != 'trainer':
+        raise ValueError('actual trainer acquisition required')
+    result = {}
+    for prefix, fields in (('edge/', ('edges',)), ('feat/', ('feats',)),
+                           ('class/', ('classes', 'feats'))):
+        names = ACQUIRED._names(actor, prefix)
+        for field in fields:
+            for value in actor.spec.get(field, []):
+                if value not in names:
+                    continue
+                uid = ACQUIRED._resolve(actor, value, prefix, names)
+                if uid in result:
+                    raise ValueError('retraining requires one distinct acquired source')
+                result[uid] = (field, value)
+    return result
+
+
+def owned_source(engine, actor, rule_id):
+    """Observe current ownership; never fabricate an acquisition-time receipt."""
+    import world_entities as WORLD
+    WORLD.require_actors(engine, actor)
+    if rule_id not in _owned(actor):
+        raise ValueError('actual acquired trainer source required')
+    import stat_ace as STAT
+    branches=STAT.records(actor,rule_id,active=True) if rule_id in STAT.FEATURES else []
+    if len(branches)==1:return 'feature:'+actor.entity_id+':'+rule_id+':'+branches[0]['snapshot']['branch']
+    import style_expert as STYLE
+    acquisition=STYLE.acquired(actor,rule_id) if rule_id in STYLE.FEATURES else None
+    if acquisition is not None:
+        import trainer_feature_acquisition as FEATURES
+        definition=FEATURES.STATIC_FEATURES[rule_id]
+        return 'feature:'+actor.entity_id+':'+rule_id+(':'+acquisition['snapshot']['branch'] if definition.get('branch') else '')+(':rank:'+str(acquisition['snapshot']['rank_number']) if definition.get('ranked') else '')
+    import hunter as HUNTER
+    acquisition=HUNTER.acquired(actor,rule_id) if rule_id in HUNTER.FEATURES else None
+    if acquisition is not None and HUNTER.DEFINITIONS[rule_id].get('branch'):
+        return 'feature:'+actor.entity_id+':'+rule_id+':'+acquisition['snapshot']['branch']
+    source = 'feature:' + actor.entity_id + ':' + rule_id
+    row = GRANTS.state(actor)['sources'].get(source)
+    if row is not None:
+        if (row.get('rule_id') != rule_id or row.get('owner_id') != actor.entity_id or
+                row.get('lifetime') != 'while_owned'):
+            raise ValueError('owned trainer source provenance changed')
+    else:
+        GRANTS._source(actor, source, 'feature', rule_id=rule_id,
+                       owner_id=actor.entity_id, lifetime='while_owned', tutor_points=0)
+    return source
+
+
+def irreversible(engine, actor, rule_id, *, event_id, reason):
+    """Called inside the real permanent-effect producer's staged commit."""
+    _text(event_id, 'actual permanent effect event')
+    _text(reason, 'actual permanent effect reason')
+    source = owned_source(engine, actor, rule_id)
+    result = WITHDRAWAL.irreversible(engine, actor, source, event_id=event_id, reason=reason)
+    GRANTS.state(actor)['sources'][source]['irreversible_trainer_feature'] = True
+    return result
+
+
+def _source_matches(actor,source,row):
+    expected='feature:'+actor.entity_id+':'+row.get('rule_id','')
+    acquisition=row.get('static_acquisition')
+    if acquisition is not None:
+        import trainer_feature_acquisition as FEATURES
+        definition=FEATURES.STATIC_FEATURES[acquisition['feature_id']]
+        if definition.get('branch'):expected+=':'+acquisition['snapshot']['branch']
+        if definition.get('ranked'):expected+=':rank:'+str(acquisition['snapshot']['rank_number'])
+    return source==expected
+
+
+def validate_actor(actor):
+    for source, row in actor.spec.get(GRANTS.KEY, {}).get('sources', {}).items():
+        if not row.get('irreversible_trainer_feature'):
+            continue
+        uid = row.get('rule_id')
+        uses = row.get('irreversible_uses')
+        if (uid not in _owned(actor) or not _source_matches(actor,source,row) or
+                row.get('owner_id') != actor.entity_id or row.get('lifetime') != 'while_owned' or
+                type(uses) is not dict or not uses or any(
+                    type(key) is not str or not key.strip() or type(value) is not str or not value.strip()
+                    for key, value in uses.items())):
+            raise ValueError('irreversible trainer Feature requires its actual owned source and use')
+    return True
+
+
+def retired_receipts(actor):
+    """Selection receipts remain immutable after their owning source ends."""
+    result = set()
+    for entry in actor.spec.get(GRANTS.KEY, {}).get('ended_sources', []):
+        row = entry['record']
+        withdrawal = row.get('retraining')
+        if withdrawal is None:
+            continue
+        if (type(withdrawal) is not dict or withdrawal.get('cause') != 'retraining' or
+                not _source_matches(actor,entry['source_id'],row) or
+                row.get('owner_id') != actor.entity_id or row.get('lifetime') != 'while_owned'):
+            raise ValueError('actual ended retraining source required')
+        ids = withdrawal.get('acquisition_receipt_ids')
+        if type(ids) is not list or any(type(value) is not str for value in ids):
+            raise ValueError('original withdrawn acquisition receipt references required')
+        if result.intersection(ids):
+            raise ValueError('acquisition receipt withdrawn twice')
+        receipts = {value['receipt_id']: value for value in
+                    actor.spec.get('trainer_feature_acquisition_receipts', {}).values()}
+        if any(identity not in receipts or receipts[identity]['feature_id'] != row['rule_id']
+               for identity in ids):
+            raise ValueError('withdrawn selection must name its own original acquisition receipt')
+        result.update(ids)
+    return result
+
+
+def _native_dependencies(engine, actor, owned):
+    """Use the parent identities declared by the existing teaching owners."""
+    import pokemon_teaching as TEACHING
+    import feature_ability_lessons as LESSONS
+    import trainer_feature_acquisition as FEATURES
+    result = {}
+    import taskmaster as TASK
+    for child,definition in TASK.DEFINITIONS.items():
+        if child in owned:
+            parents=definition['parents']
+            if any(parent not in owned for parent in parents):raise ValueError('actual acquired Taskmaster prerequisite required')
+            result[child]=list(parents)
+    import conquerors_march as MARCH
+    for child,parent in MARCH.PARENTS.items():
+        if child in owned:
+            if parent not in owned:raise ValueError('actual acquired Rider Feature prerequisite required')
+            result[child]=[parent]
+    import control_mount as MOUNT,training_features as TRAINING
+    for child,parents in ((MOUNT.RIDER,('edge/탑승-기량',TRAINING.AGILITY)),(MOUNT.RIDE_AS_ONE,(MOUNT.RIDER,))):
+        if child in owned:
+            if any(parent not in owned for parent in parents):raise ValueError('actual acquired Rider prerequisite required')
+            result[child]=list(parents)
+    if 'feat/복원력' in owned:
+        if 'feat/자각' not in owned:raise ValueError('actual Book Awareness prerequisite required')
+        result['feat/복원력']=['feat/자각']
+    import duelist as DUELIST
+    for child,parents in DUELIST.PARENTS.items():
+        if child in owned:
+            if any(parent not in owned for parent in parents):raise ValueError('actual Duelist prerequisite required')
+            result[child]=list(parents)
+    for child,parent in (("class/치어리더","feat/영감성-훈련"),("feat/행동의-순간","class/치어리더"),("feat/응원-단체","class/치어리더"),("feat/영감을-주는-지원","feat/응원-단체"),("feat/신나게-방해","feat/응원-단체"),("feat/응원-문구","feat/행동의-순간")):
+        if child in owned:
+            if parent not in owned:raise ValueError('actual acquired Cheerleader prerequisite required')
+            result[child]=[parent]
+    import stat_ace as STAT
+    for child,definition in STAT.DEFINITIONS.items():
+        if child in owned:
+            if any(parent not in owned for parent in definition['parents']):raise ValueError('actual Stat Ace prerequisite source required')
+            result[child]=list(definition['parents'])
+    import capture_techniques as CAPTURE
+    import style_expert as STYLE
+    for child,definition in STYLE.DEFINITIONS.items():
+        if child in owned and child!=STYLE.CLASS:
+            parent=definition.get('parent',STYLE.CLASS)
+            if parent not in owned:raise ValueError('actual retained Style prerequisite required')
+            result[child]=[parent]
+    if "feat/포획-추진력" in owned:
+        result["feat/포획-추진력"] = [CAPTURE.ADVANCED]
+    if CAPTURE.ADVANCED in owned:
+        if CAPTURE.CLASS not in owned:
+            raise ValueError('Advanced Capture Techniques requires its actual acquired parent')
+        result[CAPTURE.ADVANCED] = [CAPTURE.CLASS]
+    if FEATURES.MARTIAL_ARTIST in owned:
+        FEATURES._martial_qualification(actor, actor, ())
+        result[FEATURES.MARTIAL_ARTIST] = [FEATURES.MARTIAL_PREREQUISITE]
+    for child, parent in ((TEACHING.MOVE_TUTOR, TEACHING.MENTOR),
+                          (TEACHING.EGG_TUTOR, TEACHING.MOVE_TUTOR)):
+        if child in owned:
+            if parent not in owned:
+                raise ValueError('actual acquired teaching prerequisite required')
+            result[child] = [parent]
+    for child in LESSONS.SOURCES:
+        if child in owned:
+            parent = LESSONS._policy(engine.r)[child]['parent']
+            if parent not in owned:
+                raise ValueError('actual acquired Ability lesson parent required')
+            result[child] = [parent]
+    import roughneck as ROUGHNECK
+    for child,definition in ROUGHNECK.DEFINITIONS.items():
+        if child in owned:
+            parents=list(definition["parents"])
+            if child==ROUGHNECK.CLASS:parents.append(ROUGHNECK.PRESENCE)
+            if any(parent not in owned for parent in parents):raise ValueError("actual acquired Roughneck prerequisite required")
+            result[child]=parents
+    import musician as MUSICIAN
+    for child,definition in MUSICIAN.DEFINITIONS.items():
+        if child in owned:
+            parents=definition['parents']
+            if any(parent not in owned for parent in parents):raise ValueError('actual acquired Musician prerequisite required')
+            result[child]=list(parents)
+    import hunter as HUNTER
+    for child,definition in HUNTER.DEFINITIONS.items():
+        if child in owned and child!=HUNTER.CLASS:
+            parents=[definition['parent'],*definition.get('prerequisites',[])]
+            if any(parent not in owned for parent in parents):raise ValueError('actual acquired Hunter prerequisite required')
+            result[child]=list(dict.fromkeys(result.get(child,[])+parents))
+    import martial_artist as MARTIAL
+    for child,definition in MARTIAL.DEFINITIONS.items():
+        if child in owned:
+            parents=[MARTIAL.CLASS,*definition.get('prerequisites',[])]
+            if any(parent not in owned for parent in parents):raise ValueError('actual acquired Martial Artist prerequisite required')
+            result[child]=list(dict.fromkeys(result.get(child,[])+parents))
+    import provocateur as PROVOCATEUR
+    for child,definition in PROVOCATEUR.DEFINITIONS.items():
+        if child in owned and definition['parent']:
+            parent=definition['parent']
+            if parent not in owned:raise ValueError('actual acquired Provocateur prerequisite required')
+            result[child]=list(dict.fromkeys(result.get(child,[])+[parent]))
+    return result
+
+
+def retrain(engine, actor, rule_id, *, request_id, reason, gm_decision,
+            retained_dependencies, granted_skill_edge_policy=None):
+    """Retire one actual Edge/Feature selection after GM and source checks.
+
+    GM-owned dynamic prerequisites (including skill-rank providers) name actual
+    source IDs for every retained selection. Native teaching parents cannot be
+    omitted. Replacement acquisition is a separate existing source adapter.
+    """
+    import world_entities as WORLD
+    import trainer_xp_payments as XP
+    import trainer_feature_acquisition as FEATURES
+    import resolution_transaction as TRANSACTIONS
+    WORLD.require_actors(engine, actor)
+    source_file = Path(engine.r.root) / 'input/ch02-character-creation.md'
+    if sha256(source_file.read_bytes()).hexdigest() != '44f0412c27e93730445a544096951925273bc98d3c729b65f4030f155d8dc000':
+        raise ValueError('C02-163 retraining source changed; review required')
+    engine.r.ruleset.require({'id': 'C02-163', 'source': {
+        'file': 'ch02-character-creation.md', 'lines': [355, 358]}})
+    for value, label in ((rule_id, 'actual rule identity'), (request_id, 'retraining request'),
+                         (reason, 'retraining reason')):
+        _text(value, label)
+    if (type(gm_decision) is not dict or set(gm_decision) != {'allowed', 'reason'} or
+            gm_decision['allowed'] is not True):
+        raise ValueError('explicit allowed GM retraining consultation required')
+    _text(gm_decision['reason'], 'GM narrative retraining decision')
+    if type(retained_dependencies) is not dict:
+        raise ValueError('complete retained source dependency declaration required')
+    intent = {'rule_id': rule_id, 'request_id': request_id, 'reason': reason,
+              'gm_decision': deepcopy(gm_decision), 'retained_dependencies': deepcopy(retained_dependencies)}
+    if granted_skill_edge_policy is not None:
+        intent['granted_skill_edge_policy'] = deepcopy(granted_skill_edge_policy)
+    fingerprint = TRANSACTIONS.request_fingerprint(intent)
+    for entry in actor.spec.get(GRANTS.KEY, {}).get('ended_sources', []):
+        prior = entry['record'].get('retraining', {})
+        if prior.get('request_id') == request_id:
+            if prior.get('intent') != fingerprint:
+                raise ValueError('retraining request changed')
+            return deepcopy(prior['result'])
+    owned = _owned(actor)
+    if rule_id not in owned:
+        raise ValueError('actual acquired trainer source required')
+    if ACQUIRED.owned_rule_count(actor, rule_id) != 1:
+        raise ValueError('select one actual trainer acquisition for retraining')
+    if request_id in actor.spec.get(XP.KEY, {}):
+        raise ValueError('retraining request already belongs to an XP payment')
+
+    def apply(e, trainer):
+        import capture_techniques as CAPTURE
+        sources = {uid: owned_source(e, trainer, uid) for uid in owned}
+        import keep_fighting as KEEP
+        if KEEP.FEATURE in owned and rule_id!=KEEP.FEATURE:
+            parents=[sources[uid] for uid in KEEP.FAMILY if uid in owned and uid!=rule_id]
+            declared=retained_dependencies.get(sources[KEEP.FEATURE],[])
+            if len(set(parents).intersection(declared))<5:
+                raise ValueError('retained Keep Fighting requires five actual Cheerleader Feature sources')
+        retained = set(sources.values()) - GRANTS._revocation_sources(trainer,[sources[rule_id]])
+        import taskmaster as TASK
+        if TASK.GAMBIT in owned and rule_id!=TASK.GAMBIT:
+            parents=[sources[uid] for uid in TASK.FEATURES if uid in owned and uid not in (rule_id,TASK.GAMBIT)]
+            declared=retained_dependencies.get(sources[TASK.GAMBIT],[])
+            if len(set(parents).intersection(declared))<TASK.DEFINITIONS[TASK.GAMBIT]['parameters']['class_features']:
+                raise ValueError('retained Deadly Gambit requires five actual Taskmaster Features')
+        import roughneck as ROUGHNECK
+        if ROUGHNECK.NAILS in owned and rule_id!=ROUGHNECK.NAILS:
+            parents=[sources[uid] for uid in ROUGHNECK.FEATURES if uid in owned and uid not in (rule_id,ROUGHNECK.NAILS)]
+            declared=retained_dependencies.get(sources[ROUGHNECK.NAILS],[])
+            if len(set(parents).intersection(declared))<3:
+                raise ValueError('retained Tough as Nails requires three actual Roughneck Features')
+        if set(retained_dependencies) != retained:
+            raise ValueError('dependencies must cover every actual retained trainer source')
+        required = _native_dependencies(e, trainer, owned)
+        for source, parents in retained_dependencies.items():
+            uid = next(uid for uid, value in sources.items() if value == source)
+            WITHDRAWAL.dependencies(e, trainer, source, parents)
+            if any(sources[parent] not in parents for parent in required.get(uid, [])):
+                raise ValueError('native retained acquisition prerequisite cannot be omitted')
+        CAPTURE.prepare_retraining(e, trainer, rule_id, granted_skill_edge_policy)
+        source = sources[rule_id]
+        affected = []
+        modifier_prefix = 'static-modifier:' + trainer.entity_id + ':' + rule_id + ':'
+        for target in WORLD.actors(e):
+            keys = [key for key, row in target.spec.get(GRANTS.KEY, {}).get('sources', {}).items()
+                    if row.get('owner_id') == trainer.entity_id and row.get('rule_id') == rule_id and
+                    row.get('lifetime') in ('while_owned', 'your_pokemon') and
+                    (key == source or row.get('static_acquisition',{}).get('feature_id')==rule_id or (row.get('kind') == 'static_trainer_modifier' and key.startswith(modifier_prefix)) or
+                     (row.get('kind') == 'class_passive_combat' and row.get('source_variant') == 'C03-126' and
+                      key.startswith('class-passive:' + trainer.entity_id + ':')))]
+            if keys:
+                GRANTS.preflight_revoke(target, keys)
+                affected.append((target, keys))
+        acquisition_ids = [row['receipt_id'] for row in trainer.spec.get(FEATURES.LEDGER_KEY, {}).values()
+                           if row['feature_id'] == rule_id and row['receipt_id'] not in retired_receipts(trainer)]
+        payment = XP.retraining(e, trainer, 'edge' if rule_id.startswith('edge/') else 'feature',
+                                request_id=request_id, reason=reason, refund_policy='before_use')
+        result = {'rule_id': rule_id, 'source_id': source, 'request_id': request_id,
+                  'xp_paid': payment['amount'], 'cause': 'retraining'}
+        GRANTS.state(trainer)['sources'][source]['retraining'] = {
+            'cause': 'retraining', 'request_id': request_id, 'intent': fingerprint,
+            'gm_decision': deepcopy(gm_decision), 'acquisition_receipt_ids': acquisition_ids,
+            'result': deepcopy(result)}
+        if granted_skill_edge_policy is not None:
+            GRANTS.state(trainer)['sources'][source]['retraining']['granted_skill_edge_policy'] = deepcopy(granted_skill_edge_policy)
+        import conquerors_march as MARCH
+        MARCH.withdraw(e,trainer,rule_id)
+        import stat_ace as STAT
+        STAT.withdraw(e,trainer,rule_id)
+        import chronicler as CHRONICLER
+        CHRONICLER.withdraw(e,trainer,rule_id)
+        import fashionista as FASHIONISTA
+        FASHIONISTA.withdraw(e,trainer,rule_id)
+        import hunter as HUNTER
+        HUNTER.withdraw(e,trainer,rule_id)
+        __import__('martial_artist').withdraw(e,trainer,rule_id)
+        import athlete as ATHLETE
+        ATHLETE.withdraw(e,trainer,rule_id)
+        for target, keys in affected:
+            GRANTS._revoke_sources(target, keys, e)
+        field, raw = owned[rule_id]
+        trainer.spec[field].remove(raw)
+        for key in ('feat_ranks', 'feature_choices'):
+            trainer.spec.get(key, {}).pop(rule_id, None)
+        if FEATURES.PROJECTION_KEY in trainer.spec:
+            trainer.spec[FEATURES.PROJECTION_KEY] = FEATURES._projection_from_rows(FEATURES._active_rows(trainer))
+        import items as ITEMS
+        ITEMS.register_feats(e, trainer)
+        XP.mark_used(e, trainer, request_id, event_id='retraining:' + request_id)
+        import state_fields as FIELDS
+        for target, _ in affected:
+            FIELDS.validate_actor(target)
+        e.log(trainer.name + ': retrained ' + rule_id + ': ' + reason, 'C02-163')
+        return result
+
+    return GRANTS.transition(engine, actor, apply)

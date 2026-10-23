@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "trpg://schema/ptk/rule-unit/v1",
+  "title": "PTK RuleUnit v1",
+  "type": "object",
+  "required": [
+    "id",
+    "kind",
+    "title",
+    "source",
+    "text"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9가-힣_\\-]+(/[a-z0-9가-힣_\\-]+)*$"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "chapter",
+        "container",
+        "definition",
+        "definition:action_type",
+        "definition:capability",
+        "definition:condition",
+        "definition:contest_effect",
+        "definition:field",
+        "definition:keyword",
+        "definition:maneuver",
+        "definition:stat",
+        "definition:term",
+        "entity:ability",
+        "entity:archetype",
+        "entity:block",
+        "entity:class",
+        "entity:definition",
+        "entity:edge",
+        "entity:feat",
+        "entity:item",
+        "entity:move",
+        "entity:poke_edge",
+        "entity:recipe",
+        "entity:skill",
+        "entity:species",
+        "entity:technique",
+        "entity:weapon_move",
+        "example",
+        "list:action_type",
+        "list:block",
+        "list:capability",
+        "list:condition",
+        "list:contest_effect",
+        "list:crafted_item",
+        "list:definition",
+        "list:edge",
+        "list:feat",
+        "list:gift",
+        "list:item",
+        "list:keyword",
+        "list:maneuver",
+        "list:poke_edge",
+        "list:stat",
+        "list:weapon_move",
+        "list:weather",
+        "procedure",
+        "rule:prose",
+        "rule:with_fields",
+        "ruling:answer",
+        "ruling:effect",
+        "ruling:formula",
+        "ruling:mech",
+        "ruling:situational",
+        "table"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "document",
+        "license",
+        "path"
+      ],
+      "properties": {
+        "document": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string"
+        },
+        "path": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "file": {
+          "type": "string"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      }
+    },
+    "text": {
+      "type": "object",
+      "required": [
+        "body"
+      ],
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "_layer": {
+      "type": "string",
+      "enum": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "B/C"
+      ]
+    },
+    "refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "to"
+        ],
+        "properties": {
+          "to": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "see_also",
+              "defines",
+              "uses_term",
+              "modifies",
+              "part_of",
+              "grants",
+              "prerequisite"
+            ]
+          },
+          "resolved": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "mech": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "schema",
+        "confidence",
+        "coverage",
+        "data"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "enum": [
+            "ability",
+            "action_economy",
+            "class",
+            "condition",
+            "contest_effect_table",
+            "crafted_item",
+            "derived_stat",
+            "edge",
+            "feat",
+            "formula",
+            "gift",
+            "immunity_table",
+            "item",
+            "lookup_table",
+            "maneuver",
+            "modifier",
+            "move",
+            "poke_edge",
+            "pokebot",
+            "procedure",
+            "recipe",
+            "resource",
+            "rule",
+            "rule_set",
+            "ruling",
+            "species",
+            "table",
+            "technique",
+            "weapon_move"
+          ]
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [
+            "hand",
+            "reviewed",
+            "auto",
+            "llm",
+            "auto+llm",
+            "custom"
+          ]
+        },
+        "coverage": {
+          "type": "string",
+          "enum": [
+            "full",
+            "partial",
+            "none",
+            "n/a"
+          ]
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "effects": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
