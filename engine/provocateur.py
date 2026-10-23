@@ -172,7 +172,7 @@ def blocked(actor,key):
 
 
 def demoralize_threshold(actor,crit_min):
- return min(18,crit_min-1) if acquired(actor,PUSH) else crit_min-1
+ return crit_min-2 if acquired(actor,PUSH) else crit_min-1
 
 
 def critical_tick(engine,actor,target,move,ctx):

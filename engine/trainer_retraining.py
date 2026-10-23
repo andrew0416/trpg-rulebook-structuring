@@ -347,6 +347,20 @@ def retrain(engine, actor, rule_id, *, request_id, reason, gm_decision,
         trainer.spec[field].remove(raw)
         for key in ('feat_ranks', 'feature_choices'):
             trainer.spec.get(key, {}).pop(rule_id, None)
+        if rule_id.startswith('edge/'):
+            import skill_modifiers as SKILLS
+            import weapon_actions as WEAPONS
+            names = ACQUIRED._names(trainer, 'edge/')
+            aliases = {SKILLS.key(name) for name in names if names[name] == [rule_id]}
+            for group in ('edges', 'rank_effects'):
+                policy = trainer.r.skill_policy.get(group, {}).get(rule_id, {})
+                aliases.update(SKILLS.key(name) for name in policy.get('aliases', ()))
+            if rule_id == WEAPONS.CHOICE_EDGE:
+                aliases.update(WEAPONS.CHOICE_ALIASES)
+            choices = trainer.spec.get('edge_choices', {})
+            for name in list(choices):
+                if SKILLS.key(name) in aliases:
+                    del choices[name]
         if FEATURES.PROJECTION_KEY in trainer.spec:
             trainer.spec[FEATURES.PROJECTION_KEY] = FEATURES._projection_from_rows(FEATURES._active_rows(trainer))
         import items as ITEMS

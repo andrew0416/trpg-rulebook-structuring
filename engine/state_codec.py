@@ -837,6 +837,8 @@ class _Decoder:
             elif node['kind'] == 'rulings':
                 if set(vars(value)) != RULING_FIELDS or value.provider is not None or any(value.hooks.values()):
                     _fail('runtime ruling callbacks cannot be restored')
+        # Validate gameplay against the saved declarations on this private Rules copy.
+        self.rules.rulings = engine.rulings
         receipts = getattr(engine, '_effect_dispatch_receipts', {})
         opaque = {self.objects[uid] for uid,node in self.nodes.items() if node['kind'] == 'effect_receipt'}
         if type(receipts) is not dict or set(receipts) != opaque:
@@ -870,7 +872,6 @@ class _Decoder:
         _validate_current_state(engine, actors)
         engine._heavy_native_types = (Engine, Rules, Combatant)
         engine.gm.snapshots = {}
-        self.rules.rulings = engine.rulings
         engine._root_common_epoch += 1
         engine._state_codec_authentication = AUTH_NOTICE
         if self.contest_rules is not None:

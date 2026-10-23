@@ -174,7 +174,7 @@ def after_move(e,row):
   move=MC.event_move(e,event) if event is not None else row.get('target_moves',{}).get(t.entity_id,row['move'])
   if not _punch(e,a,move):continue
   if tag and t.entity_id==tag['target_id']:
-   tag['bonus']=min(S.rank(e.r,a,'전투')[2],tag['bonus']+1);tag['completion_id']=row['id'];_seal_tag(tag);continue
+   tag['bonus']=min(S.effective_rank(e.r,a,'전투'),tag['bonus']+1);tag['completion_id']=row['id'];_seal_tag(tag);continue
   if choice is None or choice.get('target_id',t.entity_id)!=t.entity_id or AP.available(a)<1:continue
   _pay(e,a,1,ACHIEVEMENT)
   tag={'target_id':t.entity_id,'bonus':1,'hit_turn':a.custom_conditions.get('combat_turn_serial',0),'completion_id':row['id'],'acquisition':acquired(a,ACHIEVEMENT)['request_id']}
@@ -287,7 +287,7 @@ def fall_reduction(e,a):
  s=getattr(e,'_martial_artist_scope',None)
  if not s or s['actor'] is not a or not s.get('fall'):return 0
  import skill_modifiers as S,arithmetic_policy as M
- return M.ratio(S.rank(e.r,a,'전투')[2],2)
+ return M.ratio(S.effective_rank(e.r,a,'전투'),2)
 
 
 def miss_effects(e,a,move,effects):
@@ -355,7 +355,7 @@ def validate(e):
    if set(tag)!={'target_id','bonus','hit_turn','completion_id','acquisition','fingerprint'} or tag['target_id'] not in index or tag['acquisition']!=acquired(a,ACHIEVEMENT)['request_id']:raise ValueError('Pummeling Momentum provenance changed')
    import root_resolution as R
    if tag['fingerprint']!=R.fingerprint({k:v for k,v in tag.items() if k!='fingerprint'}):raise ValueError('Pummeling Momentum observation changed')
-   C.integer(tag['bonus'],'Pummeling Momentum bonus',1,S.rank(e.r,a,'전투')[2]);C.integer(tag['hit_turn'],'Pummeling hit turn',0)
+   C.integer(tag['bonus'],'Pummeling Momentum bonus',1,S.effective_rank(e.r,a,'전투'));C.integer(tag['hit_turn'],'Pummeling hit turn',0)
    completed=getattr(e,'_move_completions',{}).get(tag['completion_id'])
    if completed is None or completed['actor'] is not a or not (MC.recipient_result(completed,index[tag['target_id']]) or {}).get('hit'):raise ValueError('Pummeling Momentum requires its actual completed hit')
   if WRESTLE in a.spec:
