@@ -75,11 +75,11 @@ class CoreSuctionCupsTests(unittest.TestCase):
     def test_native_push_spends_its_action_but_cannot_move_the_core_holder(self):
         case = self.physics(SUCTION.SOURCE)
         origin = case.b.pos
-        before = (case.b.hp, deepcopy(case.b.budget), case.b.damage_reduction)
+        before = (case.b.hp, hasattr(case.b, 'budget'), deepcopy(getattr(case.b, 'budget', None)), case.b.damage_reduction)
         result = case.push()
         self.assertEqual((result['pushed_metres'], result['follow_metres']), (0, 0))
         self.assertEqual(case.b.pos, origin)
-        self.assertEqual((case.b.hp, case.b.budget, case.b.damage_reduction), before)
+        self.assertEqual((case.b.hp, hasattr(case.b, 'budget'), getattr(case.b, 'budget', None), case.b.damage_reduction), before)
         self.assertEqual(case.a.budget['standard'], 0)
 
     def test_push_effect_is_blocked_but_general_forced_displacement_is_not(self):

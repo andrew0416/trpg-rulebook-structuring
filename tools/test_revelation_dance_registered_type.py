@@ -111,6 +111,11 @@ class RevelationDanceRegisteredTypeTests(unittest.TestCase):
                 before = e.export_state()
                 self.assertEqual(EXT.effective_type(e, a, t, move, mm, consume=False), '불꽃')
                 self.assertEqual(e.damage_base(a, move, target=t), 9+math.floor(e.formula('stab')))
+                # damage_base emits the actual STAB diagnostic; every other byte of state remains unchanged.
+                root = before['nodes'][before['root']['$ref']]
+                attrs = dict(before['nodes'][root['attrs']['$ref']]['items'])
+                before['nodes'][attrs['log_lines']['$ref']]['items'].append(
+                    f"    자속보정: DB 9 → {9+math.floor(e.formula('stab'))}  => [combat/stab]")
                 self.assertEqual(e.export_state(), before)
                 dealt, observed = self.actual_hit(e, a, t)
                 self.assertEqual(observed, [('불꽃', multiplier)])
@@ -171,7 +176,9 @@ class RevelationDanceRegisteredTypeTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             path = Path(directory)/'registered-dancer.json'
             definition = CUSTOM.template_from(self.core, BAILE, '도감등록댄서', author='actual GM')
-            definition.update(types=['물', '비행'], dex='GM559',
+            # This GM-authored dancer deliberately has no Abilities, matching world(abilities=[]).
+            # A copied draft's unresolved bare Adaptability is not a core registration.
+            definition.update(types=['물', '비행'], abilities={}, dex='GM559',
                 learnset={'level_up': [{'level': 40, 'move': '잠재댄스'}], 'tm': [], 'egg': [], 'tutor': []})
             path.write_text(json.dumps(definition, ensure_ascii=False), encoding='utf-8')
             rules = Rules(ROOT, ruleset='core')
@@ -209,14 +216,16 @@ class RevelationDanceRegisteredTypeTests(unittest.TestCase):
     def test_registered_source_preflight_failure_is_atomic_for_world_and_rng(self):
         rules = Rules(ROOT, ruleset='core')
         e, a, t = self.world(rules=rules)
-        selected = rules._selected_rule
-        def unavailable(uid, *args, **kwargs):
+        selected = Rules._selected_rule
+        before = e.export_state()
+        def unavailable(current, uid, *args, **kwargs):
             if uid == BAILE:
                 raise ValueError('registered dancer source unavailable')
-            return selected(uid, *args, **kwargs)
-        with patch.object(rules, '_selected_rule', side_effect=unavailable):
-            NATIVE.assert_rejected_unchanged(e, lambda: e.use_move(a, t, MOVE, set_damage=True),
-                reason_pattern='registered dancer source unavailable')
+            return selected(current, uid, *args, **kwargs)
+        with patch.object(Rules, '_selected_rule', new=unavailable):
+            with self.assertRaisesRegex(ValueError, 'registered dancer source unavailable'):
+                e.use_move(a, t, MOVE, set_damage=True)
+        self.assertEqual(e.export_state(), before)
 
     def test_native_plasma_preserves_non_normal_dance_then_consumes_real_normal_attack(self):
         e, a, t = self.world(target_species='제라오라')
@@ -231,7 +240,8 @@ class RevelationDanceRegisteredTypeTests(unittest.TestCase):
         e.start_of_turn(t, initiative_count=19)
         with patch.object(Engine, 'd20', return_value=12):
             e.use_move(t, a, 'move/플라스마피스트', situational=100, set_damage=True)
-        pending = deepcopy(DECLARATIVE.live(a, 'next_normal_attack_type'))
+        pending = deepcopy(DECLARATIVE.live(a, 'next_normal_attack_type'),
+            {id(actor): actor.entity_id for actor in WORLD.actor_index(e).values()})
         self.assertEqual(len(pending), 1)
         e.end_of_turn(t)
         e.start_round(e.everyone)
@@ -240,7 +250,8 @@ class RevelationDanceRegisteredTypeTests(unittest.TestCase):
         self.assertEqual(EXT.effective_type(e, a, t, e.r.move(MOVE), e.r.move_mech(MOVE)[0], consume=False), '불꽃')
         _, observed = self.actual_hit(e, a, t)
         self.assertEqual(observed, [('불꽃', 1.0)])
-        self.assertEqual(DECLARATIVE.live(a, 'next_normal_attack_type'), pending)
+        self.assertEqual(deepcopy(DECLARATIVE.live(a, 'next_normal_attack_type'),
+            {id(actor): actor.entity_id for actor in WORLD.actor_index(e).values()}), pending)
         e.end_of_turn(a)
         e.start_round(e.everyone)
         e.start_of_turn(a, initiative_count=20)

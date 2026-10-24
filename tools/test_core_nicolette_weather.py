@@ -25,7 +25,7 @@ class NicoletteWeatherTests(unittest.TestCase):
    extra.update(trainer_id=trainer.entity_id,loyalty=2,
     loyalty_relations={trainer.entity_id:{'value':2,'reason':'GM-established test relationship permits actual native commands'}})
   if types is not None:extra['types']=list(types)
-  c=Combatant(self.r,build_pokemon(self.r,species,40,name=name or identity,moves=list(moves),abilities=list(abilities),pos=pos,side=side,extra=extra))
+  c=Combatant(e.r,build_pokemon(e.r,species,40,name=name or identity,moves=list(moves),abilities=list(abilities),pos=pos,side=side,extra=extra))
   e.gm.add_combatant(c);return c
 
  def fixture(self,*,adopt=True,ground=True):

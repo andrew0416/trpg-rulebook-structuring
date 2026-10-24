@@ -275,8 +275,10 @@ def _target_key(engine, owner, target, rule_id):
 
 
 def _fingerprint(value):
+    # Native damage evidence contains finite type multipliers (including 0.5).
+    # Hash its existing JSON representation, not the integer-only request DSL.
     import resolution_transaction as TX
-    return TX.request_fingerprint(value)
+    return TX.json_fingerprint(value, allow_nan=False)
 
 
 def _deep_source(rules):

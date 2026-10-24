@@ -238,7 +238,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(sum(rotation["spent"].values()), 1)
         remaining = {rep.entity_id: dict(pool) for rep, pool in rotation["intro_dice"].items()}
         restored, participants = load_contest(contest.r,
-            json.loads(json.dumps(dump_contest(contest, [actor for team in teams for actor in team]))))
+            json.loads(json.dumps(dump_contest(contest, [actor for team in teams for actor in team]))),
+            native_rules=rules)
         saved = restored._standard_run["rotation"]
         def resume(actor, rnd, adjacent, center):
             if restored._standard_run["pending"] is not None:

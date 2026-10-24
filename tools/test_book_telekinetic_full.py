@@ -166,7 +166,8 @@ class TelekineticTests(unittest.TestCase):
       self.a.location=location
      elif allowed:REACTIONS.arm(self.e,self.a,TK.KINESIS,protect=target)
      else:self.reject(lambda:REACTIONS.arm(self.e,self.a,TK.KINESIS,protect=target),'observed ally within six metres')
-     self.begin(self.b);self.e.gm.set_position(self.b,(target.pos[0]+1,target.pos[1]),reason='actual adjacent attacker')
+     if self_target:self.e.gm.set_position(self.c,(3,2),reason='actual third participant adjacent to attacker; no independent flanking pair')
+     self.begin(self.b);self.e.gm.set_position(self.b,(target.pos[0],target.pos[1]-1),reason='actual adjacent attacker with no independent flanking pair')
      self.e.gm.set_stat(target,'def',value=40,reason='actual Evasion8 makes natural11 miss after Kinesis')
      self.restore();target=self.a if self_target else self.c;hp=target.hp
      choice=deepcopy(self.a.spec[REACTIONS.CHOICES][TK.KINESIS])

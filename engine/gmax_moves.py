@@ -269,6 +269,10 @@ def _activate(engine, actor, primary, base_move_id, gmax_move_id, everyone, opti
     finally:
         if activation in scopes:
             scopes.remove(activation)
+    # A native pre-activation ruling is not a completed attack or its payload.
+    from common_checks import PendingDecision
+    if isinstance(result, PendingDecision):
+        return result
     receipt = _completed_move(engine, actor, gmax_move_id, before)
     # All twelve selected rows print Spirit Surge. Cancellation is not a miss.
     if any(not outcome.get("cancelled") for outcome in receipt["results"].values()):

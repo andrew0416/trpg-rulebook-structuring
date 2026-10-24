@@ -112,6 +112,7 @@ class Rules:
                     getattr(self, attr.replace("_llm", "_reviewed"))[k] = v["effects"]
         self.creatures = {c["id"]: c for c in json.load(open(os.path.join(root, "data/creatures.json"), encoding="utf-8"))["creatures"]}
         self.moves = {m["id"]: m for m in json.load(open(os.path.join(root, "output/entities/moves.json"), encoding="utf-8"))}
+        self._runtime_weapon_declarations = {}
         self.moves_hand = json.load(open(os.path.join(root, "data/moves-hand.json"), encoding="utf-8"))["moves"]
         p = os.path.join(root, "data/moves-mech.json")
         self.moves_mech = json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {}
@@ -367,6 +368,8 @@ class Rules:
         mm=ROAR.mechanics(self,mid,DOUBLE.mechanics(self,mid,CHAIN.mechanics(self,mid,DECLARATIVE_MOVES.prepare_mechanics(self,mid,mm))))
         mm=__import__('multi_strike').mechanics(self,mid,mm)
         mm=__import__('jump_kick').mechanics(self,mid,mm)
+        mm=__import__('defense_curl').mechanics(self,mid,mm)
+        mm=__import__('native_path_area_moves').mechanics(self,mid,mm)
         mm=__import__('focus_punch').mechanics(self,mid,mm)
         mm=__import__('substitute').toxic_mechanics(self,mid,mm)
         return __import__('warper').mechanics(self,mid,__import__('telepath').mechanics(self,mid,__import__('telekinetic').mechanics(self,mid,__import__('combat_move_reactions').mechanics(self,mid,mm)))),conf
@@ -1111,6 +1114,7 @@ class Engine:
         import combat_stage_sources as STAGE_SOURCES
         import food_effects as FOOD
         for c in actors:COMBAT_STATE.preflight(c)
+        for c in actors:__import__('native_path_area_moves').end_fairy_source(self,c)
         import declarative_move_contracts as DECLARATIVE_MOVES
         DECLARATIVE_MOVES.end_encounter(self,actors)
         import bide as BIDE
@@ -1255,6 +1259,7 @@ class Engine:
         HOME.end_scene(self)
         import class_passive_combat as CLASS_PASSIVE
         CLASS_PASSIVE.end_scene(self,actors)
+        __import__('defense_curl').boundary(self,actors,'scene_end')
         import scene_feature_ability_grants as SCENE
         SCENE.end_scene(self,scene_actors)
         for c in scene_actors:__import__('telepath').end_capability(self,c)
@@ -1481,7 +1486,10 @@ class Engine:
         if STELLAR_TERA.registration(self.r,selected_id):return
         if PASSIVE_EVENTS.register(self, c, selected_id):
             return
-        effs = [dict(e, _ability=name, _frequency=self.r.ability_freq.get(name)) if isinstance(e, dict) else e for e in self.r.ability_effects.get(name, [])]
+        import typed_defensive_bypass as TYPED
+        source_effects=TYPED.effects(self.r,selected_id) if TYPED.handles(selected_id) else self.r.ability_effects.get(name,[])
+        source_frequency='항상' if TYPED.handles(selected_id) else self.r.ability_freq.get(name)
+        effs = [dict(e, _ability=name, _frequency=source_frequency) if isinstance(e, dict) else e for e in source_effects]
         if selected_id is not None:
             effs = bind_rule_identity(effs, selected_id)
         FX.apply_passives(self, c, effs)
@@ -2762,7 +2770,7 @@ class Engine:
             if hit and (DEFENSE.consume_shield(self,attacker,target,move) or DEFENSE.consume_shield(self,attacker,target,move,actual_hit=True)):return False,None,False
             critical=hit if gambit=='incoming' else EXT.crit_hook(self,attacker,target,move,hit,hit)
             critical=EVENTS.critical(self,attacker,target,move,hit) or (hit and event_critical) or critical
-            return hit,None,critical and not __import__("provocateur").blocked(attacker,"no_critical")
+            return hit,None,critical and not __import__("provocateur").blocked(attacker,"no_critical") and not __import__("defense_curl").critical_immune(target)
         if plan['no_accuracy']:
             self.log('    '+move['name']+': 명중 체크 없음'+(' ('+no_hit_reason+')' if no_hit_reason else ''),move['id'])
             hit = not bool(no_hit_reason)
@@ -2773,7 +2781,7 @@ class Engine:
             if __import__('musician').drown_out(self,attacker,target,move,None,shared_roll):return False,None,False
             critical=DUELIST.critical(self,attacker,target,move,hit,hit and COUP.active(self,attacker,target,move))
             critical=EVENTS.critical(self,attacker,target,move,hit) or (hit and event_critical) or critical
-            return hit,None,critical and not __import__('provocateur').blocked(attacker,'no_critical')
+            return hit,None,critical and not __import__('provocateur').blocked(attacker,'no_critical') and not __import__('defense_curl').critical_immune(target)
         ac_rule,mm,conf=(plan[key] for key in ('ac_rule','mm','conf'))
         environment_evasion=plan['environment_evasion']
         invisibility_penalty,blender_evasion,spatial_penalty,ap_bonus,zone_pen=(plan[key] for key in ('invisibility_penalty','blender_evasion','spatial_penalty','ap_bonus','zone_pen'))
@@ -2897,7 +2905,7 @@ class Engine:
             attacker.next_attack = None
             self.log("    다음 공격 자동 치명타 발동", "effect/next_attack_modifier")
         crit=DUELIST.critical(self,attacker,target,move,hit,crit)
-        if __import__("provocateur").blocked(attacker,"no_critical"):crit=False
+        if __import__("provocateur").blocked(attacker,"no_critical") or __import__("defense_curl").critical_immune(target):crit=False
         self.log(f"  {attacker.name} {move['name']}: 명중 d20={nat}{mods:+d}={total} vs AC {ac}+회피 {evasion}={need} → {'명중' if hit else '빗나감'}{' 치명타!' if hit and crit else ''}", why)
         TA.after_accuracy(self,attacker,target,move,nat,hit)
         HUNTER.after_accuracy(self,attacker,target,move,nat,hit)
@@ -3039,6 +3047,7 @@ class Engine:
         import partial_entities as PARTIAL
         PARTIAL.require_complete(attacker, "roll_damage attacker")
         PARTIAL.require_complete(target, "roll_damage target")
+        if __import__('defense_curl').critical_immune(target):crit=False
         import aura_guardian as AURA
         move=AURA.damage_move(self,attacker,move)
         AURA.before_damage(self,attacker,target,move)
@@ -3181,6 +3190,7 @@ class Engine:
         roll_mod += __import__("provocateur").damage_modifier(self,attacker,target,move,actual_hit=_reaction_event is not None)
         import boss_transitions as BOSS
         roll_mod += BOSS.consume_damage_roll_modifier(attacker)
+        roll_mod += __import__('defense_curl').damage_bonus(attacker,move)
         wmod = TURN.weather_damage_mod(self, attacker, move, target=target)
         if wmod:
             roll_mod += wmod
@@ -3301,6 +3311,7 @@ class Engine:
     @__import__('cheerleader').native_action
     def resolve_attack_damage(self, attacker, target, move, crit=False, set_damage=False, intercepted=False, _heavy_context=None, _passive_event=None, _precision_event=None, _damage_observation=None, _defense_token=None):
         """Apply one hit and its responses. intercepted means a successful maneuver already resolved by the caller."""
+        if __import__('defense_curl').critical_immune(target):crit=False
         if _damage_observation is not None and not isinstance(_damage_observation, dict):
             raise ValueError("damage observation must be a mapping")
         if _defense_token is not None:
@@ -3833,7 +3844,7 @@ class Engine:
                      or __import__('type_ace').move_interested(self,attacker,primary)
                      or __import__('commander_orders').move_interested(self,attacker,primary)
                      or __import__('dynamic_chain_moves').declared(self.r.move_mech(move_id)[0])
-                     or self.r.move_id(move_id)=='move/배턴터치')):
+                     or self.r.move_id(move_id) in ('move/배턴터치','move/웅크리기','move/페어리록'))):
             def staged(e,a,t):
                 import state_grants as G
                 group,options=G._stage_transition_payload(self,e,(everyone,dict(weapon_id=weapon_id,
@@ -3930,6 +3941,7 @@ class Engine:
             primary=attacker
         import native_area_hit_effects as AREA_HIT
         AREA_HIT.require_candidates(self,attacker,move,everyone,primary)
+        WEAPONS.selected_targets(self,attacker,move,everyone,primary)
         self.everyone = everyone
         native_mm = ENVIRON.mechanics(self,move,self.r.move_mech(move_id)[0])
         native_mm = __import__("jump_move_actions").mechanics(self.r,move_id,native_mm)
@@ -4135,7 +4147,7 @@ class Engine:
                      or __import__('ice_lake').interested(self,attacker,target)
                      or __import__('type_ace').move_interested(self,attacker,target)
                      or __import__('commander_orders').move_interested(self,attacker,target)
-                     or self.r.move_id(move_id)=='move/배턴터치')):
+                     or self.r.move_id(move_id) in ('move/배턴터치','move/웅크리기','move/페어리록'))):
             def staged(e,a,t):
                 import state_grants as G
                 options=G._stage_transition_payload(self,e,dict(situational=situational,set_damage=set_damage,
@@ -4885,6 +4897,12 @@ class Engine:
     def enchanting_gaze(self, actor, kind, *, aim):
         return __import__('provocateur').gaze(self,actor,kind,aim=aim)
 
+    def choose_defense_curl_source(self, actor, variant, *, reason):
+        return __import__('defense_curl').choose_source(self,actor,variant,reason=reason)
+
+    def stop_defense_curl(self, actor):
+        return __import__('defense_curl').stop(self,actor)
+
     def take_breather(self, actor, **options):
         import breather as BREATHER
         return BREATHER.take(self,actor,**options)
@@ -5099,6 +5117,8 @@ class Engine:
             return [attacker]
         if WEAPONS.is_self_only(rng):
             return [attacker]
+        selected=WEAPONS.selected_targets(self,attacker,move,candidates,primary)
+        if selected is not None:return selected
         if self.grid is None:
             import mapless_space as MAPLESS
             if MAPLESS.active(self):return MAPLESS.targets(self,attacker,move,candidates,primary)
@@ -5119,7 +5139,7 @@ class Engine:
         selected=STAT.selected_targets(self,attacker,move,others,primary)
         if selected is not None:return selected
         if shape == "burst":
-            cells = self.grid.burst(attacker.pos, size)
+            cells = self.grid.burst(attacker.pos, size) | {attacker.pos}
             return [c for c in others if BODY.cells(c,require_complete=True).intersection(cells)]
         if shape in ("cone", "line", "close_blast"):
             dx = (primary.pos[0] > attacker.pos[0]) - (primary.pos[0] < attacker.pos[0])

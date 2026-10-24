@@ -38,6 +38,10 @@ class GrappleTests(unittest.TestCase):
         self.b=Combatant(self.r,build_pokemon(self.r,'이상해씨',20,extra={'side':'wild'}))
         self.b.pos=(2,1);self.b.spec['skills'].update({'전투':4,'육상':4})
         self.e=Engine(self.r,7);self.e.grid=native.Grid(8,8);self.e.everyone=[self.a,self.b,self.w];self.e.gm.everyone=self.e.everyone
+        from native_scenario_fixture import prepare_body
+        for actor in self.e.everyone:
+            prepare_body(self.e,actor,size=actor.spec.get('size','중형'),offsets=[(0,0)],
+                reason='observed complete native grapple participant body')
         self.e.start_round(self.e.everyone);self.e.start_of_turn(self.a,initiative_count=20);self.w.pos=(6,4)
         row=self.enter(fixed_accuracy=20);self.assertEqual(row['dominant'],self.a.entity_id)
         self.assertEqual((self.a.kind,self.b.kind),('trainer','pokemon'))
@@ -194,7 +198,10 @@ class GrappleTests(unittest.TestCase):
         from native_scenario_fixture import prepare_body,assert_rejected_unchanged
         party.Tests.setup_world(self)
         self.b=self.actor('actual grabber','wild',(1,0));self.e.gm.add_combatant(self.b)
-        prepare_body(self.e,self.a,size='Medium',offsets=[(0,0)],reason='actual trainer body')
+        for actor in self.e.everyone:
+            if actor.on_field:
+                prepare_body(self.e,actor,size=actor.spec.get('size','Medium'),offsets=[(0,0)],
+                    reason='actual complete on-field party/grapple body')
         for skill in ('전투','육상'):
             self.e.gm.set_skill(self.a,skill,4,reason='actual trainer grapple resistance')
         self.enter()

@@ -28,7 +28,7 @@ class CompletedCsvNativeRemaining(unittest.TestCase):
 
     def attack(self, e, a, t, move):
         e.start_round([a, t]); e.start_of_turn(a, initiative_count=20)
-        with patch.object(e, 'd20', return_value=20):
+        with patch.object(Engine, 'd20', return_value=20):
             e.use_move(a, t, move, set_damage=True)
         e.end_of_turn(a)
 
@@ -114,7 +114,7 @@ class CompletedCsvNativeRemaining(unittest.TestCase):
         e=self.fixture(fire,holder,target)
         self.equip(e,holder,'csv/native-policy','item/약점보험')
         e.start_round([fire,holder,target]);e.start_of_turn(fire,initiative_count=20)
-        with patch.object(e,'d20',return_value=15):
+        with patch.object(Engine, 'd20',return_value=15):
             e.use_move(fire,holder,'move/불꽃세례',set_damage=True)
         e.end_of_turn(fire)
         pending=holder.spec[PHYSICAL.PENDING]['weakness_policy']
@@ -125,7 +125,7 @@ class CompletedCsvNativeRemaining(unittest.TestCase):
                 e.end_encounter([fire,holder,target])
             e.start_round([holder,target]);e.start_of_turn(holder,initiative_count=20)
             before=target.hp
-            with patch.object(e,'d20',return_value=15):
+            with patch.object(Engine, 'd20',return_value=15):
                 e.use_move(holder,target,'move/몸통박치기',set_damage=True)
             if active: boosted=before-target.hp
             else: ordinary=before-target.hp

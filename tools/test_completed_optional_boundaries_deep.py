@@ -84,7 +84,14 @@ class StateBoundaryTests(_fixture_test_category2_optional_state_effect_eight.Opt
       owner=next(c for c in e.everyone if c.entity_id==owner.entity_id)
       a=next(c for c in e.everyone if c.entity_id==a.entity_id)
       e.start_round(e.everyone);e.start_of_turn(owner,initiative_count=20)
-    if clause!='SB-099':
+    if clause=='SB-099':
+     # supp-blessings:1128 says the next3rounds, excluding the activation round.
+     self.assertTrue(STATE.records(a))
+     deadline=STATE.records(a)[0]['created_round']+3
+     e.start_round(e.everyone);e.start_of_turn(owner,initiative_count=20)
+     self.assertEqual(e.round_no,deadline);self.assertTrue(STATE.records(a))
+     e.end_of_turn(owner);e.end_round()
+    else:
      self.assertTrue(STATE.records(a))
      e.start_round(e.everyone)
      e.at_initiative_count(21)

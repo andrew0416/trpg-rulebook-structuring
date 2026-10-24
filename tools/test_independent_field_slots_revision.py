@@ -159,7 +159,7 @@ class IndependentFieldSlotsRevisionTests(unittest.TestCase):
                         engine.start_of_turn(gmax_user, initiative_count=15)
                         engine.enter_gigantamax(gmax_user, source_id='test/actual-gmax',
                             reason='actual independent Gravitas producer')
-                        with patch.object(engine, 'd20', return_value=17):
+                        with patch.object(Engine, 'd20', return_value=17):
                             engine.use_gmax_move_on(gmax_user, enemy, 'move/염동력',
                                 GRAVITAS, engine.everyone, aim=enemy.pos)
                         engine.end_of_turn(gmax_user)
@@ -177,7 +177,7 @@ class IndependentFieldSlotsRevisionTests(unittest.TestCase):
                 self.assertGreater(engine.type_multiplier('땅', enemy)[0], 0)
                 engine.start_of_turn(room_user, initiative_count=20)
                 before = room_user.budget['standard']
-                with patch.object(engine, 'd20', return_value=20):
+                with patch.object(Engine, 'd20', return_value=20):
                     result = engine.use_move(room_user, enemy, 'move/점프킥', set_damage=True)
                 self.assertEqual(room_user.budget['standard'], before - int(gravity_first))
                 self.assertEqual(result > 0, gravity_first)
@@ -216,7 +216,7 @@ class IndependentFieldSlotsRevisionTests(unittest.TestCase):
         self.native_field(engine, actor, GRASS)
         engine.start_round(engine.everyone)
         engine.start_of_turn(actor, initiative_count=20)
-        with patch.object(engine, 'd20', return_value=20):
+        with patch.object(Engine, 'd20', return_value=20):
             engine.use_pass_move(actor, 'move/아이언롤러', (7, 4),
                 event_id='independent-fields/steel-roller', object_adjudications={},
                 source='test/native-pass', reason='actual path through global Terrain')

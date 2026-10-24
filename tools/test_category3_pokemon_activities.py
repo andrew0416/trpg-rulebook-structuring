@@ -109,7 +109,8 @@ class PokemonActivityTests(unittest.TestCase):
   self.act('disposition_ruling',target=self.p,disposition='우호적',reason='GM: 먹이 제공으로 개선',allow_retry=True)
   result=self.act('befriend',target=self.p,fixed=[4]*4);self.assertEqual(result['disposition'],'매우 우호적');self.assertFalse(self.p.captured)
  def test_befriend_spends_standard_and_cannot_repeat_without_budget(self):
-  self.a.budget={'standard':1,'shift':1,'swift':1};self.act('befriend',target=self.p,fixed=[3]*4)
+  self.e.start_round([self.a,self.p]);self.e.start_of_turn(self.a,initiative_count=20)
+  self.act('befriend',target=self.p,fixed=[3]*4)
   self.assertEqual(self.a.budget['standard'],0);self.assertTrue(self.a.took_standard)
   before=self.state();result=self.act('befriend',target=self.p,fixed=[4]*4)
   self.assertIsInstance(result,C.PendingDecision);self.assertEqual(before,self.state())

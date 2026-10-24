@@ -428,14 +428,20 @@ def _form_changed(engine, target):
     return bool(getattr(target, "custom_conditions", {}).get("transformed"))
 
 
+def stellar_move_active(engine,actor,target,move,*,actual_type):
+    """The same actual Move/type/form condition for damage and post-hit dispatch."""
+    if not owns_move(engine.r,move):return False
+    import homebrew_state as HOME
+    return (HOME.tera_active(actor) and HOME.tera_type(actor)=='스텔라'
+            and actual_type=='스텔라' and HOME.tera_active(target))
+
+
 def effectiveness(engine, actor, target, move, multiplier, ctx):
     if not owns_move(engine.r, move) or multiplier == 0:
         return multiplier
     import homebrew_state as HOME
     active = active_radiation(engine, actor)
-    stellar_move = (HOME.tera_active(actor) and HOME.tera_type(actor) == "스텔라"
-                    and ctx.get("actual_damage_type") == "스텔라"
-                    and HOME.tera_active(target))
+    stellar_move = stellar_move_active(engine,actor,target,move,actual_type=ctx.get('actual_damage_type'))
     stellar_ability = active is not None and _form_changed(engine, target)
     if not (stellar_move or stellar_ability):
         return multiplier

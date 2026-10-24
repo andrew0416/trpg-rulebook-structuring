@@ -480,7 +480,9 @@ def climb(engine, actor, destination, *, climb_id, route, reason, skill=None, fi
     if cost > allowance:
         raise ValueError("climb exceeds actual land movement allowance")
     action = "standard" if checked else "shift"
-    if not actor.on_field or actor.captured or not TURN.spend(engine, actor, action, "Nicolette gym climb", movement=True):
+    if not actor.on_field or actor.captured or not TURN.movement_permission(engine, actor):
+        return False
+    if not TURN.spend(engine, actor, action, "Nicolette gym climb", movement=action == "shift"):
         return False
     check = None
     if checked:

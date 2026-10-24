@@ -58,7 +58,7 @@ class ManipulateBodyTests(unittest.TestCase):
 
 
 class TelekineticBodyTests(unittest.TestCase):
-    setUpClass=classmethod(_rules)
+    setUpClass=classmethod(TELEKINETIC.Tests.setUpClass.__func__)
     setUp=TELEKINETIC.Tests.setUp
     actor=TELEKINETIC.Tests.actor
     turn=TELEKINETIC.Tests.turn

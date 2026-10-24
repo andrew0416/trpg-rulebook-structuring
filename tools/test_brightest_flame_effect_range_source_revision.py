@@ -11,7 +11,6 @@ import test_book_type_ace_acquisition as FIX
 from engine import Engine,Rules
 import class_passive_combat as PASSIVE
 import combat_precision_features as PRECISION
-import fast_combat as FAST
 import native_scenario_fixture as NATIVE
 import pokemon_move_edges as MOVES
 import state_codec as CODEC
@@ -57,7 +56,7 @@ class BrightestFlameEffectRangeSourceRevisionTests(unittest.TestCase):
         self.e.start_round(self.e.everyone);self.e.start_of_turn(self.p,initiative_count=20)
 
     def attack(self,*,move=FIRE,face=17):
-        with patch.object(FAST,'roll',return_value=face):
+        with patch.object(Engine,'d20',return_value=face):
             return self.e.use_move(self.p,self.b,move,set_damage=True)
 
     def valid(self):
@@ -90,14 +89,14 @@ class BrightestFlameEffectRangeSourceRevisionTests(unittest.TestCase):
             for receipted in (False,True):
                 with self.subTest(training=training,hardened=hardened,face=face,receipted=receipted):
                     self.world(training=training,hardened=hardened,receipted=receipted)
-                    self.combat();owner_history=list(self.t._action_history)
+                    self.combat();owner_history=(hasattr(self.t,'_action_history'),list(getattr(self.t,'_action_history',[])))
                     hit,natural,critical=self.e.accuracy_check(self.p,self.b,self.e.r.move(FIRE),fixed_roll=face)
                     self.assertEqual((hit,natural,critical),(True,face,False))
                     self.assertGreater(self.attack(face=face),0)
                     self.assertEqual('화상' in self.b.conditions,burns)
                     self.assertEqual(self.p.move_uses[FIRE],1)
                     self.assertEqual(self.p._action_history,['standard'])
-                    self.assertEqual(self.t._action_history,owner_history)
+                    self.assertEqual((hasattr(self.t,'_action_history'),list(getattr(self.t,'_action_history',[]))),owner_history)
                     self.valid()
 
     def test_intrinsic_burn_plus_three_is_native_and_never_gets_a_second_passive_burn(self):

@@ -34,6 +34,7 @@ def faint(engine,c):
     import stat_exchange_state as STAT_EXCHANGE
     STAT_EXCHANGE.validate_actor(c)
     c.conditions.add('기절')
+    __import__('native_path_area_moves').end_fairy_source(engine,c)
     __import__('juggler').event(engine,'faint',c,source_id='condition/기절')
     __import__('perception_communicate').boundary(engine,'faint',c)
     import bide as BIDE

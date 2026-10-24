@@ -386,6 +386,7 @@ class RogueTests(RogueScene,unittest.TestCase):
       if side=='absent':vars(actor).pop('side',None)
       else:actor.side=side
      self.restore();before=self.t.hp;choice=deepcopy(self.a.spec[CMR.CHOICES][CMR.PURSUIT])
+     self.assertEqual(self.a in TURN.adjacent_enemies(self.e,self.t),sides==('party','foes'))
      with patch.object(Engine,'d20',return_value=15):
       if kind=='recall':
        owner=__import__('world_entities').actor_index(self.e)[owner_id]

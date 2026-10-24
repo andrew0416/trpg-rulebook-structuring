@@ -150,7 +150,7 @@ class BabyTemplateTests(unittest.TestCase):
     def test_rank_names_numbers_aliases_and_species_pools_lose_one_rank_on_native_walk(self):
         from declared_skill_ranks import configure
         from native_scenario_fixture import assert_rejected_unchanged
-        with patch.object(self.r, 'rulings', deepcopy(self.r.rulings)):
+        with patch.object(self.r, 'rulings', deepcopy(self.r.rulings)) as rulings, patch.object(self.e, 'rulings', rulings):
             configure(self.r)
             cases = (({'육상': '초보'}, 2, 0), ({'육상': 3}, 2, 0),
                      ({'육상': '3d6+2'}, 2, 2), ({'육상': '1d6-2'}, 1, -2),
@@ -166,10 +166,10 @@ class BabyTemplateTests(unittest.TestCase):
                     roll = self.e.skill_roll(pokemon, '육상', fixed=[2]*dice)
                     self.assertEqual((roll.rank, len(roll.faces), roll.total), (dice, dice, 2*dice+bonus))
                     self.assertEqual(pokemon.spec['skills'], original)
-            conflict = self.pokemon(skills={'육상': '초보', 'Athletics': '3d6+1'})
-            BABY.apply(self.e, conflict, stat_reduction=2, reason='newborn with conflicting imported aliases')
-            assert_rejected_unchanged(self.e, lambda:self.e.skill_roll(conflict, '육상', fixed=[2]*2),
-                                      reason_pattern='conflicting Pokemon skill pool aliases')
+            # Native admission now rejects the conflicting sheet before it can enter the world.
+            assert_rejected_unchanged(self.e,
+                lambda:self.pokemon(skills={'육상': '초보', 'Athletics': '3d6+1'}),
+                reason_pattern='conflicting Pokemon skill pool aliases')
 
     def test_actual_pushed_training_adds_one_die_after_baby_penalty_and_recovery_restores_pool(self):
         from builder import build_trainer

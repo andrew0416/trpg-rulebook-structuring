@@ -31,12 +31,16 @@ class GMaxRemainingQ27Tests(unittest.TestCase):
         owner=Combatant(self.r,build_trainer(self.r,'actual recall owner',30,
             {'hp':200,'atk':30,'def':30,'spa':30,'spd':30,'spe':30},
             extra={'side':'foe','pos':(7,7),'items':{'회복약':2}}))
+        source_owner=Combatant(self.r,build_trainer(self.r,'actual G-Max owner',30,
+            {'hp':200,'atk':30,'def':30,'spa':30,'spd':30,'spe':30},
+            extra={'side':'party','pos':(4,5)}))
         actor=Combatant(self.r,build_pokemon(self.r,declaration['species_eng'],50,
-            abilities=[],side='party',extra={'pos':(5,5)}))
+            abilities=[],side='party',extra={'pos':(5,5),'trainer_id':source_owner.entity_id}))
         target=Combatant(self.r,build_pokemon(self.r,'Pikachu',50,abilities=[],
             moves=['move/몸통박치기','move/울음소리','move/도발'],side='foe',
             extra={'trainer_id':owner.entity_id,'pos':(6,5)}))
-        for c in (actor,target,owner):e.gm.add_combatant(c)
+        for c in (source_owner,actor,target,owner):e.gm.add_combatant(c)
+        e.gm.observe_loyalty(actor,6,reason='actual current-owner G-Max command willingness')
         e.gm.set_stat(target,'hp',value=300,reason='actual high-HP target for four residual ticks')
         e.gm.set_hp(target,value=target.max_hp,reason='actual initial full target HP')
         e.gm.observe_loyalty(target,6,reason='actual willing owned target')
@@ -57,11 +61,11 @@ class GMaxRemainingQ27Tests(unittest.TestCase):
         self.close(e);e.end_round();e.start_round(e.everyone)
 
     def use(self,e,actor,target,move):
-        with patch.object(e,'d20',return_value=20):
+        with patch.object(Engine,'d20',return_value=20):
             return e.use_move_on(actor,target,move,e.everyone,set_damage=True)
 
     def activate(self,e,actor,target,base,move):
-        with patch.object(e,'d20',return_value=20):
+        with patch.object(Engine,'d20',return_value=20):
             e.use_gmax_move_on(actor,target,base,move,e.everyone,set_damage=True)
         self.assertEqual(actor.budget['standard'],0)
         self.assertEqual(e._gmax_payload_receipts[-1]['target_ids'],
@@ -149,7 +153,7 @@ class GMaxRemainingQ27Tests(unittest.TestCase):
         self.assertNotIn('수렁',lt.conditions)
         e.gm.restore('actual-fourth-protected-turn',reason='restore actual pending fourth-turn end')
         self.assertEqual(t.spec[GMAX.EFFECTS],[final])
-        with patch.object(e,'d20',return_value=1):e.end_of_turn(t)
+        with patch.object(Engine,'d20',return_value=1):e.end_of_turn(t)
         self.assertIn('수렁',t.custom_conditions[VORTEX.KEY]['owned'])
         self.assertTrue(e.validate_state()['valid']);self.assertTrue(loaded.validate_state()['valid'])
 

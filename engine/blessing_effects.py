@@ -492,7 +492,9 @@ def ignored(actor,condition):
     return any(r['condition']==condition and r['turn_serial']==serial for r in actor.spec.get('blessing_status_ignores',[])) and actor.custom_conditions.get('blessing_ignore_turn_open') is True
 
 def effective_conditions(actor):
-    return {c for c in actor.conditions if not ignored(actor,c)}
+    result={c for c in actor.conditions if not ignored(actor,c)}
+    if __import__('defense_curl').slowed(actor) and not ignored(actor,'둔화'):result.add('둔화')
+    return result
 
 def _validate_converted(actor,record,*,terminal):
     """Validate each real decision against the type active when it occurred."""

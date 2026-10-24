@@ -8,6 +8,7 @@ from pathlib import Path
 import json
 import sys
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
@@ -113,6 +114,9 @@ class NonstatusMoveBoundaryTests(unittest.TestCase):
 
     def setUp(self):
         MOVE_FIX.NativeMoveBatchTests.setUp(self)
+        self.e.__dict__.pop('d20', None)
+        accuracy = patch.object(Engine, 'd20', return_value=17)
+        accuracy.start(); self.addCleanup(accuracy.stop)
 
     def seed_and_count(self):
         self.e.use_move(self.p, self.t, SEED)
@@ -126,10 +130,10 @@ class NonstatusMoveBoundaryTests(unittest.TestCase):
                 self.setUp()
                 self.seed_and_count()
                 self.turn(self.p, new_round=True)
-                self.e.d20 = lambda: 10
                 self.assertEqual(STATUSES.afflictions(self.t), ())
                 self.assertEqual(self.e.damage_base(self.p, self.r.move(move_id), target=self.t), base)
-                self.e.use_move(self.p, self.t, move_id, set_damage=True)
+                with patch.object(Engine, 'd20', return_value=10):
+                    self.e.use_move(self.p, self.t, move_id, set_damage=True)
                 self.assertNotIn('lim:conditional-db:' + move_id + ':scene', self.p.counters)
 
     def test_seed_and_count_do_not_qualify_infernal_parade_optional_mode(self):

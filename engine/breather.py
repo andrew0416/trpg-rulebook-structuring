@@ -214,6 +214,7 @@ def _recover(engine,actor,origin):
         engine.cure_status(actor,condition)
     import healing_blocks as HEALING_BLOCKS
     HEALING_BLOCKS.boundary(engine,(actor,),'breather')
+    __import__('defense_curl').boundary(engine,(actor,),'breather')
     import linked_move_conditions as LINKED
     LINKED.boundary(engine,actor,'breather')
     for condition in ('둔화','구속'):engine.cure_status(actor,condition)

@@ -129,14 +129,18 @@ class BlenderAreaNativeSourceRevisionTests(unittest.TestCase):
     def test_real_duelist_conversion_and_catalog_state_survive_native_json_and_gm_restore(self):
         helper=DUELIST_FIXTURE.DuelistMomentumTests('runTest');helper.rules=Rules(ROOT,ruleset='all')
         helper.setup();helper.rounds(3)
+        # Incinerate is printed Line3 and stays ranged under Manual2.
+        # Observe a real close Burst1 Move for this melee-conversion witness.
+        helper.e.gm.set_move(helper.p,'move/불태우기',add=False,reason='actual known slot changed before this scenario')
+        helper.e.gm.set_move(helper.p,'move/땅고르기',reason='actual known Burst1 Move for Manual2 conversion')
         target=catalog_blender(helper.e,(helper.p.pos[0]+1,helper.p.pos[1]))
         helper.start(target);helper.e.activate_blender(target,reason='actual camouflage before Duelist conversion')
         helper.manual(2)
-        move=helper.e.r.move('move/불태우기');effective=WEAPONS.range_spec(helper.e,move,helper.p)
+        move=helper.e.r.move('move/땅고르기');effective=WEAPONS.range_spec(helper.e,move,helper.p)
         self.assertEqual(effective['origin'],'melee');self.assertNotIn('shape',effective)
         self.assertEqual(B.evasion(helper.e,target,move,helper.p),2)
-        helper.start(helper.p);helper.attack(move='move/불태우기',target=target,area=True,natural=19)
-        rows=[r for r in helper.e._move_completions.values() if r['actor'] is helper.p and r['move_id']=='move/불태우기' and r['phase']=='complete']
+        helper.start(helper.p);helper.attack(move='move/땅고르기',target=target,area=True,natural=19)
+        rows=[r for r in helper.e._move_completions.values() if r['actor'] is helper.p and r['move_id']=='move/땅고르기' and r['phase']=='complete']
         self.assertEqual(set(rows[-1]['results']),{target.entity_id})
         self.assertTrue(rows[-1]['results'][target.entity_id]['hit'])
         self.world('move/일렉트릭네트');self.start(self.t)

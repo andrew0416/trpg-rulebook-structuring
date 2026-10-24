@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 
 STAGE = Path(__file__).resolve().parents[1]
 ROOT = STAGE
@@ -36,13 +37,14 @@ class BattleContestTests(unittest.TestCase):
             trainer = Combatant(self.rules, build_trainer(
                 self.rules, f"trainer-{side}", 30, STATS,
                 skills=trainer_skills or {"매력": 5, "직감": 4, "교활": 4, "협박": 4, "명령": 4},
-                extra=trainer_extra))
+                extra=trainer_extra, side='party' if side == 0 else 'opponent'))
             trainers.append(trainer)
             team = []
             for member in range(size):
                 pokemon = Combatant(self.rules, build_pokemon(
                     self.rules, "이상해씨", 30, f"pokemon-{side}-{member}",
-                    abilities=[], moves=moves or MOVES))
+                    abilities=[], moves=moves or MOVES,
+                    side='party' if side == 0 else 'opponent'))
                 pokemon.spec["trainer_id"] = trainer.entity_id
                 pokemon.stats["spe"] = 10 + side * 10 + member
                 pokemon.stats["atk"] = (30, 5, 20, 10, 15, 25)[member]
@@ -242,8 +244,10 @@ class BattleContestTests(unittest.TestCase):
         target.hp = target.max_hp
         BATTLE.begin_round(engine, cid)
         BATTLE.start_turn(engine, cid, user)
-        BATTLE.perform_move(engine, contest, cid, user, target, "move/이판사판태클",
-                            combat_options={"set_damage": True, "situational": 100})
+        with patch.object(Engine, "d20", return_value=12):
+            performance = BATTLE.perform_move(engine, contest, cid, user, target, "move/이판사판태클",
+                                combat_options={"set_damage": True, "situational": 100})
+        self.assertTrue(performance["appeal_committed"], performance)
         self.assertTrue(user.fainted)
         self.assertIn(user.entity_id, self.state(engine, cid)["sides"][0]["replacement_center_due"])
         BATTLE.switch(engine, cid, trainers[0], user, teams[0][1])
@@ -465,8 +469,9 @@ class BattleContestTests(unittest.TestCase):
         actor, target = teams[0][0], teams[1][0]
         BATTLE.begin_round(engine, cid)
         BATTLE.start_turn(engine, cid, actor)
-        BATTLE.perform_move(engine, contest, cid, actor, target, "move/꼬리흔들기",
+        performance = BATTLE.perform_move(engine, contest, cid, actor, target, "move/꼬리흔들기",
                             combat_options={"situational": 100})
+        self.assertTrue(performance["appeal_committed"], performance)
         BATTLE.finish_turn(engine, cid, actor)
         BATTLE.finish_round(engine, cid)
         BATTLE.begin_round(engine, cid)

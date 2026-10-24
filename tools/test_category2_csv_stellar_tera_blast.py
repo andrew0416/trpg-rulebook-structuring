@@ -4,6 +4,7 @@ from pathlib import Path
 import json
 import sys
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "engine"))
@@ -219,10 +220,14 @@ class StellarTeraBlastTests(unittest.TestCase):
                 actual_type = '전기' if plasma else radiated
                 stab_type = actual_type if plasma else '노말'
                 db = move['damage_base']+(math.floor(e.formula('stab')) if own_type==stab_type else 0)
-                before = deepcopy((user.spec,user.budget,e.rng.getstate()))
+                before = e.export_state(); before_logs = list(e.log_lines)
                 self.assertEqual(EXT.effective_type(e,user,target,move,self.rules.move_mech(move_id)[0],consume=False),actual_type)
                 self.assertEqual(e.damage_base(user,move,target=target),db)
-                self.assertEqual((user.spec,user.budget,e.rng.getstate()),before)
+                expected_logs = ([f"    자속보정: DB {move['damage_base']} → {db}  => [combat/stab]"]
+                                 if own_type == stab_type else [])
+                self.assertEqual(e.log_lines, before_logs + expected_logs)
+                with patch.object(e, 'log_lines', before_logs):
+                    self.assertEqual(e.export_state(),before)
                 expected = math.floor(fixture.expected(e,user,target,move_id,db,
                     bonus=10 if actual_type==radiated else 0)*e.type_multiplier(actual_type,target)[0])
                 self.assertEqual(fixture.hit(e,user,target,move_id,use_radiated_type=True),expected)

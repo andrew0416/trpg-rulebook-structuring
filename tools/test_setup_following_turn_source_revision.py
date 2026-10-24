@@ -177,7 +177,7 @@ class SetupFollowingTurnSourceRevisionTests(unittest.TestCase):
                 with self.subTest(move=move, event=event):
                     e, a, b = self.generic("pokemon")
                     if move not in a.moves:
-                        if move in (FLY, DIG, DIVE):
+                        if move == FLY:  # Only Fly has competing numeric-source choices.
                             e.gm.choose_learned_capability_policy(
                                 a, move, "move_entry", reason="actual selected printed learned capability")
                         e.gm.set_move(a, move, reason="actual complete known Set-Up Move")

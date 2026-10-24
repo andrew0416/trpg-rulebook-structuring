@@ -222,7 +222,9 @@ def h_cure_status(engine, a, t, e, ctx):
     sts = e["status"] if isinstance(e["status"], list) else [e["status"]]
     known = {u["mech"]["data"]["name"] for u in engine.r.units.values()
              if (u.get("mech") or {}).get("schema") == "condition"}
-    if any(s not in known | {"all", "all persistent", "독", "맹독", "기절"} for s in sts):
+    import linked_move_conditions as LINKED
+    if any(s not in known | {"all", "all persistent", "독", "맹독", "기절"}
+           and not LINKED.explicit_cure_name(engine.r,s) for s in sts):
         return "상태 선택/해석 필요: " + str(e["status"])
     for c in tgt_of(e, a, t, ctx):
         for s in sts:
@@ -800,7 +802,7 @@ def run_effects(engine, attacker, target, effects, ctx, src, *, _resume_receipt=
                     import initiative_derivation as INITIATIVE
                     INITIATIVE.install_temporary(engine,attacker,target,e,identity,receipt,occurrence)
                 else:
-                    for recipient in CONTRACTS.recipients(attacker,target,e):LIFE.install(engine,attacker,recipient,e,identity,receipt,occurrence)
+                    for recipient in tgt_of(e,attacker,target,ctx):LIFE.install(engine,attacker,recipient,e,identity,receipt,occurrence)
                 note=None
             else:
                 note=handler(engine,attacker,target,e,ctx)
@@ -1028,10 +1030,9 @@ def passive_status_immunity(engine, actor, condition):
     """Read the existing owned passive records; suppression never rewrites them."""
     if actor.abilities_suppressed:
         return None
-    owned = {engine.r.ability_alias.get(name, name) for name in actor.abilities}
     for effect in actor.modifiers:
         source = effect.get("_rule_id")
-        if effect.get("type") != "immunity" or effect.get("_ability") not in owned:
+        if effect.get("type") != "immunity" or not __import__('ability_transitions').effect_active(actor,effect):
             continue
         if not isinstance(source, str) or not source.startswith("ability/"):
             continue

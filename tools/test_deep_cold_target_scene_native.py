@@ -18,6 +18,8 @@ import state_codec as CODEC
 import world_entities as W
 
 
+from engine import Engine
+
 class DeepColdTargetSceneTests(unittest.TestCase):
     setUpClass = classmethod(F.ClassActorStateReactionTests.setUpClass.__func__)
     fixture = F.ClassActorStateReactionTests.fixture
@@ -64,7 +66,7 @@ class DeepColdTargetSceneTests(unittest.TestCase):
         e.gm.observe_loyalty(p, 6, reason="actual paid command obedience")
         self.start(e, p)
         hp = q.hp
-        with patch.object(e, "d20", return_value=10):
+        with patch.object(Engine, "d20", return_value=10):
             dealt = e.use_move(p, q, "move/냉동빔", set_damage=True)
         self.assertEqual((q.hp, p.budget["standard"], p.move_uses["move/냉동빔"]), (hp-dealt, 0, 1))
         self.assertGreater(dealt, 0)

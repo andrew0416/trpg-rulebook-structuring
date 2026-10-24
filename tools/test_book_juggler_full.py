@@ -529,7 +529,9 @@ class JugglerTests(unittest.TestCase):
    opponent_skills={'곡예':6,'교활':6,'명령':6,'집중':6,'육상':6,'매력':3});self.family(J.CLASS)
   P.configure(self.e,self.b,battle_mode='full_contact',command_limit=2,gm_id='gm/mixed-schedule',reason='GM explicitly admits the mount and one other Pokemon turn')
   self.acquire(M.RIDER,self.b);self.acquire(M.RIDE_AS_ONE,self.b)
-  if rider_juggler:self.family(J.CLASS,self.b)
+  if rider_juggler:
+   self.family(J.CLASS,self.b)
+   self.e.gm.set_position(self.t,(7,1),reason='actual Swarm deployment within owner recall beam')
   if swarm:
    self.swarm_reserve=self.actor('swarm-successor','pokemon',(14,3),10,owner=self.b,side='foe',field=False)
    PARTY.configure(self.e,self.b,mode='standard',reason='actual Swarm replacement roster',roster=[self.t,self.u,self.swarm_reserve],storage={'kind':'center','id':'rival-center'})
@@ -666,7 +668,7 @@ class JugglerTests(unittest.TestCase):
 
  def test_transformation_chronology_rejects_omission_duplicate_legacy_hiding_and_resigned_binding_reorder(self):
   self.mounted_then_replacement();state=self.e._initiative_schedule;before=self.e.export_state()
-  history=deepcopy(state['change_history'])
+  history=deepcopy(state['change_history']);state_order=list(state)
   rows=[row for kind in S.STEP_CHANGES for row in state.get(kind,[])]
   stamps=[(row,row['change_sequence'],row.get('sha256')) for row in rows]
   def resign():
@@ -694,6 +696,8 @@ class JugglerTests(unittest.TestCase):
      for row,sequence,digest in stamps:
       row['change_sequence']=sequence
       if digest is not None:row['sha256']=digest
+     restored_order=[(key,state[key]) for key in state_order]
+     state.clear();state.update(restored_order)
     self.assertEqual(self.e.export_state(),before)
 
 if __name__=='__main__':unittest.main()

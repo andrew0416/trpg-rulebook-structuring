@@ -5,7 +5,7 @@ from unittest.mock import patch
 import unittest
 
 import test_category2_body_modes as fixture
-from engine import Rules
+from engine import Rules, Engine
 from builder import build_pokemon
 import body_modes as MODES, body_state as BODY, state_grants as G, turn as TURN
 import state_codec as CODEC, world_entities as WORLD, invisibility_state as INV
@@ -48,8 +48,8 @@ class SpiritBodyModesTests(unittest.TestCase):
     def normal(self,c):return self.e.change_body_mode(c,'normal',reason='actual Shift return to the original body')
 
     def fixed_hit(self):
-        native=self.e.accuracy_check
-        return patch.object(self.e,'accuracy_check',side_effect=lambda *a,**kw:native(*a,**dict(kw,fixed_roll=20)))
+        native=Engine.accuracy_check
+        return patch.object(Engine,'accuracy_check',new=lambda engine,*a,**kw:native(engine,*a,**dict(kw,fixed_roll=20)))
 
     def resources(self,c):
         return deepcopy((getattr(c,'budget',None),c.move_uses,getattr(c,'_action_history',None),self.e.rng.getstate()))
@@ -102,6 +102,7 @@ class SpiritBodyModesTests(unittest.TestCase):
     def test_phasing_grid_area_and_mapless_selectors_consume_current_body_state(self):
         self.begin(self.p);self.phase();self.known(self.a,'스피드스타');self.begin(self.a)
         self.a.pos=(4,3);self.p.pos=(5,3);self.t.pos=(5,4)
+        self.t.side='foe';self.t.spec['side']='foe'  # Actual enemy recipient of Friendly Swift.
         move=self.r.move('move/스피드스타')
         targets=self.e.targets_in_range(self.a,move,self.e.everyone,self.t)
         self.assertNotIn(self.p,targets);self.assertIn(self.t,targets)

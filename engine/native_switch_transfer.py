@@ -594,6 +594,9 @@ def validate_world(engine,index):
         for record,_ in INSTANCES.records(holder):
             if record[INSTANCES.KEY]['kind']!='coat':continue
             for event in record[INSTANCES.KEY]['ownership'][1:]:
+                # Power Conduit is a Coat transfer, not a recall/release handoff.
+                # Its source and ownership remain checked by coat_effects.
+                if event['source']=='feat/힘의-전달':continue
                 # Only historical Baton transfers predate native recall proof.
                 if event['source']==BATON and 'recall_id' not in event:continue
                 if not {'recall_id','trainer_id','from_turn','to_turn'}<=set(event):

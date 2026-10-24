@@ -13,6 +13,13 @@ def owns(row):
     return row.get('payload', row.get('effect', {})).get('operation') in OPERATIONS
 
 
+def explicit_cure_name(rules,name):
+    """A named removal can address a declared linked effect without making it an affliction."""
+    import custom_condition_effects as CUSTOM
+    row=CUSTOM.by_name(rules,name)
+    return row is not None and owns(row) and row['payload'].get('class')=='effect'
+
+
 def _semantic(effect):
     result = {k: v for k, v in effect.items() if not k.startswith('_')}
     if result.get('on') == 'all including self': result['on'] = 'target'

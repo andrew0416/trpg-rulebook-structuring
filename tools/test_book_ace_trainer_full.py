@@ -318,7 +318,14 @@ class AceTrainerFullTests(unittest.TestCase):
 
     def test_vicious_storm_actual_smite_miss_damage(self):
         self.teach('vicious_storm','move/파도타기');hp=self.foe.hp
+        catalog=deepcopy(self.rules.move('move/파도타기'))
+        prepared=A.prepare(self.e,self.p,catalog)
+        self.assertIn('강타',__import__('effects_ext').keywords_for(self.p,prepared))
+        self.assertEqual(prepared['keywords'].count('강타'),1)
+        self.assertEqual(A.prepare(self.e,self.p,prepared),prepared)
+        self.assertEqual(self.rules.move('move/파도타기'),catalog)
         row=self.attack('move/파도타기',face=1);self.assertFalse(row['results'][self.foe.entity_id]['hit'])
+        self.assertGreater(row['results'][self.foe.entity_id]['dealt'],0)
         self.assertLess(self.foe.hp,hp);self.assertIn('강타',row['move']['range']);self.valid()
 
     def test_guarding_strike_hit_only_target_specific_dr_and_expiry(self):

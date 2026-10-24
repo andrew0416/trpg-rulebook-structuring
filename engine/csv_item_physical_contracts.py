@@ -494,7 +494,7 @@ def _scene_available(engine, entry):
 
 
 def _actor_for(engine, uid):
-    for actor in engine.time_actors():
+    for actor in __import__('world_entities').actors(engine):
         if actor.entity_id == uid:
             return actor
     raise ValueError("equipment holder actor is missing")
@@ -502,7 +502,7 @@ def _actor_for(engine, uid):
 
 def _entry_actor(engine,entry):
     if entry[2].get('projection') is None:return _actor_for(engine,entry[3]['equipped_by'])
-    holders=[actor for actor in engine.time_actors() if getattr(actor,'_item_reg',{}).get(entry[0]) is entry[2]]
+    holders=[actor for actor in __import__('world_entities').actors(engine) if getattr(actor,'_item_reg',{}).get(entry[0]) is entry[2]]
     if len(holders)!=1:raise ValueError('projected equipment requires its unique actual beneficiary')
     return holders[0]
 
@@ -514,7 +514,7 @@ def _spend_scene(engine, entry, event, target_id=None):
         raise ValueError("remaining CSV held-item scene use is spent")
     entry[4].setdefault("scene_uses", []).append({"scene": key, "event": event, "at": engine.elapsed_seconds,
                                                   "target_id": target_id})
-    for holder in engine.time_actors():
+    for holder in __import__('world_entities').actors(engine):
         for registration in getattr(holder,'_item_reg',{}).values():
             if _instance_id(registration)==entry[3]['id']:
                 registration['csv_item_projection']=_projection(registration,entry[4])
@@ -529,7 +529,7 @@ def _reaction_window(engine):
 
 def expire_immediate_reactions(engine):
     """A newly recorded action closes optional immediate switches only."""
-    for actor in engine.time_actors():
+    for actor in __import__('world_entities').actors(engine):
         pending = actor.spec.get(PENDING, {})
         pending.pop("eject_button", None)
         pending.pop("eject_pack", None)
@@ -662,7 +662,7 @@ def _finish_instance(engine, actor, entry, outcome, source):
     state["history"].append({"event": outcome, "at": engine.elapsed_seconds, "source": source})
     projected=registration.get('projection')
     projected_views=any(reg.get('projection',{}).get('wardrobe_instance_id')==obj['id']
-        for holder in engine.time_actors() for reg in getattr(holder,'_item_reg',{}).values())
+        for holder in __import__('world_entities').actors(engine) for reg in getattr(holder,'_item_reg',{}).values())
     if projected is not None or projected_views:
         import fashionista as FASHION,world_entities as WORLD,consumption_execution as EXECUTION
         if projected is not None:FASHION.dress_item_origin(engine,actor,obj['item_rule_id'],projected)

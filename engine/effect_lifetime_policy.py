@@ -147,6 +147,7 @@ def reconcile(engine):
         return
     import state_grants as G
     G.sync_capability_losses(engine)
+    __import__('native_path_area_moves').reconcile_fairy(engine)
     import network_integrity as INTEGRITY
     INTEGRITY.boundary(engine,'reconcile')
     import environment_change as EC
@@ -342,6 +343,7 @@ def end_selected(engine, actor, *, source=None, occurrence=None):
 
 
 def validate_world(engine, index):
+    __import__('native_path_area_moves').validate_world(engine,index)
     import effect_contracts as CONTRACTS
     import perception_communicate as COMM
     import native_order_transfer as TRANSFER

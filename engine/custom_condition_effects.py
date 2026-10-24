@@ -28,6 +28,7 @@ def _verify_source_record(rules,row):
 
 
 def definition(rules,source):
+    if source=='move/웅크리기':return __import__('defense_curl').definition(rules)
     if source=='move/록온':
         return __import__('juggler').lock_definition(rules)
     if source=='ability/잔인':
@@ -55,6 +56,7 @@ def records(actor):
 
 def by_name(rules,name):
     """Only reviewed move-defined conditions enter the ordinary condition catalog."""
+    if name=='웅크리기':return __import__('defense_curl').definition(rules)
     if name=='잔인 회복 봉쇄':return definition(rules,'ability/잔인')
     definition(rules,None)
     matches=[definition(rules,source) for source,row in rules._custom_condition_policy['sources'].items()
@@ -68,6 +70,7 @@ def classification(actor,name):
 
 
 def prepare(engine,actor,target,effect,source):
+    if source=='move/웅크리기':return __import__('defense_curl').prepare(engine,actor,target,effect,source)
     import world_entities as W
     W.require_actors(engine,actor,target)
     if source=='move/록온':
@@ -90,6 +93,7 @@ def prepare(engine,actor,target,effect,source):
 
 
 def grant(engine,actor,target,effect,source):
+    if source=='move/웅크리기':return __import__('defense_curl').grant(engine,actor,target,effect,source)
     row=prepare(engine,actor,target,effect,source)
     if source=='move/록온':
         # The completed native Move, rather than a second volatile-condition
@@ -116,6 +120,7 @@ def grant(engine,actor,target,effect,source):
 
 
 def validate_record(actor,record,*,terminal=False):
+    if record.get('source')=='move/웅크리기':return __import__('defense_curl').validate_record(actor,record,terminal=terminal)
     E.validate(record,actor=actor,terminal=terminal)
     row=definition(actor.r,record['source']);meta=record[E.KEY]
     if row is None or record['effect']!=row['payload'] or meta['kind']!='condition':raise ValueError('selected custom condition state required')
@@ -158,6 +163,7 @@ def turn_start(engine,actor,*,_boss_round=False):
     turn=actor.custom_conditions.get('combat_turn_serial',0)
     for record in list(records(actor)):
         validate_record(actor,record)
+        if record['source']=='move/웅크리기':continue
         import linked_move_conditions as LINKED
         if LINKED.owns(record):
             seed=record['effect']['operation']=='seed_drain'

@@ -19,17 +19,18 @@ class CommonInitiativeTests(unittest.TestCase):
         cls.rules = Rules(str(ROOT), ruleset="core")
 
     def setUp(self):
+        previous = self.rules.rulings
+        self.rules.rulings = copy.deepcopy(previous)
+        self.addCleanup(setattr, self.rules, 'rulings', previous)
         self.e = Engine(self.rules, seed=51)
-        # A test-owned rulings object prevents campaign answers leaking between cases.
-        from rulings import Rulings
-        self.e.rulings = Rulings()
 
     def actor(self, name, speed, paralysis=False):
         c = Combatant(self.rules, {"name": name, "kind": "pokemon", "level": 10,
             "stats": {"hp": 20, "atk": 10, "def": 10, "spa": 10, "spd": 10, "spe": speed},
             "types": ["노말"], "moves": [], "abilities": []})
+        self.e.gm.add_combatant(c, reason='actual initiative participant')
         if paralysis:
-            c.conditions.add("마비")
+            self.e.apply_status(c, '마비', source='gm/observed-initiative-paralysis')
         return c
 
     def policy(self, *, direction="highest_d20", same="reroll", rounds=10):
@@ -67,7 +68,7 @@ class CommonInitiativeTests(unittest.TestCase):
 
     def test_successful_paralysis_save_does_not_remove_initiative_half(self):
         c = self.actor("p", 11, True)
-        self.faces([11]); self.e.start_of_turn(c)
+        self.e.start_round([c]); self.faces([11]); self.e.start_of_turn(c, initiative_count=5)
         self.assertIn("마비", c.conditions)
         self.assertEqual(INITIATIVE.value(self.rules, c).value, 5)
         self.assertEqual(c.stats["spe"], 11)

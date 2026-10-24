@@ -38,6 +38,7 @@ def ability_id(rules,name):
   # Only registrars declaring reviewed equivalence collapse multiple source IDs.
   # Native single-source registrations already carry their canonical source_id.
   return reg['equivalent_source_ids'][0] if 'equivalent_source_ids' in reg else reg['source_id']
+ if name.startswith('ability/') and name in rules.selection.units:return rules._selected_rule(name)
  return rules.selection.resolve_name(name.split('/',1)[1] if name.startswith('ability/') else name,('ability/',))
 
 def label(rules,uid):
@@ -159,6 +160,16 @@ def active(actor,uid,component=None):
  if not isinstance(component,str) or not component:raise ValueError('ability component identity required')
  if component not in component_ids(actor.r,canonical):raise ValueError('unknown ability component')
  return component in active_ids
+
+
+def effect_active(actor,effect):
+ """Native passive ownership follows its selected source, not a display label."""
+ if actor.abilities_suppressed:return False
+ source=effect.get('_rule_id')
+ if isinstance(source,str) and source.startswith('ability/'):
+  return active(actor,source)
+ name=effect.get('_ability')
+ return isinstance(name,str) and active(actor,name)
 
 
 def component_snapshot(rules,chosen,copied):

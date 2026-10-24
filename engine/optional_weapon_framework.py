@@ -234,15 +234,16 @@ def skill_rank(engine, actor, weapon):
     return max(ranks)
 
 
-def validate_loadout(engine, actor, weapon):
+def validate_loadout(engine, actor, weapon, *, require_qualification=True):
+    if type(require_qualification)is not bool:raise ValueError('explicit weapon qualification mode required')
     row = profile_for_weapon(engine, actor, weapon)
     if row is None:
         return
-    rank = skill_rank(engine, actor, weapon)
+    rank = skill_rank(engine, actor, weapon) if require_qualification else None
     if not row['arcane']:
         import weapon_actions as WEAPONS
         for uid in row['moves']:
-            WEAPONS.validate_grant(engine, actor, weapon, uid)
+            WEAPONS.validate_grant(engine, actor, weapon, uid,require_qualification=require_qualification)
         return
     counts = {3: 0, 5: 0}
     for uid in row['moves']:
@@ -251,7 +252,7 @@ def validate_loadout(engine, actor, weapon):
             raise ValueError('selected sourced Arcane Weapon Move required')
         required = grant['rank']
         if actor.kind=='pokemon' and required>4:raise ValueError('Wielder cannot gain weapon moves above Adept')
-        if rank < required or row['grade'] == '조잡' or required == 5 and (row['grade'] != '좋음' or weapon.get('slot', '주요손') == '반대손'):
+        if (require_qualification and rank < required) or row['grade'] == '조잡' or required == 5 and (row['grade'] != '좋음' or weapon.get('slot', '주요손') == '반대손'):
             raise ValueError('Arcane weapon tier prerequisite not met')
         if grant['forms'] and row['kind'] not in grant['forms']:
             raise ValueError('Arcane move requires its printed melee/ranged form')
@@ -669,7 +670,9 @@ def validate_world(engine, index):
         for entry in actor.custom_conditions.get('equipped_weapons', {}).values():
             if entry['weapon'].get('framework_instance') or entry['weapon'].get('recipe_instance'):
                 profile_for_weapon(engine, actor, entry['weapon'])
-                validate_loadout(engine, actor, entry['weapon'])
+                # Retain the actual equipped object/loadout after a live Skill loss.
+                # Its next native use still requires current qualification.
+                validate_loadout(engine, actor, entry['weapon'],require_qualification=False)
                 uid = entry['instance_id']
                 if engine._physical_objects[uid].get('equipped_by') != actor.entity_id and not __import__('telekinetic').remote_weapon(engine,actor,entry['weapon']):
                     raise ValueError('equipped physical weapon relation changed')

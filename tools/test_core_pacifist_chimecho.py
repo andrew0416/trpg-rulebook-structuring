@@ -146,7 +146,7 @@ class PacifistChimechoTests(unittest.TestCase):
   row=self.e.create_declared_egg(self.a,parents,declaration,request_id='pacifist-egg',compatible=True,species=PACIFIST,
    inheritance_moves=['move/맹독'],reason='GM adopts actual example child species')
   # The newborn's one Basic Ability (ch05:111,660) is valid, so the pacifist Move guard is what rejects.
-  choices={'gender':'female','nature':'노력','abilities':['부유'],'moves':BIRTH+['move/맹독'],'inheritance_moves':['move/맹독'],'special_appearance':False}
+  choices={'gender':'female','nature':'노력','abilities':['부유'],'moves':BIRTH,'inheritance_moves':['move/맹독'],'special_appearance':False}
   before=self.before()
   with self.assertRaisesRegex(ValueError,'pacifist'):
    self.e.hatch_declared_egg(self.a,row['entity_id'],name='child',ready=True,reason='actual observed hatch',choices=choices)

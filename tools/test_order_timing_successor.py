@@ -69,6 +69,7 @@ class OrderTimingSuccessorTests(unittest.TestCase):
         import training_features as TRAIN
         f,(e,a,p,foe)=self.training();f.audible(e,a,p)
         prepared=e.prepare_initiative_schedule(e.everyone,source='gm/order-review',
+            bindings=[{'slot':c.entity_id,'actor_id':c.entity_id,'role':c.entity_id} for c in e.everyone],
             order_groups=[[c.entity_id] for c in e.everyone])
         self.assertEqual(prepared['status'],'prepared');e.start_round(e.everyone)
         e.manual_feat(a,TRAIN.FOCUSED,p)

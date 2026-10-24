@@ -102,16 +102,21 @@ class Tests(unittest.TestCase):
   self.assertEqual(self.e.elapsed_seconds-before,600);self.assertEqual(record['highest_stats'],['hp'])
   self.assertEqual(p.save_mod,0);self.e.equip_relic_crown(self.t,p,identity)
   self.assertEqual((p.save_mod,self.t.spec['items'][identity]),(2,0))
-  p.conditions={'마비'}
-  with patch.object(self.e,'d20',return_value=9):self.assertIsNone(self.e.start_of_turn(p))
-  p.conditions={'혼란'}
+  import turn as TURN
+  self.e.apply_status(p,'마비');self.e.start_round(self.e.everyone)
+  with patch.object(Engine,'d20',return_value=9):self.e.start_of_turn(p,initiative_count=20)
+  self.assertTrue(TURN.spend(self.e,p,'standard','actual successful-save Standard'))
+  self.assertTrue(TURN.spend(self.e,p,'shift','actual successful-save Shift'))
+  self.e.cure_status(p,'마비');self.e.apply_status(p,'혼란')
   dc=next(x['dc'] for x in self.r.condition_effects('혼란') if x['type']=='save')
-  with patch.object(self.e,'d20',return_value=dc-2):self.e.end_of_turn(p)
+  with patch.object(Engine,'d20',return_value=dc-2):self.e.end_of_turn(p)
   self.assertNotIn('혼란',p.conditions)
   self.assertEqual(ITEMS.register_item(self.e,p,identity),0);self.assertEqual(p.save_mod,2)
   ITEMS.unregister_item(self.e,p,identity);self.assertEqual(p.save_mod,0)
-  p.conditions={'마비'}
-  with patch.object(self.e,'d20',return_value=9):self.assertIsNotNone(self.e.start_of_turn(p))
+  self.e.end_round();self.e.apply_status(p,'마비');self.e.start_round(self.e.everyone)
+  with patch.object(Engine,'d20',return_value=9):self.e.start_of_turn(p,initiative_count=20)
+  self.assertTrue(TURN.spend(self.e,p,'standard','actual failed-save first action'))
+  self.assertFalse(TURN.spend(self.e,p,'shift','actual failed-save second action'))
  def test_all_native_saving_conditions_use_the_same_equipped_two_point_bonus(self):
   import effects_ext as EXT
   p=self.restored();identity=self.crown(p)['id'];self.e.equip_relic_crown(self.t,p,identity)

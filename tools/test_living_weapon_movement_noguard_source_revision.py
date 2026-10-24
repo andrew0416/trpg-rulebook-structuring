@@ -69,19 +69,25 @@ class LivingWeaponMovementNoGuardSourceRevisionTests(unittest.TestCase):
                 self.e.accuracy_check(attacker,target,self.e.r.move('move/몸통박치기'),fixed_roll=10)
         return observed
 
+    def exact_shift(self, actor, path):
+        import turn as TURN, movement_actions as MOVE
+        allowance=self.e.move_profile(actor,movement_mode='land')[0]
+        self.assertTrue(TURN.spend(self.e,actor,'shift','actual declared shared-pool route',movement=True))
+        return MOVE.follow_paid_path(self.e,actor,path,mode='land',maximum_distance=allowance)
+
     def test_shared_pool_uses_trainer_or_pokemon_holder_speed_across_turns_restore_and_rounds(self):
         for holder in ('trainer','pokemon'):
             with self.subTest(holder=holder):
                 self.world(holder=holder);self.equip();self.turn(self.a)
                 self.e.gm.set_position(self.t,(6,2),reason='actual first goal is three metres away')
-                self.assertEqual(self.e.approach(self.a,self.t)['distance'],3)
+                self.assertEqual(self.exact_shift(self.a,[(3,2),(4,2),(5,2)])['distance'],3)
                 self.assertEqual((self.a.pos,self.p.pos),((5,2),(5,2)))
                 self.assertEqual(self.p.spec[L.MOVEMENT]['distance'],3)
                 self.e.gm.snapshot('shared-three');self.e.gm.restore('shared-three');self.restore()
                 self.e.gm.set_position(self.t,(20,2),reason='actual second goal leaves more than the remaining pool')
                 self.turn(self.p)
                 self.assertEqual(self.e.move_profile(self.p,movement_mode='land')[0],6)
-                self.assertEqual(self.e.approach(self.p,self.t)['distance'],3)
+                self.assertEqual(self.exact_shift(self.p,[(6,2),(7,2),(8,2)])['distance'],3)
                 self.assertEqual((self.a.pos,self.p.pos),((8,2),(8,2)))
                 self.assertEqual(self.p.spec[L.MOVEMENT]['distance'],6)
                 self.assertEqual((self.a.budget['shift'],self.p.budget['shift']),(0,0))
@@ -128,7 +134,7 @@ class LivingWeaponMovementNoGuardSourceRevisionTests(unittest.TestCase):
         self.assertEqual(self.a.budget['standard'],0)
         self.world();self.equip();self.turn(self.a)
         self.e.gm.set_position(self.t,(5,2),reason='actual two metre first route')
-        self.assertEqual(self.e.approach(self.a,self.t)['distance'],2)
+        self.assertEqual(self.exact_shift(self.a,[(3,2),(4,2)])['distance'],2)
         self.e.separate_living_weapon(self.a,destination=(4,3))
         self.assertEqual(self.p.spec[L.MOVEMENT]['distance'],2)
         # Both Standards remain available after that Shift and Swift. The

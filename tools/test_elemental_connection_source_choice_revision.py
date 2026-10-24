@@ -40,10 +40,13 @@ class ElementalConnectionSourceChoiceRevisionTests(unittest.TestCase):
             with self.subTest(interpretation=interpretation):
                 self.setUp()
                 self.acquire(*(('불꽃',) if interpretation == 'en_single_acquisition' else ('불꽃', '비행')))
+                receipt_start=len(self.e.rulings.log)
                 selected = self.select(interpretation)
                 bonus = 4 if interpretation == ELEM.DEFAULT_INTERPRETATION else 2
                 self.assertEqual(selected['policy']['values']['interpretation'], interpretation)
-                receipt = self.e.rulings.log[-1]
+                receipts=[row for row in self.e.rulings.log[receipt_start:]
+                          if row['kind']=='state' and row['what']==self.a.name+' 원소 교감 출처 해석']
+                self.assertEqual(len(receipts),1);receipt=receipts[0]
                 self.assertIsNone(receipt['before'])
                 self.assertEqual(receipt['after'], self.a.spec[ELEM.SOURCE_OBSERVATION])
                 for skill in ELEM.SKILLS:
@@ -114,8 +117,13 @@ class ElementalConnectionSourceChoiceRevisionTests(unittest.TestCase):
             reason_pattern='GM decision scope changed')
         self.assertEqual(self.a.budget['standard'], 1)
         self.assertEqual(self.a.spec[ELEM.SOURCE_OBSERVATION], previous)
+        receipt_start=len(self.e.rulings.log)
         self.select('kr_branch_each_matching_type')
-        self.assertEqual(self.e.rulings.log[-1]['before'], previous)
+        receipts=[row for row in self.e.rulings.log[receipt_start:]
+                  if row['kind']=='state' and row['what']==self.a.name+' 원소 교감 출처 해석']
+        self.assertEqual(len(receipts),1)
+        self.assertEqual(receipts[0]['before'], previous)
+        self.assertEqual(receipts[0]['after'],self.a.spec[ELEM.SOURCE_OBSERVATION])
         self.assertEqual(self.e.skill_roll(self.a, '매력', skill_target=self.p, fixed=[3] * 4).total, 14)
 
     def test_actual_gm_and_fresh_rules_json_retain_complete_choices_and_inactive_history_without_grants(self):

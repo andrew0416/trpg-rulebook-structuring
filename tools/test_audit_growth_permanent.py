@@ -65,7 +65,7 @@ class RangedWhitelistTests(unittest.TestCase):
     def test_changed_saved_receipt_cannot_enable_unlisted_capability(self):
         f=self.f;f.teach();scene=f.f
         row=RANGED.records(scene.p)[0];row['choice']='독샘'
-        with self.assertRaisesRegex(ValueError,'ranged Struggle capability'):RANGED.validate(scene.p)
+        with self.assertRaisesRegex(ValueError,'ranged Struggle requires one of the six printed capabilities'):RANGED.validate(scene.p)
         self.assertFalse(scene.e.validate_state()['valid'])
 
 
@@ -141,7 +141,7 @@ class InheritanceGrowthTests(unittest.TestCase):
         previous=deepcopy(f.r.selection.excluded)
         try:
             f.r.selection.excluded[MILESTONES.INHERITANCE_SOURCE]='exclude_units'
-            assert_rejected_unchanged(f.e,lambda:f.e.choose_growth_inheritance(c,20,'move/뿌리박기',reason='excluded source'),reason_pattern='inheritance source|excluded|제외')
+            assert_rejected_unchanged(f.e,lambda:f.e.choose_growth_inheritance(c,20,'move/뿌리박기',reason='excluded source'),reason_pattern='inheritance source|[Ee]xcluded|제외')
         finally:f.r.selection.excluded.clear();f.r.selection.excluded.update(previous)
         f.e.choose_growth_inheritance(c,20,'move/뿌리박기',reason='choose after making room')
     def test_species_distribution_rejects_impossible_gender_before_birth(self):

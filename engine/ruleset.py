@@ -425,6 +425,47 @@ def build_runtime_selection(rules):
     return selection
 
 
+from contextvars import ContextVar
+from contextlib import contextmanager
+
+_GENERATED_WEAPON_JOURNALS = ContextVar('generated_weapon_publications', default=())
+
+
+@contextmanager
+def generated_weapon_transaction(rules):
+    """Journal only actual generated-weapon writes, including nested producers."""
+    journal={}
+    token=_GENERATED_WEAPON_JOURNALS.set((*_GENERATED_WEAPON_JOURNALS.get(),
+                                         (rules.moves,rules.selection,journal)))
+    try:
+        yield
+    except BaseException:
+        for records in reversed(tuple(journal.values())):
+            for mapping,key,present,old,contents in reversed(records):
+                if not present:mapping.pop(key,None)
+                else:
+                    if contents is not None:old[:]=contents
+                    mapping[key]=old
+        raise
+    finally:
+        _GENERATED_WEAPON_JOURNALS.reset(token)
+
+
+def capture_runtime_weapon(rules,uid,title):
+    """Capture this producer's exact touched keys once per enclosing transaction."""
+    selection=rules.selection
+    identity=(id(rules.moves),id(selection),uid)
+    for move_owner,selection_owner,journal in _GENERATED_WEAPON_JOURNALS.get():
+        if move_owner is not rules.moves or selection_owner is not selection:continue
+        if identity in journal:continue
+        keys=[(rules.moves,uid),(rules.moves_mech,uid),(selection.units,uid),
+              (selection.dependencies,uid),(selection.names,title),
+              (rules._runtime_weapon_declarations,uid)]
+        journal[identity]=[(mapping,key,key in mapping,mapping.get(key),
+                            list(mapping[key]) if mapping is selection.names and key in mapping else None)
+                           for mapping,key in keys]
+
+
 def require_runtime_weapon(rules, uid):
     """Known turn.equip_weapon output inherits struggle AND weapon rules.
 
@@ -436,6 +477,7 @@ def require_runtime_weapon(rules, uid):
         return rules.selection.require_supported_version(uid)
     dependencies = ("combat/struggle", "ch09-equipment/장비/무기")
     if uid not in rules.selection.units:
+        capture_runtime_weapon(rules,uid,record['name'])
         rules.selection.register_derived({"id": uid, "title": record["name"],
             "source": {"file": "ch09-equipment.md"}, "tags": ["derived-weapon"]}, dependencies)
     for dependency in dependencies:

@@ -10,7 +10,7 @@ STAGE = Path(__file__).resolve().parents[1]
 ROOT = STAGE if (STAGE / 'data/core-rules.json').exists() else Path(os.environ.get(
     'PTK_CANONICAL_ROOT', 'D:/trpg-rulebook-structuring/work/public-actions-20261023/repository'))
 sys.path[:0] = [str(STAGE / 'engine'), str(ROOT / 'engine'), str(ROOT / 'tools')]
-from engine import Rules
+from engine import Rules, Engine
 from builder import build_pokemon
 from grid import Grid
 import test_category2_body_modes as FIXTURE
@@ -63,11 +63,13 @@ class CapabilityBodyModesRevisionTests(unittest.TestCase):
                     self.assertEqual(prepared['range'], raw['range'])
                     self.assertNotIn('_struggle_range', prepared)
                     f.begin(f.a)
-                    with patch.object(f.e, 'damage_base', wraps=f.e.damage_base) as damage:
-                        with patch.object(f.e.rng, 'randint', return_value=20):
-                            f.e.use_move_on(f.a, f.p, 'struggle', f.e.everyone, struggle_choice=choice)
-                    self.assertTrue(any(call.args[1]['type'] == element and
-                        call.args[1]['class'] == ('특수' if special else '물리') for call in damage.call_args_list))
+                    damage=[];native=Engine.damage_base
+                    def observe(engine,actor,move,*args,**kwargs):
+                        result=native(engine,actor,move,*args,**kwargs);damage.append(dict(move));return result
+                    with patch.object(Engine, 'damage_base', observe), patch.object(Engine, 'd20', return_value=20):
+                        f.e.use_move_on(f.a, f.p, 'struggle', f.e.everyone, struggle_choice=choice)
+                    self.assertTrue(any(move['type'] == element and
+                        move['class'] == ('특수' if special else '물리') for move in damage))
                     self.assertEqual(f.a.budget['standard'], 0)
                     self.assertEqual(f.r.move('struggle'), raw)
                     self.withdraw(f, uid, source)
@@ -110,7 +112,10 @@ class CapabilityBodyModesRevisionTests(unittest.TestCase):
         WORLD.register_object(f.e, 'gift-door', location={'kind': 'grid', 'cell': (2, 2)}, reason='actual door')
         f.e.gm.observe_body_passage('gift-door', [(2, 2), (3, 2)], passage_id='gift-gap',
             height_m=.04, width_m=.5, reason='measured gap under the actual closed door')
-        f.e.approach(f.a, f.t, movement_mode='land')
+        import movement_actions as MOVE, turn as TURN
+        self.assertTrue(TURN.spend(f.e,f.a,'shift','actual measured under-door route',movement=True))
+        path=MOVE.follow_paid_path(f.e,f.a,[(3,2),(4,2)],mode='land',maximum_distance=4)
+        self.assertEqual(path['steps'],2)
         self.assertEqual((f.a.pos, f.a.budget['shift']), ((4, 2), 0))
         self.assertTrue(f.e.grid.blocked((2, 2), (3, 2)))
         loaded = f.restored(); actual = WORLD.actor_index(loaded)[identity]
@@ -148,9 +153,12 @@ class CapabilityBodyModesRevisionTests(unittest.TestCase):
         f.begin(f.p)
         f.e.change_body_mode(f.p, 'phasing', reason='source-defined one Tick at each round end')
         hp = f.p.hp; expected = f.p.base_max_hp // 10
-        with patch.object(f.e, 'lose_tick_hp', wraps=f.e.lose_tick_hp) as ticks:
+        ticks=[];native=Engine.lose_tick_hp
+        def observe(engine,actor,*args,**kwargs):
+            result=native(engine,actor,*args,**kwargs);ticks.append(actor.entity_id);return result
+        with patch.object(Engine, 'lose_tick_hp', observe):
             f.e.end_of_turn(f.p); f.e.end_round()
-        self.assertEqual(ticks.call_count, 1)
+        self.assertEqual(ticks, [f.p.entity_id])
         self.assertEqual(f.p.hp, hp - expected)
         loaded = f.restored(); actual = WORLD.actor_index(loaded)[f.p.entity_id]
         hp = actual.hp; MODES.finish_round(loaded)
@@ -164,13 +172,16 @@ class CapabilityBodyModesRevisionTests(unittest.TestCase):
             extra={'trainer_id': f.a.entity_id}))
         self.assertIn('그림자숨기', G.effective_capabilities(c))
         f.e.gm.observe_loyalty(c, 6, reason='actual trusted species capability holder')
-        c.pos = f.t.pos
+        f.e.gm.set_position(c,(f.t.pos[0],f.t.pos[1]+1),
+            reason='observed host shadow lies on adjacent unoccupied ground')
         f.begin(c)
-        f.e.change_body_mode(c, 'shadow', shadow_host=f.t, reason='actual Marshadow enters this creature shadow')
+        f.e.change_body_mode(c, 'shadow', shadow_host=f.t, shadow_offset=(0,1),
+            reason='actual Marshadow enters the observed adjacent creature shadow')
         self.assertEqual(c.budget['standard'], 0)
         self.assertTrue(MODES.flat(c))
         f.e.gm.set_position(f.t, (8, 3), reason='actual host moves with its shadow')
-        self.assertEqual(c.pos, f.t.pos)
+        self.assertEqual(c.pos, (f.t.pos[0],f.t.pos[1]+1))
+        self.assertEqual(c.spec[MODES.KEY]['host']['offset'],[0,1])
         loaded = f.restored(); actual = WORLD.actor_index(loaded)[c.entity_id]
         self.assertEqual(actual.spec[MODES.KEY], c.spec[MODES.KEY])
         f.begin(c)

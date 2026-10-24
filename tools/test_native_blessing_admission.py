@@ -33,9 +33,13 @@ class NativeBlessingAdmissionTests(unittest.TestCase):
         """Corrupt legacy authority is intentionally not a valid codec input."""
         actors = list(e.everyone)
         memo = {id(e.r): e.r, id(e): e, id(e.gm): e.gm,
+                id(e.rng): e.rng, id(e.r.rulings): e.r.rulings,
                 **{id(actor): actor for actor in actors}}
         def snapshot():
-            return deepcopy(([vars(actor) for actor in actors], vars(e), vars(e.gm), vars(e.r.rulings)), memo.copy())
+            # Random and Rulings identities stay stable; their complete state is
+            # compared explicitly instead of comparing newly deep-copied objects.
+            return deepcopy(([vars(actor) for actor in actors], vars(e), vars(e.gm),
+                             vars(e.r.rulings), vars(e.rng), e.rng.getstate()), memo.copy())
         before = snapshot()
         with self.assertRaisesRegex(ValueError, pattern):
             operation()

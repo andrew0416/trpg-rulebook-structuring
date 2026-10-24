@@ -114,7 +114,7 @@ class TrainingSourceBindingRevisionTests(unittest.TestCase):
         e, a, p, _ = self.scene()
         before = CODEC.dump_engine(e)
         with patch.object(e.r, '_selected_rule', return_value=TRAIN.CSV_CLAUSES[TRAIN.BRUTAL]):
-            with self.assertRaisesRegex(ValueError, 'complete source policy'):
+            with self.assertRaisesRegex(ValueError, 'selected acquisition source needs its own ownership query'):
                 e.manual_feat(a, TRAIN.FOCUSED, p)
         self.assertEqual(CODEC.dump_engine(e), before)
         original = Path.read_bytes
@@ -168,7 +168,13 @@ class TrainingSourceBindingRevisionTests(unittest.TestCase):
         before = CODEC.dump_engine(e)
         loaded, index = self.restore(e, fresh=True)
         restored = TRAIN.active(index[p.entity_id])[0]
-        self.assertEqual(CODEC.dump_engine(loaded), before)
+        expected = deepcopy(before)
+        root = expected['nodes'][expected['root']['$ref']]
+        attrs = expected['nodes'][root['attrs']['$ref']]['items']
+        next(pair for pair in attrs if pair[0]=='_root_common_epoch')[1] += 1
+        if not any(pair[0]=='_state_codec_authentication' for pair in attrs):
+            attrs.append(['_state_codec_authentication',CODEC.AUTH_NOTICE])
+        self.assertEqual(CODEC.dump_engine(loaded), expected)
         self.assertEqual(restored['source_clause_id'], TRAIN.CSV_CLAUSES[TRAIN.FOCUSED])
         self.assertNotIn('source_policy_binding', restored)
         self.assertEqual(index[a.entity_id].spec['training_order_uses'], a.spec['training_order_uses'])

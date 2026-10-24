@@ -448,6 +448,8 @@ class TaskmasterTests(unittest.TestCase):
 
     def test_whip_non_training_native_order_keeps_actual_ap_binding_and_receipt_source(self):
         self.setup();self.all_features()
+        self.e.gm.observe_sensory_environment(self.a,self.p,paths={'auditory':True},present=True,
+            reason='actual contemporaneous Whip Order delivery')
         self.a.spec.setdefault('feats',[]).extend((CPF.PRECISION,CPF.PINPOINT))
         self.combat(self.a)
         before=AP.available(self.a)
@@ -467,6 +469,8 @@ class TaskmasterTests(unittest.TestCase):
     def test_whip_native_directive_records_real_free_payment_and_preserves_target_lifetime(self):
         import directive_features as D
         self.setup();self.all_features()
+        self.e.gm.observe_sensory_environment(self.a,self.p,paths={'auditory':True},present=True,
+            reason='actual contemporaneous Whip Order delivery')
         self.a.spec.setdefault('classes',[]).append(D.CLASS)
         self.a.spec.setdefault('feats',[]).append(D.FEATURE)
         SF.base_patch(self.a,{'skills':{'협박':6,'명령':6,'매력':3}},reason='actual native Coordinator directive skills')

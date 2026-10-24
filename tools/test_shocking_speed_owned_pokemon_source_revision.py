@@ -5,7 +5,6 @@ import json
 import unittest
 
 from engine import Engine, Rules
-import fast_combat as FAST
 import frequency as FREQ
 import native_scenario_fixture as NATIVE
 import passive_events as PASSIVE
@@ -44,7 +43,12 @@ class ShockingSpeedOwnedPokemonSourceRevisionTests(unittest.TestCase):
         self.t,self.other,self.p,self.foe=[actors[key] for key in ('owner','other','pokemon','target')]
         if ownership in ('owner','other'):
             ENTITIES.observe_loyalty(self.e,self.p,3,reason='actual GM observation for the registered current trainer')
-        self.e.prepare_initiative_schedule(self.e.everyone,source='gm/actual-shocking-speed-schedule')
+        self.e.rule_answer('initiative_tie_order',
+            {'policy':'highest_d20','same_face':'reroll','max_rounds':100,
+             'reason':'GM declares the actual tied trainer order before the Priority window'},
+            reason='explicit tie procedure, not a printed high-roll rule')
+        schedule=self.e.prepare_initiative_schedule(self.e.everyone,source='gm/actual-shocking-speed-schedule')
+        self.assertEqual(schedule['status'],'prepared')
         self.e.start_round(self.e.everyone)
 
     def shocking(self):
@@ -69,7 +73,7 @@ class ShockingSpeedOwnedPokemonSourceRevisionTests(unittest.TestCase):
 
     def test_actual_owned_electric_pokemon_receives_advanced_priority_and_pays_once(self):
         self.world();hp=self.foe.hp
-        with patch.object(FAST,'roll',return_value=15):result=self.shocking()
+        with patch.object(Engine,'d20',return_value=15):result=self.shocking()
         self.assertEqual(result['source'],PRIORITY.SHOCKING)
         self.assertLess(self.foe.hp,hp);self.assert_one_paid_use()
         self.assertEqual(WORLD.identity_field(self.e,self.p,'owner_id'),self.t.entity_id)
@@ -81,7 +85,7 @@ class ShockingSpeedOwnedPokemonSourceRevisionTests(unittest.TestCase):
         self.world(ownership='other')
         self.assertEqual(WORLD.identity_field(self.e,self.p,'owner_id'),self.other.entity_id)
         NATIVE.assert_rejected_unchanged(self.e,self.shocking,reason_pattern='actual owned Pokemon')
-        self.assertEqual(self.used(),0);self.assertEqual(self.t._action_history,[])
+        self.assertEqual(self.used(),0);self.assertEqual(getattr(self.t,'_action_history',[]),[])
         self.assertIsNone(self.e._active_turn_actor)
         self.assertFalse(self.e.initiative_reaction_status()['owed_turns'])
 
@@ -91,7 +95,7 @@ class ShockingSpeedOwnedPokemonSourceRevisionTests(unittest.TestCase):
                 self.world(ownership=ownership)
                 self.assertIsNone(WORLD.identity_field(self.e,self.p,'owner_id'))
                 NATIVE.assert_rejected_unchanged(self.e,self.shocking,reason_pattern='actual owned Pokemon')
-                self.assertEqual(self.used(),0);self.assertEqual(self.t._action_history,[])
+                self.assertEqual(self.used(),0);self.assertEqual(getattr(self.t,'_action_history',[]),[])
                 self.assertNotIn(THUNDER,self.p.move_uses)
 
     def test_actor_controller_shared_side_and_trainer_name_do_not_replace_actual_ownership(self):
@@ -108,14 +112,14 @@ class ShockingSpeedOwnedPokemonSourceRevisionTests(unittest.TestCase):
         self.world()
         with patch.object(Engine,'_accuracy_check_native',side_effect=ValueError('actual native accuracy receiver failed')):
             NATIVE.assert_rejected_unchanged(self.e,self.shocking,reason_pattern='actual native accuracy receiver failed')
-        self.assertEqual(self.used(),0);self.assertEqual(self.t._action_history,[])
+        self.assertEqual(self.used(),0);self.assertEqual(getattr(self.t,'_action_history',[]),[])
         self.assertIsNone(self.e._active_turn_actor)
 
     def test_real_paid_defense_wait_gm_and_cold_restore_resume_without_second_payment(self):
         self.world(pending=True)
         self.e.watch_ability_interrupt(self.foe,'ability/테라셸',reason='actual defender may choose its defensive type')
         hp=self.foe.hp
-        with patch.object(FAST,'roll',return_value=15):
+        with patch.object(Engine,'d20',return_value=15):
             with self.assertRaises(PASSIVE.PassiveEventPending):self.shocking()
         event=self.e._passive_pending;self.assert_one_paid_use()
         self.assertEqual(self.foe.hp,hp);rng=self.e.rng.getstate()
@@ -132,10 +136,10 @@ class ShockingSpeedOwnedPokemonSourceRevisionTests(unittest.TestCase):
 
     def test_actual_wild_plain_priority_remains_legal_without_shocking_speed_ownership(self):
         self.world(ownership='wild');hp=self.foe.hp
-        with patch.object(FAST,'roll',return_value=15):
+        with patch.object(Engine,'d20',return_value=15):
             result=self.e.use_priority_move(self.p,self.foe,QUICK)
         self.assertEqual(result['source'],QUICK);self.assertLess(self.foe.hp,hp)
-        self.assertEqual(self.used(),0);self.assertEqual(self.t._action_history,[])
+        self.assertEqual(self.used(),0);self.assertEqual(getattr(self.t,'_action_history',[]),[])
         self.assertEqual(self.p.move_uses[QUICK],1);self.assertIs(self.e._active_turn_actor,self.p)
         self.assertTrue(self.e.validate_state()['valid'])
 

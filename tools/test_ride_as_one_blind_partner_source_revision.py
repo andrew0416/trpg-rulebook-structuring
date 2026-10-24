@@ -29,6 +29,10 @@ class RideAsOneBlindPartnerSourceRevisionTests(unittest.TestCase):
     def scene(self, *, fast='mount'):
         self.setup(mounted=True)
         self.e.grid = Grid(8, 8)
+        from native_scenario_fixture import prepare_body
+        for actor in (self.a,self.p,self.enemy):
+            prepare_body(self.e,actor,size=actor.spec.get('size','중형'),offsets=[(0,0)],
+                reason='observed complete one-cell mounted scenario bodies')
         if fast == 'rider':
             self.e.gm.set_stat(self.a, 'spe', 25, reason='actual faster mounted trainer')
             self.e.gm.set_stat(self.p, 'spe', 10, reason='actual slower Pokemon mount')

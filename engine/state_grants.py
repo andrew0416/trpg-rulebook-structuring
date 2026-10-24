@@ -745,6 +745,7 @@ def ensure_ability(e,c,name):
     if registration is None and name in getattr(e.r,'unresolved_abilities',{}):
         from ruleset import UnresolvedRuleSelection
         raise UnresolvedRuleSelection(name,e.r.unresolved_abilities[name])
+    selected=registration['source_id'] if registration else None
     if hasattr(e.r,'selection'):
         e.r.selection.require_current_filter(e.r.ruleset)
         selected=registration['source_id'] if registration else e.r.selection.resolve_name(canonical,('ability/',))
@@ -754,7 +755,8 @@ def ensure_ability(e,c,name):
     st=state(c)
     if canonical in st["ability_receipts"]:return False
     source_id="ability:"+canonical
-    effects=getattr(e.r,"ability_effects",{}).get(canonical,[])
+    import typed_defensive_bypass as TYPED
+    effects=TYPED.effects(e.r,selected) if TYPED.handles(selected) else getattr(e.r,"ability_effects",{}).get(canonical,[])
     callback=(lambda:e._register_abilities_one(c,registration['name'],selected_id=registration['source_id'])) if registration else (lambda:e._register_abilities_one(c,name))
     apply_owned(e,c,source_id,callback,effects=effects)
     st["ability_receipts"][canonical]=source_id
@@ -1208,6 +1210,15 @@ def _stage_transition_payload(engine,staged_engine,payload):
 
 
 def transition(engine,c,apply,*,participants=(),include_rulings=False,include_grid=False,completion=None):
+    # Native equipment can publish derived Move definitions into shared Rules.
+    # Keep those publications inside the same outer failure boundary as the graph.
+    from ruleset import generated_weapon_transaction
+    with generated_weapon_transaction(engine.r):
+        return _transition(engine,c,apply,participants=participants,include_rulings=include_rulings,
+                           include_grid=include_grid,completion=completion)
+
+
+def _transition(engine,c,apply,*,participants=(),include_rulings=False,include_grid=False,completion=None):
     """Stage a state graph; preserve actors and surviving mutable-container aliases.
 
     A None primary permits world-only transitions such as an empty-world clock.

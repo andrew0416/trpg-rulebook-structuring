@@ -77,7 +77,9 @@ class FantasyQ30SourceVariantTests(unittest.TestCase):
 
     def restore(self):
         ids=[a.entity_id for a in (self.a,self.b,self.c)]
-        self.e=CODEC.load_engine(Rules(str(ROOT),ruleset='all'),json.loads(json.dumps(CODEC.dump_engine(self.e),ensure_ascii=False)))
+        from examples.declared_skill_ranks import configure
+        rules=Rules(str(ROOT),ruleset='all');configure(rules)
+        self.e=CODEC.load_engine(rules,json.loads(json.dumps(CODEC.dump_engine(self.e),ensure_ascii=False)))
         self.a,self.b,self.c=[WORLD.actor_index(self.e)[uid] for uid in ids]
 
     def test_fiery_complete_grants_reconcile_native_struggle_warmth_immunity_stat_and_restore(self):

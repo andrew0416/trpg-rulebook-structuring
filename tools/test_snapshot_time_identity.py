@@ -41,7 +41,9 @@ class SnapshotIdentityTests(unittest.TestCase):
             e.end_of_turn(b);self.assertEqual(b.hp,1+b.max_hp//2);self.assertEqual(e.delayed,[])
 
     def test_nested_engine_references_to_actors_keep_identity(self):
-        e,a,b=self.fixture();e.field={'owners':(a,b),'nested':[{'target':b}]};e.hazards={(1,1):{'owner':a}}
+        from grid import Grid
+        e,a,b=self.fixture();e.grid=Grid(3,3)
+        e.field={'owners':(a,b),'nested':[{'target':b}]};e.hazards={(1,1):{'owner':a}}
         e.gm.snapshot();e.gm.restore()
         self.assertIs(e.field['owners'][0],a);self.assertIs(e.field['nested'][0]['target'],b)
         self.assertIs(e.hazards[(1,1)]['owner'],a)

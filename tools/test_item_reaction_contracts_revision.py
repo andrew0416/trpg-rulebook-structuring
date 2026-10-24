@@ -65,7 +65,7 @@ class ItemReactionContractsRevisionTests(unittest.TestCase):
                         engine.gm.add_condition(attacker, "구속", reason="actual Rapid Spin user is Stuck")
                         engine.gm.add_condition(attacker, "수렁", reason="actual Rapid Spin user is Trapped")
                     hp = wearer.hp
-                    with patch.object(engine, "d20", return_value=18):
+                    with patch.object(Engine, "d20", return_value=18):
                         engine.use_move(attacker, wearer, move_id, set_damage=True)
                     self.assertLess(wearer.hp, hp)
                     self.assertEqual(attacker.stages[stat], delta)
@@ -82,7 +82,7 @@ class ItemReactionContractsRevisionTests(unittest.TestCase):
                 with self.subTest(move=move_id, cloak=accept):
                     engine, attacker, wearer = self.cloak_scene(move_id, accept=accept)
                     hp = wearer.hp
-                    with patch.object(engine, "d20", return_value=20):
+                    with patch.object(Engine, "d20", return_value=20):
                         engine.use_move(attacker, wearer, move_id, set_damage=True)
                     self.assertLess(wearer.hp, hp)
                     if move_id == "move/불꽃펀치":
@@ -96,7 +96,7 @@ class ItemReactionContractsRevisionTests(unittest.TestCase):
         engine.gm.add_combatant(other, pos=(2, 3), side="party", reason="actual additional area member")
         engine.grid = Grid(10, 10)
         hp = wearer.hp, other.hp
-        with patch.object(engine, "d20", return_value=18):
+        with patch.object(Engine, "d20", return_value=18):
             engine.use_move_on(attacker, wearer, "move/땅고르기", engine.everyone, set_damage=True)
         self.assertLess(wearer.hp, hp[0])
         self.assertLess(other.hp, hp[1])
@@ -122,7 +122,7 @@ class ItemReactionContractsRevisionTests(unittest.TestCase):
     def test_cloak_preserves_native_rollout_source_owned_continuation(self):
         engine, attacker, wearer = self.cloak_scene("move/구르기")
         hp = wearer.hp
-        with patch.object(engine, "d20", return_value=18):
+        with patch.object(Engine, "d20", return_value=18):
             engine.use_move(attacker, wearer, "move/구르기", set_damage=True)
         self.assertLess(wearer.hp, hp)
         self.assertEqual(FORCED_MOVE.current(engine, attacker), "move/구르기")
@@ -136,7 +136,7 @@ class ItemReactionContractsRevisionTests(unittest.TestCase):
                 engine.gm.set_move(attacker, "move/울음소리", reason="actual known Growl")
                 engine.gm.add_condition(holder, "잠듦", reason="sleep does not cure from a stage drop")
                 hp = holder.hp
-                with patch.object(engine, "d20", return_value=18):
+                with patch.object(Engine, "d20", return_value=18):
                     engine.use_move(attacker, holder, "move/울음소리")
                 self.assertEqual(holder.stages["atk"], -1)
                 self.assertEqual(holder.hp, hp)
@@ -188,7 +188,7 @@ class ItemReactionContractsRevisionTests(unittest.TestCase):
         engine.gm.add_combatant(other, pos=(4, 5), side="party", reason="actual second on-field recipient")
         self.f.equip(engine, other, "revision/second-button", "item/탈출버튼")
         engine.grid = Grid(16, 16)
-        with patch.object(engine, "d20", return_value=18):
+        with patch.object(Engine, "d20", return_value=18):
             engine.use_move_on(attacker, holder, "move/땅고르기", engine.everyone, set_damage=True)
         self.assertIn("eject_button", holder.spec[PHYSICAL.PENDING])
         self.assertIn("eject_button", other.spec[PHYSICAL.PENDING])
@@ -274,7 +274,7 @@ class ItemReactionContractsRevisionTests(unittest.TestCase):
         self.f.equip(engine, holder, "revision/weakness", "item/약점보험")
         engine.start_round([attacker, holder])
         engine.start_of_turn(attacker, initiative_count=20)
-        with patch.object(engine, "d20", return_value=18):
+        with patch.object(Engine, "d20", return_value=18):
             engine.use_move(attacker, holder, "move/번개펀치", set_damage=True)
         self.assertIn("weakness_policy", holder.spec[PHYSICAL.PENDING])
         self.assertTrue(TURN.spend(engine, attacker, "shift", "later action keeps separate Weakness Policy contract"))

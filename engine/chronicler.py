@@ -571,12 +571,14 @@ def defensive_ignored(engine,attacker,target,move=None):
  """Shared selected native defensive-Ability bypass, including Targeted Profiling."""
  if _profiling_owner(engine,attacker,target) is not None or __import__('commander_orders').ignore_defensive(engine,attacker,target):return True
  if attacker is None or target is None:return False
+ if __import__('typed_defensive_bypass').active_sources(engine,attacker,target,move):return True
  attacker_side,target_side=getattr(attacker,'side',None),getattr(target,'side',None)
  if not attacker_side or not target_side or attacker_side==target_side:return False
  import ability_transitions as ABILITIES
  for effect in attacker.registry:
   if effect.get('type')!='ignore_effects' or effect.get('ignore_abilities') not in ('defensive','defensive (all enemies)'):continue
   source=effect.get('_rule_id','')
+  if __import__('typed_defensive_bypass').handles(source):continue
   if not source.startswith('ability/'):continue
   if engine.r._selected_rule(source)!=source:continue
   raw={k:v for k,v in effect.items() if not k.startswith('_')}

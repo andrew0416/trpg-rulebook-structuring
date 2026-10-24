@@ -296,6 +296,10 @@ def activate_empty_area(e,actor,move,mm,*,weapon_id=None,struggle_choice=None,ai
  """Atomically execute one mapped area Move that has no creature targets."""
  import area_targets as AREA
  import state_grants as G
+ # A damaging Move may aim only at terrain; its damage mode has no recipient.
+ # Status-only field declarations still reject a damage request before payment.
+ if set_damage and move.get('class') not in ('물리','특수'):
+  raise ValueError('empty area activation has no accuracy or damage declaration')
  effects=AREA.empty_field_effects(mm)
  import ice_lake as ICE_LAKE
  if not effects and not ICE_LAKE.empty_area_adopted(e,actor,move):return None
@@ -310,7 +314,7 @@ def activate_empty_area(e,actor,move,mm,*,weapon_id=None,struggle_choice=None,ai
    with open_empty_field_scope(staged,staged_actor,move_id,cells,effect_declaration,move=move) as token:
     return staged.use_move(staged_actor,staged_actor,move_id,
        _field_activation=token,weapon_id=weapon_id,
-        struggle_choice=struggle_choice,aim=aim,appendage_id=appendage_id,set_damage=set_damage,versatile_stat=versatile_stat)
+        struggle_choice=struggle_choice,aim=aim,appendage_id=appendage_id,versatile_stat=versatile_stat)
   except Exception as error:
    # A HeavyPending is a committed activation prefix, as on the ordinary
    # targeted path. Return a plain marker so the atomic graph can publish its

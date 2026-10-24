@@ -108,9 +108,9 @@ class PackMonWildSourceRevisionTests(unittest.TestCase):
         self.assertEqual((self.leader.spec, self.leader.move_uses,
                           hasattr(self.leader, 'budget')), leader)
         self.assertNotIn('_obedience_receipts', self.e.__dict__)
-        before = self.e.export_state()
-        self.command()
-        self.assertEqual(self.e.export_state(), before)
+        NATIVE.assert_logged_refusal_unchanged(self.e,lambda:self.command()['move_result'],
+            expected_result=0,expected_logs=[
+                f'    {self.p.name}: 기본 행동이 남지 않음 → 발버둥 불가  => [combat/action-economy]'])
 
     def test_lower_unrelated_owned_pokemon_is_not_forced_by_english_text(self):
         self.world(owned=True, wild=False, follower='꼬부기', follower_level=20)

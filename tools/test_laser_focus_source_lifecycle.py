@@ -78,14 +78,24 @@ class LaserFocusSourceTests(unittest.TestCase):
    with self.subTest(source=source):
     self.setUp();self.choose(self.p,source);self.known(self.p,'예민해지기','스피드스타')
     self.begin(self.p);self.cast(self.p,'예민해지기');uid=N.live(self.p)[0]['id'];self.next_turn(self.p)
-    self.e.grid=Grid(8,8);self.a.pos=(2,0);native=self.e.resolve_attack_damage
-    with patch.object(self.e,'d20',return_value=10),patch.object(self.e,'resolve_attack_damage',wraps=native) as used:
+    from engine import Engine
+    # Swift is Friendly: both intended recipients are opposing combatants.
+    self.e.grid=Grid(8,8);self.a.pos=(2,0)
+    self.a.side=self.other.side='opponent';self.e.begin_encounter([self.a])
+    observed=[];native=Engine.resolve_attack_damage
+    def observe(engine,actor,target,move,crit=False,*args,**kwargs):
+     result=native(engine,actor,target,move,crit,*args,**kwargs)
+     if actor.entity_id==self.p.entity_id and move['id']=='move/스피드스타':
+      observed.append((target.entity_id,crit))
+     return result
+    with patch.object(Engine,'d20',return_value=10),patch.object(Engine,'resolve_attack_damage',observe):
      self.e.use_move_on(self.p,self.other,'move/스피드스타',[self.p,self.a,self.other])
-    self.assertGreaterEqual(len(used.call_args_list),2)
-    self.assertTrue(all(call.args[3] for call in used.call_args_list))
+    self.assertEqual({target for target,crit in observed},{self.a.entity_id,self.other.entity_id})
+    self.assertEqual(len(observed),2)
+    self.assertTrue(all(crit for target,crit in observed))
     self.assertEqual(self.p.move_uses['move/스피드스타'],1);self.assertEqual(self.p.budget['standard'],0)
     closed=self.p.spec[N.HISTORY][-1];self.assertEqual(closed['id'],uid)
-    self.assertEqual(len(closed[E.KEY]['end_event']['activation_targets']),len(used.call_args_list))
+    self.assertEqual(len(closed[E.KEY]['end_event']['activation_targets']),len(observed))
     self.assertEqual(closed[E.KEY]['end_event']['kind'],'damaging_move_use' if source=='korean_next_attack' else 'successful_damaging_hit')
     self.assertFalse(N.live(self.p));self.assertFalse(getattr(self.e,'_move_activation_scopes',[]))
     self.assertFalse(N.critical(self.e,self.p,self.other,self.r.move('struggle'),True))
@@ -108,7 +118,7 @@ class LaserFocusSourceTests(unittest.TestCase):
 
  def test_later_table_choice_preserves_each_active_and_historical_contract_across_restore(self):
   self.known(self.p,'예민해지기');self.begin(self.p);self.cast(self.p,'예민해지기');english=N.live(self.p)[0]['id']
-  self.next_turn(self.p);self.choose(self.p,'korean_next_attack');self.cast(self.p,'예민해지기');korean=N.live(self.p)[-1]['id']
+  self.next_turn(self.p);self.next_turn(self.p);self.choose(self.p,'korean_next_attack');self.cast(self.p,'예민해지기');korean=N.live(self.p)[-1]['id']
   self.assertNotEqual(english,korean);self.next_turn(self.p)
   saved=self.e.gm.snapshot();loaded=self.restored();self.e.gm.restore(saved)
   for e in (self.e,loaded):
@@ -197,7 +207,7 @@ class LaserFocusSourceTests(unittest.TestCase):
   # Two independently produced definitions both finish on this first real hit;
   # the already spent Korean activation must not hide a still-live English one.
   self.setUp();self.known(self.p,'예민해지기');self.begin(self.p);self.cast(self.p,'예민해지기')
-  english=N.live(self.p)[0]['id'];self.next_turn(self.p);self.choose(self.p,'korean_next_attack');self.cast(self.p,'예민해지기')
+  english=N.live(self.p)[0]['id'];self.next_turn(self.p);self.next_turn(self.p);self.choose(self.p,'korean_next_attack');self.cast(self.p,'예민해지기')
   korean=N.live(self.p)[-1]['id'];self.next_turn(self.p);_,criticals=self.damage(self.p,18)
   self.assertEqual(criticals,[True]);self.assertFalse(N.live(self.p))
   self.assertEqual([(r['id'],r[E.KEY]['end_event']['kind']) for r in self.p.spec[N.HISTORY]],[(korean,'damaging_move_use'),(english,'successful_damaging_hit')]);self.valid()

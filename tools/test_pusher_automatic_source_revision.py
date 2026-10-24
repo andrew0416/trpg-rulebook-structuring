@@ -105,7 +105,7 @@ class PusherAutomaticSourceRevisionTests(unittest.TestCase):
         ordinary = self.trainer('ordinary teacher', (5, 5), feats=[])
         paid = self.pokemon('근육몬', 20, 'paid', owner=ordinary, moves=[], abilities=[], tutor_points=1, capabilities=['불쏘시개'])
         self.e.start_round([ordinary, paid]); self.e.start_of_turn(ordinary)
-        self.rejected(lambda: self.e.pokemon_activity(ordinary, 'teach_edge', target=paid, edge=case[0], capability='불쏘시개', safe=True), 'outside')
+        self.rejected(lambda: self.e.pokemon_activity(ordinary, 'teach_edge', target=paid, edge=case[0], capability='불쏘시개', safe=True), 'active encounter')
         self.e.end_encounter()
         elapsed = self.e.elapsed_seconds
         self.e.pokemon_activity(ordinary, 'teach_edge', target=paid, edge=case[0], capability='불쏘시개', safe=True)
@@ -122,9 +122,9 @@ class PusherAutomaticSourceRevisionTests(unittest.TestCase):
         out = WILD.attract(self.e, q, phase='wait', bait_id='actual Alluring', fixed=11)
         self.assertEqual((out['checks'][-1]['bonus'], out['checks'][-1]['total'], out['status']), (4, 15, 'awaiting_encounter'))
         ordinary = self.e.skill_roll(q, '통찰', fixed=[1, 1, 1]).total
-        tracking = self.e.skill_roll(q, '통찰', fixed=[1, 1, 1], skill_context={'purpose': 'capability/추적자'}).total
+        tracking = self.e.skill_roll(q, '통찰', fixed=[1, 1, 1], skill_context={'purpose': 'capability/추적자', 'reason': 'actual observed tracking task using Tracker'}).total
         self.assertEqual(tracking - ordinary, 4)
-        self.rejected(lambda: self.e.skill_roll(q, '집중', fixed=[1] * 4, skill_context={'purpose': 'capability/추적자'}), 'Perception')
+        self.rejected(lambda: self.e.skill_roll(q, '집중', fixed=[1] * 4, skill_context={'purpose': 'capability/추적자', 'reason': 'actual observed tracking task using Tracker'}), 'Perception')
         self.q = q; self.restore('t', 'q')
         self.assertIn('파동술', GRANTS.effective_capabilities(self.q))
         GRANTS.replace_baseline(self.e, self.t, 'capabilities', [])

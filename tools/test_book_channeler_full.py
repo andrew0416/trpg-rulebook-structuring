@@ -166,6 +166,13 @@ class ChannelerTests(ChannelerScene,unittest.TestCase):
   self.family(C.CONDUIT);self.channel(self.p,self.q);self.next_round(self.p);self.use(self.p,self.p,'move/아쿠아링');record=deepcopy(COATS.live(self.p)[0])
   self.next_round();self.e.channel_power_conduit(self.a,self.p,self.q,mode='coat',coat_id=record['id']);self.assertFalse(COATS.live(self.p));moved=COATS.live(self.q)[0]
   self.assertEqual((moved['id'],moved['effect'],moved['effect_instance']['origin_actor_id']),(record['id'],record['effect'],record['effect_instance']['origin_actor_id']))
+  import native_switch_transfer as SWITCH,world_entities as WORLD
+  event=moved['effect_instance']['ownership'][-1]
+  self.assertEqual(event['source'],C.CONDUIT);self.assertNotIn('recall_id',event)
+  self.assertTrue(SWITCH.validate_world(self.e,WORLD.actor_index(self.e)))
+  with patch.dict(event,source='feat/태그-인'):
+   with self.assertRaisesRegex(ValueError,'Tag In Coat handoff requires complete native recall proof'):
+    SWITCH.validate_world(self.e,WORLD.actor_index(self.e))
   self.e.gm.set_hp(self.q,value=1,reason='injured new Coat holder');self.next_round(self.q);self.assertEqual(self.q.hp,1+self.e.tick(self.q));self.restore();self.valid()
  def test_conduit_bad_identity_and_late_second_assignment_atomic(self):
   self.family(C.CONDUIT);self.channel(self.p,self.q);self.next_round();self.reject(lambda:self.e.channel_power_conduit(self.a,self.p,self.p,mode='stages',stat='atk'),'distinct')

@@ -538,7 +538,14 @@ class CustomSpeciesSelectionRetentionTests(unittest.TestCase):
             self.assertEqual(fresh.selection.source_audit_snapshots, rules.selection.source_audit_snapshots)
             self.assertEqual(fresh.resolve_source_policy(fresh_document), rules.resolve_source_policy(document))
             restored = CODEC.load_engine(fresh, payload)
-            self.assertEqual(CODEC.dump_engine(restored), payload)
+            expected = json.loads(json.dumps(payload))
+            root = expected['nodes'][expected['root']['$ref']]
+            attrs = expected['nodes'][root['attrs']['$ref']]['items']
+            epoch = next(row for row in attrs if row[0] == '_root_common_epoch')
+            epoch[1] += 1  # Cold load invalidates prior live authentication handles.
+            if not any(row[0] == '_state_codec_authentication' for row in attrs):
+                attrs.append(['_state_codec_authentication', CODEC.AUTH_NOTICE])
+            self.assertEqual(CODEC.dump_engine(restored), expected)
 
 if __name__=='__main__':
     import hashlib

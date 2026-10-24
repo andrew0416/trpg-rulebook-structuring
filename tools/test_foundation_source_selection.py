@@ -122,8 +122,15 @@ class SourceSelectionTests(unittest.TestCase):
   registry=json.loads((ROOT/'data/content-source-identities.json').read_text(encoding='utf-8'))
   units=registry['units']
   pinned=[unit for unit in units if 'sha256' in unit['source']]
-  self.assertEqual(len(pinned),144)
-  by_id={unit['id']:unit for unit in pinned};self.assertEqual(len(by_id),144)
+  # Three exact CSV rows and Enhanced Embrace were added to the prior144 snapshots.
+  added={'C2CSV/input/db/feats.csv:R7:main':('db/feats.csv',[7,7],'record_span'),
+         'C2CSV/input/db/feats.csv:R253:main':('db/feats.csv',[253,253],'record_span'),
+         'C2CSV/input/db/feats.csv:R273:main':('db/feats.csv',[273,273],'record_span'),
+         'feat/강화된-포용':('supp-fantasy.md',[923,939],'lines')}
+  self.assertEqual(len(pinned),144+len(added))
+  by_id={unit['id']:unit for unit in pinned};self.assertEqual(len(by_id),144+len(added))
+  for uid,(file,span,key) in added.items():
+   self.assertEqual((by_id[uid]['source']['file'],by_id[uid]['source'][key]),(file,span))
   for number in (14,15,16,17):
    uid='C2CSV/input/db/feats.csv:R'+str(number)+':main'
    self.assertEqual(by_id[uid]['source']['record_span'],[number,number])

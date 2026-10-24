@@ -45,8 +45,8 @@ class RelationshipsFishingSourceRevisionTests(unittest.TestCase):
             with self.subTest(interpretation=interpretation):
                 self.setUp()
                 self.act('disposition_ruling', target=self.p, disposition='적대적', reason='GM observed hostility')
-                self.e.start_encounter([self.a, self.p])
-                self.e.start_of_turn(self.a)
+                self.e.start_round([self.a, self.p])
+                self.e.start_of_turn(self.a, initiative_count=20)
                 choice = self.source_choice(interpretation)
                 out = self.act('befriend', target=self.p, source_choice=choice, fixed=[3] * 4, mods=3)
                 self.assertEqual((out['check'].dc, out['check'].total, out['disposition']), (15, 15, result))

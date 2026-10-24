@@ -60,7 +60,7 @@ class OptionalMoveChoiceRevisionTests(unittest.TestCase):
         original = Engine.damage_base
         def observe(engine, actor, move, *args, **kwargs):
             result = original(engine, actor, move, *args, **kwargs)
-            if engine is self.e and actor is self.a and move['id'] == move_id:
+            if actor.entity_id == self.a.entity_id and move['id'] == move_id:
                 seen.append(result)
             return result
         with patch.object(Engine, 'damage_base', observe), patch.object(Engine, 'd20', return_value=face):

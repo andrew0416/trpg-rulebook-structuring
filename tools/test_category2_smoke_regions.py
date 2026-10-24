@@ -72,8 +72,14 @@ class SmokeTests(unittest.TestCase):
         for removal in ('move/안개제거', 'move/날려버리기'):
             with self.subTest(removal=removal):
                 e, a, b = self.fixture()
+                e.gm.set_move(a,removal,reason='actual known native smoke-removal Move')
+                e.start_round(e.everyone);e.start_of_turn(a,initiative_count=20)
                 cells = self.smoke(e, a, b)
-                e.use_move_on(a, b, removal, e.everyone, **({'aim': (5, 5)} if removal.endswith('날려버리기') else {}))
+                self.assertEqual(a.budget['standard'],0)
+                e.end_of_turn(a);e.end_round();e.start_round(e.everyone);e.start_of_turn(a,initiative_count=20)
+                with patch.object(Engine,'d20',return_value=18):
+                    e.use_move_on(a, b, removal, e.everyone, **({'aim': (5, 5)} if removal.endswith('날려버리기') else {}))
+                self.assertEqual(a.budget['standard'],0)
                 if removal.endswith('안개제거'):
                     self.assertFalse(e.zone_cells)
                 else:

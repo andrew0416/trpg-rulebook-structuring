@@ -131,7 +131,7 @@ class MarsupialBabyTemplateSourceTests(unittest.TestCase):
 
     def test_birth_requires_explicit_physical_choice_and_shared_mass_boundary(self):
         egg=self.egg()
-        choices={'gender':'female','nature':'노력','abilities':[],'moves':[],
+        choices={'gender':'female','nature':'노력','abilities':['배짱'],'moves':[],
                  'special_appearance':False,'inheritance_moves':[]}
         assert_rejected_unchanged(self.e,lambda:self.e.hatch_declared_egg(self.a,egg['entity_id'],
             name='missing actual physical choice',ready=True,reason='observed hatch readiness',choices=choices),

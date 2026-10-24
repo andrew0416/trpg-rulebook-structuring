@@ -6,7 +6,6 @@ import unittest
 
 from engine import Engine, Rules
 import class_actor_state_reactions as REACTIONS
-import fast_combat as FAST
 import frequency as FREQ
 import native_scenario_fixture as NATIVE
 import pokemon_entities as ENTITIES
@@ -43,7 +42,7 @@ class ThisWillNotStandAdoptedSourceRevisionTests(unittest.TestCase):
                 'extra':{'trainer_id':'adopted-owner'}},
                 'body':{'size':'중형','offsets':[(0,0)],'reason':'actual observed owned Dragon body'}})
         self.e,actors=NATIVE.prepare_scene(ROOT,ruleset='core',seed=1454,
-            grid={'width':12,'height':8},actors=[trainer('owner',(1,1),'party'),*pokemon,
+            grid={'width':12,'height':8},actors=[trainer('owner',(1,1),'party',owner=True),*pokemon,
                 trainer('attacker',(3,2),'foe')])
         self.t,self.p,self.q,self.r,self.foe=[actors[key] for key in ('owner','p','q','r','attacker')]
         for actor in (self.p,self.q,self.r):
@@ -75,7 +74,7 @@ class ThisWillNotStandAdoptedSourceRevisionTests(unittest.TestCase):
         self.assertFalse(self.e.pending_class_actor_state_reactions(self.t))
 
     def attack(self,face=15):
-        with patch.object(FAST,'roll',return_value=face):
+        with patch.object(Engine,'d20',return_value=face):
             return self.e.use_move(self.foe,self.p,TACKLE,set_damage=True)
 
     def restore(self):
@@ -107,7 +106,7 @@ class ThisWillNotStandAdoptedSourceRevisionTests(unittest.TestCase):
                 self.e.gm.set_hp(self.p,value=self.p.base_max_hp//2,reason='already at or below half before actual massive hit')
                 self.attack()
                 self.assertFalse(self.e.pending_class_actor_state_reactions(self.t))
-                self.assertEqual(self.used(),0);self.assertEqual(self.t._action_history,[])
+                self.assertEqual(self.used(),0);self.assertEqual(getattr(self.t,'_action_history',[]),[])
 
     def test_actual_loss_endpoint_crossing_applies_enraged_and_three_stages_without_an_attack(self):
         for receipted in (False,True):

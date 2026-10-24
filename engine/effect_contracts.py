@@ -398,6 +398,13 @@ def condition_text(engine,actor,target,text,ctx):
  import effects as FX
  import re
  import equipment_protection as PROTECTION
+ if text=='terastallized':return __import__('homebrew_state').tera_active(actor)
+ if text=='stellar':
+  import stellar_tera_blast as STELLAR
+  move=ctx.get('move')
+  if STELLAR.owns_move(engine.r,move):
+   actual=ctx['actual_damage_type'] if 'actual_damage_type' in ctx else STELLAR.effective_type(engine,actor,target,move)
+   return STELLAR.stellar_move_active(engine,actor,target,move,actual_type=actual)
  if text=='dealt damage':
   dealt=ctx.get('dealt')
   return dealt>0 if type(dealt) is int and dealt>=0 else None

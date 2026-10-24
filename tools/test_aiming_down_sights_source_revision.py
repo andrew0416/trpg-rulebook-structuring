@@ -205,4 +205,22 @@ class AimingDownSightsSourceRevisionTests(unittest.TestCase):
             OPTIONAL.validate_world(self.e)
 
 
+    def test_printed_multi_target_weapon_rejects_duplicate_reordered_and_distant_recipients_before_cost(self):
+        for case in ('duplicate','wrong_primary','distant','too_many'):
+            with self.subTest(case=case):
+                self.world()
+                selected=list(self.e.everyone)
+                if case=='duplicate':selected=[self.a,self.targets[0],self.targets[0]]
+                elif case=='wrong_primary':selected=[self.a,self.targets[1],self.targets[0]]
+                elif case=='distant':self.e.gm.set_position(self.targets[1],(23,11),reason='observed target outside weapon range')
+                else:selected.append(self.targets[0])
+                NATIVE.assert_rejected_unchanged(self.e,
+                    lambda:self.e.use_move_on(self.a,self.targets[0],TRIPLE,selected,
+                        weapon_id=self.weapon,set_damage=True),
+                    reason_pattern='distinct|primary|maximum|range')
+                self.assertTrue(OPTIONAL.records(self.a,FEATURE))
+                self.assertNotIn(TRIPLE,self.a.move_uses)
+
+
+
 if __name__=='__main__':unittest.main(verbosity=2)

@@ -21,6 +21,8 @@ import state_codec as CODEC
 import turn as TURN
 
 
+from engine import Engine
+
 class UnownSourceRevisionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.r=Rules(ROOT,ruleset='core')
@@ -107,16 +109,17 @@ class UnownSourceRevisionTests(unittest.TestCase):
         e,a,h,m,t,row=self.fixture(1);originals=self.originals(h,count=5)
         powers=self.member_two_powers(m[0]);row=self.source_row(row);row['joined'][0]['hidden_powers']=powers[1:]
         prior=deepcopy(m[0].spec);self.observe(e,row)
+        self.assertEqual(m[0].spec,{**prior,S.PRIME_MEMBER:{'record_id':row['id'],'host_id':h.entity_id}})
         ids=S.prime_moves(self.r,h.spec[S.PRIME_KEY]);self.assertEqual(len(ids),1)
         self.assertEqual(MOVES.describe(self.r,h.spec,moves=h.moves)['slot_count'],6)
         self.assertEqual(set(h.moves),set(originals+[ids[0]]))
         self.assertEqual((self.r.move(ids[0])['type'],self.r.move(ids[0])['class']),('물','특수'))
-        self.begin(e,h);before=t.hp
-        with patch.object(e,'roll_damage',wraps=e.roll_damage) as damage:
+        self.begin(e,h);before=t.hp;member_before_attack=deepcopy(m[0].spec)
+        with patch.object(Engine,'d20',return_value=18), patch.object(Engine,'roll_damage',autospec=True,side_effect=Engine.roll_damage) as damage:
             e.use_move(h,t,ids[0],situational=100,set_damage=True)
         self.assertLess(t.hp,before);self.assertEqual(h.budget['standard'],0)
-        self.assertEqual(damage.call_args.args[2]['id'],ids[0]);self.assertEqual(h.move_uses[ids[0]],1)
-        self.assertEqual(m[0].spec,{**prior,S.PRIME_MEMBER:{'record_id':row['id'],'host_id':h.entity_id}})
+        self.assertEqual(damage.call_args.args[3]['id'],ids[0]);self.assertEqual(h.move_uses[ids[0]],1)
+        self.assertEqual(m[0].spec,member_before_attack)
         self.restore(e,h);self.valid(e)
 
     def test_english_overcapacity_rolls_back_the_whole_join_after_a_possible_first_grant(self):
@@ -177,9 +180,11 @@ class UnownSourceRevisionTests(unittest.TestCase):
         originals=['move/몸통박치기','move/전광석화','move/할퀴기','move/물대포','move/울음소리','move/꼬리흔들기']
         actor=Combatant(self.r,build_pokemon(self.r,'피카츄',20,name='actual ordinary Pokemon',moves=originals,wild=True))
         actor.on_field=False;e.everyone.append(actor)
+        known_before=list(actor.moves)
+        self.assertEqual(known_before,originals+['struggle'])
         self.assertEqual(MOVES.describe(self.r,actor.spec,moves=actor.moves)['slot_count'],6)
         assert_rejected_unchanged(e,lambda:e.gm.set_move(actor,'move/전기쇼크',reason='actual seventh known Move'),reason_pattern='capacity')
-        self.assertEqual(actor.moves,originals);self.restore(e,h)
+        self.assertEqual(actor.moves,known_before);self.restore(e,h)
 
     def test_source_scope_receipt_and_forged_projection_changes_are_rejected(self):
         e,a,h,m,t,row=self.fixture(1);row=self.source_row(row)

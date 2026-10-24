@@ -72,7 +72,7 @@ class MarsupialConsciousSourceTests(unittest.TestCase):
         baby=self.born();history=deepcopy(baby.spec[M.KEY]);custody=M.custody(self.e,baby)
         self.begin_enemy();self.faint_mother();self.protection(baby,False)
         hp=baby.hp
-        with patch.object(self.e,'roll_damage',wraps=self.e.roll_damage) as damage:
+        with patch.object(Engine,'d20',return_value=12), patch.object(Engine,'roll_damage',autospec=True,side_effect=Engine.roll_damage) as damage:
             self.e.use_move(self.enemy,baby,'move/몸통박치기',situational=100,set_damage=True)
         self.assertEqual(damage.call_count,1);self.assertLess(baby.hp,hp)
         self.assertEqual(self.enemy.budget['standard'],0)

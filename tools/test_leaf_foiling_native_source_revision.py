@@ -19,7 +19,7 @@ import type_ace as TA
 import world_entities as W
 
 CSV='C2CSV/input/db/feats.csv:R265:main'
-SIX=('몸통박치기','울음소리','덩굴채찍','씨뿌리기','잎날가르기','성장')
+SIX=('몸통박치기','울음소리','덩굴채찍','씨뿌리기','잎날가르기','수면가루')
 
 
 class LeafFoilingNativeSourceRevisionTests(unittest.TestCase):
@@ -77,7 +77,7 @@ class LeafFoilingNativeSourceRevisionTests(unittest.TestCase):
         self.assertEqual(result['rule_id'],CSV)
         self.assertEqual(self.e.elapsed_seconds,elapsed+180)
         self.assertEqual(self.t._action_history,history+['extended'])
-        self.perform('성장');view=self.exemption('성장')
+        self.perform('수면가루');view=self.exemption('수면가루')
         self.assertIn('move/씨뿌리기',view['counted'])
         self.assertEqual(self.e.elapsed_seconds,elapsed+360)
         self.assertEqual(self.t._action_history,history+['extended','extended'])
@@ -90,7 +90,7 @@ class LeafFoilingNativeSourceRevisionTests(unittest.TestCase):
                 self.world();self.perform()
                 if blocked=='encounter':self.e.begin_encounter(self.e.everyone)
                 else:self.e.apply_status(self.t,'잠듦',source='move/수면가루',applied_by=self.p)
-                self.rejected(lambda:self.perform('성장'),'active encounter' if blocked=='encounter' else 'Extended action unavailable')
+                self.rejected(lambda:self.perform('수면가루'),'active encounter' if blocked=='encounter' else 'Extended action unavailable')
                 self.exemption('씨뿌리기')
 
     def test_invalid_moves_foreign_unregistered_and_other_or_excluded_source_are_atomic(self):
@@ -125,14 +125,14 @@ class LeafFoilingNativeSourceRevisionTests(unittest.TestCase):
         self.e.gm.observe_foiling_foliage(self.t,self.p,'씨뿌리기',reason='record the already completed native book choice')
         self.assertEqual((self.e.elapsed_seconds,self.t._action_history),(elapsed+180,history+['extended']))
         self.assertEqual(TA.acquired(self.t,feature),receipt)
-        self.world();self.perform('성장');elapsed=self.e.elapsed_seconds
-        self.cold_restore();self.exemption('성장')
+        self.world();self.perform('수면가루');elapsed=self.e.elapsed_seconds
+        self.cold_restore();self.exemption('수면가루')
         self.assertEqual(self.e.elapsed_seconds,elapsed)
         self.assertEqual(self.t._action_history,['extended'])
         self.e.gm.snapshot('actual CSV exemption');self.perform('씨뿌리기');self.exemption('씨뿌리기')
         self.e.gm.restore('actual CSV exemption',reason='restore actual paid selected exemption')
         index=W.actor_index(self.e);self.t=index[self.t.entity_id];self.p=index[self.p.entity_id];self.q=index[self.q.entity_id]
-        view=self.exemption('성장');self.assertEqual({row['rule_id'] for row in view['sources']},{CSV})
+        view=self.exemption('수면가루');self.assertEqual({row['rule_id'] for row in view['sources']},{CSV})
         self.assertEqual((self.e.elapsed_seconds,self.t._action_history),(elapsed,['extended']))
 
 

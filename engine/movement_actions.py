@@ -582,6 +582,7 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
   departure_distance=cost if aerial else step_cost(origin,q,getattr(c,'_diagonal_steps',0))[0]
   origin_contact=FIELD.touches_ground(c)
   c._diagonal_steps=diagonals;c.pos=q
+  if pass_scope is not None:__import__('native_path_area_moves').roller_entry(e,c,pass_scope,q)
   __import__('commander_orders').shifted(e,c,[q])
   __import__('ninja').departed(e,c,origin,distance=departure_distance)
   import burrow_tunnels as TUNNELS

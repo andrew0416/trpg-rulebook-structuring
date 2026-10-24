@@ -38,8 +38,11 @@ def preflight(e,actor,target,effect,mid):
     if not owns(e,mid,effect):raise ValueError('selected area-hit source/effect required')
     import weapon_actions as WEAPONS
     import pass_moves as PASS
-    if PASS.converted_scope(e,actor,mid):
-        PASS.require_native_target(e,actor,target,mid)
+    if PASS.is_pass(e.r.move(mid)) or PASS.converted_scope(e,actor,mid):
+        scope=getattr(e,'_pass_move_scope',None)
+        if scope is None:raise ValueError('area-hit Pass needs its actual path producer')
+        PASS.require_scope(e,actor,scope)
+        if scope['move_id']!=mid or target not in scope['creatures']:raise ValueError('actual planned Pass recipient required')
         return (target,)
     if not WEAPONS.range_spec(e,e.r.move(mid),actor).get('shape'):
         raise ValueError('this selected area needs an actual GM mapless target ruling')
@@ -69,6 +72,8 @@ def require_candidates(e,actor,move,candidates,primary):
 
 def recipients(e,actor,target,effect,ctx):
     mid=ctx.get('source_id');preflight(e,actor,target,effect,mid)
+    import pass_moves as PASS
+    if PASS.is_pass(e.r.move(mid)):PASS.require_native_target(e,actor,target,mid)
     if mid=='move/소란피기' and effect.get('_activation_scope')=='field':
         import move_completion as COMPLETE,body_state as BODY,world_entities as W
         if not COMPLETE.authorized_field(e,ctx,effect):raise ValueError('actual Uproar completion required')

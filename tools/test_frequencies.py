@@ -6,6 +6,8 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'engine'))
 from engine import Rules,Engine,Combatant
 from synthetic_rule_fixture import register_synthetic
+from frequency_source_connection_fixture import (source_fixture, source_case_contract,
+    connected_source_suite, prepare_source_frequency_cases, verify_source_connection_inputs)
 import items as ITEMS
 import effects as FX
 import effects_ext as EXT
@@ -14,6 +16,10 @@ import frequency as FREQ
 from encounter import usable_moves
 
 class FrequencyTests(unittest.TestCase):
+    @classmethod
+    def prepare_chained_cases(cls, cases):
+        return prepare_source_frequency_cases(cls, cases, CASES, root=ROOT)
+
     @classmethod
     def setUpClass(cls):
         review=json.loads((ROOT/'data/frequency-source-review.json').read_text(encoding='utf-8'))
@@ -37,7 +43,7 @@ class FrequencyTests(unittest.TestCase):
     def combat_turn(self,e,a):
         if getattr(e,'_active_turn_actor',None) is not None:e.end_of_turn(e._active_turn_actor)
         if e.round_start_seconds is not None:e.end_round()
-        e.start_round(e.everyone);e.start_of_turn(a)
+        e.start_round(e.everyone);e.start_of_turn(a,initiative_count=20)
     def auto(self,a,frequency):
         a.ability_triggers=[dict(name='감사 빈도',spec={'event':'audit'},frequency=frequency,effects=[dict(type='injury',value=1,target='target')])]
     def fire(self,e,a,b):FX.fire_event(e,a,{'event':'audit'},b)
@@ -177,7 +183,7 @@ def source_case(case):
         self.assertEqual(cells[source['cell']].strip(),source['raw'])
         variants=case.get('variants') or [dict(types=[],expected=case['expected'])]
         for variant in variants:
-            e,a,b,_=self.fixture();a.types=variant['types'];mid=case['id']
+            e,a,b,_=source_fixture(self,case,variant);a.types=variant['types'];mid=case['id']
             expected=variant['expected'];kind,cap=expected['kind'],expected['uses']
             self.assertEqual(FREQ.move_frequency(e,mid,a),(kind,cap),mid)
             self.assertTrue(FREQ.move_allowed(e,a,mid)[0])
@@ -199,7 +205,7 @@ def source_case(case):
                 self.assertFalse(FREQ.move_allowed(e,a,mid)[0])
                 FREQ.new_day(a);self.assertFalse(FREQ.move_allowed(e,a,mid)[0])
                 FREQ.restore_daily_moves(e,a);self.assertTrue(FREQ.move_allowed(e,a,mid)[0])
-    return test
+    return source_case_contract(case,test)
 for index,case in enumerate(CASES):
     setattr(FrequencyTests,f'test_source_move_{index:04d}',source_case(case))
 
@@ -209,9 +215,10 @@ if __name__=='__main__':
         def addSuccess(self,t):super().addSuccess(t);self.rows.append(dict(id='FREQ-'+t._testMethodName,status='pass'))
         def addFailure(self,t,e):super().addFailure(t,e);self.rows.append(dict(id='FREQ-'+t._testMethodName,status='fail'))
         def addError(self,t,e):super().addError(t,e);self.rows.append(dict(id='FREQ-'+t._testMethodName,status='error'))
-    result=unittest.TextTestRunner(verbosity=2,resultclass=Result).run(unittest.defaultTestLoader.loadTestsFromTestCase(FrequencyTests))
+    verify_source_connection_inputs(ROOT)
+    result=unittest.TextTestRunner(verbosity=2,resultclass=Result).run(connected_source_suite(unittest.defaultTestLoader.loadTestsFromTestCase(FrequencyTests),CASES))
     paths=[x for folder,glob in [('engine','*.py'),('data','*.json')] for x in (ROOT/folder).glob(glob)]
-    paths += [ROOT/'tools/synthetic_rule_fixture.py',Path(__file__),ROOT/'output/source-audit/2026-10-10/ptu-core-1.05.pdf',ROOT/'output/source-audit/2026-10-10/xlsx-cells.json']+[ROOT/'input'/x for x in ['ch03-skills-edges-feats.md','ch07-combat.md','ch10-index-reference.md']]
+    paths += [ROOT/'tools/frequency_source_connection_fixture.py',ROOT/'tools/frequency_source_connection_contract.json',ROOT/'tools/synthetic_rule_fixture.py',Path(__file__),ROOT/'output/source-audit/2026-10-10/ptu-core-1.05.pdf',ROOT/'output/source-audit/2026-10-10/xlsx-cells.json']+[ROOT/'input'/x for x in ['ch03-skills-edges-feats.md','ch07-combat.md','ch10-index-reference.md']]
     report=dict(scope='24 integration/boundary checks plus 1004 source-linked frequency-clause checks. Not complete move certification.',source_cases={f'FREQ-test_source_move_{i:04d}':c['id'] for i,c in enumerate(CASES)},generated_at=datetime.now(timezone.utc).isoformat(),results=result.rows,input_hashes={x.relative_to(ROOT).as_posix():hashlib.sha256(x.read_bytes()).hexdigest() for x in paths})
     (ROOT/'output/frequency-tests.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     sys.exit(0 if result.wasSuccessful() else 1)

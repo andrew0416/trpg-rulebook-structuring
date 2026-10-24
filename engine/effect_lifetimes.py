@@ -17,6 +17,7 @@ class TimingAmbiguous(ValueError):pass
 def declared(effect):return any(k in effect for k in ('duration','until','while','repeat'))
 
 def prepare(engine,actor,target,effect,source):
+ if source=='move/페어리록':return __import__('native_path_area_moves').fairy_prepare(engine,actor,target,effect,source)
  structured=any(type(effect.get(k)) is dict for k in ('duration','until','while','repeat'))
  if 'while' in effect and type(effect['while']) is not dict:raise TimingUnsupported('continuous predicate needs an explicit state declaration: '+str(effect['while']))
  if 'repeat' in effect and type(effect['repeat']) is not dict:raise TimingUnsupported('repeat needs an explicit event declaration: '+str(effect['repeat']))
@@ -174,6 +175,8 @@ def install(engine,actor,target,effect,source,receipt,occurrence):
   import stat_exchange_state as STAT_EXCHANGE
   stat_plan=STAT_EXCHANGE.prepare_install(target,record)
  TIMING.install(engine,target,record)
+ if source=='move/페어리록' and not any(status in target.conditions for status in record['statuses']):
+  TIMING.expire(engine,target,record)
  if stat_plan is not None:STAT_EXCHANGE.commit_install(target,stat_plan)
  return True
 

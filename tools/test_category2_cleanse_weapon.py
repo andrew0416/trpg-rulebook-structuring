@@ -273,6 +273,9 @@ class WeaponTagTests(unittest.TestCase):
         # A spent tag alone no longer expands the native atomic interest scope.
         @FW.atomic_move
         def observe(engine,actor):return getattr(engine,'_optional_weapon_atomic',False)
+        self.assertTrue(observe(self.e,self.a))  # The equipped optional recipe remains its own atomic owner.
+        ITEMS.unregister_item(self.e,self.a,item)
+        self.assertTrue(self.used())
         self.assertFalse(observe(self.e,self.a))
 
 

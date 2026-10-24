@@ -152,10 +152,13 @@ class PokedexTests(unittest.TestCase):
         self.assertFalse(self.a.took_standard)
 
     def test_scan_unpaid_or_inconsistent_observation_leaves_device_and_budget(self):
-        self.a.budget = {'standard': 0, 'shift': 1, 'swift': 1}
+        import turn as TURN
+        self.e.start_round([self.a,self.p]);self.e.start_of_turn(self.a,initiative_count=20)
+        self.assertTrue(TURN.spend(self.e,self.a,'standard','actual Standard action before scanning'))
         self.assertIsInstance(self.scan(), C.PendingDecision)
         self.assertFalse(self.device()['scans'])
-        self.a.budget = {'standard': 1, 'shift': 1, 'swift': 1}
+        self.e.end_of_turn(self.a);self.e.end_round()
+        self.e.start_round([self.a,self.p]);self.e.start_of_turn(self.a,initiative_count=20)
         before = deepcopy(self.device())
         for change in ('species', 'measurement', 'known_slots', 'blocked_path'):
             observed = self.observation()

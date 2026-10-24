@@ -93,15 +93,15 @@ class FoodTests(unittest.TestCase):
   self.a.spec['items']['검은오물']=1;self.p.hp=1;before=self.state()
   with self.assertRaises(ValueError):self.e.use_item(self.a,'검은오물',self.p,duration_minutes=1,duration_reason='wrong type')
   self.assertEqual(before,self.state());self.p.types=['독'];r=self.snack('검은오물');self.assertEqual(self.p.hp,1)
-  self.e.start_round([self.p]);self.e.start_of_turn(self.p);self.assertEqual(self.p.hp,1)
+  self.e.start_round([self.p]);self.e.start_of_turn(self.p,initiative_count=20);self.assertEqual(self.p.hp,1)
   self.e.consume_food_buff(self.p,buff_id=r['buff_id'],action_kind='swift',action_reason='GM buff timing');self.e.end_of_turn(self.p);self.assertEqual(self.p.hp,1)
-  self.e.start_round([self.p]);self.e.start_of_turn(self.p);self.assertEqual(self.p.hp,1+self.p.base_max_hp//8)
+  self.e.start_round([self.p]);self.e.start_of_turn(self.p,initiative_count=20);self.assertEqual(self.p.hp,1+self.p.base_max_hp//8)
  def test_leftovers_uses_base_max_hp_at_turn_start_only_and_ends_with_encounter(self):
-  self.p.hp=1;self.p.injuries=1;r=self.snack('먹다남은음식');self.e.start_round([self.p]);self.e.start_of_turn(self.p)
+  self.p.hp=1;self.p.injuries=1;r=self.snack('먹다남은음식');self.e.start_round([self.p]);self.e.start_of_turn(self.p,initiative_count=20)
   self.e.consume_food_buff(self.p,buff_id=r['buff_id'],action_kind='swift',action_reason='GM buff timing');self.e.end_of_turn(self.p)
-  self.assertEqual(self.p.hp,1);self.e.start_round([self.p]);self.e.start_of_turn(self.p);self.assertEqual(self.p.hp,1+self.p.base_max_hp//16)
+  self.assertEqual(self.p.hp,1);self.e.start_round([self.p]);self.e.start_of_turn(self.p,initiative_count=20);self.assertEqual(self.p.hp,1+self.p.base_max_hp//16)
   self.e.end_encounter([self.p]);self.assertNotIn('food_turn_healing',self.p.spec);before=self.p.hp
-  self.e.start_round([self.p]);self.e.start_of_turn(self.p);self.assertEqual(self.p.hp,before)
+  self.e.start_round([self.p]);self.e.start_of_turn(self.p,initiative_count=20);self.assertEqual(self.p.hp,before)
  def test_gluttony_three_buff_capacity_and_three_consumptions_per_scene(self):
   self.rules=self.playtest;self.setUp();self.p.abilities=['먹보 [Playtest]']
   for _ in range(3):self.snack()
@@ -119,12 +119,17 @@ class FoodTests(unittest.TestCase):
   import random
   for seed in range(100):
    if random.Random(seed).randint(1,20)==9:self.e.rng.seed(seed);break
-  self.e.start_round([self.p]);self.e.start_of_turn(self.p)
+  self.e.start_round([self.p]);self.e.start_of_turn(self.p,initiative_count=20)
   self.assertIn('마비',self.p.conditions);self.assertIsNone(self.p._turn_action_limit);self.assertFalse(self.p.buffs);self.assertNotIn('food_save_choice',self.p.spec);self.assertEqual(self.p._action_history,[])
  def test_prepared_herbal_buff_is_only_spent_on_the_selected_actual_save(self):
-  self.herb();buff=self.p.buffs[0];self.e.consume_food_buff(self.p,buff_id=buff['id'],save_condition='혼란')
-  self.e.apply_status(self.p,'마비');self.e.start_round([self.p]);self.e.start_of_turn(self.p);self.assertEqual(len(self.p.buffs),1)
-  self.e.apply_status(self.p,'혼란');self.e.end_of_turn(self.p);self.assertFalse(self.p.buffs)
+  self.herb();buff=self.p.buffs[0]
+  from native_scenario_fixture import assert_rejected_unchanged
+  assert_rejected_unchanged(self.e,
+   lambda:self.e.consume_food_buff(self.p,buff_id=buff['id'],save_condition='혼란'),
+   reason_pattern='native saving-check consumer required')
+  self.e.consume_food_buff(self.p,buff_id=buff['id'],save_condition='얼음')
+  self.e.apply_status(self.p,'마비');self.e.start_round([self.p]);self.e.start_of_turn(self.p,initiative_count=20);self.assertEqual(len(self.p.buffs),1)
+  self.e.apply_status(self.p,'얼음');self.e.end_of_turn(self.p);self.assertFalse(self.p.buffs)
  def test_second_herb_blocks_new_food_and_temp_hp_but_keeps_existing_buff_and_temp_hp(self):
   import temporary_hp as TEMP
   self.herb();buff=self.p.buffs[0]['id'];TEMP.grant(self.e,self.p,7);self.herb();self.assertEqual(self.p.temp_hp,7);self.assertEqual(TEMP.grant(self.e,self.p,20),0)
@@ -302,7 +307,7 @@ class FoodTests(unittest.TestCase):
    self.e.use_item(self.a,'초코바',self.p,duration_minutes=1,duration_reason='spans native turns')
   self.assertEqual(before,self.state())
  def cheeks_turn(self):
-  self.p.moves=['move/볼가득넣기'];self.e.start_round([self.p]);self.e.start_of_turn(self.p)
+  self.p.moves=['move/볼가득넣기'];self.e.start_round([self.p]);self.e.start_of_turn(self.p,initiative_count=20)
  def test_actual_stuff_cheeks_without_buff_has_no_defense_reward_and_no_invented_refund(self):
   self.cheeks_turn();self.e.use_move(self.p,self.p,'move/볼가득넣기');self.assertEqual(self.p.stages['def'],0);self.assertEqual(self.p.budget['standard'],0);self.assertNotIn('food_consumption_receipts',self.p.spec)
  def test_actual_stuff_cheeks_applies_same_buff_benefit_and_single_scene_receipt(self):
@@ -334,7 +339,7 @@ class FoodTests(unittest.TestCase):
   self.assertEqual(before,self.state())
  def test_common_consumption_receipt_preserves_turn_heal_until_actual_encounter_end(self):
   self.snack('먹다남은음식');self.p.hp=1;self.cheeks_turn();self.e.use_move(self.p,self.p,'move/볼가득넣기');self.assertEqual(self.p.hp,1);self.assertEqual(self.p.spec['food_consumption_receipts'][0]['benefit']['until'],'encounter_end')
-  self.e.end_of_turn(self.p);self.e.start_round([self.p]);self.e.start_of_turn(self.p);self.assertEqual(self.p.hp,1+self.p.base_max_hp//16);self.e.end_encounter([self.p]);self.assertNotIn('food_turn_healing',self.p.spec)
+  self.e.end_of_turn(self.p);self.e.start_round([self.p]);self.e.start_of_turn(self.p,initiative_count=20);self.assertEqual(self.p.hp,1+self.p.base_max_hp//16);self.e.end_encounter([self.p]);self.assertNotIn('food_turn_healing',self.p.spec)
  def test_completed_consumption_receipt_rejects_reinserted_buff_before_new_move_or_action_cost(self):
   r=self.snack();saved=deepcopy(self.p.buffs[0]);self.e.consume_food_buff(self.p,buff_id=r['buff_id'],action_kind='free',action_reason='one actual exchange');self.p.buffs.append(saved);self.cheeks_turn();before=self.state()
   with self.assertRaises(ValueError):self.e.use_move(self.p,self.p,'move/볼가득넣기')

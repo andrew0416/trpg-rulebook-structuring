@@ -31,6 +31,8 @@ class BlessingCostDuplicateTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.rules = Rules(ROOT, ruleset='all')
+        from examples.declared_skill_ranks import configure
+        configure(cls.rules)
 
     def skill_case(self, gift=None, role='contractor'):
         case = SKILL_FIXTURE.BlessingSkillRuleTests('runTest')

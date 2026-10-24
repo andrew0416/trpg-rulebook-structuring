@@ -26,7 +26,7 @@ class PushButtonsMandatoryDemoralizeTests(ProvocateurScene,unittest.TestCase):
     def holder(self,*,demoralize=False):
         self.common['skills']=dict(self.common['skills'],협박=4 if demoralize else 1)
         self.a=self.add('actual imported current Push owner','trainer',(3,2),
-            feats=[P.PUSH],classes=[],edges=['edge/호감인']+([P.DEMO] if demoralize else []),exp_bank=100)
+            feats=[P.PUSH],classes=[P.CLASS],edges=['edge/호감인']+([P.DEMO] if demoralize else []),exp_bank=100)
         self.assertEqual(P.records(self.a),[])
         self.assertEqual(self.e.r._selected_rule(P.PUSH),P.PUSH)
         return self.a
@@ -85,9 +85,10 @@ class PushButtonsMandatoryDemoralizeTests(ProvocateurScene,unittest.TestCase):
         self.reject(lambda:self.adopt('push/different-current-request'),'replay')
         self.begin();row=self.use(self.a,self.t,'move/째려보기',face=19)
         self.assertTrue(row['results'][self.t.entity_id]['hit']);self.assertIn('취약',self.t.conditions)
-        self.e.gm.snapshot('actual current Demoralize grant')
         self.cold_restore();self.assertEqual(self.adopt(),receipt);self.assertTrue(P.waive_demoralize(self.a))
         self.assertEqual(P.records(self.a),[]);self.assertEqual(self.a.stats['spe'],before);self.valid()
+        # Cold saves omit GM checkpoint history; create this checkpoint in the restored world.
+        self.e.gm.snapshot('actual current Demoralize grant')
         self.withdraw();self.assertNotIn(P.DEMO,self.a.spec['edges']);self.assertFalse(P.waive_demoralize(self.a))
         self.assertEqual(self.a.stats['spe'],before)
         self.e.gm.restore('actual current Demoralize grant',reason='restore the actual present source-owned grant')
@@ -103,17 +104,24 @@ class PushButtonsMandatoryDemoralizeTests(ProvocateurScene,unittest.TestCase):
         source=RETRAIN.owned_source(self.e,self.a,P.PUSH)
         row=G.state(self.a)['sources'][source];owner=row['owner_id'];row['owner_id']=self.b.entity_id
         self.reject(lambda:self.adopt(),'provenance changed');row['owner_id']=owner
-        previous=self.e.r.ruleset
+        previous=self.e.r.ruleset;before=self.e.export_state()
         self.e.r.ruleset=RuleFilter({'sources':['core'],'variants':[],'exclude_units':[P.PUSH]});self.e.r._apply_ruleset()
-        try:self.reject(lambda:self.adopt(),'selected static Feature')
+        try:
+            with self.assertRaisesRegex(ValueError,'selected static Feature'):self.adopt()
         finally:self.e.r.ruleset=previous;self.e.r._apply_ruleset()
+        self.assertEqual(self.e.export_state(),before)
         G.revoke(self.a,source,engine=self.e)
         self.reject(lambda:self.adopt(),'ended Push Buttons')
         self.setup();self.holder();receipt=self.adopt()
         parent=G.state(self.a)['sources'][receipt['source_id']]
+        before=self.e.export_state();sources=list(parent['effect_sources'])
         child='feature:'+self.a.entity_id+':'+P.DEMO;parent['effect_sources'].remove(child)
-        self.reject(lambda:self.adopt(),'connected owned sources')
-        parent['effect_sources'].append(child);self.valid()
+        corrupt=list(parent['effect_sources'])
+        try:
+            with self.assertRaisesRegex(ValueError,'connected owned sources'):self.adopt()
+            self.assertEqual(parent['effect_sources'],corrupt)
+        finally:parent['effect_sources'][:]=sources
+        self.assertEqual(self.e.export_state(),before);self.valid()
 
     def test_actual_declared_seven_and_ten_acquire_and_restore_without_a_local_upper_cap(self):
         for name,rank,dice,english in (('초월',7,7,'Epic'),('신화',10,7,'Mythic')):

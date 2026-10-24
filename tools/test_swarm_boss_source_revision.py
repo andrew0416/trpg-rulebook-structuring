@@ -210,7 +210,7 @@ class BossSourceRepairTests(unittest.TestCase):
         for ordinary_first in (False,True):
             with self.subTest(ordinary_first=ordinary_first):
                 self.setUp();self.configure(effects=[{'when':'bar_lost','kind':'skip_next_turn'}])
-                self.e.start_round(self.e.everyone)
+                self.e.start_round(self.e.everyone);self.e.at_initiative_count(21)
                 if ordinary_first:self.assertTrue(self.e.apply_status(self.p,'풀죽음',source='test/native-flinch'))
                 self.e.lose_hp(self.p,self.p.hp,loss_kind='hp_setting')
                 self.e.start_of_turn(self.p,initiative_count=20)

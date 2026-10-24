@@ -6,6 +6,8 @@ import effect_contracts as CONTRACTS
 import equipment_variant_contracts as VARIANTS
 import test_category2_equipment_variant_contracts as FIX
 from grid import Grid
+from engine import Engine, Combatant
+from builder import build_pokemon
 
 
 class ItemReactionRecipientSuccessorTests(unittest.TestCase):
@@ -19,7 +21,11 @@ class ItemReactionRecipientSuccessorTests(unittest.TestCase):
     def test_thunderous_kick_cloak_blocks_wearer_defense_drop_but_keeps_damage(self):
         for accept in (False, True):
             with self.subTest(cloak=accept):
-                engine, attacker, wearer = self.f.fixture(moves=("move/천둥차기",))
+                engine = Engine(self.f.r, seed=65108)
+                attacker = Combatant(self.f.r, build_pokemon(self.f.r, 'pokemon/썬더-가라르', 50,
+                    moves=['move/천둥차기'], abilities=[], wild=True))
+                wearer = self.f.trainer('actual Covert Cloak recipient')
+                for actor in (attacker,wearer):engine.gm.add_combatant(actor)
                 engine.grid = Grid(10, 10)
                 attacker.pos, wearer.pos = (1, 1), (2, 1)
                 attacker.side, wearer.side = "foe", "party"
@@ -31,7 +37,7 @@ class ItemReactionRecipientSuccessorTests(unittest.TestCase):
                 VARIANTS.authorize_covert_cloak(engine, wearer,
                     expected_move_id="move/천둥차기", accept=accept)
                 hp, defense = wearer.hp, wearer.stages["def"]
-                with patch.object(engine, "d20", return_value=18):
+                with patch.object(Engine, "d20", return_value=18):
                     dealt = engine.use_move_on(attacker, wearer, "move/천둥차기",
                                                engine.everyone, set_damage=True)
                 self.assertGreater(dealt, 0)

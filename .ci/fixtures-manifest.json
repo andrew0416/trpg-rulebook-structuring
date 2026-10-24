@@ -277,6 +277,11 @@
       "size": 7520
     },
     {
+      "path": "data/defense-curl-policy.json",
+      "sha256": "fbd9b40598306172ab48d2a08d02c1349a52f5a3a85f05b0b088879fce5ce095",
+      "size": 2732
+    },
+    {
       "path": "data/digital-program-policy.json",
       "sha256": "41cf0db0fa87e4432da49f9848db36fd8119812dc7c01bf40b3cf86e276df357",
       "size": 974
@@ -773,8 +778,8 @@
     },
     {
       "path": "data/native-area-hit-effects.json",
-      "sha256": "ccd712899e7620c9ab260c737a4d8ece77046a9a30f15563df0d2c1714f7e3ff",
-      "size": 8450
+      "sha256": "02aa53c92cdc27225e5a78ecc53c142af5c6a3ed2c0b80e83dbccbaf95dff73e",
+      "size": 13633
     },
     {
       "path": "data/native-class-reaction-policy.json",
@@ -813,8 +818,8 @@
     },
     {
       "path": "data/physical-object-attack-policy.json",
-      "sha256": "ab077578af4ece2aaf969c8de799613bcfffe5547af5dac6e7bd3bf3aa105aa1",
-      "size": 17885
+      "sha256": "3147b42a49980054145b20d60815a250e50db841b978de02234e1ea02ca7f411",
+      "size": 22127
     },
     {
       "path": "data/planter-policy.json",
@@ -1082,6 +1087,11 @@
       "size": 1115
     },
     {
+      "path": "data/typed-defensive-bypass-policy.json",
+      "sha256": "be8de3eacecbcd3dba927113299b412bf322f76cc917c22b9f5ca6fccaef1cf9",
+      "size": 8152
+    },
+    {
       "path": "data/underdog-negative-bonus-policy.json",
       "sha256": "26962ac8f438e37389658ed964cd789b8c649ad81f8ce12d0b2e42a842e8524c",
       "size": 940
@@ -1212,6 +1222,11 @@
       "size": 28518
     },
     {
+      "path": "data/verification/common-initiative-semantics.json",
+      "sha256": "07ab22953c5c80a6f2393d3a83e74f866679292ec304428a52684583aeacc950",
+      "size": 23450
+    },
+    {
       "path": "data/verification/connection-acquisition-revision-source-review.json",
       "sha256": "c707234555e45289619445d8fbc297e29c1f1eb59ee30390f7229b8c062d4128",
       "size": 209256
@@ -1250,6 +1265,16 @@
       "path": "data/verification/telepath-core-source-excerpts.txt",
       "sha256": "8be4a75b58e9a91cecc6c4ee8acfa23b6563dc745b214744e2a9d2aaf450625a",
       "size": 9754
+    },
+    {
+      "path": "data/verification/topdown-r04-contract.json",
+      "sha256": "9fb7c54b5e0c2840e4b88fb0f3b0ee4cc255beff22a8f9bd390931126ae4641e",
+      "size": 29598
+    },
+    {
+      "path": "data/verification/topdown-root-contract.json",
+      "sha256": "aa70d2f5ecbbbc9b23e1909f7b84757974b39473fb43bd129d118a9405e1971a",
+      "size": 223296
     },
     {
       "path": "data/wallrunner-policy.json",
@@ -1932,9 +1957,179 @@
       "size": 1150
     },
     {
+      "path": "tests/fixtures/light-completion.json",
+      "sha256": "16863eed840e909505b2374cdae1389739f8520d11444515f01f2dcc4e41ff93",
+      "size": 882
+    },
+    {
+      "path": "tests/fixtures/priority-declaration.json",
+      "sha256": "2b8d85e1ac3e95fa79cc9d98a788800ea0ae78c6b1d2b5a560dd732f46f0ea42",
+      "size": 899
+    },
+    {
       "path": "tools/common_check_synthetic_evidence.txt",
       "sha256": "27bc5c6e86637e5a1ee75fd6148c28e4a534241a40afa256f4678c68a05d209f",
       "size": 90
+    },
+    {
+      "path": "tools/fixtures/initiative-gm-policy.json",
+      "sha256": "070691d874b28f4428a2c658ae09fd3e9b8241a3ea0d8cc0e046b58d415730d5",
+      "size": 592
+    },
+    {
+      "path": "tools/frequency_source_connection_contract.json",
+      "sha256": "0aec87ebe9b3f10b750aa8a752b7ee4a21e18faa48959912d041f8bfe79ec703",
+      "size": 14131
+    },
+    {
+      "path": "tools/root_admission_synthetic_evidence.txt",
+      "sha256": "ae22a9036ced26012a4914ff6636ed69b341aaff64ea92b016a6706e403eef3e",
+      "size": 64
+    },
+    {
+      "path": "tools/root_runtime_io_synthetic_evidence.txt",
+      "sha256": "cb152345aa14a099811ece7e9fa55f6876f69f053e209f260eecb8ac1eb7c3f4",
+      "size": 137
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/campaign_rewards.py",
+      "sha256": "0af9867f5ea0923a221372bd621eac9ca690e43d041f7d1b73b76416f7bacf6c",
+      "size": 14965
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/cleanse_tags.py",
+      "sha256": "9ab66f012681e59022d4596c62b2161aa3f79f2613a4ea2422438afd08d8ace5",
+      "size": 31042
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/condition_instances.py",
+      "sha256": "ea794689b23d1bd840e6470d356517020f879317fb2944ff01775b318890ef99",
+      "size": 18712
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/cultivation_growth.py",
+      "sha256": "07c444e00afd550994f86bb929d9181fe4966ea7b9a316f17bb2839970e3003e",
+      "size": 27878
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/custom_condition_effects.py",
+      "sha256": "02d921145aa8444bb8c6acae2da9da338cba77de4410c4040d2181595ec85b0d",
+      "size": 8372
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/declarative_move_contracts.py",
+      "sha256": "41d04556668619ddc5836bdf012212f30e8b764d1ab93d4463bc1d154948d166",
+      "size": 32154
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/directive_features.py",
+      "sha256": "4a9f86629d60c149427c9afb308e08eeb82fb7d5eaa6a4cb41fa67101ee178da",
+      "size": 11324
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/example_species.py",
+      "sha256": "a2d044734a301cade7a4575f03051348c07c5759c114eca8eb43452a988cb943",
+      "size": 7346
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/field_effects.py",
+      "sha256": "f47acd4dc3d0563a64891e5c211772b1d4d5139f024fbd45676d3c2ad13c5043",
+      "size": 29544
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/food_effects.py",
+      "sha256": "26322690f23ee97130ae1da533e3b915f1e7fc55817beb72208e676b5a770737",
+      "size": 64246
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/intercept_profiles.py",
+      "sha256": "4eb687d52907889361040652ea5e0f75d4975996a6853f09a5588160b72e6c4a",
+      "size": 9371
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/mega_forms.py",
+      "sha256": "a0d8ea254a092544b0846fed2ba042f2e63307676b3c1378a7c1b479668c068a",
+      "size": 21113
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/mentor_csv.py",
+      "sha256": "feeb455d1f82f06c5bb2d270ae9e08a5a8016e58b01c2e68ee35746f8720add9",
+      "size": 17329
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/perish_body.py",
+      "sha256": "8f96623daedee11bc7c5ccfb5738cb35b22ca49be25d0100d6a38252eaffd017",
+      "size": 14232
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/physical_object_attacks.py",
+      "sha256": "a82aabef0657737f2e3d548dbe66684bd04c1936771c8ddd043316e1081f1ec0",
+      "size": 18367
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/pokemon_skill_profiles.py",
+      "sha256": "82fd86c54dd68fd7fc252bae401ee535cea2c1ed1d82a196d490b52c1ebfb5c9",
+      "size": 15305
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/pokemon_understanding.py",
+      "sha256": "d784a5f71ca7590475392d1468778e2bd0251ec135b0573a552504ee2789076b",
+      "size": 11302
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/regional_pokemon.py",
+      "sha256": "6d9b2f33543ef677eb5c7d6e1981ff706aac931dd581edbc9dbb45480e8417f1",
+      "size": 4659
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/resolution_transaction.py",
+      "sha256": "651a505a81b7a47f7b39dc55986b771d60e0a352dc3a56df0ddf05aaf05f9c5f",
+      "size": 7299
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/root_children.py",
+      "sha256": "2f2ba8d2210879899fb4b35059b9ec71206d1588fbe3b119c88f23b87f5a857d",
+      "size": 4600
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/root_common_engine.py",
+      "sha256": "e6826f2db020f79d7944d1c38ef63851f01107468095e5bb2c108291cd00c96c",
+      "size": 9513
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/state_codec.py",
+      "sha256": "f0ac7fd88f233f34d6f4c262cc7a5247bb49f2508f3e9acd5db56378a3a667e0",
+      "size": 74386
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/state_fields.py",
+      "sha256": "9dc5f1eea3a4bcb3db30879c6b288cbfd64fb42198ff62d611958883a74cf669",
+      "size": 20037
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/static_feature_state_grants.py",
+      "sha256": "3a952bf2c3bb85005af4e964064412272af2984bfe9d44eabe8bead5c42f429b",
+      "size": 19818
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/tera_shell.py",
+      "sha256": "aab49d807057116980ba3a57131d273aea4e245ff02ba6466ffc0f548d5f45f5",
+      "size": 10282
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/turn.py",
+      "sha256": "7bd73a0945645e3f8ee79a985be6a73b9220ae8b78a35e8149cd7a3b8f4ccf84",
+      "size": 34339
+    },
+    {
+      "path": "work/common-owner-integration-1255/baseline/engine/weather_templates.py",
+      "sha256": "73e635156899162887cfa125720a80507654732035b2fb047f5af4e6b1a89014",
+      "size": 7866
+    },
+    {
+      "path": "work/common-owner-integration-1255/fingerprint-sites.json",
+      "sha256": "c5fd961c8c5124b04435b040764e3dc628fc795810ed3a0c169eb87b54ad5fac",
+      "size": 23300
     }
   ]
 }

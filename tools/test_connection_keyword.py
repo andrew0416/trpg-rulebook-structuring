@@ -223,7 +223,7 @@ class ConnectionKeywordTests(unittest.TestCase):
             with self.subTest(move=move):
                 self.temporary(move)
                 if move=='스킬스왑':self.e.gm.choose_ability_transition(self.p,self.donor,'move/'+move,ability='인분',reason='actual swapped Ability')
-                self.e.use_move(self.p,self.donor,move)
+                self.e.use_move(self.p,self.donor,self.rules.move_id(move))
                 self.assertIn(self.bite,self.known());self.assertIn('꿀도둑',self.p.abilities)
                 self.e.gm.recall(self.p,reason='actual temporary source end')
                 self.assertNotIn('꿀도둑',self.p.abilities);self.assertIn(self.bite,self.known())
@@ -249,7 +249,7 @@ class ConnectionKeywordTests(unittest.TestCase):
 
     def test_transform_learns_in_form_then_restores_exact_previous_list(self):
         self.temporary('변신');before=list(self.p.spec['moves'])
-        self.e.use_move(self.p,self.donor,'변신')
+        self.e.use_move(self.p,self.donor,self.rules.move_id('변신'))
         self.assertIn(self.bite,self.p.moves);self.assertEqual(self.p.spec['moves'],before)
         self.assertNotIn(self.bite,self.p.spec.get('move_learning',{}))
         loaded=CODEC.load_engine(self.rules,json.loads(json.dumps(CODEC.dump_engine(self.e))))
@@ -264,7 +264,7 @@ class ConnectionKeywordTests(unittest.TestCase):
         for event in ('faint','encounter'):
             with self.subTest(event=event):
                 self.temporary('변신');before=list(self.p.spec['moves'])
-                self.e.use_move(self.p,self.donor,'변신');self.assertIn(self.bite,self.p.moves)
+                self.e.use_move(self.p,self.donor,self.rules.move_id('변신'));self.assertIn(self.bite,self.p.moves)
                 if event=='faint':self.e.gm.faint(self.p,reason='native Transform KO')
                 else:self.e.end_encounter(self.e.everyone)
                 self.assertEqual(self.p.spec['moves'],before);self.assertNotIn(self.bite,self.p.moves)
@@ -276,10 +276,10 @@ class ConnectionKeywordTests(unittest.TestCase):
         for event in ('recall','faint','encounter'):
             with self.subTest(event=event):
                 self.temporary('역할');self.e.gm.set_move(self.p,'변신',reason='known native Transform')
-                self.e.use_move(self.p,self.donor,'역할');self.assertIn(self.bite,self.known())
+                self.e.use_move(self.p,self.donor,self.rules.move_id('역할'));self.assertIn(self.bite,self.known())
                 protection=deepcopy(self.p.spec[C.PROTECTION]);baseline=list(self.p.spec['moves'])
                 self.e.end_of_turn(self.p);self.e.end_round();self.e.start_round(self.e.everyone);self.e.start_of_turn(self.p,initiative_count=20)
-                self.e.use_move(self.p,self.donor,'변신')
+                self.e.use_move(self.p,self.donor,self.rules.move_id('변신'))
                 if event=='recall':self.e.gm.recall(self.p,reason='end both temporary sources')
                 elif event=='faint':self.e.gm.faint(self.p,reason='end both temporary sources')
                 else:self.e.end_encounter(self.e.everyone)

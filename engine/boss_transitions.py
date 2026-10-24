@@ -254,7 +254,14 @@ def validate(actor, row=None):
                 or capture.get('sheet',{}).get('species')!=actor.spec['species']):
             raise ValueError('lowered boss capture requires its selected normal-form sheet')
         choices=capture.get('choices',{});sheet=capture['sheet']
-        if (choices.get('strategy')!=sheet.get('strategy') or choices.get('moves')!=sheet.get('moves')
+        if (not isinstance(choices,dict) or set(choices)!={'strategy','moves','abilities'}
+                or not isinstance(choices['moves'],list) or not isinstance(choices['abilities'],list)):
+            raise ValueError('captured sheet needs its actual explicit GM choices')
+        # build_pokemon always supplies innate Struggle; it is not a learned
+        # Move choice and must not be retroactively inserted into GM evidence.
+        expected_moves=list(choices['moves'])
+        if 'struggle' not in expected_moves:expected_moves.append('struggle')
+        if (choices.get('strategy')!=sheet.get('strategy') or expected_moves!=sheet.get('moves')
                 or choices.get('abilities')!=sheet.get('abilities')):
             raise ValueError('captured sheet must retain its actual GM choices')
     elif capture is not None:raise ValueError('capture reallocation requires a lowered capture level')

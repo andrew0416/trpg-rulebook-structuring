@@ -721,8 +721,13 @@ def _latest_move(engine, state, outgoing):
     if bound is None or bound[0] is not state or not bound[1]["native_complete"]:
         raise ValueError("recall exception requires its completed Battle Contest performance")
     import native_switch_transfer as SWITCH
-    if row.get("native_switch_window") != SWITCH.action_boundary(engine):
-        raise ValueError("recall exception lost its immediate native action boundary")
+    current=SWITCH.action_boundary(engine)
+    recorded=row.get("native_switch_window")
+    if recorded != current:
+        prior=recorded if isinstance(recorded,dict) else {}
+        changed={key:{'recorded':prior.get(key),'current':current.get(key)}
+                 for key in prior.keys() | current.keys() if prior.get(key)!=current.get(key)}
+        raise ValueError("recall exception lost its immediate native action boundary: " + repr(changed))
     return row
 
 

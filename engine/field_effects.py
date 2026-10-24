@@ -519,6 +519,18 @@ def clear(engine, *, terrain_only=False):
     ITEMS.synchronize_field_suppression(engine)
 
 
+def clear_terrain_at(engine,cells):
+    """End actual contacted Terrain occurrences without ending Rooms or local weather."""
+    occupied=set(cells);ended=[]
+    primary=_validate_state(engine,engine.field)
+    if primary is not None and primary['source_id'] not in INDEPENDENT_SOURCES:
+        ended.append(primary['source_id']);clear(engine,terrain_only=True)
+    for row in validate_local(engine):
+        if row['source_id']==LOCAL_SOURCE and occupied.intersection(tuple(p) for p in row['cells']):
+            row['ended']=True;row['seal']=_local_seal(row);ended.append(row['request_id'])
+    return ended
+
+
 def active_fields(engine, name=None):
     return [state for state in _states(engine)
             if engine.round_no >= state["activation_round"]

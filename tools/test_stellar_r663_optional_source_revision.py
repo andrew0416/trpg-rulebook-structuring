@@ -238,7 +238,7 @@ class StellarR663OptionalSourceRevisionTests(unittest.TestCase):
         ordinary = self.rules.move(move_id)
         self.assertEqual(EXT.effective_type(e, actor, target, ordinary,
             self.rules.move_mech(move_id)[0], consume=False), '노말')
-        original_move = deepcopy(row['move'])
+        original_move = deepcopy(row['move'], {id(c): c.entity_id for c in WORLD.actor_index(e).values()})
         rng = e.rng.getstate()
         e.gm.snapshot('actual legacy paid accuracy')
         e.gm.restore('actual legacy paid accuracy', reason='retain actual interrupted paid producer')
@@ -255,7 +255,7 @@ class StellarR663OptionalSourceRevisionTests(unittest.TestCase):
         self.assertEqual(target.hp, hp - expected)
         self.assertEqual((actor.budget['standard'], actor.move_uses[move_id]), (0, uses + 1))
         self.assertEqual(e.rng.getstate(), rng)
-        self.assertEqual(row['move'], original_move)
+        self.assertEqual(deepcopy(row['move'], {id(c): c.entity_id for c in WORLD.actor_index(e).values()}), original_move)
         self.assertEqual(actor.spec[STELLAR.STATE]['history'], history)
         self.assertIsNone(e._passive_pending)
         self.assertTrue(e.validate_state()['valid'], e.validate_state())

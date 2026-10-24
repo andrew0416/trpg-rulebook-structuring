@@ -322,7 +322,7 @@ class FantasyWeaponRevisionTests(unittest.TestCase):
                 e.gm.set_types(target,types,reason='actual observed source-selected defensive types')
                 e.configure_ground_flight_option(dict(enabled=adopted,gm_id='actual-gm',
                     reason='explicit adoption for this native source interaction'))
-                self.assertFalse(target.airborne)
+                self.assertFalse(getattr(target,'airborne',False))
                 self.assertEqual(e.type_multiplier('땅',target)[0],before_multiplier)
                 self.begin(e,a);hp=target.hp
                 with patch.object(Engine,'d20',return_value=17):

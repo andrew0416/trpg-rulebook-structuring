@@ -427,7 +427,8 @@ class GMState:
 
     def set_hp(self, c, value=None, delta=None, reason="", unpreventable=True):
         import keep_fighting as KEEP,state_grants as GRANTS
-        if KEEP.interested(self.e,c):
+        nonpositive=(M.floor(value) if value is not None else c.hp+M.floor(delta))<=0
+        if KEEP.interested(self.e,c) or nonpositive:
             return GRANTS.transition(self.e,c,lambda e,actor:e.gm._set_hp(actor,value=value,delta=delta,reason=reason,unpreventable=unpreventable),include_rulings=True,include_grid=self.e.grid is not None)
         return self._set_hp(c,value=value,delta=delta,reason=reason,unpreventable=unpreventable)
 
@@ -441,12 +442,12 @@ class GMState:
         import taskmaster as TASK
         press=TASK.faint_boundary(self.e,c)
         if c.hp <= 0 and not press:
-            import csv_item_physical_contracts as CSV_ITEMS,core_weather_abilities as WEATHER_ABILITIES
-            CSV_ITEMS.switched_or_fainted(c)
+            import life as LIFE,core_weather_abilities as WEATHER_ABILITIES
+            # A GM-observed knockout owns the same source endings as native HP loss.
+            # The existing Press decision above still owns remaining conscious.
+            newly_fainted=LIFE.faint(self.e,c)
             WEATHER_ABILITIES.refresh(c)
-        if c.hp <= 0 and not press and "기절" not in c.conditions:
-            c.conditions.add("기절")
-            self.e.log(f"    {c.name} 기절 (GM 조정)", "gm/state")
+            if newly_fainted:self.e.log(f"    {c.name} 기절 (GM 조정)", "gm/state")
         elif c.hp > 0 and "기절" in c.conditions:
             c.conditions.discard("기절")
             import life

@@ -245,9 +245,9 @@ class ChroniclerSourceCritTests(unittest.TestCase):
             abilities=['조가비갑옷/전투무장'],speed=11)
         self.assertTrue(self.critical());self.assertFalse(self.critical(face=19));self.assertFalse(self.critical(self.c))
         self.restore();self.assertTrue(self.critical())
-        with patch.object(self.e,'roll_damage',wraps=self.e.roll_damage) as damage:
+        with patch.object(Engine,'roll_damage',autospec=True,side_effect=Engine.roll_damage) as damage:
             self.use(self.p,self.b,'move/전광석화',face=20)
-        self.assertTrue(damage.call_args.kwargs['crit'])
+        self.assertTrue(damage.call_args.kwargs.get('crit',damage.call_args.args[4] if len(damage.call_args.args)>4 else False))
         self.e.end_of_turn(self.p);self.e.end_round();self.combat(self.p,count=20)
         self.assertFalse(self.critical());self.valid()
 
@@ -276,19 +276,23 @@ class ChroniclerSourceCritTests(unittest.TestCase):
 
     def test_selected_playtest_defensive_bypass_variants_keep_their_actual_move_type_limit(self):
         self.select_profile('playtest')
-        for ability,move in (('터보블레이즈 [Playtest]','move/불꽃세례'),
-                             ('테라볼티지 [Playtest]','move/전기쇼크')):
+        for ability,move in (('ability/터보블레이즈-playtest','move/불꽃세례'),
+                             ('ability/터보블레이즈-playtest-2','move/불꽃세례'),
+                             ('ability/테라볼티지-playtest','move/전기쇼크'),
+                             ('ability/테라볼티지-playtest-2','move/전기쇼크')):
             with self.subTest(ability=ability):
                 self.setup()
                 self.e.gm.set_ability(self.p,ability,reason='actual selected typed defensive bypass')
+                self.assertEqual(ABILITIES.ability_id(self.e.r,ability),ability)
+                self.assertIn(ability,ABILITIES.known(self.p))
                 self.e.gm.set_ability(self.b,'조가비갑옷/전투무장',reason='actual Defensive Shell Armor')
                 self.e.gm.set_move(self.p,move,reason='actual known matching attack')
                 self.combat(self.p,count=20)
                 self.assertTrue(self.critical(move=move))
                 self.assertFalse(self.critical(move='move/전광석화'))
-                with patch.object(self.e,'roll_damage',wraps=self.e.roll_damage) as damage:
+                with patch.object(Engine,'roll_damage',autospec=True,side_effect=Engine.roll_damage) as damage:
                     self.use(self.p,self.b,move,face=20)
-                self.assertTrue(damage.call_args.kwargs['crit'])
+                self.assertTrue(damage.call_args.kwargs.get('crit',damage.call_args.args[4] if len(damage.call_args.args)>4 else False))
                 self.restore();self.valid()
                 self.assertTrue(self.critical(move=move))
                 self.assertFalse(self.critical(move='move/전광석화'))

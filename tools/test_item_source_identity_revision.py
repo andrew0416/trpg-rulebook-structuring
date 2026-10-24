@@ -95,16 +95,66 @@ class CannonItemIdentityTests(unittest.TestCase):
         NATIVE.assert_rejected_unchanged(f.e,
             lambda:PHYSICAL.load_cannon(f.e,f.a,'cannon/body','cannon/pester'),reason_pattern='two Cannons')
 
+    def test_equipped_cannon_generated_weapon_is_source_admitted_before_first_read(self):
+        f=self.scene()
+        keys=[row['struggle_id'] for row in f.a.custom_conditions['equipped_weapons'].values()]
+        self.assertTrue(keys)
+        self.assertTrue(all(key in f.r.selection.units for key in keys))
+        before=CODEC.rules_fingerprint(f.r)
+        for key in keys:
+            self.assertEqual(f.r.move(key)['id'],key)
+            self.assertEqual(f.r.selection.dependencies[key],('combat/struggle','ch09-equipment/장비/무기'))
+        self.assertEqual(CODEC.rules_fingerprint(f.r),before)
+
+    def test_generated_weapon_catalog_and_graph_rollback_after_local_and_outer_late_failure(self):
+        import turn as TURN, state_grants as GRANTS, optional_weapon_framework as FRAMEWORK
+        for route in ('local','outer'):
+            with self.subTest(route=route):
+                f=self.scene(loaded=False)
+                weapon={'name':'late published foot weapon','kind':'발 무기','grade':'조잡','moves':[]}
+                before=f.e.export_state()
+                before_keys=(set(f.r.moves),set(f.r.moves_mech),set(f.r.selection.units))
+                if route=='local':
+                    original=FRAMEWORK.on_equip
+                    def fail(*args,**kwargs):
+                        original(*args,**kwargs)
+                        raise ValueError('late generated weapon receiver')
+                    with patch.object(FRAMEWORK,'on_equip',side_effect=fail):
+                        with self.assertRaisesRegex(ValueError,'late generated weapon receiver'):
+                            TURN.equip_weapon(f.e,f.a,weapon)
+                else:
+                    def fail(staged,actor):
+                        key=TURN.equip_weapon(staged,actor,weapon)
+                        self.assertIn(key,staged.r.selection.units)
+                        raise ValueError('late outer weapon publication')
+                    with self.assertRaisesRegex(ValueError,'late outer weapon publication'):
+                        GRANTS.transition(f.e,f.a,fail)
+                self.assertEqual(f.e.export_state(),before)
+                self.assertEqual((set(f.r.moves),set(f.r.moves_mech),set(f.r.selection.units)),before_keys)
+
     def test_late_native_damage_failure_restores_load_stock_action_and_rng(self):
         f=self.scene()
+        def selected_policy():
+            omitted={'root','rulings','ruleset','selection','_source_context_reads','_coordinator_contest_reader'}
+            values={key:value for key,value in vars(f.r).items() if key not in omitted}
+            values['selected_profile']=vars(f.r.ruleset)
+            values['selection']={key:value for key,value in vars(f.r.selection).items() if key not in ('filter','dependencies')}
+            return deepcopy(CODEC._plain(values))
         with patch.object(type(f.e),'take_damage',autospec=True,side_effect=ValueError('actual Cannon damage failed')) as damage:
             before=f.e.export_state()
+            before_policy=selected_policy()
             try:
                 with self.assertRaisesRegex(ValueError,'Cannon damage failed'):
                     f.use(held_selection='cannon/pester')
             finally:
                 self.maxDiff=None
-                self.assertEqual(f.e.export_state(),before)
+                after=f.e.export_state()
+                after_policy=selected_policy()
+                changed={key:{'before':repr(before_policy.get(key))[:2000],
+                              'after':repr(after_policy.get(key))[:2000]}
+                         for key in before_policy.keys() | after_policy.keys()
+                         if before_policy.get(key)!=after_policy.get(key)}
+                self.assertEqual(after,before,msg='Changed selected rule fields: '+repr(changed))
         self.assertEqual(damage.call_count,1)
         self.assertIsNot(damage.call_args.args[0],f.e)
         self.assertEqual(damage.call_args.args[1].entity_id,f.t.entity_id)

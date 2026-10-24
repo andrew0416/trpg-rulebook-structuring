@@ -277,6 +277,7 @@ def use(e,c,move_id,destination,*,event_id,object_adjudications,source,reason,ra
             raise PASSIVE.PassiveEventPending(e._passive_pending)
         return deepcopy(old)
     requested,move,mm,policy,conversion=_selected(e,c,move_id,range_source)
+    __import__('native_path_area_moves').roller_preflight(e,move['id'])
     plan=_plan(e,c,destination,object_adjudications)
     import forced_move_lock as FORCED
     if FORCED.current(e,c)==move['id'] and not plan['creatures']:
@@ -514,6 +515,7 @@ def validate_world(e,index=None):
             raise ValueError('Pass producer identity/source changed')
         phase=row.get('phase','complete')
         if phase not in ('pending','complete','interrupted'):raise ValueError('unknown Pass lifecycle phase')
+        __import__('native_path_area_moves').validate_roller(e,row)
         policy=receipt_policy(e,row)
         if (policy is None or e.r.move(row['move_id'])!=policy['definition']
                 or e.r.move_mech(row['move_id'])[0]!=policy['mechanics']

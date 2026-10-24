@@ -158,7 +158,7 @@ def modifier(e,a,skill,context=None):
   import telekinetic_combat as TK
   if isinstance(context,dict) and context.get('purpose')==TK.PURPOSE:
    TK.roll_bonus(e,a,skill,context)
-  elif not isinstance(context,dict) or set(context)!={'purpose','reason'} or context['purpose'] not in PURPOSES|BLESSING_PURPOSES|{'telekinetic_carry','resist_grapple','resist_disarm','glitch_phenomenon'}:raise ValueError('known GM skill purpose and reason required')
+  elif not isinstance(context,dict) or set(context)!={'purpose','reason'} or context['purpose'] not in PURPOSES|BLESSING_PURPOSES|{'telekinetic_carry','resist_grapple','resist_disarm','glitch_phenomenon','capability/추적자'}:raise ValueError('known GM skill purpose and reason required')
   text(context['reason'],'GM skill context reason')
  if not F.owned(a,SURVIVALIST):
   if any(k in a.spec for k in ('_survivalist_terrains','_survivalist_talents')):raise ValueError('Survivalist records require actual class')

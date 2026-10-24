@@ -150,6 +150,7 @@ def validate_record(actor,row,*,terminal=False):
 
 
 def validate_world(engine,index):
+    __import__('defense_curl').validate_world(engine,index)
     import eldritch_magic as ELDRITCH
     ELDRITCH.validate_world(engine,index)
     import condition_variants as VARIANTS

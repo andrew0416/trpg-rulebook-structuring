@@ -229,7 +229,9 @@ class AbilityNativeActionTests(unittest.TestCase):
   result=e.activate_ability(user,'겁주기',target)
   self.assertEqual((result['details']['source_policy'],result['details']['movement_mode'],result['details']['movement_value']),
                    ('kr_csv_r0015_movement','land',2))
-  self.assertEqual((result['details']['displacement']['moved'],target.pos,target.stages['spe']),(2,(8,5),-4))
+  from grid import cheb
+  self.assertEqual((result['details']['displacement']['moved'],cheb(target.pos,user.pos),
+                    cheb(target.pos,trainer.pos),target.stages['spe']),(2,3,4,-4))
   self.assertIn('둔화',target.conditions)
   e.end_of_turn(user);e.end_round();self.turn(e,user)
   second=e.activate_ability(user,'겁주기',(other,{'source_policy':'kr_csv_r0015_movement'}))
@@ -307,7 +309,9 @@ class AbilityNativeActionTests(unittest.TestCase):
     e.use_move_on(setter,setter,'move/압정뿌리기',[setter,user,target,trainer],aim=cells)
     e.end_of_turn(setter);e.start_of_turn(user,initiative_count=20)
     hp=target.hp;result=e.activate_ability(user,'겁주기',target)
-    self.assertEqual((result['details']['movement_mode'],target.pos,target.hp),(mode,(9,5),hp))
+    from grid import cheb
+    self.assertEqual((result['details']['movement_mode'],cheb(target.pos,user.pos),
+                      cheb(target.pos,trainer.pos),target.hp),(mode,4,3,hp))
     self.assertTrue(target.airborne)
     e.end_of_turn(user);e.start_of_turn(target,initiative_count=10)
     self.assertTrue(TURN.spend(e,target,'shift','actual later land entry',movement=True))

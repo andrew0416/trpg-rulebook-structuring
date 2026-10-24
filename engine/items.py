@@ -746,7 +746,7 @@ def _generic_feature_reserved(engine, owner, name):
     import provocateur as PROVOCATEUR
     if name in PROVOCATEUR.FEATURES and PROVOCATEUR.acquired(owner,name) is not None:return True
     import type_ace as TA
-    if name in TA.FEATURES and TA.acquired(owner, name) is not None:
+    if name in TA.FEATURES and TA.records(owner,name,True):
         return True
     import vitamin_capacity as VITAMINS, move_state as MOVES, training_features as TRAINING
     import combat_precision_features as PRECISION, intercept_profiles as INTERCEPT

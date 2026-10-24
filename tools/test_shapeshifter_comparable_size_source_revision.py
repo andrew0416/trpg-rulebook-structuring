@@ -169,10 +169,12 @@ class ShapeshifterComparableSizeSourceRevisionTests(unittest.TestCase):
             self.e, lambda: self.apply(actor, proposal),
             reason_pattern='explicit current GM Pokemon size observation required')
         choice = self.judgement(actor, proposal)
-        historical_before = deepcopy(actor.spec[MODE.KEY])
+        historical_before = deepcopy(actor.spec[MODE.KEY]);receipt_start=len(self.e.rulings.log)
         self.apply(actor, proposal, choice)
         self.assertEqual(actor.budget['standard'], 0)
-        receipt = self.e.rulings.log[-1]
+        receipts=[row for row in self.e.rulings.log[receipt_start:]
+                  if row['kind']=='state' and row['what']==actor.name+' 신체 크기 상태']
+        self.assertEqual(len(receipts),1);receipt=receipts[0]
         self.assertEqual(receipt['before'], historical_before)
         self.assertEqual(receipt['after'], actor.spec[MODE.KEY])
         self.assertNotIn('pokemon_size_observation', receipt['before'])

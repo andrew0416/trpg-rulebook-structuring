@@ -122,7 +122,7 @@ def reset_actor(engine,actor,*,recall=False):
     for record in list(TIMING.records(actor)):
         # Debilitate's independent Accuracy roll penalty keeps its printed lifetime.
         record.pop('ace_evasion',None)
-        if 'chef_evasion_damaging' in record or (record.get('effect_contract') and not record.get('manual_end') and 'lifetime_policy' not in record and any(k in record for k in ('accuracy_modifier','evasion_modifier'))):
+        if record.get('effect_contract') and not record.get('manual_end') and 'lifetime_policy' not in record and any(k in record for k in ('accuracy_modifier','evasion_modifier')):
             if recall and __import__('native_switch_transfer').preserve_order_on_recall(engine,actor,record):continue
             TIMING.expire(engine,actor,record)
     if not recall:__import__('native_switch_transfer').clear_pending_stages(engine,actor)
@@ -152,6 +152,7 @@ def recall(engine,actor,*,ignore_trapped=False):
         raise ValueError('Trapped prevents ordinary recall')
     import setup_move_state as SETUP_MOVE
     SETUP_MOVE.cancel(engine,actor,'recall')
+    if was_on_field:__import__('native_path_area_moves').end_fairy_source(engine,actor)
     if was_on_field:
         import native_switch_transfer as SWITCH
         SWITCH.observe_recall(engine,actor,before_stages)
@@ -171,6 +172,7 @@ def recall(engine,actor,*,ignore_trapped=False):
     LINKED.boundary(engine,actor,'recall')
     import healing_blocks as HEALING_BLOCKS
     HEALING_BLOCKS.boundary(engine,(actor,),'replacement')
+    __import__('defense_curl').boundary(engine,(actor,),'replacement')
     import condition_recovery as RECOVERY
     RECOVERY.switch_out(engine,actor)
     import ability_transitions as ABILITY_TRANSITIONS

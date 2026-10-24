@@ -68,7 +68,8 @@ def _weather_turn_start_one(engine,c,w,*,_boss_round=False):
         engine.log(f"    {c.name}: {WEATHER_KO.get(w, w)} 피해 면역 (도구)", "combat/weather")
         return
     if any(e.get("type") == "immunity" and ("weather" in str(e.get("to", "")) or WEATHER_KO.get(w, w) in str(e.get("to", "")) or w in str(e.get("to", "")))
-           and (e.get('_rule_id')!='ability/방진' or __import__('ability_transitions').active(c,'ability/방진')) for e in c.modifiers + c.registry):
+           and ((not e.get('_ability') and not str(e.get('_rule_id','')).startswith('ability/'))
+                or __import__('ability_transitions').effect_active(c,e)) for e in c.modifiers + c.registry):
         engine.log(f"    {c.name}: {WEATHER_KO.get(w, w)} 피해 면역 (특성)", "combat/weather")
         return
     if c.fainted or not c.on_field:
@@ -421,8 +422,10 @@ def can_aoo(engine, c):
 
 
 def adjacent_enemies(engine, c):
-    from grid import cheb
-    return [x for x in (engine.everyone or []) if x is not c and getattr(x, "side", None) != getattr(c, "side", None) and x.on_field and not x.fainted and not x.captured and engine.adjacent(x,c)]
+    side = getattr(c, "side", None)
+    if side is None:
+        return []
+    return [x for x in (engine.everyone or []) if x is not c and getattr(x, "side", None) is not None and x.side != side and x.on_field and not x.fainted and not x.captured and engine.adjacent(x,c)]
 
 
 def trigger_aoo(engine, mover, why, enemies=None):
@@ -470,6 +473,12 @@ WEAPON_KIND = {   # ch09 장비/무기: 소형 근접 DB+1 / 대형 근접 AC+1 
 
 
 def equip_weapon(engine, c, weapon):
+    """Publish physical equipment and its generated rule identity atomically."""
+    import state_grants as GRANTS
+    return GRANTS.transition(engine,c,lambda staged,actor:_equip_weapon(staged,actor,weapon))
+
+
+def _equip_weapon(engine, c, weapon):
     """Record physical slots and move grants separately from independently learned moves."""
     import copy
     import skill_modifiers as SKILL
@@ -515,9 +524,7 @@ def equip_weapon(engine, c, weapon):
     if occupied.intersection(slots):
         raise ValueError("weapon hand slot already occupied")
     kind = WEAPON_KIND[weapon["kind"]]
-    st = engine.r.mech("combat/struggle")
-    identity=_FINGERPRINTS.json_fingerprint(weapon, sort_keys=True, compact=False, allow_nan=True)[:12]
-    mid = "move/무기-" + re.sub(r"\s+", "-", weapon["name"]) + "-"+identity
+    mid,generated_move,generated_mechanics = WEAPONS.derived_definition(engine.r,weapon)
     if any(mid == entry["struggle_id"] for entry in ledger.values()):
         raise ValueError("weapon already equipped")
     import optional_weapon_framework as FRAMEWORK
@@ -538,12 +545,13 @@ def equip_weapon(engine, c, weapon):
             raise ValueError("unknown selected weapon move")
         if framework_limit is None:WEAPONS.validate_grant(engine,c,weapon,wid)
         available.append(wid)
-    engine.r.moves[mid] = {"id":mid,"name":weapon["name"]+" 발버둥","type":weapon.get("type",st["type"]),"class":"물리",
-        "ac":st["ac"]+kind["ac"],"damage_base":st["damage_base"]+kind["db"],
-        "frequency":"임의","range":kind["range"],"effect":"장착 무기 발버둥","keywords":[],"mech_auto":{},"source":"weapon"}
-    engine.r.moves_mech[mid] = {"name":engine.r.moves[mid]["name"],"confidence":"custom","coverage":"full",
-        "header":{"type":engine.r.moves[mid]["type"],"class":"물리","damage_base":engine.r.moves[mid]["damage_base"],"ac":engine.r.moves[mid]["ac"],
-            "frequency":{"kind":"at_will"},"range":{"raw":kind["range"],"origin":"melee" if "근접" in kind["range"] else int(kind["range"].split(",")[0]),"targets":1,"parsed":True},"keywords":[]},"effects":[],"narrative":[]}
+    __import__('ruleset').capture_runtime_weapon(engine.r,mid,weapon['name']+' 발버둥')
+    engine.r.moves[mid] = generated_move
+    engine.r.moves_mech[mid] = generated_mechanics
+    engine.r._runtime_weapon_declarations[mid] = copy.deepcopy(weapon)
+    # The actual producer admits its derived source before publishing the grant.
+    # A later read, including a failed staged attack, must not change Rules.
+    __import__('ruleset').require_runtime_weapon(engine.r,mid)
     baseline = set(c.moves)
     prior_granted = {m for entry in ledger.values() for m in entry["available_moves"]}
     independent = set(c.spec.get("moves",[])) | set(c.custom_conditions.get("independently_acquired_moves",[]))

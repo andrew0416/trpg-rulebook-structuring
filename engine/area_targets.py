@@ -102,7 +102,8 @@ def cells(engine,actor,move):
         return g.ranged_blast(aim,size)
     if shape=='burst':
         if aim!=origin:raise ValueError('Burst is centered on the actual user')
-        return g.burst(origin,size)
+        # Burst excludes its user as a recipient, not other bodies at its origin.
+        return g.burst(origin,size)|{origin}
     dx=(aim[0]>origin[0])-(aim[0]<origin[0]);dy=(aim[1]>origin[1])-(aim[1]<origin[1])
     if not dx and not dy:raise ValueError('directional area requires a distinct aim cell')
     methods={'cone':g.cone,'line':g.line}

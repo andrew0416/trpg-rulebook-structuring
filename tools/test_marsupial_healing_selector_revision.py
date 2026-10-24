@@ -28,6 +28,7 @@ class MarsupialHealingSelectorTests(unittest.TestCase):
         for selection in ('mapped_legacy','mapped_aim','mapless'):
             with self.subTest(selection=selection):
                 self.setUp();baby=self.born();mid='move/치료방울'
+                self.e.gm.observe_loyalty(self.mother,6,reason='actual willing maternal Heal Bell command')
                 BODY.observe(self.e,self.mother,[(0,0),(1,0)],reason='actual observed maternal occupied cells')
                 BODY.observe(self.e,baby,[(0,0)],reason='actual observed body inside maternal pouch')
                 self.e.gm.set_move(self.mother,mid,True,reason='actual known Heal Bell area cure')

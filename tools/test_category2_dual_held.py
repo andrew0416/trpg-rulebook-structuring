@@ -104,9 +104,9 @@ class DualHeldTests(unittest.TestCase):
   import root_common_engine as ROOT_CHECK
   context=ROOT_CHECK.host_context(e,{'attacker':a,'holder':b});self.assertEqual(len(context['actors']['holder']['held_equipment']),2)
   # The root adapter admits explicit rank names; this fixture supplies that input.
-  b.spec['skills']={'감지':next(name for name,row in e.r.mech('gameplay/skill-rank-dice')['by_rank_name'].items() if row.get('dice')=='2d6')}
+  b.spec['skills']={'직감':next(name for name,row in e.r.mech('gameplay/skill-rank-dice')['by_rank_name'].items() if row.get('dice')=='2d6')}
   projected=ROOT_CHECK.actor_projection(e,{'holder':b},{});self.assertIn('item',projected['holder']['modifier_sources'])
-  result=e.skill_check(b,'감지',5);self.assertIsInstance(result,tuple);self.assertEqual(len(result),2)
+  result=e.skill_check(b,'직감',5);self.assertIsInstance(result,tuple);self.assertEqual(len(result),2)
   e.gm.snapshot('ordinary');e.gm.restore('ordinary',reason='dual world ordinary action');loaded=self.roundtrip(e);self.assertEqual(len(H.entries(W.actor_index(loaded)[b.entity_id])),2);self.valid(loaded)
  def test_native_status_attack_with_two_unrelated_items_has_no_relic_evasion(self):
   from unittest.mock import patch

@@ -38,6 +38,11 @@ class GMaxMoveTests(unittest.TestCase):
         cls.r = Rules(str(ROOT), ruleset="all")
         cls.declarations = {row["clause_id"]: row for row in GMAX.declarations(cls.r)}
 
+    def setUp(self):
+        previous = self.r.rulings
+        self.r.rulings = deepcopy(previous)
+        self.addCleanup(setattr, self.r, 'rulings', previous)
+
     def world(self, clause, *, seed=1):
         return prepare_gmax_scene(self.r, self.declarations[clause], seed=seed)
 
@@ -141,6 +146,16 @@ class GMaxMoveTests(unittest.TestCase):
         e.enter_gigantamax(actor, source_id='test/gmax-source', reason='actual mapped form')
         return e, actor, targets, base, derived['id']
 
+    def learn_retaliation(self, engine, actor, move_id, reason):
+        if move_id not in actor.moves:
+            import move_state as MOVES
+            view=MOVES.describe(engine.r,actor.spec,moves=actor.moves)
+            if view['slot_count']==6:
+                forgotten=next(mid for mid in actor.moves if mid!='struggle')
+                engine.gm.set_move(actor,forgotten,add=False,
+                    reason='actual explicit forgotten Move frees this retaliation slot')
+        engine.gm.set_move(actor,move_id,reason=reason)
+
     def mapped_use(self, e, actor, target, base, move_id, face):
         with patch.object(Engine, 'd20', return_value=face):
             return e.use_gmax_move_on(actor, target, base, move_id, [actor, target],
@@ -212,7 +227,7 @@ class GMaxMoveTests(unittest.TestCase):
     def test_native_smite_history_feeds_metal_burst_after_cold_restore_once(self):
         e, actor, (inside, outside), base, mid = self.mapped_world('C2CSV-MOVE-R1021')
         e.gm.set_position(actor, (8, 4), reason='actual adjacent burst recipient')
-        e.gm.set_move(inside, 'move/메탈버스트', reason='actually learned retaliation')
+        self.learn_retaliation(e,inside,'move/메탈버스트','actually learned retaliation')
         for stat in ('def', 'spd'):
             e.gm.set_stage(inside, stat, value=-6, reason='actual low defense for HP and temporary HP loss')
         e.gm.set_temp_hp(inside, 3, duration_seconds=60, reason='actual temporary HP absorption')
@@ -260,8 +275,8 @@ class GMaxMoveTests(unittest.TestCase):
         e, actor, (inside, striker), base, mid = self.mapped_world('C2CSV-MOVE-R1021', first='outside')
         e.gm.set_position(actor, (8, 4), reason='actual later Bide release recipient')
         e.gm.set_position(striker, (9, 5), reason='actual initial Bide trigger attacker')
-        e.gm.set_move(striker, 'move/몸통박치기', reason='actually learned initial attack')
-        e.gm.set_move(inside, BIDE.SOURCE, reason='actually learned Bide reaction')
+        self.learn_retaliation(e,striker,'move/몸통박치기','actually learned initial attack')
+        self.learn_retaliation(e,inside,BIDE.SOURCE,'actually learned Bide reaction')
         self.assertEqual(self.r.move(BIDE.SOURCE)['_source']['record_span'], [446, 446])
         with patch.object(Engine, 'd20', return_value=17):
             e.use_move_on(striker, inside, 'move/몸통박치기', e.everyone, set_damage=True)
@@ -325,6 +340,10 @@ class GMaxMoveTests(unittest.TestCase):
                 # Exercise the supported keyword extension with a real native cancellation.
                 e.gm.set_ability(inside, '소리묻히기', reason='actual counter ability')
                 actor.registry.append({'type': 'gain_keyword', 'keyword': '소리', 'moves': 'all'})
+                e.rulings.add_answer('drown_out_no_accuracy',
+                    {'source': MUSICIAN.DROWN, 'move_id': mid, 'dc': 1,
+                     'reason': 'GM declares DC 1 for this no-Accuracy cancellation scenario; not a printed default'},
+                    reason='explicit source-specific no-Accuracy Drown Out ruling')
                 MUSICIAN.request_drown_out(e, inside, reason='accept native cancellation')
                 self.mapped_use(e, actor, inside, base, mid, 1)
                 completion = next(iter(e._move_completions.values()))
@@ -342,6 +361,7 @@ class GMaxMoveTests(unittest.TestCase):
             moves=[], extra={'money': 73}, side='party'))
         owner.pos = (25, 25); e.gm.add_combatant(owner)
         actor.spec['trainer_id'] = owner.entity_id
+        e.gm.observe_loyalty(actor, 6, reason='observed current-owner obedience before native G-Max use')
         self.mapped_use(e, actor, inside, base, mid, 1)
         reward = e._gmax_coin_rewards[0]
         amount = actor.level * sum(reward['rolls'])

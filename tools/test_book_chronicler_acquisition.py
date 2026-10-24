@@ -178,7 +178,7 @@ class ChroniclerAcquisitionTests(unittest.TestCase):
         self.rejected(lambda:self.acquire(CH.TRAINING, 1), 'Chronicler class')
         self.acquire()
         self.rejected(lambda:self.acquire(CH.TRAINING, 2), 'next actual rank')
-        self.rejected(lambda:self.acquire(CH.TRAINING), 'rank 1 or 2')
+        self.rejected(lambda:self.acquire(CH.TRAINING), 'explicit acquired rank in the printed domain')
         self.acquire(CH.TRAINING, 1)
         self.assertEqual(set(CH.owned_archives(self.t)), {'profile', 'technique'})
         self.assertEqual(self.t.spec['feat_ranks'][CH.TRAINING], 1)
@@ -193,7 +193,7 @@ class ChroniclerAcquisitionTests(unittest.TestCase):
         self.assertEqual(receipt['snapshot']['previous'], CH.acquired(self.t, CH.TRAINING, 1)['request_id'])
         self.assertEqual(set(CH.owned_archives(self.t)), {'profile', 'technique', 'travel'})
         self.assertEqual(CH.owned_archives(self.t)['travel']['feature'], CH.TRAINING)
-        self.rejected(lambda:self.acquire(CH.TRAINING, 3), 'rank 1 or 2')
+        self.rejected(lambda:self.acquire(CH.TRAINING, 3), 'explicit acquired rank in the printed domain')
         self.assertFalse(self.t.abilities)  # no place observed yet
         self.restore()
         self.valid()

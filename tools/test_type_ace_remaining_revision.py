@@ -80,6 +80,8 @@ class TypeAceRemainingTests(unittest.TestCase):
         ACQUIRE.acquire_static(self.e,self.t,STYLE.CLASS,branch='강인함',acquisition_request_id='typeace/style/class')
         ACQUIRE.acquire_static(self.e,self.t,STYLE.RANKED['강인함'],rank=1,acquisition_request_id='typeace/style/rank')
         ACQUIRE.acquire_static(self.e,self.t,STYLE.IMPROVE['강인함'],acquisition_request_id='typeace/style/improvement')
+        for student in students:
+            self.e.gm.observe_loyalty(student,6,reason='actual willing trained Style participant')
         self.combat(students[0])
         with patch.object(Engine,'d20',return_value=15):
             self.e.style_move(self.t,students[0],self.p,'move/겁나는얼굴',
@@ -250,12 +252,12 @@ class TypeAceRemainingTests(unittest.TestCase):
                     'defender_options':{'fixed':(1,1,1,1,1,1)}}}
         bad = {self.b.entity_id:dict(options[self.b.entity_id],defender_options={'fixed':(7,)*6})}
         self.rejected(lambda:TA.up_execution(self.e,self.t,self.p,None,[self.b],options=bad),'d6 face')
-        native_roll = self.e.skill_roll
-        def interrupt_defender(actor,skill,**kwargs):
-            if actor is self.b:raise RuntimeError('native interruption after observed challenger')
-            return native_roll(actor,skill,**kwargs)
-        with patch.object(self.e,'accuracy_check',wraps=self.e.accuracy_check) as accuracy:
-            with patch.object(self.e,'skill_roll',side_effect=interrupt_defender):
+        native_roll = Engine.skill_roll
+        def interrupt_defender(engine,actor,skill,**kwargs):
+            if actor.entity_id==self.b.entity_id:raise RuntimeError('native interruption after observed challenger')
+            return native_roll(engine,actor,skill,**kwargs)
+        with patch.object(Engine,'accuracy_check',autospec=True,side_effect=Engine.accuracy_check) as accuracy:
+            with patch.object(Engine,'skill_roll',new=interrupt_defender):
                 with self.assertRaisesRegex(RuntimeError,'native interruption'):
                     TA.up_execution(self.e,self.t,self.p,None,[self.b],options=options)
             record = self.p.custom_conditions[MANEUVER.RECEIPTS][self.p.custom_conditions[MANEUVER.ACTIVE]]

@@ -417,7 +417,9 @@ def prepare(engine,actor,move):
     if mod=='scattershot':
         out['range']='4m, 대상'+str(values['scattershot_targets'])
         out['_class_move_range']={'raw':out['range'],'origin':4,'targets':values['scattershot_targets'],'parsed':True}
-    elif mod=='vicious_storm':out['range']+=', 강타'
+    elif mod=='vicious_storm':
+        out['range']+=', 강타'
+        out['keywords']=list(dict.fromkeys([*(out.get('keywords') or []),'강타']))
     elif mod=='alternative_energy':out['class']='특수' if out['class']=='물리' else '물리'
     elif mod=='double_down':out['range']+=', 이단타격'
     elif mod=='double_curse':

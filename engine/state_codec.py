@@ -206,7 +206,7 @@ def rules_fingerprint(rules):
     manifest = [(path.relative_to(root).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest())
                 for path in _corpus_paths(root)]
     policy = {k: v for k, v in vars(rules).items()
-              if k not in ('root', 'rulings', 'ruleset', 'selection', '_source_context_reads', '_coordinator_contest_reader')}
+              if k not in ('root', 'rulings', 'ruleset', 'selection', '_source_context_reads', '_coordinator_contest_reader', '_runtime_weapon_declarations')}
     # Loading a policy cache is not a rules change. Use its saved definition
     # when cold and its actual contents when warm, preserving override checks.
     # Keep this registry explicit: arbitrary private rule state is still hashed.
@@ -346,7 +346,10 @@ def rules_fingerprint(rules):
     policy['selection'] = {k: v for k, v in selection.items() if k not in ('filter', 'dependencies')}
     data = {'files': manifest, 'selected': _plain(policy)}
     digest = _FINGERPRINTS.json_fingerprint(data, sort_keys=True, compact=True, allow_nan=False)
-    return {'sha256': digest, 'profile': rules.ruleset.name, 'file_count': len(manifest)}
+    result={'sha256': digest, 'profile': rules.ruleset.name, 'file_count': len(manifest)}
+    generated=__import__('weapon_actions').generated_declarations(rules)
+    if generated:result['generated_weapons']=generated
+    return result
 
 
 def _field_names(attrs, allowed, label):
@@ -662,8 +665,9 @@ def dump_engine(engine):
 
 
 class _Decoder:
-    def __init__(self, rules, nodes, *, contest_rules=None, graph_roots=None):
+    def __init__(self, rules, nodes, *, contest_rules=None, graph_roots=None, expected_native_rules=None):
         self.rules, self.nodes, self.objects, self.building = rules, nodes, {}, set()
+        self.expected_native_rules=expected_native_rules
         self.contest_rules, self.graph_roots = contest_rules, graph_roots
         self.classes = _types()
         self.engine_ids, self.actor_ids = [], {}
@@ -894,6 +898,13 @@ class _Decoder:
                     _fail('runtime ruling callbacks cannot be restored')
         # Validate gameplay against the saved declarations on this private Rules copy.
         self.rules.rulings = engine.rulings
+        if self.expected_native_rules is not None:
+            try:
+                __import__('weapon_actions').restore_generated(self.rules,self.expected_native_rules['generated_weapons'])
+                if rules_fingerprint(self.rules)!=self.expected_native_rules:
+                    _fail('selected rule/profile/source fingerprint mismatch after native weapon reconstruction')
+            except (ValueError,KeyError,TypeError) as exc:
+                raise StateCodecError('invalid native generated weapon declaration: '+str(exc)) from exc
         receipts = getattr(engine, '_effect_dispatch_receipts', {})
         opaque = {self.objects[uid] for uid,node in self.nodes.items() if node['kind'] == 'effect_receipt'}
         if type(receipts) is not dict or set(receipts) != opaque:
@@ -957,13 +968,17 @@ def load_engine(rules, payload):
     scope = payload['save_scope']
     if type(scope) is not dict or set(scope) != {'current_gameplay', 'gm_checkpoint_history', 'omitted_checkpoint_count'} or scope['current_gameplay'] is not True or scope['gm_checkpoint_history'] is not False or type(scope['omitted_checkpoint_count']) is not int or scope['omitted_checkpoint_count'] < 0:
         _fail('invalid current-gameplay save scope')
-    if payload['rules'] != rules_fingerprint(rules):
+    generated=type(payload['rules'])is dict and 'generated_weapons' in payload['rules']
+    if generated:
+        if set(payload['rules'])!={'sha256','profile','file_count','generated_weapons'} or type(payload['rules']['sha256'])is not str or re.fullmatch(r'[0-9a-f]{64}',payload['rules']['sha256'])is None or type(payload['rules']['profile'])is not str or type(payload['rules']['file_count'])is not int or payload['rules']['file_count']<0 or type(payload['rules']['generated_weapons'])is not list or len(payload['rules']['generated_weapons'])>MAX_NODES:
+            _fail('invalid native generated weapon rules header')
+    elif payload['rules'] != rules_fingerprint(rules):
         _fail('selected rule/profile/source fingerprint mismatch')
     if type(payload['root']) is not dict or set(payload['root']) != {'$ref'}:
         _fail('graph root must reference the Engine')
-    clone_rules = copy(rules)
     try:
-        decoder = _Decoder(clone_rules, payload['nodes'])
+        clone_rules = __import__('weapon_actions').private_restore_rules(rules) if generated else copy(rules)
+        decoder = _Decoder(clone_rules, payload['nodes'],expected_native_rules=payload['rules'] if generated else None)
         if payload['root']['$ref'] != decoder.engine_ids[0]:
             _fail('root reference is not the unique Engine')
         return decoder.value(payload['root'])
@@ -1342,14 +1357,21 @@ def load_contest(contest_rules,payload,*,native_rules=None):
         _fail('invalid contest save scope')
     if payload['rules']!=rules_fingerprint(contest_rules):
         _fail('contest source/profile fingerprint mismatch')
+    generated_native=type(payload['native_rules'])is dict and 'generated_weapons' in payload['native_rules']
     if payload['native_rules'] is None:
         if native_rules is not None:
             _fail('standalone contest has no native rule context')
         native_copy=None
     else:
-        if type(native_rules) is not _types()[2] or payload['native_rules']!=rules_fingerprint(native_rules):
-            _fail('native contest source/profile fingerprint mismatch')
-        native_copy=copy(native_rules)
+        if type(native_rules) is not _types()[2]:_fail('native contest source/profile fingerprint mismatch')
+        if generated_native:
+            if set(payload['native_rules'])!={'sha256','profile','file_count','generated_weapons'} or type(payload['native_rules']['sha256'])is not str or re.fullmatch(r'[0-9a-f]{64}',payload['native_rules']['sha256'])is None or type(payload['native_rules']['profile'])is not str or type(payload['native_rules']['file_count'])is not int or payload['native_rules']['file_count']<0 or type(payload['native_rules']['generated_weapons'])is not list or len(payload['native_rules']['generated_weapons'])>MAX_NODES:
+                _fail('invalid native generated weapon rules header')
+            try:native_copy=__import__('weapon_actions').private_restore_rules(native_rules)
+            except (ValueError,KeyError,TypeError) as exc:_fail('invalid native generated weapon declaration: '+str(exc))
+        else:
+            if payload['native_rules']!=rules_fingerprint(native_rules):_fail('native contest source/profile fingerprint mismatch')
+            native_copy=copy(native_rules)
     roots=[]
     for key in ('root','participants'):
         ref=payload[key]
@@ -1357,7 +1379,8 @@ def load_contest(contest_rules,payload,*,native_rules=None):
             _fail('contest roots must be graph references')
         roots.append(ref['$ref'])
     try:
-        decoder=_Decoder(native_copy,payload['nodes'],contest_rules=copy(contest_rules),graph_roots=roots)
+        decoder=_Decoder(native_copy,payload['nodes'],contest_rules=copy(contest_rules),graph_roots=roots,
+                         expected_native_rules=payload['native_rules'] if generated_native else None)
         contest,contestants=(decoder.value(payload[k]) for k in ('root','participants'))
         if type(contest) is not _contest_types()[0] or type(contestants) is not tuple or not contestants or any(type(c) is not _contest_types()[1] for c in contestants) or len(set(contestants))!=len(contestants):
             _fail('invalid contest graph roots')

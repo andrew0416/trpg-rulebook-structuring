@@ -215,19 +215,23 @@ class FoodItemScopeSourceRevisionTests(unittest.TestCase):
             return raw+b'changed' if path.name=='core-1.05-medicine.txt' else raw
         with patch.object(Path,'read_bytes',changed):
             NATIVE.assert_rejected_unchanged(e,lambda:e.use_item(a,'상처약',p,medicine_source_choice=choice),reason_pattern='source changed')
-        before=e.export_state()
-        self.assertEqual(e.use_item(a,'상처약',p,medicine_source_choice=choice,accepted=False),(0,0))
-        self.assertEqual(e.export_state(),before)
+        NATIVE.assert_logged_refusal_unchanged(e,
+            lambda:e.use_item(a,'상처약',p,medicine_source_choice=choice,accepted=False),
+            expected_result=(0,0),expected_logs=[f'  {p.name}: 상처약 사용 거부 → 미사용  => [ch09/아이템-사용]'])
 
     def test_outside_payment_keeps_status_and_open_combat_turn_permissions(self):
+        messages={'잠듦':'잠듦 — 수면을 치료하는 자유·신속 행동만 허용','얼음':'얼음 상태 행동 불가'}
         for status in ('잠듦','얼음'):
-            e,a,p=self.world();self.stock(a,'상처약');e.apply_status(a,status);before=e.export_state()
-            self.assertEqual(e.use_item(a,'상처약',p),(0,0));self.assertEqual(e.export_state(),before)
-        e,a,p=self.world();self.stock(a,'상처약');e.begin_encounter([a,p]);before=e.export_state()
-        self.assertEqual(e.use_item(a,'상처약',p),(0,0));self.assertEqual(e.export_state(),before)
+            e,a,p=self.world();self.stock(a,'상처약');e.apply_status(a,status)
+            NATIVE.assert_logged_refusal_unchanged(e,lambda:e.use_item(a,'상처약',p),expected_result=(0,0),
+                expected_logs=[f'    {a.name}: {messages[status]}  => [condition/{status}]'])
+        e,a,p=self.world();self.stock(a,'상처약');e.begin_encounter([a,p])
+        NATIVE.assert_logged_refusal_unchanged(e,lambda:e.use_item(a,'상처약',p),expected_result=(0,0),
+            expected_logs=[f'    {a.name}: 열린 본인 턴과 행동 예산이 필요 → 행동 보류  => [common/action-lifecycle]'])
         e.start_round([a,p]);e.start_of_turn(a,initiative_count=20)
-        self.assertTrue(TURN.spend(e,a,'standard','actual earlier action'));before=e.export_state()
-        self.assertEqual(e.use_item(a,'상처약',p),(0,0));self.assertEqual(e.export_state(),before)
+        self.assertTrue(TURN.spend(e,a,'standard','actual earlier action'))
+        NATIVE.assert_logged_refusal_unchanged(e,lambda:e.use_item(a,'상처약',p),expected_result=(0,0),
+            expected_logs=[f'    {a.name}: 기본 행동이 남지 않음 → 상처약 불가  => [combat/action-economy]'])
 
 
 if __name__=='__main__':unittest.main()

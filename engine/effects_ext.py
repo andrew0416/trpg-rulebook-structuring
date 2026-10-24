@@ -1171,6 +1171,7 @@ def accuracy_hook(engine, a, t, move, mm, ctx):
     import vision_impairment as VISION
     import living_weapon as LIVING
     ac_override, waive, bonus, never = None, False, TIMING.accuracy_modifier(a, include_effect_contract=False), False
+    bonus += __import__('defense_curl').accuracy(a,move)
     for status in a.conditions:
         if __import__('blessing_effects').ignored(a,status):continue
         # Use one derived contribution: Total Blindness replaces ordinary
@@ -1266,9 +1267,8 @@ def grants_stab(engine, a, move):
     import stellar_tera_blast as STELLAR_TERA
     if STELLAR_TERA.grants_stab(engine,a,move):
         return True
-    active = {engine.r.ability_alias.get(n,n) for n in a.abilities}
     return any(e.get("type") == "stab_grant" and e.get("move_type") == move["type"]
-               and e.get("form") == a.form and e.get("_ability") in active
+               and e.get("form") == a.form and __import__('ability_transitions').effect_active(a,e)
                for e in a.registry)
 
 
@@ -1318,9 +1318,9 @@ def keyword_block_reason(engine,a,t,move):
     if blocked_keywords:
         return "state/keyword_immunity:" + ",".join(sorted(blocked_keywords))
     if not t.abilities_suppressed:
-        owned={engine.r.ability_alias.get(name,name) for name in t.abilities}
         for effect in t.modifiers:
-            if (effect.get('type')=='immunity' and effect.get('keyword') in keywords_for(a,move) and effect.get('_ability') in owned):
+            if (effect.get('type')=='immunity' and effect.get('keyword') in keywords_for(a,move)
+                    and __import__('ability_transitions').effect_active(t,effect)):
                 source=effect.get('_rule_id')
                 if not isinstance(source,str) or engine.r._selected_rule(source)!=source:raise ValueError('selected keyword immunity source required')
                 return source
@@ -1363,8 +1363,8 @@ def blocks_hit(engine,a,t,move,mm):
     if move.get("class") not in ("물리","특수") or t.abilities_suppressed:return None
     import commander_orders as COMMANDER
     if COMMANDER.perfect(engine,a,move) is not None:return None
-    owned={engine.r.ability_alias.get(name,name) for name in t.abilities}
-    guards=[x for x in t.modifiers if x.get("type")=="immunity" and x.get("to")=="non-super-effective damage" and x.get("_ability") in owned]
+    guards=[x for x in t.modifiers if x.get("type")=="immunity" and x.get("to")=="non-super-effective damage"
+            and __import__('ability_transitions').effect_active(t,x)]
     if not guards:return None
     import blessing_effects as BLESSINGS
     shared_offense=[record for _,record in BLESSINGS.beneficiaries(engine,a,'team_damage_effectiveness')
@@ -1577,6 +1577,7 @@ def effectiveness_hook(engine, a, t, move, mm, mult, ctx):
     # Resistance/weakness steps cannot turn immunity into a damaging matchup.
     resolved = te[str(max(-3, min(3, steps)))] if changed and not immune else mult
     resolved = STELLAR_TERA.effectiveness(engine,a,t,move,resolved,ctx)
+    resolved = __import__('typed_defensive_bypass').effectiveness(engine,a,t,move,resolved,actual_type=ctx['actual_damage_type'])
     import optional_physical_equipment as OPTIONAL_EQUIPMENT
     return resolved if crafted_ground else OPTIONAL_EQUIPMENT.effectiveness(engine, t, actual_move, resolved)
 
@@ -1607,7 +1608,7 @@ def defense_hook(engine, a, t, move, mm, def_stat, *, stage_override=None):
         stage=stage_override
         staged=max(FIELDS.stat_minimum(t.spec,def_stat),OPTIONAL.staged_value(t,def_stat,
             M.stage_stat(t.stats[def_stat],stage,engine.r.mech('combat/combat-stage-multipliers')['multiplier_by_stage'])))
-    dr = t.damage_reduction + LIFETIMES.numeric(t,"damage_reduction") + __import__('sage').reduction(t) + __import__('ace_trainer').damage_reduction(t,a)
+    dr = t.damage_reduction + LIFETIMES.numeric(t,"damage_reduction") + __import__('sage').reduction(t) + __import__('ace_trainer').damage_reduction(t,a) + __import__('defense_curl').reduction(t)
     if not t.abilities_suppressed:
         for e in t.modifiers:
             if e.get("type") == "damage_reduction" and e.get("if_weather") and isinstance(e.get("value"), int) and not any(e.get(k) for k in ("if", "vs", "duration")) and FX.weather_matches(engine, e["if_weather"],t):

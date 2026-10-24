@@ -297,7 +297,7 @@ class SceneFeatureAbilityGrantTests(unittest.TestCase):
         forged = deepcopy(SCENE.records(target)[0]["source_policy_binding"]["definition"])
         forged["values"]["priority_limited"] = False
         next(pair for pair in binding["items"] if pair[0] == "definition_hash")[1] = R.fingerprint(forged)
-        fresh = Rules(str(ROOT), ruleset="all")
+        fresh = self.source_rules(Rules(str(ROOT), ruleset="all"), "book")
         with self.assertRaisesRegex(ValueError, "known producing source policy"):
             load_engine(fresh, payload)
 
