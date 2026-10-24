@@ -41,6 +41,8 @@ def source_defense_steps(rules, attack, defenses):
     # Personal Stellar defense is neutral; it does not change another type's chart.
     if PERSONAL.enabled(rules, 'ordinary_stellar'):
         defenses = [value for value in defenses if value != STELLAR]
+    if PERSONAL.enabled(rules, 'typeless_tera'):
+        defenses = [value for value in defenses if value != PERSONAL.TYPELESS]
     rows = _defenders(rules)
     names = set(defenses) & set(rows)
     if not names:
@@ -122,12 +124,14 @@ def _extensions(rules):
 
 def allowed_types(rules):
     personal = (STELLAR,) if PERSONAL.enabled(rules, 'ordinary_stellar') else ()
+    if PERSONAL.enabled(rules, 'typeless_tera'):personal += (PERSONAL.TYPELESS,)
     return CORE_TYPES + tuple(_extensions(rules)) + tuple(_defenders(rules)) + personal
 
 
 def attack_types(rules):
     """Ordinary selectable attacks; Tera-only Stellar is not a chart choice."""
     personal = (STELLAR,) if PERSONAL.enabled(rules, 'ordinary_stellar') else ()
+    if PERSONAL.enabled(rules, 'typeless_tera'):personal += (PERSONAL.TYPELESS,)
     return CORE_TYPES + tuple(_extensions(rules)) + personal
 
 
@@ -140,6 +144,8 @@ def validate_types(rules, values, *, label="types"):
     unknown = set(values) - set(CORE_TYPES)
     if STELLAR in unknown and PERSONAL.enabled(rules, 'ordinary_stellar'):
         unknown.remove(STELLAR)
+    if PERSONAL.TYPELESS in unknown and PERSONAL.enabled(rules, 'typeless_tera'):
+        unknown.remove(PERSONAL.TYPELESS)
     if unknown and not unknown <= set(_extensions(rules)) | set(_defenders(rules)):
         raise ValueError(label + " contains an unknown or unselected type: " + ", ".join(sorted(unknown)))
     return list(values)
@@ -158,6 +164,13 @@ def validate_actor(actor):
         validate_types(actor.r, row["visible"], label="type-source visibility")
         value = list(actor.spec.get("types", []) if row["base"] is None else row["base"])
         for source, op in row["sources"].items():
+            producer=actor.spec['state_grants'].get('sources',{}).get(source,{})
+            personal=producer.get('personal_type_setting')
+            if personal is not None and (not PERSONAL.enabled(actor.r,'typeless_tera')
+                    or personal!={'source':PERSONAL.NEUTRAL_SOURCE,'identity':PERSONAL.TYPELESS,'fallback':None}
+                    or producer.get('rule_id')!='move/불사르기'
+                    or op!={'mode':'remove','values':['불꽃'],'fallback':None}):
+                raise ValueError('actual selected personal Burn Up type policy required')
             if not isinstance(source, str) or not source.strip() or not isinstance(op, dict) or set(op) != {"mode", "values", "fallback"} or op["mode"] not in ("set", "add", "remove"):
                 raise ValueError("invalid saved type-source operation")
             validate_types(actor.r, op["values"], label="type-source values")
@@ -179,7 +192,7 @@ def validate_actor(actor):
 def matchup(rules, attack, defense):
     validate_attack(rules, attack)
     validate_types(rules, [defense], label="defending type")
-    if attack in ('None', STELLAR, PERSONAL.TYPELESS) or defense == STELLAR:
+    if attack in ('None', STELLAR, PERSONAL.TYPELESS) or defense in (STELLAR, PERSONAL.TYPELESS):
         return 1.0
     defenders = _defenders(rules)
     if defense in defenders:

@@ -59,9 +59,10 @@ def tera_active(c):
 
 def actual_types(c,ordinary):
  # Stellar preserves defense; it is neither Normal nor an empty type list.
+ if c.kind=='pokemon' and not ordinary and PERSONAL.enabled(c.r,'typeless_tera'):
+  ordinary=[PERSONAL.TYPELESS]
  if not tera_active(c):return list(ordinary)
  chosen=c.spec[KEY]['tera_type']
- if chosen==PERSONAL.TYPELESS:return []
  return list(ordinary) if chosen=='스텔라' else [chosen]
 
 def stab_types(c):
@@ -73,7 +74,7 @@ def stab_types(c):
 
 def ability_stab_types(c):
  values=stab_types(c)
- if tera_active(c) and c.spec['tera_type']!=PERSONAL.TYPELESS and c.spec['tera_type'] not in values:values.append(c.spec['tera_type'])
+ if tera_active(c) and c.spec['tera_type'] not in values:values.append(c.spec['tera_type'])
  return values
 
 def effect_stab_types(c,e):
@@ -85,7 +86,7 @@ def type_change_blocked(c):return tera_active(c)
 
 def damage_bonus(c,move,*,engine=None):
  import tera_shell as TERA_SHELL
- ordinary=10 if tera_active(c) and c.spec['tera_type']!=PERSONAL.TYPELESS and move.get('type')==c.spec['tera_type'] else 0
+ ordinary=10 if tera_active(c) and move.get('type')==c.spec['tera_type'] else 0
  return ordinary+TERA_SHELL.damage_bonus(c,move,engine=engine)
 
 def observe_type(e,c,value,*,reason):

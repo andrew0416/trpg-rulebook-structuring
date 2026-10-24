@@ -348,11 +348,18 @@ def h_type_change(engine, a, t, e, ctx):
     import type_state as TYPES
     TYPES.validate_types(c.r,[value],label="type-changing effect")
     if e.get("fallback") is not None:TYPES.validate_types(c.r,[e["fallback"]],label="type-changing fallback")
+    import personal_type_settings as PERSONAL
+    personal_loss=(ctx.get('source_id')=='move/불사르기' and mode=='remove' and value=='불꽃'
+                   and PERSONAL.enabled(c.r,'typeless_tera'))
+    fallback=None if personal_loss else e.get('fallback')
     import state_grants as GRANTS
     source=getattr(c,"_state_registration_source",None) or GRANTS.effect_source(c,ctx,"type-change")
     if source not in GRANTS.state(c)["sources"]:
         GRANTS._source(c,source,"effect",owner_id=a.spec.get("id"),lifetime=e.get("duration") or e.get("until") or "legacy_unspecified",rule_id=ctx.get("source_id"))
-    GRANTS.type_operation(c,mode,[value],source,fallback=e.get("fallback"))
+    if personal_loss:
+        GRANTS.state(c)['sources'][source]['personal_type_setting']={
+            'source':PERSONAL.NEUTRAL_SOURCE,'identity':PERSONAL.TYPELESS,'fallback':None}
+    GRANTS.type_operation(c,mode,[value],source,fallback=fallback)
     import csv_item_capability_contracts as CSV_CAP
     CSV_CAP.sync_essence(engine,c)
     engine.log(f"    {c.name} 타입 → {c.types}")

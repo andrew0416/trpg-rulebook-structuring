@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_04",
-  "purpose": "Focused diagnostics for repaired original failures and changed switch/Juggler, source, clock, rank, type and state paths. This does not replace the original4115-ID final obligations or confer185-finding/406-clause acceptance.",
+  "purpose": "Focused diagnostics for repaired failures and changed native paths, including the latest shared Burn Up/neutral-Tera personal type. Original4115 final obligations and185/406 acceptance scope remain intact. The earlier repair65 freeze was never dispatched.",
   "completion_credit": 0,
-  "required_unique_count": 36,
+  "required_unique_count": 37,
   "completed": {
     "tools.test_book_commander_consumers.CommanderConsumerTests": {
       "tests": [
@@ -38,15 +38,16 @@
         "tools.test_book_commander_consumers.CommanderConsumerTests.test_strike_again_late_actual_move_failure_rolls_back_all_actors_rng_action_and_quota"
       ]
     },
-    "tools.test_category2_state_codec.ContestStateCodecTests": {
+    "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests": {
       "tests": [
-        "tools.test_category2_state_codec.ContestStateCodecTests.test_contest_callbacks_reentry_and_stale_declaration_rejected",
-        "tools.test_category2_state_codec.ContestStateCodecTests.test_contest_checkpoint_restores_pending_cursor_and_backing_alias",
-        "tools.test_category2_state_codec.ContestStateCodecTests.test_contest_pending_tampered_first_roll_identity_and_unknown_tag_rejected",
-        "tools.test_category2_state_codec.ContestStateCodecTests.test_paired_models_restore_shared_pools_and_resume_pending_actual_run",
-        "tools.test_category2_state_codec.ContestStateCodecTests.test_plain_pre_performance_pause_resumes_super_type_and_intro_once",
-        "tools.test_category2_state_codec.ContestStateCodecTests.test_standalone_ids_raw_alias_and_two_rng_graphs",
-        "tools.test_category2_state_codec.ContestStateCodecTests.test_standard_and_super_public_choice_resume_without_intro_or_cost_replay"
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_actual_berry_receipt_shift_preserves_food_taste_and_lunchbox_receipt_identity",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_food_replacement_precedes_assigned_salty_and_drops_incompatible_aged_lunchbox",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_null_policy_does_not_reject_ordinary_max_lower_equal_or_equal_age",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_null_policy_keeps_aged_compatible_equal_noop_and_actual_block",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_outgoing_salty_dumplings_healing_block_still_checks_legacy_clock_before_rng",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_standalone_assigned_salty_missing_and_invalid_policy_reject_before_rng",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_standalone_explicit_lifetime_alternatives_keep_outcomes_and_json_gm_restore",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_standalone_food_missing_and_invalid_policy_reject_before_rng_and_all_mutation"
       ]
     }
   }

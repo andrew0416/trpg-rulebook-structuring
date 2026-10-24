@@ -1,10 +1,21 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_09",
-  "purpose": "Focused diagnostics for repaired original failures and changed switch/Juggler, source, clock, rank, type and state paths. This does not replace the original4115-ID final obligations or confer185-finding/406-clause acceptance.",
+  "purpose": "Focused diagnostics for repaired failures and changed native paths, including the latest shared Burn Up/neutral-Tera personal type. Original4115 final obligations and185/406 acceptance scope remain intact. The earlier repair65 freeze was never dispatched.",
   "completion_credit": 0,
   "required_unique_count": 36,
   "completed": {
+    "tools.test_category2_state_codec.ContestStateCodecTests": {
+      "tests": [
+        "tools.test_category2_state_codec.ContestStateCodecTests.test_contest_callbacks_reentry_and_stale_declaration_rejected",
+        "tools.test_category2_state_codec.ContestStateCodecTests.test_contest_checkpoint_restores_pending_cursor_and_backing_alias",
+        "tools.test_category2_state_codec.ContestStateCodecTests.test_contest_pending_tampered_first_roll_identity_and_unknown_tag_rejected",
+        "tools.test_category2_state_codec.ContestStateCodecTests.test_paired_models_restore_shared_pools_and_resume_pending_actual_run",
+        "tools.test_category2_state_codec.ContestStateCodecTests.test_plain_pre_performance_pause_resumes_super_type_and_intro_once",
+        "tools.test_category2_state_codec.ContestStateCodecTests.test_standalone_ids_raw_alias_and_two_rng_graphs",
+        "tools.test_category2_state_codec.ContestStateCodecTests.test_standard_and_super_public_choice_resume_without_intro_or_cost_replay"
+      ]
+    },
     "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests": {
       "tests": [
         "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests.test_all_12_move_immunities_block_hit_boundary_and_revoke_cleanly",
@@ -40,17 +51,6 @@
         "tools.test_foundation_fossil_creation.FossilTests.test_plain_fossil_birth_requires_one_species_basic_at_every_initial_level",
         "tools.test_foundation_fossil_creation.FossilTests.test_shared_armor_definition_keeps_species_birth_member_and_native_receipt",
         "tools.test_foundation_fossil_creation.FossilTests.test_transfer_json_restore_and_replay_keep_the_original_restorer"
-      ]
-    },
-    "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests": {
-      "tests": [
-        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_actual_uncertain_outside_clock_rejects_before_rng_even_when_healing_is_blocked",
-        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_berry_then_food_taste_uses_actual_receipts_and_both_explicit_lifetimes_after_restore",
-        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_native_coat_and_helping_hand_keep_single_consumption_on_the_composed_hit",
-        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_nonmatching_type_and_not_super_effective_hit_keep_berry_armed_without_policy",
-        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_real_preserves_and_dumplings_missing_invalid_policy_reject_before_rng_and_receipt",
-        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_true_steel_decision_is_used_once_for_declined_and_accepted_berry_hits",
-        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_true_steel_enables_berry_and_null_policy_refuses_before_rng_without_payment"
       ]
     }
   }

@@ -1,7 +1,8 @@
 """Explicit user permissions, separate from selected rulebook/homebrew sources."""
 KEY = 'personal_type_settings'
 SOURCE = 'personal-setting/typeless-terastal'
-TYPELESS = '타입 없음'  # Tera selector/attack sentinel; defensive absence is [].
+NEUTRAL_SOURCE = 'personal-setting/shared-typeless-type'
+TYPELESS = '타입 없음'  # One personal neutral identity, including an empty native type list.
 OPTIONS = {'ordinary_stellar', 'typeless_tera'}
 
 

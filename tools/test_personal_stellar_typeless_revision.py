@@ -77,19 +77,24 @@ class PersonalStellarTypelessRevisionTests(unittest.TestCase):
         self.assertTrue(e.validate_state()['valid'])
 
     def test_forced_typeless_form_is_active_with_empty_defense_and_no_type_bonus(self):
+        # Historical ID retained; the user now defines an ordinary neutral Tera type.
         e, a, _ = self.world()
         row = self.force_typeless(e, a)
         self.assertEqual(row['source'], PERSONAL.SOURCE)
         self.assertTrue(HOME.tera_active(a))
         self.assertEqual(HOME.tera_type(a), PERSONAL.TYPELESS)
-        self.assertEqual(a.types, [])
+        self.assertEqual(a.types, [PERSONAL.TYPELESS])
         self.assertEqual(HOME.stab_types(a), ['불꽃'])
-        self.assertEqual(HOME.ability_stab_types(a), ['불꽃'])
-        self.assertNotIn(PERSONAL.TYPELESS, TYPES.allowed_types(self.rules))
-        self.assertNotIn(PERSONAL.TYPELESS, TYPES.attack_types(self.rules))
-        self.assertEqual(HOME.damage_bonus(a, {'type': PERSONAL.TYPELESS}), 0)
+        self.assertEqual(HOME.ability_stab_types(a), ['불꽃', PERSONAL.TYPELESS])
+        self.assertIn(PERSONAL.TYPELESS, TYPES.allowed_types(self.rules))
+        self.assertIn(PERSONAL.TYPELESS, TYPES.attack_types(self.rules))
+        self.assertEqual(HOME.damage_bonus(a, {'type': PERSONAL.TYPELESS}), 10)
+        self.assertEqual(HOME.damage_bonus(a, {'type': '노말'}), 0)
         for attack in TYPES.CORE_TYPES:
             self.assertEqual(e.type_multiplier(attack, a)[0], 1)
+            self.assertEqual(TYPES.matchup(self.rules, PERSONAL.TYPELESS, attack), 1)
+        self.assertNotEqual(a.types, [])
+        self.assertNotEqual(a.types, ['노말'])
         before = deepcopy(a.spec)
         self.assertFalse(GRANTS.type_operation(a, 'add', ['스텔라'], 'personal/blocked-type-change'))
         self.assertEqual(a.spec, before)
@@ -99,6 +104,7 @@ class PersonalStellarTypelessRevisionTests(unittest.TestCase):
         self.assertEqual(HOME.tera_type(a), PERSONAL.TYPELESS)
 
     def test_all_three_paid_tera_blasts_are_typeless_neutral_without_matching_ten(self):
+        # Historical ID retained; ordinary matching-type +10 now applies.
         for uid in MOVES:
             with self.subTest(move=uid):
                 e, a, t = self.world()
@@ -108,7 +114,7 @@ class PersonalStellarTypelessRevisionTests(unittest.TestCase):
                     self.rules.move_mech(uid)[0], consume=False), PERSONAL.TYPELESS)
                 db = 8 + (math.floor(e.formula('stab')) if uid == MOVES[0] else 0)
                 expected = DAMAGE.ActualDamageTypeRevisionTests().expected(e, a, t, uid, db,
-                    bonus=0, selected='spa' if uid == MOVES[0] else None)
+                    bonus=10, selected='spa' if uid == MOVES[0] else None)
                 options = {'versatile_stat': 'spa'} if uid == MOVES[0] else {}
                 before = t.hp
                 with patch.object(Engine, 'd20', return_value=12):
@@ -116,7 +122,7 @@ class PersonalStellarTypelessRevisionTests(unittest.TestCase):
                 self.assertGreater(damage, 0)
                 self.assertEqual(damage, expected)
                 self.assertEqual(t.hp, before - damage)
-                self.assertEqual(a.types, [])
+                self.assertEqual(a.types, [PERSONAL.TYPELESS])
                 self.assertEqual(HISTORY.records(t)[-1]['move_type'], PERSONAL.TYPELESS)
                 self.assertTrue(e.validate_state()['valid'])
                 restored = Engine.import_state(Rules(str(ROOT), ruleset=PROFILE),
@@ -137,7 +143,7 @@ class PersonalStellarTypelessRevisionTests(unittest.TestCase):
         e = Engine.import_state(fresh, json.loads(json.dumps(e.export_state(), ensure_ascii=False)))
         a, t = (WORLD.actor_index(e)[uid] for uid in ids)
         self.assertEqual(a.spec[HOME.KEY], receipt)
-        self.assertEqual(a.types, [])
+        self.assertEqual(a.types, [PERSONAL.TYPELESS])
         self.assertEqual(t.types, ['스텔라'])
         self.assertTrue(HOME.tera_active(a))
         self.assertFalse(HOME.tera_active(t))
@@ -153,7 +159,7 @@ class PersonalStellarTypelessRevisionTests(unittest.TestCase):
         assert_rejected_unchanged(e, lambda: HOME.observe_type(e, a, PERSONAL.TYPELESS, reason='default legality'),
             reason_pattern='personal typeless Terastal permission')
         e, a, _ = self.world()
-        for name in ('??', '???', PERSONAL.TYPELESS):
+        for name in ('??', '???'):
             assert_rejected_unchanged(e,
                 lambda name=name: e.gm.set_types(a, [name], reason='not a defensive identity'),
                 reason_pattern='unknown or unselected type')
@@ -169,6 +175,43 @@ class PersonalStellarTypelessRevisionTests(unittest.TestCase):
                     {'type_extensions': {name: {}}}):
                 with self.assertRaisesRegex(ValueError, 'reserved identity'):
                     TYPES.allowed_types(r)
+
+    def test_burn_up_and_neutral_tera_share_one_type_with_only_tera_bonus_added(self):
+        e, a, t = self.world()
+        e.gm.set_move(a, 'move/불사르기', reason='actual learned Burn Up')
+        with patch.object(Engine, 'd20', return_value=12):
+            e.use_move(a, t, 'move/불사르기', set_damage=True, situational=100)
+        self.assertEqual(a._types, [])
+        self.assertEqual(a.types, [PERSONAL.TYPELESS])
+        self.assertFalse(HOME.tera_active(a))
+        self.assertEqual(HOME.damage_bonus(a, {'type': PERSONAL.TYPELESS}), 0)
+        sources=a.spec[GRANTS.KEY]['sources'].values()
+        self.assertTrue(any(row.get('personal_type_setting',{}).get('source')==PERSONAL.NEUTRAL_SOURCE for row in sources))
+        e.gm.set_types(t, [], reason='another actual typeless Pokemon')
+        self.assertEqual(a.types, t.types)
+        before_types=list(a.types)
+        self.force_typeless(e, a)
+        self.assertEqual(a.types, before_types)
+        self.assertEqual(HOME.stab_types(a), [PERSONAL.TYPELESS])
+        self.assertEqual(HOME.damage_bonus(a, {'type': PERSONAL.TYPELESS}), 10)
+        e.end_of_turn(a);e.end_round();e.start_round(e.everyone);e.start_of_turn(a,initiative_count=20)
+        db=8+math.floor(e.formula('stab'))
+        expected=DAMAGE.ActualDamageTypeRevisionTests().expected(e,a,t,MOVES[1],db,bonus=10)
+        before=t.hp
+        with patch.object(Engine,'d20',return_value=12):
+            dealt=e.use_move(a,t,MOVES[1],set_damage=True,situational=100)
+        self.assertEqual((dealt,before-t.hp),(expected,expected))
+        loaded=Engine.import_state(Rules(str(ROOT),ruleset=PROFILE),json.loads(json.dumps(e.export_state(),ensure_ascii=False)))
+        self.assertEqual(WORLD.actor_index(loaded)[a.entity_id].types,[PERSONAL.TYPELESS])
+        self.assertTrue(loaded.validate_state()['valid'])
+
+    def test_unselected_personal_policy_keeps_printed_burn_up_fallback(self):
+        e,a,t=self.world(self.default)
+        e.gm.set_move(a,'move/불사르기',reason='actual printed-rule Burn Up')
+        with patch.object(Engine,'d20',return_value=12):
+            e.use_move(a,t,'move/불사르기',set_damage=True,situational=100)
+        self.assertEqual(a.types,['노말'])
+        self.assertTrue(e.validate_state()['valid'])
 
     def test_permission_schema_is_boolean_and_selected_policy_cannot_change_silently(self):
         for value in (None, [], {'ordinary_stellar': 1}, {'typeless_tera': 'yes'}, {'typo': True}):
