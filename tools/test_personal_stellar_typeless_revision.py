@@ -187,6 +187,12 @@ class PersonalStellarTypelessRevisionTests(unittest.TestCase):
         self.assertEqual(HOME.damage_bonus(a, {'type': PERSONAL.TYPELESS}), 0)
         sources=a.spec[GRANTS.KEY]['sources'].values()
         self.assertTrue(any(row.get('personal_type_setting',{}).get('source')==PERSONAL.NEUTRAL_SOURCE for row in sources))
+        restored=Engine.import_state(Rules(str(ROOT),ruleset=PROFILE),json.loads(json.dumps(e.export_state(),ensure_ascii=False)))
+        restored_actor=WORLD.actor_index(restored)[a.entity_id]
+        self.assertEqual(restored_actor.types,[PERSONAL.TYPELESS])
+        restored.end_encounter()
+        self.assertEqual(restored_actor.types,['불꽃'])
+        self.assertTrue(restored.validate_state()['valid'])
         e.gm.set_types(t, [], reason='another actual typeless Pokemon')
         self.assertEqual(a.types, t.types)
         before_types=list(a.types)

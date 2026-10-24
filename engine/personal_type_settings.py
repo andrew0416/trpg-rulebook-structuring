@@ -18,3 +18,8 @@ def enabled(rules, permission):
     if permission not in OPTIONS:
         raise ValueError('unknown personal type permission')
     return validate(rules.ruleset.profile).get(permission, False)
+
+
+def neutral_burn_up(rules, source, mode, values):
+    return (source == 'move/불사르기' and mode == 'remove' and values == ['불꽃']
+            and enabled(rules, 'typeless_tera'))

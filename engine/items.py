@@ -163,7 +163,7 @@ def register_item(engine, c, item_name=None, *, source_instance_id=None, as_held
     import static_equipment_contracts as STATIC_EQUIPMENT
     static_plan=STATIC_EQUIPMENT.prepare_register(engine,c,canonical_id,source_instance_id)
     import equipment_variant_contracts as EQUIPMENT_VARIANTS
-    variant_plan=EQUIPMENT_VARIANTS.prepare_register(engine,c,canonical_id,source_instance_id)
+    variant_plan=EQUIPMENT_VARIANTS.prepare_register(engine,c,canonical_id,source_instance_id,projection=projection)
     import optional_physical_equipment as OPTIONAL_EQUIPMENT
     optional_plan=OPTIONAL_EQUIPMENT.prepare_register(engine,c,canonical_id,source_instance_id)
     import fashion_items as FASHION

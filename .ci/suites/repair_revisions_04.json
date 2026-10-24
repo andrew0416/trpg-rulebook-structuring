@@ -1,53 +1,52 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_04",
-  "purpose": "Focused diagnostics for repaired failures and changed native paths, including the latest shared Burn Up/neutral-Tera personal type. Original4115 final obligations and185/406 acceptance scope remain intact. The earlier repair65 freeze was never dispatched.",
+  "purpose": "Exact48 failed repair67 methods, repaired original source-family/gift/drink/network consumers, one new actual Dress destruction/consumption scenario, and affected native regression modules. Full original4115 plus added obligations and185/406 scope retained. No acceptance credit.",
   "completion_credit": 0,
-  "required_unique_count": 37,
+  "required_unique_count": 32,
   "completed": {
-    "tools.test_book_commander_consumers.CommanderConsumerTests": {
+    "tools.test_book_commander_native_owners.CommanderNativeOwnerTests": {
       "tests": [
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_brace_actual_binding_standard_activation_round_quota_dr_and_native_release",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_brace_competing_existing_stratagem_and_temporary_binding_owner_are_real",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_brace_core_round_and_local_turn_quota_follow_separate_actual_turns",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_brace_real_temporary_moment_funding_ends_only_actual_native_binding_on_expiry",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_brace_self_status_move_optional_decline_accept_and_other_target_not_trigger",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_dazzling_actual_missed_attack_still_debuffs_until_foe_next_turn_end",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_dazzling_actual_shift_crosses_enemy_occupied_square_and_does_not_end_there",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_dazzling_core_per_foe_round_and_csv_one_foe_round_are_separate_sources",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_dazzling_nonstat_evasion_increases_existing_movement_not_evasion",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_explicit_local_source_differences_and_ambiguous_translation_boundary",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_long_shot_actual_extended_range_move_reaches_and_second_scene_use_is_retained",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_long_shot_doubles_origin_not_area_adds_distance_and_actual_critical_dice",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_native_order_clock_source_acquisition_and_binding_json_tampering_rejected",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_new_order_instance_gm_snapshot_restore_preserves_binding_and_rejects_changed_saved_source",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_perfect_aim_actual_natural_roll_still_supplies_critical_and_secondary_effect",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_perfect_aim_actual_protect_shield_is_bypassed_without_suppressing_other_abilities",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_perfect_aim_native_intercept_attempt_forbidden_without_spending_reactor",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_perfect_aim_native_wonder_guard_bypass_keeps_ability_and_type_resistance_one_step",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_perfect_aim_next_actual_damaging_attack_auto_hits_natural_one_and_consumes_once",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_perfect_aim_status_move_preserves_then_issuer_next_turn_end_expires",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_perfect_aim_target_blessing_forbidden_attacker_blessing_still_actual_available",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_scheme_strike_actual_pending_batch_resumes_each_native_child_and_cheers_once",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_sentinel_brace_optional_trigger_uses_one_round_quota_and_native_attempt_evidence",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_sentinel_failed_actual_intercept_still_pays_shift_and_retains_attempt_reduction",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_sentinel_native_intercept_shift_payment_attempt_dr_and_issuer_clock",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_strike_actual_pending_defense_restore_completes_same_order_without_repayment",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_strike_again_frequency_unknown_status_nonatwill_and_forged_grant_rejections",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_strike_again_immediate_known_atwill_attack_uses_scoped_native_grant",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_strike_again_late_actual_move_failure_rolls_back_all_actors_rng_action_and_quota"
+        "tools.test_book_commander_native_owners.CommanderNativeOwnerTests.test_critical_moment_actual_trained_ally_keeps_one_priority_and_scene_use",
+        "tools.test_book_commander_native_owners.CommanderNativeOwnerTests.test_moment_three_actual_trainer_recipients_share_one_native_priority_producer_and_restore",
+        "tools.test_book_commander_native_owners.CommanderNativeOwnerTests.test_profiling_actual_allied_trainer_consumes_original_ap_and_archived_target_only"
       ]
     },
-    "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests": {
+    "tools.test_book_juggler_full.JugglerTests": {
       "tests": [
-        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_actual_berry_receipt_shift_preserves_food_taste_and_lunchbox_receipt_identity",
-        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_food_replacement_precedes_assigned_salty_and_drops_incompatible_aged_lunchbox",
-        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_null_policy_does_not_reject_ordinary_max_lower_equal_or_equal_age",
-        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_null_policy_keeps_aged_compatible_equal_noop_and_actual_block",
-        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_outgoing_salty_dumplings_healing_block_still_checks_legacy_clock_before_rng",
-        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_standalone_assigned_salty_missing_and_invalid_policy_reject_before_rng",
-        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_standalone_explicit_lifetime_alternatives_keep_outcomes_and_json_gm_restore",
-        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_standalone_food_missing_and_invalid_policy_reject_before_rng_and_all_mutation"
+        "tools.test_book_juggler_full.JugglerTests.test_actual_party_round_trip_tag_in_updates_battle_contest_slot_without_recall_voltage_or_duplicate_action",
+        "tools.test_book_juggler_full.JugglerTests.test_integrated_commander_order_pending_and_started_turn_clocks_do_not_restart",
+        "tools.test_book_juggler_full.JugglerTests.test_integrated_declared_rank_seven_keeps_actual_juggler_qualification",
+        "tools.test_book_juggler_full.JugglerTests.test_integrated_direct_party_tag_supports_deferred_same_holder_without_self_transfer",
+        "tools.test_book_juggler_full.JugglerTests.test_integrated_english_baton_scope_does_not_pass_non_stratagem_commander_order",
+        "tools.test_book_juggler_full.JugglerTests.test_integrated_prepaid_tag_rejects_unissued_party_context_and_double_selection",
+        "tools.test_book_juggler_full.JugglerTests.test_integrated_tag_payment_snapshot_alias_and_replay_have_one_native_owner",
+        "tools.test_book_juggler_full.JugglerTests.test_integrated_tag_preserves_actual_commander_brace_binding_and_release"
+      ]
+    },
+    "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests": {
+      "tests": [
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_all_class_branches_and_fire_stat_choices_commit_exact_selection",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_all_requests_replay_without_state_change_and_changed_intent_is_atomic",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_all_sources_withdraw_keep_archived_qualification_and_old_replay_does_not_reacquire",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_backpacker_talents_use_two_per_actual_journey_rank_and_preserve_skill_gate",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_changed_feature_for_same_request_rejects_and_no_retroactive_owned_certification",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_each_missing_owned_prerequisite_rejects_without_using_gm_reason_as_waiver",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_each_printed_skill_rejects_below_boundary_and_accepts_exact_boundary",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_elemental_classes_require_exact_owned_type_and_each_printed_skill",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_exact_fifteen_sources_have_native_success_and_existing_receipt_reader",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_exact_source_exclusion_and_invalid_choices_fail_before_any_commit",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_existing_synthetic_class_aliases_in_classes_or_feats_keep_one_real_slot",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_explicit_seven_plus_declared_skills_are_not_capped_at_six",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_historical_skill_ownership_and_route_loss_survive_json_and_gm_restore",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_new_emergency_care_reaches_native_kit_recovery_and_daily_target_consumer",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_new_talents_reach_native_head_body_critical_and_nonstack_consumers",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_new_top_percentage_reaches_native_growth_four_use_and_stat_consumer",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_nontrainer_native_admission_rejects_before_any_write",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_psychic_assault_accepts_either_focus_or_intuition_without_requiring_both",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_scoped_prerequisite_waiver_has_exact_source_provider_stage_and_check",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_synthetic_classes_use_actual_four_class_slots_and_atomic_fifth_rejection",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_transaction_failure_after_source_write_keeps_world_rng_and_ownership_unchanged"
       ]
     }
   }

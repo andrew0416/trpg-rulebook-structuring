@@ -401,6 +401,9 @@ def transfer(engine,outgoing,incoming,*,source,recall_id,scope='orders',identifi
                 incoming._item_reg[key]=outgoing._item_reg.pop(key)
         TIME.records(outgoing).remove(row)
         incoming.custom_conditions.setdefault(TIME.KEY,[]).append(row)
+        if 'fashionista_dress' in row:
+            for key in row['fashionista_dress']['registration_keys']:
+                __import__('csv_item_physical_contracts').projection_transferred(engine,incoming,incoming._item_reg[key])
         moved.append(instance_id(row,incoming))
     import commander_orders as COMMANDER
     general=_general(engine,outgoing,scope,identifiers)

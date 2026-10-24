@@ -21,6 +21,7 @@ import state_codec as CODEC
 import state_grants as G
 import trainer_feature_acquisition as T
 import static_feature_state_grants as STATIC
+from ruleset import RuleFilter
 
 
 class NativeAcquisitionAdapterTests(unittest.TestCase):
@@ -98,6 +99,8 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
             owner.spec[d['field']].remove(d['owned_value'])
             if d.get('choice_field'):
                 owner.spec[d['choice_field']].pop(uid)
+            STATIC.register_all(staged, owner)
+            __import__('class_passive_combat').register_all(staged, owner)
         G.transition(engine, actor, apply)
 
     def test_exact_fifteen_sources_have_native_success_and_existing_receipt_reader(self):
@@ -143,6 +146,7 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
                             a.spec[field].remove(parent)
                     if parent.endswith('R643:main'):
                         a.spec['static_feature_choices'].pop(parent)
+                    STATIC.register_all(e, a)
                     self.reject(e, lambda: self.acquire(e, a, uid, selection), 'prerequisite|Hero Journey')
 
     def test_elemental_classes_require_exact_owned_type_and_each_printed_skill(self):
@@ -333,9 +337,11 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
         e, a, selection = self.fixture(uid, rules=Rules(ROOT, ruleset='core'))
         self.reject(e, lambda: self.acquire(e, a, uid, selection), 'excluded|Excluded')
         for uid in N.DEFINITIONS:
-            rules = Rules(ROOT, ruleset='all')
+            profile = deepcopy(self.rules.ruleset.profile)
+            profile['exclude_units'] = list(set(profile.get('exclude_units', [])) | {uid})
+            with patch.object(RuleFilter, 'load', return_value=RuleFilter(profile, name='native-test-exclusion')):
+                rules = Rules(ROOT, ruleset='all')
             e, a, selection = self.fixture(uid, rules=rules)
-            rules.ruleset.exclude_units.add(uid)
             self.reject(e, lambda: self.acquire(e, a, uid, selection), 'excluded|Excluded')
         for uid in ('edge/여행자', 'C2CSV/input/db/feats.csv:R587:main', 'feat/불의-영혼'):
             e, a, selection = self.fixture(uid)

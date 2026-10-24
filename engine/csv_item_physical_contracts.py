@@ -71,7 +71,7 @@ def _state(engine, actor, row, obj, *, create=False):
     return state
 
 
-def prepare_register(engine, actor, item_id, source_instance_id=None):
+def prepare_register(engine, actor, item_id, source_instance_id=None, *, projection=None):
     if item_id not in ITEM_KINDS:
         return None
     row = definition(engine.r, item_id)
@@ -81,6 +81,10 @@ def prepare_register(engine, actor, item_id, source_instance_id=None):
         raise ValueError("this remaining CSV held item is Pokemon-only")
     if row["kind"] in TRAINER_ONLY and actor.kind != "trainer":
         raise ValueError("this remaining CSV equipment is Trainer-only")
+    if projection is not None:
+        import fashionista as FASHION
+        FASHION.dress_item_origin(engine,actor,item_id,projection,preparing=True)
+        return dict(row, **{PLAN: True, 'feature_projection':deepcopy(projection)})
     if source_instance_id is None:
         raise ValueError("remaining CSV equipment requires an actual physical instance")
     _object(engine, actor, source_instance_id, item_id)
@@ -104,8 +108,13 @@ def weapon_profile(rules, item_id):
 def install(engine, actor, source_id, plan):
     if not plan or plan.get(PLAN) is not True:
         return [], 0
-    instance_id = source_id.split("equipment:", 1)[1] if source_id.startswith("equipment:") else None
-    obj = _object(engine, actor, instance_id, plan["item_id"])
+    projection=plan.get('feature_projection')
+    if projection is not None:
+        obj=__import__('fashionista').dress_item_origin(engine,actor,plan['item_id'],projection,preparing=True)
+        instance_id=obj['id']
+    else:
+        instance_id = source_id.split("equipment:", 1)[1] if source_id.startswith("equipment:") else None
+        obj = _object(engine, actor, instance_id, plan["item_id"])
     state = _state(engine, actor, plan, obj, create=True)
     effect_sources = []
     if plan["kind"] == "pokeball_cannon":
@@ -131,14 +140,17 @@ def install(engine, actor, source_id, plan):
         import state_grants as GRANTS
         GRANTS.grant(actor, "abilities", "부유", source_id, "item", owner_id=actor.entity_id,
                      lifetime="equipped", rule_id=plan["item_id"])
-    state["history"].append({"event": "equipped", "at": engine.elapsed_seconds, "actor_id": actor.entity_id})
+    state["history"].append({"event": "projected" if projection is not None else "equipped", "at": engine.elapsed_seconds, "actor_id": actor.entity_id})
     return effect_sources, 1
 
 
 def bind_registration(engine, actor, registration, plan):
     if not plan or plan.get(PLAN) is not True:
         return
-    obj = _object(engine, actor, registration.get("instance_id"), plan["item_id"])
+    if plan.get('feature_projection') is not None:
+        obj=__import__('fashionista').dress_item_origin(engine,actor,plan['item_id'],plan['feature_projection'],preparing=True)
+    else:
+        obj = _object(engine, actor, registration.get("instance_id"), plan["item_id"])
     state = _state(engine, actor, plan, obj)
     registration["csv_item_projection"] = _projection(registration, state)
     if plan["kind"] == "pokeball_cannon":
@@ -157,7 +169,7 @@ def uninstall(engine, actor, registration):
     if row["kind"] == "pokeball_cannon":
         import turn as TURN
         TURN.unequip_weapon(engine, actor, registration["cannon_weapon_key"])
-    obj = _objects(engine).get(registration.get("instance_id"))
+    obj = _objects(engine).get(_instance_id(registration))
     if isinstance(obj, dict) and OBJECT_STATE in obj:
         state = _state(engine, actor, row, obj)
         state["history"].append({"event": "unequipped", "at": engine.elapsed_seconds, "actor_id": actor.entity_id})
@@ -166,12 +178,33 @@ def uninstall(engine, actor, registration):
 
 
 def _projection(registration, state):
-    result = {"schema_version": 1, "instance_id": registration.get("instance_id"),
+    result = {"schema_version": 1, "instance_id": _instance_id(registration),
               "clause_id": state["clause_id"], "item_id": state["item_id"], "kind": state["kind"]}
     for field in ("loaded_ball_instance_id", "chosen_type", "study_rank", "scene_uses"):
         if field in state:
             result[field] = deepcopy(state[field])
     return result
+
+
+def _instance_id(registration):
+    return registration.get('projection',{}).get('wardrobe_instance_id',registration.get('instance_id'))
+
+
+def _registration_object(engine,actor,registration,row):
+    if registration.get('projection') is not None:
+        return __import__('fashionista').dress_item_origin(engine,actor,row['item_id'],registration['projection'])
+    obj=_object(engine,actor,registration.get('instance_id'),row['item_id'])
+    if obj.get('equipped_by')!=actor.entity_id:
+        raise ValueError('remaining CSV equipment registration and physical holder disagree')
+    return obj
+
+
+def projection_transferred(engine,actor,registration):
+    if registration.get('item_id')=='item/돌격조끼' and registration.get('projection') is not None:
+        engine.apply_status(actor,'난동',source=registration['item_id'])
+        actor.spec.setdefault(ACTOR_STATE,{})['assault_vest_rampage']={
+            'instance_id':_instance_id(registration),'started_at':engine.elapsed_seconds,
+            'encounter':_encounter_key(engine,actor),'active':True}
 
 
 def _active(engine, actor, kinds):
@@ -182,9 +215,7 @@ def _active(engine, actor, kinds):
         row = definition(engine.r, registration.get("item_id"))
         if row is None or row["kind"] not in kinds or registration.get("state_source") not in sources:
             continue
-        obj = _object(engine, actor, registration.get("instance_id"), row["item_id"])
-        if obj.get("equipped_by") != actor.entity_id:
-            raise ValueError("remaining CSV equipment registration and physical holder disagree")
+        obj = _registration_object(engine, actor, registration, row)
         state = _state(engine, actor, row, obj)
         if registration.get("csv_item_projection") != _projection(registration, state):
             raise ValueError("remaining CSV equipment projection differs from physical state")
@@ -415,7 +446,7 @@ def loaded_dice_hits(engine, actor, *, fixed=None, optional=False):
     def hits(face):
         return 1 if face == 1 else 2 if face <= 3 else 3 if face <= 6 else 4 if face == 7 else 5
     return {"rolls": rolls, "hits": max(map(hits, rolls)),
-            "item_id": "item/속임수주사위", "instance_id": active[0][2]["instance_id"]}
+            "item_id": "item/속임수주사위", "instance_id": _instance_id(active[0][2])}
 
 
 def _actual_hit(move, receipt):
@@ -456,7 +487,7 @@ def after_stage_change(engine, actor, stat, before, after):
 
 
 def _scene_available(engine, entry):
-    actor = _actor_for(engine, entry[3]["equipped_by"])
+    actor = _entry_actor(engine, entry)
     return not any(row["scene"] == _scene_key(engine, actor)
                    for row in entry[4].get("scene_uses", []))
 
@@ -468,14 +499,24 @@ def _actor_for(engine, uid):
     raise ValueError("equipment holder actor is missing")
 
 
+def _entry_actor(engine,entry):
+    if entry[2].get('projection') is None:return _actor_for(engine,entry[3]['equipped_by'])
+    holders=[actor for actor in engine.time_actors() if getattr(actor,'_item_reg',{}).get(entry[0]) is entry[2]]
+    if len(holders)!=1:raise ValueError('projected equipment requires its unique actual beneficiary')
+    return holders[0]
+
+
 def _spend_scene(engine, entry, event, target_id=None):
-    actor = _actor_for(engine, entry[3]["equipped_by"])
+    actor = _entry_actor(engine, entry)
     key = _scene_key(engine, actor)
     if any(row["scene"] == key for row in entry[4].get("scene_uses", [])):
         raise ValueError("remaining CSV held-item scene use is spent")
     entry[4].setdefault("scene_uses", []).append({"scene": key, "event": event, "at": engine.elapsed_seconds,
                                                   "target_id": target_id})
-    _sync(entry)
+    for holder in engine.time_actors():
+        for registration in getattr(holder,'_item_reg',{}).values():
+            if _instance_id(registration)==entry[3]['id']:
+                registration['csv_item_projection']=_projection(registration,entry[4])
 
 
 def _reaction_window(engine):
@@ -501,7 +542,7 @@ def _issue_pending(engine, actor, kind, **event):
     immediate = kind in ("eject_button", "eject_pack")
     if kind in pending and (not immediate or pending[kind].get("window") == _reaction_window(engine)):
         return deepcopy(pending[kind])
-    row = {"kind": kind, "instance_id": matches[0][2]["instance_id"], "at": engine.elapsed_seconds,
+    row = {"kind": kind, "instance_id": _instance_id(matches[0][2]), "at": engine.elapsed_seconds,
            "scene": _scene_key(engine, actor), "event": _json_event(event), "automatic": bool(event.get("automatic"))}
     if immediate:
         row["window"] = _reaction_window(engine)
@@ -541,7 +582,7 @@ def _resolve_pending(engine, actor, kind, *, accept=True, send=None):
     if type(accept) is not bool:
         raise ValueError("optional held-item Free action must be accepted or declined")
     matches = _active(engine, actor, kind)
-    if kind != "red_card" and (len(matches) != 1 or matches[0][2].get("instance_id") != row.get("instance_id")):
+    if kind != "red_card" and (len(matches) != 1 or _instance_id(matches[0][2]) != row.get("instance_id")):
         raise ValueError("reaction's actual held item changed")
     if accept and kind in ("eject_button", "eject_pack"):
         _preflight_switch(engine, actor, send)
@@ -618,6 +659,23 @@ def damage_roll_bonus(engine, actor, move):
 def _finish_instance(engine, actor, entry, outcome, source):
     key, _, registration, obj, state = entry
     state["history"].append({"event": outcome, "at": engine.elapsed_seconds, "source": source})
+    projected=registration.get('projection')
+    projected_views=any(reg.get('projection',{}).get('wardrobe_instance_id')==obj['id']
+        for holder in engine.time_actors() for reg in getattr(holder,'_item_reg',{}).values())
+    if projected is not None or projected_views:
+        import fashionista as FASHION,world_entities as WORLD,consumption_execution as EXECUTION
+        if projected is not None:FASHION.dress_item_origin(engine,actor,obj['item_rule_id'],projected)
+        FASHION.finish_dress_item(engine,obj)
+        evidence=({'source':obj['item_rule_id'],'by_actor_id':actor.entity_id,'at':engine.elapsed_seconds,'trigger':source}
+                  if outcome=='consumed' else {'source':source,'former_holder_id':actor.entity_id})
+        WORLD.finish_physical_use(engine,obj,outcome,evidence)
+        if outcome=='consumed':
+            paid=EXECUTION.issue(engine,actor,{'kind':'wardrobe_instance' if projected is not None else 'held_instance',
+                'item_id':obj['item_rule_id'],'instance_id':obj['id'],'count':1,
+                'source':projected['rule_id'] if projected is not None else obj['item_rule_id']})
+            EXECUTION.finish(actor,paid,target_id=actor.entity_id,outcome='applied',
+                results=[{'kind':'physical_consumption','id':obj['id']}])
+        return
     if outcome == "consumed":
         import item_stock as STOCK
         stock = STOCK.prepare(engine, actor, obj["item_rule_id"], held_selection=obj["id"])
@@ -747,9 +805,7 @@ def validate_world(engine, index):
             row = definition(engine.r, registration.get("item_id"))
             if row is None:
                 continue
-            obj = _objects(engine).get(registration.get("instance_id"))
-            if not isinstance(obj, dict) or obj.get("equipped_by") != actor.entity_id:
-                raise ValueError("remaining CSV registration lacks its physical holder")
+            obj = _registration_object(engine, actor, registration, row)
             state = _state(engine, actor, row, obj)
             if registration.get("csv_item_projection") != _projection(registration, state):
                 raise ValueError("restored remaining CSV projection differs from physical state")

@@ -64,6 +64,7 @@ SIGNER='supp-blessings/계약자'
 # supp-blessings:821 prints Intimidate twice; retain both red and blue.
 SHARDS=ADVANCED.SHARDS
 INSIGHT='gift/위대한-존재의-통찰력'
+SOURCES[INSIGHT]=INSIGHT
 # Exact CSV granting domains; these do not impose a continuing patron relation.
 GRANTING_PATRONS={
  'gift/마이너-기프트-재앙-탐지':(21,('세레비',)),
@@ -269,7 +270,7 @@ def confirmed_insight_role(actor):
 
 def confirm(e,actor,gift,*,reason,configuration=None):
  """Record GM permission for a declared already-acquired Gift, not new acquisition."""
- if gift not in SOURCES:raise ValueError('supported exact Minor Gift required')
+ if gift not in SOURCES:raise ValueError('supported exact named Gift required')
  uid=_actual(e,actor);_text(reason,'GM permission reason');source=_selected(e,gift)
  if not acquired(actor,gift):raise ValueError('actual acquired Gift required before confirmation')
  records=actor.spec.get('_blessing_gift_approvals',{})

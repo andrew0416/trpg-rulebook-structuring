@@ -95,7 +95,7 @@ def prepare(engine,actor,target,effect,source):
   # Shared storage does not certify an area Move's whole-activation timing.
   if source in engine.r.moves and not engine.r.moves_reviewed.get(source,{}).get('type_lifetime_ready'):
    raise TimingUnsupported('native type-change source needs reviewed activation timing: '+source)
-  record['type_operation']=type_operation(engine.r,effect)
+  record['type_operation']=type_operation(engine.r,effect,source=source)
   import type_state as TYPES
   TYPES.validate_actor(target)
  elif effect['type'] in ('initiative','initiative_multiplier'):
@@ -145,6 +145,10 @@ def install(engine,actor,target,effect,source,receipt,occurrence):
                  lifetime=record['timing_text'],timed_type_contract={
                   'operation':dict(operation),'boundary':type_boundary(record),
                   'occurrence':occurrence})
+  import personal_type_settings as PERSONAL
+  if PERSONAL.neutral_burn_up(engine.r,source,operation['mode'],operation['values']):
+   GRANTS.state(target)['sources'][grant]['personal_type_setting']={
+    'source':PERSONAL.NEUTRAL_SOURCE,'identity':PERSONAL.TYPELESS,'fallback':None}
   GRANTS.type_operation(target,operation['mode'],operation['values'],grant,fallback=operation['fallback'])
   record['grant_source']=grant
  if POLICY.KEY in record:
@@ -198,7 +202,7 @@ def end_encounter(engine,actors):
  NATIVE.end_encounter(engine,actors)
 
 
-def type_operation(rules,effect):
+def type_operation(rules,effect,*,source=None):
  """Lossless data contract shared by timed addition, removal and replacement."""
  import type_state as TYPES
  keys=[key for key in ('add_type','lose_type','set_type') if key in effect]
@@ -213,6 +217,8 @@ def type_operation(rules,effect):
  if fallback is not None:
   if mode!='remove':raise TimingUnsupported('fallback belongs only to type removal')
   TYPES.validate_types(rules,[fallback],label='timed type fallback')
+ import personal_type_settings as PERSONAL
+ if PERSONAL.neutral_burn_up(rules,source,mode,[value]):fallback=None
  return {'mode':mode,'values':[value],'fallback':fallback}
 
 
@@ -258,7 +264,7 @@ def validate_type_world(engine,index):
    CONTRACTS.validate_receipt(engine,receipt,record['source'],record['effect_occurrence'],row['actor'],row['target'],row['effect'])
    if source.get('owner_id')!=row['actor'].entity_id or not any(x is actor for x in CONTRACTS.recipients(row['actor'],row['target'],row['effect'])):
     raise ValueError('timed type recipient or producer differs from its receipt')
-   if row['effect'].get('type')!='type_change' or type_operation(engine.r,row['effect'])!=record['type_operation']:
+   if row['effect'].get('type')!='type_change' or type_operation(engine.r,row['effect'],source=row['source_id'])!=record['type_operation']:
     raise ValueError('timed type receipt carries a different operation')
   if seen!=expected:raise ValueError('timed type source has no live expiration record')
  import catalog_move_states as CATALOG

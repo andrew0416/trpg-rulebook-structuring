@@ -106,20 +106,24 @@ class NativeSwitchSourceAdapterTests(unittest.TestCase):
         self.assertIsNone(CH.profiling_record(q));self.assertEqual(CH.accuracy_bonus(e,q,f.b,e.r.move('move/몸통박치기')),0)
         self.assertTrue(e.validate_state()['valid'])
 
+    def dress_fixture(self,item):
+        f=self.helper('test_book_fashionista_wardrobe','FashionistaWardrobeTests')
+        create=f.add
+        def initial_actor(name,kind,pos,**extra):
+            if kind=='trainer':
+                extra.update(classes=[SWITCH.CLASS],feats=['feat/퀵-스위치',SWITCH.ROUND_TRIP,SWITCH.TAG_IN],
+                    skills=dict(f.common['skills'],곡예=5))
+            return create(name,kind,pos,**extra)
+        f.add=initial_actor;f.setUp();f.whole();f.chic()
+        q=self.reserve(f.e,f.t,f.p)
+        f.item('actual-dress-channel',item,f.p);f.store('actual-dress-channel','wardrobe:1')
+        return f,q
+
     def test_dress_actual_stat_capability_and_ability_channels_survive_paid_tag_handoff(self):
         import fashionista as DRESS
         for item in ('item/돌격조끼','item/방진고글','item/풍선'):
             with self.subTest(item=item):
-                f=self.helper('test_book_fashionista_wardrobe','FashionistaWardrobeTests')
-                create=f.add
-                def initial_actor(name,kind,pos,**extra):
-                    if kind=='trainer':
-                        extra.update(classes=[SWITCH.CLASS],feats=['feat/퀵-스위치',SWITCH.ROUND_TRIP,SWITCH.TAG_IN],
-                            skills=dict(f.common['skills'],곡예=5))
-                    return create(name,kind,pos,**extra)
-                f.add=initial_actor;f.setUp();f.whole();f.chic()
-                e,t,p=f.e,f.t,f.p;q=self.reserve(e,t,p)
-                f.item('actual-dress-channel',item,p);f.store('actual-dress-channel','wardrobe:1')
+                f,q=self.dress_fixture(item);e,t,p=f.e,f.t,f.p
                 baseline=q.stats['spd'];f.combat(t,count=20);DRESS.dress_to_impress(e,t,p)
                 record=DRESS.dress_record(p);original=deepcopy(record['fashionista_dress'])
                 paid=t.ap_account.available()
@@ -129,7 +133,9 @@ class NativeSwitchSourceAdapterTests(unittest.TestCase):
                 self.assertEqual(DRESS.dress_record(q)['fashionista_dress'],original)
                 self.assertIsNone(DRESS.dress_record(p));self.assertIsNone(DRESS.chic(q))
                 self.assertEqual(DRESS.wardrobe_items(e,p),[item])
-                if item=='item/돌격조끼':self.assertEqual(q.stats['spd'],baseline+5)
+                if item=='item/돌격조끼':
+                    self.assertEqual(q.stats['spd'],baseline+5)
+                    self.assertIn('난동',p.conditions);self.assertIn('난동',q.conditions)
                 elif item=='item/풍선':self.assertIn('부유',q.abilities);self.assertNotIn('부유',p.abilities)
                 else:
                     e.gm.set_move(f.q,'move/수면가루',reason='actual powder immunity consumer')
@@ -138,10 +144,39 @@ class NativeSwitchSourceAdapterTests(unittest.TestCase):
                     self.assertNotIn('잠듦',q.conditions)
                 self.assertTrue(e.validate_state()['valid'])
 
+    def test_dress_physical_item_ends_once_after_real_hit_on_transferred_holder(self):
+        import fashionista as DRESS,consumption_execution as CONSUMPTION
+        for item,terminal in (('item/풍선','destroyed'),('item/레드카드','consumed')):
+            with self.subTest(item=item):
+                f,q=self.dress_fixture(item);e,t,p=f.e,f.t,f.p
+                f.combat(t,count=20);DRESS.dress_to_impress(e,t,p)
+                SWITCH.select_tag_in(e,t,p,reason='actual paid transfer of the stored item effects')
+                e.gm.recall(p,reason='actual recall');e.gm.send_out(q,reason='actual next beneficiary')
+                e.gm.set_position(f.q,(q.pos[0]+1,q.pos[1]),reason='actual adjacent attacking body')
+                e.gm.set_move(f.q,'move/몸통박치기',reason='actual learned attack')
+                e.end_of_turn(t);e.start_of_turn(f.q,initiative_count=19)
+                with patch.object(Engine,'d20',return_value=19):
+                    e.use_move_on(f.q,q,'move/몸통박치기',e.everyone,set_damage=True)
+                obj=e._physical_objects['actual-dress-channel']
+                self.assertIn(terminal,obj)
+                self.assertEqual(DRESS.wardrobe_items(e,p),[])
+                self.assertEqual(DRESS.dress_record(q)['fashionista_dress']['registration_keys'],[])
+                self.assertFalse(any(r.get('item_id')==item for r in q._item_reg.values()))
+                if terminal=='consumed':
+                    payments=[r for r in CONSUMPTION.validate(q).values() if r['item_stock'].get('instance_id')==obj['id']]
+                    self.assertEqual(len(payments),1);self.assertEqual(payments[0]['outcome'],'applied')
+                else:self.assertNotIn('부유',q.abilities)
+                restored=CODEC.load_engine(e.r,json.loads(json.dumps(CODEC.dump_engine(e))))
+                self.assertTrue(restored.validate_state()['valid'])
+
     def test_conqueror_keeps_paid_order_but_requires_new_holders_actual_run_up_and_mount(self):
         import conquerors_march as MARCH
         f=self.helper('test_book_conquerors_march','ConquerorsMarchTests');f.setup(mounted=False)
         e,t,p=f.e,f.a,f.p;q=self.reserve(e,t,p,abilities=['도움닫기'],moves=['move/니트로차지'])
+        import trainer_feature_acquisition as ACQUIRE,juggler as JUGGLER
+        e.gm.set_skill(t,'곡예',5,reason='actual Expert Acrobatics for the native Tag In chain')
+        for feature in (JUGGLER.QUICK,JUGGLER.CLASS,JUGGLER.ROUND,JUGGLER.TAG):
+            ACQUIRE.acquire_static(e,t,feature,acquisition_request_id='march-transfer/'+feature)
         e.gm.set_position(t,(0,2),reason='actual issuer beside the unmounted outgoing Pokemon')
         rider=Combatant(e.r,dict(name='actual independent rider',kind='trainer',level=20,
             stats=deepcopy(t.spec['stats']),skills={'육상':6},moves=[],edges=['edge/탑승-기량'],movement={'land':6}))
@@ -149,10 +184,13 @@ class NativeSwitchSourceAdapterTests(unittest.TestCase):
         prepare_body(e,rider,size='중형',offsets=[(0,0)],reason='actual rider body')
         e.register_abilities(q)
         f.start();e.start_of_turn(t,initiative_count=20);order=deepcopy(f.order())
-        self.baton(e,t,p,q)
+        # Recall before the Pokemon turn: Baton Pass would spend the shared
+        # turn right and leave this round's recipient unable to attack again.
+        SWITCH.select_tag_in(e,t,p,reason='actual Tag In before either Pokemon acts')
+        e.gm.recall(p,reason='actual selected recall');e.gm.send_out(q,pos=p.pos,reason='actual selected next release')
         self.assertEqual(MARCH.live(q)[0][MARCH.FLAG]['order_id'],order['id'])
         self.assertIsNone(MARCH.current(e,q));self.assertFalse(MARCH.live(p))
-        e.end_of_turn(p);e.start_of_turn(rider,initiative_count=18)
+        e.end_of_turn(t);e.start_of_turn(rider,initiative_count=18)
         self.assertTrue(e.pokemon_activity(rider,'mounting',target=q,phase='mount',skill='육상',gm_mountable=True)['passed'])
         self.assertEqual(MARCH.current(e,q),order)
         e.end_of_turn(rider);e.start_of_turn(q,initiative_count=17)
@@ -230,8 +268,8 @@ class NativeSwitchSourceAdapterTests(unittest.TestCase):
     def test_all_eighteen_type_stratagems_keep_original_acquisition_and_actual_move_completion_hooks(self):
         import type_ace as TYPE,effects as EFFECTS
         moves={'벌레':'move/벌레의저항','악':'move/물기','드래곤':'move/용의숨결','전기':'move/전기쇼크',
-            '페어리':'move/애교부리기','격투':'move/안다리걸기','불꽃':'move/불꽃세례','비행':'move/바람일으키기',
-            '고스트':'move/핥기','풀':'move/잎날가르기','땅':'move/머드숏','얼음':'move/얼음뭉치','노말':'move/몸통박치기',
+            '페어리':'move/애교부리기','격투':'move/태권당수','불꽃':'move/불꽃세례','비행':'move/바람일으키기',
+            '고스트':'move/핥기','풀':'move/잎날가르기','땅':'move/진흙뿌리기','얼음':'move/얼음뭉치','노말':'move/몸통박치기',
             '독':'move/독침','에스퍼':'move/염동력','바위':'move/돌떨구기','강철':'move/메탈클로','물':'move/물대포'}
         weather={'Sunlight Within':'sunny','Desert Heart':'sandstorm','Polar Vortex':'hail','Fishbowl Technique':'rain'}
         self.assertEqual(len(TYPE.STRATAGEMS),18)

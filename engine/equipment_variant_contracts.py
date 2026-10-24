@@ -150,10 +150,10 @@ def configure_type_armor(engine, owner, instance_id, chosen_type):
     return GRANTS.transition(engine, owner, apply)
 
 
-def prepare_register(engine, actor, item_id, source_instance_id=None):
+def prepare_register(engine, actor, item_id, source_instance_id=None, *, projection=None):
     if item_id not in KINDS:
         import csv_item_physical_contracts as CSV_ITEMS
-        return CSV_ITEMS.prepare_register(engine, actor, item_id, source_instance_id)
+        return CSV_ITEMS.prepare_register(engine, actor, item_id, source_instance_id, projection=projection)
     row = definition(engine.r, item_id)
     if actor.kind != row["wearer_kind"]:
         raise ValueError(row["name"] + " requires a trainer wearer")

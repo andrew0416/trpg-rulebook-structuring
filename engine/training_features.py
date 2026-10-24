@@ -95,7 +95,7 @@ def validate_order_history(owner):
         if result.get('order_source',{}).get('edition')=='core':
             paid=core_payment(owner,result.get('core_standard_payment',{}).get('id'))
             if (result['order_source']!=paid['source'] or result.get('source_clause_id')!=paid['source']['clause_id']
-                    or result.get('target_id')!=paid['target_id']):
+                    or result.get('target_id')!=paid['target_id'] and not __import__('commander').training_authority_id(owner,result.get('target_id'),uid,paid['id'])):
                 raise ValueError('Core Training Order use source or recipient changed')
             values={'self_target':False}
         else:values = order_values(uid, result.get('source_policy_binding'), result.get('source_clause_id'))

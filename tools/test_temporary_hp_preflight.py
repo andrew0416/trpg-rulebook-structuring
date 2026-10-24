@@ -7,7 +7,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
-from engine import Rules
+from engine import Rules, Engine
 from native_scenario_fixture import assert_rejected_unchanged
 import test_temporary_hp_composition as BASE
 import book_chef_fixture as FIX
@@ -35,8 +35,11 @@ class TemporaryHPPreflightTests(unittest.TestCase):
         engine, chef, actor, foe = self.world(stored_foods=True)
         batch = FIX.cook(engine, chef, recipe='tasty_snack', snack='짠맛 서프라이즈')
         first = FIX.serve(engine, chef, batch['batch_id'], actor)['buff_id']
-        second = (FIX.serve(engine, chef, batch['batch_id'], actor)['buff_id'] if cooked
-                  else self.buy(engine, actor, 'item/짠맛-서프라이즈'))
+        if cooked:
+            batch = FIX.cook(engine, chef, recipe='tasty_snack', snack='짠맛 서프라이즈')
+            second = FIX.serve(engine, chef, batch['batch_id'], actor)['buff_id']
+        else:
+            second = self.buy(engine, actor, 'item/짠맛-서프라이즈')
         engine.consume_food_buff(actor, buff_id=first)
         engine.roll_damage(foe, actor, self.rules.move('move/몸통박치기'), set_damage=True)
         engine.consume_food_buff(actor, buff_id=second)
@@ -45,7 +48,7 @@ class TemporaryHPPreflightTests(unittest.TestCase):
     def reject_before_damage(self, engine, actor, foe):
         before = deepcopy((engine.log_lines, actor.hp, actor.temp_hp, actor.spec,
                            actor.buffs, actor.custom_conditions))
-        with patch.object(engine, 'roll_expr', wraps=engine.roll_expr) as dice, \
+        with patch.object(Engine, 'roll_expr', autospec=True, side_effect=Engine.roll_expr) as dice, \
                 patch.object(TEMP, 'food_source', side_effect=AssertionError('preflight minted source rights')):
             assert_rejected_unchanged(engine,
                 lambda: engine.roll_damage(foe, actor, self.rules.move('move/몸통박치기')),
@@ -195,7 +198,7 @@ class TemporaryHPPreflightTests(unittest.TestCase):
         target, opponent = actors[actor.entity_id], actors[foe.entity_id]
         self.assertEqual(TEMP.blocked_reason(target), 'healing_block')
         before = deepcopy((loaded.log_lines, target.spec, target.buffs, target.custom_conditions))
-        with patch.object(loaded, 'roll_expr', wraps=loaded.roll_expr) as dice, \
+        with patch.object(Engine, 'roll_expr', autospec=True, side_effect=Engine.roll_expr) as dice, \
                 patch.object(TEMP, 'food_source', side_effect=AssertionError('preflight minted source rights')):
             assert_rejected_unchanged(loaded,
                 lambda: loaded.roll_damage(target, opponent, self.rules.move('move/몸통박치기')),

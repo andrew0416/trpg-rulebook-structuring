@@ -50,6 +50,7 @@ class TemporaryHPBerryPreflightTests(unittest.TestCase):
         # Cook and serve before granting the source; no fabricated receipts or buffs.
         original = self.salty(engine, chef, actor, foe, cooked=False)
         self.assertEqual(actor.temp_hp, 10)
+        FIX.decline_all(engine, chef)
         engine.consume_food_buff(actor, buff_id=berry)
         if incoming:
             engine.consume_food_buff(actor, buff_id=food)
@@ -57,7 +58,7 @@ class TemporaryHPBerryPreflightTests(unittest.TestCase):
         return engine, chef, actor, foe, berry, original
 
     def reject(self, engine, actor, foe, move, pattern):
-        with patch.object(engine, 'roll_expr', wraps=engine.roll_expr) as dice, \
+        with patch.object(Engine, 'roll_expr', autospec=True, side_effect=Engine.roll_expr) as dice, \
                 patch.object(TEMP, 'food_source', side_effect=AssertionError('preflight minted source rights')):
             assert_rejected_unchanged(engine,
                 lambda: engine.roll_damage(foe, actor, move), reason_pattern=pattern)

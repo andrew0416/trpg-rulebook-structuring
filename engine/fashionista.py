@@ -307,11 +307,56 @@ def accessory_slot(engine,actor,item_id,effects,options,occupied,registrations):
 
 
 def validate_projection(projection):
- if type(projection) is not dict or set(projection)!={'source_id','registration_key','owner_id','rule_id','lifetime','clause_id'}:
+ if type(projection) is not dict or set(projection)-{'wardrobe_instance_id'}!={'source_id','registration_key','owner_id','rule_id','lifetime','clause_id'}:
   raise ValueError('exact Fashionista item projection required')
  for key,value in projection.items():_text(value,'projection '+key)
  if projection['rule_id'] not in (MAKEOVER,DRESS) or not projection['source_id'].startswith((MAKEOVER_PREFIX,DRESS_PREFIX)):raise ValueError('unknown item projection source')
+ if 'wardrobe_instance_id' in projection and projection['rule_id']!=DRESS:raise ValueError('only Dress projects an actual stored item')
  return projection
+
+
+def dress_item_origin(engine,actor,item_id,projection,*,preparing=False):
+ """Resolve the stored physical source without assigning it an equipped slot."""
+ import world_entities as W
+ validate_projection(projection)
+ identity=projection.get('wardrobe_instance_id')
+ obj=getattr(engine,'_physical_objects',{}).get(identity)
+ if projection['rule_id']!=DRESS or not isinstance(obj,dict) or obj.get('item_rule_id')!=item_id:
+  raise ValueError('Dress requires its actual originating wardrobe item')
+ W.require_physical_access(obj)
+ if preparing:
+  holder=actor
+  if not wardrobe_holds(engine,holder,identity):raise ValueError('Dress activation requires its actual stored item')
+ else:
+  record=dress_record(actor)
+  if record is None:raise ValueError('projected item requires its actual Dress lifetime')
+  holder=__import__('native_order_transfer').origin(engine,actor,record)
+  facts=record['fashionista_dress']
+  if not any(row['instance_id']==identity and row['item_id']==item_id for row in facts['items']):
+   raise ValueError('projected item differs from the original Dress activation')
+ if projection['source_id']!=DRESS_PREFIX+holder.entity_id+':'+identity or projection['owner_id']!=chic(holder)['owner_id']:
+  raise ValueError('Dress physical source or original owner changed')
+ return obj
+
+
+def finish_dress_item(engine,obj):
+ """Release actual projections/storage before a native item terminal event."""
+ import items as I,capability_actions as CAP,world_entities as W
+ for actor in W.actor_index(engine).values():
+  for key,registration in list(getattr(actor,'_item_reg',{}).items()):
+   projected=registration.get('projection',{}).get('wardrobe_instance_id')==obj['id']
+   if not projected and registration.get('instance_id')!=obj['id']:continue
+   I.unregister_item(engine,actor,registration_key=key)
+   if projected:
+    facts=dress_record(actor)['fashionista_dress']
+    facts['registration_keys'].remove(key)
+    facts.setdefault('ended_item_ids',[]).append(obj['id'])
+  if obj.get(WARDROBE_HOLDER)==actor.entity_id:
+   slot=obj.pop('wardrobe_slot');obj.pop(WARDROBE_HOLDER)
+   chic(actor)['slots'][slot]=None
+  if obj.get('carrier_id')==actor.entity_id:
+   remaining=[row for row in actor.spec['_carried_load']['objects'] if row['id']!=obj['id']]
+   CAP.set_carried(engine,actor,remaining,'actual projected item terminal use')
 
 
 def _can_equip(engine,target,item_id):
@@ -708,7 +753,8 @@ def dress_to_impress(engine,trainer,pokemon,*,communication=None):
    if any(r.get('item_id')==entry['item_id'] and not r.get('projection') for r in getattr(q,'_item_reg',{}).values()):
     raise ValueError('the Chic Pokemon already benefits from that item: '+entry['item_id'])
    sid=DRESS_PREFIX+q.entity_id+':'+entry['instance_id'];key='dress:'+entry['slot_id']
-   projection={'source_id':sid,'registration_key':key,'owner_id':t.entity_id,'rule_id':DRESS,'lifetime':'round','clause_id':clause(DRESS)}
+   projection={'source_id':sid,'registration_key':key,'owner_id':t.entity_id,'rule_id':DRESS,'lifetime':'round','clause_id':clause(DRESS),
+    'wardrobe_instance_id':entry['instance_id']}
    # A projected Choice item never enters the active slot, so the printed suppression (and its conditional stage boost) does not start here.
    resolved={'can receive 억압':False} if entry['item_id'] in CHOICE_ITEMS else None
    n=I.register_item(e,q,entry['item_id'],projection=projection,resolved_conditions=resolved)

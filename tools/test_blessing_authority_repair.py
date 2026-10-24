@@ -49,6 +49,23 @@ class BlessingAuthorityTests(unittest.TestCase):
   return case.e.confirm_blessing_gift(case.a,gift,reason='GM explicitly confirms this already acquired source-bound Gift',configuration=configuration or None)
 
  def reject(self,case,operation,pattern):
+  pending=[gift for gift in case.a.spec.get('gifts',[]) if gift in B.SOURCES
+           and gift not in case.a.spec.get('_blessing_gift_approvals',{})]
+  if pending:
+   # An unconfirmed claim intentionally cannot be exported as valid gameplay.
+   # Compare its complete mutable native prefix while testing confirmation refusal.
+   import gm_state,world_entities as WORLD
+   e=case.e;actors=WORLD.actor_index(e)
+   memo={id(e):e,id(e.gm):e.gm,id(e.r):e.r,**{id(a):a for a in actors.values()}}
+   def state():
+    return deepcopy(({uid:vars(a) for uid,a in actors.items()},
+      {key:getattr(e,key) for key in gm_state.ENGINE_FIELDS if hasattr(e,key)},
+      e.log_lines,e.gm_prompts,vars(e.gm),e.rng.getstate(),vars(e.rulings)),memo.copy())
+   before=state()
+   try:
+    with self.assertRaisesRegex(ValueError,pattern):operation()
+   finally:self.assertEqual(state(),before)
+   return
   return NATIVE.assert_rejected_unchanged(case.e,operation,reason_pattern=pattern)
 
  def test_exact_twenty_six_domains_match_source_and_all_allowed_patrons_confirm(self):

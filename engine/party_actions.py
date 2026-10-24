@@ -287,6 +287,8 @@ def act(engine,trainer,*,recall=(),send=(),request_id,reason,release_throw=None,
     recall=tuple(recall);send=tuple((p,tuple(pos)) for p,pos in send)
     if type(tag_in)is not bool or tag_in and (len(recall)!=1 or len(send)>1):
         raise ValueError('Tag In selection requires one actual recall')
+    if tag_in and type(feature)is dict and feature.get('tag_in') is True:
+        raise ValueError('select Tag In once for the actual recall')
     subjects=[*recall,*(p for p,_ in send)]
     W.require_actors(engine,trainer,*subjects)
     if type(reason) is not str or not reason.strip():raise ValueError('actual party action reason required')
@@ -307,8 +309,6 @@ def act(engine,trainer,*,recall=(),send=(),request_id,reason,release_throw=None,
             raise ValueError('finish the actual retained party-action reaction')
         return prior['result']
     feature_plan=None if feature is None else __import__('juggler').party_plan(engine,trainer,recall,send,feature)
-    if tag_in and feature_plan and feature_plan['tag_in']:
-        raise ValueError('select Tag In once for the actual recall')
     if release_throw is not None:
         __import__('capture_specialist').release_plan(engine,trainer,send[0][0],release_throw)
         bounce=release_throw.get('bounce')

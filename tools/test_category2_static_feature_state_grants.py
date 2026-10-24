@@ -355,8 +355,9 @@ class StaticFeatureStateGrantTests(unittest.TestCase):
             files = {p for p in (ROOT / "input").rglob("*") if p.is_file()}
             files.update(ROOT / "data/verification" / name for _, name, _ in PROGRESS_SOURCES)
             files.update((plan_path, ROOT / "data/verification/category2-scope-freeze.json"))
-            files.update(ROOT / proof["log"] for route in plan["post_foundation_reuse"]["itemized_audit"]["routes"].values()
-                         for proof in route["evidence"])
+            # This test checks the 12-clause accounting delta, not the separate
+            # historical reuse audit. Keep its real proof references unchanged;
+            # missing historical logs receive no reuse credit in the report.
             for source in sorted(files):
                 target = shadow / source.relative_to(ROOT)
                 target.parent.mkdir(parents=True, exist_ok=True)

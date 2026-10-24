@@ -349,8 +349,7 @@ def h_type_change(engine, a, t, e, ctx):
     TYPES.validate_types(c.r,[value],label="type-changing effect")
     if e.get("fallback") is not None:TYPES.validate_types(c.r,[e["fallback"]],label="type-changing fallback")
     import personal_type_settings as PERSONAL
-    personal_loss=(ctx.get('source_id')=='move/불사르기' and mode=='remove' and value=='불꽃'
-                   and PERSONAL.enabled(c.r,'typeless_tera'))
+    personal_loss=PERSONAL.neutral_burn_up(c.r,ctx.get('source_id'),mode,[value])
     fallback=None if personal_loss else e.get('fallback')
     import state_grants as GRANTS
     source=getattr(c,"_state_registration_source",None) or GRANTS.effect_source(c,ctx,"type-change")

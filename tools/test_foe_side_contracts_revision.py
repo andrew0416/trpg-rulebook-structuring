@@ -219,6 +219,7 @@ class FoeSideContractTests(unittest.TestCase):
         self.hit(e, a, t, 'move/간지르기')
         self.assertEqual((t.stages['atk'], t.stages['def']), (0, 0))
         ITEMS.unregister_item(e, t, 'item/클리어참')
+        self.start(e, a)  # Tickle is EOT: take the intervening ordinary turn.
         self.hit(e, a, t, 'move/간지르기')
         self.assertEqual((t.stages['atk'], t.stages['def']), (-1, -1))
         self.valid(e)
@@ -308,7 +309,9 @@ class CloseQuartersFoeContractTests(unittest.TestCase):
     def pending_fighting_hit(self, *, ally=False):
         self.family('격투', 'Close Quarters Mastery')
         from examples.declared_skill_ranks import configure
-        self.enterContext(patch.object(self.e.r, 'rulings', deepcopy(self.e.r.rulings)))
+        rulings=deepcopy(self.e.r.rulings)
+        self.enterContext(patch.object(self.e.r, 'rulings', rulings))
+        self.enterContext(patch.object(self.e, 'rulings', rulings))
         configure(self.e.r)
         self.e.gm.set_skill(self.t, '전투', 7, reason='observed seventh rank keeps actual acquired Type Ace history')
         target = self.q if ally else self.b
@@ -395,6 +398,8 @@ class CloseQuartersFoeContractTests(unittest.TestCase):
             self.e._passive_events[event_id]['close_quarters_hit'])
 
     def test_real_intercept_marks_only_actual_fighting_hit_recipient_and_not_immune_recipient(self):
+        # Keep the original required ID. Type immunity prevents damage, not a
+        # Fighting Move hit; both printed CQM definitions require no HP loss.
         for immune in (False, True):
             with self.subTest(immune=immune):
                 self.family('격투', 'Close Quarters Mastery')
@@ -406,6 +411,7 @@ class CloseQuartersFoeContractTests(unittest.TestCase):
                     'source':'maneuver/근접-가로채기'}], reason='actual declared native Intercept')
                 self.sustain('Close Quarters Mastery')
                 hp = self.b.hp
+                interceptor_hp = self.u.hp
                 with self.assertRaises(PASSIVE.PassiveEventPending):
                     self.native(self.p, self.b, 'move/태권당수')
                 event_id = self.e._passive_pending
@@ -415,13 +421,15 @@ class CloseQuartersFoeContractTests(unittest.TestCase):
                     reason='real successful Intercept route')
                 self.assertEqual(self.b.hp, hp)
                 self.assertIsNone(TA.marked(self.e, self.b))
-                self.assertIs(TA.marked(self.e, self.u), None if immune else self.p)
+                self.assertIs(TA.marked(self.e, self.u), self.p)
+                if immune:
+                    self.assertEqual(self.e.type_multiplier('격투',self.u)[0],0)
+                    self.assertEqual(self.u.hp,interceptor_hp)
                 row = self.completed()
                 child = row['received'][self.u.entity_id]['child_event']
-                if not immune:
-                    self.assertEqual(self.e._passive_events[child]['close_quarters_hit']['target_id'], self.u.entity_id)
+                self.assertEqual(self.e._passive_events[child]['close_quarters_hit']['target_id'], self.u.entity_id)
                 self.restore()
-                self.assertIs(TA.marked(self.e, self.u), None if immune else self.p)
+                self.assertIs(TA.marked(self.e, self.u), self.p)
                 self.valid()
 
     def test_actual_fighting_move_ally_hit_has_no_mark_penalty_or_departure_attack(self):
@@ -444,7 +452,9 @@ class CloseQuartersFoeContractTests(unittest.TestCase):
     def test_actual_foe_mark_restores_marker_identity_and_preserves_seven_rank_acquisition(self):
         self.family('격투', 'Close Quarters Mastery')
         from examples.declared_skill_ranks import configure
-        self.enterContext(patch.object(self.e.r, 'rulings', deepcopy(self.e.r.rulings)))
+        rulings=deepcopy(self.e.r.rulings)
+        self.enterContext(patch.object(self.e.r, 'rulings', rulings))
+        self.enterContext(patch.object(self.e, 'rulings', rulings))
         configure(self.e.r)
         self.e.gm.set_skill(self.t, '전투', 7, reason='actual rank above Master remains valid')
         self.e.gm.set_position(self.p, (3, 2), reason='actual adjacent Fighting attack')

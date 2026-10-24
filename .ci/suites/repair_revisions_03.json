@@ -1,53 +1,52 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_03",
-  "purpose": "Focused diagnostics for repaired failures and changed native paths, including the latest shared Burn Up/neutral-Tera personal type. Original4115 final obligations and185/406 acceptance scope remain intact. The earlier repair65 freeze was never dispatched.",
+  "purpose": "Exact48 failed repair67 methods, repaired original source-family/gift/drink/network consumers, one new actual Dress destruction/consumption scenario, and affected native regression modules. Full original4115 plus added obligations and185/406 scope retained. No acceptance credit.",
   "completion_credit": 0,
-  "required_unique_count": 37,
+  "required_unique_count": 32,
   "completed": {
-    "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests": {
+    "tools.test_book_commander_orders.CommanderOrderTests": {
       "tests": [
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_actual_electric_immunity_keeps_positive_damage_coat_and_declines_weakness",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_actual_weakness_policy_keeps_item_presence_optional_use_and_encounter_expiry",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_all_four_actual_thaw_types_and_non_thaw_control",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_alternate_stab_membership_matrix_preview_and_final_damage",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_burning_brand_printed_fire_native_18_19_baseline",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_delayed_native_hit_thaws_only_for_its_own_type",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_explicit_custom_as_if_type_preserves_two_zero_matchups_and_positive_exception",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_fighting_changed_to_electric_does_not_thaw_and_tera_printed_match_gives_no_ten",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_frozen_miss_status_hp_loss_and_zero_resolved_hit_boundaries",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_native_grounding_uses_actual_ground_tera_and_transport_declines_other_immunity",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_native_matching_coats_use_actual_type_and_consume_once",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_ordinary_tera_main_and_both_variants_exact_stab_plus_ten",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_plasma_area_targets_keep_same_actual_type_with_distinct_matchups",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_plasma_fists_retains_activation_type_after_consuming_printed_normal_choice",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_plasma_mud_coat_and_multiple_strikes_retain_one_activation",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_scene_expiry_removes_ordinary_tera_type_bonus_without_rewriting_choice",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_shining_flame_actual_type_threshold_and_owner_scope",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_tar_zero_hit_consumes_water_zero_does_not_and_temp_hp_counts",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_taskmaster_paired_hits_keep_each_actual_type_and_actor",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_terastal_faint_is_independent_and_restore_does_not_resurrect",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_terastal_survives_encounter_restart_then_scene_end_once",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_typing_history_and_coat_end_tampering_remain_rejected",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_versatile_choice_survives_real_defense_pending_json_and_resume_once",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_versatile_gambit_counter_retains_explicit_choice",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_versatile_keyword_scope_preserves_gmax_and_original_move",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_versatile_main_explicit_lower_stat_and_typed_variant_class_are_distinct",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_versatile_missing_wrong_and_unrelated_choice_reject_before_cost_rng_or_movement",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_weakness_policy_uses_post_coat_effectiveness_and_pre_damage_target_types",
-        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_wrong_type_miss_status_and_hp_loss_preserve_typed_coats"
+        "tools.test_book_commander_orders.CommanderOrderTests.test_actual_cheerleader_single_completion_three_instances_and_bound_ap_after_battle",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_battle_invalid_extra_duplicate_nonatwill_and_late_failure_are_atomic",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_battle_late_third_actual_ap_reservation_failure_rolls_back_all_native_bindings",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_battle_three_recipients_one_original_standard_one_swift_and_each_ap",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_battle_training_uses_one_real_priority_payment_and_survives_restore",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_complex_actual_different_orders_cost_shift_and_original_action",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_complex_repeated_unknown_and_mixed_frequency_choices_reject_atomically",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_complex_two_distinct_core_training_orders_share_original_action_and_keep_each_source",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_core_commander_training_late_delivery_failure_is_atomic_and_csv_keeps_priority",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_core_commander_training_three_allies_one_standard_and_swift_has_no_priority_loan",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_core_four_training_orders_pay_actual_standard_without_priority_and_restore_expiry",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_core_training_completion_uses_actual_cheerleader_source_and_restores_after_expiry",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_leadership_replaces_own_pokemon_with_actual_allied_trainer_for_existing_stratagem",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_leadership_retains_communication_slot_and_other_target_conditions",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_mobilize_actual_opportunity_before_next_turn_during_and_after",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_mobilize_actual_ranged_attack_does_not_spend_enemy_opportunity_for_unrelated_actor",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_mobilize_allied_trainer_wrong_side_unavailable_and_auditory_rejections",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_mobilize_each_ally_once_encounter_not_scene_and_independent_csv84",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_pinpoint_gift_expert_waiver_allied_target_actual_bound_ap_owner",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_scheme_scene_two_activations_share_original_scene_use_across_targets",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_targetless_or_unacquired_order_cannot_become_targeted_and_modifier_not_inferred",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_tip_all_actual_allies_ten_meter_boundary_pays_two_ap_and_base_order"
       ]
     },
-    "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests": {
+    "tools.test_native_switch_transfer_revision.NativeDuelistHandoffRevisionTests": {
       "tests": [
-        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_all_eighteen_type_stratagems_keep_original_acquisition_and_actual_move_completion_hooks",
-        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_all_five_class_stratagems_move_same_source_and_reach_native_accuracy_damage_consumers",
-        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_all_five_stat_branches_keep_acquisition_binding_and_receiver_stage_consumers",
-        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_conqueror_keeps_paid_order_but_requires_new_holders_actual_run_up_and_mount",
-        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_dress_actual_stat_capability_and_ability_channels_survive_paid_tag_handoff",
-        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_dress_moves_only_real_item_projections_keeps_wardrobe_and_original_count",
-        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_gfw_moves_live_evasion_and_fixed_condition_without_reissuing_paid_ally_set",
-        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_profiling_keeps_original_archive_owner_and_active_end_on_new_holder"
+        "tools.test_native_switch_transfer_revision.NativeDuelistHandoffRevisionTests.test_manual1_source_and_timer_move_together_then_original_turn_closes_after_json",
+        "tools.test_native_switch_transfer_revision.NativeDuelistHandoffRevisionTests.test_manual2_next_attack_is_consumed_once_and_cannot_return_on_second_baton"
+      ]
+    },
+    "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests": {
+      "tests": [
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_actual_berry_receipt_shift_preserves_food_taste_and_lunchbox_receipt_identity",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_food_replacement_precedes_assigned_salty_and_drops_incompatible_aged_lunchbox",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_null_policy_does_not_reject_ordinary_max_lower_equal_or_equal_age",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_null_policy_keeps_aged_compatible_equal_noop_and_actual_block",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_outgoing_salty_dumplings_healing_block_still_checks_legacy_clock_before_rng",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_standalone_assigned_salty_missing_and_invalid_policy_reject_before_rng",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_standalone_explicit_lifetime_alternatives_keep_outcomes_and_json_gm_restore",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_standalone_food_missing_and_invalid_policy_reject_before_rng_and_all_mutation"
       ]
     }
   }

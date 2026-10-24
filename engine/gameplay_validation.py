@@ -50,7 +50,8 @@ def validate(engine, actors):
     WEATHER_TEMPLATES.validate(engine)
     issues = validate_world(engine)['issues']
     if issues:
-        raise WorldIntegrityError('world reference integrity: ' + '; '.join(row['code'] for row in issues))
+        raise WorldIntegrityError('world reference integrity: ' + '; '.join(row['code'] for row in issues)
+                                  + ' (' + '; '.join(row['message'] for row in issues) + ')')
     # This native relation boundary also owns Telekinetic object/holder checks,
     # which are not included in WORLD's findings collector.
     validate_mount_relations(engine)

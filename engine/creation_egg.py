@@ -340,6 +340,9 @@ def commit_birth(engine,owner,egg,pokemon,selected,*,reason,placement):
     lineage(engine,pokemon)
     import advanced_connection as CONNECTION
     CONNECTION.birth(engine,pokemon,egg,reason=reason)
+    # Birth ownership is established; register its actual selected passives
+    # without inventing a field-entry event for a carried newborn.
+    for ability in list(pokemon.abilities):engine.register_abilities_one(pokemon,ability)
 
 
 def lineage(engine,pokemon):

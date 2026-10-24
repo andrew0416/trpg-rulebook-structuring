@@ -239,7 +239,7 @@ def execute(e,actor,avatar_id,target_id,value,*,request_id,reason,roll_options=N
         program=_program(staged,c,avatar,value)
         if program is not None and value['program']['consume']:
             W.finish_physical_use(staged,program,'consumed',{'source':program['item_rule_id'],'by_actor_id':c.entity_id,'at':staged.elapsed_seconds,'request_id':request_id,'consumer':'digital_program'})
-        result.update(actor_id=c.entity_id,avatar_id=avatar_id,target_id=target_id,source=value['source'],at=staged.elapsed_seconds,action=value['action'],check=None if roll is None else asdict(roll),program_id=None if program is None else program['id'])
+        result.update(actor_id=c.entity_id,avatar_id=avatar_id,target_id=target_id,source=value['source'],at=staged.elapsed_seconds,action=value['action'],check=None if roll is None else dict(asdict(roll),total=roll.total),program_id=None if program is None else program['id'])
         state['policies'].setdefault(key,_sign({'actor_id':c.entity_id,'source':value['source'],'operation_id':value['id'],'body':_body(value)}));state['requests'][request_id]=_sign({'intent':deepcopy(intent),'fingerprint':TX.request_fingerprint(intent),'result':deepcopy(result)});setattr(staged,FIELD,state)
         validate_world(staged,W.actor_index(staged));return result
     return G.transition(e,actor,apply)

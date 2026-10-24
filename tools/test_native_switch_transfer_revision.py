@@ -86,7 +86,7 @@ class NativeSwitchTransferRevisionTests(unittest.TestCase):
         self.assertEqual((result['outgoing_id'],result['incoming_id'],result['recalled'],result['sent']),
                          (self.p.entity_id,self.q.entity_id,True,True))
         self.assertEqual(self.p.budget['standard'],0)
-        self.assertNotIn('passed',vars(self.p))
+        self.assertIsNone(getattr(self.p,'passed',None))
 
     def test_missing_replacement_fails_before_move_payment_or_rng(self):
         self.open()
@@ -372,6 +372,7 @@ class NativeSwitchTransferRevisionTests(unittest.TestCase):
         self.setup(juggler=True,director=True)
         participants=[self.t,self.p,self.foe]
         self.e.prepare_initiative_schedule(participants,source='gm/test-schedule',
+            bindings=[{'slot':actor.entity_id,'actor_id':actor.entity_id,'role':actor.entity_id} for actor in participants],
             order_groups=[[actor.entity_id] for actor in participants])
         self.e.start_round(participants);self.e.start_of_turn(self.t)
         use=self.e.manual_feat(self.t,DIRECTOR.FEATURE,self.p,adjustment='increase')
@@ -509,6 +510,8 @@ class NativeGuideTagHandoffRevisionTests(unittest.TestCase):
         e.gm.add_combatant(reserve,pos=(6,6),side='party',reason='actual reserve participant')
         e.gm.recall(reserve,reason='actual reserve before encounter')
         e.configure_party_combat(trainer,battle_mode='league',reason='actual Standard party switch')
+        e.gm.observe_sensory_environment(trainer,outgoing,paths={'auditory':True},present=True,
+            reason='actual audible Guide Order delivery')
         FIX.battle(e,trainer);h.guide(e,trainer,'urban')
         original=next(row for row in TIME.records(outgoing) if row.get('source')==GUIDE.GUIDE)
         deadline=tuple(original['count_deadline'])

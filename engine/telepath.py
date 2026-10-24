@@ -253,7 +253,7 @@ def arm(e,a,source,*,paths):
  if type(paths)is not dict or not paths:raise ValueError('explicit optional recipient paths required')
  for uid,path in paths.items():
   t=W.actor_index(e).get(uid);W.require_actors(e,t)
-  if t.side!=a.side or not a.side or source!=WARNING and t is not a:raise ValueError('actual affected ally choice required')
+  if getattr(t,'side',None)!=getattr(a,'side',None) or not getattr(a,'side',None) or source!=WARNING and t is not a:raise ValueError('actual affected ally choice required')
   if path is not None and (type(path)is not list or not path):raise ValueError('explicit nonempty physical path or decline required')
  return G.transition(e,a,lambda se,c:c.spec.setdefault('telepath_reaction_choices',{}).update({source:deepcopy(paths)}))
 
@@ -265,14 +265,16 @@ def reaction(e,attacker,target,move,hit,completion):
   # Warning is an Attack feature, not limited to area Moves.
   pass
  for owner in list(W.actor_index(e).values()):
-  if not owner.side or owner.side!=attacker.side:continue
+  if not owner.spec.get('telepath_reaction_choices'):continue
+  owner_side=getattr(owner,'side',None)
+  if not owner_side or owner_side!=getattr(attacker,'side',None):continue
   for source,paths in list(owner.spec.get('telepath_reaction_choices',{}).items()):
    if target.entity_id not in paths:continue
    if source==WARNING:
     require(e,owner,WARNING,True)
     if __import__('mindlock').block(e,attacker):continue
    elif not area or source==FEB and move.get('class') not in ('물리','특수') or not __import__('ability_transitions').active(owner,source):continue
-   if not target.side or target.side!=owner.side:continue
+   if not getattr(target,'side',None) or target.side!=owner_side:continue
    path=paths[target.entity_id]
    # Declining does not pay, consume an action or create a residue.
    if path is None:continue

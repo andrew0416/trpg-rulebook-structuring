@@ -315,7 +315,8 @@ def validate_world(engine, index):
                 raise ValueError('initiative requires its actual completed producer')
             CONTRACTS.validate_receipt(engine, receipt, source, occurrence,
                                       producer['actor'], producer['target'], producer['effect'])
-            if actor not in CONTRACTS.recipients(producer['actor'], producer['target'], producer['effect']):
+            import native_order_transfer as TRANSFER
+            if TRANSFER.origin(engine,actor,record) not in CONTRACTS.recipients(producer['actor'], producer['target'], producer['effect']):
                 raise ValueError('initiative recipient differs from its producer')
             if op != operation(producer['effect']):
                 raise ValueError('initiative operation differs from its actual producer')

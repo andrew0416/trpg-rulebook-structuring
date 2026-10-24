@@ -100,7 +100,7 @@ def event(e,kind,p,*,trainer=None,request_id=None,source_id=None):
   rows.append({'id':uid,'kind':kind,'pokemon_id':p.entity_id,'trainer_id':None if trainer is None else trainer.entity_id,
    'request_id':request_id,'source':source_id,'boundary':boundary(e)})
 def trigger(e,a,event_id,kind=None):
- rows=[r for r in state(a)['events'] if r['id']==event_id]
+ rows=[r for r in a.spec.get(KEY,{}).get('events',[]) if r['id']==event_id]
  if len(rows)!=1 or rows[0]['boundary']!=boundary(e) or kind is not None and rows[0]['kind']!=kind:raise ValueError('actual immediate Juggler producer occurrence required')
  return rows[0]
 
@@ -118,7 +118,7 @@ def party_plan(e,a,recall,send,feature):
  if type(tag)is not bool:raise ValueError('explicit Tag In selection required')
  if tag:
   require(e,a,TAG)
-  if len(recall)!=1 or state(a).get('pending_tag'):raise ValueError('one actual recall and unoccupied next-release Tag In required')
+  if len(recall)!=1 or a.spec.get(KEY,{}).get('pending_tag'):raise ValueError('one actual recall and unoccupied next-release Tag In required')
  if u==QUICK:
   source(e.r,QUICK)
   if A.owned_rule_count(a,QUICK)!=1:raise ValueError('actual acquired Quick Switch required')
@@ -131,7 +131,7 @@ def party_plan(e,a,recall,send,feature):
   require(e,a,ROUND)
   if len(recall)!=1 or len(send)!=1:raise ValueError('Round Trip switches exactly the actual Move user')
   row=getattr(e,'_move_completions',{}).get(feature.get('completion_id'))
-  if row is None or row['phase']!='complete' or row['actor'] is not recall[0] or row['actor'].spec.get('trainer_id')!=a.entity_id or state(a).get('move_window')!={'id':row['id'],'boundary':boundary(e)}:raise ValueError('Round Trip needs the just completed whole owned Pokemon Move')
+  if row is None or row['phase']!='complete' or row['actor'] is not recall[0] or row['actor'].spec.get('trainer_id')!=a.entity_id or a.spec.get(KEY,{}).get('move_window')!={'id':row['id'],'boundary':boundary(e)}:raise ValueError('Round Trip needs the just completed whole owned Pokemon Move')
   ap=1;kind='free'
  elif u==EMERGENCY:
   require(e,a,EMERGENCY)

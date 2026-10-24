@@ -330,7 +330,7 @@ class JugglerTests(unittest.TestCase):
   PARTY.configure(self.e,self.b,mode='standard',reason='actual equal Battle Contest team',roster=[self.t,self.u,v],storage={'kind':'center','id':'rival-center'})
   c=ContestEngine(ContestRules(ROOT),seed=831)
   intros={a.entity_id:c.contestant_from_combatants(self.e,p,a,'교활',{}) for a,p in ((self.a,self.p),(self.b,self.t))}
-  BC.create(self.e,c,[self.a,self.b],[[self.p,self.q,self.z],[self.t,self.u,v]],[[self.p],[self.t]],'근사함',intros,contest_id='juggler-contest')
+  BC.create(self.e,c,[self.a,self.b],[[self.p,self.q,self.z],[self.t,self.u,v]],[[self.p],[self.t]],'근사함',intros,contest_id='juggler-contest',smart_stat_policy='ptu-original-special-defense')
   BC.begin_round(self.e,'juggler-contest');self.e.start_of_turn(self.p,initiative_count=30)
   row=self.move();occurrence=self.a.spec[BC.KEY]['juggler-contest'];occurrence['pokemon'][self.p.entity_id]['excitement']=4
   before=AP.available(self.a);self.action(J.ROUND,completion_id=row['id'],tag_in=True)

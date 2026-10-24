@@ -240,8 +240,11 @@ def _targeted_identity(rules, uid):
 
 def targeted_orders(actor):
     import acquired_features as A
-    return sorted(uid for uid in actor.r.selection.units
-                  if _targeted_identity(actor.r, uid) and A.owned_rule_count(actor, uid))
+    owned={row['source_id'] for row in (*A.feature_instances(actor),*A.class_instances(actor))}
+    for uid in actor.spec.get('feats',[]):
+        unit=actor.r.selection.units.get(uid,{})
+        if not uid.startswith(('feat/','class/')) and unit.get('kind')=='entity:feat' and A.owned_rule_count(actor,uid):owned.add(uid)
+    return sorted(uid for uid in owned if _targeted_identity(actor.r,uid))
 
 
 def ally(engine, actor, target):
@@ -387,14 +390,18 @@ def training_payment(engine, actor, target, feature, communication, *, edition='
 
 
 def training_authority(owner, target, feature, payment_id):
+    return training_authority_id(owner,target.entity_id,feature,payment_id)
+
+
+def training_authority_id(owner, target_id, feature, payment_id):
     import priority_limited as P
     for row in owner.spec.get(ACTIVATIONS,[]):
         if row.get('integrity')!=_seal(row):raise ValueError('Commander training activation changed')
         if any(p['id']==payment_id and p['commander_activation']==row['id'] and p['feature']==feature
                and p['target_id']==next(e['target_id'] for e in row['orders'] if e['feature']==feature) for p in __import__('training_features').core_payments(owner)):
-            return {'target_id':target.entity_id,'feature':feature} in row['orders']
+            return {'target_id':target_id,'feature':feature} in row['orders']
         if (row.get('priority_payment')==payment_id and row['modifier'] in (BATTLE,TIP)
-                and {'target_id':target.entity_id,'feature':feature} in row['orders']):
+                and {'target_id':target_id,'feature':feature} in row['orders']):
             payments=[p for p in P.records(owner) if p['id']==payment_id]
             return len(payments)==1 and payments[0]['subject_id']==row['orders'][0]['target_id']
     return False

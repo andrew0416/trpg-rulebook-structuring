@@ -39,7 +39,7 @@ class UseRequest:
     duration_minutes: int | None = None
     duration_reason: str | None = None
     count: int = 1
-    food_policy: str | None = None
+    food_policy: str | dict | None = None
     medicine_source_choice: Any = None
     selected_move: str | None = None
     held_selection: Any = None
@@ -389,9 +389,12 @@ def adapter_for(source_id) -> UseAdapter[UseRequest]:
 
 def dispatch(engine,user,item_name,target=None,**options):
     import csv_item_food_contracts as CSV
+    import food_effects as FOOD_EFFECTS
     food_policy=options.get('food_policy')
+    if food_policy is not None and type(food_policy) not in (str,dict):
+        raise ValueError('named food policy or scoped refreshment decision required')
     source_selection=None
-    if food_policy is not None and food_policy not in __import__('food_effects').BABY_POLICIES:
+    if type(food_policy) is str and food_policy not in FOOD_EFFECTS.BABY_POLICIES:
         row=__import__('csv_item_contract_policy').definition(engine.r,clause_id=food_policy)
         if row is None or row.get('domain')!='food' or row.get('item_id') not in CSV.ITEM_KINDS:raise ValueError('exact reviewed CSV food clause selection required')
         source_selection=CSV.source_choice(engine.r,row['item_id'],food_policy)
@@ -399,7 +402,9 @@ def dispatch(engine,user,item_name,target=None,**options):
     else:
         header=engine.r.item_effects(item_name)[1]
     uid=header.get('id')
-    if source_selection is None:source_selection=CSV.intake_choice(engine.r,uid,food_policy)
+    if type(food_policy)is dict and uid not in FOOD_EFFECTS.DRINKS:
+        raise ValueError('scoped refreshment decision requires an actual drink')
+    if source_selection is None:source_selection=CSV.intake_choice(engine.r,uid,None if uid in FOOD_EFFECTS.DRINKS else food_policy)
     request=UseRequest(user=user,target=target or user,item_name=item_name,source_id=uid,source_selection=source_selection,**options)
     adapter=adapter_for(uid)
     category=header.get('battle_tool')

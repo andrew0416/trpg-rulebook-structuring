@@ -360,6 +360,11 @@ def acquire(engine, actor, uid, *, acquisition_request_id, selection=None):
         trainer.spec.setdefault(d['field'], []).append(d['owned_value'])
         if d.get('choice_field'):
             trainer.spec.setdefault(d['choice_field'], {})[uid] = deepcopy(selection['choice'])
+        if d['kind'] in ('static', 'class'):
+            import static_feature_state_grants as STATIC
+            # Install the new projection before attaching admission metadata to
+            # its shared source. An empty admission record is not an old grant.
+            STATIC.register_all(staged, trainer)
         G._source(trainer, _sid(trainer, uid), 'feature', owner_id=trainer.entity_id,
                   lifetime='while_owned', rule_id=d['rule_id'], tutor_points=0,
                   **{KEY: record})
@@ -367,12 +372,11 @@ def acquire(engine, actor, uid, *, acquisition_request_id, selection=None):
             import blessing_skill_features as B
             B.confirm(staged, trainer, uid, reason=selection['permission']['reason'],
                       configuration=selection['configuration'])
-        if d['kind'] in ('static', 'class'):
-            import static_feature_state_grants as STATIC
-            STATIC.register_all(staged, trainer)
         if d['kind'] == 'exalted':
             G.grant_moves(trainer, ['move/사이코브레이크'], _sid(trainer, uid), 'feature',
                 owner_id=trainer.entity_id, lifetime='while_owned', rule_id=uid, tutor_points=0)
+        import class_passive_combat as PASSIVE
+        PASSIVE.register_all(staged, trainer)
         A.validate_class_slots(trainer)
         return dict(deepcopy(record), status='acquired')
 

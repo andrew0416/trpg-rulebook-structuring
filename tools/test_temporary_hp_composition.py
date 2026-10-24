@@ -99,7 +99,7 @@ class TemporaryHPCompositionTests(unittest.TestCase):
                     lambda: engine.resolve_class_actor_state_action(chef, event['id'], use=True), reason_pattern='pending class')
 
     def test_salty_taste_cannot_add_to_foreign_hp_and_lower_grant_has_no_source_right(self):
-        engine, chef, actor, foe = self.world()
+        engine, chef, actor, foe = self.world(feats=(CHEF.CLASS, CHEF.ACCENTUATED, CHEF.AFTERTASTE))
         batch = FIX.cook(engine, chef, recipe='leftovers', taste='짠맛')
         buff = FIX.serve(engine, chef, batch['batch_id'], actor)['buff_id']
         FIX.battle(engine, actor)
@@ -108,6 +108,7 @@ class TemporaryHPCompositionTests(unittest.TestCase):
         engine.consume_food_buff(actor, buff_id=buff, action_kind='free', action_reason='actual Leftovers trade-in')
         self.assertEqual((actor.temp_hp, FIX.receipt(actor)['taste_bonus']['gained']), (20, 0))
         self.assertEqual(actor.custom_conditions[TEMP.STATE], before)
+        FIX.decline_all(engine, chef)
         TEMP.absorb(engine, actor, 18)
         result = self.lunch(engine, actor, FIX.receipt(actor))
         self.assertEqual(actor.temp_hp, engine.tick(actor))

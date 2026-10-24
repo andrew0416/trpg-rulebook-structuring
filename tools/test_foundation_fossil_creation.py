@@ -149,7 +149,9 @@ class FossilTests(unittest.TestCase):
      self.setUp();value=self.policy(0);value['hatch']['level']=level
      egg=self.restore(value,inputs=None)['egg']
      for abilities in ([],['조가비갑옷','깨어진갑옷'],['조가비갑옷','조가비갑옷'],['조가비갑옷','쓱쓱'],['쓱쓱'],['정전기']):
-      assert_rejected_unchanged(self.e,lambda:self.hatch(egg,details=dict(self.details(),abilities=abilities)),reason_pattern='one species Basic|outside.*species Basic')
+      reason=('distinct explicit birth abilities' if len(set(abilities))!=len(abilities) else
+              'missing_source_identity' if '쓱쓱' in abilities else 'one species Basic|outside.*species Basic')
+      assert_rejected_unchanged(self.e,lambda:self.hatch(egg,details=dict(self.details(),abilities=abilities)),reason_pattern=reason)
      child=self.hatch(egg,details=dict(self.details(),abilities=[ability]))['pokemon']
      self.assertEqual((child.level,child.abilities),(level,[ability]))
      for milestone in (20,40):
@@ -163,7 +165,8 @@ class FossilTests(unittest.TestCase):
   snapshot=self.e.gm.snapshot();self.e.gm.restore(snapshot)
   loaded=load_engine(self.r,json.loads(json.dumps(self.snap(),ensure_ascii=False)));owner=W.actor_index(loaded)[other.entity_id]
   for abilities in ([],['조가비갑옷','깨어진갑옷'],['쓱쓱'],['정전기']):
-   assert_rejected_unchanged(loaded,lambda:loaded.hatch_restored_fossil(owner,egg['entity_id'],name='gift offspring',ready=True,reason='GM readiness',details=dict(self.details(),abilities=abilities)),reason_pattern='one species Basic|outside.*species Basic')
+   reason='missing_source_identity' if '쓱쓱' in abilities else 'one species Basic|outside.*species Basic'
+   assert_rejected_unchanged(loaded,lambda:loaded.hatch_restored_fossil(owner,egg['entity_id'],name='gift offspring',ready=True,reason='GM readiness',details=dict(self.details(),abilities=abilities)),reason_pattern=reason)
   child=loaded.hatch_restored_fossil(owner,egg['entity_id'],name='gift offspring',ready=True,reason='GM readiness',details=dict(self.details(),abilities=['깨어진갑옷']))['pokemon']
   self.assertEqual((child.abilities,child.spec['trainer_id']),(['깨어진갑옷'],other.entity_id))
   fossil=P.fossil_index(loaded)[self.fossil['entity_id']][1]

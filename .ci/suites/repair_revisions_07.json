@@ -1,63 +1,52 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_07",
-  "purpose": "Focused diagnostics for repaired failures and changed native paths, including the latest shared Burn Up/neutral-Tera personal type. Original4115 final obligations and185/406 acceptance scope remain intact. The earlier repair65 freeze was never dispatched.",
+  "purpose": "Exact48 failed repair67 methods, repaired original source-family/gift/drink/network consumers, one new actual Dress destruction/consumption scenario, and affected native regression modules. Full original4115 plus added obligations and185/406 scope retained. No acceptance credit.",
   "completion_credit": 0,
-  "required_unique_count": 35,
+  "required_unique_count": 32,
   "completed": {
-    "tools.test_book_commander_native_owners.CommanderNativeOwnerTests": {
+    "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests": {
       "tests": [
-        "tools.test_book_commander_native_owners.CommanderNativeOwnerTests.test_critical_moment_actual_trained_ally_keeps_one_priority_and_scene_use",
-        "tools.test_book_commander_native_owners.CommanderNativeOwnerTests.test_moment_three_actual_trainer_recipients_share_one_native_priority_producer_and_restore",
-        "tools.test_book_commander_native_owners.CommanderNativeOwnerTests.test_profiling_actual_allied_trainer_consumes_original_ap_and_archived_target_only"
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_all_eighteen_type_stratagems_keep_original_acquisition_and_actual_move_completion_hooks",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_all_five_class_stratagems_move_same_source_and_reach_native_accuracy_damage_consumers",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_all_five_stat_branches_keep_acquisition_binding_and_receiver_stage_consumers",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_conqueror_keeps_paid_order_but_requires_new_holders_actual_run_up_and_mount",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_dress_actual_stat_capability_and_ability_channels_survive_paid_tag_handoff",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_dress_moves_only_real_item_projections_keeps_wardrobe_and_original_count",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_dress_physical_item_ends_once_after_real_hit_on_transferred_holder",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_gfw_moves_live_evasion_and_fixed_condition_without_reissuing_paid_ally_set",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_profiling_keeps_original_archive_owner_and_active_end_on_new_holder"
       ]
     },
-    "tools.test_foe_side_contracts_revision.FoeSideContractTests": {
+    "tools.test_ordinary_refreshment_source_revision.OrdinaryRefreshmentSourceRevisionTests": {
       "tests": [
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_actual_hit_and_stage_producers_accept_absent_side_without_inventing_foe",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_clear_amulet_actual_self_lowering_and_positive_stages_remain_after_restore",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_clear_amulet_actual_tickle_side_matrix_preserves_unrelated_equipment_source",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_clear_amulet_gm_side_change_then_removal_restores_actual_foe_stage_loss",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_magician_actual_hit_side_matrix_preserves_item_and_frequency_without_foe",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_magician_gm_side_change_before_hit_is_observed_without_rewriting_ability",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_magician_true_hit_pending_restore_transfer_keeps_original_instance_and_source_refusal_atomic",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_resistance_berry_live_hit_side_matrix_consumes_only_for_actual_foe",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_resistance_berry_retains_real_grant_on_miss_then_restored_current_foe_hit_consumes_once",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_super_effective_berry_native_wrong_type_neutral_and_foe_hit_boundaries"
+        "tools.test_ordinary_refreshment_source_revision.OrdinaryRefreshmentSourceRevisionTests.test_authenticated_58_plan_shape_and_completed_old_history_gain_no_retroactive_choice",
+        "tools.test_ordinary_refreshment_source_revision.OrdinaryRefreshmentSourceRevisionTests.test_both_actual_gluttony_sources_override_each_ordinary_definition",
+        "tools.test_ordinary_refreshment_source_revision.OrdinaryRefreshmentSourceRevisionTests.test_complete_kr_default_and_both_scoped_definitions_use_exact_completion_boundaries",
+        "tools.test_ordinary_refreshment_source_revision.OrdinaryRefreshmentSourceRevisionTests.test_invalid_or_wrong_actual_scope_choices_never_pay_advance_or_roll",
+        "tools.test_ordinary_refreshment_source_revision.OrdinaryRefreshmentSourceRevisionTests.test_real_pending_en_work_pins_producing_choice_across_restore_and_late_failure"
       ]
     },
-    "tools.test_foe_side_contracts_revision.ResistanceBerryPreparationFoeTests": {
+    "tools.test_temporary_hp_composition.TemporaryHPCompositionTests": {
       "tests": [
-        "tools.test_foe_side_contracts_revision.ResistanceBerryPreparationFoeTests.test_real_salty_berry_on_ally_hit_does_not_require_foe_consumption_policy"
-      ]
-    },
-    "tools.test_native_switch_transfer_revision.NativeGuideTagHandoffRevisionTests": {
-      "tests": [
-        "tools.test_native_switch_transfer_revision.NativeGuideTagHandoffRevisionTests.test_actual_standard_tag_switch_preserves_urban_guide_until_original_count"
-      ]
-    },
-    "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests": {
-      "tests": [
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_active_anchor_cannot_substitute_same_serial_borrowed_turn_in_json_or_gm",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_actual_standard_party_switch_selects_tag_in_and_replay_does_not_repay",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_baton_without_coats_transfers_stages_and_records_real_replacement",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_delayed_tag_stages_expire_on_actual_encounter_reset_without_erasing_receiver_base",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_director_keeps_original_paid_target_and_remaining_holder_turn",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_english_source_choice_excludes_training_but_keeps_actual_stratagem",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_fainted_tag_stage_exception_requires_selected_qna_source",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_four_actual_training_orders_keep_payment_and_issuer_deadline",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_handoff_clock_or_recipient_cannot_borrow_an_unrelated_recall",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_missing_replacement_fails_before_move_payment_or_rng",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_paid_tag_in_coat_missing_each_native_proof_field_rejects_json_and_gm",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_pending_and_independent_histories_reject_an_added_turn_anchor",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_pinpoint_same_bound_ap_instance_moves_and_releases_once",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_repeated_actual_tag_recall_keeps_one_original_open_turn_anchor",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_round_trip_actual_move_recipient_and_one_ap_not_trainer_recall",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_round_trip_same_time_intervening_action_and_replay_reject",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_tag_in_coat_without_native_recall_or_paid_occurrence_rejects_before_mutation",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_tag_in_locks_chosen_baton_scope_before_next_send",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_tag_in_real_paid_party_recall_then_next_send_survives_json_and_gm",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_unstarted_target_turn_moves_to_reserve_next_actual_turn_without_granting_one"
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_actual_heal_block_consumes_selected_salty_with_no_gain_and_lunchbox_rejects_atomically",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_actual_heavy_equipment_loss_consumes_common_contribution_balance",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_armed_salty_noop_never_blocks_the_actual_foe_attack",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_consumption_clear_recall_and_gm_restore_cannot_resurrect_source_rights",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_distinct_additive_lifetimes_follow_explicit_policy_and_restore",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_fifo_default_and_explicit_lifo_change_only_surviving_sources",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_form_lock_after_arming_preserves_attack_and_records_actual_block",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_hits_foreign_max_zero_and_partial_delta_pay_once",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_legacy_event_history_does_not_invent_remaining_food_or_chef_sources",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_lunchbox_foreign_zero_partial_and_empty_are_successes",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_lunchbox_only_adds_the_triggering_food_receipt_remaining_balance",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_malformed_balance_source_receipt_and_policy_reject_before_persistence",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_mixed_unknown_outside_interval_survives_restore_without_inventing_time",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_native_food_taste_hits_and_lunchbox_keep_exact_sources",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_new_food_after_chef_and_hits_preserves_reverse_stack_exception",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_salty_taste_cannot_add_to_foreign_hp_and_lower_grant_has_no_source_right",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_selected_default_keeps_native_lunchbox_and_chef_ages_fifo_and_restored_expiry",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_soulless_is_actual_block_not_successful_max_noop"
       ]
     }
   }

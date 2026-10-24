@@ -312,11 +312,14 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
                 self.assertNotIn(CLASS._source_id(b.owner, wrong, CLASS.SPECIES_SAVANT), GRANTS.state(wrong)['sources'])
 
     def test_csv_species_label_remains_distinct_and_wrong_or_absent_label_is_inert(self):
+        # Both printed effects choose an actual evolution family. A loose sheet
+        # label cannot replace that family; this fixture does not certify acquisition.
         for kind in ('late_join', 'capture'):
-            for label, expected in (('fish-family', 1), ('other-family', 0), (None, 0)):
-                with self.subTest(boundary=kind, label=label):
+            for selected,label,expected in (('pokemon/잉어킹','other-family',1),
+                    ('pokemon/이상해씨','fish-family',0),('pokemon/잉어킹',None,1)):
+                with self.subTest(boundary=kind, selected=selected, label=label):
                     b = self.boundary(kind, {'feats': [CLASS.SPECIES_SAVANT],
-                        'class_passive_choices': {CLASS.SPECIES_SAVANT: {'evolution_group': 'fish-family'}}})
+                        'class_passive_choices': {CLASS.SPECIES_SAVANT: {'evolution_group': selected}}})
                     if label is not None: b.target.spec['evolution_group'] = label
                     p = b.run()
                     self.assertEqual(p.stats, {s: p.spec['stats'][s] + expected for s in STATS})
