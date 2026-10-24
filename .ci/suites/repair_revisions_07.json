@@ -1,32 +1,73 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_07",
-  "purpose": "Source-bound existing Pokemon Fire/Ice passive acquisition and withdrawal; R59 selectable book/CSV acquisition and retained receipts with declared7+; Press composed context; real staged Cannon/Plasma/effect-rank observations; five Juggler and five weather fixture repairs. Exact120methods including10new, original4115 plus added obligations retained, source-specific existing PASS reused. No completion credit from selection.",
+  "purpose": "Source-backed core Suction Cups and fossil/egg correction; selected Cleanse inventory source; lawful BattleContest/Juggler fixtures; full-state rollback diagnostics; explicit runtime source retention on custom loading; first11existing state-reuse test revisions with independent builders and blocked dependencies. Exact372 changed-impact methods including12new. All original4115 and later obligations retained; full repository13130methods+21procedural test revision remains partial.",
   "completion_credit": 0,
-  "required_unique_count": 12,
+  "required_unique_count": 41,
   "completed": {
-    "tools.test_category2_class_actor_state_actions.ClassActorStateActionTests": {
+    "tools.test_book_researcher_fields_pokemon.ResearcherFieldsPokemonTests": {
       "tests": [
-        "tools.test_category2_class_actor_state_actions.ClassActorStateActionTests.test_maximum_level_exception_and_pending_json_restore",
-        "tools.test_category2_class_actor_state_actions.ClassActorStateActionTests.test_top_percentage_native_level_events_four_use_cap_and_stat_source"
+        "tools.test_book_researcher_fields_pokemon.ResearcherFieldsPokemonTests.test_fossil_restoration_gm_choice_is_bound_to_the_original_event",
+        "tools.test_book_researcher_fields_pokemon.ResearcherFieldsPokemonTests.test_fossil_restoration_transferred_egg_keeps_original_event_through_gm_and_json_restore",
+        "tools.test_book_researcher_fields_pokemon.ResearcherFieldsPokemonTests.test_legacy_fossil_choice_waits_for_exact_confirmation_after_transfer_and_survives_gm_json_hatch",
+        "tools.test_book_researcher_fields_pokemon.ResearcherFieldsPokemonTests.test_legacy_fossil_confirmation_preserves_already_hatched_child_after_ownership_transfer",
+        "tools.test_book_researcher_fields_pokemon.ResearcherFieldsPokemonTests.test_plain_native_fossil_rejects_empty_foreign_hidden_and_multiple_birth_abilities",
+        "tools.test_book_researcher_fields_pokemon.ResearcherFieldsPokemonTests.test_prehistoric_bond_makes_each_printed_relic_from_the_individuals_highest_nature_adjusted_base_stat",
+        "tools.test_book_researcher_fields_pokemon.ResearcherFieldsPokemonTests.test_single_basic_ability_species_needs_the_gm_hidden_ability_choice_before_hatching"
       ]
     },
-    "tools.test_item_source_identity_revision.CannonItemIdentityTests": {
+    "tools.test_category2_cleanse_barrier.BarrierTests": {
       "tests": [
-        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_exact_loaded_source_and_single_loading_reject_before_payment",
-        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_late_native_damage_failure_restores_load_stock_action_and_rng",
-        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_loaded_pester_native_accuracy_range_damage_payment_and_hour",
-        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_loaded_pester_rejects_beyond_fifteen_metres_before_payment",
-        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_miss_consumes_loaded_pester_once_without_damage_or_immunity",
-        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_unloaded_or_withdrawn_cannon_does_not_extend_hand_throw"
+        "tools.test_category2_cleanse_barrier.BarrierTests.test_actual_surface_and_radius_do_not_make_a_general_movement_wall",
+        "tools.test_category2_cleanse_barrier.BarrierTests.test_both_restores_keep_failures_and_reject_forged_native_result_or_source",
+        "tools.test_category2_cleanse_barrier.BarrierTests.test_equal_focus_fails_individual_clock_and_exact_3600_retry_destroys_same_tag",
+        "tools.test_category2_cleanse_barrier.BarrierTests.test_invalid_attachment_and_options_reject_before_any_actual_observation",
+        "tools.test_category2_cleanse_barrier.BarrierTests.test_large_body_crossing_and_existing_wall_corner_geometry",
+        "tools.test_category2_cleanse_barrier.BarrierTests.test_native_escape_without_tags_does_not_depend_on_cleanse_source_selection",
+        "tools.test_category2_cleanse_barrier.BarrierTests.test_native_phasing_movement_consumer_keeps_failed_observation_and_blocks_real_position",
+        "tools.test_category2_cleanse_barrier.BarrierTests.test_observed_feature_error_resumes_same_focus_after_json_restore",
+        "tools.test_category2_cleanse_barrier.BarrierTests.test_other_encroacher_and_remount_preserve_same_physical_lock",
+        "tools.test_category2_cleanse_barrier.BarrierTests.test_retry_order_survives_dictionary_order_and_old_surface_removal",
+        "tools.test_category2_cleanse_barrier.BarrierTests.test_success_destroys_tag_before_actual_native_movement_and_late_fault_cannot_erase_it",
+        "tools.test_category2_cleanse_barrier.BarrierTests.test_unknown_partial_round_time_needs_actual_observation"
       ]
     },
-    "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests": {
+    "tools.test_category2_cleanse_weapon.WeaponTagTests": {
       "tests": [
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_class_fire_and_ice_declarations_preserve_live_type_and_target_conditions",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_explicit_csv_class_passive_ids_keep_exact_acquisition_source",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_explicit_csv_passive_restore_preserves_source_and_exclusion_is_atomic",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_newly_projected_book_species_retraining_and_transfer_remove_only_old_owner"
+        "tools.test_category2_cleanse_weapon.WeaponTagTests.test_actual_one_shot_fighting_type_is_not_recomputed_after_consumption",
+        "tools.test_category2_cleanse_weapon.WeaponTagTests.test_appendage_multiple_actual_recipients_spend_before_next_ghost_and_restore",
+        "tools.test_category2_cleanse_weapon.WeaponTagTests.test_appendage_native_selection_is_exact_and_other_part_cannot_borrow_it",
+        "tools.test_category2_cleanse_weapon.WeaponTagTests.test_appendage_observation_and_weapon_mutual_exclusion_are_atomic",
+        "tools.test_category2_cleanse_weapon.WeaponTagTests.test_both_restores_keep_live_and_spent_attachment_and_reject_forged_receipt",
+        "tools.test_category2_cleanse_weapon.WeaponTagTests.test_equipment_transfer_and_location_follow_original_attachment",
+        "tools.test_category2_cleanse_weapon.WeaponTagTests.test_intercept_resume_uses_actual_pokemon_recipient_not_original_ghost_flag",
+        "tools.test_category2_cleanse_weapon.WeaponTagTests.test_late_failure_rolls_back_damage_rng_action_and_same_body",
+        "tools.test_category2_cleanse_weapon.WeaponTagTests.test_multiple_actual_tags_do_not_stack_base_multiplier_and_each_expires_on_damage",
+        "tools.test_category2_cleanse_weapon.WeaponTagTests.test_optional_physical_weapon_without_framework_rolls_back_terminal_failure",
+        "tools.test_category2_cleanse_weapon.WeaponTagTests.test_other_weapon_unarmed_type_and_ghost_trainer_never_spend_tag",
+        "tools.test_category2_cleanse_weapon.WeaponTagTests.test_post_damage_pending_and_fresh_restore_never_repeat_same_consumption",
+        "tools.test_category2_cleanse_weapon.WeaponTagTests.test_preview_miss_prevented_and_native_zero_damage_keep_same_tag",
+        "tools.test_category2_cleanse_weapon.WeaponTagTests.test_separate_surface_stock_or_second_attachment_rejects_same_attached_body",
+        "tools.test_category2_cleanse_weapon.WeaponTagTests.test_temporary_hp_only_is_real_native_damage_and_consumes_once",
+        "tools.test_category2_cleanse_weapon.WeaponTagTests.test_weapon_normal_and_fighting_are_exact_regular_matchups_including_dual_ghost"
+      ]
+    },
+    "tools.test_cleanse_shared_binding.SharedBindingTests": {
+      "tests": [
+        "tools.test_cleanse_shared_binding.SharedBindingTests.test_generic_transform_cannot_publish_unbound_tag_and_rolls_back",
+        "tools.test_cleanse_shared_binding.SharedBindingTests.test_native_dynamic_quota_and_published_original_are_shared",
+        "tools.test_cleanse_shared_binding.SharedBindingTests.test_native_save_validates_bound_level_and_cold_restore_original"
+      ]
+    },
+    "tools.test_core_physical_incubator.PhysicalIncubatorTests": {
+      "tests": [
+        "tools.test_core_physical_incubator.PhysicalIncubatorTests.test_exact_double_speed_uses_original_native_declared_birth_and_frees_slot"
+      ]
+    },
+    "tools.test_foundation_forced_movement.ForcedMovementTests": {
+      "tests": [
+        "tools.test_foundation_forced_movement.ForcedMovementTests.test_effect_push_stops_at_other_body_without_spending_target_movement",
+        "tools.test_foundation_forced_movement.ForcedMovementTests.test_immunity_and_invalid_direction_leave_position_untouched"
       ]
     }
   }

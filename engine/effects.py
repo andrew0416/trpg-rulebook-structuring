@@ -462,7 +462,7 @@ def h_create_terrain(engine, a, t, e, ctx):
 
 def h_push(engine, a, t, e, ctx):
     import coat_effects as COATS
-    if COATS.blocks_displacement(engine,t) or __import__('type_ace').push_immunity(engine,t):return None
+    if COATS.blocks_displacement(engine,t) or __import__('type_ace').push_immunity(engine,t,attacker=a,move=ctx.get('move')):return None
     m = e.get("meters")
     if m == "to outside blast range":m=__import__("native_area_hit_effects").push_outside(engine,a,t,e,ctx)
     if not isinstance(m, int):

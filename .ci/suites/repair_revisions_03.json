@@ -1,19 +1,52 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_03",
-  "purpose": "Source-bound existing Pokemon Fire/Ice passive acquisition and withdrawal; R59 selectable book/CSV acquisition and retained receipts with declared7+; Press composed context; real staged Cannon/Plasma/effect-rank observations; five Juggler and five weather fixture repairs. Exact120methods including10new, original4115 plus added obligations retained, source-specific existing PASS reused. No completion credit from selection.",
+  "purpose": "Source-backed core Suction Cups and fossil/egg correction; selected Cleanse inventory source; lawful BattleContest/Juggler fixtures; full-state rollback diagnostics; explicit runtime source retention on custom loading; first11existing state-reuse test revisions with independent builders and blocked dependencies. Exact372 changed-impact methods including12new. All original4115 and later obligations retained; full repository13130methods+21procedural test revision remains partial.",
   "completion_credit": 0,
-  "required_unique_count": 7,
+  "required_unique_count": 32,
   "completed": {
-    "tools.test_category3_survivalist.Tests": {
+    "tools.test_common_initiative.CommonInitiativeTests": {
       "tests": [
-        "tools.test_category3_survivalist.Tests.test_actual_class_novice_and_known_source_required",
-        "tools.test_category3_survivalist.Tests.test_actual_unknown_current_environment_holds_before_rng",
-        "tools.test_category3_survivalist.Tests.test_native_five_skills_get_terrain_bonus_and_other_skills_do_not",
-        "tools.test_category3_survivalist.Tests.test_observed_skill_context_cannot_be_rewritten",
-        "tools.test_category3_survivalist.Tests.test_plains_distant_perception_works_outside_grassland_and_only_for_that_check",
-        "tools.test_category3_survivalist.Tests.test_skill_monkey_retains_terrain_talent_bonus_once_in_final_check",
-        "tools.test_category3_survivalist.Tests.test_surefooted_context_and_actual_opposed_defender_use_bonus"
+        "tools.test_common_initiative.CommonInitiativeTests.test_all_initial_tie_decisions_precede_random_consumption",
+        "tools.test_common_initiative.CommonInitiativeTests.test_ambiguous_flinch_is_not_promoted_to_set_five",
+        "tools.test_common_initiative.CommonInitiativeTests.test_bad_decision_not_treated_as_authority",
+        "tools.test_common_initiative.CommonInitiativeTests.test_default_floor_odd_boundary",
+        "tools.test_common_initiative.CommonInitiativeTests.test_duplicate_actor_identity_is_rejected",
+        "tools.test_common_initiative.CommonInitiativeTests.test_empty_roster_resolves_without_decision",
+        "tools.test_common_initiative.CommonInitiativeTests.test_engine_delegation_uses_actual_corrected_order",
+        "tools.test_common_initiative.CommonInitiativeTests.test_explicit_lowest_roll_policy_is_not_mislabeled_source",
+        "tools.test_common_initiative.CommonInitiativeTests.test_explicit_tie_order_supports_duplicate_names",
+        "tools.test_common_initiative.CommonInitiativeTests.test_fixed_and_half_require_explicit_composition_decision",
+        "tools.test_common_initiative.CommonInitiativeTests.test_fixed_order_response_cannot_replay_for_new_roster",
+        "tools.test_common_initiative.CommonInitiativeTests.test_fixed_value_without_competing_modifiers",
+        "tools.test_common_initiative.CommonInitiativeTests.test_fixed_zero_is_not_treated_as_absent",
+        "tools.test_common_initiative.CommonInitiativeTests.test_flat_bonus_without_half_preserves_old_supported_behavior",
+        "tools.test_common_initiative.CommonInitiativeTests.test_half_bonus_composition_holds_without_actor_clock_or_rng_mutation",
+        "tools.test_common_initiative.CommonInitiativeTests.test_highest_roll_is_only_an_explicit_gm_policy",
+        "tools.test_common_initiative.CommonInitiativeTests.test_isolated_paralysis_changes_actual_order",
+        "tools.test_common_initiative.CommonInitiativeTests.test_registered_initiative_extension_is_not_ignored",
+        "tools.test_common_initiative.CommonInitiativeTests.test_repeated_tie_at_explicit_computation_bound_stays_pending",
+        "tools.test_common_initiative.CommonInitiativeTests.test_repeated_tie_can_receive_explicit_order",
+        "tools.test_common_initiative.CommonInitiativeTests.test_reroll_only_tied_faces_not_already_resolved_group",
+        "tools.test_common_initiative.CommonInitiativeTests.test_selected_condition_reader_controls_available_effect",
+        "tools.test_common_initiative.CommonInitiativeTests.test_source_and_spec_integrity",
+        "tools.test_common_initiative.CommonInitiativeTests.test_staged_speed_is_used",
+        "tools.test_common_initiative.CommonInitiativeTests.test_successful_paralysis_save_does_not_remove_initiative_half",
+        "tools.test_common_initiative.CommonInitiativeTests.test_unanswered_tie_is_pending_without_rng",
+        "tools.test_common_initiative.CommonInitiativeTests.test_unmodified_order_consumes_no_tie_dice",
+        "tools.test_common_initiative.CommonInitiativeTests.test_unscoped_stored_fixed_order_is_held"
+      ]
+    },
+    "tools.test_compound_action_independent.Independent": {
+      "tests": [
+        "tools.test_compound_action_independent.Independent.test_actual_callers_hold_late_unknown_priority_and_true_conflict",
+        "tools.test_compound_action_independent.Independent.test_explicit_standard_reserved_before_conversion"
+      ]
+    },
+    "tools.test_foundation_egg_creation.EggTests": {
+      "tests": [
+        "tools.test_foundation_egg_creation.EggTests.test_declared_parent_knowledge_and_native_learning_produce_a_fresh_child",
+        "tools.test_foundation_egg_creation.EggTests.test_transfer_json_restore_and_request_replay_preserve_actual_parentage_and_source"
       ]
     }
   }

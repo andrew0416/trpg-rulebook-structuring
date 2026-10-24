@@ -388,7 +388,7 @@ def _path_plan(e, actor, target, attacker, source, options):
     if distance > allowance:
         raise ValueError('Intercept route exceeds actual movement capability')
     if source == MELEE:
-        if __import__('type_ace').push_immunity(e,target):
+        if __import__('type_ace').push_immunity(e,target,attacker=actor):
             raise ValueError('Melee Intercept requires an ally without Push immunity')
         if path[-1] != target.pos or not e.adjacent(attacker, target):
             raise ValueError('Melee Intercept ends at the ally attacked by an adjacent foe')

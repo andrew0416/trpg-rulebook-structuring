@@ -242,6 +242,8 @@ GIVER_IDS=('ability/기부자','ability/기부자-2')
 
 
 def ability_registration(rules,name):
+ core_suction=__import__('core_suction_cups').registration(rules,name)
+ if core_suction is not None:return core_suction
  # One CSV row shares the two defenses, but species acquisition keeps its member.
  armor_id='ability/조가비갑옷-전투무장'
  armor_names={'조가비갑옷':'조가비갑옷','Shell Armor':'조가비갑옷',

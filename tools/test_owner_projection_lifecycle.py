@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
 from builder import build_pokemon, build_trainer, species_lookup
 from engine import Combatant, Engine, Rules
-from ruleset import RuleFilter
+from ruleset import RuleFilter, RuleSelection
 import action_points as AP
 import class_passive_combat as CLASS
 import combat_precision_features as PRECISION
@@ -282,19 +282,18 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
                     PARTY.project_current_owner(loaded, restored)
                     self.assertEqual(CODEC.dump_engine(loaded), before)
                     old = rules.ruleset
+                    profile = deepcopy(old.profile)
+                    profile['exclude_units'] = [*profile.get('exclude_units', []), source]
+                    filtered = RuleFilter(profile, name=old.name)
+                    selection = RuleSelection(filtered, rules.selection.units.values())
+                    selection.dependencies = deepcopy(rules.selection.dependencies)
+                    selection.source_audit_snapshots = deepcopy(rules.selection.source_audit_snapshots)
                     before = CODEC.dump_engine(b.e)
-                    try:
-                        profile = deepcopy(old.profile)
-                        profile['exclude_units'] = [*profile.get('exclude_units', []), source]
-                        rules.ruleset = RuleFilter(profile, name=old.name)
-                        rules._apply_ruleset()
-                        # The deliberately incompatible profile cannot serialize
-                        # existing grants; reach the operation before restoring it.
+                    # Scope admission together; rebuilding on exit drops post-init derived identities.
+                    with patch.object(rules, 'ruleset', filtered), patch.object(rules, 'selection', selection):
+                        # Existing grants cannot serialize under this deliberate exclusion.
                         with self.assertRaisesRegex(ValueError, 'Excluded rule selection'):
                             PARTY.project_current_owner(b.e, p)
-                    finally:
-                        rules.ruleset = old
-                        rules._apply_ruleset()
                     self.assertEqual(CODEC.dump_engine(b.e), before)
 
     def species_owner(self, e, species):

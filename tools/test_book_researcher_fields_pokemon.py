@@ -190,7 +190,8 @@ class ResearcherFieldsPokemonTests(unittest.TestCase):
         egg = self.fossil('암나이트', 'ordinary', feature=False)
         self.assertNotIn(RFS.FOSSIL_MARK, egg)
         for abilities in ([], ['정전기'], ['쓱쓱'], ['조가비갑옷', '깨어진갑옷']):
-            self.rejected(lambda: self.hatch(egg, 'invalid', abilities=abilities), 'one species Basic|outside.*species Basic')
+            reason = 'missing_source_identity' if abilities == ['쓱쓱'] else 'one species Basic|outside.*species Basic'
+            self.rejected(lambda: self.hatch(egg, 'invalid', abilities=abilities), reason)
         child = self.hatch(egg, 'ordinary child', abilities=['깨어진갑옷'])
         self.assertEqual((child.level, child.abilities, child.spec['tutor_points']), (10, ['깨어진갑옷'], 3))
         self.valid()

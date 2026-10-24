@@ -389,6 +389,15 @@ def build_runtime_selection(rules):
         catalog["struggle"] = dict(catalog["combat/struggle"], id="struggle", title="struggle")
     if "pokemon/capture-rate" in catalog:
         catalog["ball"] = dict(catalog["pokemon/capture-rate"], id="ball", title="ball")
+    # Only explicit runtime registrations survive a catalog rebuild. The new
+    # RuleSelection still applies the current filter and each source dependency.
+    previous = getattr(rules, "selection", None)
+    retained = {}
+    if previous is not None:
+        registered = set(previous.dependencies) | set(getattr(rules, "_authored_policy_sources", {}))
+        retained = {uid: deepcopy(unit) for uid, unit in previous.units.items()
+                    if uid in registered and uid not in catalog}
+        catalog.update(retained)
     for unit in catalog.values():
         source=unit['source'];file=source.get('file','').removeprefix('input/')
         if file in source_snapshots:
@@ -401,6 +410,12 @@ def build_runtime_selection(rules):
     selection.source_audit_snapshots = {row['id']:{row['official_source']['extract']:row['official_source']['sha256']}
         for row in getattr(rules,'core_abilities',{}).values()
         if str(row.get('official_source',{}).get('extract','')).startswith('source-audit/')}
+    if previous is not None:
+        for uid in retained:
+            if uid in previous.dependencies:
+                selection.dependencies[uid] = deepcopy(previous.dependencies[uid])
+            if uid in getattr(previous, "source_audit_snapshots", {}):
+                selection.source_audit_snapshots[uid] = deepcopy(previous.source_audit_snapshots[uid])
     if "ball" in catalog:
         selection.dependencies["ball"] = ("pokemon/capture-rate", "combat/accuracy-roll")
     for uid, record in getattr(rules, "moves", {}).items():

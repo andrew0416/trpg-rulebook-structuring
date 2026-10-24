@@ -92,7 +92,7 @@ def native_passive(rules,uid):
   if rules._selected_rule(uid)!=uid or rules.ability_effects.get('틈새포착')!=[{'type':'skill_mod','skill':'은신','value':2},{'type':'ignore_effects','no_hazard_trigger':True,'no_blessing_reactions':True,'ignore_substitute':True}]:raise ValueError('reviewed Core Infiltrator declaration changed')
   return True
  # These effects are dynamic consumers of the actual active ability list.
- return uid in ('ability/도주','ability/도주-playtest','ability/불면','ability/단순','ability/멀티타입') or registration(rules,uid) is not None
+ return uid in ('ability/도주','ability/도주-playtest','ability/불면','ability/단순','ability/멀티타입','ability/흡반') or registration(rules,uid) is not None
 
 def _raw_abilities(actor):
  st=actor.spec.get(G.KEY,{})

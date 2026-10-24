@@ -1,6 +1,7 @@
 """Independent compound cost caller tests; payloads isolate common contracts, not leaf effects."""
 from pathlib import Path
 import copy,hashlib,json,sys,unittest
+from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 from engine import Rules,Engine,Combatant
@@ -48,17 +49,20 @@ class Independent(unittest.TestCase):
    self.assertTrue(T.spend(e,a,M.ActionCost(components)))
    self.assertEqual(a.budget,{'standard':0,'shift':0,'swift':0});self.assertFalse(a.took_standard);self.assertEqual(len(a._action_history),1)
  def test_explicit_standard_reserved_before_conversion(self):
+  e,a,b,rid=self.fixture();a.budget={'standard':1,'shift':1,'swift':0}
   for components in [('standard','swift'),('swift','standard')]:
-   e,a,b,rid=self.fixture();a.budget={'standard':1,'shift':1,'swift':0};before=self.state(e,a,b)
+   before=self.state(e,a,b)
    self.assertFalse(T.spend(e,a,M.ActionCost(components)));self.assertEqual(self.state(e,a,b),before)
  def test_actual_callers_hold_late_unknown_priority_and_true_conflict(self):
   for automatic in (False,True):
+   e,a,b,rid=self.fixture(automatic)
+   records=a.ability_triggers if automatic else a.registry
+   record=next(x for x in records if x.get('_feat') or x.get('type')=='feat_manual')
    for raw,action in [('장면 x1 - 기본 행동+신속 행동+우선','standard'),('장면 x1 - 기본 행동+신속 행동','free')]:
-    e,a,b,rid=self.fixture(automatic)
-    records=a.ability_triggers if automatic else a.registry
-    record=next(x for x in records if x.get('_feat') or x.get('type')=='feat_manual')
-    record['activation_header']['frequency'].update(raw=raw,action=action)
-    before=self.state(e,a,b);self.fire(e,a,b,rid,automatic);self.assertEqual(self.state(e,a,b),before)
+    with patch.dict(record['activation_header']['frequency'],raw=raw,action=action):
+     header_before=copy.deepcopy(record['activation_header']['frequency'])
+     before=self.state(e,a,b);self.fire(e,a,b,rid,automatic);self.assertEqual(self.state(e,a,b),before)
+     self.assertEqual(record['activation_header']['frequency'],header_before)
  def test_snapshot_restore_preserves_compound_record_and_single_frequency(self):
   e,a,b,rid=self.fixture();e.gm.snapshot('before');self.fire(e,a,b,rid,False)
   expected=self.state(e,a,b);e.gm.snapshot('after');e.gm.restore('before');self.fire(e,a,b,rid,False)

@@ -1,24 +1,84 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_09",
-  "purpose": "Source-bound existing Pokemon Fire/Ice passive acquisition and withdrawal; R59 selectable book/CSV acquisition and retained receipts with declared7+; Press composed context; real staged Cannon/Plasma/effect-rank observations; five Juggler and five weather fixture repairs. Exact120methods including10new, original4115 plus added obligations retained, source-specific existing PASS reused. No completion credit from selection.",
+  "purpose": "Source-backed core Suction Cups and fossil/egg correction; selected Cleanse inventory source; lawful BattleContest/Juggler fixtures; full-state rollback diagnostics; explicit runtime source retention on custom loading; first11existing state-reuse test revisions with independent builders and blocked dependencies. Exact372 changed-impact methods including12new. All original4115 and later obligations retained; full repository13130methods+21procedural test revision remains partial.",
   "completion_credit": 0,
-  "required_unique_count": 4,
+  "required_unique_count": 48,
   "completed": {
-    "tools.test_book_species_savant.BookSpeciesSavantTests": {
+    "tools.test_battle_contest_pending.BattleContestPendingTests": {
       "tests": [
-        "tools.test_book_species_savant.BookSpeciesSavantTests.test_json_fresh_rules_and_gm_restore_keep_selection_and_reject_tampering",
-        "tools.test_book_species_savant.BookSpeciesSavantTests.test_retraining_retracts_only_own_bonus_and_preserves_historical_receipt"
+        "tools.test_battle_contest_pending.BattleContestPendingTests.test_failed_actual_intercept_credits_only_attackers_original_target_ko",
+        "tools.test_battle_contest_pending.BattleContestPendingTests.test_invalid_pending_answer_then_decline_keeps_original_roll_and_cost",
+        "tools.test_battle_contest_pending.BattleContestPendingTests.test_json_pending_restore_preserves_real_recipient_and_first_center_performance",
+        "tools.test_battle_contest_pending.BattleContestPendingTests.test_native_preflight_refusal_creates_no_performance_spend_or_rng_change",
+        "tools.test_battle_contest_pending.BattleContestPendingTests.test_saved_pending_choice_and_completion_binding_tampering_are_rejected",
+        "tools.test_battle_contest_pending.BattleContestPendingTests.test_successful_actual_intercept_credits_actual_recipient_once",
+        "tools.test_battle_contest_pending.BattleContestPendingTests.test_synchronous_native_completion_spends_and_scores_once"
       ]
     },
-    "tools.test_book_taskmaster_hardened.TaskmasterTests": {
+    "tools.test_book_juggler_full.JugglerTests": {
       "tests": [
-        "tools.test_book_taskmaster_hardened.TaskmasterTests.test_press_and_whip_selected_effects_pay_actual_standard_swift_ap_and_free_training_order"
+        "tools.test_book_juggler_full.JugglerTests.test_party_reorder_then_mounted_exchange_restores_current_and_legacy_prefix",
+        "tools.test_book_juggler_full.JugglerTests.test_same_cursor_mounted_exchange_then_party_replacement_preserves_historical_mount",
+        "tools.test_book_juggler_full.JugglerTests.test_same_cursor_native_gm_release_reorder_precedes_mounted_exchange",
+        "tools.test_book_juggler_full.JugglerTests.test_swarm_continuations_party_reorder_and_mounted_exchange_replay_in_producer_order",
+        "tools.test_book_juggler_full.JugglerTests.test_transformation_chronology_rejects_omission_duplicate_legacy_hiding_and_resigned_binding_reorder"
       ]
     },
-    "tools.test_environmental_actual_type_revision.EnvironmentalActualTypeRevisionTests": {
+    "tools.test_category2_cleanse_burn.BurnTests": {
       "tests": [
-        "tools.test_environmental_actual_type_revision.EnvironmentalActualTypeRevisionTests.test_consumed_native_plasma_type_is_retained_and_observation_cannot_consume_it_again"
+        "tools.test_category2_cleanse_burn.BurnTests.test_299_300_and_live_baseline_grants_learning_contributions",
+        "tools.test_category2_cleanse_burn.BurnTests.test_30m_boundary_all_kinds_both_required_no_wall_exception",
+        "tools.test_category2_cleanse_burn.BurnTests.test_actual_carried_original_is_released_and_burned_once",
+        "tools.test_category2_cleanse_burn.BurnTests.test_actual_grapple_phasing_refused_teleporter_escape_keeps_native_cost",
+        "tools.test_category2_cleanse_burn.BurnTests.test_extended_invisibility_investment_survives_temporary_loss_native_480_history",
+        "tools.test_category2_cleanse_burn.BurnTests.test_final_world_failure_preserves_observed_focus_without_partial_loss",
+        "tools.test_category2_cleanse_burn.BurnTests.test_forced_visibility_changes_native_move_accuracy_and_existing_cooldown",
+        "tools.test_category2_cleanse_burn.BurnTests.test_independent_losses_expire_separately_and_do_not_restore_snapshots",
+        "tools.test_category2_cleanse_burn.BurnTests.test_invalid_rank_original_access_source_options_are_atomic",
+        "tools.test_category2_cleanse_burn.BurnTests.test_less_equal_greater_real_focus_and_exact_aliases",
+        "tools.test_category2_cleanse_burn.BurnTests.test_multi_target_observed_failure_resume_same_burn_same_first_dice",
+        "tools.test_category2_cleanse_burn.BurnTests.test_original_other_user_equal_focus_both_loss_and_native_receipts",
+        "tools.test_category2_cleanse_burn.BurnTests.test_public_phasing_consumer_blocks_and_unrelated_teleporter_survives",
+        "tools.test_category2_cleanse_burn.BurnTests.test_terminal_and_losses_survive_gm_and_fresh_json_and_reject_tamper",
+        "tools.test_category2_cleanse_burn.BurnTests.test_uncertain_active_invisibility_preflight_preserves_real_tag_and_rng",
+        "tools.test_category2_cleanse_burn.BurnTests.test_uncertain_loss_named_queries_keep_unrelated_actual_teleporter_escape",
+        "tools.test_category2_cleanse_burn.BurnTests.test_unknown_partial_round_preserved_and_actual_observation_resolves"
+      ]
+    },
+    "tools.test_category3_physics_maneuvers.Tests": {
+      "tests": [
+        "tools.test_category3_physics_maneuvers.Tests.test_native_push_moves_onto_actual_enter_cell_consumer_once",
+        "tools.test_category3_physics_maneuvers.Tests.test_push_actual_standard_accuracy_four_and_world_position_without_free_follow"
+      ]
+    },
+    "tools.test_core_suction_cups_revision.CoreSuctionCupsTests": {
+      "tests": [
+        "tools.test_core_suction_cups_revision.CoreSuctionCupsTests.test_actual_defensive_ability_bypass_preserves_suction_cups_ownership",
+        "tools.test_core_suction_cups_revision.CoreSuctionCupsTests.test_core_and_both_playtest_source_identities_remain_distinct",
+        "tools.test_core_suction_cups_revision.CoreSuctionCupsTests.test_exclusion_ambiguity_and_explicit_variant_selection_do_not_choose_core_implicitly",
+        "tools.test_core_suction_cups_revision.CoreSuctionCupsTests.test_live_suppression_loss_and_json_restore_preserve_only_actual_core_ownership",
+        "tools.test_core_suction_cups_revision.CoreSuctionCupsTests.test_native_macho_charge_keeps_actual_move_context_and_defensive_bypass",
+        "tools.test_core_suction_cups_revision.CoreSuctionCupsTests.test_native_push_spends_its_action_but_cannot_move_the_core_holder",
+        "tools.test_core_suction_cups_revision.CoreSuctionCupsTests.test_native_roar_round_end_and_json_restore_require_no_retreat_for_immune_target",
+        "tools.test_core_suction_cups_revision.CoreSuctionCupsTests.test_push_effect_is_blocked_but_general_forced_displacement_is_not"
+      ]
+    },
+    "tools.test_mentor_effect_rank_f31.MentorEffectRankTests": {
+      "tests": [
+        "tools.test_mentor_effect_rank_f31.MentorEffectRankTests.test_book_effect_eight_plus_three_teaches_level_forty_at_twenty_nine",
+        "tools.test_mentor_effect_rank_f31.MentorEffectRankTests.test_csv_effect_eight_keeps_ordinary_six_acquisition_and_native_learning",
+        "tools.test_mentor_effect_rank_f31.MentorEffectRankTests.test_effect_boundary_other_choice_and_invalid_master_remain_atomic",
+        "tools.test_mentor_effect_rank_f31.MentorEffectRankTests.test_effect_teaching_keeps_native_daily_three_and_time_payment_atomicity",
+        "tools.test_mentor_effect_rank_f31.MentorEffectRankTests.test_historical_effect_survives_teacher_change_gm_and_fresh_codec_restore",
+        "tools.test_mentor_effect_rank_f31.MentorEffectRankTests.test_unwitnessed_seven_and_coherent_rank_effect_forgery_rejected_by_restores"
+      ]
+    },
+    "tools.test_rule_selection.SelectionFreshnessTests": {
+      "tests": [
+        "tools.test_rule_selection.SelectionFreshnessTests.test_cached_admission_rejects_changed_effective_settings",
+        "tools.test_rule_selection.SelectionFreshnessTests.test_declared_profile_drift_and_restoration",
+        "tools.test_rule_selection.SelectionFreshnessTests.test_rebuilding_selects_new_variant_without_mutating_old_index"
       ]
     }
   }

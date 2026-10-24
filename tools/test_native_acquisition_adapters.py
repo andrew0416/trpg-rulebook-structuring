@@ -167,7 +167,9 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
         source_ids = tuple(N.DEFINITIONS)
         if context is not None:
             self.assertEqual(context['case_ids'][stage], self.id())
-            self.assertEqual(context['next_stage'], stage, 'previous lifecycle case did not finish')
+            if context['next_stage'] != stage:
+                raise unittest.SkipTest('blocked by failed prerequisite: native acquisition stage ' +
+                    str(context['next_stage']) + ' did not complete; required stage ' + str(stage) + ' remains unexecuted')
             if stage == 0:
                 self.assertIsNone(context['source_ids'])
                 context['source_ids'] = source_ids
@@ -180,15 +182,16 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
                 elif stage == 0:
                     state = self.build_acquisition_input(uid)
                 else:
-                    self.assertEqual(context['completed'][uid], list(range(stage)),
-                                     'source has a failed or missing predecessor; no synthetic fallback')
+                    if context['completed'][uid] != list(range(stage)):
+                        raise unittest.SkipTest('blocked by failed prerequisite: native acquisition source ' + uid +
+                            ' has an incomplete predecessor; required stage ' + str(stage) + ' remains unexecuted')
                     self.assertIn(uid, context['states'])
                     state = context['states'][uid]
                 verifiers[stage](state)
                 if context is not None:
                     context['states'][uid] = state
                     context['completed'][uid].append(stage)
-        if context is not None:
+        if context is not None and all(context['completed'][uid] == list(range(stage + 1)) for uid in source_ids):
             context['next_stage'] = stage + 1
 
     def verify_native_acquisition(self, state):

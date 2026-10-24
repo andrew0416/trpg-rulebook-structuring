@@ -76,11 +76,14 @@ class CompoundCostTests(unittest.TestCase):
   self.assertFalse(a.took_standard)
   self.assertEqual(a._action_history,[{'kind':'compound','components':['shift','swift']}])
  def test_failed_first_or_last_component_is_atomic(self):
+  _,e,a,b,_=self.fixture()
   for components in [('standard','swift'),('swift','standard')]:
    for missing in ('standard','swift'):
-    _,e,a,b,_=self.fixture();a.budget[missing]=0;before=self.snapshot(e,a,b)
-    self.assertFalse(TURN.spend(e,a,META.ActionCost(components)))
-    self.assertEqual(self.snapshot(e,a,b),before)
+    with patch.dict(a.budget,{missing:0}):
+     before=self.snapshot(e,a,b);rng=e.rng.getstate()
+     self.assertFalse(TURN.spend(e,a,META.ActionCost(components)))
+     self.assertEqual(self.snapshot(e,a,b),before)
+     self.assertEqual(e.rng.getstate(),rng)
  def test_movement_not_inferred_from_shift_cost(self):
   _,e,a,b,_=self.fixture();a.budget={'standard':1,'shift':0,'swift':1}
   self.assertTrue(TURN.spend(e,a,META.ActionCost(('shift','swift'))))

@@ -3,8 +3,8 @@
   "files": [
     {
       "path": "data/abilities-core.json",
-      "sha256": "e9548a9424f60a6fbf2fb47c50454989f8daf97b8e4f219b6b3fddf564479ce1",
-      "size": 19924
+      "sha256": "5f9caa15e571418c1597c750962be31505b5261e325741798f90ca1bc527524f",
+      "size": 21581
     },
     {
       "path": "data/abilities-llm.json",
@@ -173,8 +173,8 @@
     },
     {
       "path": "data/cleanse-tag-burn-policy.json",
-      "sha256": "2ff83834f7dba696e54ea8bd224995e4b64ad592bb61b70367aa210b22ca2371",
-      "size": 2395
+      "sha256": "a092f5bd46dc501c7ccba0b93cbe87b5ff2b9be8dddced8a2221054766729e9f",
+      "size": 2394
     },
     {
       "path": "data/coat-effect-policy.json",
@@ -1790,6 +1790,11 @@
       "path": "source-audit/core-run-away.txt",
       "sha256": "db819a3bf69df1ef45776000256361e9368b6610a677fb495e7f402181d16ef9",
       "size": 141
+    },
+    {
+      "path": "source-audit/core-suction-cups.txt",
+      "sha256": "2019a07df4538cbca58f4730583840ff3519ab19f5079fc6a5f9cdf7038f4587",
+      "size": 109
     },
     {
       "path": "source-audit/core-tumbler-moves.txt",

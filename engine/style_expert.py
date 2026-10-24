@@ -208,7 +208,7 @@ def after_move(engine,row):
    hit=COMPLETE.recipient_result(row,target)
    if hit and hit['hit'] and not hit.get('cancelled'):
     dx=(target.pos[0]>pokemon.pos[0])-(target.pos[0]<pokemon.pos[0]);dy=(target.pos[1]>pokemon.pos[1])-(target.pos[1]<pokemon.pos[1])
-    if (dx or dy) and not __import__('type_ace').push_immunity(engine,target):FORCED.displace(engine,pokemon,target,direction=(dx,dy),distance=3,source=feature,allow_fainted=True)
+    if (dx or dy) and not __import__('type_ace').push_immunity(engine,target,attacker=pokemon,move=row['move']):FORCED.displace(engine,pokemon,target,direction=(dx,dy),distance=3,source=feature,allow_fainted=True)
  elif feature==IMPROVE['슬기로움'] and value['choice']=='allies':
   for target in row['targets']:
    TIME.install(engine,target,{'source':feature,'style_assault':True,'turn_owner':pokemon,

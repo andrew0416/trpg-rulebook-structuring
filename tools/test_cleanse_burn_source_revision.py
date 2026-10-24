@@ -157,4 +157,19 @@ class CleanseBurnSourceRevisionTests(unittest.TestCase):
         self.assertEqual(loss['clock_anchor'],row['resolved_at']);self.dump(e)
 
 
+    def test_source_choices_bind_actual_selected_inventory_and_keep_reviewed_complete_definitions(self):
+        policy=B._policies(self.rules)
+        selection=self.rules.select_source_definition(TAG.ITEM,source=policy['source_reference'],supports_versions=True)
+        self.assertEqual(selection['selected_id'],TAG.ITEM)
+        self.assertEqual(selection['source']['file'],'db/inventory.csv')
+        self.assertEqual(selection['source']['record_span'],[39,39])
+        self.assertEqual(selection['verified_reference'],policy['source_reference'])
+        self.assertEqual(policy['definitions']['korean_either_strict']['source']['file'],'input/ch09-equipment.md')
+        self.assertEqual(policy['definitions']['english_both_inclusive']['source']['file'],'source-audit/cleanse-tag-core-1.05.txt')
+        self.assertEqual(B.source_choices(self.e)['decision_scope']['selected_id'],TAG.ITEM)
+        for variant in policy['definitions']:
+            self.assertEqual(B._selected_policy(self.e,self.choice(variant)),(variant,policy['definitions'][variant]['policy']))
+
+
+
 if __name__=='__main__':unittest.main()

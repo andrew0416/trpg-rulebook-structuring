@@ -98,8 +98,13 @@ class CannonItemIdentityTests(unittest.TestCase):
     def test_late_native_damage_failure_restores_load_stock_action_and_rng(self):
         f=self.scene()
         with patch.object(type(f.e),'take_damage',autospec=True,side_effect=ValueError('actual Cannon damage failed')) as damage:
-            NATIVE.assert_rejected_unchanged(f.e,lambda:f.use(held_selection='cannon/pester'),
-                                           reason_pattern='Cannon damage failed')
+            before=f.e.export_state()
+            try:
+                with self.assertRaisesRegex(ValueError,'Cannon damage failed'):
+                    f.use(held_selection='cannon/pester')
+            finally:
+                self.maxDiff=None
+                self.assertEqual(f.e.export_state(),before)
         self.assertEqual(damage.call_count,1)
         self.assertIsNot(damage.call_args.args[0],f.e)
         self.assertEqual(damage.call_args.args[1].entity_id,f.t.entity_id)

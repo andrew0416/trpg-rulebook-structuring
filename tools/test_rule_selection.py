@@ -440,6 +440,106 @@ class SelectionFreshnessTests(unittest.TestCase):
         with self.assertRaisesRegex(UnresolvedRuleSelection,'selection_profile_changed'):
             old.resolve('move/example')
 
+
+class CustomSpeciesSelectionRetentionTests(unittest.TestCase):
+    @staticmethod
+    def rules():
+        from engine import Rules
+        from hashlib import sha256
+        rules = Rules(str(ROOT), ruleset='all')
+        filename = 'input/ch03-skills-edges-feats.md'
+        definition = {'id': 'authored/custom-load/perfect-aim', 'title': 'Perfect Aim declaration',
+            'source': {'file': filename, 'sha256': sha256((ROOT/filename).read_bytes()).hexdigest()},
+            'locator': {'lines': [816, 819]}, 'tags': [],
+            'rationale': 'External script retains its exact source declaration across custom species loading'}
+        rules.register_source_policy_definitions([definition])
+        document = {'schema': 1, 'id': 'custom-load/perfect-aim', 'variants': [
+            {'rule_id': definition['id'], 'source': definition['source'],
+             'values': {'enabled': True}, 'inputs': {}}]}
+        return rules, document
+
+    @staticmethod
+    def custom_path(directory, rules):
+        from custom_species import template_from
+        definition = template_from(rules, '잉어킹', '등록유지잉어킹', author='actual GM')
+        definition.update(dex='GM-retention', abilities={'기본 특성': [], '숨겨진 특성': [], '대단한 특성': []},
+            skills={}, learnset={'level_up': [], 'tm': [], 'egg': [], 'tutor': []})
+        path = Path(directory)/'selection-retention.json'
+        path.write_text(json.dumps(definition, ensure_ascii=False), encoding='utf-8')
+        return path
+
+    def test_custom_load_preserves_complete_catalog_dependencies_and_external_selections_repeatedly(self):
+        from copy import deepcopy
+        from tempfile import TemporaryDirectory
+        rules, document = self.rules()
+        units = deepcopy(rules.selection.units)
+        dependencies = deepcopy(rules.selection.dependencies)
+        names = deepcopy(rules.selection.names)
+        snapshots = deepcopy(rules.selection.source_audit_snapshots)
+        identities = ('feat/완벽한-에임', 'digital-program/data-snare',
+                      'digital-program/net-shield', 'authored/custom-load/perfect-aim')
+        selected = {uid: rules.select_source_definition(uid) for uid in identities}
+        prepared = rules.resolve_source_policy(document)
+        self.assertEqual(prepared['values'], {'enabled': True})
+        with TemporaryDirectory() as directory:
+            path = self.custom_path(directory, rules)
+            for repetition in range(2):
+                with self.subTest(repetition=repetition):
+                    species = rules.load_custom_species(str(path))
+                    self.assertEqual(rules._selected_rule(species['id']), species['id'])
+                    self.assertEqual({uid: rules.selection.units[uid] for uid in units}, units)
+                    self.assertEqual(rules.selection.dependencies, dependencies)
+                    self.assertEqual({name: rules.selection.names[name] for name in names}, names)
+                    self.assertEqual(rules.selection.source_audit_snapshots, snapshots)
+                    self.assertEqual({uid: rules.select_source_definition(uid) for uid in identities}, selected)
+                    self.assertEqual(rules.resolve_source_policy(document), prepared)
+
+    def test_rebuilt_catalog_rechecks_excluded_derived_parents_and_authored_sources(self):
+        from copy import deepcopy
+        from tempfile import TemporaryDirectory
+        from ruleset import ExcludedRuleSelection
+        rules, document = self.rules()
+        original = rules.ruleset
+        cases = (('block/완벽한-에임', 'feat/완벽한-에임'),
+                 ('supp-polygon/디지털-전투-룰', 'digital-program/data-snare'),
+                 ('supp-polygon/디지털-전투-룰', 'digital-program/net-shield'),
+                 ('authored/custom-load/perfect-aim', 'authored/custom-load/perfect-aim'))
+        with TemporaryDirectory() as directory:
+            path = self.custom_path(directory, rules)
+            for excluded, child in cases:
+                with self.subTest(excluded=excluded, child=child):
+                    profile = deepcopy(original.profile)
+                    profile['exclude_units'] = [excluded]
+                    rules.ruleset = RuleFilter(profile, 'custom-load-excluded')
+                    rules.load_custom_species(str(path))
+                    self.assertIn(child, rules.selection.units)
+                    with self.assertRaises(ExcludedRuleSelection):
+                        rules.select_source_definition(child)
+                    rules.ruleset = original
+                    rules.load_custom_species(str(path))
+                    self.assertEqual(rules._selected_rule(child), child)
+            self.assertEqual(rules.resolve_source_policy(document)['values'], {'enabled': True})
+
+    def test_repeated_custom_load_and_fresh_equivalent_rules_keep_codec_and_full_choice_catalog(self):
+        from tempfile import TemporaryDirectory
+        from engine import Engine
+        import state_codec as CODEC
+        rules, document = self.rules()
+        with TemporaryDirectory() as directory:
+            path = self.custom_path(directory, rules)
+            for _ in range(2):
+                rules.load_custom_species(str(path))
+            payload = json.loads(json.dumps(CODEC.dump_engine(Engine(rules, 741))))
+            fresh, fresh_document = self.rules()
+            for _ in range(2):
+                fresh.load_custom_species(str(path))
+            self.assertEqual(fresh.selection.units, rules.selection.units)
+            self.assertEqual(fresh.selection.dependencies, rules.selection.dependencies)
+            self.assertEqual(fresh.selection.source_audit_snapshots, rules.selection.source_audit_snapshots)
+            self.assertEqual(fresh.resolve_source_policy(fresh_document), rules.resolve_source_policy(document))
+            restored = CODEC.load_engine(fresh, payload)
+            self.assertEqual(CODEC.dump_engine(restored), payload)
+
 if __name__=='__main__':
     import hashlib
     from datetime import datetime,timezone

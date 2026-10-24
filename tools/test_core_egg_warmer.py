@@ -86,7 +86,12 @@ class CoreEggWarmerTests(unittest.TestCase):
         child=self.hatch(row,ready=True)['pokemon']
         self.assertEqual(child.spec['egg_entity_id'],row['entity_id']);self.assertEqual(row[CREATION.CONTRACT],original)
         self.assertEqual(CAP.egg_heat_seconds(self.e,row),36000)
-        self.assertEqual(child.spec['move_learning']['move/뿌리박기']['teacher_id'],original['plan']['provider_id'])
+        self.assertEqual(child.spec['inheritance_moves'],['move/뿌리박기'])
+        self.assertNotIn('move/뿌리박기',child.spec['moves'])
+        self.assertNotIn('move/뿌리박기',child.spec.get('move_learning',{}))
+        self.assertNotEqual(original['plan']['provider_id'],self.a.entity_id)
+        self.assertEqual(child.spec['trainer_id'],self.a.entity_id)
+        self.assertTrue(self.e.validate_state()['valid'])
     def test_source_live_capability_actual_pokemon_and_die_inputs_before_use(self):
         row=self.egg(7200)
         for fixed in (True,False,0,11,2.0):

@@ -1143,7 +1143,7 @@ def _boulder(engine,a,p,hits,options,x):
   d=directions[t.entity_id]
   if type(d) is not dict or set(d)!={'direction','distance'}:raise ValueError('direction and actual push distance required')
   C.integer(d['distance'],'Boulder push',0,x//2)
-  if not push_immunity(engine,t):FM.displace(engine,p,t,direction=d['direction'],distance=d['distance'],source=uid('Bigger and Boulder'))
+  if not push_immunity(engine,t,attacker=p):FM.displace(engine,p,t,direction=d['direction'],distance=d['distance'],source=uid('Bigger and Boulder'))
   _timed(engine,t,uid('Bigger and Boulder'),statuses=['취약'])
   if t.side!=p.side:_place_rock(engine,p,uid('Bigger and Boulder'),cell=cells[t.entity_id],adjacent_to=t)
 
@@ -1622,8 +1622,9 @@ def status_immunity(engine,p,condition):
  return False
 
 
-def push_immunity(engine,p):
- return _stat_owner(engine,p,'Insectoid Utility') is not None and _cap(p,'벽타기','Wallclimber')
+def push_immunity(engine,p,*,attacker=None,move=None):
+ return (__import__('core_suction_cups').active(engine,p,attacker=attacker,move=move)
+         or _stat_owner(engine,p,'Insectoid Utility') is not None and _cap(p,'벽타기','Wallclimber'))
 
 
 def poison_applied(engine,p,condition,source,issuer):

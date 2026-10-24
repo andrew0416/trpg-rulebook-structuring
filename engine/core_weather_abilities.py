@@ -25,6 +25,11 @@ def definitions(rules):
     result = {}
     expected = {'type':'conditional_combat_stage','weather':'sunny','stat':'spe','delta':4}
     for row in payload['abilities']:
+        if row.get('id') == 'ability/흡반':
+            __import__('core_suction_cups').validate_core_ability(rules, row)
+            if row['id'] in result:raise ValueError('duplicate core Suction Cups identity')
+            result[row['id']] = row
+            continue
         if row.get('id') in __import__('telepath').CONTRACTS:
             __import__('telepath').validate_core_ability(rules,row)
             if row['id'] in result:raise ValueError('duplicate Telepathy Ability identity')

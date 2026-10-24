@@ -422,7 +422,7 @@ class BattleContestTests(unittest.TestCase):
         self.assertEqual(sum("준비하기: 기술 주사위 두 배" in line for line in contest.log_lines), 1)
 
     def test_grace_blocks_same_round_sabotage_then_actual_next_round_fumbles_apply(self):
-        engine, contest, trainers, teams, cid = self.fixture(moves=[*MOVES, "move/고속이동", "move/웅크리기", "move/단단해지기"])
+        engine, contest, trainers, teams, cid = self.fixture(moves=["move/고속이동", "move/웅크리기", "move/단단해지기"])
         protected, opponent = teams[0][0], teams[1][0]
         BATTLE.begin_round(engine, cid)
         BATTLE.start_turn(engine, cid, protected)
@@ -473,7 +473,7 @@ class BattleContestTests(unittest.TestCase):
         BATTLE.start_turn(engine, cid, actor)
         before = (contest.rng.getstate(), list(contest.log_lines))
         assert_rejected_unchanged(engine, lambda: BATTLE.perform_move(
-            engine, contest, cid, actor, target, "꼬리흔들기"), reason_pattern="Consecutive")
+            engine, contest, cid, actor, target, "move/꼬리흔들기"), reason_pattern="Consecutive")
         self.assertEqual((contest.rng.getstate(), contest.log_lines), before)
 
     def test_native_rank_seven_intro_preserves_selected_rank_and_json_identity(self):
@@ -499,7 +499,7 @@ class BattleContestTests(unittest.TestCase):
         candidate.intro_rank_dice = 7
         contest.intro_stage([candidate], "근사함")
         payload = json.loads(json.dumps(CODEC.dump_contest(contest, [candidate])))
-        restored, participants = CODEC.load_contest(contest.r, payload)
+        restored, participants = CODEC.load_contest(contest.r, payload, native_rules=rules)
         self.assertEqual((participants[0].entity_id, participants[0].intro_rank_dice),
                          (candidate.entity_id, 7))
         native, bound_pokemon, bound_trainer, _, _ = restored._native_intro_bindings[participants[0]]

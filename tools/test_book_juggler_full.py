@@ -17,10 +17,10 @@ class JugglerTests(unittest.TestCase):
  def setUp(self):
   old=self.rules.rulings;self.rules.rulings=deepcopy(old);self.addCleanup(setattr,self.rules,'rulings',old)
   self.setup()
- def setup(self,*,acro=6,guile=6,mode='full_contact',wild=False,opponent_edges=(),opponent_feats=()):
+ def setup(self,*,acro=6,guile=6,mode='full_contact',wild=False,opponent_edges=(),opponent_feats=(),opponent_skills=None):
   self.e=Engine(self.rules,seed=831887);self.e.grid=Grid(40,16)
   self.a=self.actor('owner','trainer',(1,1),60,skills={'곡예':acro,'교활':guile,'명령':6,'집중':6,'육상':6})
-  self.b=self.actor('opponent','trainer',(15,1),50,side='foe',edges=opponent_edges,feats=opponent_feats)
+  self.b=self.actor('opponent','trainer',(15,1),50,side='foe',edges=opponent_edges,feats=opponent_feats,skills=opponent_skills)
   self.p=self.actor('outgoing','pokemon',(3,1),30,owner=self.a)
   self.q=self.actor('reserve','pokemon',(4,1),20,owner=self.a,field=False)
   self.z=self.actor('third','pokemon',(5,1),10,owner=self.a,field=False)
@@ -525,7 +525,8 @@ class JugglerTests(unittest.TestCase):
  def mixed_schedule_fixture(self,*,rider_juggler=False,swarm=False,prepare=True):
   import control_mount as M,training_features as TRAIN
   if swarm:self.rules=Rules(ROOT,ruleset='all')
-  self.setup(opponent_edges=['edge/탑승-기량'],opponent_feats=[TRAIN.AGILITY,TRAIN.FOCUSED,TRAIN.INSPIRED]);self.family(J.CLASS)
+  self.setup(opponent_edges=['edge/탑승-기량'],opponent_feats=[TRAIN.AGILITY,TRAIN.FOCUSED,TRAIN.INSPIRED],
+   opponent_skills={'곡예':6,'교활':6,'명령':6,'집중':6,'육상':6,'매력':3});self.family(J.CLASS)
   P.configure(self.e,self.b,battle_mode='full_contact',command_limit=2,gm_id='gm/mixed-schedule',reason='GM explicitly admits the mount and one other Pokemon turn')
   self.acquire(M.RIDER,self.b);self.acquire(M.RIDE_AS_ONE,self.b)
   if rider_juggler:self.family(J.CLASS,self.b)

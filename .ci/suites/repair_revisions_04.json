@@ -1,17 +1,55 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_04",
-  "purpose": "Source-bound existing Pokemon Fire/Ice passive acquisition and withdrawal; R59 selectable book/CSV acquisition and retained receipts with declared7+; Press composed context; real staged Cannon/Plasma/effect-rank observations; five Juggler and five weather fixture repairs. Exact120methods including10new, original4115 plus added obligations retained, source-specific existing PASS reused. No completion credit from selection.",
+  "purpose": "Source-backed core Suction Cups and fossil/egg correction; selected Cleanse inventory source; lawful BattleContest/Juggler fixtures; full-state rollback diagnostics; explicit runtime source retention on custom loading; first11existing state-reuse test revisions with independent builders and blocked dependencies. Exact372 changed-impact methods including12new. All original4115 and later obligations retained; full repository13130methods+21procedural test revision remains partial.",
   "completion_credit": 0,
-  "required_unique_count": 5,
+  "required_unique_count": 31,
   "completed": {
-    "tools.test_book_juggler_full.JugglerTests": {
+    "tools.test_book_style_move_dependencies.StyleMoveDependencyTests": {
       "tests": [
-        "tools.test_book_juggler_full.JugglerTests.test_party_reorder_then_mounted_exchange_restores_current_and_legacy_prefix",
-        "tools.test_book_juggler_full.JugglerTests.test_same_cursor_mounted_exchange_then_party_replacement_preserves_historical_mount",
-        "tools.test_book_juggler_full.JugglerTests.test_same_cursor_native_gm_release_reorder_precedes_mounted_exchange",
-        "tools.test_book_juggler_full.JugglerTests.test_swarm_continuations_party_reorder_and_mounted_exchange_replay_in_producer_order",
-        "tools.test_book_juggler_full.JugglerTests.test_transformation_chronology_rejects_omission_duplicate_legacy_hiding_and_resigned_binding_reorder"
+        "tools.test_book_style_move_dependencies.StyleMoveDependencyTests.test_roar_end_round_shift_highest_retreat_ball_distance_and_replacement_turn"
+      ]
+    },
+    "tools.test_category2_core_chlorophyll.Tests": {
+      "tests": [
+        "tools.test_category2_core_chlorophyll.Tests.test_default_builder_ability_admits_actual_core_definition",
+        "tools.test_category2_core_chlorophyll.Tests.test_playtest_identity_is_separate_and_does_not_gain_core_stages"
+      ]
+    },
+    "tools.test_category2_defender_intercept.DefenderInterceptTests": {
+      "tests": [
+        "tools.test_category2_defender_intercept.DefenderInterceptTests.test_source_selection_change_refuses_before_reaction_payment"
+      ]
+    },
+    "tools.test_category2_source_policy.Tests": {
+      "tests": [
+        "tools.test_category2_source_policy.Tests.test_action_and_ap_commit_with_effects_or_roll_back_together",
+        "tools.test_category2_source_policy.Tests.test_actual_mixed_sweeper_sources_keep_cost_and_effect_together",
+        "tools.test_category2_source_policy.Tests.test_ambiguous_sources_never_merge_values",
+        "tools.test_category2_source_policy.Tests.test_bad_package_does_not_partially_register_sources_or_policies",
+        "tools.test_category2_source_policy.Tests.test_changed_profile_rejects_cached_policy_and_native_reads_before_costs",
+        "tools.test_category2_source_policy.Tests.test_condition_boolean_composition_truth_table",
+        "tools.test_category2_source_policy.Tests.test_condition_gates_action_costs_and_effects",
+        "tools.test_category2_source_policy.Tests.test_decision_record_is_scoped_detached_and_restored_atomically",
+        "tools.test_category2_source_policy.Tests.test_effect_execution_and_unresolved_suffix_are_atomic",
+        "tools.test_category2_source_policy.Tests.test_errata_preserved_class_ability_retains_source_and_restore",
+        "tools.test_category2_source_policy.Tests.test_execution_requires_actual_world_participants_without_state_inputs",
+        "tools.test_category2_source_policy.Tests.test_explicit_versions_select_complete_definition_without_inheritance",
+        "tools.test_category2_source_policy.Tests.test_independent_authored_definitions_and_inputs_change_fingerprints",
+        "tools.test_category2_source_policy.Tests.test_json_package_reloads_on_fresh_rules_and_executes_after_input",
+        "tools.test_category2_source_policy.Tests.test_malformed_reference_rejected_as_declaration_error",
+        "tools.test_category2_source_policy.Tests.test_missing_inputs_are_obligations_without_default_or_side_effect",
+        "tools.test_category2_source_policy.Tests.test_native_state_binding_schema_cannot_read_arbitrary_attributes",
+        "tools.test_category2_source_policy.Tests.test_native_state_bindings_read_live_actor_and_target_not_caller_values",
+        "tools.test_category2_source_policy.Tests.test_optional_gm_scope_rejects_changed_binding_without_requiring_legacy_choices_to_be_scoped",
+        "tools.test_category2_source_policy.Tests.test_profile_exclusion_and_unsupported_version_rechecked",
+        "tools.test_category2_source_policy.Tests.test_selected_replacement_uses_whole_definition_and_requires_binding",
+        "tools.test_category2_source_policy.Tests.test_source_registration_is_atomic_immutable_and_profile_scoped",
+        "tools.test_category2_source_policy.Tests.test_stale_source_and_override_rejected",
+        "tools.test_category2_source_policy.Tests.test_typed_conditions_preserve_false_unknown_and_exact_types",
+        "tools.test_category2_source_policy.Tests.test_versioned_effects_execute_and_record_selected_version",
+        "tools.test_category2_source_policy.Tests.test_wrong_type_choice_authority_or_missing_reason_rejected",
+        "tools.test_category2_source_policy.Tests.test_zero_false_and_decision_reason_survive_public_binding"
       ]
     }
   }

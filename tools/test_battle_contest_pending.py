@@ -31,6 +31,11 @@ class BattleContestPendingTests(unittest.TestCase):
 
     def fixture(self, *, center=False, target_ko=False):
         self.e = Engine(self.rules, seed=530)
+        self.e.rulings = deepcopy(self.e.rulings)
+        self.e.rule_answer("initiative_tie_order", {
+            "policy": "highest_d20", "same_face": "reroll", "max_rounds": 100,
+            "reason": "explicit fixture GM tie policy; not a source-rule claim"},
+            reason="Battle Contest fixture selects the ordinary initiative tie policy", scope="scene")
         self.e.grid = Grid(20, 20)
         self.c = ContestEngine(self.contest_rules, seed=8089)
         stats = dict(hp=12, atk=12, spa=10, spd=10, spe=10)

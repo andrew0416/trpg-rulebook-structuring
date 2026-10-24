@@ -44,7 +44,7 @@ def push(e,a,t,*,challenger_skill,defender_skill,fixed_accuracy=None,challenger_
     plans,prepared=_prepare(e,a,t,PUSH,('전투','육상'),challenger_skill,defender_skill,fixed_accuracy,challenger_options,defender_options,{'weight_kg':weight,'heavy_lifting_kg':limit,'destination':destination,'follow_steps':0},_grant)
     def outcome(won):
         if not won:return False
-        if __import__('type_ace').push_immunity(e,t):return {'pushed_metres':0,'target_position':tuple(t.pos),'follow_metres':0,'prevented_by':'Insectoid Utility'}
+        if __import__('type_ace').push_immunity(e,t,attacker=a):return {'pushed_metres':0,'target_position':tuple(t.pos),'follow_metres':0,'prevented_by':'Push immunity'}
         if tuple(a.pos)!=origin_a or tuple(t.pos)!=origin_t or not FORCED.can_step(e,t,destination):
             return C.PendingDecision('actual Push geometry changed during its native resolution',basis={'source':PUSH,'destination':destination})
         result=FORCED.displace(e,a,t,direction=(dx,dy),distance=1,source=PUSH)
