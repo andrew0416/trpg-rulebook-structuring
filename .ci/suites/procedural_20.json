@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "execution_kind": "procedural_runner",
+  "unit_id": "script:tools/test_root_resolution.py",
+  "unit_kind": "procedural_script_runner",
+  "required_runner_ids": [
+    "script:tools/test_root_resolution.py"
+  ],
+  "completed": {},
+  "original_contract_sha256": "3b17f1cfd8582a46bc66484edbd3735ae0930089eef85eeed414490425653642",
+  "inventory_sha256": "46c04e8eb8efa90c96a5ca21864b44e0112a7b0b9d78f77c31aad5bafe36caf5",
+  "runner": {
+    "source_path": "tools/test_root_resolution.py",
+    "argv": [
+      "python",
+      "-B",
+      "-X",
+      "utf8",
+      "-I",
+      "{stage}/tools/test_root_resolution.py"
+    ],
+    "cwd": "{stage}",
+    "environment": {
+      "TEMP": "{stage}/.tmp",
+      "TMP": "{stage}/.tmp"
+    },
+    "report": {
+      "path": "output/root-resolution-tests.json",
+      "kind": "json_results_array"
+    },
+    "additional_outputs": [],
+    "mutations": {
+      "temporarily_modified_restored": [],
+      "generated_retained": []
+    },
+    "result_buffer": "RESULTS",
+    "entry_function": null,
+    "sort_results_by_id": false,
+    "source_sha256": "80d27552225b51b7deb76e4da57392e671bab3e992f78dba97da778e0c79b0a4"
+  }
+}

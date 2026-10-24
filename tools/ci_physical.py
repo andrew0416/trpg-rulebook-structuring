@@ -94,13 +94,38 @@ def run(stage, hashes, target, output):
     if str(selected) not in before or not selected.is_relative_to(stage):
         raise ValueError("Verifier target must be a captured stage input")
 
+    gate = None
+    procedural = procedural_capture = procedural_report = None
+    procedural_actual = []
+    if selected.suffix == '.json':
+        value = json.loads(physical_bytes(selected))
+        if value.get('execution_kind') == 'frequency_equivalence':
+            import ci_frequency_gate as FREQUENCY_GATE
+            gate = FREQUENCY_GATE.packet(value)
+            harness = str((stage / FREQUENCY_GATE.HARNESS).resolve())
+            if harness not in before:raise ValueError('Equivalence harness was not captured before import')
+        elif value.get('execution_kind') == 'procedural_runner':
+            helper = (stage / 'tools/ci_procedural_gate.py').resolve()
+            if str(helper) not in before:raise ValueError('Procedural adapter was not captured')
+            helper_spec=importlib.util.spec_from_file_location('ci_procedural_gate',helper)
+            PROCEDURAL=importlib.util.module_from_spec(helper_spec);sys.modules[helper_spec.name]=PROCEDURAL
+            helper_spec.loader.exec_module(PROCEDURAL)
+            procedural=PROCEDURAL.packet(value)
+        elif value.get('execution_kind') is not None:
+            raise ValueError('Unknown typed CI execution kind')
+    gate_report = None
+    mode_origins = {}
     started, clock = datetime.now(timezone.utc).isoformat(), time.monotonic()
-    actual, reads, missing, origin_errors = [], {}, [], []
+    actual, reads, missing, origin_errors = [], {}, [], []; actual_modes = {}
     before_execution, result = {}, None
     events = physical_open(physical / (PREFIX + "-events.jsonl"), "x",
                            encoding="utf-8", newline="\n")
 
     def event(kind, **value):
+        if kind == 'procedural_start':
+            if procedural is None or value.get('unit_id') != procedural['unit_id'] or procedural_actual:
+                raise ValueError('Unexpected or repeated procedural entry')
+            procedural_actual.append(value['unit_id'])
         events.write(json.dumps({"event": kind, **value}, ensure_ascii=False) + "\n")
         events.flush()
 
@@ -110,6 +135,7 @@ def run(stage, hashes, target, output):
 
     def observe_read(file, args, kwargs):
         mode = args[0] if args else kwargs.get("mode", "r")
+        if procedural_capture is not None:procedural_capture.observe_open(file,mode)
         if not isinstance(mode, str) or any(flag in mode for flag in "wax+") or isinstance(file, int):
             return
         try:
@@ -121,9 +147,10 @@ def run(stage, hashes, target, output):
         key = str(path)
         if key not in reads:
             reads[key] = digest(path)
-            if key not in before:
+            generated = bool(key not in before and procedural_capture is not None and procedural_capture.generated_read(path,reads[key]))
+            if key not in before and not generated:
                 missing.append(key)
-            event("first_read", file=key, sha256=reads[key], captured_before=key in before)
+            event("first_read", file=key, sha256=reads[key], captured_before=key in before, declared_generated_input=generated)
 
     def tracking_open(file, *args, **kwargs):
         observe_read(file, args, kwargs)
@@ -169,13 +196,15 @@ def run(stage, hashes, target, output):
             value = method(self, *args, **kwargs)
             for field, count in counts.items():
                 for test, detail in getattr(self, field)[count:]:
-                    event("test_diagnostic", outcome=field, id=test.id(), traceback=detail)
+                    event("test_diagnostic", outcome=field, id=test.id(), traceback=detail, mode=getattr(self, "_ci_equivalence_mode", None))
             return value
         return observed
 
     def start_test(self, test):
         actual.append(test.id())
-        event("test_start", id=test.id())
+        mode = getattr(self, "_ci_equivalence_mode", None)
+        if mode is not None:actual_modes.setdefault(mode, []).append(test.id())
+        event("test_start", id=test.id(), mode=getattr(self, "_ci_equivalence_mode", None))
         return original_start(self, test)
 
     class Tee:
@@ -215,6 +244,15 @@ def run(stage, hashes, target, output):
                 self.stream = original_stream
         return result
 
+    def before_equivalence_mode(mode):
+        nonlocal before_execution
+        if mode in mode_origins:raise ValueError('Equivalence mode repeated')
+        before_execution = loaded_origins()
+        mode_origins[mode] = before_execution
+        event('before_execution', mode=mode, loaded_module_origins=before_execution)
+        if not check_origins(before_execution):
+            raise RuntimeError('Equivalence module is outside authenticated physical inputs')
+
     unittest.TestResult.startTest, unittest.TextTestRunner.run = start_test, run_suite
     for name, method in diagnostic_methods.items():
         setattr(unittest.TestResult, name, observe_diagnostic(method))
@@ -222,17 +260,35 @@ def run(stage, hashes, target, output):
     code, exception = 1, None
     details, report = {}, None
     try:
-        verifier = stage / VERIFIER
-        spec = importlib.util.spec_from_file_location("verify_overlay_tests", verifier)
-        overlay = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = overlay
-        spec.loader.exec_module(overlay)
-        sys.argv = [str(verifier), "--auto", target, "--canonical", str(stage),
-                    "--stage", str(stage), "--mode", "15", "--record", str(record)]
-        try:
-            overlay.main()
-        except SystemExit as done:
-            code = done.code if isinstance(done.code, int) else 1
+        if procedural:
+            procedural_capture=PROCEDURAL.Capture(stage,procedural,before,physical,event)
+            code,procedural_report=PROCEDURAL.execute(stage,procedural,physical/'procedural-runner.json',before_equivalence_mode,capture=procedural_capture)
+        else:
+            verifier = stage / VERIFIER
+            spec = importlib.util.spec_from_file_location("verify_overlay_tests", verifier)
+            overlay = importlib.util.module_from_spec(spec)
+            sys.modules[spec.name] = overlay
+            spec.loader.exec_module(overlay)
+            sys.argv = [str(verifier), "--auto", target, "--canonical", str(stage),
+                        "--stage", str(stage), "--mode", "13" if gate else "15", "--record", str(record)]
+            try:
+                overlay.main()
+            except SystemExit as done:
+                code = done.code if isinstance(done.code, int) else 1
+            if gate and code == 0:
+                collected_reports = list(record.glob('tests-*.json'))
+                if len(collected_reports) != 1:raise ValueError('One original collection report required')
+                collected = json.loads(physical_bytes(collected_reports[0]))
+                if set(collected.get('collected', ())) != set(gate['declared_ids']):
+                    raise ValueError('Original verifier collection differs from equivalence allocation')
+                if actual:raise ValueError('Collection-only gate unexpectedly executed a test')
+                gate_path = physical / 'frequency-equivalence.json'
+                code, gate_report = FREQUENCY_GATE.execute(stage, gate, gate_path, before_equivalence_mode)
+                if len(actual) != sum(len(rows) for rows in actual_modes.values()):
+                    raise ValueError('Unattributed equivalence execution occurred')
+                for mode in FREQUENCY_GATE.MODES:
+                    if actual_modes.get(mode, []) != gate_report['outcomes'][mode]['started_ids']:
+                        raise ValueError('Observed mode executions differ from the equivalence report')
     except BaseException:
         exception = traceback.format_exc()
         print(exception)
@@ -251,7 +307,15 @@ def run(stage, hashes, target, output):
                 after[path] = None
                 read_errors[path] = traceback.format_exc()
         generated = list(record.glob("tests-*.json"))
-        if len(generated) == 1:
+        if procedural:
+            if procedural_report is None:
+                exception=(exception or '')+'\nProcedural report missing.'
+            else:
+                details={'successful':procedural_report.get('successful') is True,'collected':[],'log_path':str(physical/(PREFIX+'.log'))}
+            with physical_open(physical/(PREFIX+'.log'),'xb') as stream:
+                for name in ('procedural.stdout.log','procedural.stderr.log'):
+                    if (physical/name).is_file():stream.write(physical_bytes(physical/name))
+        elif len(generated) == 1:
             report = generated[0]
             details = json.loads(physical_bytes(report))
             log = Path(details["log_path"])
@@ -261,8 +325,19 @@ def run(stage, hashes, target, output):
             exception = (exception or "") + "\nExpected exactly one original verifier report."
         gaps = [row for row in origins.values() if before.get(row["file"]) != row["sha256"]]
         if (before != after or missing or origin_errors or exception
-                or any(before.get(path) != sha for path, sha in reads.items())):
+                or any(path in before and before[path] != sha for path, sha in reads.items())):
             code = 1
+        if procedural_report is not None:
+            integrity_ok=(before==after and not missing and not origin_errors and not exception
+                          and all(before[path]==sha for path,sha in reads.items() if path in before)
+                          and procedural_actual==procedural_report.get('actual_runner_ids'))
+            procedural_report['physical_integrity_passed']=integrity_ok
+            if not integrity_ok:
+                code=1;procedural_report.update(successful=False,status='error',verified_runner_ids=[])
+                procedural_report['errors'].append({'type':'PhysicalIntegrityError','message':'Original input/read/origin/entry evidence incomplete'})
+                details['successful']=False
+            with physical_open(physical/'procedural-runner.json','w',encoding='utf-8',newline='\n') as stream:
+                json.dump(procedural_report,stream,ensure_ascii=False,indent=2)
         metadata = {
             "purpose": "Authenticated CI stage; fixed verifier selection and native execution.",
             "clause_delta": 0, "execution_stage": str(stage),
@@ -291,6 +366,27 @@ def run(stage, hashes, target, output):
             "input_read_errors": read_errors,
             "method_timings": details.get("test_durations", []),
         }
+        if gate:
+            metadata['execution_kind'] = 'frequency_equivalence_gate'
+            metadata['ordinary_test_pass_credit'] = 0
+            metadata['equivalence_declared_test_ids'] = metadata['test_ids']
+            metadata['equivalence_actual_test_ids'] = metadata['actual_test_ids']
+            metadata['test_ids'] = []
+            metadata['actual_test_ids'] = []
+            metadata['equivalence_report'] = str(physical / 'frequency-equivalence.json')
+            metadata['equivalence_report_sha256'] = digest(physical / 'frequency-equivalence.json') if (physical / 'frequency-equivalence.json').exists() else None
+            metadata['equivalence_mode_origins'] = mode_origins
+            metadata['equivalence_gate'] = FREQUENCY_GATE.public_summary(physical / 'frequency-equivalence.json', {'exit_code': code})
+        if procedural:
+            metadata.update(execution_kind='procedural_runner_gate',ordinary_test_pass_credit=0,
+                procedural_declared_runner_ids=procedural['required_runner_ids'],
+                procedural_actual_runner_ids=procedural_actual,
+                procedural_verified_runner_ids=procedural_report.get('verified_runner_ids',[]) if procedural_report and code==0 else [],
+                procedural_report=str(physical/'procedural-runner.json'),
+                procedural_report_sha256=digest(physical/'procedural-runner.json') if procedural_report else None,
+                procedural_generated_first_reads=[dict(row,file=key) for key,row in procedural_capture.generated_reads.items()] if procedural_capture else [],
+                procedural_nested_method_ids=actual,test_ids=[],actual_test_ids=[],tests=0,failure_ids=[],error_ids=[])
+            metadata['purpose']='Original procedural unit; original inputs frozen before entry; only declared generated artifacts captured before first read.'
         write_json(physical / (PREFIX + ".json"), metadata)
         event("finished", exit_code=code, actual_test_ids=actual,
               loaded_module_origins=origins, runtime_test_data_sha256_after=after)

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "execution_kind": "procedural_runner",
+  "unit_id": "script:engine/test_ruleset.py",
+  "unit_kind": "procedural_script_runner",
+  "required_runner_ids": [
+    "script:engine/test_ruleset.py"
+  ],
+  "completed": {},
+  "original_contract_sha256": "a2b7d49eddf6df34019f29adbfb633e8a4e6ba14b1870c8a0d3501033a3dbc08",
+  "inventory_sha256": "46c04e8eb8efa90c96a5ca21864b44e0112a7b0b9d78f77c31aad5bafe36caf5",
+  "runner": {
+    "source_path": "engine/test_ruleset.py",
+    "argv": [
+      "python",
+      "-B",
+      "-X",
+      "utf8",
+      "-I",
+      "{stage}/engine/test_ruleset.py",
+      "{stage}"
+    ],
+    "cwd": "{stage}",
+    "environment": {
+      "TEMP": "{stage}/.tmp",
+      "TMP": "{stage}/.tmp"
+    },
+    "report": {
+      "path": "output/ruleset-tests.md",
+      "kind": "markdown_result_table"
+    },
+    "additional_outputs": [
+      "output/ruleunits.core.jsonl",
+      "output/ruleset-core.md"
+    ],
+    "mutations": {
+      "temporarily_modified_restored": [],
+      "generated_retained": []
+    },
+    "result_buffer": "res",
+    "entry_function": "run",
+    "sort_results_by_id": false,
+    "source_sha256": "e277be878a24ad591dbcbe2e7567c63d2ee5e57cf0b244ed54102085cef0e132"
+  }
+}

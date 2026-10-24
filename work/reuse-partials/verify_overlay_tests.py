@@ -300,6 +300,17 @@ class StageOverlayFinder(importlib.abc.MetaPathFinder):
     """
 
     def find_spec(self, fullname, path=None, target=None):
+        if fullname == 'engine':
+            # Keep the bare engine.py API and its qualified test/helper imports.
+            locations = [str(root / 'engine') for root in dict.fromkeys((STAGE, CANONICAL))]
+            for root in dict.fromkeys((STAGE, CANONICAL)):
+                source = root / 'engine' / 'engine.py'
+                if _ISFILE(source):
+                    return importlib.util.spec_from_file_location(
+                        fullname, source, loader=FixtureRootLoader(fullname, str(source)),
+                        submodule_search_locations=locations)
+        if STAGE == CANONICAL:
+            return None
         if "." in fullname:
             source = STAGE.joinpath(*fullname.split('.')).with_suffix('.py')
             if _ISFILE(source):
@@ -825,8 +836,8 @@ def main() -> None:
         str(CANONICAL / "engine"),
         str(CANONICAL / "tools"),
     ]
+    sys.meta_path.insert(0, StageOverlayFinder())
     if STAGE != CANONICAL:
-        sys.meta_path.insert(0, StageOverlayFinder())
         install_filesystem_overlay()
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()

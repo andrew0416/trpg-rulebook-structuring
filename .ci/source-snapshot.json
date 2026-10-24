@@ -24,29 +24,33 @@
   "previous_failed_run": 40066282820,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "repair75full",
-  "active_repair_scope": "Ordinary phase12144 of full13173-method and21-procedural-runner revision; frequency1029 and procedural21 remain separately mandatory and are not executed or credited by this phase.",
+  "active_repair": "repair76typed",
+  "active_repair_scope": "Seed for typed-only frequency1029 plus21 original procedural runners; ordinary12144 remain in F75. No native or clause credit.",
   "active_repair_candidate_sha256": "8a20f9261996d608967e8272cce0dd97b26a4f1255d979b0c207ea490de0c593",
-  "active_repair_required_tests": 12144,
+  "active_repair_required_tests": 1029,
   "active_repair_groups": [
-    "final_revisions_01",
-    "final_revisions_02",
-    "final_revisions_03",
-    "final_revisions_04",
-    "final_revisions_05",
-    "final_revisions_06",
-    "final_revisions_07",
-    "final_revisions_08",
-    "final_revisions_09",
-    "final_revisions_10",
-    "final_revisions_11",
-    "final_revisions_12",
-    "final_revisions_13",
-    "final_revisions_14",
-    "final_revisions_15",
-    "final_revisions_16",
-    "final_revisions_17",
-    "final_revisions_18"
+    "frequency_equivalence",
+    "procedural_01",
+    "procedural_02",
+    "procedural_03",
+    "procedural_04",
+    "procedural_05",
+    "procedural_06",
+    "procedural_07",
+    "procedural_08",
+    "procedural_09",
+    "procedural_10",
+    "procedural_11",
+    "procedural_12",
+    "procedural_13",
+    "procedural_14",
+    "procedural_15",
+    "procedural_16",
+    "procedural_17",
+    "procedural_18",
+    "procedural_19",
+    "procedural_20",
+    "procedural_21"
   ],
   "original_final_required_tests": 4115,
   "validation_chain_controls": {
@@ -59,5 +63,36 @@
   "full_revision_method_obligations": 13173,
   "separately_pending_frequency_equivalence_methods": 1029,
   "separately_pending_procedural_runners": 21,
-  "ordinary_shard_count": 18
+  "ordinary_shard_count": 18,
+  "active_repair_phase": "typed_only",
+  "active_repair_procedural_runners": 21,
+  "full_method_obligations": 13173,
+  "ordinary_methods_separate_run": 40141538702,
+  "ordinary_methods": 12144,
+  "ci_overlay_manifest_refs": [
+    {
+      "path": "repair76-typed-ci/ready/manifest.json",
+      "sha256": "830f6d65775890a1410f183a6271efc78a6e8eb943aab315f51552f28ecabc29"
+    },
+    {
+      "path": "repair76-discovery-repair/manifest.json",
+      "sha256": "9a7ad66f189a28c74aaeaf93cf7b2581ddbfdbb30a51554ad84627221018cebe"
+    },
+    {
+      "path": "repair76-dependency-fix/manifest.json",
+      "sha256": "eaa471483fdc6ff00210d061bcc8e84b564776ae2a080fe4c6cfc1c4734ec45a"
+    },
+    {
+      "path": "repair76-typed-collector/snapshot04/manifest.json",
+      "sha256": "8eedc80a66dc961c5b94ffc8e82e770629c3eb1da2c738da080ee2b4b6e7fe40"
+    }
+  ],
+  "CI_Git_text_normalization": {
+    "files": [
+      ".github/workflows/validate.yml",
+      "tools/ci_validate.py"
+    ],
+    "line_content_unchanged": true,
+    "proof_sha256": "07d9cfa5f5e93d93455585f71d4347aeca774206306785ea96fd925e1f60891f"
+  }
 }

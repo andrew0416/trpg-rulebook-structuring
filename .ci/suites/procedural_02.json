@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "execution_kind": "procedural_runner",
+  "unit_id": "script:engine/test_contest.py",
+  "unit_kind": "procedural_script_runner",
+  "required_runner_ids": [
+    "script:engine/test_contest.py"
+  ],
+  "completed": {},
+  "original_contract_sha256": "2643fc488e4d75eb8b8ae602dfbb53a8fb827577546416aebc98fd23ce0fd9f7",
+  "inventory_sha256": "46c04e8eb8efa90c96a5ca21864b44e0112a7b0b9d78f77c31aad5bafe36caf5",
+  "runner": {
+    "source_path": "engine/test_contest.py",
+    "argv": [
+      "python",
+      "-B",
+      "-X",
+      "utf8",
+      "-I",
+      "{stage}/engine/test_contest.py",
+      "{stage}"
+    ],
+    "cwd": "{stage}",
+    "environment": {
+      "TEMP": "{stage}/.tmp",
+      "TMP": "{stage}/.tmp"
+    },
+    "report": {
+      "path": "output/contest-tests.md",
+      "kind": "markdown_result_table"
+    },
+    "additional_outputs": [],
+    "mutations": {
+      "temporarily_modified_restored": [],
+      "generated_retained": []
+    },
+    "result_buffer": "res",
+    "entry_function": "run",
+    "sort_results_by_id": false,
+    "source_sha256": "1352ccfe073d54cfacf22baecbdc6807b0bfd1ae119c3dfbbe94c480e9bee1ac"
+  }
+}

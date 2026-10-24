@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "execution_kind": "procedural_runner",
+  "unit_id": "script:engine/test_grid.py",
+  "unit_kind": "procedural_script_runner",
+  "required_runner_ids": [
+    "script:engine/test_grid.py"
+  ],
+  "completed": {},
+  "original_contract_sha256": "32f97821226602bb9793304e200b8ab38747509bc74481704cee074778c22797",
+  "inventory_sha256": "46c04e8eb8efa90c96a5ca21864b44e0112a7b0b9d78f77c31aad5bafe36caf5",
+  "runner": {
+    "source_path": "engine/test_grid.py",
+    "argv": [
+      "python",
+      "-B",
+      "-X",
+      "utf8",
+      "-I",
+      "{stage}/engine/test_grid.py",
+      "{stage}"
+    ],
+    "cwd": "{stage}",
+    "environment": {
+      "TEMP": "{stage}/.tmp",
+      "TMP": "{stage}/.tmp"
+    },
+    "report": {
+      "path": "output/grid-tests.md",
+      "kind": "markdown_result_table"
+    },
+    "additional_outputs": [],
+    "mutations": {
+      "temporarily_modified_restored": [],
+      "generated_retained": []
+    },
+    "result_buffer": "res",
+    "entry_function": "run",
+    "sort_results_by_id": false,
+    "source_sha256": "d9a7452f2802eb151676d718450509dfaede2a6d24ff76f3bc06a2e1bcf00dad"
+  }
+}

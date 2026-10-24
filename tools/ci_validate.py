@@ -23,6 +23,7 @@ import zipfile
 from ci_physical import safe_id
 
 SUITES = {
+    "frequency_equivalence": ".ci/suites/frequency_equivalence.json",
     "common_checks": "tools/test_common_checks.py",
     "move_revisions": ".ci/suites/move_revisions.json",
     "rank_revisions": ".ci/suites/rank_revisions.json",
@@ -40,6 +41,7 @@ SUITES = {
 }
 SUITES.update({f"repair_revisions_{n:02d}": f".ci/suites/repair_revisions_{n:02d}.json" for n in range(1, 10)})
 SUITES.update({f"final_revisions_{n:02d}": f".ci/suites/final_revisions_{n:02d}.json" for n in range(10, 19)})
+SUITES.update({f"procedural_{n:02d}": f".ci/suites/procedural_{n:02d}.json" for n in range(1, 22)})
 NATIVE_TIMEOUT_SECONDS = 5400
 STAGE_PARENT = Path("D:/trpg-rulebook-structuring/ci")
 VERIFIER = "work/reuse-partials/verify_overlay_tests.py"
@@ -98,7 +100,7 @@ def verifier_command(root, suite, output):
     if suite not in SUITES:
         raise ValueError("Unknown CI suite")
     return [
-        sys.executable, "-B", "-u", "-X", "utf8", str(root / "tools/ci_physical.py"),
+        sys.executable, "-B", "-u", "-X", "utf8", *(["-I"] if suite.startswith("procedural_") else []), str(root / "tools/ci_physical.py"),
         "--stage", str(root), "--inputs", str(output / "input-sha256.json"),
         "--target", SUITES[suite], "--output", str(output),
     ]
@@ -258,6 +260,9 @@ def encrypt_evidence(root, output, key, temp_root):
     files += list((output / "verifier").glob("tests-*.json"))
     files += list((output / "verifier").glob("tests-*.log"))
     files += [path for path in (output / "physical").glob("*") if path.is_file()]
+    # The typed collector requires exact nested generated/additional raw bytes.
+    for directory in ("procedural-generated", "procedural-additional"):
+        files += [path for path in (output / "physical" / directory).rglob("*") if path.is_file()]
     if (output / "input-read-errors.json").exists():
         files.append(output / "input-read-errors.json")
     with tempfile.TemporaryDirectory(prefix="ptk-evidence-", dir=temp_root) as directory:
@@ -617,6 +622,11 @@ def main():
                          "tools/ci_fixtures.mjs", "tools/ci_physical.py"):
             if required not in hashes:
                 raise ValueError("The suite, fixed verifier, crypto adapter and fixture bundle/manifest must be Git-tracked")
+        if args.suite == 'frequency_equivalence':
+            for required in ('tools/ci_frequency_gate.py','tools/ci_frequency_equivalence.py'):
+                if required not in hashes:raise ValueError('Equivalence adapter and frozen harness must be Git-tracked')
+        if args.suite.startswith('procedural_') and 'tools/ci_procedural_gate.py' not in hashes:
+            raise ValueError('Procedural adapter must be Git-tracked')
         # This allowlist controls public display only; the fixed verifier still owns execution.
         selected_packet = None
         for target in SUITES.values():
@@ -648,6 +658,9 @@ def main():
             metadata["fixture_archive_sha256"] = file_hash(archive)
             hashes.update(restore_fixtures(stage, archive, manifest, tracked))
             metadata["fixture_file_count"] = len(manifest["files"])
+        if args.suite.startswith('procedural_'):
+            from ci_procedural_gate import prepare_stage
+            prepare_stage(stage, selected_packet, hashes, output / 'procedural-preparation.log')
         write_json(output / "input-sha256.json", hashes)
         baseline = hashes
         command = verifier_command(stage, args.suite, output)
@@ -675,8 +688,16 @@ def main():
         try:
             reports = [json.loads(path.read_text(encoding="utf-8"))
                        for path in sorted((output / "verifier").glob("tests-*.json"))]
-            write_json(output / "summary.json", public_summary(
-                args.suite, reports, metadata.get("verifier_outcome", outcome), public_ids))
+            if args.suite == 'frequency_equivalence':
+                from ci_frequency_gate import public_summary as equivalence_summary
+                summary = equivalence_summary(output / 'physical/frequency-equivalence.json',
+                    metadata.get('verifier_outcome', outcome))
+            elif args.suite.startswith('procedural_'):
+                from ci_procedural_gate import public_summary as procedural_summary
+                summary = procedural_summary(output / 'physical/procedural-runner.json',metadata.get('verifier_outcome', outcome))
+            else:
+                summary = public_summary(args.suite, reports, metadata.get('verifier_outcome', outcome), public_ids)
+            write_json(output / 'summary.json', summary)
         except Exception as exc:
             (output / "summary-error.log").write_text(traceback.format_exc(), encoding="utf-8")
             metadata["summary_error_type"] = type(exc).__name__
