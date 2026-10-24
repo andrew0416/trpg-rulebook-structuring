@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "repair_revisions_09",
+  "purpose": "Focused diagnostics for repaired original failures and changed switch/Juggler, source, clock, rank, type and state paths. This does not replace the original4115-ID final obligations or confer185-finding/406-clause acceptance.",
+  "completion_credit": 0,
+  "required_unique_count": 36,
+  "completed": {
+    "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests": {
+      "tests": [
+        "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests.test_all_12_move_immunities_block_hit_boundary_and_revoke_cleanly",
+        "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests.test_all_23_fixed_move_stat_rows_use_native_moves_stats_and_owner_lifetime",
+        "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests.test_capability_status_keyword_and_weather_consumers_follow_source_lifetime",
+        "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests.test_exact_37_rule_policy_hashes_catalog_bindings_and_12_completion_ids",
+        "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests.test_farcast_ability_and_both_class_branch_tables_use_native_ability_consumers",
+        "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests.test_four_stat_choices_are_separate_from_move_choices_and_fail_atomically",
+        "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests.test_gm_entry_registers_declared_static_features_before_full_state_validation",
+        "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests.test_invalid_new_actor_rolls_back_registration_and_rosters",
+        "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests.test_martial_receipt_drives_six_stat_mappings_and_dynamic_feature_count",
+        "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests.test_profile_excluded_static_dependencies_do_not_block_other_actors",
+        "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests.test_shadow_progress_adds_exactly_12_without_counting_26_deduped_rows",
+        "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests.test_source_removal_preserves_baselines_and_codec_restore_validates_receipts",
+        "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests.test_stored_power_pair_is_exact_and_not_the_old_psyshock_mismatch",
+        "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests.test_telekinetic_class_and_actual_equipment_close_human_capability_sources"
+      ]
+    },
+    "tools.test_foundation_fossil_creation.FossilTests": {
+      "tests": [
+        "tools.test_foundation_fossil_creation.FossilTests.test_actual_material_work_wait_and_declared_birth_produce_one_native_child",
+        "tools.test_foundation_fossil_creation.FossilTests.test_changed_birth_source_and_payment_evidence_are_rejected",
+        "tools.test_foundation_fossil_creation.FossilTests.test_fake_fossil_wrong_owner_and_changed_request_cannot_duplicate",
+        "tools.test_foundation_fossil_creation.FossilTests.test_gm_restore_preserves_one_lifetime_and_forged_birth_override_is_rejected",
+        "tools.test_foundation_fossil_creation.FossilTests.test_late_birth_failure_and_unknown_choices_preserve_lineage",
+        "tools.test_foundation_fossil_creation.FossilTests.test_late_egg_construction_failure_rolls_back_actual_debits",
+        "tools.test_foundation_fossil_creation.FossilTests.test_late_payment_failure_rolls_back_job_time_resources_and_fossil",
+        "tools.test_foundation_fossil_creation.FossilTests.test_material_alternatives_and_aggregate_balances_are_real",
+        "tools.test_foundation_fossil_creation.FossilTests.test_missing_permission_knowledge_and_machine_pay_nothing",
+        "tools.test_foundation_fossil_creation.FossilTests.test_native_machine_family_preserves_portable_access_and_rejects_damage",
+        "tools.test_foundation_fossil_creation.FossilTests.test_nonstandard_species_requires_an_explicit_real_gm_choice",
+        "tools.test_foundation_fossil_creation.FossilTests.test_plain_fossil_birth_domain_survives_owner_transfer_gm_and_json_restore",
+        "tools.test_foundation_fossil_creation.FossilTests.test_plain_fossil_birth_requires_one_species_basic_at_every_initial_level",
+        "tools.test_foundation_fossil_creation.FossilTests.test_shared_armor_definition_keeps_species_birth_member_and_native_receipt",
+        "tools.test_foundation_fossil_creation.FossilTests.test_transfer_json_restore_and_replay_keep_the_original_restorer"
+      ]
+    },
+    "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests": {
+      "tests": [
+        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_actual_uncertain_outside_clock_rejects_before_rng_even_when_healing_is_blocked",
+        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_berry_then_food_taste_uses_actual_receipts_and_both_explicit_lifetimes_after_restore",
+        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_native_coat_and_helping_hand_keep_single_consumption_on_the_composed_hit",
+        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_nonmatching_type_and_not_super_effective_hit_keep_berry_armed_without_policy",
+        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_real_preserves_and_dumplings_missing_invalid_policy_reject_before_rng_and_receipt",
+        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_true_steel_decision_is_used_once_for_declined_and_accepted_berry_hits",
+        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_true_steel_enables_berry_and_null_policy_refuses_before_rng_without_payment"
+      ]
+    }
+  }
+}

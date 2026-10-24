@@ -190,7 +190,7 @@ def recall(engine,actor,*,ignore_trapped=False):
     MARSUPIAL.sync(engine)
 
 
-def send_out(engine,actor,*,pos=None):
+def send_out(engine,actor,*,pos=None,request_id=None,source_id=None):
     """One actual send boundary shared by paid party actions and GM placement."""
     import csv_item_form_contracts as CSV_FORMS
     CSV_FORMS.require_independent(engine,actor)
@@ -202,6 +202,12 @@ def send_out(engine,actor,*,pos=None):
     actor.on_field=True
     if not before:actor.turns_taken=0
     if pos is not None:actor.pos=tuple(pos)
+    if not before:
+        __import__('illusion_state').on_release(engine,actor)
+        owner=__import__('party_actions').owner(engine,actor)
+        if owner is not None:
+            request_id=request_id or 'native/send-out:'+str(owner.spec.get('native_send_serial',0))
+            __import__('juggler').released(engine,owner,actor,request_id=request_id,source_id=source_id)
     # Placement loads shallow lake ice without passing through unrelated Hazards.
     import ice_lake as ICE_LAKE
     ICE_LAKE.enter(engine,actor)

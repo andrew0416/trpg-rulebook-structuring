@@ -53,7 +53,7 @@ def validate_record(actor,row,*,terminal=False):
         C.integer(p['amount'],'temporary AP payment',1)
         if p['mode']=='bind':
             E.text(p['instance_id'],'temporary AP actual binding')
-            if p['binding_owner'] not in ('bound_ap','class_passive_combat','combat_precision_features'):raise ValueError('temporary AP actual binding owner changed')
+            if p['binding_owner'] not in ('bound_ap','class_passive_combat','combat_precision_features','commander_orders'):raise ValueError('temporary AP actual binding owner changed')
             if p['state'] not in ('bound','released'):raise ValueError('temporary binding state changed')
         elif p['instance_id'] is not None or p['state']!='spent' or p['binding_owner'] is not None:raise ValueError('temporary spend/drain cannot be recovered')
     if remaining(row)<0:raise ValueError('temporary AP overspent')
@@ -101,7 +101,7 @@ def charge(actor,amount,*,ordinary_available,mode,instance_id,binding_owner=None
     funding=rows[0]['effect']['funding']
     used=min(amount,capacity) if funding['priority']=='temporary_first' else max(0,amount-ordinary_available)
     if used>capacity:raise ValueError('insufficient temporary funding')
-    if used and mode=='bind' and binding_owner not in ('bound_ap','class_passive_combat','combat_precision_features'):
+    if used and mode=='bind' and binding_owner not in ('bound_ap','class_passive_combat','combat_precision_features','commander_orders'):
         raise ValueError('temporary AP funding requires a supported actual bound-effect owner before payment')
     if used and mode=='bind' and funding['binding_expiry']=='require_decision':
         raise ValueError('temporary AP binding requires an explicit funding-loss ending policy before activation')
@@ -126,6 +126,9 @@ def before_expire(engine,actor,row):
         if row['effect']['funding']['binding_expiry']!='end_effect':raise ValueError('explicit temporary binding-loss policy required')
         owner=next(p['binding_owner'] for p in row['payments'] if p['instance_id']==uid and p['state']=='bound')
         binding,target,rule=native_binding(engine,actor,uid,owner)
+        if owner=='commander_orders':
+            __import__('commander_orders').end_binding(engine,actor,binding)
+            continue
         if owner=='class_passive_combat':
             import class_passive_combat as CP
             CP._unbind(engine,target,rule,actor,binding)
@@ -191,7 +194,7 @@ def preflight_binding(actor,amount,binding_owner):
     capacity=available(actor);ordinary=actor.ap_account.available()-capacity
     funding=rows[0]['effect']['funding']
     used=min(amount,capacity) if funding['priority']=='temporary_first' else max(0,amount-ordinary)
-    if used and (binding_owner not in ('bound_ap','class_passive_combat','combat_precision_features') or funding['binding_expiry']!='end_effect'):
+    if used and (binding_owner not in ('bound_ap','class_passive_combat','combat_precision_features','commander_orders') or funding['binding_expiry']!='end_effect'):
         raise ValueError('temporary AP binding requires supported actual owner and explicit funding-loss policy before action cost')
 
 
@@ -222,6 +225,10 @@ def native_binding(engine,actor,uid,owner):
             if target.custom_conditions.get(CP.KEY,{}).get('instance')==uid:
                 actual=CP.binding(engine,target)
                 if actual is not None and actual['owner'] is actor:found.append((actual,target,None))
+        elif owner=='commander_orders':
+            import commander_orders as CP
+            for row in CP.live(engine,target,CP.BRACE):
+                if row['id']==uid and row['issuer_id']==actor.entity_id:found.append((row,target,CP.BRACE))
         else:raise ValueError('unknown temporary AP binding owner')
     if len(found)!=1:raise ValueError('temporary AP binding owner does not match its actual native producer')
     return found[0]

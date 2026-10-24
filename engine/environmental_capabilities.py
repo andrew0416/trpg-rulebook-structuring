@@ -215,10 +215,9 @@ def resolve_vacuum_check(engine, actor, *, check_id, injury_delta, reason):
         import actor_templates as TEMPLATES
         applied = 0 if TEMPLATES.injuries_immune(subject) else injury_delta
         if applied:
-            subject.injuries += applied
             import precise_actions as PRECISE
             injury_source = row["intent"]["environment"]["source"] + "#vacuum-exposure"
-            PRECISE.injury(staged, subject, applied, injury_source)
+            applied=PRECISE.gain_injury(staged, subject, applied, injury_source)
             staged.check_fainted(subject)
         receipt = dict(check, injury_delta=applied, injury_delta_requested=injury_delta,
                        injury_delta_prevented=injury_delta-applied, injuries_before=before,

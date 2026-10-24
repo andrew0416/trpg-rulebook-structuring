@@ -96,11 +96,11 @@ class HeavyLoadClosedEndpointSourceRevisionTests(unittest.TestCase):
         for weight, band in ((34, 'normal'), (34, 'staggering'),
                              (52, 'normal'), (52, 'staggering'), (60, 'heavy')):
             with self.subTest(weight=weight, band=band):
-                before = deepcopy((self.a.spec, self.a.budget, self.e._physical_objects))
+                before = deepcopy((self.a.spec, ('budget' in vars(self.a), vars(self.a).get('budget')), self.e._physical_objects))
                 rng = self.e.rng.getstate()
                 with self.assertRaises(ValueError):
                     self.observe(weight, identity='invalid-observation', boundary_band=band)
-                self.assertEqual((self.a.spec, self.a.budget, self.e._physical_objects), before)
+                self.assertEqual((self.a.spec, ('budget' in vars(self.a), vars(self.a).get('budget')), self.e._physical_objects), before)
                 self.assertEqual(self.e.rng.getstate(), rng)
         self.observe(52, identity='historical-heavy-endpoint', boundary_band='heavy')
         self.assertEqual(CAP.load(self.a)['band'], 'heavy')

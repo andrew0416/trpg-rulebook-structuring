@@ -63,12 +63,12 @@ class PusherAutomaticSourceRevisionTests(unittest.TestCase):
                 q = self.subject(case)
                 self.e.start_round([self.t, q]); self.e.start_of_turn(self.t)
                 elapsed = self.e.elapsed_seconds
-                budgets = deepcopy((self.t.budget, q.budget))
+                budgets = deepcopy((self.t.budget, ('budget' in vars(q), vars(q).get('budget'))))
                 with patch.object(JOBS, 'run_fixed', side_effect=AssertionError('automatic acquisition reached training')):
                     out = self.acquire(q, case[0], from_training=True, **case[3])
                 row = q.spec['learned_poke_edges'][-1]
                 self.assertEqual((out['seconds'], out['point_cost'], q.spec['tutor_points'], self.e.elapsed_seconds), (0, 0, 0, elapsed))
-                self.assertEqual((self.t.budget, q.budget), budgets)
+                self.assertEqual((self.t.budget, ('budget' in vars(q), vars(q).get('budget'))), budgets)
                 self.assertEqual((row['source'], row['point_cost'], row['training_source']), (case[0], case[4], RFS.PUSHER))
                 self.assertEqual(row['pusher']['acquisition'], 'automatic')
                 receipt = next(r for r in self.e.acquisition_receipts(q) if r['basis'] == 'native_learned_edge')

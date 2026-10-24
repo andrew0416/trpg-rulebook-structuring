@@ -32,7 +32,7 @@ class TemporaryHPPreflightTests(unittest.TestCase):
     unset_lifetime_default = BASE.TemporaryHPCompositionTests.unset_lifetime_default
 
     def ready_pair(self, *, cooked=False):
-        engine, chef, actor, foe = self.world()
+        engine, chef, actor, foe = self.world(stored_foods=True)
         batch = FIX.cook(engine, chef, recipe='tasty_snack', snack='짠맛 서프라이즈')
         first = FIX.serve(engine, chef, batch['batch_id'], actor)['buff_id']
         second = (FIX.serve(engine, chef, batch['batch_id'], actor)['buff_id'] if cooked
@@ -135,7 +135,7 @@ class TemporaryHPPreflightTests(unittest.TestCase):
 
     def test_food_replacement_precedes_assigned_salty_and_drops_incompatible_aged_lunchbox(self):
         self.unset_lifetime_default()
-        engine, chef, actor, foe = self.world()
+        engine, chef, actor, foe = self.world(stored_foods=True)
         batch = FIX.cook(engine, chef, recipe='tasty_snack', snack='짠맛 서프라이즈')
         buff = FIX.serve(engine, chef, batch['batch_id'], actor)['buff_id']
         receipt = self.chocolate(engine, actor)
@@ -153,7 +153,7 @@ class TemporaryHPPreflightTests(unittest.TestCase):
     def test_actual_berry_receipt_shift_preserves_food_taste_and_lunchbox_receipt_identity(self):
         for use_food in (False, True):
             with self.subTest(use_food=use_food):
-                engine, chef, actor, foe = self.world()
+                engine, chef, actor, foe = self.world(stored_foods=True)
                 batch = FIX.cook(engine, chef, recipe='tasty_snack', snack='짠맛 서프라이즈')
                 salty = FIX.serve(engine, chef, batch['batch_id'], actor)['buff_id']
                 berry = self.buy(engine, actor, 'item/카리열매')

@@ -42,7 +42,12 @@ def side(record):return record['scope_history'][-1]['side']
 def continuous(record):return record['effect']['kind']=='team_initiative_bonus'
 def remaining(record):
     limit=record[E.KEY]['capacity']['limit']
-    return None if continuous(record) else limit-sum(x['charged'] if 'facts' in x else x['selected'] for x in record['decisions'])
+    if record.get('sage_conversions'):limit=min([limit,*[x['capacity'] for x in record['sage_conversions']]])
+    used=sum(x['charged'] if 'facts' in x else x['selected'] for x in record['decisions'])
+    return None if continuous(record) else max(0,limit-used) if record.get('sage_conversions') else limit-used
+
+def effective_source(record):
+    return record['sage_conversions'][-1]['move_id'] if record.get('sage_conversions') else record['source']
 
 
 def beneficiaries(engine,actor,kind=None):
@@ -72,6 +77,7 @@ def live(actor):
 
 def validate_record(actor,record,*,terminal=False):
     E.validate(record,actor=actor,terminal=terminal)
+    if record.get('sage_conversions'):return _validate_converted(actor,record,terminal=terminal)
     definition_row=definition(actor.r,record['source']);m=record[E.KEY]
     if definition_row is None or record['effect']!=definition_row['payload']:raise ValueError('Blessing payload differs from selected source')
     if m['kind']!=KIND or m['capacity']!={'bucket':'team_blessing','source':record['source'],'limit':definition_row['capacity']}:raise ValueError('Blessing shared capacity changed')
@@ -142,8 +148,6 @@ def validate_record(actor,record,*,terminal=False):
 def _validate_responses(actor,record,*,terminal):
     kinds={'team_critical_guard':'critical_guard','team_critical_boost':'critical_boost',
            'team_stage_guard':'stage_guard','team_status_guard':'status_received'}
-    if record['effect']['kind']=='team_status_guard' and record['decisions']:
-        raise ValueError('Safeguard status-effect-ignore procedure requires its own native consumer')
     seen=set();at=record['at'];scope=record['scope_history']
     for event in record['decisions']:
         fields={'event_id','sequence','at','actor_id','target_id','side','scope_index','kind','selected','charged','facts'}
@@ -173,6 +177,9 @@ def _validate_responses(actor,record,*,terminal):
                 if facts.get('actor_kind') not in ('pokemon','trainer') or not isinstance(facts.get('actor_types'),list):raise ValueError('actual Dragon Cheer beneficiary type required')
                 eligible=facts['actor_kind']=='pokemon' and '드래곤' in facts['actor_types']
                 if type(facts.get('dragon_first_free')) is not bool or facts['dragon_first_free'] and not eligible:raise ValueError('Dragon Cheer free use requires an actual Dragon Pokemon')
+        elif event['kind']=='status_received':
+            if set(facts)!={'condition','condition_source','turn_serial'} or 'condition/'+str(facts['condition']) not in actor.r.units:raise ValueError('actual received Status required')
+            C.integer(facts['turn_serial'],'actual next personal turn',0)
         if event['charged']!=event['selected']:
             if not (record['effect']['kind']=='team_critical_boost' and event['selected'] and not event['charged'] and event['facts'].get('dragon_first_free') is True):raise ValueError('Blessing capacity exception lacks source authority')
     left=remaining(record)
@@ -231,6 +238,13 @@ def validate_world(engine,index):
         if eligible:free_seen.add(key)
     import weather_blessings as WEATHER
     WEATHER.validate_world(engine,index)
+    pools={r['id']:r for owner in index.values() for r in live(owner)+owner.spec.get(HISTORY,[]) if isinstance(r,dict) and r.get(E.KEY,{}).get('kind')==KIND}
+    for actor in index.values():
+        for ignore in actor.spec.get('blessing_status_ignores',[]):
+            if set(ignore)!={'instance_id','event_id','creator_id','condition','turn_serial'}:raise ValueError('exact received Status ignore receipt required')
+            record=pools.get(ignore['instance_id'])
+            decision=None if record is None else next((d for d in record['decisions'] if d['event_id']==ignore['event_id']),None)
+            if decision is None or decision.get('kind')!='status_received' or not decision['selected'] or decision['actor_id']!=actor.entity_id or decision['facts']['condition']!=ignore['condition'] or decision['facts']['turn_serial']+1!=ignore['turn_serial'] or record[E.KEY]['applied_by_actor_id']!=ignore['creator_id']:raise ValueError('Status ignore requires its actual selected Safeguard receipt')
 
 
 def checked(engine):
@@ -275,7 +289,8 @@ def select_damage(engine,event):
     candidates=[(c,r) for c in index.values() for r in live(c)
                 if r['effect']['kind'] in ('team_damage_resistance','team_damage_effectiveness')
                 and side(r)==(attacker.side if r['effect']['kind']=='team_damage_effectiveness' else target.side)
-                and move['class'] in r['effect']['classes']]
+                and move['class'] in r['effect']['classes']
+                and not (r['effect']['kind']=='team_damage_resistance' and __import__('commander_orders').perfect_for_move(engine,attacker,move))]
     if not candidates:return event['damage']
     if index.get(target.entity_id) is not target or index.get(attacker.entity_id) is not attacker:raise ValueError('Blessing damage needs actual world participants')
     seq=C.integer(target.spec.get(DAMAGE_SEQUENCE,0),'actual damage sequence',0)+1
@@ -299,6 +314,7 @@ def select_damage(engine,event):
             event['resisted_damage']=None if next_mult is None else max(0,M.product(f['after_defense'],next_mult,f['other_multiplier'])+f['adjustment'])
             event['context']['multiplier']=after_mult
             engine.log('    shared Blessing '+r['id']+': '+str(before)+' -> '+str(reduced)+'; remaining '+str(remaining(r)),r['source'])
+            __import__('sage').blessing_selected(engine,owner,beneficiary,r,observation)
         if remaining(r)==0:
             E.archive(engine,owner,r,state='consumed',event={'kind':'blessing_exhausted','event_id':uid});owner.blessings.remove(r)
         else:validate_record(owner,r)
@@ -410,6 +426,7 @@ def activate(engine,actor,ability,target):
     source=reg['source_id'];row=definition(engine.r,source)
     W.require_actors(engine,actor,target);P.require_complete(actor,'Blessing Ability')
     if target is not actor:raise ValueError('team Blessing is anchored on its actual creator')
+    if __import__('commander_orders').blocks_blessing(engine,actor):raise ValueError('Perfect Aim target cannot activate Blessings for this attack')
     if actor.abilities_suppressed or actor.fainted or not actor.on_field:raise ValueError('actual available unsuppressed Blessing Ability required')
     if not any((registration(engine.r,x) or {}).get('source_id')==source for x in actor.abilities):raise ValueError('actual acquired Blessing Ability required')
     if engine.r.ability_effects.get(reg['name'])!=[row['raw']]:raise ValueError('Blessing Ability extraction changed')
@@ -427,6 +444,7 @@ def activate(engine,actor,ability,target):
 
 def _respond(engine,beneficiary,target,kind,facts):
     """One actual existing native hook commits one selected shared use."""
+    if __import__('commander_orders').ignore_defensive(engine,target,beneficiary):return False
     for owner,record in beneficiaries(engine,beneficiary,kind):
         answer=engine.rulings.decide({'type':'team_blessing','unit':record['source'],
             'instance_id':record['id'],'actor_id':beneficiary.entity_id,
@@ -449,14 +467,86 @@ def _respond(engine,beneficiary,target,kind,facts):
         uid=beneficiary.entity_id+':blessing-response:'+str(seq)
         record['decisions'].append({'event_id':uid,'sequence':seq,'at':engine.elapsed_seconds,
             'actor_id':beneficiary.entity_id,'target_id':target.entity_id,'side':beneficiary.side,
-            'scope_index':len(record['scope_history'])-1,'kind':{'team_critical_guard':'critical_guard','team_critical_boost':'critical_boost','team_stage_guard':'stage_guard'}[kind],
+            'scope_index':len(record['scope_history'])-1,'kind':{'team_critical_guard':'critical_guard','team_critical_boost':'critical_boost','team_stage_guard':'stage_guard','team_status_guard':'status_received'}[kind],
             'selected':selected,'charged':charged,'facts':observation})
+        if selected:
+            __import__('sage').blessing_selected(engine,owner,beneficiary,record,record['decisions'][-1])
+            if kind=='team_status_guard':
+                beneficiary.spec.setdefault('blessing_status_ignores',[]).append({'instance_id':record['id'],'event_id':uid,'creator_id':owner.entity_id,'condition':facts['condition'],'turn_serial':facts['turn_serial']+1})
         if remaining(record)==0:
             E.archive(engine,owner,record,state='consumed',event={'kind':'blessing_exhausted','event_id':uid})
             owner.blessings.remove(record)
         else:validate_record(owner,record)
         if selected:return True
     return False
+
+def status_received(engine,actor,condition,*,source=None,applied_by=None):
+    if condition=='기절' or condition not in actor.conditions:return False
+    if applied_by is not None and source in engine.r.moves and reaction_blocked(engine,applied_by,engine.r.move(source)):return False
+    answer=_respond(engine,actor,applied_by or actor,'team_status_guard',{'condition':condition,'condition_source':source,'turn_serial':actor.custom_conditions.get('combat_turn_serial',0)})
+    if not getattr(engine,'_native_move_resolution_depth',0):__import__('sage').finish_blessings(engine)
+    return answer
+
+def ignored(actor,condition):
+    serial=actor.custom_conditions.get('combat_turn_serial',0)
+    return any(r['condition']==condition and r['turn_serial']==serial for r in actor.spec.get('blessing_status_ignores',[])) and actor.custom_conditions.get('blessing_ignore_turn_open') is True
+
+def effective_conditions(actor):
+    return {c for c in actor.conditions if not ignored(actor,c)}
+
+def _validate_converted(actor,record,*,terminal):
+    """Validate each real decision against the type active when it occurred."""
+    from copy import deepcopy
+    import sage as S
+    base=definition(actor.r,record['source']);meta=record[E.KEY]
+    if record['source'] not in S.MOVES or meta['applied_by_actor_id']!=actor.entity_id or meta['capacity']!={'bucket':'team_blessing','source':record['source'],'limit':base['capacity']}:raise ValueError('Divine Wind preserves original Sage Move creator and pool')
+    if meta['lifetime']!={'boundary':base['lifetime']}:raise ValueError('Divine Wind cannot change lifetime')
+    conversions=record['sage_conversions'];cursor=0;source=record['source'];indices=[]
+    for event in conversions:
+        if set(event)!={'source','move_id','decision_index','capacity','at','acquisition','scene'} or event['source']!=S.WIND or event['move_id'] not in S.MOVES or event['move_id']==source:raise ValueError('distinct typed Divine Wind conversion required')
+        cursor=C.integer(event['decision_index'],'conversion actual consumed-history boundary',cursor,len(record['decisions']))
+        C.integer(event['at'],'conversion time',record['at']);C.integer(event['scene'],'conversion Scene',0)
+        if event['capacity']!=definition(actor.r,event['move_id'])['capacity'] or not any(r['request_id']==event['acquisition'] for r in S.records(actor,S.WIND)):raise ValueError('actual Divine Wind acquisition/capacity required')
+        indices.append((cursor,event['move_id']));source=event['move_id']
+    if record['effect']!=definition(actor.r,source)['payload']:raise ValueError('converted Blessing payload differs from last selected type')
+    seen=set()
+    for i,event in enumerate(record['decisions']):
+        source=record['source']
+        for index,selected in indices:
+            if index<=i:source=selected
+        uid=event['event_id']
+        if uid in seen:raise ValueError('one actual Blessing event cannot be consumed twice')
+        seen.add(uid)
+        clone=deepcopy(record);clone.pop('sage_conversions');clone['source']=source;row=definition(actor.r,source)
+        clone['effect']=deepcopy(row['payload']);clone['decisions']=[deepcopy(event)]
+        clone[E.KEY]['state']='active';clone[E.KEY].pop('ended_at',None);clone[E.KEY].pop('end_event',None)
+        clone[E.KEY]['capacity']={'bucket':'team_blessing','source':source,'limit':row['capacity']}
+        clone[E.KEY]['ownership'][0]['source']=source;clone['scope_history'][0]['source']=source
+        validate_record(actor,clone)
+    if not record['decisions']:
+        clone=deepcopy(record);clone.pop('sage_conversions');clone['source']=source;row=definition(actor.r,source)
+        clone['effect']=deepcopy(row['payload']);clone[E.KEY]['state']='active';clone[E.KEY].pop('ended_at',None);clone[E.KEY].pop('end_event',None)
+        clone[E.KEY]['capacity']={'bucket':'team_blessing','source':source,'limit':row['capacity']};clone[E.KEY]['ownership'][0]['source']=source;clone['scope_history'][0]['source']=source
+        validate_record(actor,clone)
+    if not terminal and remaining(record)==0:raise ValueError('converted exhausted pool must be archived')
+    if terminal:
+        end=meta['end_event']
+        if meta['state']=='consumed':
+            if remaining(record)!=0 or end.get('kind') not in ('blessing_exhausted','divine_wind_capacity'):raise ValueError('converted pool actual exhaustion required')
+        elif not _removed(actor.r,end):raise ValueError('actual converted pool removal required')
+
+def convert_sage(engine,actor,move_id):
+    from copy import deepcopy
+    import sage as S
+    result=[];row=definition(engine.r,move_id)
+    for record in list(live(actor)):
+        if record['source'] not in S.MOVES or effective_source(record)==move_id:continue
+        record.setdefault('sage_conversions',[]).append({'source':S.WIND,'move_id':move_id,'decision_index':len(record['decisions']),'capacity':row['capacity'],'at':engine.elapsed_seconds,'acquisition':S.acquired(actor,S.WIND)['request_id'],'scene':__import__('frequency').state(actor)['scene']})
+        record['effect']=deepcopy(row['payload']);result.append(record['id'])
+        if remaining(record)==0:
+            E.archive(engine,actor,record,state='consumed',event={'kind':'divine_wind_capacity','source':S.WIND});actor.blessings.remove(record)
+        else:validate_record(actor,record)
+    return result
 
 
 def critical(engine,actor,target,move,hit,crit):
@@ -481,6 +571,8 @@ def stage_guard(engine,actor,delta):
 def spend_arctic(engine,beneficiary,target,instance_id,facts):
     """Spend the existing Mist pool; its ordinary stage-guard uses share capacity."""
     import type_ace as TA
+    if __import__('commander_orders').ignore_defensive(engine,target,beneficiary):
+        raise ValueError('Perfect Aim target cannot activate defensive Blessings')
     selected=next(((owner,r) for owner,r in beneficiaries(engine,beneficiary,'team_stage_guard') if r['id']==instance_id and 'arctic_zeal' in r),None)
     if selected is None or '얼음' not in beneficiary.types:raise ValueError('actual Ice beneficiary and Arctic Zeal Mist pool required')
     owner,record=selected

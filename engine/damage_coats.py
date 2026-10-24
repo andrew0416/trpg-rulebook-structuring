@@ -11,7 +11,7 @@ def validate_record(actor,record,*,terminal=False):
     if meta['capacity']!={'bucket':'source_coat','source':record['source']} or meta['lifetime']!={'boundary':row['lifetime']}:raise ValueError('typed coat source authority mismatch')
     if not meta.get('applied_by_actor_id'):raise ValueError('actual typed coat creator required')
     for event in meta['ownership'][1:]:
-        if event.get('source') not in ('move/배턴터치','feat/태그-인'):raise ValueError('typed Coat ownership requires Baton Pass or actual Tag In')
+        if event.get('source') not in ('move/배턴터치','feat/힘의-전달','feat/태그-인'):raise ValueError('typed Coat ownership requires a reviewed transfer source')
     if record.get('applications')!=[]:raise ValueError('single-use coat has no periodic applications')
     C.integer(record.get('issued_turn'),'typed coat issue turn',0,COATS.serial(actor))
     if terminal:

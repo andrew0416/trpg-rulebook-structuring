@@ -26,6 +26,9 @@ class CombatTests(unittest.TestCase):
         self.e=Engine(self.r,seed=420)
         self.a=self.actor('A');self.t=self.actor('T')
         self.a.side='party';self.t.side='wild';self.e.everyone=[self.a,self.t]
+        self.e.pokemon_activity(self.actor('campaign discussion','trainer'),'configure_intelligence',
+            portrayal='Pokemon can use their explicitly assigned task skills',discussed_with=['combat fixture participants'],
+            social=True,education=True,reason='explicit campaign permission for the prepared skill tasks')
     def actor(self,name,kind='pokemon'):
         # These synthetic combat fixtures occupy one observed Medium cell.
         return Combatant(self.r,{'name':name,'kind':kind,'size':'중형','level':30,'stats':{'hp':60,'atk':20,'def':10,'spa':20,'spd':15,'spe':5},'moves':['move/바다회오리','move/화염방사'],'skills':{'전투':'전문'},'movement':{'land':6}})

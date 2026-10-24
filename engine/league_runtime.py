@@ -66,7 +66,10 @@ def _interaction_issues(e,actors):
     # The native owner-turn clock is bookkeeping, not an optional phase effect.
     serial=value.get('combat_turn_serial',0)
     if type(serial)is not int or serial<0:issues.append(key+':invalid owner turn clock')
-    value={k:v for k,v in value.items() if k!='combat_turn_serial'}
+    marker=value.get('blessing_ignore_turn_open')
+    if 'blessing_ignore_turn_open' in value and (marker is not True or e._active_turn_actor is not c):
+     issues.append(key+':invalid native open-turn marker')
+    value={k:v for k,v in value.items() if k not in ('combat_turn_serial','blessing_ignore_turn_open')}
    if value:issues.append(key+':unsupported '+field)
   if c.conditions-{'기절'}:issues.append(key+':turn hook/status phase composition unsupported')
  return issues

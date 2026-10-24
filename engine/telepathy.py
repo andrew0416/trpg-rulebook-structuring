@@ -93,16 +93,16 @@ def attempt(engine,owner,other,operation,unwilling):
             'unwilling':unwilling,'supernatural_trace':unwilling,'notice':notice}
 
 
-def validate_result(engine,result):
+def validate_result(engine,result,*,source=SOURCE,cumulative=False):
     modifier=C.integer(result.get('retry_modifier'),'Telepathy retry modifier',maximum=0)
-    penalty=policy(engine.r)['declaration']['retry']['penalty']
+    penalty=policy(engine.r)['declaration']['retry']['penalty'] if source==SOURCE else {'modifier':-3,'stacking':'cumulative' if cumulative else 'single'}
     if modifier%penalty['modifier'] or penalty.get('stacking','single')=='single' and modifier not in (penalty['modifier'],0):raise ValueError('source-defined Telepathy retry modifier required')
     operation=result.get('operation')
     if operation not in ('read','send','offer'):raise ValueError('actual Telepathy operation receipt required')
     event=result.get('event')
     if event is not None:
         Q._fields(event,('source','kind','owner_id','target_id','at','unwilling','supernatural_trace','notice'))
-        if event['source']!=SOURCE or event['owner_id']!=result['sender_id'] or event['target_id']!=result['recipient_id']:raise ValueError('actual Telepathy attempt endpoints required')
+        if event['source']!=source or event['owner_id']!=result['sender_id'] or event['target_id']!=result['recipient_id']:raise ValueError('actual Telepathy attempt endpoints required')
         if event['kind']!=('telepathy_read_attempt' if operation=='read' else 'telepathy_projection_attempt'):raise ValueError('actual Telepathy attempt kind required')
         C.integer(event['at'],'Telepathy attempt time',0,engine.elapsed_seconds)
         if type(event['unwilling']) is not bool or event['supernatural_trace'] is not event['unwilling'] or operation=='offer' and event['unwilling']:raise ValueError('actual unwilling attempt trace required')
@@ -116,7 +116,7 @@ def validate_result(engine,result):
     if result['status']=='delivered':
         if event is None:raise ValueError('Telepathy delivery lacks actual attempt')
         a,b=(result['recipient_id'],result['sender_id']) if operation in ('read','offer') else (result['sender_id'],result['recipient_id'])
-        if type(message) is not dict or message.get('source')!=SOURCE or message.get('sender_id')!=a or message.get('recipient_id')!=b:raise ValueError('actual Telepathy message endpoints required')
+        if type(message) is not dict or message.get('source')!=source or message.get('sender_id')!=a or message.get('recipient_id')!=b:raise ValueError('actual Telepathy message endpoints required')
         if operation=='read':
             Q._fields(message,('source','sender_id','recipient_id','surface_thought','thought_revision','status'))
             if message['status']=='unknown':

@@ -3,8 +3,8 @@
   "files": [
     {
       "path": "data/abilities-core.json",
-      "sha256": "f7e297fdc0518918e764b557e4460ed0acdcaaea54100031cce31cf09f8595d2",
-      "size": 10603
+      "sha256": "e9548a9424f60a6fbf2fb47c50454989f8daf97b8e4f219b6b3fddf564479ce1",
+      "size": 19924
     },
     {
       "path": "data/abilities-llm.json",
@@ -42,9 +42,14 @@
       "size": 20310
     },
     {
+      "path": "data/ace-trainer-source-contract.json",
+      "sha256": "6662ed4f11a771a20a2c18c8cc20f130b24db5312412e825e87d72f1d4433fbc",
+      "size": 6242
+    },
+    {
       "path": "data/acquired-feature-projection-policy.json",
-      "sha256": "04b4420953848fc2184145413d037b58bab6a27a22d4eefa299cc9f58e871672",
-      "size": 45854
+      "sha256": "4b4769c0f2795c437c3d27eac25bdf70ff5467c334179ee744b52e2a7cbe20b7",
+      "size": 46604
     },
     {
       "path": "data/adjudication-guidance.json",
@@ -117,6 +122,11 @@
       "size": 2590
     },
     {
+      "path": "data/capture-specialist-source-contract.json",
+      "sha256": "a976cb6b7f3514c841ee1ebfbd471ad3344cb76cffff912f6a55b7316283e7d8",
+      "size": 22101
+    },
+    {
       "path": "data/category2-encounter-template-policy.json",
       "sha256": "3ac854beec373ca19af8d75ae42730450728c20a7433b8ead3909e0ed7a96015",
       "size": 2136
@@ -172,14 +182,19 @@
       "size": 4627
     },
     {
+      "path": "data/commander-source-contract.json",
+      "sha256": "aa85b8f49f070856d4da594d2269ee9cc39fa37d22d0db52d783ca58ff192d1e",
+      "size": 24663
+    },
+    {
       "path": "data/conditional-damage-base-policy.json",
-      "sha256": "1ab121bd8e9f91df656b4f7eda54b61dd5a99e5fc1e55744a83d1bdd5edccc9e",
-      "size": 2056
+      "sha256": "316283912888aed944d35747082dfe89474b41cae59970321a67b02c58218485",
+      "size": 3226
     },
     {
       "path": "data/conditions.json",
-      "sha256": "26620ad9c2965682248e2b21832a39e79f5215e18a3874c0bbf999b18d5ab598",
-      "size": 49133
+      "sha256": "680e6e38f5f4d4ae5c2e4ec159cea3d1afbf2449f682a01445dd71d515d45ec1",
+      "size": 49910
     },
     {
       "path": "data/content-source-identities.json",
@@ -195,6 +210,11 @@
       "path": "data/context-check-policy.json",
       "sha256": "f15f3a0d2c08b1bf667b00e71d9f3eb6fdcf49297d89c137ff46a10acb8cc59f",
       "size": 10015
+    },
+    {
+      "path": "data/coordinator-source-contract.json",
+      "sha256": "451aa825379f2780e64dc526ed431f4b99eb62f100c91d324cadfab4840d4fa4",
+      "size": 1367
     },
     {
       "path": "data/core-condition-variant-policy.json",
@@ -502,6 +522,11 @@
       "size": 11926
     },
     {
+      "path": "data/focus-punch-policy.json",
+      "sha256": "8aa0c7b59f17f74766927e1aeb3c4155f0d0865166ce781bdd4da69bd851512d",
+      "size": 1539
+    },
+    {
       "path": "data/food-buff-policy.json",
       "sha256": "5f59efbe24f4a45db974dc118db64e70bd103eac7a36d7b6fb0455c2ed0d385d",
       "size": 5259
@@ -607,6 +632,11 @@
       "size": 105001
     },
     {
+      "path": "data/juggler-source-contract.json",
+      "sha256": "fc9e967c4fea4599b11c101a7452ac4a743f11a0201b7d03b90a925e586eddfc",
+      "size": 3924
+    },
+    {
       "path": "data/leafy-cloak-source-policy.json",
       "sha256": "15eab35969f2bedf11bb97ee14930a4808804a29e0b58b50746d99d8ee3f8c5b",
       "size": 2101
@@ -650,6 +680,11 @@
       "path": "data/mega-form-policy.json",
       "sha256": "2078e9573bacefae7c88c31535f35cd7bcd663c88a6484df191bdc7aafae9a26",
       "size": 25548
+    },
+    {
+      "path": "data/mentor-source-contract.json",
+      "sha256": "3f2e6e894bbd7d5da2426ddb7b92b380e8375e015cf3d5b8db9c62d4d26370a5",
+      "size": 1662
     },
     {
       "path": "data/mettle-source-review.json",
@@ -718,8 +753,8 @@
     },
     {
       "path": "data/moves-reviewed.json",
-      "sha256": "dc1ee05c3f94c21d60812c0d1ab0d2c5bbfd30ca88f8ff0879b623f1c79db180",
-      "size": 84385
+      "sha256": "fd5bb71860c689e841b230bc21333387a3229bee55e42d0c6d957be83d40503c",
+      "size": 87077
     },
     {
       "path": "data/musician-definitions.json",
@@ -858,8 +893,8 @@
     },
     {
       "path": "data/rulesets.json",
-      "sha256": "7679f5839e426da8028167fe685a14f4def2de4ce94ad9081f414b0b9f611624",
-      "size": 3987
+      "sha256": "113a290094f39f971af3d70def5f716c7cc6c94cb58ae0e5163779733690970c",
+      "size": 4504
     },
     {
       "path": "data/scene-feature-ability-grant-policy.json",
@@ -967,9 +1002,24 @@
       "size": 8872
     },
     {
+      "path": "data/telekinesis-core-policy.json",
+      "sha256": "94b2aba8fb86d04b0d8cce36b439aa6dd213941191db35d84bd552a1d34b5023",
+      "size": 692
+    },
+    {
+      "path": "data/telekinesis-evasion-policy.json",
+      "sha256": "470fa45dcb69c2e5959fc7651a9da9e21a883067afad1f67a58cf21b8aae8326",
+      "size": 1134
+    },
+    {
       "path": "data/telekinetic-struggle-policy.json",
       "sha256": "a9e2040261fdf8d72995e1af62fb6101d229eda011fa33590f8e9db2b51e47fa",
       "size": 1437
+    },
+    {
+      "path": "data/telepathy-core-policy.json",
+      "sha256": "4c449deb6d9e04ffacf3dc4f61a1aa1b5bd58d0b9246acaa22a5885e9a68416f",
+      "size": 2024
     },
     {
       "path": "data/telepathy-policy.json",
@@ -1087,19 +1137,29 @@
       "size": 8901
     },
     {
+      "path": "data/verification/category2-class-clause-status.json",
+      "sha256": "7f9bb7ec2dcdba1eec322b1766b5c0d6967199852f14d2410af30247d4683320",
+      "size": 8128008
+    },
+    {
       "path": "data/verification/category2-class-csv-clause-status.json",
-      "sha256": "7d67509773bcbe99051c861ce54589189d12565ec4376bc1808703faf8f0a4a2",
-      "size": 4249260
+      "sha256": "31ef0eac146100b942f7fbb2ce019e135b7fa6859362f10444339b7e6e90a817",
+      "size": 4302301
+    },
+    {
+      "path": "data/verification/category2-core-clause-status.json",
+      "sha256": "0342e7ea5bde064ed5b9ebe040d64fe9841e36b775a534dbad940104be6ef888",
+      "size": 5114125
     },
     {
       "path": "data/verification/category2-csv-abilities-moves-status.json",
-      "sha256": "46b5a73fc9923ec68945c308f88f50707e493dd1f6b08650978987d35db02456",
-      "size": 4818285
+      "sha256": "6aec49709033dd80c52bbde6abf4cd93da1e8e76053365d31e2475ce89015316",
+      "size": 4712523
     },
     {
       "path": "data/verification/category2-edge-work-plan.json",
-      "sha256": "1fb206bde5ff9372ebc617c91cd76c984b7f9065ded2d5c50af9fd31e60b114e",
-      "size": 21666094
+      "sha256": "1053f45edc97ced8fe328b9d0db910bff2c8a195087b6646f5de77f26fdaaad1",
+      "size": 23253059
     },
     {
       "path": "data/verification/category2-item-table-status.json",
@@ -1113,13 +1173,13 @@
     },
     {
       "path": "data/verification/category2-progress.json",
-      "sha256": "e5d09181f5dde171fe8de961a4bf94a16abe13a67e789f9bb4483fb9f0825bd6",
-      "size": 68372
+      "sha256": "b02385e51bbcc7ba7c0569a90e4affb1001c31db8b9c9e6313d6e93681479dd5",
+      "size": 68341
     },
     {
       "path": "data/verification/category2-work-checkpoint.json",
-      "sha256": "fd4b1ab7f3d53a387e21ac9118d8a022d27875791f4cb701bcae115108843a08",
-      "size": 305316
+      "sha256": "8db1baaefe8a22c311df0269a0c299cc62416469e6012799b114649990bf3a70",
+      "size": 300283
     },
     {
       "path": "data/verification/category3-register.json",
@@ -1137,6 +1197,11 @@
       "size": 209256
     },
     {
+      "path": "data/verification/oracle-core-source-excerpts.txt",
+      "sha256": "0af21c9a5c753af07456485516b85304482a92cd61abd1ecf67a4af5f12c9049",
+      "size": 7295
+    },
+    {
       "path": "data/verification/passive-event-runtime-profile.json",
       "sha256": "e0590d58ab7b02e231ce1d1897ff7a7b37f91e772c49184c1c7d189a855bdc00",
       "size": 1323
@@ -1152,9 +1217,29 @@
       "size": 65065
     },
     {
+      "path": "data/verification/sage-core-source-excerpts.txt",
+      "sha256": "4ec401e89c1ad3b7ba8b054e6e1f33cff65e89b6b9c8f77d0d98a2130a20c1e8",
+      "size": 7691
+    },
+    {
+      "path": "data/verification/telekinetic-core-source-excerpts.txt",
+      "sha256": "2c2dbce323a1c5ed21a3a41d1379490a64757695691f1ffefe08c46e240e37f2",
+      "size": 7641
+    },
+    {
+      "path": "data/verification/telepath-core-source-excerpts.txt",
+      "sha256": "8be4a75b58e9a91cecc6c4ee8acfa23b6563dc745b214744e2a9d2aaf450625a",
+      "size": 9754
+    },
+    {
       "path": "data/wallrunner-policy.json",
       "sha256": "43a0c05130ddea61e382850fede53006d51d6510855805b1df53db172fe67222",
       "size": 466
+    },
+    {
+      "path": "data/warper-source-contracts.json",
+      "sha256": "9158f49270f8b1813fe7a63ecf2eaad0f211cfdc3f63ad89f7992beeacaafc9b",
+      "size": 4024
     },
     {
       "path": "data/weapon-policy.json",
@@ -1587,6 +1672,11 @@
       "size": 12661816
     },
     {
+      "path": "output/source-audit/2026-10-10/xlsx-cells.json",
+      "sha256": "6228b3731ff851d2132fca6483290755e0e55a9ae0377fb947d683bca4e112ed",
+      "size": 12497841
+    },
+    {
       "path": "source-audit/aiming-down-sights-game-of-throhs.txt",
       "sha256": "3abbc2664fe7e25156435748fa5e82060a36b15bc3b760fdb7a6d186f26a6d0d",
       "size": 269
@@ -1632,9 +1722,29 @@
       "size": 788
     },
     {
+      "path": "source-audit/core-ambush.txt",
+      "sha256": "69d815c63863dc69738898396ae23b3af8cf1b44f3f4f556be76085be136a961",
+      "size": 224
+    },
+    {
+      "path": "source-audit/core-aura-storm.txt",
+      "sha256": "dd8043cd8c6feef101beb76ebf0b9cbf187968de3d0355b4542e563beef99d70",
+      "size": 265
+    },
+    {
       "path": "source-audit/core-drown-out.txt",
       "sha256": "7d65f4cf1a7a7042889cd1fb1f8264189de5d0742b42cac17eaec9bfd442b075",
       "size": 226
+    },
+    {
+      "path": "source-audit/core-focus-punch.txt",
+      "sha256": "fdbc6392a09aeb5f70f19db7e264f21c0fdb02055c671fda7f05c09f3e6757f3",
+      "size": 599
+    },
+    {
+      "path": "source-audit/core-force-palm.txt",
+      "sha256": "3cf5f0c8a12187cc8c1b1c0e4ce6f7a8ac3bff8273bd080ee1f5c7b5ceec993f",
+      "size": 223
     },
     {
       "path": "source-audit/core-gluttony.txt",
@@ -1655,6 +1765,16 @@
       "path": "source-audit/core-roughneck-endure.txt",
       "sha256": "b5b9ed05bef9d6f62579821b6224f5a3e29e413fa0fc21897c7da52f6c6db8a8",
       "size": 3788
+    },
+    {
+      "path": "source-audit/core-run-away.txt",
+      "sha256": "db819a3bf69df1ef45776000256361e9368b6610a677fb495e7f402181d16ef9",
+      "size": 141
+    },
+    {
+      "path": "source-audit/core-tumbler-moves.txt",
+      "sha256": "366a8b565864b3ee70b9d7e70d4bfee1a390675625193717c562969d5f4f963b",
+      "size": 3856
     },
     {
       "path": "source-audit/dataninja-errata-primary.pdf",
@@ -1717,6 +1837,21 @@
       "size": 993
     },
     {
+      "path": "source-audit/official-may2015.pdf",
+      "sha256": "b1314908e4adbfee09042c58f08a36046b5f59a09de196425aa469b43232232d",
+      "size": 154515
+    },
+    {
+      "path": "source-audit/official-sep2015.pdf",
+      "sha256": "846c23a90f26d7deb7a86117622378bc60dc7c729a9a6b1e747ea67d4a1c6caf",
+      "size": 132171
+    },
+    {
+      "path": "source-audit/official-sep2015/official-sep2015.pdf",
+      "sha256": "846c23a90f26d7deb7a86117622378bc60dc7c729a9a6b1e747ea67d4a1c6caf",
+      "size": 132171
+    },
+    {
       "path": "source-audit/pack-mon-indices-reference-1.05.txt",
       "sha256": "3b0d5f60ef2152b459782106e626b42d3c0f3caee4b5b9d9c2c5db459f7e7947",
       "size": 629
@@ -1730,6 +1865,11 @@
       "path": "source-audit/pokemon-relationships-fishing-core-1.05.txt",
       "sha256": "9d49406f11a1cf694ea6c376c2aa142a1f7e43a03abd6d7471a6884316bc024f",
       "size": 1206
+    },
+    {
+      "path": "source-audit/ptu-core-1.05.pdf",
+      "sha256": "e5e0371031601c3ad0a04056771c17599a2d8826e5a5102ccd37f9b368108907",
+      "size": 12661816
     },
     {
       "path": "source-audit/shapeshifter-comparable-size-core-1.05.txt",
@@ -1765,6 +1905,11 @@
       "path": "source-audit/vehicle-upgrades-do-porygon.txt",
       "sha256": "005153860fe843c3ef65987da110102736be8a815073e087d3ca587111e43989",
       "size": 1150
+    },
+    {
+      "path": "tools/common_check_synthetic_evidence.txt",
+      "sha256": "27bc5c6e86637e5a1ee75fd6148c28e4a534241a40afa256f4678c68a05d209f",
+      "size": 90
     }
   ]
 }

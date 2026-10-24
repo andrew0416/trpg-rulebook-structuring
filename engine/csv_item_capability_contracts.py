@@ -455,6 +455,7 @@ def scavenge(engine, actor, *, fixed_d20=None, during="extended_action",
             raise ValueError('Scavenger actual activity clock did not complete')
         # The actual activity and reward share the native rollback boundary.
         face = POOLS.die(e.rng, 20, fixed=fixed_d20)
+        face = __import__('oracle').replace_d20(e,a,face,'scavenger')
         category = pickup_category(e.r, face)
         _state(a).setdefault('scavenger_days', []).append(day)
         receipt = {'kind':'scavenger', 'day':day, 'd20':face, 'item_id':None, 'category':category,

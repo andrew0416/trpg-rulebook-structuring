@@ -38,7 +38,9 @@ def _require_owner(e,actor,scope):
 def require_scope(e,actor,scope):
     _require_owner(e,actor,scope)
     if scope.get('conversion') is not None:
-        if scope['conversion'].get('source')=='feat/스탯-메뉴버':
+        if scope['conversion'].get('source')=='feat/열광':
+            __import__('tumbler').validate_pass(e,actor.entity_id,scope['conversion'],scope['round'])
+        elif scope['conversion'].get('source')=='feat/스탯-메뉴버':
             import stat_ace as STAT
             STAT.conversion_proof(e,actor.entity_id,scope['conversion'],scope['round'])
         else:
@@ -63,14 +65,16 @@ def bind(e,actor,move):
     scope=converted_scope(e,actor,move['id'])
     if scope is None:return move
     require_scope(e,actor,scope)
-    return dict(move,range='근접, 통과',keywords=[k for k in move.get('keywords',[]) if k!='대시']+['통과'],
+    return dict(move,_tumbler_no_critical=scope['conversion'].get('source')=='feat/열광',range='근접, 통과',keywords=[k for k in move.get('keywords',[]) if k!='대시']+['통과'],
                 _effect_area_cells=set().union(*(BODY.at_position(actor,q) for q in scope['path'])))
 
 
 def converted_policy(e,mid,conversion=None):
     import conquerors_march as MARCH
     move=e.r.move(mid);mm=e.r.move_mech(mid)[0]
-    if conversion and conversion.get('source')=='feat/스탯-메뉴버':
+    if conversion and conversion.get('source')=='feat/열광':
+        if mid!=__import__('tumbler').ACE:raise ValueError('Flip Out Pass only converts Aerial Ace')
+    elif conversion and conversion.get('source')=='feat/스탯-메뉴버':
         import stat_ace as STAT,weapon_actions as WEAPONS
         original=WEAPONS.range_spec(e,move)
         if move.get('class')!='물리' or original.get('origin')!='melee' or original.get('targets')!=1 or original.get('shape'):
@@ -94,13 +98,15 @@ def _selected(e,c,move_id,range_source):
         return requested,move,mm,policy,None
     import conquerors_march as MARCH
     import move_state as MOVES
-    if range_source not in (MARCH.FEATURE,'feat/스탯-메뉴버'):raise ValueError('reviewed actual range conversion source required')
+    if range_source not in (MARCH.FEATURE,'feat/스탯-메뉴버','feat/열광'):raise ValueError('reviewed actual range conversion source required')
     requested=e.r.move_id(move_id)
     if requested is None or requested not in MOVES.known(e.r,{'moves':MOVES.owned_list(c.spec,'moves',c.moves)}):
         raise ValueError('actual learned or granted Move required for Conqueror Pass')
     mid=e._ruleset_move(c,requested)
     if mid is None:raise ValueError('selected Conqueror Move unavailable')
-    if range_source=='feat/스탯-메뉴버':
+    if range_source=='feat/열광':
+        proof=__import__('tumbler').pass_proof(e,c);policy=converted_policy(e,mid,proof)
+    elif range_source=='feat/스탯-메뉴버':
         import stat_ace as STAT
         scope=STAT.scope(e,c,e.r.move(mid))
         if scope is None or scope['proof']['branch']!='atk':raise ValueError('actual paid Stat Maneuver Pass scope required')
@@ -111,6 +117,7 @@ def _selected(e,c,move_id,range_source):
 
 
 def _validate_conversion(e,actor_id,proof,round_no):
+    if proof.get('source')=='feat/열광':return __import__('tumbler').validate_pass(e,actor_id,proof,round_no)
     if proof.get('source')=='feat/스탯-메뉴버':
         import stat_ace as STAT
         return STAT.conversion_proof(e,actor_id,proof,round_no)

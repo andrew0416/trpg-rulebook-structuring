@@ -127,6 +127,33 @@ class StaticFeatureStateGrantTests(unittest.TestCase):
         self.assertEqual(STATIC.register_all(engine, actor), 0)
         self.assertTrue(STATIC.validate(actor))
 
+    def test_gm_entry_registers_declared_static_features_before_full_state_validation(self):
+        cid = "C2CSV/input/db/feats.csv:R513:main"
+        engine, actor, _, _, _ = self.fixture(cid)
+        engine.everyone = engine.gm.everyone = []
+        expected = STATIC.plan(actor)
+        self.assertIn(cid, expected)
+        engine.gm.add_combatant(actor, side='party', reason='fresh sheet with declared Static Feature')
+        self.assertIs(engine.everyone[0], actor)
+        self.assertIs(engine.gm.everyone[0], actor)
+        self.assertTrue(STATIC.validate(actor))
+        self.assertEqual(self.source_row(actor, cid)['clause_id'], cid)
+        restored = CODEC.load_engine(self.rules, json.loads(json.dumps(CODEC.dump_engine(engine))))
+        self.assertTrue(STATIC.validate(restored.everyone[0]))
+
+    def test_invalid_new_actor_rolls_back_registration_and_rosters(self):
+        engine, actor, _, _, _ = self.fixture("C2CSV/input/db/feats.csv:R513:main")
+        engine.everyone = engine.gm.everyone = []
+        actor.stages['atk'] = 99
+        before = deepcopy((actor.spec, actor.stats, actor.abilities, actor.stages,
+                           engine.log_lines, engine.rng.getstate()))
+        with self.assertRaisesRegex(ValueError, 'combat stage'):
+            engine.gm.add_combatant(actor, side='party', reason='invalid runtime stage on new sheet')
+        self.assertEqual((actor.spec, actor.stats, actor.abilities, actor.stages,
+                          engine.log_lines, engine.rng.getstate()), before)
+        self.assertEqual(engine.everyone, [])
+        self.assertEqual(engine.gm.everyone, [])
+
     def test_all_23_fixed_move_stat_rows_use_native_moves_stats_and_owner_lifetime(self):
         rows = {cid: row for cid, row in STATIC.rules(self.rules).items()
                 if row.get("moves") and row.get("stat") and not row.get("stat_choice")}

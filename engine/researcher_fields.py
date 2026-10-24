@@ -504,7 +504,7 @@ def seed_bag(engine,trainer,pokemon,move,*,seconds,reason):
  if mid is None or mid not in _seed_moves(rank):raise ValueError('Seed Bag harvests only the printed powder/spore/seed Moves of its acquired rank')
  if pokemon.kind!='pokemon' or '풀' not in pokemon.types:raise ValueError('a willing Grass-type Pokemon is required')
  if pokemon.fainted or pokemon.dead:raise ValueError('a conscious willing Pokemon is required')
- if ENTITIES.loyalty_value(pokemon,required=True)<2:raise ValueError('a willing Pokemon (GM loyalty 2 or more) is required')
+ if ENTITIES.effective_loyalty_value(pokemon,engine=engine,required=True)<2:raise ValueError('a willing Pokemon (GM loyalty 2 or more) is required')
  if mid not in pokemon.moves:raise ValueError('the Pokemon must actually know that Move')
  if mid in trainer.moves:raise ValueError('Seed Bag cannot add a Move already on your Move list')
  frequency={'kind':'daily','uses':d['daily_uses_per_rank']*rank}

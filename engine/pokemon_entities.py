@@ -28,6 +28,19 @@ def loyalty_value(actor, *, required=False):
     return value
 
 
+def effective_loyalty_value(actor, *, engine, required=False):
+    """Source-owned effective rank; the observed current-owner baseline stays 0..6."""
+    value=loyalty_value(actor,required=required)
+    if engine is None:return value
+    if value is None:return None
+    W.require_actors(engine,actor)
+    owner=W.actor_index(engine).get(actor.spec.get('trainer_id'))
+    if owner is None:return value
+    import mentor
+    row=mentor.acquired(owner,mentor.EGG_TUTOR)
+    return value+(1 if row and row['snapshot']['source']['variant']=='local_csv' else 0)
+
+
 def _loyalty_relations(actor):
     rows=actor.spec.get('loyalty_relations',{})
     if not isinstance(rows,dict):raise ValueError('loyalty relations must be an owner identity mapping')
@@ -43,12 +56,13 @@ def _loyalty_relations(actor):
     return rows
 
 
-def loyalty_projection(actor, *, viewer='player'):
+def loyalty_projection(actor, *, viewer='player',engine=None):
     if viewer not in ('player','gm'):raise ValueError('explicit player or GM projection required')
     value=loyalty_value(actor);rows=_loyalty_relations(actor);owner=actor.spec.get('trainer_id')
     row=rows.get(owner,{})
     if viewer=='player':return {'hint':row.get('hint')} if row.get('hint') is not None else {}
     return {'trainer_id':owner,'value':value,'known':value is not None,'meaning':LOYALTY_MEANINGS.get(value),
+        **({'effective_value':effective_loyalty_value(actor,engine=engine)} if engine is not None else {}),
         'source':LOYALTY_SOURCE,'observation':deepcopy(row) if row else None,
         'change_authority':'GM judgment; elapsed time, food and isolated kindness never automatically change the rank'}
 
@@ -96,6 +110,8 @@ def validate_actor(actor):
     spec = actor.spec
     import legendary_commands as LEGENDARY
     LEGENDARY.validate_actor(actor)
+    import mentor
+    mentor.validate_actor(actor)
     import pokemon_activities as ACTIVITIES
     ACTIVITIES.validate_disobedience_actor(actor)
     _loyalty_relations(actor)

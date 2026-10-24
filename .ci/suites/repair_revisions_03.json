@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "id": "repair_revisions_03",
+  "purpose": "Focused diagnostics for repaired original failures and changed switch/Juggler, source, clock, rank, type and state paths. This does not replace the original4115-ID final obligations or confer185-finding/406-clause acceptance.",
+  "completion_credit": 0,
+  "required_unique_count": 37,
+  "completed": {
+    "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests": {
+      "tests": [
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_actual_electric_immunity_keeps_positive_damage_coat_and_declines_weakness",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_actual_weakness_policy_keeps_item_presence_optional_use_and_encounter_expiry",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_all_four_actual_thaw_types_and_non_thaw_control",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_alternate_stab_membership_matrix_preview_and_final_damage",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_burning_brand_printed_fire_native_18_19_baseline",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_delayed_native_hit_thaws_only_for_its_own_type",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_explicit_custom_as_if_type_preserves_two_zero_matchups_and_positive_exception",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_fighting_changed_to_electric_does_not_thaw_and_tera_printed_match_gives_no_ten",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_frozen_miss_status_hp_loss_and_zero_resolved_hit_boundaries",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_native_grounding_uses_actual_ground_tera_and_transport_declines_other_immunity",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_native_matching_coats_use_actual_type_and_consume_once",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_ordinary_tera_main_and_both_variants_exact_stab_plus_ten",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_plasma_area_targets_keep_same_actual_type_with_distinct_matchups",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_plasma_fists_retains_activation_type_after_consuming_printed_normal_choice",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_plasma_mud_coat_and_multiple_strikes_retain_one_activation",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_scene_expiry_removes_ordinary_tera_type_bonus_without_rewriting_choice",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_shining_flame_actual_type_threshold_and_owner_scope",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_tar_zero_hit_consumes_water_zero_does_not_and_temp_hp_counts",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_taskmaster_paired_hits_keep_each_actual_type_and_actor",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_terastal_faint_is_independent_and_restore_does_not_resurrect",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_terastal_survives_encounter_restart_then_scene_end_once",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_typing_history_and_coat_end_tampering_remain_rejected",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_versatile_choice_survives_real_defense_pending_json_and_resume_once",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_versatile_gambit_counter_retains_explicit_choice",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_versatile_keyword_scope_preserves_gmax_and_original_move",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_versatile_main_explicit_lower_stat_and_typed_variant_class_are_distinct",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_versatile_missing_wrong_and_unrelated_choice_reject_before_cost_rng_or_movement",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_weakness_policy_uses_post_coat_effectiveness_and_pre_damage_target_types",
+        "tools.test_actual_damage_type_revision.ActualDamageTypeRevisionTests.test_wrong_type_miss_status_and_hp_loss_preserve_typed_coats"
+      ]
+    },
+    "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests": {
+      "tests": [
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_actual_berry_receipt_shift_preserves_food_taste_and_lunchbox_receipt_identity",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_food_replacement_precedes_assigned_salty_and_drops_incompatible_aged_lunchbox",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_null_policy_does_not_reject_ordinary_max_lower_equal_or_equal_age",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_null_policy_keeps_aged_compatible_equal_noop_and_actual_block",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_outgoing_salty_dumplings_healing_block_still_checks_legacy_clock_before_rng",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_standalone_assigned_salty_missing_and_invalid_policy_reject_before_rng",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_standalone_explicit_lifetime_alternatives_keep_outcomes_and_json_gm_restore",
+        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_standalone_food_missing_and_invalid_policy_reject_before_rng_and_all_mutation"
+      ]
+    }
+  }
+}

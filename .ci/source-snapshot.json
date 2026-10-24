@@ -1,7 +1,7 @@
 {
   "canonical_completed": 1503,
-  "fixture_files": 353,
-  "fixture_zip_sha256": "c5d6e1b40b478c45444f29ade806b333825df4537cc535d44f6620f0269a3be3",
+  "fixture_files": 382,
+  "fixture_zip_sha256": "3bee3a969dc70a04c4b9e4a06f656085648e5b44bd863b46580a1e13b2df3027",
   "scope": "Full fixed185-finding/406-clause revision drafts plus accepted shared-runtime regressions and explicitly separate personal type permissions; no current PASS or completion credit.",
   "revision_groups": [
     "final_revisions_01",
@@ -21,7 +21,23 @@
   "next_revision_required_tests": 4115,
   "previous_verified_code_commit": "32fc1d5304c52e80eac771e200fe83b05166752b",
   "previous_verified_run": 39901513033,
-  "previous_failed_run": 39926510672,
+  "previous_failed_run": 40066282820,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
-  "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1"
+  "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
+  "active_repair": "repair65",
+  "active_repair_scope": "Focused diagnostics for repaired original failures and changed switch/Juggler, source, clock, rank, type and state paths. This does not replace the original4115-ID final obligations or confer185-finding/406-clause acceptance.",
+  "active_repair_candidate_sha256": "0deca4b43bca78f9fd37157bb8d12f4c7f6e47d1143dc0ee39cef784c656fe02",
+  "active_repair_required_tests": 345,
+  "active_repair_groups": [
+    "repair_revisions_01",
+    "repair_revisions_02",
+    "repair_revisions_03",
+    "repair_revisions_04",
+    "repair_revisions_05",
+    "repair_revisions_06",
+    "repair_revisions_07",
+    "repair_revisions_08",
+    "repair_revisions_09"
+  ],
+  "original_final_required_tests": 4115
 }

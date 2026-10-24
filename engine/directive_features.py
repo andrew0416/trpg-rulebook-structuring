@@ -24,7 +24,11 @@ def _digest(value):
     return _FINGERPRINTS.json_fingerprint(value, sort_keys=True, compact=True, allow_nan=True)
 
 
-def definition(rules):
+def definition(rules, source_contract="local_csv"):
+    if source_contract=="core_1.05":
+        import coordinator as COORD
+        COORD.source(rules,source_contract,FEATURE)
+        return {"source_id":FEATURE,"feature_id":FEATURE,"required_class":CLASS,"until":{"event":"turn_end","owner":"user","after":1},"source_contract":source_contract}
     # No Rules-instance cache: a warm parse is not a source certificate.
     data = json.loads((Path(rules.root) / "data/directive-features-policy.json").read_text(encoding="utf-8"))
     expected = {"schema": "directive-features-v1", "source_id": SOURCE,
@@ -75,7 +79,7 @@ def _owned(engine, actor):
 def register_owned(engine, actor, name):
     if identity(name) is None:
         return False
-    definition(engine.r)
+    definition(engine.r,__import__('coordinator').contract(actor,FEATURE))
     # Registration projects acquired references; it does not execute the action.
     import contest_features as FEATURES
     FEATURES.require(engine, actor, FEATURE)
@@ -83,19 +87,18 @@ def register_owned(engine, actor, name):
     return True
 
 
-def _effect(rank, adjustment):
+def _effect(rank, adjustment, until=UNTIL):
     if type(rank) is not int or rank < 1:
         raise ValueError("actual effective Charm rank required")
     if type(adjustment) is not str or adjustment not in ("increase", "decrease"):
         raise ValueError("explicit increase or decrease adjustment required")
     return {"type": "initiative", "delta": 2 * rank * (1 if adjustment == "increase" else -1),
-            "target": "target", "until": deepcopy(UNTIL)}
+            "target": "target", "until": deepcopy(until)}
 
 
 import cheerleader as CHEER
 
-@CHEER.order_activation('C2CSV/input/db/feats.csv:R91:main')
-def activate(engine, actor, target, *, adjustment, communication=None):
+def _activate(engine, actor, target, *, adjustment, communication=None):
     import world_entities as W
     import state_grants as G
     W.require_actors(engine, actor, target)
@@ -105,22 +108,26 @@ def activate(engine, actor, target, *, adjustment, communication=None):
         import frequency as FREQ
         import turn as TURN
         import effects as FX
-        definition(e.r)
+        import coordinator as COORD
+        choice=COORD.contract(user,FEATURE)
+        spec=definition(e.r,choice)
+        source_id=FEATURE if choice=='core_1.05' else SOURCE
         _owned(e, user)
+        if choice=='core_1.05':COORD.require(e,user,FEATURE)
         if recipient.kind != "pokemon":
             raise ValueError("Decisive Director requires one actual Pokemon")
         rank = SKILL.effective_rank(e.r, user, "매력")
-        effect = _effect(rank, adjustment)
+        effect = _effect(rank, adjustment,spec["until"])
         if not e.encounter_active:
             raise ValueError("target next-turn lifetime requires an active encounter")
-        if not FREQ.activation_allowed(user, SOURCE, {"kind": "at_will"}, engine=e):
+        if not FREQ.activation_allowed(user, source_id, {"kind": "at_will"}, engine=e):
             raise ValueError("Decisive Director frequency unavailable")
         import order_actions as ORDERS
         delivery=ORDERS.delivery(e,user,recipient,FEATURE,communication=communication)
         paid=ORDERS.spend(e,user,FEATURE,subject=recipient.entity_id,communication=delivery)
         order_payment=ORDERS.payment(e,user,FEATURE)
         priority=paid if paid.get("kind")=="priority_limited" else None
-        plan = {"source_id": SOURCE, "feature_id": FEATURE, "class_id": CLASS,
+        plan = {"source_id": source_id, "feature_id": FEATURE, "class_id": CLASS,
                 "actor_id": user.entity_id, "target_id": recipient.entity_id,
                 "charm_rank": rank, "adjustment": adjustment,
                 "round": e.round_no, "at": e.elapsed_seconds,
@@ -129,13 +136,14 @@ def activate(engine, actor, target, *, adjustment, communication=None):
                 "action": "priority_limited" if priority else "free" if order_payment else "standard",
                  "history_index": None if priority else len(user._action_history) - 1,
                 "acquired": [FEATURE, CLASS]}
+        if choice=="core_1.05":plan["source_contract"]=choice
         if order_payment:plan['free_order_payment']=order_payment
         if priority:plan['priority_receipt_id']=priority['id']
         # This unconditional feature applies no accuracy roll and accepts no hit
         # input. True is only the existing nonattack dispatcher application context.
         result = FX.run_effects(e, user, recipient, [effect],
                                {"attacker": user, "target": recipient, "hit": True,
-                                "nat": None, "engine": e}, SOURCE)
+                                "nat": None, "engine": e}, source_id)
         if tuple(result) != (1, 0) or len(result.outcomes) != 1:
             raise ValueError("Decisive Director native effect did not complete")
         outcome = result.outcomes[0]
@@ -143,9 +151,9 @@ def activate(engine, actor, target, *, adjustment, communication=None):
             raise ValueError("completed native directive receipt required")
         row = e._effect_dispatch_receipts[outcome.receipt]
         row[KEY] = {"plan": plan, "integrity": _digest(plan)}
-        FREQ.consume_activation(user, SOURCE, {"kind": "at_will"}, engine=e)
+        FREQ.consume_activation(user, source_id, {"kind": "at_will"}, engine=e)
         validate_world(e, W.actor_index(e))
-        return {"source": SOURCE, "occurrence": outcome.occurrence,
+        return {"source": source_id, "occurrence": outcome.occurrence,
                 "receipt": outcome.receipt, "delta": effect["delta"],
                 "actor_id": user.entity_id, "target_id": recipient.entity_id}
     return G.transition(engine, actor, apply, participants=(target,))
@@ -154,21 +162,24 @@ def activate(engine, actor, target, *, adjustment, communication=None):
 def validate_world(engine, index):
     """Historical paid declarations, not live reacquisition/rank evaluation."""
     rows = [(token, row) for token, row in getattr(engine, "_effect_dispatch_receipts", {}).items()
-            if row.get("source_id") == SOURCE or KEY in row]
+            if row.get("source_id") in (SOURCE,FEATURE) or KEY in row]
     if not rows:
         return True
     import effect_contracts as CONTRACTS
     import combat_timing as TIME
-    definition(engine.r)
     for token, row in rows:
         meta = row.get(KEY)
         if type(meta) is not dict or set(meta) != {"plan", "integrity"}:
             raise ValueError("CSV91 requires its source-owned paid activation")
         plan = meta["plan"]
+        choice=plan.get("source_contract","local_csv")
+        spec=definition(engine.r,choice)
+        source_id=FEATURE if choice=="core_1.05" else SOURCE
         fields = {"source_id", "feature_id", "class_id", "actor_id", "target_id",
                   "charm_rank", "adjustment", "round", "at", "actor_turn",
                   "target_turn", "action", "history_index", "acquired"}
         if 'free_order_payment' in plan:fields.add('free_order_payment')
+        if 'source_contract' in plan:fields.add('source_contract')
         if 'priority_receipt_id' in plan:fields.add('priority_receipt_id')
         if type(plan) is not dict or set(plan) != fields or meta["integrity"] != _digest(plan):
             raise ValueError("CSV91 historical activation changed")
@@ -180,7 +191,7 @@ def validate_world(engine, index):
             raise ValueError("CSV91 activation actor/recipient identity changed")
         priority='priority_receipt_id' in plan
         if (plan["source_id"], plan["feature_id"], plan["class_id"], plan["action"],
-                plan["acquired"]) != (SOURCE, FEATURE, CLASS, "priority_limited" if priority else "free" if 'free_order_payment' in plan else "standard", [FEATURE, CLASS]):
+                plan["acquired"]) != (source_id, FEATURE, CLASS, "priority_limited" if priority else "free" if 'free_order_payment' in plan else "standard", [FEATURE, CLASS]):
             raise ValueError("CSV91 acquisition/source/action proof changed")
         if 'free_order_payment' in plan:
             import order_actions as ORDERS
@@ -198,17 +209,17 @@ def validate_world(engine, index):
                 plan["actor_turn"] > actor.custom_conditions.get("combat_turn_serial", 0) or
                 plan["target_turn"] > target.custom_conditions.get("combat_turn_serial", 0)):
             raise ValueError("CSV91 action boundary is in the future")
-        effect = _effect(plan["charm_rank"], plan["adjustment"])
-        if row.get("source_id") != SOURCE or row.get("effect") != effect or row.get("status") != "completed":
+        effect = _effect(plan["charm_rank"], plan["adjustment"],spec["until"])
+        if row.get("source_id") != source_id or row.get("effect") != effect or row.get("status") != "completed":
             raise ValueError("CSV91 actual effect differs from its admitted declaration")
-        CONTRACTS.validate_receipt(engine, token, SOURCE, row["occurrence"], actor, target, effect)
+        CONTRACTS.validate_receipt(engine, token, source_id, row["occurrence"], actor, target, effect)
         contract = row.get("lifetime_contracts", {}).get(target.entity_id)
         expected_turns = {"user": plan["actor_turn"], "target": plan["target_turn"]}
         if (type(contract) is not dict or contract.get("contribution") !=
                 {"initiative_operation": {"operation": "add", "value": effect["delta"]}}):
             raise ValueError("CSV91 lifetime contribution changed")
         life = contract["policy"]
-        if (life["declaration"] != {"until": UNTIL} or life["until"] != UNTIL or
+        if (life["declaration"] != {"until": spec["until"]} or life["until"] != spec["until"] or
                 life["started_at"] != plan["at"] or life["started_round"] != plan["round"] or
                 life["started_turns"] != expected_turns):
             raise ValueError("CSV91 lifetime differs from its paid target-turn declaration")
@@ -229,3 +240,11 @@ def validate_world(engine, index):
             raise ValueError("CSV91 lifetime record differs from its original producer")
     return True
 
+
+
+_csv_activate=CHEER.order_activation(SOURCE)(_activate)
+_core_activate=CHEER.order_activation(FEATURE)(_activate)
+
+def activate(engine,actor,target,*,adjustment,communication=None):
+    choice=__import__('coordinator').contract(actor,FEATURE)
+    return (_core_activate if choice=='core_1.05' else _csv_activate)(engine,actor,target,adjustment=adjustment,communication=communication)

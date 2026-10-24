@@ -7,8 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 HERE = Path(__file__).resolve().parent
-ROOT = Path('D:/trpg-rulebook-structuring/ptk-structure-experiment')
-sys.path[:0] = [str(HERE / 'engine'), str(ROOT / 'engine'), str(ROOT / 'tools')]
+ROOT = HERE.parent
+sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
 
 import csv_item_physical_contracts as CANNON
 import optional_weapon_framework as WEAPON

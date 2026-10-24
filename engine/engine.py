@@ -162,6 +162,7 @@ class Rules:
             if 'effects' in definition:self.ability_effects[definition['name']]=__import__('copy').deepcopy(definition['effects'])
             else:self.ability_effects.setdefault(definition["name"], [])
         self._apply_ruleset()
+        __import__('commander').install(self)
         import martial_artist_ability_identities as MARTIAL_IDENTITIES
         MARTIAL_IDENTITIES.install(self)
         import example_species as EXAMPLES
@@ -336,12 +337,15 @@ class Rules:
         if instance is not None:
             return dict(self.move(instance['move_id']),id=mid,type=instance['type'],
                 **{'class':'물리' if instance['damage_class']=='physical' else '특수'},prime_unown_instance=instance)
+        import coordinator as COORDINATOR
+        created=COORDINATOR.innovation_instance(self,mid)
+        if created is not None:return COORDINATOR.definition(self,mid,created)
         import dancer as DANCER
         dance=DANCER.dance_instance(self,mid)
         if dance is not None:return DANCER.definition(self,mid,dance)
         mid = self._selected_rule(mid)
         import homebrew_weather as HOME_WEATHER
-        return HOME_WEATHER.adapt_move(self,self.moves[mid])
+        return __import__('aura_guardian').move_definition(self,HOME_WEATHER.adapt_move(self,self.moves[mid]))
 
     def move_mech(self, mid):
         mid = self._selected_rule(mid)
@@ -363,12 +367,17 @@ class Rules:
         mm=ROAR.mechanics(self,mid,DOUBLE.mechanics(self,mid,CHAIN.mechanics(self,mid,DECLARATIVE_MOVES.prepare_mechanics(self,mid,mm))))
         mm=__import__('multi_strike').mechanics(self,mid,mm)
         mm=__import__('jump_kick').mechanics(self,mid,mm)
-        return __import__('combat_move_reactions').mechanics(self,mid,mm),conf
+        mm=__import__('focus_punch').mechanics(self,mid,mm)
+        mm=__import__('substitute').toxic_mechanics(self,mid,mm)
+        return __import__('warper').mechanics(self,mid,__import__('telepath').mechanics(self,mid,__import__('telekinetic').mechanics(self,mid,__import__('combat_move_reactions').mechanics(self,mid,mm)))),conf
 
     def _move_mech(self, mid):
         """우선순위: 사람이 채운 mech(data/moves-hand.json) > 자동 기계화(data/moves-mech.json, tools/mechanize_moves.py) > 식별 플래그(mech_auto)."""
         import special_entities as SPECIAL
         instance=SPECIAL.prime_instance(self,mid)
+        import coordinator as COORDINATOR
+        created=COORDINATOR.innovation_instance(self,mid)
+        if created is not None:return COORDINATOR.mechanics(self,created),'innovation'
         import dancer as DANCER
         dance=DANCER.dance_instance(self,mid)
         if dance is not None:return DANCER.mechanics(self,dance),'dancer'
@@ -445,6 +454,7 @@ class Rules:
         """기술 이름 → id (별칭·룰셋 치환 반영). 없으면 None."""
         import special_entities as SPECIAL
         if SPECIAL.prime_instance(self,name) is not None:return name
+        if __import__('coordinator').innovation_instance(self,name) is not None:return name
         if __import__('dancer').dance_instance(self,name) is not None:return name
         if name in self.moves:
             return self._selected_rule(name)
@@ -728,21 +738,22 @@ class Combatant:
         import combat_timing as TIMING
         if TIMING.evasion_zero(self):return 0
         ev = self.r.mech("combat/evasion")
+        conditions=__import__('blessing_effects').effective_conditions(self)
         # Read the selected implication against actual sight; never store a synthetic status.
         import vision_impairment as VISION
-        implied_conditions = set(self.conditions)
+        implied_conditions = set(conditions)
         vision = VISION.explicit_level(self) if engine is None else VISION.accuracy_level(engine, self)
         if vision != "none":
             implied_conditions.add(VISION.BLIND)
         if any(e.get("type") == "implied_by" and implied_conditions.intersection(e.get("conditions", ()))
                for e in self.r.condition_effects("취약")):
             return 0
-        if any(e["type"] == "evasion_disabled" and not e.get("only") for c in self.conditions for e in self.r.condition_effects(c)):
+        if any(e["type"] == "evasion_disabled" and not e.get("only") for c in conditions for e in self.r.condition_effects(c)):
             return 0
         src = ev["sources"]
         def by(stat):
             return min(ev["cap"], M.ratio(self.staged(stat),ev["per_points"]))
-        speed_ok = not any(e["type"] == "evasion_disabled" and e.get("only") == "speed" for c in self.conditions for e in self.r.condition_effects(c))
+        speed_ok = not any(e["type"] == "evasion_disabled" and e.get("only") == "speed" for c in conditions for e in self.r.condition_effects(c))
         speed=by(src["speed"]) if speed_ok else 0
         if speed_ok and engine is not None:
             import control_mount as MOUNT
@@ -760,12 +771,16 @@ class Combatant:
         import unown_imbuement as UNOWN
         import duelist as DUELIST
         import taskmaster as TASK
-        if attacker is not None and engine is not None:conditional_bonus+=DUELIST.evasion(engine,self,attacker)
+        if attacker is not None and engine is not None:conditional_bonus+=DUELIST.evasion(engine,self,attacker)+__import__('channeler').synchronized_bonus(engine,self,attacker)
         extra = COMBAT_MODS.extra_evasion(self.evasion_mod, CAPABILITIES.evasion(self), conditional_bonus,
                                           EFFECT_LIFETIMES.numeric(self,"evasion_modifier"), TRAINING.bonus(self,"evasion"),
                                           OPTIONAL_STATE.evasion_bonus(self), UNOWN.active_count(self), TASK.bonus(self,'evasion'),
                                           TA.evasion_extra(self), __import__('chef_cooking').evasion_bonus(self,move_class),
                                           __import__('martial_artist').bonus(self,attacker,evasion=True))
+        extra+=__import__('oracle').instinct_bonus(self,attacker,engine)
+        extra+=__import__('telepath').evasion(self)
+        extra+=__import__('warper').evasion(self)
+        extra+=__import__('ace_trainer').evasion(self)
         ignore_stats=ignore_stats or attacker is not None and TA.ignore_stat_evasion(attacker)
         value = min(9, max(0, (0 if ignore_stats else max(cands)) + extra))
         import boss_transitions as BOSS
@@ -986,6 +1001,7 @@ class Engine:
     def end_round(self):
         """Commit round effects and shared elapsed time together, once."""
         import state_grants as GRANTS
+        if __import__('focus_punch').pending(self):return __import__('focus_punch').end_round(self)
         return GRANTS.transition(self, None, lambda staged, _: staged._end_round())
 
     def _end_round(self):
@@ -1001,6 +1017,8 @@ class Engine:
             raise ValueError('no open round to complete')
         import initiative_schedule as SCHEDULE
         SCHEDULE.preflight_end_round(self)
+        focus_result=__import__('focus_punch').finish_round(self)
+        if isinstance(focus_result,CHECKS.PendingDecision):return focus_result
         import conditional_damage_base as CONDITIONAL_DB
         CONDITIONAL_DB.finish_round(self)
         import environmental_effects as ENVIRONMENT
@@ -1110,6 +1128,7 @@ class Engine:
                                          outside_combat=not any(member is c for member in actors))
                 if c.faint_recovery_seconds is not None and not c.faint_recovery_pending:
                     c.faint_recovery_pending = 'partial_round_elapsed_unresolved'
+        __import__('commander_orders').end_encounter(self,actors)
         CPF.end_encounter(self,actors)
         import class_passive_combat as CLASS_PASSIVE
         CLASS_PASSIVE.end_encounter(self,actors)
@@ -1123,6 +1142,7 @@ class Engine:
         import gmax_moves as GMAX
         GMAX.end_encounter(self,actors)
         __import__('fashionista').end_encounter(self,actors)
+        __import__('telekinetic').end_encounter(self)
         import duelist as DUELIST
         DUELIST.end_encounter(self,actors)
         import setup_move_state as SETUP_MOVE
@@ -1212,7 +1232,7 @@ class Engine:
         actors = () if unspecified else tuple(combatants)
         def apply(staged, primary, *participants):
             return staged._end_scene(None if unspecified else participants, round_elapsed_seconds=round_elapsed_seconds)
-        return GRANTS.transition(self, None, apply, participants=actors, include_rulings=True)
+        return GRANTS.transition(self, None, apply, participants=actors, include_rulings=True, include_grid=self.grid is not None)
 
     def _end_scene(self, combatants=None, *, round_elapsed_seconds=None):
         """Narrative scene boundary; an open encounter ends too, but adds no guessed time."""
@@ -1237,6 +1257,7 @@ class Engine:
         CLASS_PASSIVE.end_scene(self,actors)
         import scene_feature_ability_grants as SCENE
         SCENE.end_scene(self,scene_actors)
+        for c in scene_actors:__import__('telepath').end_capability(self,c)
         import declarative_move_contracts as DECLARATIVE_MOVES
         DECLARATIVE_MOVES.end_scene(self,actors)
         import linked_move_conditions as LINKED
@@ -1260,6 +1281,18 @@ class Engine:
         LIGHT.end_scene(self)
         import mapless_space as MAPLESS
         MAPLESS.end_scene(self)
+
+    def choose_tumbler_acrobatics(self, actor, *, activate, reason):
+        return __import__("tumbler").choose_acrobatics(self,actor,activate=activate,reason=reason)
+
+    def declare_jump_move(self, actor, target, move_id, **options):
+        return __import__("jump_move_actions").declare(self,actor,target,move_id,**options)
+
+    def resume_tumbler_shift(self, actor):
+        return __import__('tumbler').resume_shift(self,actor)
+
+    def resume_jump_move(self, actor, *, event_id):
+        return __import__("move_defense_reactions").resume_native_child(self,actor,event_id)
 
     def stand_up(self, actor):
         import condition_recovery as RECOVERY
@@ -1330,7 +1363,19 @@ class Engine:
         import scene_feature_ability_grants as SCENE
         return SCENE.activate(self, trainer, pokemon, source, branch, ability)
 
+    def issue_orders(self, actor, feature, target, **options):
+        return __import__('commander').issue(self,actor,feature,target,**options)
+
+    def use_general_order(self, actor, target, feature, **options):
+        return __import__('commander_orders').use(self,actor,target,feature,**options)
+
+    def brace_for_impact(self, actor):
+        import state_grants as G
+        return G.transition(self,actor,lambda e,c:__import__('commander_orders').brace(e,c,standard=True))
+
     def activate_class_passive(self, trainer, pokemon, source, *, communication=None):
+        if source in __import__('commander_orders').FEATURES:
+            return __import__('commander_orders').use(self,trainer,pokemon,source)
         import class_passive_combat as CLASS_PASSIVE
         import state_grants as GRANTS
         uid = CLASS_PASSIVE.identity(source)
@@ -1616,7 +1661,7 @@ class Engine:
         return PICKUP_COPY.cancel_choice(self,actor,choice_id)
 
     @__import__("cheerleader").ability_action
-    def activate_ability(self, actor, ability, target, *, held_selection=None, destination_slot=None, request_id=None, pickup_expiry_choice=None):
+    def activate_ability(self, actor, ability, target, *, held_selection=None, destination_slot=None, request_id=None, trigger_event_id=None, pickup_expiry_choice=None):
         """Activate a reviewed manual ability with its actual target and costs."""
         import csv_item_form_contracts as CSV_FORMS
         CSV_FORMS.require_independent(self,actor)
@@ -1627,6 +1672,9 @@ class Engine:
         LEAGUE.check_boundary(self,'activate_ability')
         if pickup_expiry_choice is not None and ability not in ('픽업','ability/픽업'):
             raise ValueError('Pickup expiry choice requires the actual copying Pickup source')
+        import hex_maniac as HEX_MANIAC
+        if HEX_MANIAC.ability_registration(self.r,ability):return HEX_MANIAC.activate_ability(self,actor,ability,target,event_id=trigger_event_id)
+        if trigger_event_id is not None:raise ValueError('hit trigger belongs only to its reviewed Ability')
         import field_effects as FIELD
         if ability in (FIELD.LOCAL_SOURCE, '곰팡이군주'):
             return FIELD.activate_local_grass(self,actor,target,request_id=request_id)
@@ -1642,6 +1690,69 @@ class Engine:
     def mega_evolve(self, trainer, pokemon, form_id, **options):
         import mega_forms as MEGA
         return MEGA.activate(self,trainer,pokemon,form_id,**options)
+
+    def use_hex_maniac_move(self, actor, target, move_id, **options):
+        return __import__('hex_maniac').use(self,actor,target,move_id,**options)
+
+    def craft_ninja_tool(self, actor, item, **options):
+        return __import__('ninja').craft(self,actor,item,**options)
+
+    def divine(self,actor,mode,**options):return __import__('oracle').divination(self,actor,mode,**options)
+    def use_sage(self,actor,target):return __import__('sage').cast(self,actor,target)
+    def activate_telepath(self,actor):return __import__('telepath').activate(self,actor)
+    def warper_teleport(self,actor,destination,**options):return __import__('warper').transfer(self,actor,destination,**options)
+    def warper_ally_switch(self,actor,ally,**options):return __import__('warper').ally_switch(self,actor,ally,**options)
+    def arm_warper_move(self,actor,move_id,**options):return __import__('warper').arm_move(self,actor,move_id,**options)
+    def arm_probability_control(self,actor,target,**options):return __import__('warper').arm_probability(self,actor,target,**options)
+    def resolve_native_pool(self,actor,**options):return __import__('roll_context').native_pool(self,actor,**options)
+    def psychic_residue(self,observer,**options):return __import__('warper').discover_residue(self,observer,**options)
+    def reality_bender_event(self,actor,**options):return __import__('warper').reality_event(self,actor,**options)
+    def reality_bender_item(self,actor,item_id,target=None,**options):return __import__('warper').reality_item(self,actor,item_id,target,**options)
+    def thought_detection(self,actor):return __import__('telepath').detection(self,actor)
+    def suggestion(self,actor,target,thought):return __import__('telepath').suggest(self,actor,target,thought)
+    def release_suggestion(self,actor,instance_id):return __import__('telepath').release(self,actor,instance_id)
+    def arm_telepath_reaction(self,actor,source,**options):return __import__('telepath').arm(self,actor,source,**options)
+    def use_mind_reader(self,actor,target,**options):return __import__('telepath').cast_reader(self,actor,target,**options)
+    def read_mind_reader_thoughts(self,actor,target):return __import__('telepath').read_information(self,actor,target)
+    def activate_pk_combat(self,actor,**options):return __import__('telekinetic').activate_combat(self,actor,**options)
+    def end_pk_combat(self,actor,**options):return __import__('state_grants').transition(self,actor,lambda e,a:__import__('telekinetic').end_combat(e,a,**options))
+    def equip_telekinetic_weapon(self,actor,object_id,**options):return __import__('telekinetic').equip_weapon(self,actor,object_id,**options)
+    def use_telekinetic_weapon(self,actor,target,move_id,weapon_id,*,use_spa=False,**options):return __import__('telekinetic').weapon_attack(self,actor,target,move_id,weapon_id,use_spa=use_spa,**options)
+    def use_telekinetic_item(self,actor,object_id,target=None,**options):return __import__('telekinetic').use_item(self,actor,object_id,target,**options)
+    def telekinetic_burst(self,actor,target,kind,**options):return __import__('telekinetic').burst(self,actor,target,kind,**options)
+    def use_telekinetic_move(self,actor,target,move_id,**options):return __import__('telekinetic').cast(self,actor,target,move_id,**options)
+    def escape_lifted(self,actor):return __import__('telekinetic').escape(self,actor)
+    def telekinesis_evasion_policy(self,decision=None,**options):return __import__('telekinetic').evasion_policy(self,decision,**options)
+    def divine_wind(self,actor,move_id):return __import__('sage').wind(self,actor,move_id)
+    def record_divination(self,actor,mode,events,**options):return __import__('perception_observe').record_divination_fact(self,actor,mode,events,**options)
+    def small_prophecy(self,actor):return __import__('oracle').small(self,actor)
+    def choose_prophecy(self,owner,roller,**options):return __import__('oracle').choose_prophecy(self,owner,roller,**options)
+    def mark_of_vision(self,owner,target,**options):return __import__('oracle').mark(self,owner,target,**options)
+    def mark_access(self,target,owner,**options):return __import__('oracle').mark_access(self,target,owner,**options)
+    def focus_mark(self,owner,target=None):return __import__('oracle').focus(self,owner,target)
+    def read_mark(self,owner,target,**options):return __import__('oracle').read_mark(self,owner,target,**options)
+    def dispel_illusions(self,actor):return __import__('oracle').dispel(self,actor)
+    def watch_prescience(self,actor,*,reason):return ABILITY_INTERRUPTS.watch(self,actor,__import__('oracle').PRESCIENCE,reason=reason)
+    def choose_prescience(self,event_id,actor,*,use,reason):return ABILITY_INTERRUPTS.choose(self,event_id,actor,use=use,reason=reason)
+    def core_pickup(self,actor,**options):return __import__('oracle').pickup(self,actor,**options)
+    def mark_illusion_appearance(self,actor,target,**options):return __import__('illusion_state').mark_appearance(self,actor,target,**options)
+    def mimic_illusion_appearance(self,actor,target):return __import__('illusion_state').mimic_appearance(self,actor,target)
+    def dismiss_illusion_appearance(self,actor):return __import__('illusion_state').dismiss_ability_illusion(self,actor)
+
+    def use_poison_weapon(self, actor, target, move_id, **options):
+        return __import__('ninja').weapon_attack(self,actor,target,move_id,**options)
+
+    def use_genjutsu(self, actor, *, appearance=None, darkness=False):
+        return __import__('illusion_state').genjutsu(self,actor,appearance=appearance,darkness=darkness)
+
+    def interact_with_genjutsu(self, observer, target, skill, *, interaction, reason, **check_options):
+        return __import__('illusion_state').interact_genjutsu(self,observer,target,skill,interaction=interaction,reason=reason,**check_options)
+
+    def utility_drop_shift(self, actor, path, item, **options):
+        return __import__('ninja').utility_shift(self,actor,path,item,**options)
+
+    def activate_grand_hex(self, actor, target, event_id, recover_move):
+        return __import__('hex_maniac').grand(self,actor,target,event_id,recover_move)
 
     @__import__("cheerleader").ability_action
     def activate_form_ability(self, actor, ability):
@@ -1936,6 +2047,27 @@ class Engine:
         return TRAINING.train(self,trainer,choices,minutes=minutes,reason=reason,request_id=request_id,from_grooming=from_grooming,from_training=from_training,safe=safe,
                               trained_stats=trained_stats,source_clause_id=source_clause_id)
 
+    def critical_moment(self,trainer,targets):
+        return __import__('ace_trainer').critical_moment(self,trainer,targets)
+
+    def arm_perseverance(self,trainer,pokemon,**choice):
+        return __import__('ace_trainer').arm_perseverance(self,trainer,pokemon,**choice)
+
+    def teach_signature_technique(self,trainer,pokemon,**choice):
+        return __import__('ace_trainer').teach_technique(self,trainer,pokemon,**choice)
+
+    def reliable_attack_struggle(self,pokemon,target,completion_id):
+        return __import__('ace_trainer').reliable_struggle(self,pokemon,target,completion_id)
+
+    def burst_of_motivation(self,pokemon,completion_id,choices):
+        return __import__('ace_trainer').motivation(self,pokemon,completion_id,choices)
+
+    def choose_supreme_concentration(self,pokemon,**choice):
+        return __import__('ace_trainer').choose_supreme(self,pokemon,**choice)
+
+    def bloodied_speed(self,pokemon,target,move_id):
+        return __import__('ace_trainer').priority_bloodied(self,pokemon,target,move_id)
+
     def release_pinpoint_strike(self, trainer, pokemon):
         return CPF.release(self,trainer,pokemon)
 
@@ -1950,6 +2082,39 @@ class Engine:
     def manual_feat(self, c, name, target=None, *, adjustment=None, communication=None):
         PASSIVE_EVENTS.ensure_clear(self)
         LEAGUE.check_boundary(self, 'manual_feat')
+        import sage as SAGE
+        name=next((uid for uid in SAGE.FEATURES if name in (uid,self.r.selection.units[uid].get('title'),self.r.selection.units[uid].get('eng'))),name)
+        if name==SAGE.CLASS and adjustment is None:return self.use_sage(c,target)
+        if name==SAGE.WIND:return self.divine_wind(c,adjustment)
+        if name in SAGE.FEATURES:raise ValueError('Sage Feature requires its native trigger or acquisition')
+        import oracle as ORACLE
+        name=next((uid for uid in ORACLE.FEATURES if name in (uid,self.r.selection.units[uid].get('title'),self.r.selection.units[uid].get('eng'))),name)
+        if name in ORACLE.FEATURES:
+            options={} if adjustment is None else dict(adjustment)
+            if name==ORACLE.DIVINATION:return self.divine(c,target=target,**options)
+            if name==ORACLE.SMALL and not options:return self.small_prophecy(c)
+            if name==ORACLE.MARK:return self.mark_of_vision(c,target,**options)
+            if name==ORACLE.SIGHT and not options:return self.dispel_illusions(c)
+            raise ValueError('Oracle requires its typed native action or actual hit choice')
+        import channeler as CHANNEL
+        name=next((uid for uid in CHANNEL.FEATURES if name in (uid,self.r.selection.units[uid].get('title'),self.r.selection.units[uid].get('eng'))),name)
+        if name in CHANNEL.FEATURES:
+            options={} if adjustment is None else dict(adjustment)
+            if name==CHANNEL.CLASS:return self.channel_pokemon(c,target,**options)
+            if name==CHANNEL.SENSES:
+                if options:raise ValueError('Shared Senses has one actual target')
+                return self.imprint_channel(c,target)
+            if name==CHANNEL.SYNC:
+                if options:raise ValueError('Battle Synchronization affects the actual Channeling group')
+                return self.synchronize_channel(c)
+            if name==CHANNEL.SPIRIT:
+                donor=__import__('world_entities').actor_index(self).get(options.pop('donor_id',None))
+                return self.boost_channel_spirit(c,target,donor,**options)
+            if name==CHANNEL.CONDUIT:
+                recipient=__import__('world_entities').actor_index(self).get(options.pop('recipient_id',None))
+                return self.channel_power_conduit(c,target,recipient,**options)
+            if name==CHANNEL.SOOTHE:return self.soothe_channel(c,**options)
+            raise ValueError('Pain Dampening requires an actual damaging attack that would faint a Channeled Pokemon')
         if name in ('feat/복원력','복원력','Resilience'):
             raise ValueError('Resilience requires an actual native critical-hit or affliction trigger')
         import duelist as DUELIST
@@ -2011,14 +2176,22 @@ class Engine:
         self.log_lines.append(msg + (f"  => [{rule}]" if rule else ""))
 
     # ---------- 주사위 ----------
-    def roll_expr(self, expr, times=1, *, fixed=None):
+    def roll_expr(self, expr, times=1, *, fixed=None, actor=None, purpose=None):
         """'2d6+8' → (합계, 눈 목록). 기존 times는 주사위와 고정 보너스를 모두 배수 적용한다."""
         result = POOLS.expression(self.rng, expr, dice_multiplier=times,
                                   flat_bonus_multiplier=times, fixed=fixed)
+        if actor is not None:result=__import__('roll_context').observe_native(self,actor,purpose,result,lambda faces:POOLS.expression(self.rng,expr,dice_multiplier=times,flat_bonus_multiplier=times,fixed=faces))
+        result=__import__('coordinator').capture_pool(self,result)
         return result['total'], result['faces']
 
     def d20(self):
         return POOLS.die(self.rng, 20)
+
+    @__import__('roll_context').native_choices
+    def roll_d20(self,actor,purpose,*,fixed=None):
+        if fixed is not None:CHECKS.integer(fixed,'actual single d20 face',1,20)
+        first=__import__('oracle').replace_d20(self,actor,self.d20() if fixed is None else fixed,purpose)
+        return __import__('roll_context').observe_native(self,actor,purpose,first,lambda faces:POOLS.die(self.rng,20,fixed=None if faces is None else faces[0]))
 
     # ---------- 전투단계 / 상태 ----------
     def change_stage(self, c, stat, delta):
@@ -2059,6 +2232,8 @@ class Engine:
 
     def immune_to(self, c, cond, *, cause=None):
         import field_effects as FIELD
+        run_away=__import__("tumbler").run_away(c,cond)
+        if run_away:return run_away
         field_immunity=FIELD.status_immunity(self,c,cond)
         if field_immunity:return field_immunity
         import capability_traits as TRAITS
@@ -2134,7 +2309,9 @@ class Engine:
         legacy_install=any(r.get('installing') and cond in r.get('statuses',[]) for r in TIMING.records(c))
         if cond in CONDITIONS.SUPPORTED and not legacy_install:
             granted = CONDITIONS.grant(self,c,cond,source=source,parameters=parameters,applied_by=applied_by,force=force)
-            if granted:BOSS.condition_applied(self,c,source_condition,cond,parameters,source)
+            if granted:
+                BOSS.condition_applied(self,c,source_condition,cond,parameters,source)
+                __import__('blessing_effects').status_received(self,c,cond,source=source,applied_by=applied_by)
             return granted
         EXT.before_apply_status(self,c,cond)
         if cond=="기절":return LIFE.faint(self,c)
@@ -2175,6 +2352,7 @@ class Engine:
                 self.log(f"    파생: {c.name} {e['condition']} ({e['rounds']}라운드)", f"condition/{cond}")
         import effect_lifetime_policy as EFFECT_TIME
         EFFECT_TIME.reconcile(self)
+        __import__('blessing_effects').status_received(self,c,cond,source=source,applied_by=applied_by)
         return True
 
     def cure_status(self, c, cond):
@@ -2248,7 +2426,8 @@ class Engine:
                 return staged._start_of_turn(actor,initiative_count=initiative_count)
             return GRANTS.transition(self,c,return_and_start,include_rulings=True,include_grid=self.grid is not None)
         projection_turn=PROJECTION._owned(c,'ability/꼬르륵스위치')
-        if getattr(self,'_initiative_schedule',None) is not None or projection_turn or PARTY_ACTIONS.gym_profile(self) is not None or __import__('swarm_transitions').state(c) is not None or '마비' in c.conditions:
+        core_confused=__import__('confusion_attacks').interested(c) and __import__('confusion_attacks').core(self)
+        if getattr(self,'_initiative_schedule',None) is not None or getattr(self,'_initiative_extra_turns',None) or projection_turn or core_confused or PARTY_ACTIONS.gym_profile(self) is not None or __import__('swarm_transitions').state(c) is not None or '마비' in c.conditions:
             import state_grants as GRANTS
             return GRANTS.transition(self,c,lambda staged,actor:staged._start_of_turn(actor,initiative_count=initiative_count),include_rulings=True,include_grid=projection_turn and self.grid is not None)
         return self._start_of_turn(c,initiative_count=initiative_count)
@@ -2297,6 +2476,7 @@ class Engine:
         OPTIONAL_STATE.start_turn(self,c)
         FREQ.start_turn(c)
         TURN.reset_budget(self, c)
+        __import__('coordinator').start_turn(self,c)
         import ability_state_projection as ABILITY_STATE_PROJECTION
         ABILITY_STATE_PROJECTION.start_turn(self,c)
         import gmax_moves as GMAX
@@ -2341,7 +2521,8 @@ class Engine:
         c._turn_action_limit = limit
         SWARM.finish_turn_start(self, c)
         c._turn_start_decisions_pending = False
-        return limit
+        __import__('confusion_attacks').start_turn(self,c)
+        return c._turn_action_limit
 
     def end_of_turn(self, c, *, swarm_continue=True):
         import state_grants as GRANTS
@@ -2431,6 +2612,7 @@ class Engine:
         import combat_timing as TIMING
         __import__('martial_artist').end_turn(self,c)
         TIMING.end_turn(self,c)
+        __import__("tumbler").burst_offer(self,c)
         __import__('gmax_moves').end_turn(self,c)
         import setup_move_state as SETUP_MOVE
         SETUP_MOVE.end_turn(self,c)
@@ -2561,6 +2743,14 @@ class Engine:
         import weapon_actions as WEAPONS,roll_effects as ROLLS,combat_social_edges as SOCIAL
         plan=self._prepare_accuracy_context(attacker,target,move,situational,waive,fixed_roll,shared_roll,roll_id=roll_id)
         move=plan['move'];no_hit_reason=plan['no_hit_reason']
+        read=__import__('telepath').read_accuracy(self,attacker,target,move)
+        if read is not None:return read and not bool(no_hit_reason),None,False
+        if move.get('_tumbler_no_critical'):
+            scope=__import__('pass_moves').converted_scope(self,attacker,move['id'])
+            if scope is None or scope['conversion']['source']!=__import__('tumbler').FLIP:raise ValueError('actual Flip Out Pass scope required')
+            hit=not bool(no_hit_reason)
+            if hit and (DEFENSE.consume_shield(self,attacker,target,move) or DEFENSE.consume_shield(self,attacker,target,move,actual_hit=True)):hit=False
+            return hit,None,False
         import event_effects as EVENTS
         event_critical=EVENTS.accuracy_attempt(self,attacker,target,move)
         import taskmaster as TASK
@@ -2592,6 +2782,9 @@ class Engine:
         if shared_roll is not None:nat=fixed_roll
         elif fixed_roll is not None:nat=11 if DUELIST.choose_eleven(self,attacker,'accuracy') else fixed_roll
         else:nat=FAST_COMBAT.roll(self,attacker)
+        if shared_roll is None:
+            nat=__import__('oracle').replace_d20(self,attacker,nat,'accuracy')
+            nat=__import__('roll_context').observe_native(self,attacker,'accuracy',nat,lambda faces:POOLS.die(self.rng,20,fixed=None if faces is None else faces[0]))
         AP_ROLL.complete(self,attacker,roll_id,'accuracy')
         import combat_modifiers as COMBAT_MODS
         if shared_roll is not None:
@@ -2611,7 +2804,8 @@ class Engine:
         import dynamic_chain_moves as CHAIN
         situational += CHAIN.bonus(move,'accuracy')
         mods = actor_mod + situational + zone_pen + ap_bonus + plan['grapple_penalty'] - invisibility_penalty + optional_accuracy + CAPABILITIES.accuracy(attacker) + WEAPONS.accuracy_bonus(move) + CPF.accuracy_bonus(self,attacker,move) + CLASS_PASSIVE.accuracy_bonus(self,attacker,target,move,mm) + TRAINING.bonus(attacker,"accuracy") + FASHION.all_roll_modifier(attacker) + FIELD.accuracy_modifier(self,attacker) + UNOWN.active_count(attacker) + UNOWN.accuracy_bonus(self,attacker,target,move)
-        mods+=DUELIST.accuracy(self,attacker,target)
+        mods+=DUELIST.accuracy(self,attacker,target)+__import__('channeler').synchronized_bonus(self,attacker,target)
+        mods+=__import__('coordinator').attack_boon(attacker,move,'슬기로움')
         mods+=__import__('chronicler').accuracy_bonus(self,attacker,target,move)
         mods+=__import__('survivalist_class').accuracy_bonus(self,attacker,target,move)
         total = nat + mods
@@ -2620,10 +2814,10 @@ class Engine:
         evasion_class = move["class"]
         for effect in mm.get("effects_exec", []):
             if effect.get("type") == "damage_formula_override":
-                evasion_class = {"def": "물리", "spd": "특수"}.get(effect.get("defense_stat"), evasion_class)
+                evasion_class = effect.get('evasion_class',{"def": "물리", "spd": "특수"}.get(effect.get("defense_stat"), evasion_class))
         evasion_class = FIELD.evasion_class(self, target, evasion_class)
         import double_team as DOUBLE
-        double_evasion=DOUBLE.consume(self,target,'evasion')
+        double_evasion=DOUBLE.consume(self,target,'evasion',opponent=attacker)
         evasion = 0 if waive or target.fainted else min(9, max(0, target.evasion(evasion_class, attacker=attacker, engine=self, conditional_bonus=SOCIAL.evasion_bonus(self,target,move,mm,attacker)+spatial_penalty+blender_evasion+environment_evasion+CLASS_PASSIVE.evasion_bonus(self,target)+double_evasion+__import__('chronicler').evasion_bonus(self,target,move,attacker)+__import__('researcher_fields').evasion_bonus(self,target,move)+__import__('survivalist_class').evasion_bonus(self,target,attacker,move)-__import__('survivalist_class').ignored_ability_evasion(self,attacker,target)) + self.rulings.consume("evasion", target.name, self)))
         ac = (move.get("ac") or 0)
         need = ac + evasion
@@ -2633,13 +2827,14 @@ class Engine:
         if ac_ov is not None:
             ac = ac_ov
         ac,evasion,automatic = CPF.accuracy_policy(self,attacker,target,move,mm,ac,evasion,bool(mm.get("never_miss") or never_cond))
+        automatic = automatic or __import__('commander_orders').perfect_for_move(self,attacker,move)
         if __import__('type_ace').isolated_dragon(self,attacker,target,move):evasion=0
         ac = CLASS_PASSIVE.accuracy_target(self,attacker,move,ac)
         mods += acc_bonus + ROLLS.use(self,attacker,target,move,'accuracy',{'natural':nat},shared_roll=shared_roll)
         import style_expert as STYLE
         mods += STYLE.accuracy(self,attacker,target,move)
         import double_team as DOUBLE
-        mods += DOUBLE.consume(self,attacker,'accuracy',shared_roll)
+        mods += DOUBLE.consume(self,attacker,'accuracy',shared_roll,opponent=target)
         import captured_momentum as MOMENTUM
         mods += MOMENTUM.accuracy(self,attacker,target,move,nat,shared_roll)
         import type_ace as TA
@@ -2659,6 +2854,10 @@ class Engine:
                               automatic=automatic, cannot_hit=no_hit_reason or None,
                               auto_miss_natural=ac_rule["auto_miss_natural"],
                               auto_hit_natural=ac_rule["auto_hit_natural"])
+        penalty=__import__('combat_move_reactions').kinesis_accuracy(self,attacker,target,move,outcome['hit'])
+        if penalty:
+            mods+=penalty;total=nat+mods
+            outcome=HIT.resolve(natural=nat,modifier=mods,accuracy=ac,evasion=evasion,automatic=automatic,cannot_hit=no_hit_reason or None,auto_miss_natural=ac_rule['auto_miss_natural'],auto_hit_natural=ac_rule['auto_hit_natural'])
         if (TA.aoo_outcome(self,attacker,move) or __import__('athlete').aoo_outcome(self,attacker,move)) and not no_hit_reason:outcome={'hit':True,'basis':'automatic'}
         hit = not bool(no_hit_reason) if gambit else outcome["hit"]
         if hit and DEFENSE.consume_shield(self,attacker,target,move,actual_hit=True):
@@ -2682,6 +2881,7 @@ class Engine:
         import stat_ace as STAT
         crit_min -= STAT.stratagem_bonus(self,attacker,'critical',move)
         crit_min -= STYLE.critical(self,attacker,move) + __import__('combat_modifiers').incoming_critical_bonus(target)
+        crit_min -= __import__('coordinator').attack_boon(attacker,move,'근사함')
         crit_min -= __import__('chef_cooking').critical_bonus(self,attacker,move)
         import declarative_move_contracts as DECLARATIVE_MOVES
         crit_min = DECLARATIVE_MOVES.critical_threshold(attacker,crit_min)
@@ -2710,6 +2910,7 @@ class Engine:
             raise ValueError("explicit type immunity bypass boolean required")
         import type_state as TYPES
         TYPES.validate_attack(self.r, move_type)
+        if move_type=='None':return 1.0,'combat/type-effectiveness (Typeless)'
         te = self.r.mech("combat/type-effectiveness")
         if not target.types:
             return 1.0, "combat/type-effectiveness (타입 없음)"
@@ -2786,7 +2987,7 @@ class Engine:
             actual_type = EXT.effective_type(self,attacker,target or attacker,move,mechanics,consume=False)
         import stellar_tera_blast as STELLAR_TERA
         stab_type = STELLAR_TERA.stab_membership_type(self,attacker,target or attacker,move,actual_type)
-        if (stab_type in HOME.stab_types(attacker) or EXT.grants_stab(self, attacker, move)) and move["class"] in ("물리", "특수") and move["id"] != "struggle" and not WEAPONS.excludes_stab(move):
+        if (stab_type in HOME.stab_types(attacker) or EXT.grants_stab(self, attacker, move)) and move["class"] in ("물리", "특수") and move["id"] != "struggle" and move.get("innovation_instance",{}).get("template")!=3 and not WEAPONS.excludes_stab(move):
             bonus = M.floor(self.formula("stab"))
             self.log(f"    자속보정: DB {db} → {db + bonus}", "combat/stab")
             db += bonus
@@ -2818,6 +3019,7 @@ class Engine:
         import class_passive_combat as CLASS_PASSIVE
         mtype=actual_move['type']
         mult, why = self.type_multiplier(mtype, target)
+        mult=__import__('aura_guardian').scrappy_multiplier(self,attacker,target,mtype,mult)
         import catalog_move_states as CATALOG
         arrows_policy=CATALOG.thousand_arrows_policy(self,move,mm)
         mult=CATALOG.thousand_arrows_base(self,target,actual_move,arrows_policy,mult)
@@ -2837,6 +3039,9 @@ class Engine:
         import partial_entities as PARTIAL
         PARTIAL.require_complete(attacker, "roll_damage attacker")
         PARTIAL.require_complete(target, "roll_damage target")
+        import aura_guardian as AURA
+        move=AURA.damage_move(self,attacker,move)
+        AURA.before_damage(self,attacker,target,move)
         import coup_de_grace as COUP
         coup_bonus = COUP.damage_bonus(self,attacker,target,move,crit)
         import struggle_capabilities as STRUGGLE
@@ -2893,15 +3098,17 @@ class Engine:
             dice_part = entry["set"]["mid"] * times
             self.log(f"    DB {db} 지정 데미지 {entry['set']['mid']}{' ×2(치명타)' if crit else ''} = {dice_part}", "combat/damage-chart")
         elif fixed_dice is not None:
-            dice_part, _ = self.roll_expr(entry['dice'], times, fixed=fixed_dice)
+            dice_part, _ = self.roll_expr(entry['dice'], times, fixed=fixed_dice,actor=attacker,purpose='damage')
             self.log(f"    DB {db} → {entry['dice']} 눈 {fixed_dice} = {dice_part}", "combat/damage-chart")
         else:
-            dice_part, rolls = self.roll_expr(entry["dice"], times)
+            dice_part, rolls = self.roll_expr(entry["dice"], times,actor=attacker,purpose='damage')
             self.log(f"    DB {db} → {entry['dice']}{' ×2(치명타)' if crit else ''} 눈 {rolls} = {dice_part}", "combat/critical-hit" if crit else "combat/damage-chart")
         dice_part+=__import__('multi_strike').critical_dice(self,attacker,move,set_damage)
+        long_order_bonus = __import__('commander_orders').long_damage(self,attacker,target,move,dice_part,crit)
         EVENTS.record_damage(self,attacker,target,move,event_effects,db)
         component_roll_mod=ROLLS.use(self,attacker,target,move,'damage',{'damage_base':db,'roll_value':dice_part,'mode':'set' if set_damage else 'fixed_dice' if fixed_dice is not None else 'random'})
         atk_stat = move.get("_versatile_attack_stat",df["attack_stat_by_class"][move["class"]])
+        if move.get('_pk_combat_spa'):atk_stat='spa'
         import telekinetic_combat as TK_COMBAT
         if TK_COMBAT.STRUGGLE_MARKER in move:
             atk_stat=move[TK_COMBAT.STRUGGLE_MARKER]['attack_stat']
@@ -2932,9 +3139,10 @@ class Engine:
         if _precision_observation is not None:_precision_observation["nullification"] = "type_immunity" if mult == 0 else None
         db_mod, roll_mod, resist_steps, immune, absorb = FX.passive_damage_mods(self, attacker, target, move, ctx)
         import duelist as DUELIST
-        roll_mod += coup_bonus
+        roll_mod += coup_bonus + AURA.storm_bonus(self,attacker,move)
         roll_mod += __import__('hunter').damage_bonus(self,attacker,target,move)
         resist_steps += CLASS_PASSIVE.resistance_steps(self,target,mtype)
+        resist_steps += __import__('confusion_attacks').resistance(self,attacker,target,move)
         import taskmaster as TASK
         resist_steps += TASK.bonus(target,'resistance')
         resist_steps += __import__('combat_move_reactions').resistance(self,attacker,target,move)
@@ -2969,7 +3177,7 @@ class Engine:
                     self.change_stage(target, m2.group(2), int(m2.group(1)))
             return 0
         import fashion_items as FASHION
-        roll_mod += component_roll_mod + EVENTS.damage_roll_bonus(self,attacker,target,move,mtype) + FASHION.all_roll_modifier(attacker)
+        roll_mod += long_order_bonus + component_roll_mod + EVENTS.damage_roll_bonus(self,attacker,target,move,mtype) + FASHION.all_roll_modifier(attacker)
         roll_mod += __import__("provocateur").damage_modifier(self,attacker,target,move,actual_hit=_reaction_event is not None)
         import boss_transitions as BOSS
         roll_mod += BOSS.consume_damage_roll_modifier(attacker)
@@ -2996,12 +3204,12 @@ class Engine:
         if roll_mod:
             self.log(f"    패시브/조건 굴림 보정 {roll_mod:+d}", "effect/damage_roll_mod")
         import combat_maneuvers as MANEUVERS
-        attack_value,infatuation_mod = MANEUVERS.infatuation_damage(attacker,target,move,atk_src,TA.attack_stat(self,attacker,actual_move,__import__('researcher_fields').attack_stat_value(self,attacker,move,atk_src.staged(atk_stat))))
+        attack_value,infatuation_mod = MANEUVERS.infatuation_damage(attacker,target,move,atk_src,AURA.attack_stat(self,attacker,move,TA.attack_stat(self,attacker,actual_move,__import__('researcher_fields').attack_stat_value(self,attacker,move,atk_src.staged(atk_stat)))))
 
         rage_reduction = RAGE_ABILITIES.incoming_damage_reduction(target)
         import stat_ace as STAT
         maneuver_defense=STAT.defense_maneuver(self,target,move,_reaction_event)
-        incoming_reduction=rage_reduction+STAT.damage_reduction(self,target)+TA.damage_reduction(self,attacker,target,actual_move,mult)+ace_hit['reduction']+TA.incoming_reduction(self,attacker,target,actual_move,mult)
+        incoming_reduction=DEFENSE.splash_reduction(self,_reaction_event)+rage_reduction+STAT.damage_reduction(self,target)+TA.damage_reduction(self,attacker,target,actual_move,mult)+ace_hit['reduction']+TA.incoming_reduction(self,attacker,target,actual_move,mult)
         if incoming_reduction:
             # Pass the dynamic contribution through the existing defense hook;
             # effects that ignore damage reduction therefore keep one policy.
@@ -3014,8 +3222,12 @@ class Engine:
             if rage_reduction:self.log(f"    불굴의격노: 난동 중 피해 감소 +{rage_reduction}", "ability/불굴의격노")
         else:
             def_val, dr_val = EXT.defense_hook(self, attacker, target, move, mm, def_stat,stage_override=6 if maneuver_defense==def_stat else None)
+        if AURA.sword(self,attacker,move):dr_val=None
         import cheerleader as CHEER
         excited_dr=CHEER.damage_reduction(self,target,attacker,move,_reaction_event)
+        if dr_val is not None:
+            dr_val += __import__('commander_orders').reduction(target)
+            dr_val += __import__('commander_orders').sentinel_reduction(self,target,_reaction_event)
         if excited_dr and dr_val is not None:dr_val+=excited_dr
         if dr_val is not None:
             dr_val+=TASK.bonus(target,'dr')+TASK.pain_reduction(self,attacker,target,move,_reaction_event)
@@ -3038,12 +3250,14 @@ class Engine:
         if chef['damage_reduction'] and dr_val is not None:
             dr_val += chef['damage_reduction']
             self.log(f"    요리사 간식 피해 감소 +{chef['damage_reduction']}","ch04/chef-snack")
+        roll_mod+=__import__('coordinator').damage_bonus(self,attacker,move)
+        if _reaction_event is not None:_reaction_event['coordinator_formula']={'dice':dice_part,'attack':attack_value,'modifiers':roll_mod+infatuation_mod,'defense':def_val,'reduction':0 if AURA.sword(self,attacker,move) else dr_val}
         rolled_total=dice_part+attack_value+roll_mod+infatuation_mod
         roll_mod+=TA.fountain(self,attacker,actual_move,rolled_total)-rolled_total
         total = dice_part + attack_value + roll_mod + infatuation_mod
         import combat_damage as DAMAGE
         defended = DAMAGE.defend(dice=dice_part, attack=attack_value,
-            modifiers=roll_mod+infatuation_mod, defense=def_val, reduction=dr_val)
+            modifiers=roll_mod+infatuation_mod, defense=def_val, reduction=0 if AURA.sword(self,attacker,move) else dr_val)
         total, after_def = defended['total'], defended['after_defense']
         resist_steps+=berry_resistance
         if (_reaction_event is not None and _reaction_event.get('attacker') is attacker
@@ -3052,6 +3266,9 @@ class Engine:
             step_lookup={float(value):int(key) for key,value in type_table.items()}
             effective=type_table[str(max(-3,min(3,step_lookup[mult]-resist_steps)))]
             resist_steps+=DUELIST.type_steps(self,attacker,target,move,effective)
+        if __import__('commander_orders').perfect_for_move(self,attacker,move) and mult:
+            actual_step={1.0:0,1.5:1,2.0:2,3.0:3,0.5:-1,0.25:-2,0.125:-3}.get(mult,0)-resist_steps
+            if actual_step<0:resist_steps+=1
         if resist_steps:
             te = self.r.mech("combat/type-effectiveness")["multiplier_by_net_steps"]
             steps = {1.0: 0, 1.5: 1, 2.0: 2, 3.0: 3, 0.5: -1, 0.25: -2, 0.125: -3}.get(mult, 0) - resist_steps
@@ -3094,12 +3311,12 @@ class Engine:
         HEAVY.validate_native_receipt(self,_heavy_context,attacker,target,move)
         import conditional_damage_base as CONDITIONAL_DB
         conditional_db_plan = CONDITIONAL_DB.prepare(self, attacker, target, move)
-        event = dict(attacker=attacker, target=target, move=move, intercepted=intercepted is True)
+        event = dict(attacker=attacker, target=target, move=move, intercepted=intercepted is True, passive_event=_passive_event)
         precision_facts = {}
         import enduring_resilience as RESILIENCE
         import taskmaster as TASK
         damage_crit=TASK.critical_damage(self,attacker,target,move,crit)
-        damage = self.roll_damage(attacker, target, move, damage_crit, set_damage, _reaction_event=event, _precision_observation=precision_facts)
+        damage = __import__('coordinator').calculate_damage(self,attacker,target,move,damage_crit,set_damage,event,precision_facts)
         if "damage" in event:
             import blessing_effects as BLESSINGS
             import weather_blessings as WEATHER_BLESSINGS
@@ -3120,6 +3337,10 @@ class Engine:
         actual_multiplier = event.get("damage_formula",{}).get("multiplier",precision_facts.get("type_multiplier",0))
         if event.get("mettle_selected"):
             actual_multiplier = REACTIONS.resistance_multiplier(self,actual_multiplier)
+        substitute=__import__('substitute').receive_damage(self,attacker,target,move,damage)
+        if substitute is not None:
+            if _damage_observation is not None:_damage_observation['substitute']=substitute
+            return damage
         PASSIVE_EVENTS.note_damage_request(self,_passive_event,damage)
         passive_before = PASSIVE_EVENTS.capture(target) if _passive_event is not None else None
         import combat_damage as DAMAGE
@@ -3128,10 +3349,16 @@ class Engine:
         with DAMAGE.native_hit(target) as native_damage, DAMAGE_HISTORY.native_application(self,attacker,target,move,_heavy_context) as history_context:
             paired_receipt=TASK.apply_gambit_damage(self,attacker,target,move,damage,_heavy_context,damage_before,actual_damage_type=actual_type)
             if paired_receipt is None:
-                HEAVY.apply_attack_damage(self, attacker, target, damage, move,
+                application=HEAVY.apply_attack_damage(self, attacker, target, damage, move,
                     producer=HEAVY.Producer.RESOLVED_HIT,
                     remainder="finish_mettle and remaining use_move effects/reactions have not run",
-                    native_context=_heavy_context, actual_damage_type=actual_type)
+                    native_context=_heavy_context,actual_damage_type=actual_type)
+                if isinstance(application,dict) and application.get('source')==__import__('channeler').PAIN:
+                    if _damage_observation is not None:_damage_observation['channeler_pain']=application
+                    return 0
+            if paired_receipt is not None and paired_receipt.get('channeler_pain'):
+                if _damage_observation is not None:_damage_observation['channeler_pain']=paired_receipt['channeler_pain']
+                return 0
             damage_receipt = paired_receipt if paired_receipt is not None else DAMAGE.application(requested=damage, before=damage_before,
                 after=DAMAGE.observe(target), source=move['id'], damage_class=move['class'])
             if history_context is not None:
@@ -3143,6 +3370,7 @@ class Engine:
         if native_damage:
             damage_receipt['native_damage'] = dict(DAMAGE.validate_native_hit(native_damage))
         CONDITIONAL_DB.commit(attacker, target, move, conditional_db_plan, damage_receipt)
+        __import__('hex_maniac').record_boost(self,attacker,target,move,conditional_db_plan,_passive_event)
         CONDITIONAL_DB.record_attack_damage(self, attacker, target, damage_receipt)
         import damage_coats as DAMAGE_COATS
         DAMAGE_COATS.after_damage(self,attacker,target,actual_move,damage_receipt,type_multiplier=actual_multiplier)
@@ -3165,6 +3393,7 @@ class Engine:
             import stamina as STAMINA
             STAMINA.observe(self,target,'critical_hit',move_id=move['id'],dealt=damage)
         REACTIONS.finish_mettle(self, event)
+        __import__('capture_specialist').after_attack(self,attacker,target,move,damage_receipt,_heavy_context)
         import taskmaster as TASK
         TASK.after_attack(self,attacker,target,move,critical=crit,damage=damage)
         if TASK.gambit_side(self,attacker,target,move)=='incoming':self._taskmaster_gambit=None
@@ -3174,7 +3403,7 @@ class Engine:
     def lose_hp(self, c, amount, source="damage", *, unpreventable=False, loss_kind="loss"):
         import ability_state_projection as PROJECTION,state_grants as GRANTS
         import keep_fighting as KEEP
-        if PROJECTION.hp_change_interested(c) or KEEP.interested(self,c) or __import__('type_ace').hp_interested(self,c):
+        if PROJECTION.hp_change_interested(c) or KEEP.interested(self,c) or __import__('type_ace').hp_interested(self,c) or c.spec.get('perseverance_choice'):
             return GRANTS.transition(self,c,lambda e,actor:e._lose_hp(actor,amount,source,unpreventable=unpreventable,loss_kind=loss_kind),include_rulings=True,include_grid=self.grid is not None)
         return self._lose_hp(c,amount,source,unpreventable=unpreventable,loss_kind=loss_kind)
 
@@ -3200,6 +3429,7 @@ class Engine:
             raise ValueError("loss_kind must be loss, percentage or hp_setting")
         import taskmaster as TASK
         if loss_kind in ('loss','percentage') and TASK.immune_loss(c):return
+        if loss_kind in ('loss','percentage') and __import__('coordinator').prevent_loss(self,c,source):return
         TEMP_HP.ensure_certain(self, c)
         if loss_kind in ("loss", "percentage") and not unpreventable:
             amount = EXT.cap_damage(self, c, amount)
@@ -3230,7 +3460,7 @@ class Engine:
         import control_mount as MOUNT,state_grants as GRANTS,ability_state_projection as PROJECTION
         projection_hp=PROJECTION.hp_change_interested(c)
         import keep_fighting as KEEP
-        keep_hp=KEEP.interested(self,c) or __import__('type_ace').hp_interested(self,c)
+        keep_hp=KEEP.interested(self,c) or __import__('type_ace').hp_interested(self,c) or bool(c.spec.get('perseverance_choice'))
         if MOUNT.managed_subject(c) or '잠듦' in c.conditions or projection_hp or keep_hp:
             return GRANTS.transition(self,c,lambda e,target:e._take_damage(target,amount),include_rulings=projection_hp or keep_hp,include_grid=(projection_hp or keep_hp) and self.grid is not None)
         return self._take_damage(c,amount)
@@ -3249,6 +3479,7 @@ class Engine:
         sleep_before=DAMAGE.observe(c)
         inj = self.r.mech("combat/injuries")
         amount = EXT.cap_damage(self, c, amount)
+        __import__('focus_punch').observe_damage(c,amount)
         import bandages as BANDAGES
         BANDAGES.on_damage(self,c,amount)
         amount = TEMP_HP.absorb(self, c, amount)
@@ -3260,7 +3491,8 @@ class Engine:
             STAMINA.observe(self,c,'massive_damage',amount=amount,maximum_hp=maxhp)
         import keep_fighting as KEEP
         proposed=__import__('endure').replace_hp(self,c,before,before-amount,source='attack_damage',loss_kind='damage')
-        c.hp = KEEP.replace_hp(self,c,before,proposed,source='attack_damage',loss_kind='damage',amount=amount)
+        proposed = KEEP.replace_hp(self,c,before,proposed,source='attack_damage',loss_kind='damage',amount=amount)
+        c.hp = __import__('capture_specialist').replace_knockout(self,c,before,proposed)
         __import__('type_ace').hp_changed(self,c,before,maxhp)
         __import__('athlete').hp_changed(self,c,before,maxhp)
         BANDAGES.on_hp_change(self,c,before,c.hp)
@@ -3268,11 +3500,10 @@ class Engine:
         import actor_templates as TEMPLATES
         if (not TEMPLATES.injuries_immune(c) and not EXT.massive_damage_injury_immune(c)
                 and massive):
-            n_inj += 1
-            c.injuries += 1
             import precise_actions as PRECISE
-            PRECISE.injury(self,c,1,"combat/massive-damage")
-            self.log(f"    대규모 데미지({amount} ≥ 최대 체력 {maxhp}의 50%) → 부상 +1", "combat/injuries")
+            retained=PRECISE.gain_injury(self,c,1,"combat/massive-damage")
+            n_inj += retained
+            self.log(f"    대규모 데미지({amount} ≥ 최대 체력 {maxhp}의 50%) → 부상 +{retained}", "combat/injuries")
         n_inj += self.marker_injuries(c, before, c.hp, maxhp)
         import swarm_transitions as SWARM
         SWARM.after_hp_change(self,c,before,"attack_damage")
@@ -3304,9 +3535,8 @@ class Engine:
             if before > m >= after:
                 n += 1
         if n:
-            c.injuries += n
             import precise_actions as PRECISE
-            PRECISE.injury(self,c,n,"combat/hit-point-markers")
+            n=PRECISE.gain_injury(self,c,n,"combat/hit-point-markers")
             self.log(f"    체력 표시점 통과 {n}개 → 부상 +{n} (총 {c.injuries})", "combat/injuries")
         return n
 
@@ -3572,6 +3802,11 @@ class Engine:
     def coup_de_grace(self, actor, target, move_id, **options):
         return self.use_move(actor,target,move_id,coup_de_grace=True,**options)
 
+    @__import__('warper').native_move
+    @__import__('telepath').native_move
+    @__import__('telekinetic').native_move
+    @__import__('channeler').native_move
+    @__import__('aura_guardian').native_move
     @__import__('taskmaster').native_move
     @__import__('duelist').attack_scope
     @OPTIONAL_WEAPONS.atomic_move
@@ -3581,6 +3816,7 @@ class Engine:
         pending=__import__('musician').no_accuracy_pending(self,attacker,move_id)
         if pending is not None:return pending
         if type(set_damage) is not bool:raise ValueError('boolean Set Damage declaration required')
+        if set_damage and __import__('coordinator').damage_offer(self,attacker) is not None:raise ValueError('Coordinator rerolls a Damage Roll, not Set Damage')
         import body_state as BODY
         if origin_part is not None:BODY.part_cell(self,attacker,origin_part)
         import ability_state_projection as PROJECTION
@@ -3595,6 +3831,7 @@ class Engine:
                      or ABILITY_REACTIONS.interested(self)
                      or __import__('ice_lake').interested(self,attacker,primary)
                      or __import__('type_ace').move_interested(self,attacker,primary)
+                     or __import__('commander_orders').move_interested(self,attacker,primary)
                      or __import__('dynamic_chain_moves').declared(self.r.move_mech(move_id)[0])
                      or self.r.move_id(move_id)=='move/배턴터치')):
             def staged(e,a,t):
@@ -3663,6 +3900,7 @@ class Engine:
         import weapon_actions as WEAPONS
         import environ_moves as ENVIRON
         move = WEAPONS.prepare(self,attacker,ENVIRON.prepare(self,attacker,self.r.move(move_id)),weapon_id)
+        move = __import__('confusion_attacks').prepare(self,attacker,move)
         if stellar_choice is not None:move = dict(move,**{STELLAR_TERA.CHOICE:stellar_choice})
         import area_targets as AREA
         import stat_ace as STAT
@@ -3680,6 +3918,7 @@ class Engine:
         import gmax_moves as GMAX
         move = GMAX.prepare_native_move(self,attacker,move)
         move = __import__('musician').project_move(self,attacker,move)
+        move = __import__('coordinator').prepare(self,attacker,move)
         move = __import__('researcher_fields').prepare_move(self,attacker,move)
         move = BODY.bind_origin(self,attacker,move,origin_part)
         move = __import__('martial_artist').prepare(self,attacker,move)
@@ -3693,6 +3932,8 @@ class Engine:
         AREA_HIT.require_candidates(self,attacker,move,everyone,primary)
         self.everyone = everyone
         native_mm = ENVIRON.mechanics(self,move,self.r.move_mech(move_id)[0])
+        native_mm = __import__("jump_move_actions").mechanics(self.r,move_id,native_mm)
+        native_mm = __import__('ace_trainer').mechanics(self,attacker,move,native_mm)
         import unown_imbuement as UNOWN
         native_mm = UNOWN.mechanics(self,attacker,move,native_mm)
         import optional_move_modes as OPTIONAL_MODES
@@ -3740,6 +3981,7 @@ class Engine:
         ROLLS.preflight_move(self,attacker,primary,move,mm)
         FX.preflight_effects(self,attacker,primary,mm.get('effects_exec', []),move_id)
         if not EXT.entry_move_allowed(self,attacker,move,mm):return 0
+        __import__("jump_move_actions").preflight(self,attacker,primary,move)
         import move_accuracy as MOVE_ACCURACY
         if not MOVE_ACCURACY.preflight(self,attacker,primary,move,mm):
             INVISIBILITY.accuracy_penalty(self,primary)
@@ -3762,6 +4004,7 @@ class Engine:
             return CHAIN.use(self,attacker,primary,move_id,selected,
                 dict(weapon_id=weapon_id,struggle_choice=struggle_choice,aim=aim,
                      appendage_id=appendage_id,origin_part=origin_part,set_damage=set_damage,versatile_stat=versatile_stat),move=move)
+        __import__('telepath').capture_area(self,attacker,primary,move)
         # 연막은 피격자가 없는 공간에도 생성된다. 대상별로 중심을 옮기지 않는다.
         if "zone" in mm and self.grid is not None:
             aim = primary.pos if aim is None else aim
@@ -3772,7 +4015,7 @@ class Engine:
         import optional_physical_equipment as OPTIONAL_EQUIPMENT
         targets = OPTIONAL_EQUIPMENT.filter_targets(attacker, move, targets)
         targets = OPTIONAL_MODES.filter_targets(self,attacker,move,targets)
-        targets = __import__('musician').friendly_targets(attacker,move,targets)
+        targets = __import__('coordinator').selected_targets(self,attacker,move,__import__('musician').friendly_targets(attacker,move,targets),primary)
         if move_id == LINKED.PERISH and attacker not in targets: targets.append(attacker)
         import move_completion as COMPLETE
         field_effects = AREA.empty_field_effects(mm)
@@ -3781,7 +4024,7 @@ class Engine:
             targets = self.targets_in_range(attacker, move, everyone, primary)
             targets = OPTIONAL_EQUIPMENT.filter_targets(attacker, move, targets)
             targets = OPTIONAL_MODES.filter_targets(self,attacker,move,targets)
-            targets = __import__('musician').friendly_targets(attacker,move,targets)
+            targets = __import__('coordinator').selected_targets(self,attacker,move,__import__('musician').friendly_targets(attacker,move,targets),primary)
         if not targets:
             if field_effects:
                 return MOVE_ACTIVATION.activate_empty_area(self,attacker,move,mm,
@@ -3851,6 +4094,11 @@ class Engine:
             self.log(f"  [룰셋 {self.r.ruleset.name}] {self.r.moves[move_id]['name']} → {self.r.moves[new]['name']} (변형판 대체)", "ruleset/alias")
         return new
 
+    @__import__('warper').native_move
+    @__import__('telepath').native_move
+    @__import__('telekinetic').native_move
+    @__import__('channeler').native_move
+    @__import__('aura_guardian').native_move
     @__import__('taskmaster').native_move
     @__import__('duelist').attack_scope
     @OPTIONAL_WEAPONS.atomic_move
@@ -3860,8 +4108,10 @@ class Engine:
     @__import__("cheerleader").native_action
     def use_move(self, attacker, target, move_id, situational=0, set_damage=False, count_use=True, free_action=False, _activation=None, _shared_accuracy=None, _action_grant=None, _field_activation=None, *, roll_id=None, weapon_id=None, reliable_trainer=None, struggle_choice=None, aim=None, appendage_id=None, origin_part=None, coup_de_grace=False, versatile_stat=None, weather_ball_type=None, use_radiated_type=None):
         if type(set_damage) is not bool:raise ValueError('boolean Set Damage declaration required')
+        if set_damage and __import__('coordinator').damage_offer(self,attacker) is not None:raise ValueError('Coordinator rerolls a Damage Roll, not Set Damage')
         import taskmaster as TASK
         TASK.move_permission(attacker,move_id)
+        __import__('focus_punch').require_release(self,attacker,move_id)
         pending=__import__('musician').no_accuracy_pending(self,attacker,move_id)
         if pending is not None:return pending
         import coup_de_grace as COUP
@@ -3884,6 +4134,7 @@ class Engine:
                      or ABILITY_REACTIONS.interested(self)
                      or __import__('ice_lake').interested(self,attacker,target)
                      or __import__('type_ace').move_interested(self,attacker,target)
+                     or __import__('commander_orders').move_interested(self,attacker,target)
                      or self.r.move_id(move_id)=='move/배턴터치')):
             def staged(e,a,t):
                 import state_grants as G
@@ -3996,6 +4247,7 @@ class Engine:
         import weapon_actions as WEAPONS
         import environ_moves as ENVIRON
         move = WEAPONS.prepare(self,attacker,ENVIRON.prepare(self,attacker,self.r.move(move_id)),weapon_id)
+        move = __import__('confusion_attacks').prepare(self,attacker,move)
         if stellar_choice is not None:move = dict(move,**{STELLAR_TERA.CHOICE:stellar_choice})
         import area_targets as AREA
         move = PASS.bind(self,attacker,move)
@@ -4013,6 +4265,8 @@ class Engine:
         import gmax_moves as GMAX
         move = GMAX.prepare_native_move(self,attacker,move)
         move = __import__('musician').project_move(self,attacker,move)
+        move = __import__('coordinator').prepare(self,attacker,move)
+        if not __import__('coordinator').selected_targets(self,attacker,move,[target],target):return 0
         move = __import__('researcher_fields').prepare_move(self,attacker,move,target=target)
         if target is not attacker and not __import__('musician').friendly_targets(attacker,move,[target]):return 0
         move = BODY.bind_origin(self,attacker,move,origin_part)
@@ -4040,8 +4294,12 @@ class Engine:
         CONFUSION.preflight(self,attacker,move)
         mm, conf = self.r.move_mech(move_id)
         mm = ENVIRON.mechanics(self,move,mm)
+        move=__import__('ninja').project_weapon(self,attacker,move)
+        mm=__import__('substitute').project(self,attacker,move,mm)
         move,mm=__import__('combat_move_reactions').bind(self,attacker,move,mm)
         mm = CONDITIONAL_DB.execution_mechanics(move, mm)
+        mm = __import__("jump_move_actions").mechanics(self.r,move_id,mm)
+        mm = __import__('ace_trainer').mechanics(self,attacker,move,mm)
         import unown_imbuement as UNOWN
         mm = UNOWN.mechanics(self,attacker,move,mm)
         import optional_move_modes as OPTIONAL_MODES
@@ -4052,6 +4310,7 @@ class Engine:
         move, mm = RETROSPECTIVE.project(self,attacker,move,mm)
         import spite as SPITE
         move, mm = SPITE.project(self,attacker,target,move,mm)
+        move=__import__('tumbler').project_acrobatics(self,attacker,move)
         move, mm = __import__("endure").project(self,attacker,target,move,mm)
         mm=REACTIVE_ABILITIES.preflight_move(self,attacker,target,move,mm,
             ordinary_action='full' if coup_de_grace else 'free' if free_action else TURN.action_kind_of_move(self,attacker,move,mm))
@@ -4070,6 +4329,7 @@ class Engine:
         if self.grid is not None and ("zone" in mm or move_id == "move/날려버리기") and not PASS.converted_scope(self,attacker,move_id):
             move = AREA.bind(self,attacker,move,target.pos if aim is None else aim)
             move = dict(move,_effect_area_cells=AREA.cells(self,attacker,move))
+        __import__('telepath').capture_area(self,attacker,target,move)
         field_scope = (MOVE_ACTIVATION.verify_empty_field(self,attacker,move,mm,_field_activation)
                        if _field_activation is not None else None)
         import field_effects as FIELD
@@ -4078,6 +4338,8 @@ class Engine:
             self.log(f"    {attacker.name}: 전장 효과가 이 기술을 무효화",field_block)
             return 0
         if not EXT.entry_move_allowed(self,attacker,move,mm):return 0
+        __import__("jump_move_actions").preflight(self,attacker,target,move)
+        __import__('telekinetic').preflight_move(self,attacker,target,move)
         import food_effects as FOOD
         if not FOOD.move_allowed(self,attacker,move,mm):
             return 0
@@ -4093,7 +4355,7 @@ class Engine:
             reach = native_range.get('origin')
             if reach == 'melee':
                 reach = BODY.melee_reach(attacker)
-            if type(reach) is int and not native_range.get('shape') and not BODY.in_range(self,__import__('type_ace').range_actor(self,attacker,move),target,reach,move=move):
+            if type(reach) is int and not native_range.get('shape') and not BODY.in_range(self,__import__('jump_move_actions').range_actor(self,__import__('type_ace').range_actor(self,attacker,move),move),target,reach,move=move):
                 self.log('    target outside current attack reach', 'combat/range')
                 return 0
         import mapless_space as MAPLESS
@@ -4165,7 +4427,7 @@ class Engine:
             if not grant_ok and not round_end_authorized and not ACTION.ordinary_permission(self, attacker):
                 return 0
         sleep_cure = ACTION.self_cures_sleep(attacker, target, mm.get("effects_exec", []))
-        if not ACTION.status_permission(self, attacker, kind, sleep_cure=sleep_cure, new_action=not (grant_ok and grant_kind is None)):
+        if not ACTION.status_permission(self, attacker, kind, sleep_cure=sleep_cure, new_action=not (grant_ok and grant_kind is None),_native_move=move):
             return 0
         if count_use:
             allowed, reason = FREQ.move_allowed(self, attacker, move_id, outside_combat=not self.encounter_active)
@@ -4183,7 +4445,7 @@ class Engine:
                 self.log(f"    {move['name']}은(는) {'완전' if kind == 'full' else '신속' if kind == 'swift' else '자유' if kind == 'free' else '이동'} 행동", "combat/action-economy")
             rng = WEAPONS.range_spec(self,move,attacker)
             if field_scope is None and self.grid is not None and isinstance(rng.get("origin"), int) and rng.get("origin", 0) > 1 and target.pos != attacker.pos and not self.adjacent(attacker,target):
-                TURN.trigger_aoo(self, attacker, "인접하지 않은 대상에게 원거리 공격")
+                if not __import__("tumbler").defer_attack_aoo(self,attacker,"인접하지 않은 대상에게 원거리 공격"):TURN.trigger_aoo(self, attacker, "인접하지 않은 대상에게 원거리 공격")
                 if attacker.fainted:
                     return 0
         if free_action and (not self.encounter_active or grant_ok):
@@ -4271,6 +4533,8 @@ class Engine:
         CONDITIONAL_DB.begin_activation(attacker, move_id)
         completion_id=COMPLETE.start_target(self,attacker,target,move,mm,
             MOVE_ACTIVATION.current_scope(self,attacker,target,move_id))
+        __import__('aura_guardian').begin_move(self,attacker,target,move,completion_id)
+        __import__('commander_orders').begin_move(self,attacker,target,move,completion_id)
         if DEFENSE.skip_received(self,attacker,target,move,completion_id):return 0
         __import__('endure').begin(self,attacker,move,completion_id)
         __import__('roughneck').begin_display(self,attacker,target,move,completion_id)
@@ -4309,6 +4573,19 @@ class Engine:
             EXT.schedule_delayed_attack(self,attacker,target,move,mm,completion_id)
             HEAVY_STANDARD.finish(self,standard_context,hit=False,dealt=0)
             return 0
+        suffix={key:value for key,value in locals().items() if key in ['attacker', 'target', 'move_id', 'move', 'mm', 'conf', 'situational', 'set_damage', 'count_use', 'free_action', '_activation', '_shared_accuracy', '_action_grant', 'roll_id', 'reliable_trainer', 'standard_context', 'completion_id']}
+        pending=__import__("jump_move_actions").begin(self,attacker,target,move,completion_id,suffix)
+        if pending is not None:return pending
+        return self._after_move_movement(**suffix)
+
+    def _after_move_movement(self, attacker, target, move_id, move, mm, conf, situational, set_damage, count_use, free_action, _activation, _shared_accuracy, _action_grant, roll_id, reliable_trainer, standard_context, completion_id):
+        import equipment_actions as EQUIPMENT
+        import move_accuracy as MOVE_ACCURACY
+        import move_activation as MOVE_ACTIVATION
+        import type_ace as TA
+        import taskmaster as TASK
+        import weather_blessings as WEATHER_BLESSINGS
+        if __import__('jump_move_actions').decline_attack(self,attacker,target,move,completion_id):return 0
         passive_event = PASSIVE_EVENTS.begin(self, attacker, target, move, move_mechanics=mm, completion_id=completion_id, ordinary_single=(count_use and not free_action and _activation is None and _shared_accuracy is None and _action_grant is None))
         import precise_actions as PRECISE
         precision_event = PRECISE.attacked(self,attacker,target,move)
@@ -4317,10 +4594,16 @@ class Engine:
         TASK.prepare_gambit(self,attacker,target,move)
 
         def check_accuracy(index=0):
+            accuracy_required=self._move_completions[completion_id].setdefault('juggler_accuracy_required',{})
+            accuracy_required[target.entity_id]=False
+            if __import__('confusion_attacks').automatic_hit(self,attacker,target,move):
+                return True,None,False
             if EQUIPMENT.automatic_accuracy(self,attacker,target,move):
                 self.log("    트릭: 자신 또는 실제 동의한 아군, 명중굴림 없음",move_id)
                 return True,None,False
-            if MOVE_ACCURACY.no_status_check(self,attacker,target,move,mm):
+            no_status_check=MOVE_ACCURACY.no_status_check(self,attacker,target,move,mm)
+            accuracy_required[target.entity_id]=not no_status_check
+            if no_status_check:
                 return self.accuracy_check(attacker,target,move,situational,roll_id=roll_id)
             if _shared_accuracy is None:
                 extra = {'reliable_trainer':reliable_trainer} if reliable_trainer is not None else {}
@@ -4331,10 +4614,12 @@ class Engine:
             rolls = _shared_accuracy.setdefault("rolls", [])
             while len(rolls) <= index:
                 import fast_combat as FAST_COMBAT
-                rolls.append(FAST_COMBAT.roll(self,attacker))
+                first=__import__('oracle').replace_d20(self,attacker,FAST_COMBAT.roll(self,attacker),'shared_accuracy')
+                rolls.append(__import__('roll_context').observe_native(self,attacker,'accuracy',first,lambda faces:POOLS.die(self.rng,20,fixed=None if faces is None else faces[0])))
             return self.accuracy_check(attacker, target, move, situational,
                                        fixed_roll=rolls[index], shared_roll=_shared_accuracy)
 
+        remained=__import__('telepath').reaction(self,attacker,target,move,True,completion_id)
         if (mr := EXT.multi_roll_spec(mm)) is not None:
             res = [check_accuracy(i) for i in range(int(mr.get("rolls", 3)))]
             hit = any(h for h, _, _ in res)
@@ -4346,6 +4631,7 @@ class Engine:
             self.log(f"    다중 굴림 {len(res)}회: 명중 {attacker.counters['multi_hits']}회 → {'명중' if hit else '빗나감'}{' (치명타)' if hit and crit else ''}", "effect/multi_roll")
         else:
             hit, nat, crit = check_accuracy()
+        hit=hit and remained
         move = __import__('researcher_fields').after_accuracy(self,attacker,move,nat)
         PASSIVE_EVENTS.note_accuracy(self,passive_event,hit,nat,crit)
         PRECISE.accuracy(precision_event,hit)
@@ -4366,6 +4652,9 @@ class Engine:
         preserve that producer state rather than call use_move again.
         """
         import type_ace as TA
+        reaction_args=dict(attacker=attacker,target=target,move_id=move_id,move=move,mm=mm,conf=conf,hit=hit,nat=nat,crit=crit,set_damage=set_damage,standard_context=standard_context,passive_event=passive_event,precision_event=precision_event,weather_attack=weather_attack,ordinary_single=ordinary_single,completion_id=completion_id)
+        __import__('warper').reaction(self,reaction_args)
+        hit=reaction_args['hit']
         completion=getattr(self,'_move_completions',{}).get(completion_id,{})
         if (not getattr(self,'_reactive_move_transaction',False)
                 and (REACTIVE_ABILITIES.interested(self,attacker,target)
@@ -4418,6 +4707,10 @@ class Engine:
             crit, set_damage, precision_event, weather_attack, *, ordinary_single,
             completion_id, passive_event, _defense_token=None):
         """Shared effects leaf; completion and reaction ownership stays with its producer."""
+        cached_prefix=__import__('coordinator').recipient_prefix(self,passive_event,attacker,target,move_id)
+        if cached_prefix is not None:
+            return self._apply_hit_recipient(attacker,target,move_id,move,mm,conf,hit,nat,crit,set_damage,precision_event,weather_attack,ordinary_single=ordinary_single,completion_id=completion_id,passive_event=passive_event,_defense_token=_defense_token,substitute=cached_prefix['substitute'],completion_receipts=set(cached_prefix['completion_receipts']))
+        if hit and move_id in __import__('warper').MOVES:__import__('warper').resolve_self_move(self,attacker,move_id)
         if getattr(self,'_move_completions',{}).get(completion_id,{}).get('drown_out',{}).get('cancelled'):
             return dict(hit=False,dealt=0,held=0,hit_prevented=True,effects=[])
         import condition_instances as CONDITIONS
@@ -4435,8 +4728,11 @@ class Engine:
                 dict(hit_prevented=no_hit_reason,nullification='cannot_hit'),0)
             hit=False
         hit=__import__('combat_move_reactions').before_recipient(self,attacker,target,move,hit,completion_id)
+        if target.entity_id in __import__('oracle').prescience_misses(self,passive_event):hit=False
         hit=__import__('type_ace').incoming_hit(self,attacker,target,move,hit)
         __import__('type_ace').miss(self,attacker,move,hit)
+        if not __import__('tumbler').hit(self,attacker,target,move,completion_id,hit,passive_event):
+            return dict(hit=False,dealt=0,held=0,hit_prevented=True,effects=[])
         if not hit:
             import conditional_damage_base as CONDITIONAL_DB
             CONDITIONAL_DB.miss(attacker, move)
@@ -4466,14 +4762,23 @@ class Engine:
                         DAMAGE_HISTORY.apply_smite(self,attacker,target,move,smite,facts.get('actual_damage_type',move['type']))
             return dict(hit=False,dealt=smite,held=miss_held,hit_prevented=bool(no_hit_reason),
                 effects=[key for key in getattr(self,'_effect_dispatch_receipts',{}) if key not in completion_receipts])
-        __import__('type_ace').observe_close_quarters_hit(self,attacker,target,move,passive_event)
-        __import__("endure").offer(self,attacker,target,move,completion_id,passive_event)
+        substitute=__import__('substitute').intercept(self,attacker,target,move)
+        if substitute is None and move['class'] in ('물리','특수'):__import__('illusion_state').end_ability_illusion(self,target,'damaging Move hit: '+move_id)
+        if substitute is None:
+            __import__('type_ace').observe_close_quarters_hit(self,attacker,target,move,passive_event)
+            __import__("endure").offer(self,attacker,target,move,completion_id,passive_event)
+            __import__('ninja').poison_hit(self,attacker,target,move,nat)
+        __import__('coordinator').recipient_prefix(self,passive_event,attacker,target,move_id,{'substitute':substitute,'completion_receipts':list(completion_receipts)})
+        return self._apply_hit_recipient(attacker,target,move_id,move,mm,conf,hit,nat,crit,set_damage,precision_event,weather_attack,ordinary_single=ordinary_single,completion_id=completion_id,passive_event=passive_event,_defense_token=_defense_token,substitute=substitute,completion_receipts=completion_receipts)
+
+    def _apply_hit_recipient(self,attacker,target,move_id,move,mm,conf,hit,nat,crit,set_damage,precision_event,weather_attack,*,ordinary_single,completion_id,passive_event,_defense_token,substitute,completion_receipts):
+        import condition_instances as CONDITIONS
         dealt = 0
         reactive_damage_observation={}
         import gleeful_interference as GLEEFUL
-        GLEEFUL.observe_hit(self,attacker,target,move,passive_event)
+        if substitute is None and not self._passive_events.get(passive_event,{}).get('coordinator_damage'):GLEEFUL.observe_hit(self,attacker,target,move,passive_event)
         import optional_move_modes as OPTIONAL_MODES
-        OPTIONAL_MODES.on_hit(self,attacker,target,move,completion_id)
+        if not self._passive_events.get(passive_event,{}).get('coordinator_damage'):OPTIONAL_MODES.on_hit(self,attacker,target,move,completion_id)
         import attack_damage_history as DAMAGE_HISTORY
         if (move["class"] in ("물리", "특수") and '_retrospective_hp_loss' not in move
                 and not DAMAGE_HISTORY.direct_hp_loss(move,mm)):
@@ -4495,12 +4800,16 @@ class Engine:
                                                    _defense_token=_defense_token)
             finally:
                 self._heavy_native_receipts.pop(heavy_context,None)
+        if reactive_damage_observation.get('channeler_pain'):
+            return dict(hit=True,dealt=0,held=0,hit_prevented=False,channeler_pain=reactive_damage_observation['channeler_pain'],effects=[key for key in getattr(self,'_effect_dispatch_receipts',{}) if key not in completion_receipts])
+        if substitute is not None:mm=__import__('substitute').mechanics(move,mm)
         actual_type = reactive_damage_observation.get("actual_damage_type",move["type"])
         # 효과 (hand mech 우선, 없으면 auto)
         import eldritch_magic as ELDRITCH
-        ELDRITCH.after_hit(self,attacker,target,move,nat,completion_id=completion_id,
-            defense_token=_defense_token)
-        __import__("combat_modifiers").incoming_status_hit(self,attacker,target,move,mm,nat)
+        if substitute is None:
+            ELDRITCH.after_hit(self,attacker,target,move,nat,completion_id=completion_id,
+                defense_token=_defense_token)
+            __import__("combat_modifiers").incoming_status_hit(self,attacker,target,move,mm,nat)
         if "apply_status" in mm:
             self.apply_status(target, mm["apply_status"],source=move_id,applied_by=attacker,parameters=CONDITIONS.native_parameters(self,attacker,target,mm["apply_status"]))
         if "on_natural_roll" in mm and nat is not None and CPF.effect_natural(self,attacker,move,nat,actual_damage_type=actual_type) >= __import__("combat_modifiers").incoming_status_threshold(target,mm["on_natural_roll"].get("apply_status"),mm["on_natural_roll"]["min"]):
@@ -4539,24 +4848,28 @@ class Engine:
                "multiplier": reactive_damage_observation["type_multiplier"] if "type_multiplier" in reactive_damage_observation else self.type_multiplier(move["type"], target)[0], "actual_damage_type": actual_type, "ko": target.fainted}
         ctx['move_completion']=completion_id
         import ability_state_projection as ABILITY_STATE_PROJECTION
-        ABILITY_STATE_PROJECTION.after_hit(self,target,multiplier=ctx['multiplier'],dealt=dealt)
-        __import__('researcher_fields').relic_after_hit(self,attacker,target,move,dealt)
+        if substitute is None:
+            ABILITY_STATE_PROJECTION.after_hit(self,target,multiplier=ctx['multiplier'],dealt=dealt)
+            __import__('researcher_fields').relic_after_hit(self,attacker,target,move,dealt)
         with DAMAGE_HISTORY.native_effects(self,attacker,target,move,completion_id):
             done, held = FX.run_effects(self, attacker, target, mm.get("effects_exec", []), ctx, f"{move_id} ({conf})")
         self.effect_stats["done"] += done
         self.effect_stats["held"] += held
         EXT.after_move(self, attacker, target, move, mm, ctx)
+        __import__('telekinetic').after_hit(self,attacker,target,move,completion_id)
+        __import__('telepath').after_hit(self,attacker,target,move,completion_id)
         import class_passive_combat as CLASS_PASSIVE
-        CLASS_PASSIVE.after_move(self,attacker,target,move,mm,nat,dealt,actual_damage_type=actual_type)
+        if substitute is None:CLASS_PASSIVE.after_move(self,attacker,target,move,mm,nat,dealt,actual_damage_type=actual_type)
         FX.fire_event(self, attacker, {"event": "on_hit_dealt", "move": move, "dealt": dealt}, target)
-        FX.fire_event(self, target, {"event": "on_hit_received", "move": move, "dealt": dealt}, attacker)
-        __import__('type_ace').after_damage(self,attacker,target,move,dealt,crit)
-        __import__('hunter').after_damage(self,attacker,target,move,dealt)
+        if substitute is None:
+            FX.fire_event(self, target, {"event": "on_hit_received", "move": move, "dealt": dealt}, attacker)
+            __import__('type_ace').after_damage(self,attacker,target,move,dealt,crit)
+            __import__('hunter').after_damage(self,attacker,target,move,dealt)
         if target.fainted:
             FX.fire_event(self, attacker, {"event": "enemy_faint_by_user", "move": move}, target)
             FX.fire_event(self, target, {"event": "self_faint", "move": move}, attacker)
-        return dict(hit=True,dealt=dealt,held=held,
-            hit_prevented=bool(reactive_damage_observation.get('hit_prevented')),
+        return dict(hit=True,dealt=0 if substitute is not None else dealt,held=held,
+            hit_prevented=substitute is not None or bool(reactive_damage_observation.get('hit_prevented')),
             effects=[key for key in getattr(self,'_effect_dispatch_receipts',{}) if key not in completion_receipts])
 
     def resolve_maneuver_grant(self, actor, grant_id, **choices):
@@ -4801,6 +5114,8 @@ class Engine:
                   and MARSUPIAL.target_present(c,engine=self) and MODES.target_visible(self,attacker,c)
                   and SETUP_MOVE.targetable(c,engine=self,attacker=attacker,move=move)]
         import stat_ace as STAT
+        selected=__import__('ace_trainer').selected_targets(self,attacker,move,others,primary)
+        if selected is not None:return selected
         selected=STAT.selected_targets(self,attacker,move,others,primary)
         if selected is not None:return selected
         if shape == "burst":
@@ -4946,12 +5261,14 @@ class Engine:
         return PULSE.read(self,reader,target)
 
     def read_telepathic_thought(self, reader, target, **options):
-        import telepathy
-        return telepathy.read(self,reader,target,**options)
+        policy=options.pop('source_policy','korean_ch10')
+        if policy not in ('core_1.05','korean_ch10'):raise ValueError('explicit printed Telepathy source policy required')
+        return __import__('telepathy_core' if policy=='core_1.05' else 'telepathy').read(self,reader,target,**options)
 
     def project_telepathic_thought(self, sender, recipients, thought, **options):
-        import telepathy
-        return telepathy.project(self,sender,recipients,thought,**options)
+        policy=options.pop('source_policy','korean_ch10')
+        if policy not in ('core_1.05','korean_ch10'):raise ValueError('explicit printed Telepathy source policy required')
+        return __import__('telepathy_core' if policy=='core_1.05' else 'telepathy').project(self,sender,recipients,thought,**options)
 
     def offer_telepathic_thought(self, trainer, telepath, thought, **options):
         import telepathy
@@ -4973,6 +5290,24 @@ class Engine:
     def teach_personal_tutor(self, actor, **options):
         import personal_tutoring as PERSONAL_TUTOR
         return PERSONAL_TUTOR.teach(self, actor, **options)
+
+    def acquire_mentor_feature(self, actor, feature='class/멘토', **options):
+        return __import__('mentor').acquire(self,actor,feature,**options)
+
+    def mentor_lesson(self, actor, target, name, **options):
+        return __import__('mentor').lesson(self,actor,target,name,**options)
+
+    def expand_horizons(self, actor, target, **options):
+        return __import__('mentor').expand(self,actor,target,**options)
+
+    def choose_inheritance_move(self, actor, level, move, **options):
+        return __import__('growth_milestones').choose_inheritance(self,actor,level,move,**options)
+
+    def mentor_egg_list_policy(self, actor, target, document, **options):
+        return __import__('mentor').egg_list_policy(self,actor,target,document,**options)
+
+    def edit_mentor_egg_list(self, actor, target, move, **options):
+        return __import__('mentor').edit_egg_list(self,actor,target,move,**options)
 
     def hm_teaching_policy(self, actor, *, target, instance_id, decision=None):
         import pokemon_teaching as TEACHING
@@ -5020,6 +5355,59 @@ class Engine:
     def read_dream(self, reader, target, *, share=False):
         import dream_state as DREAM
         return DREAM.read(self,reader,target,share=share)
+
+    def declare_focus_punch(self, actor, target=None, *, request_id, path=(), mode='land', reason):
+        return __import__('focus_punch').declaration(self,actor,target,request_id=request_id,path=path,mode=mode,reason=reason)
+
+    def choose_focus_punch(self, actor, *, use, target=None, path=(), mode='land', request_id, reason):
+        return __import__('focus_punch').choose(self,actor,use=use,target=target,path=path,mode=mode,request_id=request_id,reason=reason)
+
+    def channel_pokemon(self,actor,target,**options):
+        return __import__('channeler').channel(self,actor,target,**options)
+
+    def stop_channeling(self,actor,target):
+        return __import__('channeler').stop(self,actor,target)
+
+    def observe_channel_information(self,subject,**facts):
+        return __import__('perception_observe').observe_channel_information(self,subject,**facts)
+
+    def communicate_channel(self,sender,recipient,fields,**options):
+        return __import__('channeler').communicate(self,sender,recipient,fields,**options)
+
+    def imprint_channel(self,actor,target):
+        return __import__('channeler').imprint(self,actor,target)
+
+    def release_channel_imprint(self,actor,target):
+        return __import__('channeler').release_imprint(self,actor,target)
+
+    def focus_channel_senses(self,actor,target):
+        return __import__('channeler').focus(self,actor,target)
+
+    def read_channel_senses(self,actor):
+        return __import__('channeler').read_senses(self,actor)
+
+    def synchronize_channel(self,actor):
+        return __import__('channeler').synchronize(self,actor)
+
+    def boost_channel_spirit(self,actor,target,donor,**options):
+        return __import__('channeler').spirit(self,actor,target,donor,**options)
+
+    def channel_power_conduit(self,actor,donor,recipient,**options):
+        return __import__('channeler').conduit(self,actor,donor,recipient,**options)
+
+    def soothe_channel(self,actor,allocation):
+        return __import__('channeler').soothing(self,actor,allocation)
+
+    def channel_knowledge(self,actor,target):
+        import channeler as CHANNEL
+        CHANNEL.require(self,actor,CHANNEL.CLASS);CHANNEL.target(self,actor,target)
+        return __import__('perception_observe').channel_information(self,target)
+
+    def activate_aura_reader(self, actor):
+        return __import__('aura_guardian').activate_reader(self,actor)
+
+    def spend_aura_blessing(self, actor, choice, *, target=None, status=None):
+        return __import__('aura_guardian').spend_blessing(self,actor,choice,target=target,status=status)
 
     def read_aura(self, reader, target):
         import aura_state as AURA
@@ -5085,6 +5473,12 @@ class Engine:
         import physics_maneuvers as PHYSICS
         return PHYSICS.trip(self,actor,target,**options)
 
+    def dirty_fighting(self, actor, target, completion_id, trick, **options):
+        return __import__('rogue').dirty_fighting(self,actor,target,completion_id,trick,**options)
+
+    def scoundrel_strike(self, actor, target, completion_id, **options):
+        return __import__('rogue').scoundrel_strike(self,actor,target,completion_id,**options)
+
     def dirty_trick(self, actor, target, trick, **options):
         PASSIVE_EVENTS.ensure_clear(self)
         LEAGUE.check_boundary(self, "dirty_trick")
@@ -5149,6 +5543,9 @@ class Engine:
             return EC.run(self,c,lambda e,a,t:e.approach(a,t,reach,movement_mode=movement_mode,blindness_options=blindness_options),participants=(target,))
         import control_mount as MOUNT
         if MOUNT.manages(self,c):return MOUNT.approach(self,c,target,reach,movement_mode=movement_mode,blindness_options=blindness_options)
+        if __import__('commander_orders').passers(self,c):
+            import state_grants as G
+            return G.transition(self,c,lambda e,a,t:e._approach(a,t,reach,movement_mode=movement_mode,blindness_options=blindness_options),participants=(target,),include_rulings=True)
         return self._approach(c,target,reach,movement_mode=movement_mode,blindness_options=blindness_options)
 
     def _approach(self, c, target, reach=1, *, movement_mode=None, blindness_options=None, action_owner=None, maximum_distance=None):
@@ -5182,6 +5579,7 @@ class Engine:
         budget=CAPABILITIES.movement_limit(c,budget)
         if maximum_distance is not None:budget=min(budget,maximum_distance)
         occ = self.occupied(c)
+        commander_passers=__import__('commander_orders').passers(self,c)
         goal_ok = lambda p: BODY.can_place(self,c,p) and BODY.in_range(self,c,target,reach,left_position=p)
         # 너비 우선 탐색 (비용 가중: 둔화 지형 2)
         import heapq
@@ -5205,7 +5603,7 @@ class Engine:
                     q = (p[0] + dx, p[1] + dy)
                     import map_terrain as TERRAIN
                     probe=TUNNELS.at_origin(self,c,p)
-                    if not TERRAIN.can_travel(self,probe,q,mode,capability_actor=c,movement_mode=movement_mode) or not BODY.can_place(self,probe,q,origin=p):
+                    if not TERRAIN.can_travel(self,probe,q,mode,capability_actor=c,movement_mode=movement_mode) or not BODY.can_place(self,probe,q,origin=p,ignore_actors=commander_passers):
                         continue
                     step,next_diagonals=MOVEMENT.step_cost(p,q,parity)
                     cost = step + MOVEMENT.slow_terrain_penalty(self, c, q, mode,step=step)
@@ -5240,21 +5638,9 @@ class Engine:
         return {'distance':spent,'position':c.pos,'mode':mode}
 
     # ---------- 포획 ----------
-    def capture_rate(self, target, rarity=0):
+    def capture_rate(self, target, rarity=0, *, source_variant=None, hp=None):
         import capture_resolution as CAPTURE
-        _, selected = CAPTURE.bind_native(self.r)
-        cr = selected["capture_rate"]
-        rate = cr["base"] + M.ratio(target.level,10) * cr["per_10_levels"] + rarity
-        boxes = 0
-        ctx = {"hp": target.hp, "max_hp": target.base_max_hp, "injuries": target.injuries,
-               "status": any(self.r.condition_class(s) in ("persistent","volatile") for s in target.conditions), "evo": target.spec.get("evolutions_remaining", 0)}
-        for cb in cr["checkboxes"]:
-            hit = {"hp_le_50": ctx["hp"] <= 0.5 * ctx["max_hp"], "hp_le_25": ctx["hp"] <= 0.25 * ctx["max_hp"],
-                   "injuries_ge_5": ctx["injuries"] >= 5, "any_status": ctx["status"],
-                   "two_evolutions_left": ctx["evo"] == 2, "one_evolution_left": ctx["evo"] == 1}[cb["id"]]
-            if hit:
-                boxes += cb["boxes"]
-        return rate - boxes * cr["checkbox_penalty"], boxes
+        return CAPTURE.rate(self,target,rarity,source_variant=source_variant,hp=hp)
 
     def capture_rate_superseded(self, target, hp_fraction, demo_hp_penalty=25):
         """구판(1d100): 데모 재현용. 100 - 2×레벨 - (체력 75%↑: 30, 데모 25) + (진화 2단계 남음: 10) + 5×부상."""
@@ -5268,7 +5654,7 @@ class Engine:
 
     @ACTION.resolved_native("trainer","pokemon/capture-rate","capture")
     @BALL_BODY.atomic_throw
-    def throw_ball(self, trainer, target, ball_name="몬스터볼", rarity=0, *, fixed_accuracy=None, fixed_capture=None, accuracy_roll_id=None, collector_choice=None, fixed_reroll=None, cannon_instance_id=None, type_manual_instance_id=None, physical_instance_id=None, snare_conversion=None):
+    def throw_ball(self, trainer, target, ball_name="몬스터볼", rarity=0, *, fixed_accuracy=None, fixed_capture=None, accuracy_roll_id=None, collector_choice=None, fixed_reroll=None, cannon_instance_id=None, type_manual_instance_id=None, physical_instance_id=None, snare_conversion=None, capture_source=None, curve_ball=False, suppression_case=None, gotta_swap=None,bounce=None):
         """Native capture attempt; retain the actual thrown ball for GM recovery/repair.
         ch05:684-710, ch09:7-17. Damage is a separate observed fact, not an
         automatic consequence assigned to every unsuccessful capture.
@@ -5291,18 +5677,20 @@ class Engine:
         LEAGUE.check_boundary(self, 'throw_ball')
         HEAVY.ensure_clear(self)
         import capture_resolution as CAPTURE
-        procedure, cr = CAPTURE.bind_native(self.r)
+        procedure, cr = CAPTURE.bind_native(self.r,capture_source)
+        import capture_specialist as SPECIALIST
+        combo = SPECIALIST.combo_allowed(self,trainer,target)
         if not TURN.can_act(self, trainer):
             return False
         if trainer.kind != 'trainer' or target.kind != 'pokemon':
             raise ValueError('capture needs a trainer and a Pokemon target')
-        if target.fainted or target.hp <= 0 or target.dead or target.captured or target.side == "party" or target.spec.get('trainer_id') or target.spec.get('trainer'):
+        if ((target.fainted or target.hp <= 0) and not combo) or target.dead or target.captured or target.side == "party" or target.spec.get('trainer_id') or target.spec.get('trainer'):
             self.log(f"    {target.name}: 기절했거나 이미 주인이 있어 포획 불가", "pokemon/capture-rate")
             return False
         import captured_momentum as MOMENTUM
-        momentum_plan = MOMENTUM.capture_plan(self,trainer)
+        momentum_plan = MOMENTUM.capture_plan(self,trainer,capture_source)
         if fixed_accuracy is not None: CHECKS.integer(fixed_accuracy,'capture accuracy d20',1,20)
-        if fixed_capture is not None: CHECKS.integer(fixed_capture,'capture d20',1,20)
+        if fixed_capture is not None: CHECKS.integer(fixed_capture,'capture die',1,procedure.sides)
         if fixed_reroll is not None: CHECKS.integer(fixed_reroll,'collector reroll d20',1,20)
         collector=POKEMON_ACTIVITIES.collector_eligible(self,trainer,collector_choice is not None or fixed_reroll is not None)
         choice_callback=collector_choice if callable(collector_choice) else None
@@ -5336,19 +5724,24 @@ class Engine:
         else:
             # Consult source selection even when the numerical policy is known.
             self.r._selected_rule('item/'+name)
+        bounce_plan=None if bounce is None else __import__('juggler').bounce_plan(self,trainer,target,bounce)
+        if bounce_plan is not None and cannon is not None:raise ValueError('Bounce Shot requires the actual hand-thrown ball')
         maximum=cannon['range_m'] if cannon is not None else throwing_range(self,trainer,category='poke_ball')
-        if cheb(trainer.pos,target.pos)>maximum:
+        range_position=target.pos if bounce_plan is None else tuple(bounce_plan['landing'])
+        if cheb(trainer.pos,range_position)>maximum:
             self.log(f'    {target.name}: 볼 투척 사거리 {maximum}m 밖 → 포획 불가','pokemon/capture-rate')
             return False
-        rate,boxes=self.capture_rate(target,rarity)
+        rate,boxes=self.capture_rate(target,rarity,source_variant=capture_source,hp=1 if combo else None)
         physical_plan=BALL_BODY.prepare(self,trainer,name,inventory_key,physical_instance_id,cannon)
-        bonus=max([b for lv,b in cr['trainer_bonus_by_level'].items() if trainer.level>=int(lv)],default=0)
-        bmod,bwhy=ITEMS.ball_modifier(self,name,trainer,target)
+        bonus=-trainer.level if procedure.sides==100 else max([b for lv,b in cr['trainer_bonus_by_level'].items() if trainer.level>=int(lv)],default=0)
+        bmod,bwhy=CAPTURE.ball_modifier(self,name,trainer,target,procedure)
         import wild_equipment as WILD
-        snare_bonus=WILD.snare_bonus(self,trainer,target,conversion=snare_conversion)
+        snare_bonus=WILD.snare_bonus(self,trainer,target,conversion=snare_conversion,source_variant=capture_source)
         import net_capsule as NET
-        net_bonus=NET.capture_bonus(self,target)
-        tools_accuracy=WILD.tools_bonus(self,trainer,'accuracy')
+        net_bonus=NET.capture_bonus(self,target)*(-5 if procedure.sides==100 else 1)+SPECIALIST.net_modifier(self,target,procedure)
+        tools_accuracy=SPECIALIST.tools_accuracy(self,trainer,'cap_cannon' if cannon is not None else 'ball') if __import__('capture_techniques')._rows(trainer) else WILD.tools_bonus(self,trainer,'accuracy')
+        curve_plan=SPECIALIST.ball_plan(self,trainer,curve_ball=curve_ball,suppression_case=suppression_case,standard=not combo,physical_plan=physical_plan)
+        SPECIALIST.gotta_preflight(self,trainer,procedure,gotta_swap)
         new_family=POKEMON_ACTIVITIES.collector_new_family(self,trainer,target) if collector else False
         import pokemon_party as POKEMON_PARTY
         placement_plan=POKEMON_PARTY.preflight_capture(self,trainer,target)
@@ -5358,7 +5751,7 @@ class Engine:
         ball={'id':'ball','name':ball_name,'class':'변화','ac':cr['throw']['ac'],'type':'노말'}
         import confusion_attacks as CONFUSION
         CONFUSION.preflight(self,trainer,ball)
-        if not TURN.spend(self,trainer,'standard',ball_name):return False
+        if not combo and not TURN.spend(self,trainer,'standard',ball_name):return False
         if cannon is not None:CSV_ITEMS.fire_cannon(self,trainer,cannon_instance_id,ball_instance_id=cannon['ball_instance_id'])
         attempts=trainer.spec.setdefault('capture_attempts',{})
         serial=trainer.spec.get('capture_attempt_serial',0)+1
@@ -5366,6 +5759,7 @@ class Engine:
         attempt_id='capture-'+str(serial)
         record={'id':attempt_id,'item':inventory_key,'ball_kind':'poke_ball','target':target.spec.get('id',target.name),'hit':False,'captured':False,'status':'thrown','source':'pokemon/capture-rate'}
         attempts[attempt_id]=record
+        record.update(capture_source=capture_source,action='free' if combo else 'standard')
         if snare_conversion is not None:
             record['snare_conversion']={'authority':'gm_ruling','source':'input/ch04-trainer-classes.md:405-407','book_modifier':-10,'procedure':{'source':procedure.source,'sides':procedure.sides,'comparison':procedure.comparison},'attempt_id':attempt_id,'request':dict(snare_conversion),'applied_modifier':snare_bonus}
         actual_ball=BALL_BODY.launch(self,trainer,target,record,physical_plan)
@@ -5375,6 +5769,7 @@ class Engine:
             import world_entities as WORLD
             WORLD._set_object_location(self._physical_objects[cannon['ball_instance_id']],{'kind':'grid','cell':list(target.pos)})
         if type_manual_instance_id is not None:record['type_manual']={'instance_id':type_manual_instance_id,'bonus':manual_bonus,'source':'C2CSV/inventory:70:1'}
+        __import__('juggler').capture_launch(self,trainer,target,record,actual_ball,bounce_plan)
         CONFUSION.observe_action(self,trainer,ball)
         accuracy_options={'situational':tools_accuracy+(cannon['accuracy_bonus'] if cannon is not None else 0)}
         if fixed_accuracy is not None:accuracy_options['fixed_roll']=fixed_accuracy
@@ -5383,20 +5778,32 @@ class Engine:
         record.update(hit=hit,accuracy_natural=nat,tools_accuracy=tools_accuracy)
         if not hit:
             record['status']=procedure.miss_state
+            __import__('juggler').capture_function(self,trainer,record,actual_ball,hit=False)
             BALL_BODY.miss(self,trainer,record)
             return False
+        SPECIALIST.ball_hit(self,trainer,target,record,curve_plan)
+        if (target.fainted or target.hp<=0) and not combo:
+            record.update(status='ball_function_not_activated',target_fainted=True)
+            __import__('juggler').capture_function(self,trainer,record,actual_ball,hit=True)
+            return False
+        rate,boxes=self.capture_rate(target,rarity,source_variant=capture_source,hp=1 if combo else None)
         if cannon is not None:
-            projectile_damage,faces=self.roll_expr(cannon['fixed_damage'])
+            projectile_damage,faces=self.roll_expr(cannon['fixed_damage'],actor=trainer,purpose='damage')
             self.take_damage(target,projectile_damage)
             record['cannon']['damage']={'expression':'2d6','faces':faces,'requested':projectile_damage}
-            rate,boxes=self.capture_rate(target,rarity)
-            if target.fainted or target.dead:
+            if (target.fainted or target.dead) and not combo:
                 record['status']=procedure.miss_state
                 record['cannon']['target_fainted']=True
                 return False
+            rate,boxes=self.capture_rate(target,rarity,source_variant=capture_source,hp=1 if combo else None)
         momentum_bonus = MOMENTUM.capture(self,trainer,target,record,momentum_plan)
-        natural=fixed_capture if fixed_capture is not None else self.d20()
+        natural=fixed_capture if fixed_capture is not None else POOLS.die(self.rng,procedure.sides)
+        if procedure.sides==20:
+            natural=__import__('oracle').replace_d20(self,trainer,natural,'capture')
+            natural=__import__('roll_context').observe_native(self,trainer,'capture',natural,lambda faces:POOLS.die(self.rng,20,fixed=None if faces is None else faces[0]))
         original=natural
+        natural,gotta_bonus=SPECIALIST.gotta_roll(self,trainer,natural,procedure,gotta_swap)
+        accuracy_capture_bonus=-10 if procedure.sides==100 and nat==20 else 0
         import fashion_items as FASHION
         fashion_roll_modifier=FASHION.all_roll_modifier(trainer)
         if choice_callback:
@@ -5415,18 +5822,20 @@ class Engine:
         collector_bonus=0
         if choice['cost']:
             trainer.spec['collector_stacks']-=choice['cost']
-            if choice['kind']=='reroll':natural=fixed_reroll if fixed_reroll is not None else self.d20()
+            if choice['kind']=='reroll':natural=self.roll_d20(trainer,'capture_reroll',fixed=fixed_reroll)
             else:collector_bonus=choice['cost']
         record['collector']={'choice':choice['kind'],'spent':choice['cost'],'original_natural':original,'bonus':collector_bonus,'earned':0,'choice_rejected':record.pop('collector_choice_rejected',None)}
         resolution=procedure.resolve(natural,threshold=rate,modifiers={
             'trainer':bonus,'ball':bmod,'collector':collector_bonus,'snare':snare_bonus,
-            'net':net_bonus,'fashion':fashion_roll_modifier,'type_manual':manual_bonus,'captured_momentum':momentum_bonus})
+            'net':net_bonus,'fashion':fashion_roll_modifier,'type_manual':manual_bonus,'captured_momentum':momentum_bonus,
+            'gotta':gotta_bonus,'accuracy_natural20':accuracy_capture_bonus})
         roll=resolution['total'];ok=resolution['captured']
         record['resolution']=resolution
         record.update(captured=ok,capture_natural=natural,capture_total=roll,capture_dc=rate,
                       snare_bonus=snare_bonus,net_bonus=net_bonus,
                       fashion_roll_modifier=fashion_roll_modifier,status=resolution['status'])
-        self.log(f"    포획 굴림 1d20{bonus:+d}{bmod:+d}[{bwhy}] = {roll} vs 포획률 {rate} (체크박스 {boxes}개) → {'포획!' if ok else '실패'}", "pokemon/capture-rate")
+        __import__('juggler').capture_function(self,trainer,record,actual_ball,hit=True)
+        self.log(f"    포획 굴림 1d{procedure.sides}{bonus:+d}{bmod:+d}[{bwhy}] = {roll} vs 포획률 {rate} (체크박스 {boxes}개) → {'포획!' if ok else '실패'}", "pokemon/capture-rate")
         if ok:
             WORLD.finish_physical_use(self,actual_ball,'consumed',
                 {'source':record['physical_item'],'by_actor_id':trainer.entity_id,'at':self.elapsed_seconds})
@@ -5446,11 +5855,21 @@ class Engine:
             caught=trainer.spec.setdefault('caught_species',[])
             if target.spec.get('species') and target.spec['species'] not in caught:caught.append(target.spec['species'])
             MOMENTUM.after_capture(self,trainer,target,record)
+        else:SPECIALIST.escaped(self,trainer,target,record)
         return ok
 
-    def choose_captured_momentum(self, actor, *, attempt_id, choice, target=None, conversion=None, composition=None, ap_policy=None):
+    def choose_captured_momentum(self, actor, *, attempt_id, choice, target=None, conversion=None, composition=None, ap_policy=None,capture_source=None):
         import captured_momentum as MOMENTUM
-        return MOMENTUM.choose(self,actor,attempt_id=attempt_id,choice=choice,target=target,conversion=conversion,composition=composition,ap_policy=ap_policy)
+        return MOMENTUM.choose(self,actor,attempt_id=attempt_id,choice=choice,target=target,conversion=conversion,composition=composition,ap_policy=ap_policy,capture_source=capture_source)
+
+    def devitalizing_throw(self,actor,**options):
+        return __import__('capture_specialist').devitalize(self,actor,**options)
+
+    def fast_pitch(self,actor,target,ball_name='몬스터볼',**options):
+        return __import__('capture_specialist').fast_pitch(self,actor,target,ball_name,**options)
+
+    def use_capture_tool(self,actor,target,object_id,**options):
+        return __import__('capture_specialist').use_tool(self,actor,target,object_id,**options)
 
     def use_motivated(self, actor, instance_id, stat):
         import cheerleader as CHEER
@@ -5595,6 +6014,7 @@ class Engine:
         penalties = CHECKS.dice(fixed_penalties,penalty_count) if fixed_penalties is not None else None
         return rank_name,expr,n,faces,penalties,resolved
 
+    @__import__('roll_context').native_choices
     def skill_roll(self, c, skill, mods=0, helper_rank=0, fixed=None, *, penalty_count=0, fixed_penalties=None, roll_id=None, helper_bonus=None, feature=None, feature_options=None, skill_context=None, skill_stunt=None, skill_target=None):
         import skill_feature_actions as SF
         import blessing_skill_features as BLESSINGS
@@ -5603,7 +6023,7 @@ class Engine:
         if feature_options is not None:raise ValueError('feature options require a selected feature')
         rank_name,expr,n,faces,penalties,resolved=self._prepare_skill_roll(c,skill,mods,helper_rank,fixed,penalty_count=penalty_count,fixed_penalties=fixed_penalties,roll_id=roll_id,helper_bonus=helper_bonus,skill_context=skill_context,skill_stunt=skill_stunt,skill_target=skill_target)
         prepared=(rank_name,expr,n,faces,penalties,resolved)
-        faces = tuple(POOLS.pool(self.rng, resolved['dice_count'], fixed=faces)['faces'])
+        faces=tuple(POOLS.pool(self.rng,resolved['dice_count'],fixed=faces)['faces'])
         faces = BLESSINGS.ADVANCED.apply_faces(
             self,c,faces,resolved['blessing_skill_plan'])
         penalties = tuple(POOLS.pool(self.rng, penalty_count, fixed=penalties)['faces'])
@@ -5614,6 +6034,14 @@ class Engine:
             import researcher_features as RF
             result=RF.PokemonSkillRoll(n,faces,mods,helper_rank,penalties,helper_bonus,resolved['dice_count'])
         else:result=CHECKS.SkillRoll(n,faces,mods,helper_rank,penalties,helper_bonus)
+        def reroll_native_skill(replacement):
+            from dataclasses import replace
+            count=resolved['dice_count']
+            all_faces=POOLS.pool(self.rng,count+penalty_count,fixed=replacement)['faces']
+            new_faces=tuple(BLESSINGS.ADVANCED.apply_faces(self,c,tuple(all_faces[:count]),resolved['blessing_skill_plan']))
+            return replace(result,faces=new_faces,penalties=tuple(all_faces[count:]))
+        result=__import__('roll_context').observe_native(self,c,'skill',result,reroll_native_skill)
+        faces,penalties=result.faces,result.penalties
         BLESSINGS.ADVANCED.finish(self,c,resolved['blessing_skill_plan'])
         AP_ROLL.complete(self,c,roll_id,'skill')
         SF.observe(self,c,skill,result,prepared,options)
@@ -5792,6 +6220,9 @@ class Engine:
     def queue_initiative_reactions(self, candidates, **declaration):
         import initiative_interrupts as INTERRUPTS
         return INTERRUPTS.queue(self,candidates,**declaration)
+
+    def use_ambush(self, actor, target, move_id, *, ability, weapon_id=None):
+        return __import__('priority_actions').use(self,actor,target,move_id,ambush=ability,weapon_id=weapon_id)
 
     def use_priority_move(self, actor, target, move_id, *, shocking_speed=None):
         import priority_actions as PRIORITY_ACTIONS

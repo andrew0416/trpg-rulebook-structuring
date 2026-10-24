@@ -19,7 +19,7 @@ COMBATANT_FIELDS = ["airborne","weapon", "_ap_bound_effects", "last_target", "_t
                     "_diagonal_steps", "_regular_shift_movement_used", "_item_reg", "_passive_acc", "_passive_eva", "movement", "budget", "pending_action_loss", "aoo_used", "_round_marker",
                     "status_immune", "weather_immune", "keyword_immune", "move_immune"]
 ENGINE_FIELDS = ["_roll_policy_requests", "_roll_context_requests", "_execution_trace_enabled", "_execution_trace_sequence", "_execution_traces", "_source_policy_requests", "_source_policy_executions", "_source_policy_sequence", "_weather_templates","_weather_state","_mega_state","_encounter_actors", "_partial_entities", "_world_facts", "_world_relation_receipts", "_campaign_reward_policy","_campaign_reward_events","_league_outcomes","_pokemon_setting_policy","_pokemon_intelligence_policy","_effect_dispatch_receipts","_effect_dispatch_sequence","_skill_sequences","_precision_events","_precision_sequence","_initiative_cursor","_burrow_tunnels","ground_items", "_physical_objects", "_ap_rolls", "_extended_checks", "_root_common_receipts", "_passive_driver_result", "_passive_sequence", "_passive_listeners", "_passive_events", "_passive_receipts", "_passive_pending", "_league_runtime", "_turn_closures", "everyone", "_heavy_native_receipts", "_heavy_activation_sequence", "_heavy_driver_result", "_heavy_standard_receipts", "_heavy_standard_sequence", "_heavy_sequence", "_heavy_events", "_heavy_pending", "_heavy_resolution_history", "_active_turn_actor", "_ordinary_turn_rounds", "_action_grants", "session_frequency", "defer_session_refresh", "session_id", "pending_session_id", "session_ids_seen", "session_epoch", "encounter_active", "round_no", "elapsed_seconds", "round_start_seconds", "unresolved_time_intervals", "_time_actors", "death_enabled", "friendly_battle", "weather", "weather_rounds", "field", "hazards", "hazards_nogrid", "zone_cells", "zones", "taunt", "delayed", "zone_rules", "condition_params"]
-ENGINE_FIELDS.extend(("_initiative_schedule", "_initiative_interrupts"))
+ENGINE_FIELDS.extend(("_initiative_schedule", "_initiative_interrupts", "_initiative_extra_turns"))
 ENGINE_FIELDS.append("_campaign_injury_policy")
 ENGINE_FIELDS.append('_ground_flight_option')
 ENGINE_FIELDS.append('_hp_loss_policy')
@@ -51,6 +51,7 @@ ENGINE_FIELDS.append("_grapple_state")
 ENGINE_FIELDS.append("_pass_moves")
 ENGINE_FIELDS.append('_taskmaster_gambit')
 ENGINE_FIELDS.append('_free_order_scope')
+ENGINE_FIELDS.append('_commander_order_scope')
 ENGINE_FIELDS.extend(('_smoke_regions','_smoke_region_sequence'))
 COMBATANT_FIELDS.extend(("_mounted_riders","_mount_movement"))
 COMBATANT_FIELDS.append('_equipment_transport_body')
@@ -710,14 +711,14 @@ class GMState:
     def send_out(self, c, pos=None, reason=""):
         import combat_state_lifecycle as COMBAT_STATE,state_grants as GRANTS
         before=c.on_field
-        GRANTS.transition(self.e,c,lambda staged,actual:COMBAT_STATE.send_out(staged,actual,pos=pos),include_grid=self.e.grid is not None)
+        GRANTS.transition(self.e,c,lambda staged,actual:COMBAT_STATE.send_out(staged,actual,pos=pos,source_id='gm/send-out'),include_grid=self.e.grid is not None)
         self._rec("등장",before,True,reason,c)
 
     def add_combatant(self, c, pos=None, side=None, reason=""):
         import world_entities as WORLD
         import state_grants as GRANTS
         WORLD.actor_index(self.e, (c,))
-        STATE_FIELDS.validate_actor(c)
+        STATE_FIELDS.validate_base(c.spec)
         if side is not None and (not isinstance(side, str) or not side.strip()):
             raise ValueError("side requires explicit nonempty text")
         def apply(staged_engine, staged_c):
@@ -729,6 +730,8 @@ class GMState:
                 if staged_c not in roster:
                     roster.append(staged_c)
             staged_engine.register_abilities(staged_c)
+            # A newly imported sheet gets its while-owned projections here.
+            STATE_FIELDS.validate_actor(staged_c)
         GRANTS.transition(self.e, c, apply)
         for roster in (self.everyone, self.e.everyone):
             if c not in roster:

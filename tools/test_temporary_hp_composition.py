@@ -43,10 +43,13 @@ class TemporaryHPCompositionTests(unittest.TestCase):
         configured['composition']['additive_lifetime'] = None
         self.enterContext(patch.object(self.rules, '_temporary_hp_policy', configured))
 
-    def world(self, *, feats=(CHEF.CLASS, CHEF.ACCENTUATED), lunch=True, liked=True):
+    def world(self, *, feats=(CHEF.CLASS, CHEF.ACCENTUATED), lunch=True, liked=True, stored_foods=False):
+        abilities = ['도시락통 [Playtest]'] if lunch else []
+        if stored_foods:
+            abilities.append(FOOD.CORE_GLUTTONY)
         world = FIX.scene(self.rules, feats=feats,
             pokemon_nature=FIX.nature_for(self.rules, '짠맛', 'liked') if liked else None,
-            abilities=['도시락통 [Playtest]'] if lunch else [])
+            abilities=abilities)
         return world['engine'], world['chef'], world['partner'], world['foe']
 
     def buy(self, engine, actor, item):
@@ -213,7 +216,7 @@ class TemporaryHPCompositionTests(unittest.TestCase):
     def test_selected_default_keeps_native_lunchbox_and_chef_ages_fifo_and_restored_expiry(self):
         for override in (None, 'refresh_pool'):
             with self.subTest(override=override):
-                engine, chef, actor, foe = self.world()
+                engine, chef, actor, foe = self.world(stored_foods=True)
                 if override is not None:
                     self.choice(engine, 'additive_lifetime', override)
                 batch = FIX.cook(engine, chef, recipe='tasty_snack', snack='짠맛 서프라이즈')

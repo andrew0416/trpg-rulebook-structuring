@@ -28,6 +28,22 @@ class FossilTests(unittest.TestCase):
  def hatch(self,row,**options):return self.e.hatch_restored_fossil(self.a,row['entity_id'],**dict({'name':'restored child','ready':True,'reason':'actual observed birth','details':self.details()},**options))
  def snap(self):return dump_engine(self.e)
  def default(self,**options):return self.restore(self.policy(0),inputs=None,**options)
+ def test_shared_armor_definition_keeps_species_birth_member_and_native_receipt(self):
+  import ability_transitions as ABILITIES,move_state as MOVES
+  for label in ('조가비갑옷','Shell Armor'):
+   with self.subTest(label=label):
+    self.setUp();egg=self.default()['egg'];details=self.details();before=self.snap()
+    for invalid in ('전투무장','Battle Armor','ability/조가비갑옷-전투무장'):
+     with self.assertRaisesRegex(ValueError,'outside.*species Basic'):
+      self.hatch(egg,details=dict(details,abilities=[invalid]))
+     self.assertEqual(self.snap(),before)
+    child=self.hatch(egg,details=dict(details,abilities=[label]))['pokemon']
+    self.assertEqual(child.abilities,[label])
+    self.assertEqual(ABILITIES.ability_id(self.r,label),'ability/조가비갑옷-전투무장')
+    self.assertEqual(MOVES.ability_registration(self.r,label)['acquisition_identity'],'조가비갑옷')
+    self.assertIn('조가비갑옷/전투무장',child.spec['state_grants']['ability_receipts'])
+    loaded=load_engine(self.r,json.loads(json.dumps(self.snap(),ensure_ascii=False)))
+    self.assertEqual(W.actor_index(loaded)[child.entity_id].abilities,[label])
  def test_actual_material_work_wait_and_declared_birth_produce_one_native_child(self):
   before=self.snap();plan=self.e.plan_fossil_restoration(self.a,self.fossil['entity_id'],self.policy(),inputs={'matrix':{'option':0,'scrap_value':100}},reason='observed actual restoration')
   self.assertEqual(before,self.snap());self.assertEqual(plan['species'],'pokemon/암나이트')

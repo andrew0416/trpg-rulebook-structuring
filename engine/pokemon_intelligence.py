@@ -89,8 +89,9 @@ def assign(e,actor,*,target,skills,reason):
   if sid not in SOCIAL|EDUCATION or sid in normalized:raise ValueError('distinct campaign social or education skills required')
   if eligibility(e,target,name) is not True:raise ValueError('campaign skill eligibility required')
   if type(value) is int:
-   if not 1<=value<=6:raise ValueError('ordinary assigned rank must be one through six')
-  elif not isinstance(value,str) or re.fullmatch(r'[1-6]d6(?:[+-][0-9]+)?',value) is None:raise ValueError('concrete Pokemon dice pool required')
+   ranks,_=S._declared_ranks(e.r)
+   if value not in {row['rank'] for row in ranks.values()}:raise ValueError('assigned rank must have an explicit selected rank declaration')
+  elif not isinstance(value,str) or re.fullmatch(r'[1-9][0-9]*d6(?:[+-][0-9]+)?',value) is None:raise ValueError('concrete Pokemon dice pool required')
   normalized[sid]=(name,value)
  updated=deepcopy(target.spec.get('skills',{}))
  for sid,(name,value) in normalized.items():

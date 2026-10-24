@@ -50,6 +50,15 @@ def damage_hit(e,actor,target,move,event,facts,damage):
     event.update(result="hit_prevented" if facts.get("hit_prevented") else "damaging_hit",
                  hit_prevented=facts.get("hit_prevented"),nullification=facts.get("nullification"),resolved_damage=damage)
 
+def gain_injury(e,c,amount,source):
+    """The actual gain boundary, before count-dependent injury consumers."""
+    amount=__import__('ace_trainer').prevent_injury(e,c,amount,source)
+    before=c.injuries
+    c.injuries+=amount
+    if amount:injury(e,c,amount,source)
+    return c.injuries-before
+
+
 def injury(e,c,amount,source):
     import campaign_injury_policy as CAMPAIGN
     import injury_recovery as INJURY
@@ -58,6 +67,7 @@ def injury(e,c,amount,source):
     if retained>0:
         _record(e,c,"injury",source,amount=retained)
         __import__('type_ace').gravel(e,c,'actual_injury')
+        __import__('sage').injury(e,c,retained,source)
 
 def clear(e):e._precision_events.clear()
 

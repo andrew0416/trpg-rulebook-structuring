@@ -381,7 +381,7 @@ def damage_base_bonus(engine,actor,move,target=None):
 def validate_bonus_observation(actor,record,event):
  import re,type_state as TYPES
  if not isinstance(event,dict) or event.get('kind')!='bonus_damage':raise ValueError('actual extra damage observation required')
- TYPES.validate_types(actor.r,[event.get('move_type')],label='actual extra damage type')
+ TYPES.validate_attack(actor.r,event.get('move_type'))
  payload=record['effect'];expr=payload['by_type'].get(event['move_type'],payload['default'])
  if event.get('expression')!=expr:raise ValueError('extra damage expression changed from source')
  m=re.fullmatch(r'(\d+)d(\d+)\+(\d+)',expr);faces=event.get('faces')

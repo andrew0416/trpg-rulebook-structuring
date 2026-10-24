@@ -138,6 +138,7 @@ def _remove(e,actor,*,method='standard',fixed=None,minutes=None,reason=None):
  if not TURN.spend(e,actor,'standard','네트 제거'):return False
  import duelist as DUELIST
  natural=11 if DUELIST.choose_eleven(e,actor,'net_escape') else fixed if fixed is not None else e.d20()
+ natural=__import__('oracle').replace_d20(e,actor,natural,'net_escape')
  food_bonus=FOOD.save_bonus(e,actor,'네트')
  import fashion_items as FASHION
  fashion_bonus=FASHION.consume_save_bonus(e,actor)

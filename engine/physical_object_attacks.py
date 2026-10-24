@@ -85,7 +85,9 @@ def _move(engine, actor, move_id):
 def _permission(engine, actor, obj, move, mm, *, pass_scope=None, tool_scope=None):
     import move_activation as ACTIVATION
     kind=ACTIVATION.paid_move_permission(engine,actor,obj,move,mm)
-    allowed_conditions={'combat_turn_serial','temporary_hp_lifetime'}
+    # Every ordinary turn installs this window flag; actual status/ability
+    # compositions remain guarded below.
+    allowed_conditions={'combat_turn_serial','temporary_hp_lifetime','blessing_ignore_turn_open'}
     if pass_scope is not None:
         import forced_move_lock as FORCED
         import conditional_damage_base as CONDITIONAL
@@ -168,7 +170,7 @@ def attack(engine, actor, object_id, move_id, *, event_id, hit, damage_before_dr
             row['confusion']=CONFUSION.finish_native(e,c,move,confusion,producer='physical',event_id=event_id)
             row['receipt_hash']=_hash({k:v for k,v in row.items() if k!='receipt_hash'})
         return deepcopy(row)
-    return GRANTS.transition(engine,actor,apply)
+    return GRANTS.transition(engine,actor,apply,include_grid=bool(obj.get('telekinetic_barrier')) and engine.grid is not None)
 
 
 def _pay_move(e,c,move,kind,*,unavailable_message='physical attack action unavailable'):
@@ -189,7 +191,7 @@ def _apply_damage(e,c,target,move,policy,kind,event_id,intent,*,pass_event=None,
         material=TOOLS.material_policy(e,target,tool_attack)
     else:material=MATERIALS.damage_policy(e,target,move,policy)
     effects=policy['mechanics'].get('effects_exec',[])
-    calculation=_calculation(profile,intent['hit'],intent['damage_before_dr'],material,effects=effects)
+    calculation=_calculation(profile,intent['hit'],intent['damage_before_dr'],material,effects=effects,multiplier=__import__('telekinetic').barrier_multiplier(e,target,move))
     after=_hp_after(before,calculation,effects)
     row=dict(event_id=event_id,intent=deepcopy(intent),move_id=move['id'],move_type=move['type'],
              damage_class=move['class'],action_kind=kind,at=e.elapsed_seconds,
@@ -214,10 +216,11 @@ def pass_recipient(e,c,uid,move,policy,*,scope,event_id,intent,kind):
     return deepcopy(_apply_damage(e,c,target,move,policy,kind,event_id,intent,pass_event=scope['event_id']))
 
 
-def _calculation(profile, hit, damage, material=None, *, effects=()):
+def _calculation(profile, hit, damage, material=None, *, effects=(),multiplier=1):
     if not hit or not damage or material is not None and not material['allowed']:return None
     import effects_ext as EXT
     reduction=material['reduction'] if material is not None else profile['reduction']
+    damage=__import__('arithmetic_policy').product(damage,multiplier)
     return DAMAGE.defend(dice=damage,attack=0,modifiers=0,defense=0,
         reduction=EXT.reduction_after_ignore(reduction,list(effects)),minimum=profile['minimum_damage'])
 
@@ -297,7 +300,7 @@ def validate_world(engine, index=None):
                 CONFUSION.validate_native(index[intent['actor_id']],reviewed['definition'],row['confusion'],
                     producer='tool' if tool_policy is not None else 'physical',event_id=event)
             effects=reviewed['mechanics'].get('effects_exec',[]) if reviewed else []
-            calculation=_calculation(profile,intent['hit'],intent['damage_before_dr'],expected_material,effects=effects)
+            calculation=_calculation(profile,intent['hit'],intent['damage_before_dr'],expected_material,effects=effects,multiplier=__import__('telekinetic').barrier_multiplier(engine,obj,engine.r.move(row['move_id'])))
             if row['calculation']!=calculation or row['hp_after']!=_hp_after(hp,calculation,effects):
                 raise ValueError('physical attack damage calculation mismatch')
             _integer(row['hp_after'],'physical HP');_integer(row['applied_damage'],'physical damage')

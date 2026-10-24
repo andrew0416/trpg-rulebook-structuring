@@ -452,7 +452,7 @@ def accuracy_face(engine,attacker,target,move,mm,face,*,modifier,ac,evasion,auto
   return face
  AP.spend(attacker,plan['cost'])
  F.consume_activation(attacker,_surprise_key(target),SURPRISE_QUOTA,engine=engine)
- second=engine.d20()
+ second=engine.roll_d20(attacker,'surprise_accuracy_reroll')
  results=[HIT.resolve(natural=n,modifier=modifier,accuracy=ac,evasion=evasion,automatic=automatic,cannot_hit=cannot_hit or None,
   auto_miss_natural=ac_rule['auto_miss_natural'],auto_hit_natural=ac_rule['auto_hit_natural'])['hit'] for n in (face,second)]
  chosen=face if results[0] and not results[1] else second if results[1] and not results[0] else max(face,second)

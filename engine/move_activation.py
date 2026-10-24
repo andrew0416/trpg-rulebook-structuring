@@ -204,6 +204,7 @@ def verify(e,actor,target,move_id,activation,accuracy,*,count_use,free_action):
    raise ValueError('paid resolution lost its actual native declaration')
  ace=s.get('type_ace',{})
  extra=bool(index==0 and (ace.get('extra_move') or s.get('martial_artist',{}).get('extra_move')))
+ extra=extra or bool(index==0 and __import__('hex_maniac').free_activation(e,actor,target,move_id))
  expected_use=index==0 and prepaid is None and not paid and not(extra and ace.get('ignore_frequency'))
  if free_action is not extra or count_use is not expected_use:raise ValueError('shared activation cannot alter its cost/frequency boundary')
  if accuracy is not None and tuple(accuracy.get('targets',()))!=s['targets']:raise ValueError('shared target set changed')

@@ -18,6 +18,9 @@ class Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         BASE.Tests.setUpClass();PASS_TEST.Tests.setUpClass();TOOL_TEST.Tests.setUpClass();FIRE_TEST.Tests.setUpClass()
+        from engine import Rules
+        fixture=BASE.FIXTURE.Tests
+        fixture.r=Rules(fixture.r.root,ruleset='core-confusion-feb2016')
         cls.base=BASE.Tests();cls.pass_test=PASS_TEST.Tests();cls.tool_test=TOOL_TEST.Tests();cls.fire_test=FIRE_TEST.Tests()
 
     def confuse(self,e,a):e.apply_status(a,'혼란');e.rng.seed(1)

@@ -51,7 +51,7 @@ def validate(c):
     basis=st.get('daily_basis','day')
     if basis not in ('day','session'):raise ValueError('unknown daily frequency basis')
     if basis=='session':count(st.get('session'),'frequency session')
-    for row in mapping(st.get('moves'),'move occurrence ledger').values():
+    for row in [*mapping(st.get('moves'),'move occurrence ledger').values(),*mapping(st.get('restored_move_occurrences',{}),'restored actual Move occurrences').values()]:
         if not isinstance(row,dict):raise ValueError('move occurrence must be a mapping')
         for key in ('day','scene','turn'):
             count(row.get(key),'move occurrence '+key)
@@ -83,6 +83,10 @@ def validate(c):
     for value in mapping(st.get('lifetime_activations',{}),'lifetime receipts').values():
         count(value,'lifetime usage')
         if value>1:raise ValueError('invalid lifetime activation receipt')
+    for row in st.get('move_forfeitures',[]):
+        if type(row)is not dict or set(row)!={'source','move_id','kind','period','day','at_seconds','sha256'} or row['source']!='feat/힘의-전달' or row['kind'] not in ('scene','daily'):raise ValueError('reviewed Move-use forfeiture required')
+        if row['sha256']!=__import__('resolution_transaction').request_fingerprint({k:v for k,v in row.items() if k!='sha256'}):raise ValueError('Move-use forfeiture evidence changed')
+        count(row['at_seconds'],'forfeiture time');count(row['day'],'forfeiture day')
     pending=st.get('session_move_refresh_pending',[])
     if not isinstance(pending,list) or any(not isinstance(x,str) or not x.strip() for x in pending) or len(set(pending))!=len(pending):
         raise ValueError('pending move restoration requires distinct source IDs')
@@ -252,6 +256,8 @@ def refresh_session(engine,c):
 
 
 def move_frequency(engine,mid,c=None):
+    created=__import__('coordinator').innovation_instance(engine.r,mid)
+    if created and created['template']==3 and __import__('coordinator').source(engine.r,created['source_contract'],__import__('coordinator').INNOVATION)['innovation3_frequency']=='turn':return 'turn',1
     if c is not None:
         import move_permissions as PERMISSIONS
         c=PERMISSIONS.frequency_owner(engine,c,mid)
@@ -312,6 +318,7 @@ def move_allowed(engine,c,mid,*,outside_combat=None):
             return False,'장면 기술은 연속된 턴에 반복 사용 불가'
     if kind=='daily' and last.get('scene')==st['scene']:
         return False,'일일 기술은 한 장면에 한 번'
+    if kind=='turn' and last.get('scene')==st['scene'] and last.get('turn')==st['turn']:return False,'한 턴에 한 번'
     if kind=='every_other_turn':
         if outside_combat is not True:
             # Use turn identity, not last_move: taking another action or waiting
@@ -356,7 +363,7 @@ def end_scene(engine,c):
     AP.end_scene(c,request_id='scene:'+str(getattr(engine,'session_epoch',0))+':'+str(st['scene']))
     st['scene']+=1
     for mid in list(c.move_uses):
-        if mid in engine.r.moves and move_frequency(engine,mid,c)[0]!='daily':
+        if (mid in engine.r.moves or __import__('coordinator').innovation_instance(engine.r,mid) is not None) and move_frequency(engine,mid,c)[0]!='daily':
             c.move_uses.pop(mid,None)
     c.spec['move_uses']=dict(c.move_uses)
     c.last_move=None
@@ -518,7 +525,7 @@ def restore_daily_moves(engine,c,center=False,*,request_id=None):
         observed=[]
         for mid in c.move_uses:
             if mid not in engine.r.moves or move_frequency(engine,mid,c)[0]!='daily':continue
-            last=st['moves'].get(mid)
+            last=last_spent_move_day(c,mid)
             observed.append({'move_id':mid,'last_use':deepcopy(last),'current_day':st['day'],
                              'eligible':bool(eligible(last)),
                              **({'current_session':st.get('session',0),'session_observed':'session' in (last or {})}
@@ -527,7 +534,7 @@ def restore_daily_moves(engine,c,center=False,*,request_id=None):
     def commit():
         for mid in list(c.move_uses):
             if mid not in engine.r.moves or move_frequency(engine,mid,c)[0]!='daily':continue
-            last=st['moves'].get(mid)
+            last=last_spent_move_day(c,mid)
             if eligible(last):
                 c.move_uses.pop(mid,None)
                 if mid in st.get('session_move_refresh_pending',[]):st['session_move_refresh_pending'].remove(mid)
@@ -543,7 +550,9 @@ def restore_daily_moves(engine,c,center=False,*,request_id=None):
 def restore_all_moves(c):
     c.move_uses.clear()
     c.spec['move_uses']={}
-    state(c)['moves'].clear()
+    st=state(c)
+    st.setdefault('restored_move_occurrences',{}).update(deepcopy(st['moves']))
+    st['moves'].clear()
     state(c).pop('session_move_refresh_pending',None)
     c.last_move=None
 
@@ -595,6 +604,7 @@ def restore_scene_use(engine,c,mid):
     c=P.frequency_owner(engine,c,mid)
     if move_frequency(engine,mid,c)[0]!='scene':raise ValueError('Scene Move restoration required')
     st=state(c);c.move_uses[mid]=max(0,c.move_uses.get(mid,0)-1);c.spec['move_uses']=dict(c.move_uses)
+    if mid in st['moves']:st.setdefault('restored_move_occurrences',{})[mid]=deepcopy(st['moves'][mid])
     st['moves'].pop(mid,None)
 
 
@@ -604,3 +614,41 @@ def restore_eot(engine,c,mid):
     if move_frequency(engine,mid,c)[0]!='every_other_turn':raise ValueError('EOT Move restoration required')
     state(c)['moves'].pop(mid,None)
     if c.last_move==mid:c.last_move=None
+
+
+def forfeited_uses(c,mid):
+    st=state(c)
+    return sum(1 for row in st.get('move_forfeitures',[]) if row['move_id']==mid and row['period']==activation_period(st,row['kind']))
+
+
+def preflight_forfeit_move(engine,c,mid,*,source):
+    import move_permissions as P
+    if source!='feat/힘의-전달' or engine.r._selected_rule(source)!=source:raise ValueError('reviewed Move-use forfeiture source required')
+    owner=P.frequency_owner(engine,c,mid);validate(owner)
+    kind,cap=move_frequency(engine,mid,c)
+    if mid not in c.moves or kind not in ('scene','daily'):raise ValueError('actual known Scene or Daily Move required')
+    if owner.move_uses.get(mid,0)>=cap:raise ValueError('donor Move uses exhausted')
+    return owner,kind
+
+
+def forfeit_move(engine,c,mid,*,source):
+    owner,kind=preflight_forfeit_move(engine,c,mid,source=source)
+    bind_session(engine,owner);st=state(owner)
+    row={'source':source,'move_id':mid,'kind':kind,'period':deepcopy(activation_period(st,kind)),'day':st['day'],'at_seconds':engine.elapsed_seconds}
+    row['sha256']=__import__('resolution_transaction').request_fingerprint(row)
+    st.setdefault('move_forfeitures',[]).append(row)
+    owner.move_uses[mid]=owner.move_uses.get(mid,0)+1;owner.spec['move_uses']=dict(owner.move_uses)
+    return deepcopy(row)
+
+
+def scene_move_was_used(c,mid):
+    st=state(c)
+    return any(row is not None and row['scene']==st['scene'] for row in
+        (st['moves'].get(mid),st.get('restored_move_occurrences',{}).get(mid)))
+
+
+def last_spent_move_day(c,mid):
+    st=state(c);last=st['moves'].get(mid)
+    days=([last['day']] if last else [])+[r['day'] for r in st.get('move_forfeitures',[]) if r['move_id']==mid]
+    if not days:return None
+    return deepcopy(last) if last is not None and last['day']==max(days) else {'day':max(days),'basis':'move_use_forfeiture'}

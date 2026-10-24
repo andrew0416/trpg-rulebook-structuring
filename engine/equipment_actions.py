@@ -113,7 +113,7 @@ def _held_pending(row,requested):
 def _pair_pending(row):
     remaining=[c for c in row['pair'] if row['pair_selections'].get(c.entity_id)=='pending']
     row.update(phase='exchange_selection',chooser=remaining[0])
-    row['pending']=C.PendingDecision('Each affected holder selects one actual held instance for this exchange',basis={'choice_id':row['id'],'source':row['source'],'chooser_id':row['chooser'].entity_id,'options':ITEMS.equipment_options(row['chooser'],('held',))})
+    row['pending']=C.PendingDecision('Each affected holder selects one actual instance for this exchange',basis={'choice_id':row['id'],'source':row['source'],'chooser_id':row['chooser'].entity_id,'options':ITEMS.equipment_options(row['chooser'],row['slots'])})
     return row['pending']
 
 
@@ -121,13 +121,14 @@ def exchange_dispatch(e,actor,first,second,effect,ctx,*,swap=True):
     source=ctx['source_id'];require_source(e,source,effect)
     parent_target=ctx['target'];occurrence=ctx['effect_occurrence']
     CONTRACTS.validate_receipt(e,ctx['effect_receipt'],source,occurrence,actor,parent_target,effect)
-    pair=(first,second);options=[ITEMS.equipment_options(c,('held',)) for c in pair]
+    slots=('held','장신구') if source==__import__('warper').TRICK and __import__('warper').acquired(actor,__import__('warper').GROUND) else ('held',)
+    pair=(first,second);options=[ITEMS.equipment_options(c,slots) for c in pair]
     selections={c.entity_id:None if not choices or not swap and c is second else choices[0]['key'] if len(choices)==1 else 'pending' for c,choices in zip(pair,options)}
-    row={'id':occurrence,'receipt':ctx['effect_receipt'],'source':source,'effect':deepcopy(effect),'actor':actor,'target':parent_target,'chooser':actor,'mode':'exchange','pair':list(pair),'swap':swap,'pair_options':options,'pair_selections':selections,'actor_held':deepcopy(HELD.entries(actor)),'slots':('held',),'options':[],'boundary':CONTRACTS.boundary(e,actor,parent_target),'profile':CONTRACTS.source_profile(e,source),'status':'awaiting_input','declaration':None}
+    row={'id':occurrence,'receipt':ctx['effect_receipt'],'source':source,'effect':deepcopy(effect),'actor':actor,'target':parent_target,'chooser':actor,'mode':'exchange','pair':list(pair),'swap':swap,'pair_options':options,'pair_selections':selections,'actor_held':deepcopy(HELD.entries(actor)),'slots':slots,'options':[],'boundary':CONTRACTS.boundary(e,actor,parent_target),'profile':CONTRACTS.source_profile(e,source),'status':'awaiting_input','declaration':None}
     if 'pending' in selections.values():
         actor.custom_conditions.setdefault(RECORDS,{})[occurrence]=row
         return _pair_pending(row)
-    holdings=[(c,ITEMS.selected_equipment(c,selections[c.entity_id],('held',))) for c in pair if selections[c.entity_id] is not None]
+    holdings=[(c,ITEMS.selected_equipment(c,selections[c.entity_id],slots)) for c in pair if selections[c.entity_id] is not None]
     protections=[(c,PROTECTION.status(e,c,item,'exchange' if swap else 'give')) for c,item in holdings]
     if any(x['status']=='blocked' for c,x in protections):
         import fashionista as FASHIONISTA
@@ -136,7 +137,7 @@ def exchange_dispatch(e,actor,first,second,effect,ctx,*,swap=True):
         ctx['equipment_result']={'changed':False,'blocked_by':[x for c,x in protections if x['status']=='blocked']};return None
     requiring=list(dict.fromkeys(c for c,x in protections if x['status']=='needs_consent'))
     if not requiring:
-        ctx['equipment_result']=ITEMS.exchange_items(e,first,second,swap=swap,first_selection=selections[first.entity_id],second_selection=selections[second.entity_id]);return None
+        ctx['equipment_result']=ITEMS.exchange_items(e,first,second,swap=swap,first_selection=selections[first.entity_id],second_selection=selections[second.entity_id],slots=slots);return None
     row.update(phase='removal_consent',requested_declaration={},permission_holders=requiring,permissions={c.entity_id:None for c in requiring})
     actor.custom_conditions.setdefault(RECORDS,{})[occurrence]=row
     return _consent_pending(row)
@@ -164,7 +165,7 @@ def resolve(e,chooser,choice_id,*,selection=None,choice=None,accept=None,consent
     require_source(e,row['source'],row['effect'])
     CONTRACTS.validate_receipt(e,row['receipt'],row['source'],row['id'],actor,target,row['effect'])
     if CONTRACTS.boundary(e,actor,target)!=row['boundary'] or CONTRACTS.source_profile(e,row['source'])!=row['profile']:raise ValueError('equipment choice source or lifetime changed')
-    if mode=='exchange':unchanged=[ITEMS.equipment_options(c,('held',)) for c in row['pair']]==row['pair_options']
+    if mode=='exchange':unchanged=[ITEMS.equipment_options(c,row['slots']) for c in row['pair']]==row['pair_options']
     else:
         options=ITEMS.equipment_options(target,row['slots'])
         if mode!='incinerate':options=[x for x in options if PROTECTION.status(e,target,x,'drop' if mode=='drop' else 'transfer')['status']!='blocked']
@@ -190,7 +191,7 @@ def resolve(e,chooser,choice_id,*,selection=None,choice=None,accept=None,consent
         selection=selected['key'] if mode in ('drop','steal') else None
     elif phase=='exchange_selection':
         if selection is None or any(x is not None for x in (choice,accept,consent)):raise ValueError('choose one actual exchange instance')
-        selected=ITEMS.selected_equipment(chooser,selection,('held',));row['pair_selections'][chooser.entity_id]=selected['key']
+        selected=ITEMS.selected_equipment(chooser,selection,row['slots']);row['pair_selections'][chooser.entity_id]=selected['key']
         if 'pending' in row['pair_selections'].values():return _pair_pending(row)
         row['phase']='selected';selection=None
     elif consent is not None:raise ValueError('consent requires actual pending holder decision')
@@ -209,7 +210,7 @@ def resolve(e,chooser,choice_id,*,selection=None,choice=None,accept=None,consent
         row['drop_keys']=[x['key'] for x in drops]
         removals=[(target,x,'drop') for x in drops] if choice=='drop' else []
     elif mode=='exchange':
-        removals=[(c,ITEMS.selected_equipment(c,row['pair_selections'][c.entity_id],('held',)),'exchange' if row['swap'] else 'give') for c in row['pair'] if row['pair_selections'][c.entity_id] is not None]
+        removals=[(c,ITEMS.selected_equipment(c,row['pair_selections'][c.entity_id],row['slots']),'exchange' if row['swap'] else 'give') for c in row['pair'] if row['pair_selections'][c.entity_id] is not None]
     else:
         if type(accept) is not bool or selection is not None or choice is not None:raise ValueError('triggered Free action requires accept or decline')
         if accept and _dual_choice(target,row['options']) and row.get('selected_key') is None:return _held_pending(row,declaration)
@@ -237,7 +238,7 @@ def resolve(e,chooser,choice_id,*,selection=None,choice=None,accept=None,consent
         elif mode=='steal':result=ITEMS.transfer_equipment(staged,other,actual,selection,slots=row['slots'],consent_by=consent_by)
         elif mode=='exchange':
             first,second=saved['pair'];selected=saved['pair_selections']
-            result=ITEMS.exchange_items(staged,first,second,swap=saved['swap'],consent_by=consent_by,first_selection=selected[first.entity_id],second_selection=selected[second.entity_id])
+            result=ITEMS.exchange_items(staged,first,second,swap=saved['swap'],consent_by=consent_by,first_selection=selected[first.entity_id],second_selection=selected[second.entity_id],slots=saved['slots'])
         elif mode=='incinerate':
             if choice=='drop':result=ITEMS.drop_equipment(staged,other,saved['drop_keys'],slots=row['slots'],consent_by=consent_by,source=row['source'])
             else:

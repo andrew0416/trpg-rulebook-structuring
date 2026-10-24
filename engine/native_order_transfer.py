@@ -63,12 +63,19 @@ def instance_id(record,holder):
     raise ValueError('Order handoff needs its actual source-owned instance identity')
 
 
-def plan_ids(engine,outgoing,incoming,*,scope='orders'):
-    preflight(engine,outgoing,incoming,scope=scope)
-    return live_ids(outgoing,scope=scope)
+def plan_ids(engine,outgoing,incoming,*,scope='orders',identifiers=None):
+    preflight(engine,outgoing,incoming,scope=scope,identifiers=identifiers)
+    return live_ids(outgoing,scope=scope,engine=engine,identifiers=identifiers)
 
 
-def live_ids(outgoing,*,scope='orders'):
+def _general(engine,actor,scope,identifiers=None):
+    import commander_orders as COMMANDER
+    rows=COMMANDER.live(engine,actor) if engine is not None else [row for row in COMMANDER.records(actor) if not row['ended']]
+    return [row for row in rows if (scope=='orders' or row['feature']==COMMANDER.BRACE)
+            and (identifiers is None or row['id'] in identifiers)]
+
+
+def live_ids(outgoing,*,scope='orders',engine=None,identifiers=None):
     import training_features as TRAINING,cheerleader as CHEER
     import class_passive_combat as CLASS,combat_precision_features as PINPOINT
     state=CLASS._state(outgoing);sustains={} if state is None else state['sustains']
@@ -77,7 +84,8 @@ def live_ids(outgoing,*,scope='orders'):
     if scope=='orders':rows.extend([*timed,*[row for row in TRAINING.records(outgoing) if row.get('mode')=='orders'],
           *[row for row in CHEER.live(outgoing) if row['source']==CHEER.GO_FIGHT_WIN]])
     if pinpoint:rows.append(pinpoint)
-    return [instance_id(row,outgoing) for row in rows]
+    rows.extend(_general(engine,outgoing,scope,identifiers))
+    return [instance_id(row,outgoing) for row in rows if identifiers is None or instance_id(row,outgoing) in identifiers]
 
 
 def _open_turn(engine,actor):
@@ -146,6 +154,7 @@ def _clock_plan(engine,outgoing,incoming,record):
         return {'phase':'active','shift':0,'deadline':anchor['turn_serial'],'anchor':deepcopy(anchor)}
     deadline=None
     if record.get('turn_owner') is outgoing:deadline=record.get('turn_deadline')
+    if record.get('turn_owner_id')==outgoing.entity_id and record.get('lifetime')=='next_turn_end':deadline=record['deadline']
     policy=record.get('lifetime_policy')
     if policy is not None and record.get('lifetime_target') is outgoing:
         until=policy.get('until',{})
@@ -159,10 +168,12 @@ def _clock_plan(engine,outgoing,incoming,record):
     return {'phase':'active','shift':0,'deadline':deadline,'anchor':_open_turn(engine,outgoing)}
 
 
-def plan_clocks(engine,outgoing,incoming,*,scope='orders'):
-    result={identity:{'phase':'independent','shift':0} for identity in plan_ids(engine,outgoing,incoming,scope=scope)}
+def plan_clocks(engine,outgoing,incoming,*,scope='orders',identifiers=None):
+    result={identity:{'phase':'independent','shift':0} for identity in plan_ids(engine,outgoing,incoming,scope=scope,identifiers=identifiers)}
     if scope=='orders':
-        for record in _timed(outgoing):result[instance_id(record,outgoing)]=_clock_plan(engine,outgoing,incoming,record)
+        for record in _timed(outgoing):
+            if identifiers is None or instance_id(record,outgoing) in identifiers:result[instance_id(record,outgoing)]=_clock_plan(engine,outgoing,incoming,record)
+    for record in _general(engine,outgoing,scope,identifiers):result[instance_id(record,outgoing)]=_clock_plan(engine,outgoing,incoming,record)
     return result
 
 
@@ -279,15 +290,33 @@ def _timed(actor):
     return [row for row in TIME.records(actor) if row.get('source') in sources or 'go_fight_win_use' in row or row.get('optional_clause_id')=='ERRATA-056']
 
 
-def preflight(engine,outgoing,incoming,*,scope='orders'):
+def require_supported_orders(outgoing):
+    admitted={id(row) for row in _timed(outgoing)}
+    for row in TIME.records(outgoing):
+        unit=outgoing.r.selection.units.get(row.get('source'),{})
+        if id(row) not in admitted and not row.get('grant_source','').startswith('training-order:') and any('지시' in tag or tag=='Orders' for tag in unit.get('tags',[])):
+            # Brace's consumed Standard/Status benefit is not its sustained Stratagem.
+            if 'commander_brace_dr' in row:continue
+            raise ValueError('live Order source requires its exact native transfer adapter: '+str(row.get('source')))
+
+
+def preflight(engine,outgoing,incoming,*,scope='orders',identifiers=None):
     import class_passive_combat as CLASS,combat_precision_features as PINPOINT
     import training_features as TRAINING
     if scope not in ('orders','stratagems'):raise ValueError('reviewed Baton transfer scope required')
-    if scope=='orders':TRAINING.preflight_transfer(engine,outgoing,incoming)
+    if scope=='orders':TRAINING.preflight_transfer(engine,outgoing,incoming,identifiers=identifiers)
     state=CLASS._state(outgoing)
-    sustains={} if state is None else state['sustains']
+    sustains={} if state is None else {uid:row for uid,row in state['sustains'].items()
+        if identifiers is None or instance_id(row,outgoing) in identifiers}
     pinpoint=PINPOINT.binding(engine,outgoing)
-    if sustains or pinpoint:CLASS._require_stratagem_slot(incoming)
+    if pinpoint and identifiers is not None and instance_id(pinpoint,outgoing) not in identifiers:pinpoint=None
+    general=_general(engine,outgoing,scope,identifiers)
+    import commander_orders as COMMANDER
+    if sustains or pinpoint or any(row['feature']==COMMANDER.BRACE for row in general):CLASS._require_stratagem_slot(incoming)
+    for row in general:
+        if any(other['feature']==row['feature'] for other in COMMANDER.live(engine,incoming)):
+            raise ValueError('replacement already has the source-owned general Order')
+        origin_id(row,outgoing);_clock_plan(engine,outgoing,incoming,row)
     for uid,row in sustains.items():
         CLASS._active(engine,outgoing,uid)
         _check_source(outgoing,incoming,row['instance'])
@@ -296,7 +325,8 @@ def preflight(engine,outgoing,incoming,*,scope='orders'):
     import chronicler as CHRONICLE,survivalist_class as GUIDE,duelist as DUELIST
     import conquerors_march as MARCH,fashionista as DRESS
     exclusive={CHRONICLE.PROFILING,GUIDE.GUIDE,MARCH.FEATURE,DRESS.DRESS}
-    for row in _timed(outgoing):
+    timed=[row for row in _timed(outgoing) if identifiers is None or instance_id(row,outgoing) in identifiers]
+    for row in timed:
         # Preserve the source adapters' actual occupancy rules.
         if any(other['source']==row['source'] and (row['source'] in exclusive or
                row['source']==DUELIST.MANUAL and other.get('duelist_mode')==row.get('duelist_mode'))
@@ -318,23 +348,20 @@ def preflight(engine,outgoing,incoming,*,scope='orders'):
                     _check_source(outgoing,incoming,sid)
         for key in [row.get('grant_source')]:
             if key:_check_source(outgoing,incoming,key)
-    admitted={id(row) for row in _timed(outgoing)}
-    for row in TIME.records(outgoing):
-        unit=engine.r.selection.units.get(row.get('source'),{})
-        if id(row) not in admitted and not row.get('grant_source','').startswith('training-order:') and any('지시' in tag or tag=='Orders' for tag in unit.get('tags',[])):
-            raise ValueError('live Order source requires its exact native transfer adapter: '+str(row.get('source')))
-    return sustains,pinpoint,_timed(outgoing)
+    if identifiers is None:require_supported_orders(outgoing)
+    return sustains,pinpoint,timed
 
 
-def transfer(engine,outgoing,incoming,*,source,recall_id,scope='orders'):
+def transfer(engine,outgoing,incoming,*,source,recall_id,scope='orders',identifiers=None):
     import class_passive_combat as CLASS,combat_precision_features as PINPOINT
     import training_features as TRAINING
-    sustains,pinpoint,timed=preflight(engine,outgoing,incoming,scope=scope)
+    sustains,pinpoint,timed=preflight(engine,outgoing,incoming,scope=scope,identifiers=identifiers)
     clocks={instance_id(row,outgoing):_clock_plan(engine,outgoing,incoming,row) for row in timed}
-    moved=TRAINING.transfer(engine,outgoing,incoming,source=source,recall_id=recall_id) if scope=='orders' else []
+    moved=TRAINING.transfer(engine,outgoing,incoming,source=source,recall_id=recall_id,identifiers=identifiers) if scope=='orders' else []
     import cheerleader as CHEER,effect_instances as INSTANCES
     for row in list(CHEER.live(outgoing)) if scope=='orders' else []:
         if row['source']!=CHEER.GO_FIGHT_WIN:continue
+        if identifiers is not None and instance_id(row,outgoing) not in identifiers:continue
         observe(engine,outgoing,incoming,row,source,recall_id)
         INSTANCES.transfer(engine,outgoing,incoming,row,source=source)
         outgoing.spec[CHEER.KEY].remove(row);incoming.spec.setdefault(CHEER.KEY,[]).append(row)
@@ -345,7 +372,7 @@ def transfer(engine,outgoing,incoming,*,source,recall_id,scope='orders'):
         row['target_id']=incoming.entity_id
         receiving=CLASS._state(incoming,create=True)
         receiving['serial']=max(receiving['serial'],CLASS._state(outgoing)['serial'])
-        receiving['sustains'][uid]=sustains.pop(uid)
+        receiving['sustains'][uid]=CLASS._state(outgoing)['sustains'].pop(uid)
         moved.append(row['instance'])
     if pinpoint:
         observe(engine,outgoing,incoming,pinpoint,source,recall_id)
@@ -375,6 +402,11 @@ def transfer(engine,outgoing,incoming,*,source,recall_id,scope='orders'):
         TIME.records(outgoing).remove(row)
         incoming.custom_conditions.setdefault(TIME.KEY,[]).append(row)
         moved.append(instance_id(row,incoming))
+    import commander_orders as COMMANDER
+    general=_general(engine,outgoing,scope,identifiers)
+    general_clocks={row['id']:_clock_plan(engine,outgoing,incoming,row) for row in general}
+    moved.extend(COMMANDER.transfer_baton(engine,outgoing,incoming,[row['id'] for row in general],
+        source=source,recall_id=recall_id,scope=scope,clocks=general_clocks))
     engine.time_actors([incoming])
     # Source and lifetime must be placed together before Manual's Ability reader runs.
     for actor in (outgoing,incoming):
@@ -388,9 +420,10 @@ def validate_world(engine,index):
         state=CLASS._state(holder)
         import training_features as TRAINING
         import cheerleader as CHEER
+        import commander_orders as COMMANDER
         rows=[*_timed(holder),*holder.custom_conditions.get('effect_lifetime_history',[]),
               *CHEER.live(holder),*CHEER.history(holder),
-              *[row for row in TRAINING.records(holder) if row.get('mode')=='orders']]
+              *[row for row in TRAINING.records(holder) if row.get('mode')=='orders'],*COMMANDER.records(holder)]
         if state:rows.extend(state['sustains'].values())
         if PINPOINT.KEY in holder.custom_conditions:rows.append(holder.custom_conditions[PINPOINT.KEY])
         for row in rows:
@@ -418,4 +451,10 @@ def validate_world(engine,index):
                     if policy is not None and (row.get('lifetime_target') is not owner
                             or policy['started_turns']['target']+policy['until']['after']!=expected):
                         raise ValueError('Order lifetime lost its actual target-turn boundary')
+            if row in COMMANDER.records(holder):
+                clock=row[KEY]['events'][-1]['clock']
+                if clock['phase'] in ('pending','active'):
+                    owner=clock_owner(engine,holder,row)
+                    if row['turn_owner_id']!=owner.entity_id or row['deadline']!=clock.get('to_deadline',clock.get('deadline')):
+                        raise ValueError('general Order lost its actual target-turn boundary')
     return True

@@ -28,6 +28,15 @@ def owned(actor,name):
 
 
 def prepare(engine,actor,move,choice=None):
+ created=move.get('innovation_instance')
+ if created and created['template']==3 and move.get('id')!='struggle':
+  import coordinator as COORDINATOR
+  if COORDINATOR.innovation_instance(engine.r,move['id'])!=created:raise ValueError('actual Innovation Struggle identity changed')
+  COORDINATOR.validate_spec(engine.r,actor.spec)
+  original_id=move['id'];out=prepare(engine,actor,dict(move,id='struggle'),choice)
+  # Native targets retain their live identities across repeated preparation.
+  if '_actual_targets' in move:out['_actual_targets']=move['_actual_targets']
+  return dict(out,id=original_id)
  import telekinetic_combat as TK
  if (move.get(TK.STRUGGLE_MARKER) is not None or
      isinstance(choice,dict) and S.key(choice.get('capability')) in {S.key(x) for x in ('염력','Telekinetic',TK.SOURCE)}):

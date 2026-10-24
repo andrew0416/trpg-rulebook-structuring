@@ -120,6 +120,10 @@ def effect_loss(engine, attacker, target, recipient, effect, context, amount):
     entry=engine._effect_dispatch_receipts[token]
     if entry['status']!='dispatching' or 'attack_hp_loss' in entry:
         raise ValueError('one actual dispatched HP-loss occurrence required')
+    substitute=__import__('substitute').receive_damage(engine,attacker,target,move,amount)
+    if substitute is not None:
+        entry['substitute_hp_loss']=deepcopy(substitute)
+        return
     def apply(staged,actual,source_actor):
         before=DAMAGE.observe(actual)
         staged.lose_hp(actual,amount,source=move['id'],unpreventable=effect.get('unpreventable') is True)
@@ -151,13 +155,14 @@ def validate_actor(actor):
             raise ValueError('attack history needs an attacker')
         C.integer(row['round'], 'attack round', 0)
         C.integer(row['at'], 'attack time', 0)
-        TYPES.validate_types(actor.r, [row['move_type']])
+        TYPES.validate_attack(actor.r, row['move_type'])
         receipt = row['receipt']
         expected = DAMAGE.application(**{k: receipt[k] for k in
             ('requested', 'before', 'after', 'source', 'damage_class')})
         import special_entities as SPECIAL
         instance=SPECIAL.prime_instance(actor.r,receipt['source'])
-        valid_source=receipt['source'] in actor.r.moves or (instance is not None and instance['host_id']==row['attacker_id'])
+        innovation=__import__('coordinator').innovation_instance(actor.r,receipt['source'])
+        valid_source=receipt['source'] in actor.r.moves or (instance is not None and instance['host_id']==row['attacker_id']) or (innovation is not None and innovation['template']==3)
         if receipt != expected or not valid_source:
             raise ValueError('attack observation changed')
     return True
@@ -206,7 +211,7 @@ def apply_smite(engine, attacker, target, move, amount, actual_type):
     elif target not in completion['targets'] or target.entity_id not in completion['started']:
         raise ValueError('Smite damage requires its actual started recipient')
     C.integer(amount, 'Smite damage', 0)
-    TYPES.validate_types(engine.r, [actual_type])
+    TYPES.validate_attack(engine.r, actual_type)
     before = DAMAGE.observe(target)
     with _application_scope(engine, attacker, target, move) as token, damage_source(engine, target, move):
         engine.take_damage(target, amount)

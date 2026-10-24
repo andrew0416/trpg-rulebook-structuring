@@ -22,7 +22,7 @@ def explicit_level(actor):
     """Return the selected affliction level after Blindsense immunity."""
     if _blindsense(actor):
         return "none"
-    conditions = {ALIASES.get(name, name) for name in actor.conditions}
+    conditions = {ALIASES.get(name, name) for name in __import__('blessing_effects').effective_conditions(actor)}
     if TOTAL in conditions:
         if actor.r._selected_rule(SOURCE_TOTAL) != SOURCE_TOTAL:
             raise ValueError("selected Total Blindness needs its own policy")

@@ -34,6 +34,8 @@ def faint(engine,c):
     import stat_exchange_state as STAT_EXCHANGE
     STAT_EXCHANGE.validate_actor(c)
     c.conditions.add('기절')
+    __import__('juggler').event(engine,'faint',c,source_id='condition/기절')
+    __import__('perception_communicate').boundary(engine,'faint',c)
     import bide as BIDE
     BIDE.clear(engine,c)
     import duelist as DUELIST

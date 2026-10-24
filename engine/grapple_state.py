@@ -387,7 +387,7 @@ def action(e,actor,kind,*,challenger_skill=None,defender_skill=None,challenger_o
                 EXT.on_enter_cell(staged,a,destination,previous_position=origin)
             _end(staged,current,'capability_escape');result=dict(success=True,ended=True)
         else:
-            if not TURN.spend(staged,a,__import__('martial_artist').grapple_action_cost(staged,a),SOURCE+'/'+kind):return False
+            if not (kind=='attack' and current.get('native_attack')) and not TURN.spend(staged,a,__import__('martial_artist').grapple_action_cost(staged,a),SOURCE+'/'+kind):return False
             result=dict(success=True,relation_id=uid,action=kind)
             if kind=='end':_end(staged,current,'dominant_release')
             elif kind=='secure':
@@ -395,12 +395,23 @@ def action(e,actor,kind,*,challenger_skill=None,defender_skill=None,challenger_o
                 current['secure'][a.entity_id]=current['policy']['secure_bonus']+(old if current['policy']['secure_stacking']=='add' else 0);_save(current)
             elif kind=='attack':
                 import precise_actions as PRECISE
-                move=staged.r.move('struggle');event=PRECISE.attacked(staged,a,b,move,producer='combat_maneuver')
-                PRECISE.accuracy(event,True)
+                move=staged.r.move('struggle');pending=current.get('native_attack')
+                if pending is None:
+                    event=PRECISE.attacked(staged,a,b,move,producer='combat_maneuver');PRECISE.accuracy(event,True)
+                    current['native_attack']={'actor_id':a.entity_id,'target_id':b.entity_id,'precision_id':event['id'],'history_index':len(current['history']),'round':staged.round_no,'phase':'defense','intent':deepcopy(intent)}
+                    _save(current)
+                else:
+                    if pending['intent']!=intent or pending['round']!=staged.round_no or pending['actor_id']!=a.entity_id or pending['target_id']!=b.entity_id:raise ValueError('actual paid grapple Attack intent changed')
+                    event=next(row for row in staged._precision_events if row['id']==pending['precision_id'])
+                # Only an actually armed defense needs its selected native adapter.
+                dodge_watch=any(request['source']=='ability/회피' for request in b.spec.get('move_defense_watch',{}).get('requests',[]))
+                if dodge_watch:__import__('move_defense_reactions').native_dodge(staged,event,{'kind':'grapple','relation_id':uid,'history_index':len(current['history'])})
+                current=_state(staged)['relations'][uid];current['native_attack']['phase']='damage';_save(current)
                 import gleeful_interference as GLEEFUL
                 gleeful=GLEEFUL.snapshot(staged,a,b,move)
-                observation={}
-                result['damage']=staged.resolve_attack_damage(a,b,move,crit=False,_precision_event=event,_damage_observation=observation)
+                observation={'hit_prevented':True} if event['result']=='hit_prevented' else {}
+                result['damage']=0 if event['result']=='hit_prevented' else staged.resolve_attack_damage(a,b,move,crit=False,_precision_event=event,_damage_observation=observation)
+                result['attack']={'event_id':event['id'],'source':'struggle','actor_id':a.entity_id,'target_id':b.entity_id,'hit_prevented':bool(observation.get('hit_prevented')),'damage':result['damage']}
                 # An actual atomic damage delivery can replace relation dictionaries.
                 current=_state(staged)['relations'][uid]
                 if not observation.get('hit_prevented'):
@@ -410,7 +421,6 @@ def action(e,actor,kind,*,challenger_skill=None,defender_skill=None,challenger_o
                 if gleeful is not None and not observation.get('hit_prevented'):
                     origin={'kind':'grapple','relation_id':uid,'history_index':len(current['history'])}
                     result['gleeful']=GLEEFUL.issue(staged,gleeful,origin)
-                staged.check_fainted(b)
             elif kind=='drag':
                 import effects_ext as EXT
                 for pa,pb in plan:
@@ -419,10 +429,20 @@ def action(e,actor,kind,*,challenger_skill=None,defender_skill=None,challenger_o
                     EXT.on_enter_cell(staged,a,pa,previous_position=old_a);EXT.on_enter_cell(staged,b,pb,previous_position=old_b)
                     if current['status']!='active' or a.pos!=pa or b.pos!=pb:break
                 result.update(actor_position=a.pos,partner_position=b.pos)
+            current=_state(staged)['relations'][uid]
             entry=dict(action=kind,actor=a.entity_id,seconds=staged.elapsed_seconds)
             if 'roughneck' in result:entry['roughneck']=deepcopy(result['roughneck'])
             if 'gleeful' in result:entry['gleeful']=deepcopy(result['gleeful'])
-            current['history'].append(entry);_save(current)
+            if 'attack' in result:entry['attack']=deepcopy(result['attack'])
+            current['history'].append(entry);current.pop('native_attack',None);_save(current)
+            if kind=='attack':
+                history_index=len(current['history'])-1
+                import acquired_features as ACQUIRED,combat_timing as TIMING
+                if ACQUIRED.owned_rule_count(a,'feat/빠른-체조'):
+                    __import__('tumbler').after_grapple_attack(staged,uid,history_index)
+                if any(record.get('rogue_cruelty') for record in TIMING.records(b)):
+                    __import__('rogue').after_grapple_attack(staged,uid,history_index)
+                staged.check_fainted(b)
         boundary(staged)
         if request_id is not None:_state(staged)['requests'][request_id]=_sign(dict(intent=intent,result=deepcopy(result)))
         return result
@@ -455,3 +475,45 @@ def validate_world(e,index=None):
     for identity,actor in index.items():
         if actor.custom_conditions.get(MARK)!=active.get(identity):raise ValueError('orphaned grapple restriction')
     for request in state['requests'].values():_verify(request)
+
+
+def completed_attack_event(e,relation_id,history_index):
+    """Read one real automatic Struggle hit from the existing signed relation history."""
+    row=_state(e)['relations'].get(relation_id)
+    if row is None:raise ValueError('actual grapple relation required')
+    _verify(row);C.integer(history_index,'actual grapple history index',0,len(row['history'])-1)
+    entry=row['history'][history_index];proof=entry.get('attack')
+    if entry.get('action')!='attack' or not isinstance(proof,dict):raise ValueError('actual completed grapple Attack entry required')
+    event=next((record for record in e._precision_events if record['id']==proof['event_id']),None)
+    index=W.actor_index(e)
+    if (event is None or event.get('producer')!='combat_maneuver' or event['source']!='struggle' or proof['source']!='struggle'
+        or index.get(proof['actor_id']) is not event['actor'] or index.get(proof['target_id']) is not event['target']
+        or entry['actor']!=proof['actor_id'] or not {proof['actor_id'],proof['target_id']}<=set(row['participants'])
+        or event['result'] not in ('damaging_hit','hit_prevented') or bool(event.get('hit_prevented'))!=proof['hit_prevented']):
+        raise ValueError('grapple Attack history lost its actual native precision hit')
+    return event
+
+def record_attack_followup(e,relation_id,history_index,key,result):
+    """The same signed history owns per-consumer once-only results, not another attack ledger."""
+    completed_attack_event(e,relation_id,history_index)
+    if type(key)is not str or not key:raise ValueError('source followup identity required')
+    row=_state(e)['relations'][relation_id];entry=row['history'][history_index];records=entry.setdefault('attack_followups',{})
+    if key in records:
+        if records[key]!=result:raise ValueError('completed grapple followup cannot change')
+        return deepcopy(records[key])
+    records[key]=deepcopy(result);_save(row);return deepcopy(result)
+
+
+def ensure_attack_clear(e):
+    import initiative_interrupts as I
+    state=getattr(e,'_grapple_state',None)
+    if state is None:return
+    for row in state['relations'].values():
+        pending=row.get('native_attack')
+        if not pending or pending['phase']!='defense' or getattr(e,'_native_attack_defense_scope',None)==pending['precision_id']:continue
+        frame=I.frame(e)
+        if frame:
+            window=getattr(e,I.KEY)['windows'][frame['window_id']]
+            if window['trigger'].get('kind')=='native_accuracy' and window['trigger'].get('event_id')==pending['precision_id']:continue
+        if getattr(e,'_grapple_attack_resume',None)==(row['id'],pending['precision_id']):continue
+        raise ValueError('unfinished actual grapple Attack response must finish before another action')

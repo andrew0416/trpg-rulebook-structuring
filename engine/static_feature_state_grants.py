@@ -305,6 +305,9 @@ def _class_feature_count(actor, marker):
 
 
 def _plan_one(actor,cid,row):
+    # CSV513 is an independently accepted local Ability grant. A printed Core
+    # Farcast receipt instead owns its triggered Daily Feature.
+    if row.get('owner_id')==__import__('warper').FARCAST and __import__('warper').acquired(actor,__import__('warper').FARCAST):return None
     if row.get("mode") == "martial":
         import trainer_feature_acquisition as MARTIAL
         try:

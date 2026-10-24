@@ -36,7 +36,7 @@ def source_defense_steps(rules, attack, defenses):
     A defense-only source does not invent attacking Moves or unseen mixtures.
     Glass/Ground is explicitly a final table, including its Flying exception.
     """
-    if attack in (STELLAR, PERSONAL.TYPELESS):
+    if attack in ('None', STELLAR, PERSONAL.TYPELESS):
         return None
     # Personal Stellar defense is neutral; it does not change another type's chart.
     if PERSONAL.enabled(rules, 'ordinary_stellar'):
@@ -66,6 +66,7 @@ def source_stab_types(rules, ordinary):
 
 
 def validate_attack(rules, attack):
+    if attack == 'None':return
     if attack == PERSONAL.TYPELESS and PERSONAL.enabled(rules, 'typeless_tera'):
         return
     if attack == STELLAR:
@@ -89,7 +90,7 @@ def _extensions(rules):
     if not isinstance(custom, dict):
         raise ValueError("type_extensions must be an explicit profile mapping")
     for name, row in custom.items():
-        if not isinstance(name, str) or not name.strip() or name in CORE_TYPES + (GLITCH, "None", "스텔라"):
+        if not isinstance(name, str) or not name.strip() or name in CORE_TYPES + (GLITCH, "None", STELLAR, PERSONAL.TYPELESS, "??", "???"):
             raise ValueError("custom type identity conflicts with a reserved identity")
         if name in _defenders(rules):
             raise ValueError("custom type cannot replace a selected source type")
@@ -178,7 +179,7 @@ def validate_actor(actor):
 def matchup(rules, attack, defense):
     validate_attack(rules, attack)
     validate_types(rules, [defense], label="defending type")
-    if attack in (STELLAR, PERSONAL.TYPELESS) or defense == STELLAR:
+    if attack in ('None', STELLAR, PERSONAL.TYPELESS) or defense == STELLAR:
         return 1.0
     defenders = _defenders(rules)
     if defense in defenders:

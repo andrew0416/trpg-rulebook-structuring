@@ -5,7 +5,7 @@ import json,sys,unittest
 from unittest.mock import patch
 
 STAGE=Path(__file__).resolve().parents[1]
-ROOT=Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
+ROOT=STAGE
 sys.path[:0]=[str(STAGE/'engine'),str(ROOT/'engine')]
 from engine import Engine,Rules,Combatant
 from builder import build_pokemon,build_trainer

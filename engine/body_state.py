@@ -514,6 +514,7 @@ def flanking(engine,target):
     """
     result={'source':SPATIAL_SOURCE,'target_id':target.entity_id,'flanked':False,
             'required':None,'foes':[],'contributors':[],'pending':[],'evasion_penalty':0}
+    if __import__('tumbler').immune(target):return result
     if __import__('martial_artist').unflanked(target):return result
     seen=set();foes=[];unknown=set()
     for c in getattr(engine,'everyone',[]) or []:

@@ -144,7 +144,7 @@ def prepare(engine, participants, *, source, bindings=None, layout=None, procedu
                  'slots':staged_slots,'order':order,'layout':deepcopy(layout),
                  'steps':_layout(staged_slots,order,layout),'cursor':0,'open_slot':None,
                  'declarations':{},'records':[],'replacements':[],
-                 'initial_bindings':{key:{'actor':row['actor'],'role':row['role']} for key,row in staged_slots.items()}}
+                 'initial_bindings':{key:{'actor':row['actor'],'role':row['role']} for key,row in staged_slots.items()},'procedures':deepcopy(procedures or {})}
         INTERRUPTS.preflight_round(staged,state)
         setattr(staged,KEY,state)
         return status(staged)
@@ -239,7 +239,8 @@ def skip_switch_locked(engine,actor):
     return GRANTS.transition(engine,actor,apply)
 
 
-def preflight_turn(engine, actor):
+def preflight_turn(engine, actor, *, initiative_count=None):
+    if extra_turn_at(engine,actor,initiative_count) is not None or extra_turn_open(engine,actor) is not None:return
     import initiative_interrupts as INTERRUPTS
     if INTERRUPTS.is_borrow_start(engine,actor):
         return
@@ -315,10 +316,18 @@ def _exchanged_steps(engine,state,bound_at,index):
         receipts=[r for r in MOUNT._acquisitions(rider,MOUNT.RIDE_AS_ONE) if r['request_id']==row['acquisition_request_id']]
         if len(receipts)!=1:raise ValueError('historical Ride as One acquisition required')
         steps[at]['slot'],steps[later]['slot']=row['other_slot'],row['slot']
-    return SWARM.expanded_schedule(engine,state,steps,after=continuation_cursor)
+    steps=SWARM.expanded_schedule(engine,state,steps,after=continuation_cursor)
+    for change in state.get('party_orders',[]):
+        positions=change['positions'];before=change['before'];after=change['after']
+        if (change['source']!=__import__('juggler').CLASS or len(positions)!=len(before) or len(set(positions))!=len(positions)
+                or sorted(before)!=sorted(after) or any(type(n)is not int or n<change['cursor'] or n>=len(steps) for n in positions)
+                or [steps[n]['slot'] for n in positions]!=before):raise ValueError('actual Juggler remaining initiative reorder required')
+        for n,key in zip(positions,after):steps[n]['slot']=key
+    return steps
 
 
 def turn_started(engine, actor):
+    if extra_turn_open(engine,actor) is not None:return
     import initiative_interrupts as INTERRUPTS
     if INTERRUPTS.is_borrow_start(engine,actor):
         return
@@ -331,6 +340,7 @@ def turn_started(engine, actor):
 
 
 def turn_closed(engine, actor, *, continuation=False):
+    if extra_turn_close(engine,actor):return
     state = getattr(engine,KEY,None)
     if state is None:
         return
@@ -346,14 +356,18 @@ def turn_closed(engine, actor, *, continuation=False):
     SWARM.schedule_continuation(engine,actor,state,key,step['phase'])
     import initiative_interrupts as INTERRUPTS
     if not continuation:INTERRUPTS.ordinary_closed(engine,key,actor)
+    pending=state['slots'][key].pop('party_replacement',None)
+    if pending is not None:
+        replace(engine,key,pending['actor'],source=pending['source'],reason='actual source party replacement after consumed owner turn',_party_request=pending['request_id'])
 
 
-def replace(engine, slot, actor, *, source, reason):
+def replace(engine, slot, actor, *, source, reason,_party_request=None):
     """Replace a binding, keeping the original slot's consumed turn right."""
     WORLD.require_actors(engine,actor)
     DERIVE.selected(engine.r,source); _text(reason,'replacement reason')
     import initiative_interrupts as INTERRUPTS
-    INTERRUPTS.require_clear(engine)
+    if _party_request is None:INTERRUPTS.require_clear(engine)
+    else:__import__('juggler').validate_party_replacement(engine,actor,source,_party_request)
     def apply(staged,subject):
         state = getattr(staged,KEY,None)
         if not state or state['status'] not in ('prepared','active') or slot not in state['slots']:
@@ -372,6 +386,42 @@ def replace(engine, slot, actor, *, source, reason):
         return status(staged)
     return GRANTS.transition(engine,actor,apply)
 
+def replace_party(engine,old,new,*,source,request_id):
+    """The native party receipt exchanges the binding, never a second turn."""
+    state=getattr(engine,KEY,None)
+    if engine._ordinary_turn_rounds.get(old)==engine.round_no:
+        engine._ordinary_turn_rounds[new]=engine.round_no
+    if state is None:return
+    key=next((key for key,row in state['slots'].items() if row['actor'] is old),None)
+    if key is None:return
+    if any(row['actor'] is new for row in state['slots'].values()):
+        raise ValueError('party replacement cannot duplicate an existing native turn slot')
+    if state['open_slot']==key:
+        state['slots'][key]['party_replacement']={'actor':new,'source':source,'request_id':request_id}
+        return
+    replace(engine,key,new,source=source,reason='actual paid party switch preserves original turn right',_party_request=request_id)
+    if __import__('juggler').acquired(__import__('party_actions').owner(engine,new)):
+        reorder_party(engine,key,request_id)
+
+def reorder_party(engine,slot,request_id):
+    """Reorder only unopened steps in the same printed phase, using INIT policy."""
+    state=getattr(engine,KEY,None)
+    if not state or state['slots'][slot]['turn']!='ready':return
+    step=next((s for s in state['steps'][state['cursor']:] if s['slot']==slot and s['kind']=='turn'),None)
+    if step is None:return
+    positions=[n for n,s in enumerate(state['steps']) if n>=state['cursor'] and s['phase']==step['phase'] and s['kind']=='turn' and state['slots'][s['slot']]['turn']=='ready']
+    before=[state['steps'][n]['slot'] for n in positions]
+    actors=[state['slots'][key]['actor'] for key in before]
+    if len(actors)<2:return
+    procedures={a.entity_id:state.get('procedures',{})[a.entity_id] for a in actors if a.entity_id in state.get('procedures',{})}
+    order=INIT.order(engine,actors,procedures=procedures,round_no=engine.round_no)
+    if order is None:raise ValueError('Juggler initiative composition or tie requires the existing explicit decision')
+    actor_slots={row['actor'].entity_id:key for key,row in state['slots'].items()}
+    after=[actor_slots[a.entity_id] for a in order]
+    if after==before:return
+    state.setdefault('party_orders',[]).append({'source':__import__('juggler').CLASS,'request_id':request_id,'cursor':state['cursor'],'positions':positions,'before':before,'after':after})
+    for n,key in zip(positions,after):state['steps'][n]['slot']=key
+
 
 def preflight_end_round(engine):
     import initiative_interrupts as INTERRUPTS
@@ -384,12 +434,16 @@ def preflight_end_round(engine):
 
 
 def round_ended(engine):
+    for row in getattr(engine,EXTRA,[]):
+        if row["status"]=="queued":row["status"]="expired"
     state = getattr(engine,KEY,None)
     if state is not None:
         state['status'] = 'completed'
 
 
 def end_encounter(engine):
+    for row in getattr(engine,EXTRA,[]):
+        if row["status"] in ("queued","open"):row["status"]="expired"
     # The native encounter boundary ends its turn-right domain, without an
     # invented final turn or clock event. Native closure/loan receipts remain.
     import initiative_interrupts as INTERRUPTS
@@ -398,6 +452,7 @@ def end_encounter(engine):
 
 
 def _validate_world(engine,index):
+    validate_extra_turns(engine,index)
     state = getattr(engine,KEY,None)
     if state is None:
         return True
@@ -542,3 +597,60 @@ def validate_world(engine,index):
         return _validate_world(engine,index)
     except (KeyError,TypeError,AttributeError,IndexError) as exc:
         raise ValueError('malformed actual initiative schedule state') from exc
+
+
+EXTRA='_initiative_extra_turns'
+
+def grant_extra_turn(engine,actor,*,source,count,initiative):
+ """Grant from the actual closed owner turn; the ordinary schedule stays intact."""
+ import tumbler as T,root_resolution as R
+ if source!=T.BURST or not T.acquired(actor,source):raise ValueError('reviewed acquired extra-turn source required')
+ C.integer(count,'extra turn initiative count');C.integer(initiative,'actual Initiative')
+ closure=engine._turn_closures[-1] if engine._turn_closures else None
+ if engine._active_turn_actor is not None or closure is None or closure['actor'] is not actor or closure['round']!=engine.round_no:raise ValueError('actual just-closed owner turn required')
+ if count>initiative/2:raise ValueError('extra turn exceeds half Initiative')
+ rows=getattr(engine,EXTRA,[])
+ origin={'actor_id':actor.entity_id,'source':source,'count':count,'initiative':initiative,'closure':closure['sequence'],'round':engine.round_no}
+ if any(r['origin']==origin for r in rows):raise ValueError('closed turn already granted this extra turn')
+ row={'actor':actor,'origin':origin,'integrity':R.fingerprint(origin),'status':'queued'}
+ rows.append(row);setattr(engine,EXTRA,rows)
+ return row
+
+def extra_turn_at(engine,actor,count):
+ if count is None:return None
+ queued=[r for r in getattr(engine,EXTRA,[]) if r['status']=='queued' and r['origin']['round']==engine.round_no]
+ if not queued:return None
+ first=max(queued,key=lambda r:r['origin']['count'])
+ if count<first['origin']['count']:raise ValueError('resolve or decline the scheduled extra turn before passing its count')
+ if count==first['origin']['count']:
+  if first['actor'] is not actor:raise ValueError('another actor owns the scheduled extra turn at this count')
+  return first
+ return None
+
+def extra_turn_open(engine,actor):
+ return next((r for r in getattr(engine,EXTRA,[]) if r['status']=='open' and r['actor'] is actor),None)
+
+def extra_turn_close(engine,actor):
+ row=extra_turn_open(engine,actor)
+ if row is None:return False
+ row['status']='closed';row['closed_by']=len(engine._turn_closures)+1
+ return True
+
+def decline_extra_turn(engine,actor,*,count,reason):
+ WORLD.require_actors(engine,actor);_text(reason,'extra turn refusal reason')
+ if engine._active_turn_actor is not None:raise ValueError('decline extra turn at a closed turn boundary')
+ row=extra_turn_at(engine,actor,count)
+ if row is None:raise ValueError('actual scheduled extra turn required')
+ row['status']='declined';row['reason']=reason
+
+def validate_extra_turns(engine,index):
+ import root_resolution as R,tumbler as T
+ for row in getattr(engine,EXTRA,[]):
+  origin=row['origin'];actor=row['actor']
+  if index.get(origin['actor_id']) is not actor or origin['source']!=T.BURST or row['integrity']!=R.fingerprint(origin):raise ValueError('extra turn source or actor changed')
+  closure=next((c for c in engine._turn_closures if c['sequence']==origin['closure']),None)
+  if closure is None or closure['actor'] is not actor or closure['round']!=origin['round']:raise ValueError('extra turn lost its actual source turn closure')
+  if origin['count']>origin['initiative']/2 or row['status'] not in ('queued','open','closed','declined','expired'):raise ValueError('invalid extra turn count or state')
+  if row['status']=='open' and (engine._active_turn_actor is not actor or engine.round_no!=origin['round']):raise ValueError('extra turn must own the native open turn')
+  if row['status']=='closed' and not any(c['sequence']==row['closed_by'] and c['actor'] is actor and c['round']==origin['round'] for c in engine._turn_closures):raise ValueError('extra turn actual close receipt missing')
+ return True

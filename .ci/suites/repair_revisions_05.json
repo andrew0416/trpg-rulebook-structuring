@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "repair_revisions_05",
+  "purpose": "Focused diagnostics for repaired original failures and changed switch/Juggler, source, clock, rank, type and state paths. This does not replace the original4115-ID final obligations or confer185-finding/406-clause acceptance.",
+  "completion_credit": 0,
+  "required_unique_count": 36,
+  "completed": {
+    "tools.test_book_commander_orders.CommanderOrderTests": {
+      "tests": [
+        "tools.test_book_commander_orders.CommanderOrderTests.test_actual_cheerleader_single_completion_three_instances_and_bound_ap_after_battle",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_battle_invalid_extra_duplicate_nonatwill_and_late_failure_are_atomic",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_battle_late_third_actual_ap_reservation_failure_rolls_back_all_native_bindings",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_battle_three_recipients_one_original_standard_one_swift_and_each_ap",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_battle_training_uses_one_real_priority_payment_and_survives_restore",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_complex_actual_different_orders_cost_shift_and_original_action",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_complex_repeated_unknown_and_mixed_frequency_choices_reject_atomically",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_complex_two_distinct_core_training_orders_share_original_action_and_keep_each_source",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_core_commander_training_late_delivery_failure_is_atomic_and_csv_keeps_priority",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_core_commander_training_three_allies_one_standard_and_swift_has_no_priority_loan",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_core_four_training_orders_pay_actual_standard_without_priority_and_restore_expiry",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_core_training_completion_uses_actual_cheerleader_source_and_restores_after_expiry",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_leadership_replaces_own_pokemon_with_actual_allied_trainer_for_existing_stratagem",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_leadership_retains_communication_slot_and_other_target_conditions",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_mobilize_actual_opportunity_before_next_turn_during_and_after",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_mobilize_actual_ranged_attack_does_not_spend_enemy_opportunity_for_unrelated_actor",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_mobilize_allied_trainer_wrong_side_unavailable_and_auditory_rejections",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_mobilize_each_ally_once_encounter_not_scene_and_independent_csv84",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_pinpoint_gift_expert_waiver_allied_target_actual_bound_ap_owner",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_scheme_scene_two_activations_share_original_scene_use_across_targets",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_targetless_or_unacquired_order_cannot_become_targeted_and_modifier_not_inferred",
+        "tools.test_book_commander_orders.CommanderOrderTests.test_tip_all_actual_allies_ten_meter_boundary_pays_two_ap_and_base_order"
+      ]
+    },
+    "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests": {
+      "tests": [
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_all_eighteen_type_stratagems_keep_original_acquisition_and_actual_move_completion_hooks",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_all_five_class_stratagems_move_same_source_and_reach_native_accuracy_damage_consumers",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_all_five_stat_branches_keep_acquisition_binding_and_receiver_stage_consumers",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_conqueror_keeps_paid_order_but_requires_new_holders_actual_run_up_and_mount",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_dress_actual_stat_capability_and_ability_channels_survive_paid_tag_handoff",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_dress_moves_only_real_item_projections_keeps_wardrobe_and_original_count",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_gfw_moves_live_evasion_and_fixed_condition_without_reissuing_paid_ally_set",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_profiling_keeps_original_archive_owner_and_active_end_on_new_holder"
+      ]
+    },
+    "tools.test_strengthened_embrace_source_revision.StrengthenedEmbraceSourceRevisionTests": {
+      "tests": [
+        "tools.test_strengthened_embrace_source_revision.StrengthenedEmbraceSourceRevisionTests.test_duplicate_aliases_bad_ranks_and_unselected_variant_cannot_mutate_projection",
+        "tools.test_strengthened_embrace_source_revision.StrengthenedEmbraceSourceRevisionTests.test_each_real_acquired_rank_counts_for_both_native_embrace_stats",
+        "tools.test_strengthened_embrace_source_revision.StrengthenedEmbraceSourceRevisionTests.test_gm_and_json_restore_preserve_ranked_tags_and_independent_ability",
+        "tools.test_strengthened_embrace_source_revision.StrengthenedEmbraceSourceRevisionTests.test_korean_english_and_canonical_aliases_reach_the_same_owned_rank",
+        "tools.test_strengthened_embrace_source_revision.StrengthenedEmbraceSourceRevisionTests.test_rank_changes_and_withdrawal_reconcile_without_retaining_extra_tags",
+        "tools.test_strengthened_embrace_source_revision.StrengthenedEmbraceSourceRevisionTests.test_source_identity_aliases_rank_three_and_fantasy_admission"
+      ]
+    }
+  }
+}

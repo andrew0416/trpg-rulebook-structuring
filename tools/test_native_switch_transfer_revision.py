@@ -113,7 +113,7 @@ class NativeSwitchTransferRevisionTests(unittest.TestCase):
     def test_pinpoint_same_bound_ap_instance_moves_and_releases_once(self):
         self.setup(precision=True)
         self.open(self.t);self.e.manual_feat(self.t,PRECISION.PINPOINT,self.p)
-        before=deepcopy(self.t.ap_account.identified_bindings())
+        before=deepcopy(dict(self.t.ap_account.identified_bindings()))
         original=PRECISION.binding(self.e,self.p)['instance']
         self.e.end_of_turn(self.t);self.e.start_of_turn(self.p,initiative_count=19);self.baton()
         self.assertIsNone(PRECISION.binding(self.e,self.p))

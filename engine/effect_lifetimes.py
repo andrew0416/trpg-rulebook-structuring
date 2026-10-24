@@ -10,7 +10,7 @@ import common_checks as C
 import effect_lifetime_policy as POLICY
 
 FIELDS={'skill_check_mod':'skill_modifier','accuracy_mod':'accuracy_modifier','evasion_mod':'evasion_modifier','damage_reduction':'damage_reduction','save_mod':'save_modifier'}
-KINDS=set(FIELDS)|{'apply_status','initiative','initiative_multiplier','type_change','size_change','forbid','swap_stats','move_lock','damage_roll_mod'}
+KINDS=set(FIELDS)|{'oracle_mark','channel_imprint','apply_status','initiative','initiative_multiplier','type_change','size_change','forbid','swap_stats','move_lock','damage_roll_mod'}
 class TimingUnsupported(ValueError):pass
 class TimingAmbiguous(ValueError):pass
 
@@ -21,6 +21,9 @@ def prepare(engine,actor,target,effect,source):
  if 'while' in effect and type(effect['while']) is not dict:raise TimingUnsupported('continuous predicate needs an explicit state declaration: '+str(effect['while']))
  if 'repeat' in effect and type(effect['repeat']) is not dict:raise TimingUnsupported('repeat needs an explicit event declaration: '+str(effect['repeat']))
  if not declared(effect):return None
+ if effect['type']=='oracle_mark':
+  if effect.get('until')!='target_ends':raise TimingUnsupported('Mark ends through its actual target consent boundary')
+  return {'source':source,'manual_end':True,'effect_contract':True,'oracle_mark':__import__('oracle').mark_payload(engine,actor,target,effect,source)}
  if effect.get('type')=='pledge' and 'rainbow_observed' in effect:
   import pledge_state as PLEDGE
   return PLEDGE.prepare(engine,actor,target,effect,source)
@@ -79,7 +82,8 @@ def prepare(engine,actor,target,effect,source):
  elif 'next turn' in raw or '다음 턴' in raw:
   raise TimingAmbiguous('lifetime must identify whose turn and start or end: '+raw)
  else:raise TimingUnsupported('unimplemented explicit lifetime: '+raw)
- if effect['type']=='damage_roll_mod':pass
+ if effect['type']=='channel_imprint':record['channel_imprint']=__import__('channeler').imprint_payload(engine,actor,target,effect,source)
+ elif effect['type']=='damage_roll_mod':pass
  elif effect['type']=='size_change':
   import body_state as BODY,body_modes as MODES
   if source!='move/작아지기' or effect.get('to')!='Small' or raw not in ('encounter_end','encounter','인카운터 끝까지'):

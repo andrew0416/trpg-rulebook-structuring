@@ -46,6 +46,7 @@ def capabilities(e,c,*,environment=True):
    result['levitate']=result.get('levitate',0)+(2 if result.get('levitate',0)>0 else 4)
  import pokemon_capability_edges as CAP_EDGES
  result=CAP_EDGES.apply(c,result)
+ result=__import__('combat_move_reactions').movement(e,c,result)
  import training_features as TRAINING
  result=TRAINING.movement(c,result)
  import survivalist_features as SURVIVALIST
@@ -62,6 +63,11 @@ def capabilities(e,c,*,environment=True):
   import baby_templates as BABY
   result=BABY.capability_values(c,result,MODES+('free_float','high_jump','long_jump'))
  import combat_timing as TIMING
+ result=__import__('telekinetic').movement(e,c,result)
+ result=__import__('warper').movement(e,c,result)
+ bonus=__import__('commander_orders').movement_bonus(e,c)
+ for mode in MODES:
+  if result.get(mode,0)>0:result[mode]+=bonus
  import environment_derive as ED
  result=ED.movement(e,c,result) if environment else result
  for mode in TIMING.blocked_movement_modes(c):result[mode]=0
@@ -103,7 +109,7 @@ def boundary(e,name):
  import passive_events as P
  import league_runtime as L
  import heavy_injury_adapter as H
- P.ensure_clear(e);L.check_boundary(e,name);H.ensure_clear(e)
+ P.ensure_clear(e);L.check_boundary(e,name);H.ensure_clear(e);ACTION.ensure_resolutions_clear(e)
 
 def sprint(e,c,*,source_policy=None):
  boundary(e,'sprint');e.r._selected_rule('maneuver/질주')
@@ -299,14 +305,16 @@ def aerial_move(e,c,destination,*,mode,altitude,reason_text,gm_distance=None):
 
 def teleport_plan(e,c,destination,*,surface_contact,altitude=0,reason_text,gm_distance=None,sky_air_policy=None,maximum_distance=None,ignore_actors=()):
  reason(reason_text)
- if c.kind!='pokemon':return C.PendingDecision('source for trainer Teleporter capability')
+ passenger=getattr(e,'_teleport_passenger',None)
+ passenger=passenger if passenger and passenger['actor_id']==c.entity_id else None
+ if c.kind!='pokemon' and not passenger and __import__('warper').TELEPORT not in __import__('move_capabilities').learned_ids(c):return C.PendingDecision('source for trainer Teleporter capability')
  if type(surface_contact)is not bool:raise ValueError('actual destination surface contact must be specified')
  if c.spec.get('_burrow',{}).get('underground'):raise ValueError('underground line of sight to destination needs a separate world ruling')
  if sky_air_policy not in (None,'sky_unlimited','levitate_limit'):raise ValueError('unknown Sky/Levitate parenthetical interpretation')
  if e.encounter_active and e.round_start_seconds is None:raise ValueError('combat teleport requires an open round')
  state=c.spec.get('_teleport',{})
- if e.encounter_active and state.get('used_round')==e.round_no:raise ValueError('Teleporter may be used only once per combat round')
- cap=capabilities(e,c);allowance=distance_budget(e,c,'teleport')
+ if not passenger and e.encounter_active and state.get('used_round')==e.round_no:raise ValueError('Teleporter may be used only once per combat round')
+ cap=capabilities(e,c);allowance=passenger['plan']['budget'] if passenger else distance_budget(e,c,'teleport')
  if maximum_distance is not None:allowance=min(allowance,C.integer(maximum_distance,'actual paid Teleport allowance',0))
  destination,distance=_travel_geometry(e,c,destination,altitude,gm_distance,ignore_actors=ignore_actors)
  if distance>allowance:raise ValueError('Teleport destination exceeds capability; Sprint cannot extend it')
@@ -443,7 +451,9 @@ def follow_paid_transfer(e,c,plan,*,progress=None):
  if not LIVING.can_shift(e,c,actual['distance'],movement_mode=mode):
   return {'distance':0,'steps':0,'position':c.pos,'mode':mode}
  height=parameters.get('altitude',0);destination=plan['path'][-1]
- if not _paid_departure(e,c,destination,height,cursor):
+ # Adopted Dataninja FAQ p18: instantaneous Teleport does not provoke.
+ # Other transfers and ordinary Shifting still use the existing AoO owner.
+ if mode!='teleport' and not _paid_departure(e,c,destination,height,cursor):
   return {'distance':0,'steps':0,'position':c.pos,'mode':mode}
  actual=validate()
  if isinstance(actual,C.PendingDecision):raise ValueError(str(actual))
@@ -461,7 +471,7 @@ def follow_paid_transfer(e,c,plan,*,progress=None):
   result={'distance':actual['distance'],'position':c.pos,'underground':not surface,'tunnel_size':size}
  else:
   surface=parameters['surface_contact'];c.spec['_movement_altitude']=height;c.airborne=not surface
-  c.spec['_teleport']={'used_round':e.round_no if e.encounter_active else None,'surface_contact':surface,
+  if not getattr(e,'_teleport_passenger',None):c.spec['_teleport']={'used_round':e.round_no if e.encounter_active else None,'surface_contact':surface,
       'reason':parameters['reason_text'],'sky_air_policy':parameters['sky_air_policy']}
   location='' if getattr(e,'_relative_mover',None)==c.entity_id else ' → '+str(c.pos)
   e.log('  '+c.name+': 순간이동 '+str(actual['distance'])+'m'+location,'capability/teleporter')
@@ -472,6 +482,22 @@ def follow_paid_transfer(e,c,plan,*,progress=None):
                diagonals=getattr(c,'_diagonal_steps',0),phase='entering',result=result)
  if _paid_entry(e,c,cursor,surface=surface,reconcile=mode=='teleport',previous_position=origin if origin_altitude==height and origin_contact==FIELD.touches_ground(c) else None):cursor['phase']='complete'
  return result
+
+
+def exchange_positions(e,first,second,*,source):
+ """Actual instantaneous two-body exchange; both placements are checked first."""
+ import body_state as BODY,world_entities as W
+ W.require_actors(e,first,second)
+ if source!=__import__('warper').SWITCH or first is second:raise ValueError('actual Ally Switch pair required')
+ origins=(first.pos,second.pos);heights=[c.spec.get('_movement_altitude',0) for c in (first,second)]
+ for actor,destination,height in ((first,origins[1],heights[1]),(second,origins[0],heights[0])):
+  if not BODY.can_place(e,actor,destination,origin=actor.pos,ignore_actors=(first,second),altitude=height):raise ValueError('Ally Switch actual exchanged body placement blocked')
+ first.pos,second.pos=origins[1],origins[0]
+ for actor,height in zip((first,second),reversed(heights)):
+  actor.spec['_movement_altitude']=height;actor.airborne=height>0
+  __import__('living_weapon').sync(e,actor)
+  _paid_entry(e,actor,None,surface=height==0,reconcile=True)
+ return {'source':source,'first':first.pos,'second':second.pos}
 
 
 def consume_sprint(c):
@@ -536,9 +562,11 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
   q=node['position'] if aerial else _point(node[:2])
   height=node['altitude'] if aerial else c.spec.get('_movement_altitude',0)
   origin=c.pos;altitude=c.spec.get('_movement_altitude',0)
+  commander_ignored=__import__('commander_orders').path_passers(e,c,path[moved:],mode=mode,remaining=maximum_distance-spent)
+  actual_ignored=tuple(ignored)+tuple(x for x in commander_ignored if x not in ignored)
   import map_terrain as TERRAIN
   if mode=='shadow_surface' and not BODY_MODES.shadow_contact(e,c,node):break
-  if not TERRAIN.can_travel(e,c,q,mode,altitude=height,movement_mode=movement_mode) or not BODY.can_place(e,c,q,origin=c.pos,ignore_actors=ignored,**({'altitude':height} if aerial else {})):break
+  if not TERRAIN.can_travel(e,c,q,mode,altitude=height,movement_mode=movement_mode) or not BODY.can_place(e,c,q,origin=c.pos,ignore_actors=actual_ignored,**({'altitude':height} if aerial else {})):break
   q,height,cost,diagonals=geometry(node)
   if spent+cost>maximum_distance:break
   if not LIVING.can_shift(e,c,cost,movement_mode=shared_mode):break
@@ -546,13 +574,16 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
   # Reactions can move the actor or change the destination body/terrain.
   if c.pos!=origin or c.spec.get('_movement_altitude',0)!=altitude:break
   if mode=='shadow_surface' and not BODY_MODES.shadow_contact(e,c,node):break
-  if not TERRAIN.can_travel(e,c,q,mode,altitude=height,movement_mode=movement_mode) or not BODY.can_place(e,c,q,origin=origin,ignore_actors=ignored,**({'altitude':height} if aerial else {})):break
+  if not TERRAIN.can_travel(e,c,q,mode,altitude=height,movement_mode=movement_mode) or not BODY.can_place(e,c,q,origin=origin,ignore_actors=actual_ignored,**({'altitude':height} if aerial else {})):break
   q,height,cost,diagonals=geometry(node)
   if spent+cost>maximum_distance:break
   if not LIVING.can_shift(e,c,cost,movement_mode=shared_mode):break
   if action_owner is not c and action_owner.spec.get('mount_id')!=c.entity_id:break
+  departure_distance=cost if aerial else step_cost(origin,q,getattr(c,'_diagonal_steps',0))[0]
   origin_contact=FIELD.touches_ground(c)
   c._diagonal_steps=diagonals;c.pos=q
+  __import__('commander_orders').shifted(e,c,[q])
+  __import__('ninja').departed(e,c,origin,distance=departure_distance)
   import burrow_tunnels as TUNNELS
   TUNNELS.enter(e,c,mode)
   entry_mode(c,mode,altitude=height if aerial else None)

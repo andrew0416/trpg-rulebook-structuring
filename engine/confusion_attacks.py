@@ -18,6 +18,8 @@ EXPECTED=[{'type':'no_attack_of_opportunity'},
           {'type':'on_attack_roll','die':'1d2','fail_on':1},
           {'type':'self_hp_loss','by_move_class':{'물리':'atk/2','특수':'spa/2','변화':'2 ticks'},'after':'attack_resolves'},
           {'type':'save','dc':16,'timing':'end_of_turn','on_success':'cure'}]
+CORE_EXPECTED=[{'type':'core_confusion_start_turn','self_hit_max':8,'normal_max':15,'cure_min':16,
+                'attack':'typeless_physical_struggle','resistance_steps':1,'no_other_actions':True}]
 
 
 def _fingerprint(row,value):
@@ -28,15 +30,73 @@ def _fingerprint(row,value):
 def policy(engine):
     effects=[{k:v for k,v in effect.items() if not k.startswith('_')}
              for effect in engine.r.condition_effects('혼란')]
-    if engine.r._selected_rule(SOURCE)!=SOURCE or effects!=EXPECTED:
+    if engine.r._selected_rule(SOURCE,supports_versions=True)!=SOURCE or effects not in (EXPECTED,CORE_EXPECTED):
         raise ValueError('selected Confusion requires its reviewed attack-completion policy')
     return R.fingerprint(effects)
+
+
+def core(engine):
+    return policy(engine)==R.fingerprint(CORE_EXPECTED)
+
+
+def start_turn(engine,actor):
+    if not interested(actor) or not core(engine) or '잠듦' in actor.conditions:return None
+    import condition_recovery as RECOVERY
+    check=RECOVERY.saving_check(engine,actor,'혼란',16)
+    __import__('eldritch_magic').after_confusion_save(engine,actor,check)
+    # Compare the same adjusted save with all three printed bands.
+    value=check['natural']+16-check['dc']
+    result={'source':SOURCE,'version':'core-1.05','save':deepcopy(check),'outcome':'cured' if value>=16 else 'normal' if value>=9 else 'self_hit'}
+    if value>=16:engine.cure_status(actor,'혼란')
+    elif value<=8:
+        if __import__('ace_trainer').replace_core_confusion(engine,actor,result):
+            actor.custom_conditions.setdefault('core_confusion_turns',[]).append(result)
+            return result
+        before=DAMAGE.observe(actor);prior=set(getattr(engine,'_move_completions',{}))
+        engine._core_confusion_struggle=actor
+        try:amount=engine.use_move(actor,actor,'struggle')
+        finally:del engine._core_confusion_struggle
+        rows=[row for key,row in getattr(engine,'_move_completions',{}).items() if key not in prior and row['actor'] is actor and row['move_id']=='struggle']
+        if rows:
+            row=rows[-1]
+            if row['phase']!='complete':raise ValueError('finish the actual Core Confusion self attack')
+            result.update(move_id='struggle',completion_id=row['id'],damage_class='물리',type='None',resistance_steps=1,amount=amount,before=before,after=DAMAGE.observe(actor))
+            __import__('provocateur').confusion_hit(engine,actor)
+        else:result.update(outcome='self_attack_forbidden',amount=0)
+        actor._turn_action_limit={'source':SOURCE,'choose_one_of':[]}
+    actor.custom_conditions.setdefault('core_confusion_turns',[]).append(result)
+    return result
+
+
+def prepare(engine,actor,move):
+    if getattr(engine,'_core_confusion_struggle',None) is not actor:return move
+    if move['id']!='struggle' or not core(engine):raise ValueError('actual Core Confusion Struggle required')
+    return dict(move,type='None',**{'class':'물리'},_core_confusion=True)
+
+
+def automatic_hit(engine,actor,target,move):
+    if not move.get('_core_confusion'):return False
+    resistance(engine,actor,target,move)
+    return True
+
+
+def resistance(engine,actor,target,move):
+    if not move.get('_core_confusion'):return 0
+    if (getattr(engine,'_core_confusion_struggle',None) is not actor or target is not actor
+            or move['id']!='struggle' or move['type']!='None' or move['class']!='물리' or not core(engine)):
+        raise ValueError('actual Core Confusion self Struggle required')
+    return 1
+
+
+def permits_opportunity(engine,actor):
+    if '혼란' not in actor.conditions:return True
+    return core(engine) and not (getattr(engine,'_active_turn_actor',None) is actor and getattr(actor,'_turn_action_limit',None))
 
 
 def interested(actor):
     import boss_transitions as BOSS
     if getattr(actor,'_duelist_ignoring',False):return False
-    return '혼란' in actor.conditions and BOSS.condition_applies_this_turn(actor,'혼란')
+    return '혼란' in __import__('blessing_effects').effective_conditions(actor) and BOSS.condition_applies_this_turn(actor,'혼란')
 
 
 def preflight(engine,actor,move):
@@ -62,6 +122,7 @@ def _observe(engine,row):
     actor=row['actor']
     if not interested(actor):return
     preflight(engine,actor,row['move'])
+    if core(engine):return
     if FIELD in row:raise ValueError('Confusion attack observation already exists')
     asleep='잠듦' in actor.conditions
     row[FIELD]={'source':SOURCE,'policy':policy(engine),'damage_class':row['move']['class'],

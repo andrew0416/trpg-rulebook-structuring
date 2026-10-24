@@ -509,7 +509,10 @@ def _active(engine, pokemon, uid):
     if not engine.encounter_active or row.get("target_id") != pokemon.entity_id:
         raise ValueError("sustained Stratagem needs its actual active encounter target")
     owner = _trainer_index(engine).get(row.get("owner_id"))
-    if uid==STAT_STRATAGEM:
+    if uid==__import__('channeler').SPIRIT:
+        receipt=None if owner is None else __import__('channeler').acquired(owner,uid)
+        source=None if receipt is None else receipt['request_id']
+    elif uid==STAT_STRATAGEM:
         import stat_ace as STAT
         receipt=None if owner is None else STAT.acquired(owner,uid,row.get('branch'))
         source=None if receipt is None else receipt['request_id']
@@ -520,7 +523,7 @@ def _active(engine, pokemon, uid):
     if owner is None or source != row.get("acquisition_source"):
         raise ValueError("sustained Stratagem owner or acquisition changed")
     _validate_native(owner.r, uid, row)
-    if _owner(engine, pokemon) is not owner:
+    if uid!=__import__('channeler').SPIRIT and not __import__('commander').sustained_target(engine,owner,pokemon,uid) and _owner(engine, pokemon) is not owner:
         raise ValueError("sustained Stratagem target ownership changed")
     if AP.ActionPointAccount(owner).identified_bindings(allow_missing=True).get(row.get("instance")) != 2:
         raise ValueError("sustained Stratagem needs its matching two-AP reservation")
@@ -531,6 +534,8 @@ def _require_stratagem_slot(pokemon):
     """Read both native sustain owners and the existing legacy occupancy marks."""
     state = _state(pokemon)
     if ((state is not None and state["sustains"])
+            or any(not row['ended'] and row['feature']==__import__('commander_orders').BRACE
+                   for row in __import__('commander_orders').records(pokemon))
             or PRECISION.KEY in pokemon.custom_conditions
             or pokemon.custom_conditions.get("stratagem") or pokemon.spec.get("stratagem")):
         raise ValueError("only one Stratagem may be sustained on a Pokemon")
@@ -541,17 +546,22 @@ def _require_stratagem_slot(pokemon):
 import cheerleader as CHEER
 
 @CHEER.order_activation(None)
-def activate(engine, trainer, pokemon, uid, *, communication=None):
+def activate(engine, trainer, pokemon, uid, *, edition=None, communication=None):
     if uid not in STRATAGEMS or acquired_source(trainer, uid) is None:
         raise ValueError("actual acquired Stratagem required")
     if not engine.encounter_active:
         raise ValueError("Stratagem may only be sustained in an encounter")
-    if _trainer_index(engine).get(trainer.entity_id) is not trainer or _owner(engine, pokemon) is not trainer:
+    interpreted=None
+    if edition is not None:
+        if uid!=RECKLESS:raise ValueError('this existing Stratagem source has no alternate interpretation selection')
+        interpreted=__import__('commander_orders').reckless_source(engine.r,edition)
+    allied = __import__('commander').transformed_target(engine,trainer,pokemon) or __import__('commander').leadership_target(engine,trainer,pokemon)
+    if _trainer_index(engine).get(trainer.entity_id) is not trainer or (not allied and _owner(engine, pokemon) is not trainer):
         raise ValueError("Stratagem requires your actual registered Pokemon")
     if not pokemon.on_field or pokemon.fainted or pokemon.captured:
         raise ValueError("Stratagem target must be available")
-    register_all(engine, pokemon)
-    if _declaration(engine, pokemon, uid) is None:
+    if not allied:register_all(engine, pokemon)
+    if not allied and _declaration(engine, pokemon, uid) is None:
         raise ValueError("Stratagem target declaration is missing")
     _require_stratagem_slot(pokemon)
     state = _state(pokemon, create=True)
@@ -573,6 +583,7 @@ def activate(engine, trainer, pokemon, uid, *, communication=None):
            "instance": instance, "rule_id": uid, "clause_id": CLAUSE_BY_RULE[uid],
            "acquisition_source": source, "lifetime": "sustained_2_ap_encounter"}
     row.update(_native_metadata(engine.r, uid, source))
+    if interpreted is not None:row['commander_source']=interpreted
     state["sustains"][uid] = row
     GRANTS._source(pokemon, instance, KIND, owner_id=trainer.entity_id,
                    lifetime=row["lifetime"], rule_id=uid, clause_id=row["clause_id"],
@@ -737,7 +748,7 @@ def effectiveness_modifier(engine, attacker, move, multiplier):
 
 
 def damage_roll_modifier(engine, attacker, target, move, multiplier):
-    result = __import__('researcher_fields').damage_roll_modifier(engine, attacker)
+    result = __import__('researcher_fields').damage_roll_modifier(engine, attacker)+__import__('channeler').spirit_bonus(engine,attacker,'damage',move)
     reckless = _active(engine, attacker, RECKLESS)
     if reckless and _melee(move):
         result += 8
@@ -828,7 +839,7 @@ def _qualifying_equipment(engine, target, slot, move):
 
 
 def damage_reduction(engine, attacker, target, move, multiplier, crit):
-    result = 0
+    result = __import__('channeler').spirit_bonus(engine,target,'reduction',move)
     glacial = _declaration(engine, target, GLACIAL_ICE)
     if (glacial and "얼음" in target.types and move.get("type") in ("격투", "불꽃", "바위", "강철")
             and multiplier > 1):
@@ -1001,6 +1012,7 @@ def after_move(engine, attacker, target, move, mm, natural, dealt, *, actual_dam
 
 
 def _validate_native(rules, uid, row):
+    if uid==__import__('channeler').SPIRIT:return __import__('channeler').validate_spirit(rules,row)
     import type_ace as TA
     if uid in TA.STRATAGEMS and row.get('branch') in TA.TYPES:
         __import__('trainer_feature_acquisition')._static_source(rules,uid)
@@ -1012,6 +1024,9 @@ def _validate_native(rules, uid, row):
         if row.get('branch') not in STAT.STATS or row.get('clause_id')!='input/ch04-trainer-classes.md:1154-1164':raise ValueError('Stat Stratagem branch source changed')
         return
     expected = _native_metadata(rules, uid, row.get("acquisition_source"))
+    if row.get('commander_source') is not None:
+        if uid!=RECKLESS or row['commander_source']!=__import__('commander_orders').reckless_source(rules,row['commander_source'].get('edition')):
+            raise ValueError('Reckless Advance actual Core interpretation source changed')
     # Older saves retain their behavior-clause identity; registration adds the
     # native binding without replacing the historical CSV behavior reference.
     if "native_clause_id" in row and row["native_clause_id"] != expected.get("native_clause_id"):
@@ -1019,6 +1034,7 @@ def _validate_native(rules, uid, row):
 
 
 def _sustain_clause(uid,row):
+    if uid==__import__('channeler').SPIRIT:return __import__('channeler').DEFINITIONS[uid]['clause_id']
     import type_ace as TA
     if uid in TA.STRATAGEMS and row.get('branch') in TA.TYPES:return TA.clause(uid)
     return 'input/ch04-trainer-classes.md:1154-1164' if uid==STAT_STRATAGEM else CLAUSE_BY_RULE.get(uid)
@@ -1030,7 +1046,7 @@ def validate(actor):
         if row.get("kind") != KIND:
             continue
         uid = row.get("rule_id")
-        if uid not in ALL_RULES|{STAT_STRATAGEM}|__import__('type_ace').STRATAGEMS or row.get("clause_id") != _sustain_clause(uid,row):
+        if uid not in ALL_RULES|{STAT_STRATAGEM,__import__('channeler').SPIRIT}|__import__('type_ace').STRATAGEMS or row.get("clause_id") != _sustain_clause(uid,row):
             raise ValueError("class passive source has an unreviewed clause")
         if row.get("source_variant") is not None:
             if (uid != SPECIES_SAVANT or row["source_variant"] != "C03-126" or
@@ -1051,7 +1067,7 @@ def validate(actor):
     local = _state(actor)
     if local is not None:
         for uid, row in local["sustains"].items():
-            if uid not in STRATAGEMS|{STAT_STRATAGEM}|__import__('type_ace').STRATAGEMS or row.get("rule_id") != uid or row.get("clause_id") != _sustain_clause(uid,row):
+            if uid not in STRATAGEMS|{STAT_STRATAGEM,__import__('channeler').SPIRIT}|__import__('type_ace').STRATAGEMS or row.get("rule_id") != uid or row.get("clause_id") != _sustain_clause(uid,row):
                 raise ValueError("invalid sustained class passive record")
             _validate_native(actor.r, uid, row)
     return True

@@ -15,6 +15,8 @@ CONTROL=frozenset(('target','on','turns','scope','while','until','duration','rep
 CONDITION=frozenset(('on_miss','on_natural_roll_min','on_natural_roll','if_weather','on_ko','if'))
 ANNOTATIONS=frozenset(('note','confidence'))
 SCHEMAS={
+ 'oracle_mark':{'owner_id'},
+ 'channel_imprint':{'owner_id'},
  'forced_movement':{'distance','direction','stop_cells','allow_fainted'},
  'push':{'meters'},
  'stage_change':{'stat','delta','base','linked_to'},'stat_mod':{'stat','value','min','multiplier'},
@@ -114,6 +116,12 @@ def inspect(engine,actor,target,effect,source,index=0):
  import effects as FX
  if not isinstance(effect,dict) or not isinstance(effect.get('type'),str):return Issue('unsupported_execution','type','typed effect record required')
  kind=effect['type']
+ if kind=='oracle_mark':
+  try:__import__('oracle').mark_payload(engine,actor,target,effect,source,preflight=True)
+  except ValueError as ex:return Issue('unsupported_execution','oracle_mark',str(ex))
+ if kind=='channel_imprint':
+  try:__import__('channeler').preflight_imprint(engine,actor,target,effect,source)
+  except ValueError as ex:return Issue('unsupported_execution','channel_imprint',str(ex))
  if kind=='pledge' and 'rainbow_observed' in effect:
   import pledge_state as PLEDGE
   try:PLEDGE.prepare(engine,actor,target,effect,source)

@@ -886,6 +886,8 @@ def _revoke_sources(c,source_ids,engine,*,_settled_payment_ids=()):
     preflight_revoke(c,source_ids)
     old=list(c.abilities)
     sources=_revocation_sources(c,source_ids)
+    if engine is not None:__import__('telekinetic').before_revoke(engine,c,sources)
+    if engine is not None:__import__('telepath').before_revoke(engine,c,sources)
     groups={st['sources'][key]['payment_id'] for key in sources if key in st['sources'] and st['sources'][key].get('payment_id')}
     if groups-set(_settled_payment_ids):raise ValueError('group payment settlement required before withdrawal')
     found=any(key in st["sources"] or key in st["overlays"] or key in st["effects"] for key in sources)
@@ -898,6 +900,8 @@ def _revoke_sources(c,source_ids,engine,*,_settled_payment_ids=()):
         __import__("provocateur").before_revoke(c,st["sources"].get(key,{}))
         if engine is not None:remove_owned(engine,c,key)
         _forget_source(c,key);st["overlays"].pop(key,None)
+    if engine is not None:
+        __import__('ace_trainer').forget_missing(c.r,c.spec,at=engine.elapsed_seconds,reason='actual learned source withdrawal')
     for field in LIST_FIELDS:materialize(c,field)
     if engine is not None:
         for name in list(st["ability_receipts"]):remove_ability(engine,c,name)
@@ -1384,6 +1388,17 @@ def replace_baseline(engine,c,field,values):
     """Atomic permanent-list transition including every passive registration."""
     def apply(staged_engine,staged_c):
         before=list(staged_c.spec.get(field,[]))
+        if field=='moves':
+            import ace_trainer as ACE
+            # Only this native permanent-list transition can forget a Move;
+            # overlays and codec restore never refund an investment.
+            proposed=deepcopy(staged_c.spec);proposed[field]=list(values)
+            legacy=proposed.get(KEY,{}).get('legacy',{})
+            legacy[field]=[v for v in legacy.get(field,[]) if v not in values and v not in before]
+            retained=ACE._known(staged_c.r,proposed)
+            for row in ACE._history(staged_c.spec):
+                if row['status']=='active' and row['move_id'] not in retained:
+                    ACE.forget_spec(staged_c.r,staged_c.spec,row['move_id'],at=staged_engine.elapsed_seconds,reason='actual permanent Move forgetting')
         set_baseline(staged_c,field,values)
         reconcile(staged_engine,staged_c)
         return {"field":field,"before":before,"after":list(staged_c.spec[field])}

@@ -9,6 +9,17 @@ SEQUENCE='manual_effect_activation_sequence'
 
 
 def registration(rules,name):
+ selected=__import__('warper').registration(rules,name)
+ if selected is not None:return selected
+ selected=__import__('telepath').registration(rules,name)
+ if selected is not None:return selected
+ selected=__import__('telekinetic').ability_registration(rules,name)
+ if selected is not None:return selected
+ selected=__import__('sage').registration(rules,name)
+ if selected is not None:return selected
+ import hex_maniac as HEX
+ selected=HEX.ability_registration(rules,name)
+ if selected is not None:return selected
  import blessing_effects as BLESSINGS
  blessing=BLESSINGS.registration(rules,name)
  if blessing is not None:return blessing
@@ -25,6 +36,11 @@ def registration(rules,name):
 
 
 def deferred_registration(rules,effect):
+ if __import__('warper').registration(rules,effect.get('_rule_id') or effect.get('_ability')):return True
+ if __import__('telepath').registration(rules,effect.get('_rule_id') or effect.get('_ability')):return True
+ if __import__('telekinetic').ability_registration(rules,effect.get('_rule_id') or effect.get('_ability')):return True
+ if __import__('sage').registration(rules,effect.get('_rule_id') or effect.get('_ability')):return True
+ if __import__('hex_maniac').ability_registration(rules,effect.get('_rule_id') or effect.get('_ability')):return True
  import blessing_effects as BLESSINGS
  if BLESSINGS.deferred_registration(rules,effect):return True
  import ability_native_actions as NATIVE
@@ -90,6 +106,10 @@ def validate_world(engine,index):
 
 
 def activate(engine,actor,ability,target):
+ if __import__('telepath').registration(engine.r,ability):return __import__('telepath').gentle(engine,actor,ability,target)
+ if __import__('telekinetic').ability_registration(engine.r,ability):return __import__('telekinetic').activate_interference(engine,actor,ability,target)
+ if __import__('sage').registration(engine.r,ability):return __import__('sage').activate_ability(engine,actor,ability,target)
+ if __import__('hex_maniac').ability_registration(engine.r,ability):return __import__('hex_maniac').activate_ability(engine,actor,ability,target)
  import move_state as MOVES,world_entities as W,state_grants as G,partial_entities as PARTIAL
  import mindlock as MINDLOCK
  blocked=MINDLOCK.gentle_block(engine,actor,ability,target)

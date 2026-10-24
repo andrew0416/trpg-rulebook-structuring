@@ -28,6 +28,8 @@ def _verify_source_record(rules,row):
 
 
 def definition(rules,source):
+    if source=='move/록온':
+        return __import__('juggler').lock_definition(rules)
     if source=='ability/잔인':
         import taskmaster as TASK
         return TASK.cruelty_definition(rules)
@@ -68,6 +70,8 @@ def classification(actor,name):
 def prepare(engine,actor,target,effect,source):
     import world_entities as W
     W.require_actors(engine,actor,target)
+    if source=='move/록온':
+        return __import__('juggler').prepare_lock(engine,actor,target,effect)
     if source=='ability/멸망의바디':
         import perish_body as PERISH_BODY
         return PERISH_BODY.prepare_condition(engine,actor,target,effect)
@@ -87,6 +91,10 @@ def prepare(engine,actor,target,effect,source):
 
 def grant(engine,actor,target,effect,source):
     row=prepare(engine,actor,target,effect,source)
+    if source=='move/록온':
+        # The completed native Move, rather than a second volatile-condition
+        # instance, establishes the two-ended next-attack relation.
+        return True
     import enduring_resilience as RESILIENCE
     if (not CONDITIONS.records(target,row['payload']['condition'])
             and not engine.immune_to(target,row['payload']['condition'])

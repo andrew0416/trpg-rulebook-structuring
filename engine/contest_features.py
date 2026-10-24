@@ -52,6 +52,7 @@ def require(e,trainer,uid):
  if e.r._selected_rule(uid)!=uid:raise ValueError('selected feature variant requires a sourced adapter')
 
 def coordinator(e,trainer):
+ __import__('coordinator').require(e,trainer,'class/코디네이터')
  conscious_trainer(trainer);require(e,trainer,'class/코디네이터');require(e,trainer,'edge/우아함')
  if max(SKILL.rank(e.r,trainer,s)[2] for s in SKILLS)<3:
   raise ValueError('Coordinator requires a Novice contest skill')
@@ -392,6 +393,7 @@ def _mistakes(e,trainer,pokemon,skill,dc,decision,reroll_faces,reroll_penalties,
 def reliable(e,trainer,pokemon):
  """ch04:509-519: validate the entire acquired Coordinator feature chain."""
  owner(trainer,pokemon);coordinator(e,trainer)
+ __import__('coordinator').require(e,trainer,RELIABLE)
  require(e,trainer,NUANCED);require(e,trainer,RELIABLE)
  if max(SKILL.rank(e.r,trainer,s)[2] for s in SKILLS)<6:
   raise ValueError('Reliable Performance requires a Master contest skill')

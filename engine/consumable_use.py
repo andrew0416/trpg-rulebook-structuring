@@ -102,6 +102,8 @@ class ItemUse(ABC):
             if not isinstance(self,(ExtendedIntake,AttackUse)):return C.PendingDecision('Selected contents need their source-specific effect consumer')
         if r.held_selection is not None:
             stock=STOCK.prepare(engine,r.user,r.source_id,held_selection=r.held_selection,count=r.count,equipment_slots=self.stock_slots(r),source_selection=r.source_selection)
+            if isinstance(r.held_selection,str) and getattr(engine,'_physical_objects',{}).get(r.held_selection,{}).get('telekinetic_holder_id')==r.user.entity_id:
+                __import__('telekinetic').item_target(engine,r.user,r.held_selection,r.target)
             if not self.supports_physical(r):
                 return C.PendingDecision('Actual held-instance consumption needs its sourced completion adapter; no inventory, action or instance consumed',basis={'holder_id':r.user.entity_id,'held_stock':stock,'source':r.source_id,'status':'unimplemented_held_consumption'})
         if not TURN.can_act(engine,r.user):return (0,0)

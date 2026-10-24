@@ -267,14 +267,13 @@ def h_injury(engine, a, t, e, ctx):
         import ice_lake as ICE_LAKE
         ice_observation = ICE_LAKE.injury_effect(engine,a,c,ctx)
         n = int(e.get("value", 1))
-        c.injuries += n
         import precise_actions as PRECISE
-        PRECISE.injury(engine,c,n,"effect/injury")
+        retained=PRECISE.gain_injury(engine,c,n,"effect/injury")
         if ice_observation is not None:
             event_id, before, contact = ice_observation
             ICE_LAKE.note_injury(engine,event_id,c.injuries-before,contact=contact)
         engine.check_fainted(c)
-        engine.log(f"    {c.name} 부상 +{n} (총 {c.injuries}) → 최대 체력 {c.max_hp}")
+        engine.log(f"    {c.name} 부상 +{retained} (총 {c.injuries}) → 최대 체력 {c.max_hp}")
 
 
 def h_heal_injury(engine, a, t, e, ctx):
@@ -476,6 +475,7 @@ def h_attack(engine, a, t, e, ctx):
             return None
         import duelist as DUELIST
         DUELIST.ability_hit(engine,a,t,uid,ctx.get('effect_occurrence',str(ctx.get('effect_receipt'))))
+        __import__('channeler').hit(engine,a,t,'ability:'+uid+':'+str(ctx.get('effect_occurrence',ctx.get('effect_receipt'))))
         ELDRITCH.after_hit(engine,a,t,move,nat,effect_receipt=ctx.get('effect_receipt'))
         on = e.get("on_hit")
         if isinstance(on, dict):
@@ -571,6 +571,7 @@ def h_random(engine, a, t, e, ctx):
         sides = max(2, int(match[1]) if match else len(keys))
         import duelist as DUELIST
         roll = 11 if sides==20 and DUELIST.choose_eleven(engine,a,'effect') else POOLS.die(engine.rng, sides)
+        if sides==20:roll=__import__('oracle').replace_d20(engine,a,roll,'random_table')
         pick = None
         for k, v in tbl.items():
             m = re.match(r"(\d+)(?:-(\d+))?", str(k))
@@ -592,6 +593,7 @@ def h_random(engine, a, t, e, ctx):
     if isinstance(e.get("then"), (dict, list)):
         import duelist as DUELIST
         roll = 11 if DUELIST.choose_eleven(engine,a,'effect') else POOLS.die(engine.rng, 20)
+        roll=__import__('oracle').replace_d20(engine,a,roll,'random_effect')
         cond = str(e.get("if", ""))
         m = re.search(r"<=\s*(\d+)", cond)
         if m and roll <= int(m.group(1)):
@@ -1170,6 +1172,7 @@ def accuracy_hook(engine, a, t, move, mm, ctx):
     import living_weapon as LIVING
     ac_override, waive, bonus, never = None, False, TIMING.accuracy_modifier(a, include_effect_contract=False), False
     for status in a.conditions:
+        if __import__('blessing_effects').ignored(a,status):continue
         # Use one derived contribution: Total Blindness replaces ordinary
         # Blindness and observed darkness enters the same accuracy consumer.
         if STATUS.normalize(status) in (VISION.BLIND, VISION.TOTAL):
@@ -1205,6 +1208,7 @@ def accuracy_hook(engine, a, t, move, mm, ctx):
             if LIVING.ignore_no_guard(engine,a,t,e,effect_owner=t):continue
             bonus += e["value"]
     waive = waive or __import__("roughneck").vulnerable(engine,a,t,move)
+    never = never or __import__('juggler').lock_on(engine,a,t)
     return ac_override, waive, bonus, never
 
 
@@ -1308,6 +1312,8 @@ def db_hook(engine, a, move, mm):
 
 def keyword_block_reason(engine,a,t,move):
     """Only selected keyword immunity, shared by hit and non-hit field recipients."""
+    if '풀' in t.types and keywords_for(a,move).intersection(('가루','Powder')):
+        return 'type/풀:Powder immunity'
     blocked_keywords = set(getattr(t, "keyword_immune", ())) & keywords_for(a, move)
     if blocked_keywords:
         return "state/keyword_immunity:" + ",".join(sorted(blocked_keywords))
@@ -1322,6 +1328,7 @@ def keyword_block_reason(engine,a,t,move):
 
 
 def blocks_hit(engine,a,t,move,mm):
+    if __import__('oracle').sight(t) and set(keywords_for(a,move)).intersection(('Illusion','환영')):return __import__('oracle').SIGHT
     ace=__import__('type_ace').blocks_hit(engine,a,t,move)
     if ace:return ace
     """PTU p336 Wonder Guard prevents hitting, unlike ordinary damage immunity.
@@ -1354,6 +1361,8 @@ def blocks_hit(engine,a,t,move,mm):
     keyword_reason=keyword_block_reason(engine,a,t,move)
     if keyword_reason:return keyword_reason
     if move.get("class") not in ("물리","특수") or t.abilities_suppressed:return None
+    import commander_orders as COMMANDER
+    if COMMANDER.perfect(engine,a,move) is not None:return None
     owned={engine.r.ability_alias.get(name,name) for name in t.abilities}
     guards=[x for x in t.modifiers if x.get("type")=="immunity" and x.get("to")=="non-super-effective damage" and x.get("_ability") in owned]
     if not guards:return None
@@ -1598,7 +1607,7 @@ def defense_hook(engine, a, t, move, mm, def_stat, *, stage_override=None):
         stage=stage_override
         staged=max(FIELDS.stat_minimum(t.spec,def_stat),OPTIONAL.staged_value(t,def_stat,
             M.stage_stat(t.stats[def_stat],stage,engine.r.mech('combat/combat-stage-multipliers')['multiplier_by_stage'])))
-    dr = t.damage_reduction + LIFETIMES.numeric(t,"damage_reduction")
+    dr = t.damage_reduction + LIFETIMES.numeric(t,"damage_reduction") + __import__('sage').reduction(t) + __import__('ace_trainer').damage_reduction(t,a)
     if not t.abilities_suppressed:
         for e in t.modifiers:
             if e.get("type") == "damage_reduction" and e.get("if_weather") and isinstance(e.get("value"), int) and not any(e.get(k) for k in ("if", "vs", "duration")) and FX.weather_matches(engine, e["if_weather"],t):
@@ -1757,7 +1766,7 @@ def movement_profile(engine, c, land, sky, movement_mode=None, capabilities=None
         if value <= 0:
             return 0
         value = max(min(value, 2), value + delta) if delta < 0 else value + delta
-        if "둔화" in c.conditions or as_slowed:
+        if "둔화" in __import__('blessing_effects').effective_conditions(c) or as_slowed:
             value = max(1, M.ratio(value,2))
         value += OPTIONAL_STATE.movement_addition(c)
         return OPTIONAL_STATE.movement_limit(c,value)
@@ -1825,16 +1834,17 @@ def end_of_turn(engine, c):
                 continue
             import precise_actions as PRECISE
             precision_event=PRECISE.attacked(engine,a,c,move,producer="effects_ext.delayed_attack")
-            precision_facts={}
-            dealt = engine.roll_damage(a, c, move, False, _precision_observation=precision_facts)
+            precision_facts={};damage_event={}
+            dealt = engine.roll_damage(a, c, move, False, _precision_observation=precision_facts,_reaction_event=damage_event)
             PRECISE.damage_hit(engine,a,c,move,precision_event,precision_facts,dealt)
             if precision_facts.get("hit_prevented"):
                 COMPLETE.finish_target(engine,completion_id,a,c,hit=False,dealt=0)
                 continue
-            HEAVY.apply_attack_damage(engine, a, c, dealt, move,
+            application=HEAVY.apply_attack_damage(engine, a, c, dealt, move,
                 producer=HEAVY.Producer.DELAYED_HIT,
                 remainder="remaining delayed queue and outer turn-end effects have not run; current delayed record already removed",
                 actual_damage_type=precision_facts.get("actual_damage_type"))
+            if isinstance(application,dict) and application.get('source')==__import__('channeler').PAIN:dealt=0
             COMPLETE.finish_target(engine,completion_id,a,c,hit=True,dealt=dealt)
     import declarative_move_contracts as DECLARATIVE_MOVES
     DECLARATIVE_MOVES.end_turn(engine,c)
@@ -1864,4 +1874,4 @@ def save_dc(engine, c, cond, dc):
     import effect_lifetimes as LIFETIMES
     import training_features as TRAINING
     import eldritch_magic as ELDRITCH
-    return dc + int(p.get("escape_dc_bonus", 0)) - c.save_mod - LIFETIMES.numeric(c,"save_modifier") - SOCIAL.save_bonus(engine,c,cond) - AWARENESS.bonus(engine,c) - TRAINING.bonus(c,"save") - ELDRITCH.save_modifier(c)
+    return dc + int(p.get("escape_dc_bonus", 0)) - c.save_mod - LIFETIMES.numeric(c,"save_modifier") - SOCIAL.save_bonus(engine,c,cond) - AWARENESS.bonus(engine,c) - TRAINING.bonus(c,"save") - ELDRITCH.save_modifier(c) - __import__('ace_trainer').save_bonus(c)

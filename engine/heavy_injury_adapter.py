@@ -57,6 +57,7 @@ def _kernel_state(state):
     return K.State(**{k:state[k] for k in
         ("hp","temporary_hp","injuries","real_max_hp","actor_kind")})
 
+@__import__('channeler').native_move
 def apply_attack_damage(engine, attacker, target, amount, move, *, producer, remainder, native_context=None, actual_damage_type=None):
     """Retain the original hit and halt before caller's remaining effects.
 
@@ -83,10 +84,13 @@ def apply_attack_damage(engine, attacker, target, amount, move, *, producer, rem
         certified = not certificate.failures and not diagnostic.failures
     else:
         certified = False
+    import channeler as CHANNEL
+    replacement=CHANNEL.replace_attack(engine,attacker,target,amount,move,actual_damage_type)
+    if replacement is not None:return replacement
     before = observe(target)
     cap = copy.deepcopy(getattr(target,"damage_cap",None))
     import attack_damage_history as HISTORY
-    with HISTORY.damage_source(engine,target,move):
+    with HISTORY.damage_source(engine,target,move), __import__('focus_punch').damage_scope(engine,target) as focus_damage:
         if receipt is None:
             original_result = engine.take_damage(target, amount)
         else:
@@ -145,6 +149,7 @@ def apply_attack_damage(engine, attacker, target, amount, move, *, producer, rem
                   kernel_reason=proposal.reason, issues=list(dict.fromkeys(issues)),
                   unexecuted_remainder=remainder, continuation_reified=False,
                   status="pending" if relevant else "not_applicable")
+    if focus_damage is not None:packet['focus_punch_damage']=copy.deepcopy(focus_damage)
     engine._heavy_events[event_id] = packet
     if hardened:
         packet['status']='applied'

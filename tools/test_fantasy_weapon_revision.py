@@ -33,6 +33,9 @@ import world_entities as WORLD
 class FantasyWeaponRevisionTests(unittest.TestCase):
     def fixture(self, *, rank=4, occult=4, element='노말', count=3):
         r = Rules(str(ROOT), ruleset='all')
+        if max(rank, occult) > 6:
+            from examples.declared_skill_ranks import configure
+            configure(r)
         e = Engine(r, seed=94552); e.grid = Grid(20, 15)
         a = Combatant(r, build_trainer(r, 'fantasy owner', 30,
             {'hp':100, 'atk':35, 'def':15, 'spa':35, 'spd':15, 'spe':20},

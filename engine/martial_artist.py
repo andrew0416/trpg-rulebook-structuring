@@ -19,6 +19,11 @@ EVASION_RESETS=TAG+'_evasion_resets';EVASION_GAIN=TAG+'_evasion_gain'
 MANEUVERS={'maneuver/붙잡기','maneuver/밀기','maneuver/걸기','maneuver/무장해제'}
 
 
+def _enemy(actor,target):
+ left,right=getattr(actor,'side',None),getattr(target,'side',None)
+ return actor is not target and bool(left and right and left!=right)
+
+
 def records(a,feature=None,active=False):
  import trainer_feature_acquisition as T
  return [r['static_acquisition'] for _,r,live in T._static_records(a) if r['static_acquisition']['feature_id'] in FEATURES and (feature is None or r['static_acquisition']['feature_id']==feature) and (not active or live)]
@@ -88,7 +93,7 @@ def arm(e,a,reaction,*,move=None,target=None,options=None):
  if target is not None:
   import world_entities as W
   W.require_actors(e,target)
-  if reaction!='pummeling_momentum' or target is a or target.side==a.side:raise ValueError('Pummeling Momentum requires an actual foe')
+  if reaction!='pummeling_momentum' or not _enemy(a,target):raise ValueError('Pummeling Momentum requires an actual foe')
   row['target_id']=target.entity_id
  if options is not None:
   if reaction!='bend_like_the_willow' or type(options) is not dict or not set(options)<=MANEUVERS:raise ValueError('Willow needs options for actual printed maneuvers')
@@ -162,7 +167,7 @@ def _punch(e,a,move):
 def _retain_tag_hit(a,t):
  """Any real hit retains the tag; only Iron Fist Moves create or increase it."""
  tag=a.spec.get(TAG)
- if tag and t.entity_id==tag['target_id'] and t.side!=a.side:
+ if tag and t.entity_id==tag['target_id'] and _enemy(a,t):
   tag['hit_turn']=a.custom_conditions.get('combat_turn_serial',0);_seal_tag(tag)
 
 
@@ -170,7 +175,7 @@ def after_move(e,row):
  """One actual completed Move, so Double Strike/Five Strike cannot double-credit."""
  import move_completion as MC
  a=row['actor'];tag=a.spec.get(TAG)
- hits=[t for t in MC.actual_recipients(row) if MC.recipient_result(row,t).get('hit') and not MC.recipient_result(row,t).get('cancelled') and t.side!=a.side]
+ hits=[t for t in MC.actual_recipients(row) if MC.recipient_result(row,t).get('hit') and not MC.recipient_result(row,t).get('cancelled') and _enemy(a,t)]
  for t in hits:_retain_tag_hit(a,t)
  if style(a)!='pummeling_momentum':return
  import skill_modifiers as S,action_points as AP
@@ -232,7 +237,7 @@ def end_turn(e,a):
 
 def maneuver_failed(e,a,t,source,*,opposed):
  """Called at the real failed accuracy/opposed phase, before another action."""
- if source not in MANEUVERS or a.side==t.side:return
+ if source not in MANEUVERS or not _enemy(a,t):return
  # The immediate attacker follow-up is armed once; nested reactions cannot loop.
  second=a.spec.get(ARMED,{}).get('second_strike')
  if opposed and second is not None and acquired(a,SECOND):
@@ -342,7 +347,7 @@ def whirlwind_strikes(e,a,targets):
  import world_entities as W
  if type(targets) not in (list,tuple) or not targets or len({id(t) for t in targets})!=len(targets):raise ValueError('distinct adjacent Whirlwind foes required')
  W.require_actors(e,a,*targets)
- if any(t is a or t.side==a.side or not e.adjacent(a,t) or not t.on_field or t.fainted for t in targets):raise ValueError('Whirlwind targets must be actual adjacent foes')
+ if any(not _enemy(a,t) or not e.adjacent(a,t) or not t.on_field or t.fainted for t in targets):raise ValueError('Whirlwind targets must be actual adjacent foes')
  def apply(se,c,*foes):
   import action_lifecycle as A,move_activation as M,combat_timing as T
   count=T.current(se);_pay(se,c,1,ACHIEVEMENT,'full')

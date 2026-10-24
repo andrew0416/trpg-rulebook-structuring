@@ -12,7 +12,7 @@ import state_codec as CODEC, world_entities as WORLD, invisibility_state as INV
 import skill_modifiers as SKILLS, effects_ext as EXT, forced_movement as FORCED
 import mapless_space as SPACE
 
-R=Path('D:/trpg-rulebook-structuring/ptk-structure-experiment')
+R=Path(__file__).resolve().parents[1]
 
 
 class SpiritBodyModesTests(unittest.TestCase):

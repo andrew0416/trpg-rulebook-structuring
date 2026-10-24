@@ -69,7 +69,9 @@ def declaration(value):
     elif type(value['species']['parents']) is not list:raise ValueError('explicit species parent indices required')
     if type(value['species']['allowed']) is not list:raise ValueError('explicit declared species list required')
     for uid in value['species']['allowed']:Q._text(uid)
-    inheritance=value['inheritance'];Q._fields(inheritance,('kind','moves','parents','knowledge'))
+    inheritance=value['inheritance'];Q._fields(inheritance,('kind','moves','parents','knowledge',*(['tutoring_policy'] if 'tutoring_policy' in inheritance else [])))
+    if 'tutoring_policy' in inheritance and inheritance['tutoring_policy'] not in ('core','official_sep2015','kr_errata'):
+        raise ValueError('selected inheritance tutoring policy required')
     if inheritance['kind'] not in ('species_egg','parent_known_egg_and_tm','declared') or inheritance['knowledge'] not in ('any','all'):raise ValueError('explicit inheritance list and parental knowledge policy required')
     _indices(inheritance['parents'],value['parent_count'])
     if type(inheritance['moves']) is not list:raise ValueError('declared inheritance list required')
@@ -247,22 +249,29 @@ def details(engine,value):
     if type(value['special_appearance']) is not bool:raise ValueError('explicit special-appearance choice required')
     result=deepcopy(value);result['moves']=moves(engine,value['moves']);result['inheritance_moves']=moves(engine,value['inheritance_moves'])
     if len(result['moves'])>6 or type(value['abilities']) is not list or len(set(value['abilities']))!=len(value['abilities']):raise ValueError('distinct explicit birth abilities and supported move capacity required')
+    import ability_transitions as ABILITIES
     for ability in value['abilities']:
-        selected=engine.r.selection.resolve_name(ability,('ability/',));engine.r.selection.require_supported_version(selected)
+        engine.r._selected_rule(ABILITIES.ability_id(engine.r,ability))
     return result
 
 
 def birth_abilities(engine,species,abilities):
     """Ordinary hatch grants one Basic Ability; a birth level is not a level-up event."""
     import growth_milestones as MILESTONES
+    import ability_transitions as ABILITIES,move_state as MOVES
     if type(abilities) is not list or len(abilities)!=1:
         raise ValueError('birth needs one species Basic Ability')
-    selected=engine.r.selection.resolve_name(abilities[0],('ability/',))
+    def identity(name):
+        selected=ABILITIES.ability_id(engine.r,name)
+        engine.r._selected_rule(selected)
+        registration=MOVES.ability_registration(engine.r,name) or {}
+        return selected,registration.get('acquisition_identity',selected)
+    selected=identity(abilities[0])
     options=MILESTONES.ability_options(engine.r,{'species':species,'abilities':[]},'creation')
     for option in options:
-        try:identity=engine.r.selection.resolve_name(option,('ability/',))
+        try:candidate=identity(option)
         except ValueError:continue
-        if selected==identity:return
+        if selected==candidate:return
     raise ValueError('birth Ability is outside the child species Basic Ability candidates')
 
 
@@ -288,6 +297,7 @@ def construct(engine,owner,egg,*,name,birth_level,tutor_points,selected,extra=No
     from engine import Combatant
     import pokemon_progression as P,move_state as M
     Q._text(name);selected=details(engine,selected)
+    inheritance_policy=egg.get(CONTRACT,{}).get('plan',{}).get('declaration',{}).get('inheritance',{}).get('tutoring_policy')
     birth_gender(engine,egg['species'],selected['gender'])
     inherited=selected['inheritance_moves']
     natural=M.current_natural_evidence(engine.r,{'species':egg['species'],'level':birth_level})
@@ -296,6 +306,9 @@ def construct(engine,owner,egg,*,name,birth_level,tutor_points,selected,extra=No
     spec=build_pokemon(engine.r,egg['species'],birth_level,name=name,nature=selected['nature'],moves=selected['moves'],
         abilities=list(selected['abilities']),extra={'gender':selected['gender'],'trainer_id':owner.entity_id,'special_appearance':selected['special_appearance'],
         'inheritance_moves':inherited,'egg_entity_id':egg['entity_id'],'tutor_points':tutor_points,**deepcopy(extra or {})})
+    if inheritance_policy is not None:
+        spec['inheritance_tutoring_policy']=inheritance_policy
+        __import__('growth_milestones').offer_inheritance(engine.r,spec)
     spec[P.LEVEL_STATE].update(origin='hatch',egg_entity_id=egg['entity_id'])
     import growth_milestones as MILESTONES
     MILESTONES.offer_inheritance(engine.r,spec)

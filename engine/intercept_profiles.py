@@ -128,6 +128,8 @@ def register_owned(engine,actor,name):
 
 
 def profile(engine,reactor,event,maneuver_source):
+    stance=__import__('commander_orders').sentinel_profile(engine,reactor)
+    if stance is not None:return stance
     if maneuver_source not in MANEUVERS:raise ValueError('exact native Intercept maneuver required')
     plan=preflight_owned(engine,reactor)
     if plan is None:return {'action':'full','payment':'next','budget':{'standard':1,'shift':1},'modifier_sources':[]}
@@ -139,6 +141,7 @@ def profile(engine,reactor,event,maneuver_source):
 
 
 def validate_profile(engine,actor,value,*,historical=True):
+    if __import__('commander_orders').validate_sentinel_profile(engine,actor,value,historical=historical):return True
     if type(value)is not dict or set(value)!={'action','payment','budget','modifier_sources'}:
         raise ValueError('exact native Intercept cost profile required')
     if value=={'action':'full','payment':'next','budget':{'standard':1,'shift':1},'modifier_sources':[]}:

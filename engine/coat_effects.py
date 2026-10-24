@@ -29,6 +29,8 @@ def policy(rules):
 
 
 def definition(rules,source):
+ import substitute as SUBSTITUTE
+ if source==SUBSTITUTE.SOURCE:return SUBSTITUTE.definition(rules,source)
  import double_team as DOUBLE
  if source==DOUBLE.SOURCE:return DOUBLE.definition(rules,source)
  row=policy(rules)['sources'].get(source)
@@ -46,7 +48,7 @@ def _transfer_events(record):
 
 def _validate_transfer_history(record):
  for event in _transfer_events(record):
-  if event.get('source') not in (BATON,'feat/태그-인'):raise ValueError('Coat ownership requires Baton Pass or actual Tag In')
+  if event.get('source') not in (BATON,'feat/힘의-전달','feat/태그-인'):raise ValueError('Coat ownership requires a reviewed transfer source')
   if event['source']=='feat/태그-인' and not {'recall_id','trainer_id','from_turn','to_turn'}<=set(event):
    raise ValueError('Tag In Coat handoff requires complete native recall proof')
 
@@ -61,6 +63,7 @@ def live(actor):
 
 
 def validate_record(actor,record,*,terminal=False):
+ if record.get('source')=='move/대타출동':return __import__('substitute').validate(actor,record,terminal)
  if record.get('source')=='move/그림자분신':
   import double_team as DOUBLE
   return DOUBLE.validate(actor,record,terminal)
@@ -151,18 +154,18 @@ def preflight_transfer(engine,actor,source):
  return replacement
 
 
-def preflight_handoff(actor,replacement):
+def preflight_handoff(actor,replacement,*,identifiers=None):
  if any(not isinstance(r,dict) or E.KEY not in r for r in actor.coats):raise ValueError('legacy Coat cannot transfer without source identity')
  validate_actor(actor);validate_actor(replacement)
- incoming={r['source'] for r in live(actor)};existing={r['source'] for r in live(replacement)}
+ incoming={r['source'] for r in live(actor) if identifiers is None or r['id'] in identifiers};existing={r['source'] for r in live(replacement)}
  if incoming&existing:raise ValueError('Baton Pass would create unresolved same-source Coat composition')
 
 
-def transfer_to(engine,actor,replacement,*,source,recall_id=None):
+def transfer_to(engine,actor,replacement,*,source,recall_id=None,identifiers=None):
  if source not in (BATON,'feat/태그-인'):raise ValueError('source-owned Coat transfer required')
  if source=='feat/태그-인':E.text(recall_id,'actual Tag In recall')
- preflight_handoff(actor,replacement)
- moved=list(live(actor))
+ preflight_handoff(actor,replacement,identifiers=identifiers)
+ moved=[r for r in live(actor) if identifiers is None or r['id'] in identifiers]
  if source=='feat/태그-인':
   from native_order_transfer import require_switch_proof
   event={'source':source,'at':engine.elapsed_seconds,'recall_id':recall_id,
@@ -188,8 +191,28 @@ def transfer(engine,actor,source):
  if not actor.spec[TRANSFER_CHOICES]:actor.spec.pop(TRANSFER_CHOICES,None)
  return replacement
 
+def transfer_tag(engine,actor,replacement,pending):
+ """The actual recall snapshot authorizes this feature, without a fake Move."""
+ import world_entities as W,juggler as J
+ W.require_actors(engine,actor,replacement)
+ owner=W.actor_index(engine).get(actor.spec.get('trainer_id'))
+ if owner is None or owner.spec.get(J.KEY,{}).get('pending_tag') is not pending or pending.get('source')!=J.TAG or pending.get('pokemon_id')!=actor.entity_id:
+  raise ValueError('actual source-owned Tag In recall snapshot required')
+ if actor.on_field or replacement.kind!='pokemon' or replacement.spec.get('trainer_id')!=owner.entity_id or actor.side!=replacement.side:
+  raise ValueError('Tag In requires the next actual owned release')
+ validate_actor(actor);validate_actor(replacement)
+ moved=[r for r in live(actor) if r['id'] in pending['coats']]
+ if {r['source'] for r in moved}&{r['source'] for r in live(replacement)}:raise ValueError('Baton Pass would create unresolved same-source Coat composition')
+ for record in list(moved):
+  E.transfer(engine,actor,replacement,record,source=J.TAG)
+  record['issued_turn']=serial(replacement)
+  actor.coats.remove(record);replacement.coats.append(record)
+ validate_actor(actor);validate_actor(replacement)
+ return replacement
+
 
 def validate_world(engine,index):
+ __import__('illusion_state').validate_genjutsu(engine,index)
  for actor in index.values():
   validate_actor(actor)
   choice=_choice(actor)
@@ -214,6 +237,7 @@ def preflight(engine,actor,target,effect,source):
 
 
 def grant(engine,actor,effect,source,*,target=None):
+ if source=='move/대타출동':return __import__('substitute').grant(engine,actor,effect,source)
  target=target or actor
  if not preflight(engine,actor,target,effect,source):return False
  row=definition(engine.r,source)
@@ -230,7 +254,7 @@ def turn_start(engine,actor):
  if not actor.on_field or actor.captured:return
  turn=serial(actor)
  for record in live(actor):
-  if record['effect']['kind'] in ('damage_coat','double_team_coat'):continue
+  if record['effect']['kind'] in ('damage_coat','double_team_coat','substitute_coat'):continue
   own=[x['turn'] for x in record['applications'] if x['holder_id']==actor.entity_id]
   last=own[-1] if own else record['issued_turn']
   if turn<=last:continue
@@ -266,3 +290,26 @@ def clear(engine,actor,*,source,applied_by):
  for record in owned:E.archive(engine,actor,record,state='expired',event={'kind':'coat_removed','source':source,'actor_id':applied_by.entity_id})
  count=len(actor.coats);actor.coats.clear()
  return count
+
+
+
+def preflight_one(engine,actor,target,coat_id,*,source):
+ import world_entities as W
+ W.require_actors(engine,actor,target)
+ if source!='feat/힘의-전달' or engine.r._selected_rule(source)!=source:raise ValueError('reviewed single-Coat transfer source required')
+ if actor is target:raise ValueError('Coat transfer requires distinct holders')
+ validate_actor(actor);validate_actor(target)
+ found=[record for record in live(actor) if record.get('id')==coat_id]
+ if len(found)!=1:raise ValueError('select one actual source-owned Coat instance')
+ record=found[0]
+ if any(r['source']==record['source'] for r in live(target)):raise ValueError('single-Coat transfer would create unresolved same-source composition')
+ return record
+
+
+def transfer_one(engine,actor,target,coat_id,*,source):
+ record=preflight_one(engine,actor,target,coat_id,source=source)
+ E.transfer(engine,actor,target,record,source=source)
+ record['issued_turn']=serial(target)
+ actor.coats.remove(record);target.coats.append(record)
+ validate_actor(actor);validate_actor(target)
+ return record

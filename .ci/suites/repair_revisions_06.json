@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "repair_revisions_06",
+  "purpose": "Focused diagnostics for repaired original failures and changed switch/Juggler, source, clock, rank, type and state paths. This does not replace the original4115-ID final obligations or confer185-finding/406-clause acceptance.",
+  "completion_credit": 0,
+  "required_unique_count": 36,
+  "completed": {
+    "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests": {
+      "tests": [
+        "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests.test_actual_fighting_move_ally_hit_has_no_mark_penalty_or_departure_attack",
+        "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests.test_actual_foe_mark_restores_marker_identity_and_preserves_seven_rank_acquisition",
+        "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests.test_actual_trip_hit_marks_foe_only_and_self_attempt_is_atomic",
+        "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests.test_explicit_side_change_before_fighting_hit_is_current_and_unknown_target_never_marked",
+        "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests.test_pending_close_quarters_side_recipient_and_acquisition_tampering_rejects_restore",
+        "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests.test_pending_magician_foe_hit_marks_after_side_change_gm_and_cold_restore_without_repayment",
+        "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests.test_pending_pickpocket_ally_hit_never_becomes_foe_hit_after_side_change_and_restore",
+        "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests.test_real_intercept_marks_only_actual_fighting_hit_recipient_and_not_immune_recipient"
+      ]
+    },
+    "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests": {
+      "tests": [
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_all_class_branches_and_fire_stat_choices_commit_exact_selection",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_all_requests_replay_without_state_change_and_changed_intent_is_atomic",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_all_sources_withdraw_keep_archived_qualification_and_old_replay_does_not_reacquire",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_backpacker_talents_use_two_per_actual_journey_rank_and_preserve_skill_gate",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_changed_feature_for_same_request_rejects_and_no_retroactive_owned_certification",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_each_missing_owned_prerequisite_rejects_without_using_gm_reason_as_waiver",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_each_printed_skill_rejects_below_boundary_and_accepts_exact_boundary",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_elemental_classes_require_exact_owned_type_and_each_printed_skill",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_exact_fifteen_sources_have_native_success_and_existing_receipt_reader",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_exact_source_exclusion_and_invalid_choices_fail_before_any_commit",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_existing_synthetic_class_aliases_in_classes_or_feats_keep_one_real_slot",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_explicit_seven_plus_declared_skills_are_not_capped_at_six",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_historical_skill_ownership_and_route_loss_survive_json_and_gm_restore",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_new_emergency_care_reaches_native_kit_recovery_and_daily_target_consumer",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_new_talents_reach_native_head_body_critical_and_nonstack_consumers",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_new_top_percentage_reaches_native_growth_four_use_and_stat_consumer",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_nontrainer_native_admission_rejects_before_any_write",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_psychic_assault_accepts_either_focus_or_intuition_without_requiring_both",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_scoped_prerequisite_waiver_has_exact_source_provider_stage_and_check",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_synthetic_classes_use_actual_four_class_slots_and_atomic_fifth_rejection",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_transaction_failure_after_source_write_keeps_world_rng_and_ownership_unchanged"
+      ]
+    },
+    "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests": {
+      "tests": [
+        "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests.test_absence_markers_cannot_be_reintroduced_as_custom_defensive_types",
+        "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests.test_all_three_paid_tera_blasts_are_typeless_neutral_without_matching_ten",
+        "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests.test_default_profiles_reject_permissions_and_question_marks_remain_invalid",
+        "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests.test_forced_typeless_form_is_active_with_empty_defense_and_no_type_bonus",
+        "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests.test_gm_and_fresh_rules_json_keep_stellar_and_typeless_forms_distinct",
+        "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests.test_non_tera_stellar_has_identity_stab_and_neutral_defense_without_ability",
+        "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests.test_permission_schema_is_boolean_and_selected_policy_cannot_change_silently"
+      ]
+    }
+  }
+}

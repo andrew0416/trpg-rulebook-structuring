@@ -27,7 +27,8 @@ class PickupSourceInterpretationRevisionTests(unittest.TestCase):
         self.base = BASE.PickupItemCopyTests()
 
     def state(self, engine, user, target):
-        return deepcopy((user.spec, user.budget, target.spec, target.budget,
+        return deepcopy((user.spec, ('budget' in vars(user), vars(user).get('budget')),
+                         target.spec, ('budget' in vars(target), vars(target).get('budget')),
                          engine._physical_objects, engine.log_lines, engine.rng.getstate()))
 
     def decision(self, engine, user, target, interpretation, selection='original', destination_slot=None):

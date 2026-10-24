@@ -9,7 +9,7 @@ import unittest
 
 
 STAGE_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_ROOT = Path(r"D:\trpg-rulebook-structuring\ptk-structure-experiment")
+SOURCE_ROOT = STAGE_ROOT
 sys.path[:0] = [str(STAGE_ROOT / "engine"), str(SOURCE_ROOT / "engine")]
 
 from engine import Combatant, Engine, Rules

@@ -307,6 +307,9 @@ class CloseQuartersFoeContractTests(unittest.TestCase):
 
     def pending_fighting_hit(self, *, ally=False):
         self.family('격투', 'Close Quarters Mastery')
+        from examples.declared_skill_ranks import configure
+        self.enterContext(patch.object(self.e.r, 'rulings', deepcopy(self.e.r.rulings)))
+        configure(self.e.r)
         self.e.gm.set_skill(self.t, '전투', 7, reason='observed seventh rank keeps actual acquired Type Ace history')
         target = self.q if ally else self.b
         if not ally:
@@ -440,6 +443,9 @@ class CloseQuartersFoeContractTests(unittest.TestCase):
 
     def test_actual_foe_mark_restores_marker_identity_and_preserves_seven_rank_acquisition(self):
         self.family('격투', 'Close Quarters Mastery')
+        from examples.declared_skill_ranks import configure
+        self.enterContext(patch.object(self.e.r, 'rulings', deepcopy(self.e.r.rulings)))
+        configure(self.e.r)
         self.e.gm.set_skill(self.t, '전투', 7, reason='actual rank above Master remains valid')
         self.e.gm.set_position(self.p, (3, 2), reason='actual adjacent Fighting attack')
         self.sustain('Close Quarters Mastery')

@@ -206,7 +206,7 @@ def rules_fingerprint(rules):
     manifest = [(path.relative_to(root).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest())
                 for path in _corpus_paths(root)]
     policy = {k: v for k, v in vars(rules).items()
-              if k not in ('root', 'rulings', 'ruleset', 'selection', '_source_context_reads')}
+              if k not in ('root', 'rulings', 'ruleset', 'selection', '_source_context_reads', '_coordinator_contest_reader')}
     # Loading a policy cache is not a rules change. Use its saved definition
     # when cold and its actual contents when warm, preserving override checks.
     # Keep this registry explicit: arbitrary private rule state is still hashed.
@@ -254,6 +254,51 @@ def rules_fingerprint(rules):
     ranked_name='_ranked_class_move_tables'
     if ranked_name in policy and policy[ranked_name]==saved_policy('class-ranked-move-tables.json','rules'):
         policy.pop(ranked_name)
+    redundant = {
+        '_class_actor_state_reaction_policy': ('class-actor-state-reactions-policy.json', None),
+        '_native_class_actor_state_reaction_policy': ('native-class-reaction-policy.json', None),
+        '_feature_ability_lessons': ('feature-ability-lessons.json', 'rules'),
+        '_optional_state_effect_contract_policy': ('optional-state-effect-contract-policy.json', None),
+        '_optional_weapon_framework_policy': ('optional-weapon-framework-policy.json', None),
+        '_survivalist_class_definitions': ('survivalist-definitions.json', None),
+        '_juggler_contract': ('juggler-source-contract.json', None),
+    }
+    for name, (filename, member) in redundant.items():
+        if name in policy and policy[name] == saved_policy(filename, member):
+            policy.pop(name)
+    # Recompute derived indexes with their existing readers on an isolated copy.
+    # Only an exact redundant result may disappear; authored definitions stay hashed.
+    def uncached(*names):
+        checked = copy(rules)
+        checked._source_context_reads = {}
+        for name in names:
+            vars(checked).pop(name, None)
+        return checked
+    if '_source_catalog' in policy or '_source_catalog_identity' in policy:
+        import source_catalog as CATALOG
+        checked = uncached('_source_catalog', '_source_catalog_identity')
+        expected_catalog = CATALOG._document(checked)
+        if (policy.get('_source_catalog') == expected_catalog
+                and policy.get('_source_catalog_identity') == checked._source_catalog_identity):
+            policy.pop('_source_catalog')
+            policy.pop('_source_catalog_identity')
+    if '_equipment_variant_punch_moves' in policy:
+        import equipment_variant_contracts as EQUIPMENT
+        checked = uncached('_equipment_variant_punch_moves')
+        if policy['_equipment_variant_punch_moves'] == EQUIPMENT._punch_moves(checked):
+            policy.pop('_equipment_variant_punch_moves')
+    skill_reads = policy.get('_skill_csv_sources')
+    if type(skill_reads) is set:
+        import skill_modifiers as SKILLS
+        records = { (source['id'], source['sha256']): row
+            for section in ('edges', 'rank_effects')
+            for row in rules.skill_policy.get(section, {}).values()
+            if (source := row.get('equivalent_csv_source')) is not None }
+        if skill_reads <= records.keys():
+            checked = uncached('_skill_csv_sources')
+            for identity in skill_reads:
+                SKILLS.validate_csv_source(checked, records[identity], [identity[0]])
+            policy.pop('_skill_csv_sources')
     custom=saved_policy('custom-condition-policy.json')
     if policy.get('_custom_condition_policy')==custom:
         policy.pop('_custom_condition_policy')
@@ -401,6 +446,16 @@ class _Encoder:
             if value is not self.engine:
                 _fail('multiple Engines require a separately specified session contract')
             attrs = dict(vars(value))
+            if attrs.pop('_native_roll_deciding',False):
+                _fail('cannot save while a native roll decision callback is executing')
+            for key in ('_coordinator_damage_decisions','_coordinator_nuanced_decisions'):
+                live=attrs.pop(key,None)
+                if live is not None and (type(live)is not dict or any(type(k)is not str or not callable(v) for k,v in live.items())):_fail('invalid live Coordinator decision bindings')
+            decisions = attrs.pop('_native_roll_decisions',None)
+            if decisions is not None and (type(decisions) is not dict or any(type(k)is not str or not callable(v) for k,v in decisions.items())):
+                _fail('invalid live native roll decision bindings')
+            # The data-only actor offer survives. Its observation callback must
+            # be authenticated again after load, like other live decision input.
             binding = attrs.pop('_root_common_binding', None)
             if binding is not None:
                 attrs['_root_common_saved'] = _export_common(binding)
@@ -947,7 +1002,7 @@ CONTEST_FIELDS = frozenset(('r', 'rng', 'log_lines', 'apply_intro_bonus',
     '_native_intro_bindings', '_trainer_partners', '_flourish_used', '_fashion_used',
     '_performance_observations', '_coordinator_used', '_paired_run', '_paired_busy',
     '_trainer_interactions', 'last_standings', '_standard_run', '_standard_busy',
-    '_festival_run', '_festival_busy'))
+    '_festival_run', '_festival_busy', '_adaptable_uses', '_adaptable_plan'))
 
 
 def _contest_types():
@@ -979,7 +1034,7 @@ def _validate_contest_state(contest, contestants, native):
     Engine, Combatant, _, _, _, _ = _types()
     if type(contest) is not ContestEngine or type(contest.r) is not ContestRules:
         _fail('native contest host and selected rules required')
-    required = CONTEST_FIELDS - {'last_standings', '_standard_run', '_standard_busy', '_festival_run', '_festival_busy'}
+    required = CONTEST_FIELDS - {'last_standings', '_standard_run', '_standard_busy', '_festival_run', '_festival_busy', '_adaptable_plan'}
     if not required <= vars(contest).keys():
         _fail('contest lacks required current-state fields')
     _field_names(vars(contest), CONTEST_FIELDS | {'_snapshots'}, 'ContestEngine')
@@ -993,6 +1048,7 @@ def _validate_contest_state(contest, contestants, native):
     for name in ('_flourish_used','_fashion_used','_coordinator_used'):
         if type(getattr(contest,name)) is not set:
             _fail('contest feature usage must be a set')
+    __import__('coordinator').validate_contest(contest,set(contestants))
     stats = set(contest.r.mech('contest/type-match')['ring'])
     ids = set()
     for c in contestants:
@@ -1233,7 +1289,10 @@ def _validate_contest_progress(contest,state,participants,*,paired):
         if type(observed) is not dict or observed.get('state')!='pending':
             _fail('pending cursor lacks the preserved first observation')
         declaration=observed['declaration'];locked=state['pending']
-        if type(locked) is not dict or any(locked.get(k)!=declaration.get(v) for k,v in (('move','move'),('spend','spend_stat_dice'),('feature','feature'))):
+        move_key='requested_move' if 'adaptable' in declaration else 'move'
+        if 'adaptable' in declaration and (type(locked) is not dict or tuple(contest.r.move(m)['id'] for m in locked.get('adaptable',()))!=declaration['adaptable']):
+            _fail('pending Adaptable constituents differ from their observation')
+        if type(locked) is not dict or any(locked.get(k)!=declaration.get(v) for k,v in (('move',move_key),('spend','spend_stat_dice'),('feature','feature'))):
             _fail('pending cursor declaration differs from its observation')
 
 

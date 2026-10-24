@@ -111,7 +111,7 @@ def configure(engine,trainer,*,battle_mode,reason,command_limit=1,gm_id=None):
     return G.transition(engine,trainer,apply)
 
 def current(engine,trainer):
-    return [row['result'] for row in trainer.spec.get(KEY,{}).values() if tuple(row['result']['scope'])==scope(engine)]
+    return [row['result'] for row in trainer.spec.get(KEY,{}).values() if not row.get('pending') and tuple(row['result']['scope'])==scope(engine)]
 
 
 def format_layout(battle_mode):
@@ -281,12 +281,12 @@ def _pay(engine,trainer,kind,*,full_switch):
     funded={k:before[k]-after[k] for k in RESOURCES.KINDS if before[k]!=after[k]}
     return {'kind':kind,'budget_before':before,'budget_after':after,'funded':funded,'phase':phase}
 
-def act(engine,trainer,*,recall=(),send=(),request_id,reason,tag_in=False):
+def act(engine,trainer,*,recall=(),send=(),request_id,reason,release_throw=None,tag_in=False,feature=None):
     """send is an ordered list of (actual Pokemon, explicit map position) pairs."""
     if trainer.kind!='trainer':raise ValueError('actual trainer required')
     recall=tuple(recall);send=tuple((p,tuple(pos)) for p,pos in send)
-    if type(tag_in)is not bool or tag_in and (len(recall)!=1 or len(send)!=1):
-        raise ValueError('Tag In selection requires one actual paired switch')
+    if type(tag_in)is not bool or tag_in and (len(recall)!=1 or len(send)>1):
+        raise ValueError('Tag In selection requires one actual recall')
     subjects=[*recall,*(p for p,_ in send)]
     W.require_actors(engine,trainer,*subjects)
     if type(reason) is not str or not reason.strip():raise ValueError('actual party action reason required')
@@ -294,9 +294,29 @@ def act(engine,trainer,*,recall=(),send=(),request_id,reason,tag_in=False):
     if policy is None:raise ValueError('explicit party combat policy required')
     intent={'actor_id':trainer.entity_id,'recall':[p.entity_id for p in recall],
             'send':[[p.entity_id,list(pos)] for p,pos in send],'reason':reason,'policy':deepcopy(policy)}
+    if feature is not None:intent['feature']=deepcopy(feature)
+    if release_throw is not None:
+        if recall or len(send)!=1:raise ValueError('release throw belongs to one actual send')
+        intent['release_throw']=deepcopy(release_throw)
     if tag_in:intent['tag_in']=True
     prior=TX.replay_result(trainer.spec.get(KEY,{}),request_id,intent)
-    if prior is not None:return prior['result']
+    if prior is not None:
+        if prior.get('pending'):
+            event_id=prior['pending'].get('event_id')
+            if event_id and engine._passive_pending==event_id:raise __import__('passive_events').PassiveEventPending(event_id)
+            raise ValueError('finish the actual retained party-action reaction')
+        return prior['result']
+    feature_plan=None if feature is None else __import__('juggler').party_plan(engine,trainer,recall,send,feature)
+    if tag_in and feature_plan and feature_plan['tag_in']:
+        raise ValueError('select Tag In once for the actual recall')
+    if release_throw is not None:
+        __import__('capture_specialist').release_plan(engine,trainer,send[0][0],release_throw)
+        bounce=release_throw.get('bounce')
+        if bounce is not None:
+            target=W.actor_index(engine).get(release_throw['target_id'])
+            plan=__import__('juggler').bounce_plan(engine,trainer,target,bounce,function='release')
+            expected=plan['landing'] if plan['timing']=='before' else plan['endpoint']
+            if tuple(send[0][1])!=tuple(expected):raise ValueError('released Pokemon must occupy the actual ball function position')
     require_gym_participants(engine,(trainer,*subjects))
     if not engine.encounter_active or engine.round_start_seconds is None:raise ValueError('paid party action requires an actual open combat round')
     if not subjects or len(set(map(id,subjects)))!=len(subjects) or len(recall)>2 or len(send)>2 or (recall and send and (len(recall)!=1 or len(send)!=1)):
@@ -318,7 +338,7 @@ def act(engine,trainer,*,recall=(),send=(),request_id,reason,tag_in=False):
     for p in recall:
         if not p.on_field:raise ValueError('recall requires an actual field Pokemon')
         import condition_recovery as RECOVERY
-        if not RECOVERY.permits_recall(p):raise ValueError('Trapped prevents ordinary recall')
+        if not RECOVERY.permits_recall(p) and not (feature_plan and feature_plan['ignore_trapped']):raise ValueError('Trapped prevents ordinary recall')
         if policy['battle_mode']!='league':
             if engine.grid is None:raise ValueError('actual recall beam distance requires a map')
             if min(cheb(a,b) for a in BODY.cells(trainer,require_complete=True) for b in BODY.cells(p,require_complete=True))>8:
@@ -334,35 +354,106 @@ def act(engine,trainer,*,recall=(),send=(),request_id,reason,tag_in=False):
     if tag_in:
         import native_switch_transfer as SWITCH
         SWITCH._feature(engine,trainer,SWITCH.TAG_IN)
-        SWITCH.preflight_handoff(engine,recall[0],send[0][0],source=SWITCH.TAG_IN,recalled=True)
+        if send:SWITCH.preflight_handoff(engine,recall[0],send[0][0],source=SWITCH.TAG_IN,recalled=True)
     cost='shift' if not(recall and send) or recall[0].fainted else 'standard'
+    if release_throw is not None:cost='standard'
     if len(subjects)==2 and not(recall and send):cost='standard'
     prior_recall=[x for row in history for x in row['recall_events']]
     recall_events=[{'pokemon_id':p.entity_id,'fainted':p.fainted} for p in recall]
     is_switch=bool(send and (recall or prior_recall)) or bool(recall and any(row['sent'] for row in history))
     voluntary=any(not x['fainted'] for x in prior_recall+recall_events)
     blocked=sorted(sent | {uid for row in history for uid in row['sent']}) if policy['battle_mode']=='league' and is_switch and voluntary else []
+    if feature_plan and feature_plan['preserve_turn']:blocked=[]
     import state_grants as G
+    waiting=[]
     def apply(e,a,*participants):
+        import action_lifecycle as ACTION,passive_events as P
         from_index={p.entity_id:p for p in participants}
         if tag_in:
             import native_switch_transfer as SWITCH
             SWITCH.select_tag_in(e,a,from_index[recall[0].entity_id],reason=reason)
-        payment=_pay(e,a,cost,full_switch=bool(recall and send))
-        import combat_state_lifecycle as COMBAT
-        for uid in recalled:COMBAT.recall(e,from_index[uid])
-        for original,pos in send:
-            p=from_index[original.entity_id];COMBAT.send_out(e,p,pos=pos)
-        import marsupial_state as MARSUPIAL
-        MARSUPIAL.sync(e)
+        before_ap=__import__('action_points').available(a);before_budget=deepcopy(a.budget)
+        if feature_plan:
+            __import__('juggler').party_payment(e,a,feature_plan)
+        if feature_plan and feature_plan['action']:
+            payment={'kind':feature_plan['action'],'phase':'paid','source':feature_plan['source'],'ap':feature_plan['ap'],
+                     'budget_before':before_budget,'budget_after':deepcopy(a.budget),'funded':{},
+                     'ap_before':before_ap,'ap_after':__import__('action_points').available(a)}
+        else:payment=_pay(e,a,cost,full_switch=bool(recall and send))
         result={'request_id':request_id,'actor_id':a.entity_id,'scope':list(scope(e)),
                 'recalled':sorted(recalled),'sent':sorted(sent),'recall_events':deepcopy(recall_events),
                 'counts_as_switch':is_switch,'blocked_command_ids':blocked,'payment':payment,'source':SOURCE}
-        a.spec.setdefault(KEY,{})[request_id]={'intent':deepcopy(intent),'result':result}
-        e.log('  '+a.name+': '+cost+' 포켓몬 복귀/방출 '+str(result['recalled'])+' → '+str(result['sent']),SOURCE)
-        validate_world(e,W.actor_index(e))
-        return deepcopy(result)
-    return G.transition(engine,trainer,apply,participants=subjects,include_grid=engine.grid is not None)
+        if feature_plan:result['feature_plan']=deepcopy(feature_plan)
+        if feature_plan and feature_plan['tag_in']:
+            result['tag_payment']={'source':'feat/태그-인','request_id':request_id,
+                'outgoing_id':recall[0].entity_id,'paid_ap':1,
+                'before_ap':before_ap-feature_plan['ap'],'after_ap':__import__('action_points').available(a),
+                'consumed_recall':None}
+        a.spec.setdefault(KEY,{})[request_id]={'intent':deepcopy(intent),'result':result,
+            'pending':{'recall_cursor':0,'send_cursor':0,'event_id':None}}
+        try:
+            with ACTION.resolution(e,a,SOURCE,kind='escape'):
+                return _continue_party(e,a,request_id)
+        except P.PassiveEventPending as pending:
+            if e._passive_pending!=pending.event_id:raise
+            a.spec[KEY][request_id]['pending']['event_id']=pending.event_id
+            waiting.append(pending.event_id)
+            return None
+    result=G.transition(engine,trainer,apply,participants=subjects,include_rulings=True,include_grid=engine.grid is not None)
+    if waiting:raise __import__('passive_events').PassiveEventPending(waiting[0])
+    return result
+
+
+def validate_escape(engine,trainer,request_id):
+    row=trainer.spec.get(KEY,{}).get(request_id)
+    if row is None or not row.get('pending') or row['intent']['actor_id']!=trainer.entity_id or tuple(row['result']['scope'])!=scope(engine):
+        raise ValueError('actual paid native party continuation required')
+    progress=row['pending'];intent=row['intent']
+    C.integer(progress['recall_cursor'],'actual recall progress',0,len(intent['recall']))
+    C.integer(progress['send_cursor'],'actual send progress',0,len(intent['send']))
+    if row['result']['payment']['phase'] not in ('paid','reserved'):raise ValueError('actual party payment prefix required')
+    return row
+
+
+def _continue_party(e,a,request_id):
+    import combat_state_lifecycle as COMBAT,combat_move_reactions as REACTIONS
+    row=validate_escape(e,a,request_id);intent=row['intent'];progress=row['pending'];index=W.actor_index(e)
+    while progress['recall_cursor']<len(intent['recall']):
+        target=index[intent['recall'][progress['recall_cursor']]]
+        REACTIONS.before_escape(e,a,target,SOURCE,kind='party',request_id=request_id)
+        row=a.spec[KEY][request_id];progress=row['pending']
+        previous=getattr(e,'_native_party_recall',None)
+        e._native_party_recall={'trainer':a,'outgoing':target,'request_id':request_id,'result':row['result']}
+        try:
+            __import__('juggler').before_recall(e,a,target,row['result'])
+            COMBAT.recall(e,target,ignore_trapped=bool(row['result'].get('feature_plan',{}).get('ignore_trapped')))
+        finally:
+            if previous is None:del e._native_party_recall
+            else:e._native_party_recall=previous
+        progress['recall_cursor']+=1
+    while progress['send_cursor']<len(intent['send']):
+        uid,pos=intent['send'][progress['send_cursor']];target=index[uid]
+        if 'release_throw' in intent:
+            row['result']['release_throw']=__import__('capture_specialist').release_hit(e,a,target,intent['release_throw'])
+        COMBAT.send_out(e,target,pos=pos,request_id=request_id,source_id=row['result'].get('feature_plan',{}).get('source') or SOURCE)
+        progress['send_cursor']+=1
+        if intent['recall']:
+            __import__('initiative_schedule').replace_party(e,index[intent['recall'][0]],target,source=row['result'].get('feature_plan',{}).get('source') or SOURCE,request_id=request_id)
+    import marsupial_state as MARSUPIAL
+    MARSUPIAL.sync(e)
+    row=a.spec[KEY][request_id];row.pop('pending');result=row['result']
+    __import__('battle_contest').party_switched(e,a,result)
+    e.log('  '+a.name+': '+result['payment']['kind']+' 포켓몬 복귀/방출 '+str(result['recalled'])+' → '+str(result['sent']),SOURCE)
+    validate_world(e,W.actor_index(e))
+    return deepcopy(result)
+
+
+def resume_escape(engine,trainer,request_id):
+    validate_escape(engine,trainer,request_id)
+    result=_continue_party(engine,trainer,request_id)
+    __import__('juggler').finish_party_reaction(engine,trainer,request_id)
+    return result
+
 
 def validate_world(engine,index):
     for actor in index.values():
@@ -413,12 +504,31 @@ def validate_world(engine,index):
         if not rows:continue
         if actor.kind!='trainer' or actor.spec.get(POLICY,{}).get('battle_mode') not in ('league','full_contact'):raise ValueError('party action owner and battle policy required')
         for request,row in rows.items():
+            if row.get('pending'):validate_escape(engine,actor,request)
             result=row['result'];payment=result['payment']
             if result['request_id']!=request or result['actor_id']!=actor.entity_id or result['source']!=SOURCE:raise ValueError('party action receipt identity mismatch')
             if not set(result['recalled']+result['sent'])<=index.keys():raise ValueError('party receipt requires actual world Pokemon')
             if len(result['scope'])!=2 or any(type(v)is not int or v<0 for v in result['scope']) or tuple(result['scope'])>scope(engine):raise ValueError('party action scope cannot be in the future')
+            if 'tag_payment' in result:
+                import native_switch_transfer as SWITCH
+                outgoing=index.get(result['tag_payment'].get('outgoing_id'))
+                if outgoing is None:raise ValueError('prepaid Tag In lost its actual outgoing Pokemon')
+                tag,_=SWITCH._prepaid_tag(engine,actor,outgoing,request)
+                if tag['consumed_recall'] is None:
+                    if not row.get('pending'):raise ValueError('completed party recall lost its paid Tag In occurrence')
+                elif len([use for use in actor.spec.get(SWITCH.USES,[]) if use.get('recall_id')==tag['consumed_recall']
+                        and use.get('prepaid_party_request')==request])!=1:
+                    raise ValueError('prepaid Tag In must bind one actual recall')
+            if 'source' in payment:
+                plan=result.get('feature_plan')
+                if plan is None or plan['source']!=payment['source'] or plan['action']!=payment['kind'] or plan['ap']!=payment['ap']:raise ValueError('actual source party action receipt required')
+                if payment['ap_before']-payment['ap_after']!=plan['ap']+int(plan['tag_in']):raise ValueError('source party AP evidence disagrees with actual charges')
+                if payment['phase']!='paid' or payment['kind'] not in ('free','shift'):raise ValueError('actual Juggler Free/Shift payment required')
+                if not set(result['blocked_command_ids'])<=index.keys():raise ValueError('party command lock requires actual Pokemon')
+                continue
             if payment['phase'] not in ('paid','reserved') or payment['kind'] not in ('standard','shift'):raise ValueError('actual paid or reserved trainer action required')
             funded={k:payment['budget_before'][k]-payment['budget_after'][k] for k in RESOURCES.KINDS if payment['budget_before'][k]!=payment['budget_after'][k]}
             if funded!=payment['funded'] or sum(funded.values())!=1 or any(v!=1 for v in funded.values()):raise ValueError('party cost evidence disagrees with actual budget')
             if not set(result['blocked_command_ids'])<=index.keys():raise ValueError('party command lock requires actual Pokemon')
+    __import__('juggler').validate_world(engine,index)
     return True

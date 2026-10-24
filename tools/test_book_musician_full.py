@@ -37,6 +37,9 @@ class MusicianTests(unittest.TestCase):
         self.e = Engine(self.rules, seed=2345)
         self.e.grid = Grid(18, 12)
         self.t = self.add('Musician', 'trainer', (3, 3), speed=30, classes=[], feats=[], edges=[], moves=[], items={}, exp_bank=50)
+        self.e.pokemon_activity(self.t, 'configure_intelligence',
+            portrayal='Pokemon use their assigned performance skills', discussed_with=['Musician scene participants'],
+            social=True, education=True, reason='explicit campaign permission for actual Song skill checks')
 
     def add(self, name, kind, pos, speed=20, side='party', **extra):
         spec = dict(deepcopy(fixture.COMMON), name=name, kind=kind)

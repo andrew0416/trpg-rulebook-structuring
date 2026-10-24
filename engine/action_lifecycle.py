@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from action_metadata import ActionCost
 
 @contextmanager
-def resolution(engine,actor,source,*,kind,join=False,_breather_attempt=None,_move_completion=None,_combat_reaction=None):
+def resolution(engine,actor,source,*,kind,join=False,_breather_attempt=None,_move_completion=None,_combat_reaction=None,_escape_reaction=None):
     """Native producer scope, distinct from action cost and per-hit resolution.
 
     Only actual same-activation children join their parent. A nested reaction
@@ -22,13 +22,16 @@ def resolution(engine,actor,source,*,kind,join=False,_breather_attempt=None,_mov
         BREATHER.validate_continuation(engine,actor,source,kind,_breather_attempt)
     import confusion_attacks as CONFUSION
     resume=CONFUSION.resuming_action(engine,actor,source,kind)
-    retained=None
+    retained=__import__('skill_maneuver_actions').native_resume_frame(engine,actor,source) if kind=='maneuver' else None
     if _move_completion is not None:
         retained=move_frame(engine,engine._move_completions[_move_completion])
     elif _combat_reaction is not None:
         retained=__import__('combat_move_reactions').resume_frame(engine,_combat_reaction)
-    if _move_completion is not None or _combat_reaction is not None:
-        if retained is None or retained['actor'] is not actor or retained['source']!=source or kind!='move':
+    elif _escape_reaction is not None:
+        retained=__import__('combat_move_reactions').resume_escape_frame(engine,_escape_reaction)
+    if _move_completion is not None or _combat_reaction is not None or _escape_reaction is not None or retained is not None:
+        expected_kind='escape' if _escape_reaction is not None else 'move' if _move_completion is not None or _combat_reaction is not None else 'maneuver'
+        if retained is None or retained['actor'] is not actor or retained['source']!=source or retained['kind']!=kind or kind!=expected_kind:
             raise ValueError('actual native Move action continuation required')
         retained.pop('deferred',None)
         resume=retained['id']
@@ -122,11 +125,12 @@ def resolved_move(fn):
         if not depth:
             ensure_resolutions_clear(engine)
         engine._native_move_resolution_depth=depth+1
+        completed=False
         try:
             import stamina as STAMINA
             actor=values['attacker'];source=values['move_id']
-            if not any(c is not None and STAMINA.interested(c) for c in participants) and not __import__('combat_move_reactions').interested(engine):
-                return fn(engine,*args,**kwargs)
+            if not any(c is not None and STAMINA.interested(c) for c in participants) and source not in (__import__('tumbler').SPLASH,__import__('tumbler').BOUNCE) and not __import__('combat_move_reactions').interested(engine):
+                result=fn(engine,*args,**kwargs);completed=True;return result
             stack=getattr(engine,'_native_action_stack',[])
             same=bool(stack and stack[-1]['kind']=='move' and stack[-1]['actor'] is actor
                       and (fn.__name__=='_finish_move_resolution' or
@@ -134,12 +138,14 @@ def resolved_move(fn):
                             values.get('_field_activation') is not None or
                             any(g[0] is values.get('_action_grant') and g[5]=='same_move_activation' for g in engine._action_grants)))))
             with resolution(engine,actor,source,kind='move',join=same):
-                return fn(engine,*args,**kwargs)
+                result=fn(engine,*args,**kwargs)
+            completed=True;return result
         finally:
             if depth:
                 engine._native_move_resolution_depth=depth
             else:
                 del engine._native_move_resolution_depth
+                if completed:__import__('sage').finish_blessings(engine)
     return run
 
 def observe_resolution(engine,actor,source,fact):
@@ -378,6 +384,7 @@ def post_action_condition(engine,context,source):
 
 def ensure_resolutions_clear(engine,*,_breather_attempt=None):
     ensure_turn_end_clear(engine)
+    __import__('grapple_state').ensure_attack_clear(engine)
     import dynamic_chain_moves as CHAIN
     CHAIN.ensure_clear(engine)
     import confusion_attacks as CONFUSION
@@ -390,6 +397,9 @@ def ensure_resolutions_clear(engine,*,_breather_attempt=None):
     CLASS_STATE_ACTIONS.ensure_clear(engine)
     for row in getattr(engine,'_native_action_resolutions',{}).values():
         if row['phase']=='resolving':continue
+        if __import__('move_defense_reactions').native_parent_action(engine)==row['id']:continue
+        resume=getattr(engine,'_native_maneuver_resume',None)
+        if resume and __import__('skill_maneuver_actions').native_resume_frame(engine,resume[0],resume[2])['id']==row['id']:continue
         if row['id'] in (getattr(engine,'_confusion_resuming_action',None),getattr(engine,'_confusion_applying',None)):continue
         if any(t['status']!='completed' for t in row['triggers']):
             raise ValueError('unfinished post-action Stamina/Confusion requires its actual action completion, effects and skill choice')
@@ -403,7 +413,7 @@ def triggered_free_action(engine,actor,source):
     import turn as TURN
     if not TURN.can_act(engine,actor) or not status_permission(engine,actor,'free',new_action=True):
         raise ValueError('triggered Free Action unavailable')
-    record_action(engine,actor,'free')
+    record_action(engine,actor,'free',_triggered_source=source)
     engine.log('  '+actor.name+': 발동조건 충족, 자유 행동 '+source,source)
 
 def begin_turn(engine, actor, *, initiative_count=None):
@@ -413,7 +423,8 @@ def begin_turn(engine, actor, *, initiative_count=None):
     if not swarm_slot:PARTY_ACTIONS.require_turn(engine,actor)
     import initiative_interrupts as INTERRUPTS
     import initiative_schedule as SCHEDULE
-    SCHEDULE.preflight_turn(engine,actor)
+    SCHEDULE.preflight_turn(engine,actor,initiative_count=initiative_count)
+    extra_turn=SCHEDULE.extra_turn_at(engine,actor,initiative_count)
     borrowed = INTERRUPTS.is_borrow_start(engine,actor)
     boss_slot = False
     if borrowed:
@@ -425,9 +436,10 @@ def begin_turn(engine, actor, *, initiative_count=None):
             raise ValueError("an ordinary turn is already active")
         import boss_transitions as BOSS
         boss_slot = BOSS.begin_action_lifecycle(engine,actor,initiative_count)
-        if engine._ordinary_turn_rounds.get(actor) == engine.round_no and not (boss_slot or swarm_slot):
+        if engine._ordinary_turn_rounds.get(actor) == engine.round_no and not (boss_slot or swarm_slot) and extra_turn is None:
             raise ValueError("ordinary turn already taken this round")
         engine._active_turn_actor = actor
+        if extra_turn is not None:extra_turn["status"]="open"
         engine._ordinary_turn_rounds[actor] = engine.round_no
     if not borrowed:
         SCHEDULE.turn_started(engine,actor)
@@ -500,9 +512,11 @@ def close_turn(engine, actor):
         import boss_transitions as BOSS
         BOSS.close_action_lifecycle(engine,actor)
         engine._active_turn_actor = None
-        engine._turn_closures.append(dict(actor=actor, round=engine.round_no, sequence=len(engine._turn_closures)+1))
+        engine._turn_closures.append(dict(actor=actor, round=engine.round_no, sequence=len(engine._turn_closures)+1, turn_serial=actor.custom_conditions['combat_turn_serial']))
     import stage_change_history as STAGE_HISTORY
     STAGE_HISTORY.end_turn(engine, actor)
+    if (getattr(actor,'_turn_action_limit',None) or {}).get('source')=='condition/혼란':
+        actor._turn_action_limit=None
 
 def ordinary_permission(engine, actor):
     ensure_resolutions_clear(engine)
@@ -554,12 +568,12 @@ def self_cures_sleep(actor, target, effects):
             return True
     return False
 
-def status_permission(engine, actor, kind, *, sleep_cure=False, new_action=True, _standing_up=False, _condition_recovery=None):
+def status_permission(engine, actor, kind, *, sleep_cure=False, new_action=True, _standing_up=False, _condition_recovery=None, _native_move=None):
     import action_resources as RESOURCES
     if new_action and RESOURCES.action_locked(actor):return False
     if type(_standing_up) is not bool or (_standing_up and (kind!='shift' or '넘어짐' not in actor.conditions)):
         raise ValueError('standing up requires the actual Tripped Shift action')
-    if new_action and '넘어짐' in actor.conditions and not _standing_up:
+    if new_action and '넘어짐' in __import__('blessing_effects').effective_conditions(actor) and not _standing_up:
         engine.log(f'    {actor.name}: 넘어짐 상태에서는 먼저 이동 행동으로 일어나야 함', 'condition/넘어짐')
         return False
     if type(kind) is ActionCost:
@@ -568,23 +582,26 @@ def status_permission(engine, actor, kind, *, sleep_cure=False, new_action=True,
             engine.log(f"    {actor.name}: 마비 실패 후 기본·이동을 함께 사용할 수 없음", "condition/마비")
             return False
         return all(status_permission(engine, actor, component, sleep_cure=sleep_cure,
-                                     new_action=new_action) for component in kind.components)
+                                     new_action=new_action,_native_move=_native_move) for component in kind.components)
     import capability_actions as CAPABILITIES
     if not CAPABILITIES.action_permission(engine,actor,kind):return False
-    if getattr(actor, "_turn_start_decisions_pending", False):
+    if getattr(actor, "_turn_start_decisions_pending", False) and not __import__('coordinator').start_action_allowed(engine,actor,kind):
         engine.log(f"    {actor.name}: 턴 시작 상태 판정과 발동 순서가 아직 미결 → 능동 행동 보류", "common/action-lifecycle")
         return False
     import condition_recovery as RECOVERY
     import swarm_transitions as SWARM
     replaced = SWARM.incapacitation_replaced(actor,engine=engine)
-    if "얼음" in actor.conditions and not replaced and not RECOVERY.permits_action(engine,actor,kind,_condition_recovery):
+    if "얼음" in __import__('blessing_effects').effective_conditions(actor) and not replaced and not RECOVERY.permits_action(engine,actor,kind,_condition_recovery):
         engine.log(f"    {actor.name}: 얼음 상태 행동 불가", "condition/얼음")
         return False
-    if "잠듦" in actor.conditions and not replaced and not (kind in ("free", "swift") and sleep_cure):
+    if "잠듦" in __import__('blessing_effects').effective_conditions(actor) and not replaced and not (kind in ("free", "swift") and sleep_cure):
         engine.log(f"    {actor.name}: 잠듦 — 수면을 치료하는 자유·신속 행동만 허용", "condition/잠듦")
         return False
     limit = getattr(actor, "_turn_action_limit", None)
     if limit and new_action:
+        selected=__import__('ace_trainer').supreme_limit(engine,actor,limit,_native_move)
+        if selected and (limit.get('source')!='condition/혼란' or kind=='standard') and not getattr(actor,'_restricted_action_taken',False):
+            return True
         choices = limit.get("choose_one_of", [])
         if kind not in choices and kind not in ("swift", "free"):
             engine.log(f"    {actor.name}: 마비 실패 후 기본·이동을 모두 쓰는 행동 불가", "condition/마비")
@@ -594,9 +611,10 @@ def status_permission(engine, actor, kind, *, sleep_cure=False, new_action=True,
             return False
     return True
 
-def record_action(engine, actor, kind):
+def record_action(engine, actor, kind, *, _triggered_source=None):
     import initiative_interrupts as INTERRUPTS
-    INTERRUPTS.require_recorded_action(engine,actor,kind)
+    INTERRUPTS.require_recorded_action(engine,actor,kind,triggered_source=_triggered_source)
+    __import__('illusion_state').break_genjutsu(engine,actor,'action')
     import csv_item_physical_contracts as CSV_ITEMS
     CSV_ITEMS.expire_immediate_reactions(engine)
     history = getattr(actor, "_action_history", None)
@@ -617,7 +635,7 @@ def unable_standard(actor, *, engine=None):
     # Current unconditional status restriction is enough for this local branch.
     # Voluntary inaction, a successful paralysis save and modern Flinch are not.
     import swarm_transitions as SWARM
-    if actor.conditions & {"잠듦", "얼음"} and not SWARM.incapacitation_replaced(actor,engine=engine):return True
+    if __import__('blessing_effects').effective_conditions(actor) & {"잠듦", "얼음"} and not SWARM.incapacitation_replaced(actor,engine=engine):return True
     # A failed modern Paralysis save still permits choosing Standard. Only an
     # actual Shift selection makes Standard unavailable; voluntary waiting does not.
     return bool(getattr(actor,'_turn_action_limit',None) and
@@ -640,11 +658,16 @@ def move_grant(engine, actor, target, move_id, *, source, kind=None):
     below (AoO and already-activated multi-target continuation) use this seam.
     """
     ace=__import__('type_ace').extra_authority(engine,actor,target,move_id,source)
+    signature=__import__('ace_trainer').move_authority(engine,actor,target,move_id,source)
     martial=__import__('martial_artist').move_authority(engine,actor,target,move_id,source)
-    ace=ace or martial
-    if not ace and source not in ("maneuver/기회-공격", "same_move_activation", "feat/치명적인-장기말", "move/원한", "move/버티기", "move/버티기-홈브류"):
+    ace=ace or martial or __import__('focus_punch').authority(engine,actor,target,move_id,source)
+    ace=ace or __import__('hex_maniac').move_authority(engine,actor,target,move_id,source)
+    ace=ace or __import__('warper').move_authority(engine,actor,target,move_id,source)
+    ace=ace or __import__('capture_specialist').move_authority(engine,actor,target,move_id,source)
+    commander=__import__('commander_orders').strike_authority(engine,actor,target,move_id,source)
+    if not (ace or signature or commander) and source not in ("maneuver/기회-공격", "same_move_activation", "feat/치명적인-장기말", "move/원한", "move/버티기", "move/버티기-홈브류"):
         raise ValueError("unreviewed move grant producer")
-    expected = "free" if ace or source in ("maneuver/기회-공격","feat/치명적인-장기말","move/원한","move/버티기","move/버티기-홈브류") else None
+    expected = "free" if ace or signature or commander or source in ("maneuver/기회-공격","feat/치명적인-장기말","move/원한","move/버티기","move/버티기-홈브류") else None
     if kind != expected or (source == "maneuver/기회-공격" and move_id != "struggle"):
         raise ValueError("move grant cannot broaden its source action or move scope")
     if source=='feat/치명적인-장기말':
@@ -670,11 +693,18 @@ def consume_move_grant(engine, token, actor, target, move_id, *, count_use=None,
         if entry[0] is token and entry[1] is actor and entry[2] is target and entry[3] == move_id:
             ace=__import__('type_ace').extra_authority(engine,actor,target,move_id,entry[5])
             martial=__import__('martial_artist').move_authority(engine,actor,target,move_id,entry[5])
-            ace=ace or martial
-            if not ace and entry[5] not in ("maneuver/기회-공격", "same_move_activation", "feat/치명적인-장기말", "move/원한", "move/버티기", "move/버티기-홈브류"):
+            focus=__import__('focus_punch').authority(engine,actor,target,move_id,entry[5])
+            hex_maniac=__import__('hex_maniac').move_authority(engine,actor,target,move_id,entry[5])
+            warper=__import__('warper').move_authority(engine,actor,target,move_id,entry[5])
+            signature=__import__('ace_trainer').move_authority(engine,actor,target,move_id,entry[5])
+            capture=__import__('capture_specialist').move_authority(engine,actor,target,move_id,entry[5])
+            ace=ace or martial or focus or hex_maniac or warper or capture
+            commander=__import__('commander_orders').strike_authority(engine,actor,target,move_id,entry[5])
+            if not (ace or signature or commander) and entry[5] not in ("maneuver/기회-공격", "same_move_activation", "feat/치명적인-장기말", "move/원한", "move/버티기", "move/버티기-홈브류"):
                 raise ValueError("a maneuver child token cannot authorize a Move")
             expected_count=entry[5] in ('feat/치명적인-장기말','move/원한','move/버티기','move/버티기-홈브류')
-            if martial:expected_count=True
+            if martial or focus or hex_maniac or commander:expected_count=True
+            elif warper or signature or capture:expected_count=False
             elif ace:expected_count=not __import__('type_ace').scope(engine,actor,{'id':move_id}).get('ignore_frequency',False)
             if entry[5] in __import__('endure').SOURCES:__import__('endure').authority(engine,actor)
             if entry[5]=='move/원한':
@@ -723,3 +753,17 @@ def continued_maneuver(source):
 
 
 
+
+
+def current_full_turn(engine):
+ """The actual full-turn clock, preserving its owner through nested Interrupts."""
+ if not engine.encounter_active:return None
+ owner=engine._active_turn_actor
+ if owner is None:return None
+ import initiative_interrupts as INTERRUPTS
+ for frame in reversed(getattr(engine,INTERRUPTS.KEY,{}).get('frames',[])):
+  if frame['actor'] is not owner:raise ValueError('actual nested turn frame owner changed')
+  if frame['mode']=='borrow_turn':break
+  owner=frame['parent']
+  if owner is None:return None
+ return {'actor':owner,'round':engine.round_no,'turn_serial':owner.custom_conditions['combat_turn_serial']}

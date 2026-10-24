@@ -592,5 +592,171 @@ class ZettelkastenTests(unittest.TestCase):
         self.assertTrue(all((ROOT / relative).read_bytes() == raw for relative, raw in protected.items()))
 
 
+class VaultPreservationTests(unittest.TestCase):
+    """Scoped document preservation; no engine imports or full-vault builds."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.root = Path(temporary.name)
+        self.assertTrue(self.root.resolve().is_relative_to(Path(tempfile.gettempdir()).resolve()))
+        self.addCleanup(temporary.cleanup)
+        for relative in (navigation.PLAN, navigation.CONTRACTS):
+            self.write(relative, '{}\n')
+
+    def write(self, relative, text):
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(text.encode('utf-8'))
+
+    def note(self, kind='operation'):
+        return dict(id='sample', kind=kind, title='한글 동작',
+                    document='vaults/재사용/sample.md', relations=[], native=[])
+
+    def test_actual_martial_suffix_survives_without_navigation(self):
+        from build_reuse_vault import render_route
+        relative = Path('vaults/재사용/book_martial_artist_full.md')
+        current = navigation.without_links((ROOT / relative).read_bytes().decode('utf-8'))
+        current = current.replace('\r\n', '\n')
+        suffix = current[current.index('\n## 가속 연타의 획득 상한과 보유 수명'):]
+        generated = render_route(relative.stem, {'behavior': '갱신한 생성 본문'}, [], [])
+        for newline in ('\n', '\r\n'):
+            with self.subTest(newline=repr(newline)):
+                original = current.replace('\n', newline)
+                result = navigation.preserve_additions(relative, original, generated)
+                self.assertTrue(result.endswith(suffix.replace('\n', newline)))
+                self.assertIn('갱신한 생성 본문', result)
+                self.assertEqual(result, navigation.preserve_additions(relative, result, generated))
+                self.assertNotIn('\r', result.replace('\r\n', ''))
+                if newline == '\r\n':
+                    self.assertNotIn('\n', result.replace('\r\n', ''))
+
+    def test_existing_navigation_and_foundation_footer_remain_intact(self):
+        block = navigation.START + '기존 연결\n' + navigation.END
+        for relative, footer in (
+            (Path('vaults/재사용/example.md'), navigation.LEGACY_ROUTE_FOOTER),
+            (GRAPPLE, '정본 상세: [기록](../../data/verification/category2-edge-work-plan.json)'),
+        ):
+            for newline in ('\n', '\r\n'):
+                with self.subTest(relative=str(relative), newline=repr(newline)):
+                    generated = '# example\n\n새 본문\n\n' + footer + '\n'
+                    suffix = '\n## 고유 한계\n한글·출처 보존 — 끝 줄바꿈 없음'
+                    current = ('# example\n' + block + '\n옛 본문\n\n' + footer + '\n' + suffix).replace('\n', newline)
+                    result = navigation.preserve_additions(relative, current, generated)
+                    self.assertEqual(navigation.without_links(result), (generated + suffix).replace('\n', newline))
+                    self.assertEqual(result.count(navigation.START.strip()), 1)
+                    self.assertEqual(result, navigation.preserve_additions(relative, result, generated))
+        relative = Path('vaults/공통기반/인덱스.md')
+        self.assertEqual(navigation.preserve_additions(relative, '# index\n', '# updated\n'), '# updated\n')
+
+    def test_legacy_missing_duplicate_and_mixed_boundaries_are_refused(self):
+        relative = Path('vaults/재사용/example.md')
+        generated = '# example\n\n' + navigation.LEGACY_ROUTE_FOOTER + '\n'
+        invalid = [
+            '# example\n수기 본문만 존재\n',
+            generated + navigation.LEGACY_ROUTE_FOOTER + '\n',
+            generated + navigation.START,
+            generated + navigation.START + navigation.END + navigation.START + navigation.END,
+            generated.replace('\n', '\r\n', 1),
+        ]
+        for current in invalid:
+            with self.subTest(current=current[-100:]):
+                with self.assertRaises(ValueError):
+                    navigation.preserve_additions(relative, current, generated)
+        with self.assertRaises(ValueError):
+            navigation.preserve_additions(relative, generated, generated + navigation.LEGACY_ROUTE_FOOTER + '\n')
+
+    def test_actual_index_keeps_preface_interior_and_tail_when_table_grows(self):
+        current = (ROOT / navigation.INDEX).read_bytes().decode('utf-8')
+        contracts = json.loads((ROOT / navigation.CONTRACTS).read_text(encoding='utf-8-sig'))
+        notes = {row['id']: dict(id=row['id'], kind='operation', title=row['title'],
+                 document=row['document'], relations=[],
+                 native=[contracts['native_elements'][key] for key in row['native_elements']])
+                 for row in contracts['groups']}
+        self.write(navigation.INDEX, current)
+        read_note = navigation.read_note
+        def read(root, relative, resolved_root=None):
+            if Path(relative) == navigation.INDEX:
+                return read_note(root, relative, resolved_root)
+            return '# 범위 한정 연산 표 fixture\n'
+        with patch.object(navigation, 'read_note', side_effect=read):
+            self.assertEqual(navigation.render(self.root, notes)[navigation.INDEX], current)
+            notes['fixture-extra'] = dict(id='fixture-extra', kind='operation', title='추가 한글 행',
+                document='vaults/재사용/fixture-extra.md', relations=[], native=[])
+            result = navigation.render(self.root, notes)[navigation.INDEX]
+            newline = '\r\n' if '\r\n' in current else '\n'
+            extra = '| 추가 한글 행 | [fixture-extra](<재사용/fixture-extra.md>) | 노트 참조 |' + newline
+            self.assertEqual(result.replace(extra, ''), current)
+            self.assertIn('## 스루 검사에서 추가한 공유 계약', result)
+            self.write(navigation.INDEX, result)
+            self.assertEqual(navigation.render(self.root, notes)[navigation.INDEX], result)
+
+    def test_scoped_refresh_is_idempotent_with_unicode_and_line_endings(self):
+        note = self.note()
+        for newline in ('\n', '\r\n'):
+            with self.subTest(newline=repr(newline)):
+                (self.root / navigation.INDEX).unlink(missing_ok=True)
+                self.write(note['document'], '# 한글 노트' + newline + newline + '수기 계약 — 보존' + newline)
+                with patch.object(navigation, 'load', return_value={'sample': note}):
+                    navigation.refresh(self.root)
+                    index = (self.root / navigation.INDEX).read_bytes().decode('utf-8').replace('\r\n', '\n')
+                    index = index.replace(navigation.INDEX_MARKER, '> 수기 서문\n\n' + navigation.INDEX_MARKER)
+                    index = index.replace('## 이름·함수·ID로 바로 찾기', '## 수기 중간 절\n한글 조건\n\n## 이름·함수·ID로 바로 찾기')
+                    index = ('\ufeff' + index + '\n수기 꼬리 — 끝 줄바꿈 없음').replace('\n', newline)
+                    self.write(navigation.INDEX, index)
+                    before = {Path(note['document']): (self.root / note['document']).read_bytes(),
+                              navigation.INDEX: (self.root / navigation.INDEX).read_bytes()}
+                    self.assertEqual(navigation.refresh(self.root)['changed'], 0)
+                    self.assertEqual(navigation.refresh(self.root)['changed'], 0)
+                    for relative, raw in before.items():
+                        self.assertEqual((self.root / relative).read_bytes(), raw)
+                        if newline == '\r\n':
+                            self.assertNotIn(b'\n', raw.replace(b'\r\n', b''))
+
+    def test_index_ambiguous_boundaries_and_unknown_rows_refuse_before_writes(self):
+        index = navigation.render(self.root, {})[navigation.INDEX]
+        footer = index.splitlines()[-1]
+        table = '| 동작 | 공통 연산 노트 | 실제 함수 예시 |\n|---|---|---|\n'
+        invalid = [
+            index.replace(navigation.INDEX_MARKER, ''),
+            index + navigation.INDEX_MARKER + '\n',
+            index.replace(footer, '없어진 정본 footer'),
+            index + footer + '\n',
+            index + '\n## 동작에서 출발하기\n\n' + table,
+            index.replace('## 연결의 의미', '## 연결의 의미\n\n## 연결의 의미'),
+            index.replace(table, table + '| 수기 추가 | 출처 미확인 | 지우면 안 됨 |\n'),
+            index.replace(table, table + '| 한글 동작 | [sample](<재사용/sample.md>) | 노트 참조 |\n' * 2),
+            index.replace('\n', '\r\n', 1),
+        ]
+        note = self.note()
+        self.write(note['document'], '# 원본\n수기 내용\n')
+        note_before = (self.root / note['document']).read_bytes()
+        with patch.object(navigation, 'load', return_value={'sample': note}):
+            for current in invalid:
+                with self.subTest(current=current[-100:]):
+                    self.write(navigation.INDEX, current)
+                    with self.assertRaises(ValueError):
+                        navigation.refresh(self.root)
+                    self.assertEqual((self.root / navigation.INDEX).read_bytes(), current.encode('utf-8'))
+                    self.assertEqual((self.root / note['document']).read_bytes(), note_before)
+
+    def test_single_route_generation_navigation_roundtrip_preserves_actual_suffix(self):
+        from build_reuse_vault import render_route
+        relative = Path('vaults/재사용/book_martial_artist_full.md')
+        original = (ROOT / relative).read_bytes().decode('utf-8').replace('\r\n', '\n')
+        generated = render_route(relative.stem, {'behavior': '현재 생성 본문'}, [], [])
+        note = dict(id=relative.stem, kind='route', title=relative.stem,
+                    document=relative.as_posix(), relations=[], native=[])
+        for newline in ('\n', '\r\n'):
+            with self.subTest(newline=repr(newline)):
+                body = navigation.preserve_additions(relative, original.replace('\n', newline), generated)
+                self.write(relative, body)
+                with patch.object(navigation, 'load', return_value={note['id']: note}):
+                    navigation.refresh(self.root)
+                    before = (self.root / relative).read_bytes().decode('utf-8')
+                    self.assertEqual(navigation.preserve_additions(relative, before, generated), before)
+                    self.assertEqual(navigation.refresh(self.root)['changed'], 0)
+                    self.assertIn('## 가속 연타의 획득 상한과 보유 수명', before)
+
+
 if __name__ == '__main__':
     unittest.main()

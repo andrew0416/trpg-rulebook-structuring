@@ -724,6 +724,11 @@ def _static_feature(header, manual, action):
 
 def _generic_feature_reserved(engine, owner, name):
     """Pure routing query; never run acquisition adapters to discover ownership."""
+    if name in __import__('warper').FEATURES and __import__('warper').acquired(owner,name):return True
+    if name in __import__('telepath').FEATURES and __import__('telepath').acquired(owner,name):return True
+    if name in __import__('telekinetic').FEATURES and __import__('telekinetic').acquired(owner,name):return True
+    import iron_mind as IRON
+    if name in IRON.NAMES and IRON.validate(owner):return True
     import native_switch_transfer as SWITCH
     if SWITCH.identity(name) is not None:return True
     import directive_features as DIRECTIVES, class_move_grants as CLASS_MOVES
@@ -736,6 +741,8 @@ def _generic_feature_reserved(engine, owner, name):
         return True
     # A receipted Type Ace acquisition is owned by type_ace's native adapters; the
     # generic projection would otherwise duplicate e.g. Polished Shine after restore.
+    import rogue as ROGUE
+    if name in ROGUE.FEATURES and ROGUE.acquired(owner,name) is not None:return True
     import provocateur as PROVOCATEUR
     if name in PROVOCATEUR.FEATURES and PROVOCATEUR.acquired(owner,name) is not None:return True
     import type_ace as TA
@@ -834,6 +841,9 @@ def register_feats(engine, c, pokemon=None):
     pokemon = pokemon or [p for p in (engine.everyone or []) if p is not c and p.kind == "pokemon" and p.spec.get("trainer") == c.name]
     total = acquired_projection_count + feature_ability_count + scene_ability_count + static_modifier_count + static_feature_count
     for name in names:
+        if name in {*__import__('commander').FEATURES,*__import__('commander').BUNDLES,*__import__('commander_orders').FEATURES}:continue
+        import oracle as ORACLE
+        if name in ORACLE.FEATURES and ORACLE.acquired(c,name):continue
         import native_switch_transfer as SWITCH
         if SWITCH.identity(name) is not None:continue
         if DIRECTIVES.identity(name) is not None:continue
@@ -920,6 +930,12 @@ def register_feats(engine, c, pokemon=None):
 
 
 def manual_feat(engine, c, name, target=None, *, adjustment=None, communication=None):
+    if name in __import__('commander_orders').FEATURES:
+        return __import__('commander_orders').use(engine,c,target,name,**(adjustment or {}))
+    import commander as COMMANDER
+    if name == COMMANDER.MOBILIZE:
+        if adjustment is not None:raise ValueError('Mobilize has no adjustment')
+        return COMMANDER.mobilize(engine, c, target)
     """GM 이 발동조건을 수동으로 인정한 재주를 실행 (발동조건 파서가 못 읽은 것)."""
     import native_switch_transfer as SWITCH
     if SWITCH.identity(name) is not None:
@@ -935,6 +951,11 @@ def manual_feat(engine, c, name, target=None, *, adjustment=None, communication=
     import directive_features as DIRECTIVES
     if DIRECTIVES.identity(name) is not None:
         return DIRECTIVES.activate(engine, c, target, adjustment=adjustment, communication=communication)
+    import training_features as TRAINING
+    if TRAINING.identity(name) is not None:
+        options={} if adjustment is None else adjustment
+        if type(options)is not dict or set(options)-{'edition'}:raise ValueError('explicit Training Order source selection only')
+        return TRAINING.orders(engine,c,name,target,communication=communication,**options)
     if adjustment is not None:
         raise ValueError("adjustment belongs only to an explicit directive choice")
     import conquerors_march as MARCH
@@ -947,8 +968,6 @@ def manual_feat(engine, c, name, target=None, *, adjustment=None, communication=
         raise ValueError("Ability teaching requires explicit choice, duration and payment through teach_feature_ability")
     import combat_precision_features as CPF
     if CPF.identity(name)==CPF.PINPOINT:return CPF.activate(engine,c,target,source=name,communication=communication)
-    import training_features as TRAINING
-    if TRAINING.identity(name) is not None:return TRAINING.orders(engine,c,name,target,communication=communication)
     import turn as TURN
     if not TURN.can_act(engine, c):
         return (0, 1)
@@ -1086,7 +1105,7 @@ def _refresh_unresolved(e,c):
         register_item(e,c,old['name'],source_instance_id=old.get('instance_id'),as_held=True,held_slot=old['slot_id'])
 
 
-def _move_selected(engine,first,second,selections):
+def _move_selected(engine,first,second,selections,*,preserve_slots=False):
     """Pairs contain actual giver index, receiver index and explicit key."""
     def apply(e,a,b):
         actors=(a,b);moves=[]
@@ -1099,7 +1118,7 @@ def _move_selected(engine,first,second,selections):
         counts={id(c):len(HELD.entries(c)) for c in actors}
         for giver,receiver,row,obj in moves:
             if row['held']:counts[id(giver)]-=1
-            counts[id(receiver)]+=1
+            if row['held'] or not preserve_slots:counts[id(receiver)]+=1
         for c in actors:
             if counts[id(c)]>HELD.capacity(c)['maximum']:raise ValueError('destination held capacity exceeded')
         import capability_actions as CAP
@@ -1122,25 +1141,26 @@ def _move_selected(engine,first,second,selections):
             if id(c) in affected:CAP.set_carried(e,c,loads[id(c)],'actual equipment transfer')
         for giver,receiver,row,obj in moves:
             if obj is not None:obj['equipped_by']=receiver.entity_id;WORLD._set_object_location(obj,{'kind':'unknown'})
-            register_item(e,receiver,row['name'],source_instance_id=row.get('instance_id'),as_held=True)
-            if not any(x['name']==row['name'] and x.get('instance_id')==row.get('instance_id') for x in HELD.entries(receiver)):raise ValueError('item has no eligible destination registration')
+            as_held=row['held'] or not preserve_slots
+            register_item(e,receiver,row['name'],source_instance_id=row.get('instance_id'),as_held=as_held)
+            if not equipment_options(receiver,('held',) if as_held else tuple(row['slots'])):raise ValueError('item has no eligible destination registration')
         for c in actors:_refresh_unresolved(e,c)
         return {'changed':bool(moves),'transfers':[{'from':giver.entity_id,'to':receiver.entity_id,'item':row['name'],'instance_id':row.get('instance_id')} for giver,receiver,row,obj in moves]}
     return GRANTS.transition(engine,first,apply,participants=(second,))
 
 
-def exchange_items(engine,first,second,*,swap=True,consent_by=(),first_selection=None,second_selection=None):
+def exchange_items(engine,first,second,*,swap=True,consent_by=(),first_selection=None,second_selection=None,slots=('held',)):
     if first is second:return {'changed':False}
     import equipment_protection as PROTECTION
     selected=[]
     for i,c in enumerate((first,second) if swap else (first,)):
-        options=equipment_options(c,('held',))
+        options=equipment_options(c,slots)
         if not options:continue
-        row=selected_equipment(c,(first_selection,second_selection)[i],('held',))
+        row=selected_equipment(c,(first_selection,second_selection)[i],slots)
         PROTECTION.require(engine,c,row,'exchange' if swap else 'give',consent_by)
         selected.append((i,1-i,row['key']))
     if not swap and HELD.any_held(second):raise ValueError('this giving source requires an empty target')
-    return _move_selected(engine,first,second,selected)
+    return _move_selected(engine,first,second,selected,preserve_slots='장신구' in slots)
 
 
 def transfer_equipment(engine,giver,receiver,selection,*,slots=("held","장신구"),consent_by=()):

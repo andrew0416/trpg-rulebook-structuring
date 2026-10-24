@@ -395,6 +395,7 @@ def close_action_lifecycle(engine, actor):
 
 
 def condition_applies_this_turn(actor, condition):
+    if __import__('blessing_effects').ignored(actor,condition):return False
     row = state(actor)
     if row is None:
         return True
@@ -600,9 +601,10 @@ def after_hp_change(engine, actor, before, source, *, carry_over=True, attack=Fa
         row["bar_transition_receipts"].append(receipt); receipts.append(receipt)
         if (not runtime["half_bar_injury_awarded"]
                 and bars["spent"] * 2 >= bars["total"]):
-            actor.injuries += 1
+            import precise_actions as PRECISE
+            retained=PRECISE.gain_injury(engine,actor,1,'C11-126')
             runtime["half_bar_injury_awarded"] = True
-            receipt["half_bar_injury"] = True
+            receipt["half_bar_injury"] = bool(retained)
         if remaining:
             actor.hp = actor.max_hp - overflow if carry_over else actor.max_hp
             for effect in row["chosen_transition_effects"]:

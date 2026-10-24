@@ -85,6 +85,7 @@ def current(engine,actor,source=None):
 
 
 def pay(engine,actor,source,kind):
+    kind=__import__('commander').pay(engine,actor,source,kind)
     row=current(engine,actor,source)
     if row is None:return kind
     if row['spent']:raise ValueError('one source-proved Free Order payment only')
@@ -148,6 +149,10 @@ def execute(engine,actor,target,choice,*,source,parent):
         if training is not None:
             if options:raise ValueError('Training Order has no native adjustment choices')
             return TRAINING.orders(engine,actor,feature,target)
+        import ace_trainer as ACE
+        if feature==ACE.CRITICAL:
+            if options:raise ValueError('Critical Moment has only its actual targeted recipient')
+            return ACE.critical_moment(engine,actor,[target])
         if feature==MOMENT.FEATURE:
             return MOMENT.use(engine,actor,[target],**options)
         import directive_features as DIRECTIVE

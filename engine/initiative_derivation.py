@@ -127,6 +127,9 @@ def collect(rules, actor, *, engine=None):
     hardened=_native(TASK.bonus,actor,'initiative')
     if hardened:add('taskmaster:hardened',TASK.CLASS,dict(operation='add',value=hardened))
     if engine is not None:
+        import channeler as CHANNEL
+        channel_bonus=CHANNEL.spirit_bonus(engine,actor,'initiative')
+        if channel_bonus:add('channeler:spirit',CHANNEL.SPIRIT,dict(operation='add',value=channel_bonus))
         import type_ace as TA
         ace=TA.initiative(engine,actor)
         if ace:add('type_ace:celerity',TA.uid('Celerity'),dict(operation='add',value=ace))

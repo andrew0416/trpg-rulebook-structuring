@@ -38,6 +38,7 @@ SUITES = {
     "final_revisions_08": ".ci/suites/final_revisions_08.json",
     "final_revisions_09": ".ci/suites/final_revisions_09.json",
 }
+SUITES.update({f"repair_revisions_{n:02d}": f".ci/suites/repair_revisions_{n:02d}.json" for n in range(1, 10)})
 NATIVE_TIMEOUT_SECONDS = 5400
 STAGE_PARENT = Path("D:/trpg-rulebook-structuring/ci")
 VERIFIER = "work/reuse-partials/verify_overlay_tests.py"

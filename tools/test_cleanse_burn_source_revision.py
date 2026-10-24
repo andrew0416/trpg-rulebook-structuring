@@ -27,7 +27,9 @@ class CleanseBurnSourceRevisionTests(unittest.TestCase):
     place=FIXTURE.BurnTests.place
 
     @classmethod
-    def setUpClass(cls):cls.rules=Rules(ROOT,ruleset='core')
+    def setUpClass(cls):
+        from examples.declared_skill_ranks import configure
+        cls.rules=Rules(ROOT,ruleset='core');configure(cls.rules)
 
     def setUp(self):
         FIXTURE.BurnTests.setUp(self)

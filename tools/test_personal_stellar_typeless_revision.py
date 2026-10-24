@@ -16,6 +16,7 @@ from ruleset import RuleFilter
 import effects_ext as EXT
 import homebrew_state as HOME
 import personal_type_settings as PERSONAL
+import attack_damage_history as HISTORY
 import state_grants as GRANTS
 import type_state as TYPES
 import world_entities as WORLD
@@ -116,7 +117,13 @@ class PersonalStellarTypelessRevisionTests(unittest.TestCase):
                 self.assertEqual(damage, expected)
                 self.assertEqual(t.hp, before - damage)
                 self.assertEqual(a.types, [])
+                self.assertEqual(HISTORY.records(t)[-1]['move_type'], PERSONAL.TYPELESS)
                 self.assertTrue(e.validate_state()['valid'])
+                restored = Engine.import_state(Rules(str(ROOT), ruleset=PROFILE),
+                    json.loads(json.dumps(e.export_state(), ensure_ascii=False)))
+                restored_target = WORLD.actor_index(restored)[t.entity_id]
+                self.assertEqual(HISTORY.records(restored_target), HISTORY.records(t))
+                self.assertTrue(restored.validate_state()['valid'])
 
     def test_gm_and_fresh_rules_json_keep_stellar_and_typeless_forms_distinct(self):
         e, a, t = self.world()
@@ -154,6 +161,14 @@ class PersonalStellarTypelessRevisionTests(unittest.TestCase):
             assert_rejected_unchanged(e,
                 lambda name=name: HOME.observe_type(e, a, name, reason='not a Tera selector'),
                 reason_pattern='unknown or unselected type')
+
+    def test_absence_markers_cannot_be_reintroduced_as_custom_defensive_types(self):
+        r = Rules(str(ROOT), ruleset=PROFILE)
+        for name in ('None', PERSONAL.TYPELESS, '??', '???'):
+            with self.subTest(marker=name), patch.dict(r.ruleset.profile,
+                    {'type_extensions': {name: {}}}):
+                with self.assertRaisesRegex(ValueError, 'reserved identity'):
+                    TYPES.allowed_types(r)
 
     def test_permission_schema_is_boolean_and_selected_policy_cannot_change_silently(self):
         for value in (None, [], {'ordinary_stellar': 1}, {'typeless_tera': 'yes'}, {'typo': True}):

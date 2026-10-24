@@ -48,9 +48,10 @@ def _prepare(e,a,t,source,skills,challenger_skill,defender_skill,fixed_accuracy,
     if a is t or a.kind not in ('trainer','pokemon') or t.kind not in ('trainer','pokemon') or a not in e.everyone or t not in e.everyone:raise ValueError('two distinct registered trainer/Pokemon participants required')
     if not e.encounter_active or e.round_start_seconds is None:raise ValueError('actual open combat round required')
     geometry={'range':1,'remote':False,'vertical':False} if config is None else config['geometry']
-    if not a.on_field or not t.on_field or a.captured or t.captured or e.grid is None or geometry['range'] is None or not BODY.in_range(e,a,t,geometry['range']):raise ValueError('reachable actual mapped maneuver target required')
-    if not geometry['remote'] and (not e.adjacent(a,t) or not BODY.in_range(e,a,t,1)):raise ValueError('one reachable adjacent on-field target required')
-    if not geometry['vertical'] and (a.spec.get('_movement_altitude',0)!=t.spec.get('_movement_altitude',0) or a.spec.get('_burrow',{}).get('underground') or t.spec.get('_burrow',{}).get('underground')):raise ValueError('vertical or underground maneuver geometry needs an explicit adapter')
+    if not SM.native_reaction_resume(e,a,t,source):
+        if not a.on_field or not t.on_field or a.captured or t.captured or e.grid is None or geometry['range'] is None or not BODY.in_range(e,a,t,geometry['range']):raise ValueError('reachable actual mapped maneuver target required')
+        if not geometry['remote'] and (not e.adjacent(a,t) or not BODY.in_range(e,a,t,1)):raise ValueError('one reachable adjacent on-field target required')
+        if not geometry['vertical'] and (a.spec.get('_movement_altitude',0)!=t.spec.get('_movement_altitude',0) or a.spec.get('_burrow',{}).get('underground') or t.spec.get('_burrow',{}).get('underground')):raise ValueError('vertical or underground maneuver geometry needs an explicit adapter')
     if (a.injuries>=5 and not __import__('taskmaster').ignores_acting_loss(a)) and permission['action_cost']=='standard':raise ValueError('heavy Standard maneuver needs its independent event-order adapter')
     if config is not None:_requirements(e,a,t,config['requirements'])
     if fixed_accuracy is not None:C.integer(fixed_accuracy,'maneuver d20',1,20)

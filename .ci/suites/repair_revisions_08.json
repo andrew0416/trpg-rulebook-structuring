@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "id": "repair_revisions_08",
+  "purpose": "Focused diagnostics for repaired original failures and changed switch/Juggler, source, clock, rank, type and state paths. This does not replace the original4115-ID final obligations or confer185-finding/406-clause acceptance.",
+  "completion_credit": 0,
+  "required_unique_count": 34,
+  "completed": {
+    "tools.test_declared_rank_consumers.DeclaredRankConsumerTests": {
+      "tests": [
+        "tools.test_declared_rank_consumers.DeclaredRankConsumerTests.test_campaign_pokemon_assignment_preserves_declared_seven_and_concrete_large_pool",
+        "tools.test_declared_rank_consumers.DeclaredRankConsumerTests.test_declared_defensive_feature_adapter_uses_effect_rank_for_virtuoso",
+        "tools.test_declared_rank_consumers.DeclaredRankConsumerTests.test_declared_dietician_prerequisite_evidence_preserves_fixed_seven_capacity_and_transfer",
+        "tools.test_declared_rank_consumers.DeclaredRankConsumerTests.test_declared_dietician_rejects_undeclared_effect_only_and_below_expert_evidence",
+        "tools.test_declared_rank_consumers.DeclaredRankConsumerTests.test_declared_flute_allies_keep_five_dr_and_scene_lifetime_after_restore",
+        "tools.test_declared_rank_consumers.DeclaredRankConsumerTests.test_declared_glyph_capacity_uses_ordinal_and_overflow_is_atomic",
+        "tools.test_declared_rank_consumers.DeclaredRankConsumerTests.test_declared_hacking_and_avatar_use_ordinals_while_native_roll_keeps_seven_dice",
+        "tools.test_declared_rank_consumers.DeclaredRankConsumerTests.test_declared_mentor_book_and_csv_allowance_uses_two_ordinals_and_preserves_history",
+        "tools.test_declared_rank_consumers.DeclaredRankConsumerTests.test_declared_mentor_history_rejects_undeclared_and_unwitnessed_effect_ranks",
+        "tools.test_declared_rank_consumers.DeclaredRankConsumerTests.test_declared_potent_venom_rejects_undeclared_and_noninteger_saved_ranks",
+        "tools.test_declared_rank_consumers.DeclaredRankConsumerTests.test_declared_potent_venom_retains_ordinal_damage_and_both_restores",
+        "tools.test_declared_rank_consumers.DeclaredRankConsumerTests.test_declared_survival_effect_minutes_and_floor_half_evasion_use_ordinal"
+      ]
+    },
+    "tools.test_foe_side_contracts_revision.ClearAmuletCapturedHazardSideTests": {
+      "tests": [
+        "tools.test_foe_side_contracts_revision.ClearAmuletCapturedHazardSideTests.test_actual_deep_cold_feature_owner_is_distinct_from_attacking_pokemon",
+        "tools.test_foe_side_contracts_revision.ClearAmuletCapturedHazardSideTests.test_actual_web_uses_saved_hazard_side_after_setter_changes_side_recall_and_restore"
+      ]
+    },
+    "tools.test_native_switch_transfer_revision.NativeDuelistHandoffRevisionTests": {
+      "tests": [
+        "tools.test_native_switch_transfer_revision.NativeDuelistHandoffRevisionTests.test_manual1_source_and_timer_move_together_then_original_turn_closes_after_json",
+        "tools.test_native_switch_transfer_revision.NativeDuelistHandoffRevisionTests.test_manual2_next_attack_is_consumed_once_and_cannot_return_on_second_baton"
+      ]
+    },
+    "tools.test_temporary_hp_composition.TemporaryHPCompositionTests": {
+      "tests": [
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_actual_heal_block_consumes_selected_salty_with_no_gain_and_lunchbox_rejects_atomically",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_actual_heavy_equipment_loss_consumes_common_contribution_balance",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_armed_salty_noop_never_blocks_the_actual_foe_attack",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_consumption_clear_recall_and_gm_restore_cannot_resurrect_source_rights",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_distinct_additive_lifetimes_follow_explicit_policy_and_restore",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_fifo_default_and_explicit_lifo_change_only_surviving_sources",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_form_lock_after_arming_preserves_attack_and_records_actual_block",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_hits_foreign_max_zero_and_partial_delta_pay_once",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_legacy_event_history_does_not_invent_remaining_food_or_chef_sources",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_lunchbox_foreign_zero_partial_and_empty_are_successes",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_lunchbox_only_adds_the_triggering_food_receipt_remaining_balance",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_malformed_balance_source_receipt_and_policy_reject_before_persistence",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_mixed_unknown_outside_interval_survives_restore_without_inventing_time",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_native_food_taste_hits_and_lunchbox_keep_exact_sources",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_new_food_after_chef_and_hits_preserves_reverse_stack_exception",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_salty_taste_cannot_add_to_foreign_hp_and_lower_grant_has_no_source_right",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_selected_default_keeps_native_lunchbox_and_chef_ages_fifo_and_restored_expiry",
+        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_soulless_is_actual_block_not_successful_max_noop"
+      ]
+    }
+  }
+}

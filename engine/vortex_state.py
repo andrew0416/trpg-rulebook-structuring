@@ -188,6 +188,7 @@ def turn_end(engine, actor):
                 return
         import duelist as DUELIST
         roll = 11 if DUELIST.choose_eleven(engine,actor,'vortex_escape') else engine.d20()
+        roll = __import__('oracle').replace_d20(engine,actor,roll,'vortex_escape')
         import fashion_items as FASHION
         modifier = FASHION.all_roll_modifier(actor)
         total = roll + modifier

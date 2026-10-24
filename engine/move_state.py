@@ -55,7 +55,16 @@ def current_natural_evidence(rules,spec):
     result.setdefault(row['move_id'],[]).append({'source':TYPE_SYNC.SOURCE,'species_id':sp['id'],
       'kind':'level_up','required_level':row['level'],'type_sync_id':sync['id']})
  ls=rules.learnsets.get(sp['name'],{})
- for name in ls.get('egg',[]):add(rules.move_id(name),'egg')
+ if 'mentor_egg_list' in spec:
+  import mentor as MENTOR_FULL
+  for mid in MENTOR_FULL.individual_egg_list(rules,spec):
+   if mid in {rules.move_id(name) for name in ls.get('egg',[])}:add(mid,'egg')
+   else:
+    event=MENTOR_FULL.individual_egg_evidence(rules,spec,mid)
+    result.setdefault(mid,[]).append({'source':MENTOR_FULL.CSV[MENTOR_FULL.EGG_TUTOR],
+      'species_id':sp['id'],'kind':'egg','required_level':None,'egg_list_request_id':event['request_id']})
+ else:
+  for name in ls.get('egg',[]):add(rules.move_id(name),'egg')
  for name in ls.get('tutor',[]):
   if re.search(r'\(N\)',str(name),re.I):
    add(rules.move_id(re.sub(r'\s*\(N\)','',name,flags=re.I)),'n_tutor')
@@ -71,11 +80,14 @@ def validate_history(rules,spec):
   seen=set()
   for event in events:
    import type_sync as TYPE_SYNC
-   if not isinstance(event,dict) or event.get('source') not in (SOURCE,TYPE_SYNC.SOURCE) or not isinstance(event.get('reason'),str) or not event['reason'].strip():
+   if not isinstance(event,dict) or event.get('source') not in (SOURCE,TYPE_SYNC.SOURCE,__import__('mentor').CSV[__import__('mentor').EGG_TUTOR]) or not isinstance(event.get('reason'),str) or not event['reason'].strip():
     raise ValueError('natural opportunity requires its actual source and observation reason')
    kind=event.get('kind');level=event.get('at_level');species=event.get('species_id')
    if kind not in ('level_up','egg','n_tutor') or type(level)is not int or not 1<=level<=100:
     raise ValueError('invalid natural opportunity kind or observed level')
+   if event['source']==__import__('mentor').CSV[__import__('mentor').EGG_TUTOR]:
+    __import__('mentor').validate_individual_egg_event(rules,spec,mid,event)
+    continue
    evidence=({mid:TYPE_SYNC.historical_evidence(rules,spec,event.get('type_sync_id'),mid,level)}
              if event['source']==TYPE_SYNC.SOURCE else current_natural_evidence(rules,{'species':species,'level':level}))
    key=(species,kind,event.get('required_level'),event['source'],event.get('type_sync_id'))
@@ -89,6 +101,7 @@ def validate_history(rules,spec):
 def mentor_natural_moves(rules,spec):
  result=set()
  for mid,record in spec.get('move_learning',{}).items():
+  if isinstance(record,dict) and 'mentor_acquisition_evidence' in record:__import__('mentor').validate_teaching_evidence(rules,record)
   if isinstance(record,dict) and record.get('method')=='mentor_csv':
    import mentor_csv as MENTOR_CSV
    MENTOR_CSV.validate_learning(rules,spec,mid,record)
@@ -229,6 +242,17 @@ GIVER_IDS=('ability/기부자','ability/기부자-2')
 
 
 def ability_registration(rules,name):
+ # One CSV row shares the two defenses, but species acquisition keeps its member.
+ armor_id='ability/조가비갑옷-전투무장'
+ armor_names={'조가비갑옷':'조가비갑옷','Shell Armor':'조가비갑옷',
+              '전투무장':'전투무장','Battle Armor':'전투무장'}
+ if name in (*armor_names,armor_id,'조가비갑옷/전투무장','Shell Armor/Battle Armor'):
+  if rules._selected_rule(armor_id)!=armor_id:raise ValueError('selected Armor source needs its own registration')
+  unit=rules.selection.units[armor_id];source=unit['source']
+  if unit['title']!='조가비갑옷/전투무장' or source.get('file')!='db/abilities.csv' or source.get('record_span')!=[366,366]:
+   raise ValueError('reviewed paired Armor source changed')
+  return {'name':'조가비갑옷/전투무장','source_id':armor_id,
+          'acquisition_identity':armor_names.get(name)}
  # As One's two stock mounts have duplicated identical CSV definitions. Keep
  # both source IDs; equality of these exact rows authorizes only this family.
  for literal,ids,records in (
@@ -271,7 +295,7 @@ def ability_registration(rules,name):
   import reactive_ability_events as REACTIVE
   import tera_shell as TERA_SHELL
   import perish_body as PERISH_BODY
-  return BASE_ABILITIES.registration(rules,name) or PERMISSIONS.registration(rules,name) or HELD.registration(rules,name) or MANUAL.registration(rules,name) or ABILITY_TRANSITIONS.registration(rules,name) or ABILITY_STATE_PROJECTION.ability_registration(rules,name) or CAPACITY_ABILITIES.registration(rules,name) or ACQUIRED_PROJECTIONS.registration(rules,name) or REACTIVE.registration(rules,name) or TERA_SHELL.registration(rules,name) or PERISH_BODY.registration(rules,name)
+  return __import__('oracle').registration(rules,name) or BASE_ABILITIES.registration(rules,name) or PERMISSIONS.registration(rules,name) or HELD.registration(rules,name) or MANUAL.registration(rules,name) or ABILITY_TRANSITIONS.registration(rules,name) or ABILITY_STATE_PROJECTION.ability_registration(rules,name) or CAPACITY_ABILITIES.registration(rules,name) or ACQUIRED_PROJECTIONS.registration(rules,name) or REACTIVE.registration(rules,name) or TERA_SHELL.registration(rules,name) or PERISH_BODY.registration(rules,name)
  import json
  from pathlib import Path
  rows={x['id']:x for x in json.loads((Path(rules.root)/'output/entities/abilities.json').read_text(encoding='utf8')) if x.get('id') in GIVER_IDS}
@@ -427,6 +451,14 @@ def describe(rules,spec,*,moves=None,abilities=None,require_routes=False):
 
 
 def validate_spec(rules,spec,*,moves=None,abilities=None,require_routes=False):
+ __import__('growth_milestones').validate_inheritance(rules,spec)
+ for mid,record in spec.get('move_learning',{}).items():
+  if isinstance(record,dict) and 'archive_tutor_admission' in record:
+   import pokemon_teaching as T,chronicler as CH
+   admission=record['archive_tutor_admission']
+   if record.get('source')!=CH.TUTOR or admission!=T.tutor_admission(rules,mid,record.get('learned_at_level'),policy=admission.get('policy')):
+    raise ValueError('Archive Tutor admission differs from actual source and historical level')
+ __import__('coordinator').validate_spec(rules,spec)
  import advanced_connection as CONNECTION
  CONNECTION.validate_protection(rules,spec)
  import example_species as EXAMPLES
@@ -441,12 +473,13 @@ def validate_spec(rules,spec,*,moves=None,abilities=None,require_routes=False):
    if record.get('source') not in (T.MENTOR,T.MOVE_TUTOR,T.EGG_TUTOR,'feat/개인-지도'):
     raise ValueError('tutoring admission requires its actual teaching source')
    T.source(rules,record['source'])
-   if record['tutoring_admission']!=T.tutor_admission(rules,mid,record.get('learned_at_level')):
+   if record['tutoring_admission']!=T.tutor_admission(rules,mid,record.get('learned_at_level'),policy=record['tutoring_admission'].get('policy')):
     raise ValueError('tutoring admission differs from selected source and historical level')
  import personal_tutoring as PERSONAL_TUTOR
  PERSONAL_TUTOR.validate_spec(rules,spec)
  import move_type_sync as MOVE_SYNC
  MOVE_SYNC.validate_spec(rules,spec)
+ __import__('ace_trainer').validate_spec(rules,spec)
  out=describe(rules,spec,moves=moves,abilities=abilities,require_routes=require_routes)
  import learning_grant as LEARNING
  LEARNING.validate(rules,spec)
@@ -517,6 +550,7 @@ def preflight_revoke(actor,source_ids):
  spec=deepcopy(actor.spec);st=spec.get('state_grants',{})
  for source in source_ids:
   st.get('sources',{}).pop(source,None);st.get('overlays',{}).pop(source,None)
+ __import__('ace_trainer').forget_missing(actor.r,spec,at=0,reason='preflight actual learned source withdrawal')
  import advanced_connection as CONNECTION
  remaining=set(known(actor.r,{'moves':owned_list(spec,'moves')}))
  if set(CONNECTION.bound_moves(actor.r,actor.spec))-remaining:
@@ -650,6 +684,7 @@ def observe_learning(engine,actor,move_id,*,method,source,paid_tp=0,replace=None
   if old is not None:
    import move_type_sync as MOVE_SYNC
    MOVE_SYNC.forget_spec(e.r,candidate,old,at=e.elapsed_seconds,reason=reason)
+   __import__('ace_trainer').forget_spec(e.r,candidate,old,at=e.elapsed_seconds,reason=reason)
   candidate['moves']=moves;candidate.setdefault('move_learning',{})[mid]=record
   if method=='vm':
    state=vitamin_state(e.r,candidate)
@@ -659,6 +694,8 @@ def observe_learning(engine,actor,move_id,*,method,source,paid_tp=0,replace=None
   c.spec['move_learning']=candidate['move_learning']
   if HISTORY in candidate:c.spec[HISTORY]=candidate[HISTORY]
   if 'move_type_sync' in candidate:c.spec['move_type_sync']=candidate['move_type_sync']
+  if 'signature_techniques' in candidate:
+   c.spec['signature_techniques']=candidate['signature_techniques'];c.spec['tutor_points']=candidate['tutor_points']
   c.spec.setdefault('move_learning_log',[]).append({'move_id':mid,'replaced':old,**deepcopy(record)})
   if method=='vm':
    import vitamin_capacity as CAPACITY

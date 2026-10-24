@@ -193,7 +193,7 @@ class NativeSwitchSourceAdapterTests(unittest.TestCase):
                 e.gm.observe_sensory_environment(t,p,paths={'auditory':True},present=True,reason='actual Stratagem order')
                 e.start_round(e.everyone);e.start_of_turn(t,initiative_count=20)
                 self.assertEqual(e.activate_class_passive(t,p,source),(1,0))
-                before=deepcopy(CLASS._active(e,p,source)[1]);bindings=deepcopy(t.ap_account.identified_bindings())
+                before=deepcopy(CLASS._active(e,p,source)[1]);bindings=deepcopy(dict(t.ap_account.identified_bindings()))
                 self.baton(e,t,p,q);self.same_sustain(e,t,p,q,source,before,bindings)
                 move=e.r.move('move/화염방사' if source==CLASS.TRICK_SHOT else 'move/몸통박치기')
                 modifier=CLASS.damage_roll_modifier(e,q,foe,move,1.0)
@@ -216,7 +216,7 @@ class NativeSwitchSourceAdapterTests(unittest.TestCase):
             with self.subTest(branch=branch):
                 f=self.helper('test_book_stat_ace_full','StatAceTests');f.setUp();f.family(branch,stratagem=True)
                 e,t,p,q=f.e,f.a,f.p,f.q;e.gm.recall(q,reason='actual matching Stat reserve')
-                f.activate(branch);before=deepcopy(CLASS._active(e,p,STAT.STRATAGEM)[1]);bound=deepcopy(t.ap_account.identified_bindings())
+                f.activate(branch);before=deepcopy(CLASS._active(e,p,STAT.STRATAGEM)[1]);bound=deepcopy(dict(t.ap_account.identified_bindings()))
                 e.change_stage(p,branch,3);self.baton(e,t,p,q)
                 self.same_sustain(e,t,p,q,STAT.STRATAGEM,before,bound)
                 if branch=='atk':self.assertTrue(e.accuracy_check(q,f.b,e.r.move('move/몸통박치기'),fixed_roll=17)[2])
@@ -244,7 +244,7 @@ class NativeSwitchSourceAdapterTests(unittest.TestCase):
                 f.branch(branch,*chain);e,t,p,q=f.e,f.t,f.p,f.q
                 e.gm.recall(q,reason='actual Type reserve with its own initial class-compatible body')
                 f.communication();f.combat(t);TYPE.activate(e,t,p,source)
-                before=deepcopy(CLASS._active(e,p,source)[1]);bindings=deepcopy(t.ap_account.identified_bindings())
+                before=deepcopy(CLASS._active(e,p,source)[1]);bindings=deepcopy(dict(t.ap_account.identified_bindings()))
                 stages=dict(p.stages);self.baton(e,t,p,q)
                 self.same_sustain(e,t,p,q,source,before,bindings)
                 name=TYPE.DEFINITIONS[source]['english']

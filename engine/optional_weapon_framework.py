@@ -125,7 +125,12 @@ def object_profile(engine, instance_id, *, usable=True):
     if obj is None or PROFILE not in obj:
         raise ValueError('actual observed physical weapon required')
     if usable:
-        W.require_physical_access(obj)
+        if obj.get('telekinetic_holder_id'):
+            holder=W.actor_index(engine).get(obj['telekinetic_holder_id'])
+            if holder is None:raise ValueError('actual remote weapon holder required')
+            __import__('telekinetic').remote(engine,holder,obj)
+            W.require_usable_object(obj)
+        else:W.require_physical_access(obj)
     row = obj[PROFILE]
     expected = {'schema_version', 'source', 'name', 'kind', 'grade', 'arcane', 'metal', 'moves', 'reason', 'market'}
     if type(row) is not dict or set(row) != expected or row['schema_version'] != 1 or row['source'] != SOURCE:
@@ -149,7 +154,7 @@ def observe_weapon(engine, actor, instance_id, *, name, kind, grade, arcane, met
     """Observe a real object's profile; does not purchase, equip or create it."""
     W.require_actors(engine, actor)
     obj = getattr(engine, '_physical_objects', {}).get(instance_id)
-    if obj is None or actor.entity_id not in (obj.get('owner_id'), obj.get('carrier_id')):
+    if obj is None or actor.entity_id not in (obj.get('owner_id'), obj.get('carrier_id'),obj.get('telekinetic_holder_id')):
         raise ValueError('actual accessible owned weapon required')
     if obj.get('equipped_by') or PROFILE in obj:
         raise ValueError('observe an unequipped weapon once; profile is persistent')
@@ -168,8 +173,9 @@ def observe_weapon(engine, actor, instance_id, *, name, kind, grade, arcane, met
             import improvised_weapons as IMPROVISED
             cannon = target['item_rule_id'] == 'item/몬스터볼-캐논'
             if cannon:
-                valid = (kind, grade, arcane, name) == (
-                    '장거리 사격무기', '좋음', False, e.r.items_mech[target['item_rule_id']]['name'])
+                import csv_item_physical_contracts as CSV_ITEMS
+                printed = CSV_ITEMS.weapon_profile(e.r, target['item_rule_id'])
+                valid = (kind, grade, arcane, name) == tuple(printed[key] for key in ('kind', 'grade', 'arcane', 'name'))
             elif known and known.get('weapon_kind'):
                 valid = (kind, grade, arcane, name) == (
                     known['weapon_kind'], known.get('weapon_grade', '좋음'), bool(known.get('arcane')), known['name'])
@@ -194,16 +200,20 @@ def profile_for_weapon(engine, actor, weapon):
         W.require_physical_access(obj)
         import optional_physical_equipment as OPTIONAL
         definition = OPTIONAL.definition(engine.r, obj.get('item_rule_id'))
-        if definition is None or not definition.get('weapon_kind'):
-            raise ValueError('crafted weapon lost its selected recipe')
-        row = dict(name=definition['name'], kind=definition['weapon_kind'],
-                   grade=definition.get('weapon_grade', '좋음'), moves=[],
-                   arcane=bool(definition.get('arcane')), metal=False)
+        if definition is not None and definition.get('weapon_kind'):
+            row = dict(name=definition['name'], kind=definition['weapon_kind'],
+                       grade=definition.get('weapon_grade', '좋음'), moves=[],
+                       arcane=bool(definition.get('arcane')), metal=False)
+        else:
+            import csv_item_physical_contracts as CSV_ITEMS
+            row = CSV_ITEMS.weapon_profile(engine.r, obj.get('item_rule_id'))
+            if row is None:
+                raise ValueError('crafted weapon lost its selected recipe')
     else:
         obj, row = object_profile(engine, uid)
     if any(weapon.get(key) != row[key] for key in ('name', 'kind', 'grade', 'moves')):
         raise ValueError('equipped weapon and physical profile disagree')
-    if actor.entity_id not in (obj.get('owner_id'), obj.get('carrier_id'), obj.get('equipped_by')):
+    if actor.entity_id not in (obj.get('owner_id'), obj.get('carrier_id'), obj.get('equipped_by'),obj.get('telekinetic_holder_id')):
         raise ValueError('physical weapon belongs to another holder')
     holder = obj.get('equipped_by') or obj.get('carrier_id')
     if holder not in (None, actor.entity_id):
@@ -213,10 +223,12 @@ def profile_for_weapon(engine, actor, weapon):
 
 def skill_rank(engine, actor, weapon):
     row = profile_for_weapon(engine, actor, weapon)
+    if __import__('telekinetic').remote_weapon(engine,actor,weapon):return S.rank(engine.r,actor,'집중')[2]
     if row and row['arcane']:
         arcane_type(engine, actor)
         return S.rank(engine.r, actor, '오컬트학')[2]
     ranks = [S.rank(engine.r, actor, '전투')[2]]
+    if __import__('rogue').cutthroat(engine,actor,weapon):ranks.append(__import__('rogue').rank(engine,actor))
     if row and row['metal'] and '근접' in row['kind'] and steelheart(engine, actor):
         ranks.extend(S.rank(engine.r, actor, skill)[2] for skill in ('육상', '집중'))
     return max(ranks)
@@ -269,6 +281,8 @@ def on_equip(engine, actor, key):
         return
     obj, _ = object_profile(engine, uid)
     entry['instance_id'] = uid
+    if entry['weapon'].get('telekinetic'):
+        __import__('telekinetic').remote(engine,actor,obj);return
     obj['equipped_by'] = actor.entity_id
     W._set_object_location(obj, {'kind': 'unknown'})
 
@@ -277,8 +291,9 @@ def on_unequip(engine, actor, entry):
     uid = entry['weapon'].get('framework_instance')
     if uid is None:
         return
-    obj, _ = object_profile(engine, uid)
-    if obj.get('equipped_by') != actor.entity_id:
+    obj, _ = object_profile(engine, uid,usable=not entry['weapon'].get('telekinetic',False))
+    if entry['weapon'].get('telekinetic'):return
+    if obj.get('equipped_by') != actor.entity_id and not __import__('telekinetic').remote_weapon(engine,actor,entry['weapon']):
         raise ValueError('physical weapon holder changed')
     obj.pop('equipped_by', None)
     W._set_object_location(obj, W.location_of(actor))
@@ -306,8 +321,8 @@ def equip(engine, actor, instance_id, *, slot='주요손'):
     return G.transition(engine, actor, apply)
 
 
-def disarm_skills(engine, actor):
-    result = {'combat', 'stealth'}
+def disarm_skills(engine, actor, item_name=None):
+    result = {'combat', 'stealth'} | __import__('rogue').disarm_skills(engine,actor,item_name)
     for entry in actor.custom_conditions.get('equipped_weapons', {}).values():
         row = profile_for_weapon(engine, actor, entry['weapon'])
         if not row:
@@ -324,6 +339,7 @@ def adapt_move(engine, actor, move):
     import living_weapon as LIVING
     borrowed=LIVING.borrowed(engine,actor,move)
     if borrowed is not None:return borrowed
+    if move.get('_rogue_cutthroat') is not None:return __import__('rogue').weapon_move(engine,actor,move,None)
     attack = move.get('_weapon_attack')
     if not attack:
         return move
@@ -351,7 +367,7 @@ def adapt_move(engine, actor, move):
     if move.get('id') not in entry.get('available_moves', ()) or attack.get('source') != grant_source:
         raise ValueError('weapon attack is not granted by this physical source')
     obj = engine._physical_objects[entry['instance_id']]
-    if obj.get('equipped_by') != actor.entity_id:
+    if obj.get('equipped_by') != actor.entity_id and not __import__('telekinetic').remote_weapon(engine,actor,entry['weapon']):
         raise ValueError('attack requires the current physical weapon holder')
     validate_loadout(engine, actor, entry['weapon'])
     out = deepcopy(move)
@@ -655,7 +671,7 @@ def validate_world(engine, index):
                 profile_for_weapon(engine, actor, entry['weapon'])
                 validate_loadout(engine, actor, entry['weapon'])
                 uid = entry['instance_id']
-                if engine._physical_objects[uid].get('equipped_by') != actor.entity_id:
+                if engine._physical_objects[uid].get('equipped_by') != actor.entity_id and not __import__('telekinetic').remote_weapon(engine,actor,entry['weapon']):
                     raise ValueError('equipped physical weapon relation changed')
     import improvised_weapons as IMPROVISED
     IMPROVISED.validate_world(engine)

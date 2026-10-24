@@ -773,7 +773,7 @@ def accuracy_face(engine,p,t,move,mm,face,*,modifier,ac,evasion,automatic,cannot
  s=scope(engine,p,move)
  if not s or s['feature']!=uid('Gale Strike'):return face
  if 'gale_faces' not in s:
-  second=engine.d20();s['gale_faces']=[face,second]
+  second=engine.roll_d20(p,'gale_accuracy_reroll');s['gale_faces']=[face,second]
   answer=engine.rulings.decide({'type':'type_ace_gale_strike','unit':s['feature'],'actor':p.name,'faces':s['gale_faces'],'text':'Choose first or second actual Accuracy die.'})
   if answer not in ('first','second'):raise ValueError('explicit Gale Strike die selection required')
   chosen=face if answer=='first' else second;s['gale_selected']=chosen
@@ -822,7 +822,7 @@ def react(engine,a,p,feature,completion_id,**options):
   elif name=='Black-Out Strike':
    _once(e,t,feature+':scene',consume=True)
    for target in shits:
-    target.injuries+=1;__import__('precise_actions').injury(e,target,1,feature);__import__('life').sync(e,target)
+    __import__('precise_actions').gain_injury(e,target,1,feature);__import__('life').sync(e,target)
     if target.injuries>=3 or target.hp*4<=target.base_max_hp:__import__('life').faint(e,target)
     else:e.apply_status(target,'잠듦',source=feature,applied_by=q)
   elif name=='Tyrant’s Roar':
@@ -1510,7 +1510,7 @@ def mark_departure(engine,p,destination):
 
 def smite(engine,p,target,move,set_damage):
  s=scope(engine,p,move)
- if not(move.get('_type_ace_boo') or s and s['feature']==uid('Gneiss Aim')):return 0
+ if not(move.get('_type_ace_boo') or s and s['feature']==uid('Gneiss Aim') or __import__('ace_trainer').vicious_storm(engine,p,move)):return 0
  import arithmetic_policy as M,attack_damage_history as HISTORY
  facts={}
  amount=M.ratio(engine.roll_damage(p,target,move,False,set_damage,_precision_observation=facts),2)

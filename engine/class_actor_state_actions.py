@@ -116,7 +116,10 @@ def acquired_source(trainer, rule_id):
     source = matches[0]
     if trainer.r._selected_rule(source) != source:
         raise ValueError("selected feature variant requires its own state-action policy")
-    if rule_id in BOOK_CLAUSE_BY_RULE:
+    if rule_id==TOP_PERCENTAGE and __import__('ace_trainer').acquired(trainer,TOP_PERCENTAGE):
+        from source_context import verified_source
+        verified_source(trainer.r,__import__('ace_trainer').policy(trainer.r)['body'],label='actual Top Percentage body')
+    elif rule_id in BOOK_CLAUSE_BY_RULE:
         import chef_cooking as CHEF
         CHEF.definitions(trainer.r)
     else:
@@ -146,7 +149,11 @@ def _state(actor, create=False):
         if event["id"] in identities or not isinstance(event["id"], str) or not event["id"]:
             raise ValueError("class state event identities must be distinct nonempty text")
         identities.add(event["id"])
-        if event["source"] not in TRIGGERED_RULES or event["clause_id"] != _clause(event["source"]):
+        allowed_clause=event["clause_id"]==_clause(event["source"])
+        if event['source']==TOP_PERCENTAGE and event['clause_id']=='input/ch04-trainer-classes.md:334-338':
+            import ace_trainer as ACE
+            allowed_clause=any(r['request_id']==event['payload'].get('acquisition_request') for r in ACE.records(actor,TOP_PERCENTAGE))
+        if event["source"] not in TRIGGERED_RULES or not allowed_clause:
             raise ValueError("class state event source identity changed")
         for field in ("owner_id", "target_id", "trigger"):
             if not isinstance(event[field], str) or not event[field]:
@@ -197,10 +204,17 @@ def _offer(engine, owner, target, source, trigger, payload):
     state = _state(owner, create=True)
     state["serial"] += 1
     event_id = "class-state-action:" + owner.entity_id + ":" + str(state["serial"])
+    clause=_clause(source)
+    if source==TOP_PERCENTAGE:
+        import ace_trainer as ACE
+        actual=ACE.acquired(owner,TOP_PERCENTAGE)
+        if actual:
+            clause=ACE.top_source(owner)
+            payload=dict(payload,acquisition_request=actual['request_id'])
     event = {
         "id": event_id,
         "source": source,
-        "clause_id": _clause(source),
+        "clause_id": clause,
         "owner_id": owner.entity_id,
         "target_id": target.entity_id,
         "trigger": trigger,
@@ -285,6 +299,8 @@ def offer_top_percentage_at_max_level(engine, trainer, pokemon):
         raise ValueError("Top Percentage requires your actual Pokemon")
     if acquired_source(trainer, TOP_PERCENTAGE) is None:
         raise ValueError("Top Percentage acquisition required")
+    if __import__('ace_trainer').acquired(trainer,TOP_PERCENTAGE):
+        raise ValueError('Core body Top Percentage requires an actual fifth-level trigger; maximum-level exception belongs to CSV59')
     return _offer(engine, trainer, pokemon, TOP_PERCENTAGE, "maximum_level_exception", {"level": 100})
 
 
@@ -350,8 +366,10 @@ def _apply_top_percentage(engine, owner, target, event):
     result = {"tutor_points_granted": 1, "target_uses": used + 1}
     import state_grants as GRANTS
     source_id = "top-percentage:" + target.entity_id
+    prior=target.spec.get(GRANTS.KEY,{}).get('sources',{}).get(source_id,{})
+    clause=prior.get('clause_id',event['clause_id'])
     source = GRANTS._source(target, source_id, KIND, lifetime="permanent_fourth_use",
-        rule_id=TOP_PERCENTAGE, clause_id=CLAUSE_BY_RULE[TOP_PERCENTAGE], tutor_points=0)
+        rule_id=TOP_PERCENTAGE, clause_id=clause, tutor_points=0)
     source['top_percentage_uses'] = used + 1
     if used + 1 == 4:
         GRANTS._source(
@@ -361,7 +379,7 @@ def _apply_top_percentage(engine, owner, target, event):
             owner_id=owner.entity_id,
             lifetime="permanent_fourth_use",
             rule_id=TOP_PERCENTAGE,
-            clause_id=CLAUSE_BY_RULE[TOP_PERCENTAGE],
+            clause_id=clause,
             tutor_points=0,
         )
         for stat in ("hp", "atk", "def", "spa", "spd", "spe"):

@@ -854,6 +854,25 @@ def switch(engine, contest_id, trainer, outgoing, incoming, *, position=None,
     return receipt
 
 
+def party_switched(engine,trainer,receipt):
+    """The paid native party producer also updates its actual Contest slot."""
+    if len(receipt['recalled'])!=1 or len(receipt['sent'])!=1:return
+    old,new=receipt['recalled'][0],receipt['sent'][0]
+    plan=receipt.get('feature_plan',{})
+    exempt=plan.get('source')=='feat/왕복-여행' or plan.get('tag_in') is True
+    for host in _world(engine).values():
+        for occurrence in host.spec.get(KEY,{}).values():
+            if occurrence['status']!='round':continue
+            for side in occurrence['sides']:
+                if side['trainer_id']!=trainer.entity_id or old not in side['active']:continue
+                if new not in side['roster'] or new in side['active']:raise ValueError('actual Battle Contest party replacement required')
+                side['active'][side['active'].index(old)]=new
+                if not exempt:occurrence['pokemon'][old]['excitement']=max(0,occurrence['pokemon'][old]['excitement']-2)
+                if side['replacement_center_due']:
+                    occurrence['pokemon'][new]['center_pending']=True;side['replacement_center_due']=False
+                occurrence.setdefault('party_switches',[]).append({'request_id':receipt['request_id'],'source':plan.get('source'),'tag_in':plan.get('tag_in',False),'loss_exempt':exempt,'outgoing':old,'incoming':new})
+
+
 def result(engine, contest_id):
     host, state, index = validate(engine, contest_id)
     scores = [_score(state, 0), _score(state, 1)]

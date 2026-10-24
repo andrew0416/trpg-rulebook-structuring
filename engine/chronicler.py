@@ -458,7 +458,7 @@ def _technique_record(engine,trainer,pokemon,mid):
  return next(rid for rid in st['archives']['technique'] if st['records'][rid]['subject']==mid),routes
 
 
-def tutor(engine,trainer,pokemon,move_id,*,seconds,reason,replace=None):
+def tutor(engine,trainer,pokemon,move_id,*,seconds,reason,replace=None,tutoring_policy=None):
  """Daily Extended teaching of an archived Move for two Tutor Points."""
  import frequency as F,pokemon_activities as P,pokemon_teaching as TEACH,world_entities as W
  require(engine,trainer,TUTOR);W.require_actors(engine,pokemon);P._trainer(trainer);P._pokemon(pokemon)
@@ -481,7 +481,7 @@ def tutor(engine,trainer,pokemon,move_id,*,seconds,reason,replace=None):
   old=e.r.move_id(replace) if replace is not None else None;baseline=M.known(e.r,q.spec)
   if mid in baseline:raise ValueError('Pokemon already learned that move')
   if replace is not None and old not in baseline:raise ValueError('explicit replacement must name an actually learned permanent move')
-  admission=TEACH.tutor_admission(e.r,mid,q.level)
+  admission=TEACH.tutor_admission(e.r,mid,q.level,policy=tutoring_policy)
   candidate=deepcopy(q.spec)
   if old is not None:
    import move_type_sync as MOVE_SYNC
@@ -526,7 +526,10 @@ def profiling_record(pokemon):
 def profile_order(engine,trainer,pokemon,*,communication=None):
  """2 AP Standard Order: the Pokemon's next turn treats archived Profile subjects as Mold Breaker targets with +2 Accuracy."""
  import action_points as AP,turn as TURN,combat_timing as T,cheerleader as CHEER
- require(engine,trainer,PROFILING);_owned_pokemon(engine,trainer,pokemon)
+ require(engine,trainer,PROFILING)
+ import commander as COMMANDER
+ if not (COMMANDER.transformed_target(engine,trainer,pokemon) or COMMANDER.leadership_target(engine,trainer,pokemon)):
+  _owned_pokemon(engine,trainer,pokemon)
  d=DEFINITIONS[PROFILING]
  @CHEER.order_activation(PROFILING)
  def apply(e,t,q):
@@ -549,7 +552,7 @@ def profile_order(engine,trainer,pokemon,*,communication=None):
 
 
 def _profiling_owner(engine,attacker,target):
- if attacker is None or target is None or getattr(attacker,'kind',None)!='pokemon':return None
+ if attacker is None or target is None:return None
  row=profiling_record(attacker)
  if row is None:return None
  facts=row['chronicler_profiling']
@@ -566,8 +569,10 @@ def accuracy_bonus(engine,attacker,target,move):
 
 def defensive_ignored(engine,attacker,target,move=None):
  """Shared selected native defensive-Ability bypass, including Targeted Profiling."""
- if _profiling_owner(engine,attacker,target) is not None:return True
- if attacker is None or target is None or not attacker.side or not target.side or attacker.side==target.side:return False
+ if _profiling_owner(engine,attacker,target) is not None or __import__('commander_orders').ignore_defensive(engine,attacker,target):return True
+ if attacker is None or target is None:return False
+ attacker_side,target_side=getattr(attacker,'side',None),getattr(target,'side',None)
+ if not attacker_side or not target_side or attacker_side==target_side:return False
  import ability_transitions as ABILITIES
  for effect in attacker.registry:
   if effect.get('type')!='ignore_effects' or effect.get('ignore_abilities') not in ('defensive','defensive (all enemies)'):continue

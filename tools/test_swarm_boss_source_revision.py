@@ -7,7 +7,7 @@ import sys
 import unittest
 
 STAGE=Path(__file__).resolve().parents[1]
-ROOT=Path(os.environ.get('PTK_EXPERIMENT_ROOT',r'D:/trpg-rulebook-structuring/ptk-structure-experiment'))
+ROOT=Path(os.environ.get('PTK_EXPERIMENT_ROOT',str(STAGE)))
 sys.path[:0]=[str(STAGE/'engine'),str(ROOT/'engine'),str(STAGE/'tools'),str(ROOT/'tools')]
 from engine import Engine,Combatant
 import actor_templates as T

@@ -91,6 +91,16 @@ def consumes_effect(plan, effect):
     return bool(plan and plan.get(PLAN) is True and isinstance(effect, dict))
 
 
+def weapon_profile(rules, item_id):
+    if item_id not in ITEM_KINDS:
+        return None
+    row = definition(rules, item_id)
+    if row is None or row['kind'] != 'pokeball_cannon':
+        return None
+    return {'name': rules.items_mech[item_id]['name'], 'kind': '장거리 사격무기',
+            'grade': '좋음', 'moves': [], 'arcane': False, 'metal': False}
+
+
 def install(engine, actor, source_id, plan):
     if not plan or plan.get(PLAN) is not True:
         return [], 0
@@ -101,9 +111,8 @@ def install(engine, actor, source_id, plan):
     if plan["kind"] == "pokeball_cannon":
         import optional_weapon_framework as FRAMEWORK
         import turn as TURN
-        weapon = FRAMEWORK.crafted_weapon(engine, {"instance_id": instance_id}, {
-            "name": engine.r.items_mech[plan["item_id"]]["name"],
-            "kind": "장거리 사격무기", "grade": "좋음", "moves": []})
+        weapon = FRAMEWORK.crafted_weapon(engine, {"instance_id": instance_id},
+            weapon_profile(engine.r, plan["item_id"]))
         key = TURN.equip_weapon(engine, actor, weapon)
         actor.custom_conditions["equipped_weapons"][key].update(
             item_id=plan["item_id"], instance_id=instance_id)

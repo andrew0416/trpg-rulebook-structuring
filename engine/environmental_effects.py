@@ -128,15 +128,11 @@ def _add_injuries(e,c,amount):
     if TEMPLATES.injuries_immune(c):
         e.log(f"  {c.name}: 질식 부상 {amount} 면역",SUFFOCATION)
         return 0
-    state=c.spec["_respiration"]
-    state["applied_injuries"]+=amount
-    state["protected_injuries"]+=amount
-    c.injuries+=amount
     import precise_actions as PRECISE
-    PRECISE.injury(e,c,amount,SUFFOCATION)
-    e.log(f"  {c.name}: 질식 부상 +{amount} (호흡 외 치유 불가)",SUFFOCATION)
+    retained=PRECISE.gain_injury(e,c,amount,SUFFOCATION)
+    e.log(f"  {c.name}: 질식 부상 +{retained} (호흡 외 치유 불가)",SUFFOCATION)
     e.check_fainted(c)
-    return amount
+    return retained
 
 
 def advance(e,c):
@@ -145,9 +141,12 @@ def advance(e,c):
     state=c.spec.get("_respiration")
     if not state or state["breathing"]:return
     total=_target_count(state,e.elapsed_seconds)
-    gained=total-state["applied_injuries"]-state.get("prevented_injuries",0)
-    applied=_add_injuries(e,c,gained)
-    state["prevented_injuries"]=state.get("prevented_injuries",0)+gained-applied
+    gained=total-state["applied_injuries"]
+    state["applied_injuries"]=total
+    retained=_add_injuries(e,c,gained)
+    state["protected_injuries"]+=retained
+    prevented=gained-retained
+    if prevented:state['prevented_injuries']=state.get('prevented_injuries',0)+prevented
 
 
 def observe_breathing(e,c,*,air_available,medium,reason,timing_policy=None,round_offset_seconds=None):
@@ -404,9 +403,8 @@ def fall(e,c,*,action_id,meters,intentional,reason,acrobatics=False,acrobatics_o
     import actor_templates as TEMPLATES
     result["height_injuries_prevented"]=result["height_injuries"] if TEMPLATES.injuries_immune(c) else 0
     result["height_injuries"]-=result["height_injuries_prevented"]
-    c.injuries+=result["height_injuries"]
     import precise_actions as PRECISE
-    PRECISE.injury(e,c,result["height_injuries"],FALL)
+    result['retained_height_injuries']=PRECISE.gain_injury(e,c,result["height_injuries"],FALL)
     e.check_fainted(c)
     result["status"]="resolved" if c.injuries<5 else "pending_heavy_composition_after_base_fall"
     e.log(f"  {c.name}: 낙하 DB{result['damage_base']} 피해 {result['damage']}, 높이 부상 +{result['height_injuries']}",FALL)
@@ -437,7 +435,8 @@ def validate_respiration(c):
     else:
         C.integer(row.get('deprivation_started_at'),'deprivation start',0)
         if row['deprivation_started_at']>row['observed_at']:raise ValueError('deprivation starts after its observation')
-        if row['protected_injuries']!=row['applied_injuries']:raise ValueError('unrecovered suffocation provenance mismatch')
+        C.integer(row.get('prevented_injuries',0),'prevented suffocation injuries',0)
+        if row['protected_injuries']+row.get('prevented_injuries',0)!=row['applied_injuries']:raise ValueError('unrecovered suffocation provenance mismatch')
     protected_injuries(c)
 
 

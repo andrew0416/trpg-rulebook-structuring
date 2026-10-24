@@ -170,6 +170,8 @@ def modifiers(rules, actor, skill, additional, *, skill_context=None):
         if not counts[uid]:raise ValueError('skill bonus choice requires acquired edge')
         chosen[uid]=value
     sources=[]
+    if target=='stealth' and __import__('ability_transitions').active(actor,'ability/틈새포착'):
+        sources.append(('ability/틈새포착',2,'active Infiltrator'))
     for uid,record in policy['edges'].items():
         count=counts[uid]
         if not count:continue

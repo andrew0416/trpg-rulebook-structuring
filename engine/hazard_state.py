@@ -518,6 +518,8 @@ def _stealth_entry(engine, actor, entered_cells):
 
 
 def on_enter_cell(engine, actor, cell, *, previous_position=None):
+    if __import__('ability_transitions').active(actor,'ability/틈새포착'):return
+    if __import__("jump_move_actions").hazard_immune(actor):return
     ensure(engine)
     import effect_lifetime_policy as LIFETIMES
     LIFETIMES.reconcile(engine)

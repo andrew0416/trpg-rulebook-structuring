@@ -39,9 +39,12 @@ class FantasyQ30SourceVariantTests(unittest.TestCase):
             return {'key':key,'kind':'trainer','sheet':{'name':key,'level':40,'stats':stats,
                 'moves':[TACKLE,WATER],'abilities':[],'pos':pos,'side':side,'extra':extra},
                 'body':{'size':'중형','offsets':[(0,0)],'reason':'actual Q30 holder and opposing combatant bodies'}}
-        self.e,actors=NATIVE.prepare_scene(ROOT,ruleset='all',seed=149203,
-            grid={'width':12,'height':8},actors=[actor('holder',(2,2),'party',True),
-                actor('first',(3,2),'foe'),actor('second',(2,3),'foe')])
+        from examples.declared_skill_ranks import configure
+        rules=Rules(ROOT,ruleset='all');configure(rules)
+        with patch.object(NATIVE,'Rules',return_value=rules):
+            self.e,actors=NATIVE.prepare_scene(ROOT,ruleset='all',seed=149203,
+                grid={'width':12,'height':8},actors=[actor('holder',(2,2),'party',True),
+                    actor('first',(3,2),'foe'),actor('second',(2,3),'foe')])
         self.a,self.b,self.c=[actors[key] for key in ('holder','first','second')]
         for actor in self.e.everyone:ITEMS.register_feats(self.e,actor)
 

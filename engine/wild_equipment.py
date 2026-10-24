@@ -107,7 +107,7 @@ def _attract(e,actor,*,phase,bait_id,target=None,party=None,level_match_reason=N
   bonus=tools_bonus(e,actor,'attraction')+STYLE.lure_bonus(actor)
   import capability_parameter_edges as PARAMETERS,state_grants as G
   if record.get('attraction_source')=='capability/매혹' and actor.kind=='pokemon' and '매혹' in G.effective_capabilities(actor):bonus+=PARAMETERS.enticing_bonus(actor)
-  e.advance_time(900,[actor]);face=fixed if fixed is not None else e.d20();result={'natural':face,'bonus':bonus,'total':face+bonus,'dc':15,'at':e.elapsed_seconds};record['checks'].append(result)
+  e.advance_time(900,[actor]);face=e.roll_d20(actor,'attraction',fixed=fixed);result={'natural':face,'bonus':bonus,'total':face+bonus,'dc':15,'at':e.elapsed_seconds};record['checks'].append(result)
   if face+bonus>=15:record['status']='awaiting_encounter'
   else:
    record['misses']+=1
@@ -167,7 +167,7 @@ def replace_standard(e,actor):
  e.log('    '+actor.name+': 다음 기본 행동을 미끼 먹기에 사용','item/미끼')
  return True
 
-def snare_bonus(e,actor,target,*,conversion=None):
+def snare_bonus(e,actor,target,*,conversion=None,source_variant=None):
  if conversion is not None:
   if type(conversion) is not dict or set(conversion)!={'modifier','reason','scope'} or conversion['scope']!='this_capture_roll':raise ValueError('explicit GM Snare conversion modifier/reason/this_capture_roll scope required')
   C.integer(conversion['modifier'],'GM Snare capture modifier')
@@ -177,14 +177,21 @@ def snare_bonus(e,actor,target,*,conversion=None):
   return 0
  import capture_techniques as CAPTURE,trainer_feature_acquisition as TFA
  if any(row.get('adapter_id')==CAPTURE.ADAPTER for row in actor.spec.get(TFA.LEDGER_KEY,{}).values()):
+  import capture_specialist as ACTIVE
   import capture_resolution as RESOLUTION
-  RESOLUTION.bind_native(e.r)
+  procedure,_=RESOLUTION.bind_native(e.r,source_variant)
+  actual=ACTIVE.snared(e,actor,target)
+  if procedure.sides==100:
+   if conversion is not None:raise ValueError('Core Snare uses its original -10 modifier')
+   return -10 if actual else 0
+  if ACTIVE.technique(actor,'덫')==ACTIVE.SEPT:return 2 if actual else 0
   selected_conversion=e.r.mech('pokemon/capture-rate').get('ball_modifier_conversion')
   if conversion is None and selected_conversion!='구판 1d100 보정치의 부호를 뒤집고 5로 나눈다 (슈퍼볼 +2, 하이퍼볼 +3, 타이머볼 -1→+4, 포획전문가의 덫 +2)':
    raise ValueError('Book Snare requires explicit selected errata-ball-mod-conversion for modern capture; Book -10 action is separate')
  # Only native physical producers establish bait distraction or a real net.
  import net_capsule as NET
- return (2 if conversion is None else conversion['modifier']) if pending(target) or NET.active(target) is not None else 0
+ import capture_specialist as ACTIVE
+ return (2 if conversion is None else conversion['modifier']) if ACTIVE.snared(e,actor,target) else 0
 
 ACTIVITIES={'attract_bait':attract,'distract_bait':distract}
 

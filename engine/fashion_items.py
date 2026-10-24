@@ -352,7 +352,7 @@ def _consume_arm(actor, kind, instance_id):
 
 def all_roll_modifier(actor):
     import combat_timing as TIMING
-    return sum(record.get("fashion_all_roll_modifier", 0) for record in TIMING.records(actor))
+    return TIMING.all_roll_modifier(actor)
 
 
 def consume_save_bonus(engine, actor):

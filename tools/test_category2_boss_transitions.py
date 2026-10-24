@@ -4,7 +4,7 @@ from unittest.mock import patch
 import sys, unittest
 
 STAGE = Path(__file__).resolve().parents[1]
-ROOT = Path(r"D:/trpg-rulebook-structuring/ptk-structure-experiment")
+ROOT = STAGE
 sys.path[:0] = [str(STAGE / "engine"), str(ROOT / "engine")]
 
 from engine import Rules, Engine, Combatant

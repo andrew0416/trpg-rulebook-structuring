@@ -268,6 +268,7 @@ def h_heal(engine, a, t, e, ctx):
 
 
 def h_hp_loss(engine, a, t, e, ctx):
+    if __import__('hex_maniac').skip_additional_self_cost(engine,a,e,ctx):return
     for c in tgt_of(e, a, t):
         v = _amount(e.get("value"), c, engine, ctx)
         if v is None:
@@ -275,7 +276,7 @@ def h_hp_loss(engine, a, t, e, ctx):
         tick_match=re.fullmatch(r'tick(?:\s*\*\s*([0-9]+))?',str(e.get('value')))
         if tick_match:v=engine.tick_loss(c,int(tick_match.group(1) or 1))
         import attack_damage_history as DAMAGE_HISTORY
-        DAMAGE_HISTORY.effect_loss(engine,a,t,c,e,ctx,v)
+        if not __import__('coordinator').prevent_effect_loss(engine,a,c,e,ctx):DAMAGE_HISTORY.effect_loss(engine,a,t,c,e,ctx,v)
 
 
 def h_self_hp_set(engine, a, t, e, ctx):
@@ -589,7 +590,7 @@ HANDLERS = {
     "never_miss": h_noop_static, "crit_range": h_noop_static, "grant_capability": h_noop_static, "weapon_restriction": h_noop_static,
     "usage_restriction": h_noop_static, "bonus_damage": h_noop_static, "damage_base_formula": h_noop_static, "conditional_damage_base": h_noop_static,
     "skill_check_mod": h_noop_static,
-    "damage_formula_override": h_noop_static, "damage_floor": h_noop_static, "damage_roll_mod": h_noop_static,
+    "oracle_mark": h_noop_static, "channel_imprint": h_noop_static, "damage_formula_override": h_noop_static, "damage_floor": h_noop_static, "damage_roll_mod": h_noop_static,
     "declarative_move_contract": h_declarative_move_contract,
 }
 # 판정 시점(명중/데미지)에 engine 이 직접 읽는 유형
@@ -958,6 +959,10 @@ def resume_effects(engine, completed_receipt):
 def apply_passives(engine, c, ability_effects):
     """특성 effect 목록을 Combatant.modifiers 로 등록 (전투 시작 시 한 번)."""
     name = next((e.get("_ability") for e in ability_effects if isinstance(e, dict) and e.get("_ability")), "?")
+    if __import__('hex_maniac').ability_registration(engine.r,name):return
+    if name in ('매복','매복 [Playtest]','ability/매복','ability/매복-playtest'):
+        # Ambush is an explicit native Priority activation, never an always-on Flinch.
+        return
     if name in ('잔인','ability/잔인'):
         # The extracted optional-purchase list is not an automatic on-hit Slow.
         # Actual damaging hits are offered once by Taskmaster's Cruelty adapter.
@@ -1097,7 +1102,7 @@ EXPR_VARS = {
     "user.weight_class": lambda c: c["attacker"].weight_class,
     "target.weight_class": lambda c: c["target"].weight_class,
     "user.injuries": lambda c: c["attacker"].injuries, "target.injuries": lambda c: c["target"].injuries,
-    "user.loyalty": lambda c: __import__("pokemon_entities").loyalty_value(c["attacker"], required=True),
+    "user.loyalty": lambda c: __import__("pokemon_entities").effective_loyalty_value(c["attacker"],engine=c.get("engine"), required=True),
     "max_hp": lambda c: c["who"].base_max_hp, "current_hp": lambda c: max(0, c["who"].hp), "tick": lambda c: c["engine"].tick(c["who"]),
     "sum(positive stages of user)": lambda c: sum(v for v in c["attacker"].stages.values() if v > 0),
     "sum(positive stages of target)": lambda c: sum(v for v in c["target"].stages.values() if v > 0),

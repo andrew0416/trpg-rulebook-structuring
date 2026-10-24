@@ -60,7 +60,7 @@ def owns(engine, actor, uid, *, validate_stat=True):
         raise ValueError('Demoralize requires Adept Intimidate')
     if uid == BLUR and any(SKILL.rank(engine.r, actor, x)[2] < 5 for x in ('곡예', '은신')):
         raise ValueError('Blur requires Expert Acrobatics and Expert Stealth')
-    if uid == PRECISION and not any(SKILL.rank(engine.r, actor, x)[2] >= 5 for x in ('명령', '통찰')):
+    if uid == PRECISION and not __import__('commander').gifted(actor,uid) and not any(SKILL.rank(engine.r, actor, x)[2] >= 5 for x in ('명령', '통찰')):
         raise ValueError('Precision Orders requires Expert Command or Perception')
     if uid == PINPOINT and not owns(engine, actor, PRECISION):
         raise ValueError('Pinpoint Strike requires acquired Precision Orders')
@@ -125,6 +125,9 @@ def _live(engine, actor):
     return any(x is actor for x in engine.everyone)
 
 def _owner(engine, trainer, pokemon):
+    if __import__('commander').sustained_target(engine,trainer,pokemon,PINPOINT):return True
+    import commander as COMMANDER
+    if COMMANDER.transformed_target(engine,trainer,pokemon) or COMMANDER.leadership_target(engine,trainer,pokemon):return True
     if pokemon is None or pokemon is trainer or pokemon.kind != 'pokemon':
         raise ValueError('Pinpoint requires your own Pokemon')
     owner_id = pokemon.spec.get('trainer_id')
@@ -283,6 +286,7 @@ def effect_natural(engine, attacker, move, natural, *, actual_damage_type=None):
             + (TRAINING.bonus(attacker, "effect") if move else 0)
             + effect_range_bonus(attacker, move)
             + CLASS_PASSIVE.effect_range_bonus(engine,attacker,move,mechanics,actual_damage_type=actual_damage_type)
+            + __import__('coordinator').effect_range(engine,attacker,move)
             + __import__('type_ace').effect_range(engine,attacker,move)
             + __import__('martial_artist').effect_range(engine,attacker,move)
             + FRAMEWORK.effect_range_bonus(engine,attacker,move)

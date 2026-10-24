@@ -154,6 +154,7 @@ def movement_permission(engine, c, *, equipment_transport=None):
     import grapple_state as GRAPPLE
     if not GRAPPLE.movement_permission(engine,c):return False
     for status in c.conditions:
+        if __import__('blessing_effects').ignored(c,status):continue
         effects = engine.r.condition_effects(status)
         if any(e.get("type") in ("no_shift_movement", "must_stand_up") for e in effects):
             engine.log(f"    {c.name}: {status} 상태로 현재 이동할 수 없음", "condition/" + status)
@@ -161,7 +162,7 @@ def movement_permission(engine, c, *, equipment_transport=None):
     return True
 
 
-def disengage(engine, c, destination, *, movement_mode=None):
+def disengage(engine, c, destination, *, movement_mode=None, _telepathy_source=None):
     """ch07 Disengage: one Shift, one metre, no opportunity attack.
 
     The existing grid and action ledger carry the actual move. This grants no
@@ -205,8 +206,12 @@ def disengage(engine, c, destination, *, movement_mode=None):
     import stat_ace as STAT
     swift=STAT.has(engine,c,STAT.MASTERY,'spe')
     if swift and not movement_permission(engine,c):return False
-    if not getattr(c, "on_field", True) or c.captured or not spend(engine, c, "swift" if swift else "shift", "이탈", movement=not swift):
-        return False
+    if _telepathy_source is not None:
+        proof=getattr(engine,'_telepath_disengage_boundary',None)
+        if not proof or proof['actor_id']!=c.entity_id or proof['source']!=_telepathy_source or _telepathy_source!=__import__('telepath').FEB or engine._move_completions[proof['completion']]['phase']=='complete':raise ValueError('actual Telepathy Free Disengage boundary required')
+        if not movement_permission(engine,c):return False
+        __import__('action_lifecycle').triggered_free_action(engine,c,_telepathy_source)
+    elif not getattr(c, "on_field", True) or c.captured or not spend(engine, c, "swift" if swift else "shift", "이탈", movement=not swift):return False
     import type_ace as TA
     TA.mark_departure(engine,c,destination)
     import field_effects as FIELD
@@ -252,19 +257,20 @@ def spend(engine, c, kind, what="", *, movement=False, sleep_cure=False, _native
             raise ValueError('Total Blindness Shift movement requires its relative declaration')
     if movement and not movement_permission(engine, c):
         return False
+    if __import__('capture_specialist').shift_grant(engine,c,kind,movement=movement):return True
     if not ACTION.ordinary_permission(engine, c):
         return False
     import order_actions as ORDERS
     kind=ORDERS.pay(engine,c,what,kind)
     status_allowed=ACTION.status_permission(engine, c, kind, sleep_cure=sleep_cure,
-        _standing_up=_standing_up, _condition_recovery=_condition_recovery)
+        _standing_up=_standing_up, _condition_recovery=_condition_recovery,_native_move=_native_move)
     if not status_allowed:
         return False
     b = getattr(c, "budget", None)
     import combat_maneuvers as MANEUVERS
     import body_modes as BODY_MODES
     if not BODY_MODES.permits(c,kind,returning=_body_mode_return):return False
-    if not assisted and not MANEUVERS.standard_allowed(c,kind,_native_move):
+    if not assisted and not MANEUVERS.standard_allowed(c,kind,_native_move,engine=engine):
         engine.log(f"    {c.name}: 재담 난동 중 기본 행동은 데미지 공격에 사용", "maneuver/술수")
         return False
     import wild_equipment as WILD
@@ -370,6 +376,7 @@ def spend_compound(engine, c, cost, what="", *, movement=False, sleep_cure=False
 
 
 def action_kind_of_move(engine, c, move, mm):
+    if move['id']==__import__('tumbler').SPLASH:return 'shift'
     if __import__('provocateur').quick_scope(engine,c,move):return 'swift'
     """기술의 행동 종류: 레지스트리의 action_type_change / 헤더 키워드 / 기본값 standard."""
     ace=__import__('type_ace').scope(engine,c,move)
@@ -410,7 +417,7 @@ def can_aoo(engine, c):
     import coup_de_grace as COUP
     if COUP.bound(engine,c):return False
     # Hunter's Reflexes raises the single per-round Attack of Opportunity to three for the Hunter and their Pokemon.
-    return c.on_field and not c.fainted and not c.captured and not __import__("hunter").opportunity_exhausted(engine, c) and not (c.conditions & {"잠듦", "풀죽음", "마비", "혼란", "넘어짐"}) and not LIFETIMES.forbids(c,"attack_of_opportunity")
+    return c.on_field and not c.fainted and not c.captured and not __import__("hunter").opportunity_exhausted(engine, c) and not (__import__('blessing_effects').effective_conditions(c) & {"잠듦", "풀죽음", "마비", "넘어짐"}) and __import__('confusion_attacks').permits_opportunity(engine,c) and not LIFETIMES.forbids(c,"attack_of_opportunity")
 
 
 def adjacent_enemies(engine, c):
@@ -419,17 +426,21 @@ def adjacent_enemies(engine, c):
 
 
 def trigger_aoo(engine, mover, why, enemies=None):
+    if __import__('commander').no_opportunity(engine, mover):
+        return
     """이동/원거리 공격으로 기회 공격 조건이 걸린 (이동 전) 인접 적들이 발버둥으로 방해 공격."""
     if engine.grid is None:
         import mapless_space as MAPLESS
         if not MAPLESS.active(engine):return
     if any(e.get("type") == "movement_rule" and (e.get("ignore_aoo") or e.get("no_aoo")) for e in mover.registry):
         return
+    if __import__("tumbler").immune(mover) or why=="인접 칸 밖으로 이동" and __import__("tumbler").run_away(mover):return
     enemies = enemies if enemies is not None else adjacent_enemies(engine, mover)
     import fashion_items as FASHION
     if FASHION.prevents_opportunity(engine,mover,why,enemies):
         return
     for enemy in enemies:
+        if __import__('warper').prevents_aoo(enemy,mover,why):continue
         if not can_aoo(engine, enemy):
             continue
         enemy.aoo_used = True
@@ -595,11 +606,11 @@ def disarm(engine, actor, target, *, attacker_skill, defender_skill, item_name=N
     if actor is target or actor.kind not in ("trainer","pokemon") or target.kind not in ("trainer","pokemon"):
         raise ValueError("Disarm needs two distinct trainer/Pokemon actors")
     threaded=__import__('type_ace').threaded_scope(engine,actor)
-    if engine.grid is None or (not engine.adjacent(actor,target) and threaded is None) or not actor.on_field or not target.on_field or target.captured:
+    if not SM.native_reaction_resume(engine,actor,target,source) and (engine.grid is None or (not engine.adjacent(actor,target) and threaded is None) or not actor.on_field or not target.on_field or target.captured):
         raise ValueError("Disarm requires one adjacent on-field target")
     import optional_weapon_framework as FRAMEWORK
     for c,skill in ((actor,attacker_skill),(target,defender_skill)):
-        allowed_skills=FRAMEWORK.disarm_skills(engine,c) if c is target else {"combat","stealth"}
+        allowed_skills=FRAMEWORK.disarm_skills(engine,c,item_name) if c is target else {"combat","stealth"}
         if SKILL.skill_id(engine.r.skill_policy,skill,required=True) not in allowed_skills:
             raise ValueError("Disarm permits Combat or Stealth only")
     import weapon_actions as WEAPONS

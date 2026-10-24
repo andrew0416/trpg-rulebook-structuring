@@ -46,6 +46,7 @@ def itemless_for_move(e,actor,move):
     held=HELD.entries(actor)
     if not held:return True
     if not isinstance(move,dict) or move.get("id")!="move/애크러뱃":return False
+    if __import__('tumbler').acrobatics_itemless(actor,move):return True
     if not active(e,actor,"ability/대파의달인"):return False
     if e.r._selected_rule("move/애크러뱃")!="move/애크러뱃":raise ValueError("selected Acrobatics variant needs its own Leek policy")
     has_leek=any((x.get('item_id') or actor.r.item_effects(x['name'])[1].get('id'))=='item/대파' for x in held)

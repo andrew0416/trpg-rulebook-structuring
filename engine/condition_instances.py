@@ -252,11 +252,12 @@ def beloved(actor):
 
 
 def move_allowed(engine,actor,move):
-    if '사슬묶기' in actor.conditions:
+    conditions=__import__('blessing_effects').effective_conditions(actor)
+    if '사슬묶기' in conditions:
         locks=records(actor,'사슬묶기')
         if not locks:return False,'사슬묶기의 대상 기술 확인 필요'
         if any(r['effect']['move_id']==move['id'] for r in locks):return False,'사슬묶기된 기술'
-    if '억압' in actor.conditions and not getattr(actor,'_duelist_ignoring',False):
+    if '억압' in conditions and not getattr(actor,'_duelist_ignoring',False):
         import frequency as F
         if not records(actor,'억압'):
             import gmax_moves as GMAX
@@ -274,7 +275,7 @@ def native_parameters(engine,actor,target,condition):
 
 
 def preflight_move(engine,actor,target,mm):
-    if '헤롱헤롱' in actor.conditions and not getattr(actor,'_duelist_ignoring',False) and not beloved(actor):raise ValueError('Infatuation needs its actual beloved before action cost or rolls')
+    if '헤롱헤롱' in __import__('blessing_effects').effective_conditions(actor) and not getattr(actor,'_duelist_ignoring',False) and not beloved(actor):raise ValueError('Infatuation needs its actual beloved before action cost or rolls')
     def contains_flinch(value):
         if isinstance(value,list):return any(contains_flinch(x) for x in value)
         if not isinstance(value,dict):return False

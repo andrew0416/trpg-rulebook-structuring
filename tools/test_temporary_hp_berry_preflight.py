@@ -36,7 +36,7 @@ class TemporaryHPBerryPreflightTests(unittest.TestCase):
     unset_lifetime_default = BASE.TemporaryHPCompositionTests.unset_lifetime_default
 
     def ready_berry(self, *, composite=False, origin='item/카리열매', incoming=False):
-        engine, chef, actor, foe = self.world(feats=FIX.ALL_FEATURES)
+        engine, chef, actor, foe = self.world(feats=FIX.ALL_FEATURES, stored_foods=True)
         batch = FIX.cook(engine, chef, recipe='preserves', origin=origin, taste='짠맛')
         if composite:
             batch = FIX.cook(engine, chef, recipe='dumplings',
@@ -63,7 +63,7 @@ class TemporaryHPBerryPreflightTests(unittest.TestCase):
                 lambda: engine.roll_damage(foe, actor, move), reason_pattern=pattern)
         dice.assert_not_called()
 
-    def acquire_true_steel(self, engine, chef, actor):
+    def acquire_true_steel(self, engine, chef, actor, foe):
         skill = TA.SKILLS['강철'][0]
         chef.spec.setdefault('type_link_skills', {})['강철'] = skill
         engine.gm.set_skill(chef, skill, 6, reason='observed Master Steel type-link skill')
@@ -154,7 +154,7 @@ class TemporaryHPBerryPreflightTests(unittest.TestCase):
     def test_true_steel_enables_berry_and_null_policy_refuses_before_rng_without_payment(self):
         self.unset_lifetime_default()
         engine, chef, actor, foe, berry, original = self.ready_berry(origin='item/오카열매')
-        self.acquire_true_steel(engine, chef, actor)
+        self.acquire_true_steel(engine, chef, actor, foe)
         calls = self.provider(engine, True)
         move = self.rules.move('move/불꽃세례')
         self.assertEqual(engine.type_multiplier(move['type'], actor)[0], 1)
@@ -167,7 +167,7 @@ class TemporaryHPBerryPreflightTests(unittest.TestCase):
         for selected in (False, True):
             with self.subTest(selected=selected):
                 engine, chef, actor, foe, berry, original = self.ready_berry(origin='item/오카열매')
-                self.acquire_true_steel(engine, chef, actor)
+                self.acquire_true_steel(engine, chef, actor, foe)
                 if selected:
                     self.choice(engine, 'additive_lifetime', 'per_grant')
                 calls = self.provider(engine, selected)

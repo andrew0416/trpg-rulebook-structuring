@@ -45,7 +45,12 @@ def _predicate(engine, actor, target, value):
     if type(value) is not dict or value.get('owner') not in ('user', 'target'):
         raise ValueError('while needs an actual owner and an explicit state predicate')
     selected = actor if value['owner'] == 'user' else target
-    if set(value) == {'owner', 'condition'}:
+    if set(value)=={'owner','communication_source','sender_id'}:
+        import world_entities as W,perception_communicate as COMM
+        index=W.actor_index(engine)
+        if value['owner']!='target' or value['sender_id'] not in index or value['communication_source']!='class/교감자':raise ValueError('actual communication lifetime owner required')
+        if COMM._state(engine)['connections'].get(COMM._pair(value['communication_source'],value['sender_id'],target.entity_id)) is None:raise ValueError('actual communication lifetime connection required')
+    elif set(value) == {'owner', 'condition'}:
         if type(value['condition']) is not str or not value['condition'].strip():
             raise ValueError('named condition required')
         engine.r.condition_effects(value['condition'])
@@ -124,6 +129,10 @@ def holds(engine, record):
     if value is None:
         return True
     actor = owner(record, value['owner'])
+    if 'communication_source' in value:
+        import perception_communicate as COMM
+        row=COMM._state(engine)['connections'].get(COMM._pair(value['communication_source'],value['sender_id'],actor.entity_id))
+        return row is not None and row['status']=='live'
     if 'condition' in value:
         return value['condition'] in actor.conditions
     import body_state as BODY

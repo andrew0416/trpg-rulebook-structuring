@@ -91,7 +91,7 @@ def begin(e,actor,move,completion_id):
     e._move_completions[completion_id]['endure_trigger']={'completion_id':parent['id'],'event_id':frame['event_id'],'recipient_id':actor.entity_id}
 
 
-def replace_hp(e,target,before,proposed,*,source,loss_kind):
+def replace_hp(e,target,before,proposed,*,source,loss_kind,preview=False):
     """Endure changes final HP, not Damage or its Massive-Damage injury (PTU 1.05 Sturdy and Vigor)."""
     if before<=0 or proposed>0:return proposed
     frame=getattr(e,'_endure_receiving',None)
@@ -103,7 +103,7 @@ def replace_hp(e,target,before,proposed,*,source,loss_kind):
     own=e._move_completions[receipt['own_completion']]
     if own['phase']!='complete' or own['actor'] is not target:return proposed
     if receipt['source']==SOURCES[1] and proposed<=-(target.base_max_hp//4):return proposed
-    receipt.setdefault('hp_replacements',[]).append({'before':before,'proposed':proposed,'after':1,'loss_kind':loss_kind,'source':source})
+    if not preview:receipt.setdefault('hp_replacements',[]).append({'before':before,'proposed':proposed,'after':1,'loss_kind':loss_kind,'source':source})
     return 1
 
 

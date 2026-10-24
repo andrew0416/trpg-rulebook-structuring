@@ -119,8 +119,7 @@ def _injury(engine,target,amount,source):
     import actor_templates as TEMPLATES,precise_actions as PRECISE
     if TEMPLATES.injuries_immune(target):return 0
     before=target.injuries
-    target.injuries+=amount
-    if amount:PRECISE.injury(engine,target,amount,source)
+    if amount:PRECISE.gain_injury(engine,target,amount,source)
     return target.injuries-before
 
 
@@ -180,12 +179,13 @@ def ignores_acting_loss(actor):
 def immune_loss(actor):return actor.injuries>=7 and active(actor) is not None
 
 
-def conscious(actor):
+def conscious(actor, *, hp=None):
     """An actual paid Press On changes the native faint threshold, never death."""
     if actor.dead or '기절' in actor.conditions:return False
-    if actor.hp>0:return True
+    current_hp=actor.hp if hp is None else hp
+    if current_hp>0:return True
     rows=records(actor)
-    if not rows or rows[0].get('press_on') is not True or 100*actor.hp<=DEFINITIONS[PRESS]['parameters']['faint_percent']*actor.base_max_hp:return False
+    if not rows or rows[0].get('press_on') is not True or 100*current_hp<=DEFINITIONS[PRESS]['parameters']['faint_percent']*actor.base_max_hp:return False
     import actor_templates as T
     return not T.soulless(actor) and active(actor) is not None and acquired(rows[0]['owner'],PRESS) is not None
 
@@ -466,14 +466,16 @@ def apply_gambit_damage(engine,attacker,target,move,damage,context,before,*,actu
         row['counter_context']=context
         row['batch']=True
         try:
-            HEAVY.apply_attack_damage(engine,incoming['attacker'],incoming['target'],incoming['damage'],incoming['move'],
+            incoming_application=HEAVY.apply_attack_damage(engine,incoming['attacker'],incoming['target'],incoming['damage'],incoming['move'],
                 producer=HEAVY.Producer.RESOLVED_HIT,remainder='paired hit native continuations remain',native_context=incoming['context'],actual_damage_type=incoming['actual_damage_type'])
             row['incoming_receipt']=DAMAGE.application(requested=incoming['damage'],before=incoming['before'],
                 after=DAMAGE.observe(incoming['target']),source=incoming['move']['id'],damage_class=incoming['move']['class'])
-            HEAVY.apply_attack_damage(engine,attacker,target,damage,move,producer=HEAVY.Producer.RESOLVED_HIT,
+            counter_application=HEAVY.apply_attack_damage(engine,attacker,target,damage,move,producer=HEAVY.Producer.RESOLVED_HIT,
                 remainder='paired hit native continuations remain',native_context=context,actual_damage_type=actual_damage_type)
             counter_receipt=DAMAGE.application(requested=damage,before=before,after=DAMAGE.observe(target),
                 source=move['id'],damage_class=move['class'])
+            if isinstance(incoming_application,dict) and incoming_application.get('source')==__import__('channeler').PAIN:row['incoming_receipt']['channeler_pain']=incoming_application
+            if isinstance(counter_application,dict) and counter_application.get('source')==__import__('channeler').PAIN:counter_receipt['channeler_pain']=counter_application
         finally:
             row['batch']=False
             row.pop('counter_context',None)

@@ -17,7 +17,9 @@ import world_entities as WORLD
 
 class ElementalMysticQ19SourceRevisionTests(unittest.TestCase):
     @classmethod
-    def setUpClass(cls):cls.r=Rules(str(ROOT),ruleset='all')
+    def setUpClass(cls):
+        from examples.declared_skill_ranks import configure
+        cls.r=Rules(str(ROOT),ruleset='all');configure(cls.r)
     setUp=BASE.ElementalTests.setUp
     actor=BASE.ElementalTests.actor
 

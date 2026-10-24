@@ -15,7 +15,10 @@ import control_mount as MOUNT
 
 
 class ConfusionTests(unittest.TestCase):
-    setUpClass=classmethod(FIX.AttackLossTests.setUpClass.__func__)
+    @classmethod
+    def setUpClass(cls):
+        from engine import Rules
+        cls.r=Rules(str(FIX.ROOT),ruleset='core-confusion-feb2016')
     def setUp(self):
         self.e=Engine(self.r,1);self.e.everyone=self.e.gm.everyone=[]
         self.a=self.actor('attacker');self.b=self.actor('target');TURN.reset_budget(self.e,self.a)
@@ -168,7 +171,7 @@ class ConfusionTests(unittest.TestCase):
 
     def test_native_mounted_attack_self_hit_uses_existing_retention_once(self):
         from test_foundation_control_mount import MountTests
-        MountTests.setUpClass();f=MountTests();f.setUp();f.native();f.begin(f.a)
+        MountTests.setUpClass();f=MountTests();f.r=self.r;f.setUp();f.native();f.begin(f.a)
         f.t.pos=(3,3);f.e.apply_status(f.a,'혼란');f.e.rng.seed(1);hp=f.a.hp
         f.e.use_move_on(f.a,f.t,'struggle',f.e.everyone)
         row=list(f.e._move_completions.values())[-1]

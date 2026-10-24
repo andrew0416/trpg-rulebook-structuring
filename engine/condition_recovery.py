@@ -29,7 +29,7 @@ def saving_check(engine,actor,condition,dc,*,fixed=None):
     """The actual native save calculation; curing belongs to its producer."""
     import food_effects as FOOD
     import cheerleader as CHEER
-    if FOOD.save_preflight(engine,actor,condition) is not None or 'fashion_next_save' in actor.spec or CHEER.live(actor,'Cheered'):
+    if FOOD.save_preflight(engine,actor,condition) is not None or 'fashion_next_save' in actor.spec or CHEER.live(actor,'Cheered') or actor.spec.get('capture_next_save'):
         import state_grants as GRANTS
         return GRANTS.transition(engine,actor,
             lambda staged,subject:_saving_check(staged,subject,condition,dc,fixed=fixed),
@@ -47,6 +47,7 @@ def _saving_check(engine,actor,condition,dc,*,fixed=None):
     all_roll_modifier=(FASHION.all_roll_modifier(actor)+__import__('type_ace').all_rolls(actor))
     import duelist as DUELIST
     natural=11 if DUELIST.choose_eleven(engine,actor,'saving') else engine.d20() if fixed is None else fixed
+    natural=__import__('oracle').replace_d20(engine,actor,natural,'saving')
     import cheerleader as CHEER
     natural,cheered=CHEER.save_roll(engine,actor,condition,natural)
     bonus=FOOD.save_bonus(engine,actor,condition)
@@ -54,13 +55,14 @@ def _saving_check(engine,actor,condition,dc,*,fixed=None):
     optional_bonus=OPTIONAL_EQUIPMENT.save_bonus(actor,condition)
     import stat_ace as STAT
     optional_bonus+=STAT.stratagem_bonus(engine,actor,'save',condition=condition)
-    adjusted=EXT.save_dc(engine,actor,condition,dc)+engine.rulings.consume('dc',actor.name,engine)-TURN.weather_save_mod(engine,condition,actor)-bonus-optional_bonus-fashion_bonus-all_roll_modifier
+    capture_penalty=__import__('capture_specialist').save_penalty(engine,actor)
+    adjusted=EXT.save_dc(engine,actor,condition,dc)+engine.rulings.consume('dc',actor.name,engine)-TURN.weather_save_mod(engine,condition,actor)-bonus-optional_bonus-fashion_bonus-all_roll_modifier-capture_penalty
     passed=natural>=adjusted
     label=condition or '숨돌리기'
     engine.log(f"    {actor.name} {label} 내성 체크 d20={natural} vs DC {adjusted} → {'성공' if passed else '실패'}",
                'condition/'+condition if condition else 'ch07-combat/전투의-다른-행동/숨돌리기')
     if condition is not None:STATUSES.on_save(engine,actor,condition,natural)
-    return {'natural':natural,'dc':adjusted,'base_dc':dc,'food_bonus':bonus,'optional_equipment_bonus':optional_bonus,'fashion_bonus':fashion_bonus,'all_roll_modifier':all_roll_modifier,'passed':passed,**({'cheered':cheered} if cheered else {})}
+    return {'natural':natural,'dc':adjusted,'base_dc':dc,'food_bonus':bonus,'optional_equipment_bonus':optional_bonus,'fashion_bonus':fashion_bonus,'all_roll_modifier':all_roll_modifier,'passed':passed,**({'capture_penalty':capture_penalty} if capture_penalty else {}),**({'cheered':cheered} if cheered else {})}
 
 
 def method_for(condition):
@@ -190,10 +192,12 @@ def stand_up(engine,actor):
     def apply(e,c):
         import turn as TURN
         if not TURN.spend(e,c,'shift','일어나기',_standing_up=True):return False
+        quick=__import__('tumbler').quick_offer(e,c,{'kind':'stand_up','round':e.round_no,'turn':c.custom_conditions.get('combat_turn_serial',0)})
         if e.encounter_active:TURN.trigger_aoo(e,c,'일어나기')
         if not TURN.can_act(e,c):return False
         e.cure_status(c,'넘어짐')
         if '넘어짐' in c.conditions:raise ValueError('Tripped source still requires its own removal')
+        __import__('tumbler').quick_shift(e,c,quick)
         e.log('  '+c.name+': 이동 행동으로 일어나기','condition/넘어짐')
         return True
     return G.transition(engine,actor,apply)
@@ -236,4 +240,4 @@ def wake_ally(engine,actor,target,*,contact=None):
 
 def permits_recall(actor):
     """Ordinary recall admission; source-specific bypass belongs to its effect."""
-    return '수렁' not in actor.conditions
+    return '수렁' not in __import__('blessing_effects').effective_conditions(actor)

@@ -33,6 +33,10 @@ def effective_stage(actor,stat):
  import optional_state_effect_contracts as OPTIONAL_STATE
  import campaign_injury_policy as CAMPAIGN_INJURY
  stage=CAPABILITIES.speed_stage(actor) if stat=='spe' else actor.stages[stat]
+ state=actor.spec.get(STATE)
+ if state and any(row['source'].startswith('condition/') and __import__('blessing_effects').ignored(actor,row['source'].split('/',1)[1]) for row in state['base'].values()):
+  raw=state['combat'][stat]+sum(row['deltas'].get(stat,0) for row in state['base'].values() if not (row['source'].startswith('condition/') and __import__('blessing_effects').ignored(actor,row['source'].split('/',1)[1])))
+  lo,hi=limits(actor);stage=max(lo,min(hi,raw))
  stage+=OPTIONAL_STATE.combat_stage_delta(actor,stat)
  return max(-6,min(6,stage+CAMPAIGN_INJURY.stage_penalty(actor,stat)))
 

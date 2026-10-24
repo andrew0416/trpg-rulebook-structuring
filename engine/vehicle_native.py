@@ -368,7 +368,7 @@ def hit(e, attacker, identity, *, move_type, after_defense, passenger_after_defe
     import combat_damage as DAMAGE
     import damage_reactions as REACTIONS
     W.require_actors(e, attacker); Q._text(event_id); Q._text(reason); p = policy(e)
-    TYPES.validate_types(e.r, [move_type]); C.integer(after_defense, 'actual vehicle damage after defense', 0)
+    TYPES.validate_attack(e.r, move_type); C.integer(after_defense, 'actual vehicle damage after defense', 0)
     if type(passenger_after_defense) is not dict: raise ValueError('actual passenger defense observations required')
     intent = {'attacker_id': attacker.entity_id, 'vehicle_id': identity, 'type': move_type,
               'after_defense': after_defense, 'passengers': deepcopy(passenger_after_defense), 'reason': reason, 'breach_policy': deepcopy(breach_policy)}

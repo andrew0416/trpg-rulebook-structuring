@@ -387,7 +387,7 @@ def _fishing(e,actor,*,phase,rod=None,attachment=None,target=None,roll_d20=None,
   if target is not None or roll or escape_d20 is not None:raise ValueError('bite check is not the subsequent Athletics check')
   if roll_d20 is not None:C.integer(roll_d20,'bite d20',1,20)
   bonus=WILD_EQUIPMENT.tools_bonus(e,actor,'attraction')
-  e.advance_time(900 if source=='item/미끼' else 300,[actor]);face=roll_d20 if roll_d20 is not None else e.d20()
+  e.advance_time(900 if source=='item/미끼' else 300,[actor]);face=e.roll_d20(actor,'fishing_bite',fixed=roll_d20)
   if face+bonus>=15:state['status']='hooked'
   else:
    state['misses']+=1
@@ -428,7 +428,7 @@ def _fishing(e,actor,*,phase,rod=None,attachment=None,target=None,roll_d20=None,
   if state['attachment']=='미끼':
    escaped=True;inv['미끼']-=1;state['status']='bait_lost'
   else:
-   face=escape_d20 if escape_d20 is not None else e.d20()
+   face=e.roll_d20(actor,'fishing_escape',fixed=escape_d20)
    escaped=face<=10
    state['reel_failure']={'target_id':identity,'rod':state['rod'],'attachment':'루어',
     'check_total':check.total,'dc':8,'escape_d20':face,'escaped':escaped,'at':e.elapsed_seconds,'source':source}
@@ -454,7 +454,7 @@ def _command_loyalty(e,actor,*,target,use_intimidate=False,dc_override=None,gm_f
  WORLD.require_actors(e,actor,target)
  pending=loyalty_pending(e,target,legendary_control=legendary_control)
  if pending is not None:return pending
- loyalty=command_loyalty_value(e,target,legendary_control=legendary_control);C.integer(loyalty,'GM loyalty',0,6)
+ loyalty=command_loyalty_value(e,target,legendary_control=legendary_control);C.integer(loyalty,'effective GM loyalty',0)
  roll={} if roll is None else roll
  if use_intimidate:_feature(e,actor,'beast')
  if loyalty>=2:
@@ -686,7 +686,7 @@ ACTIVITIES.update(observe_ball=observe_ball)
 
 def command_loyalty_value(e,pokemon,*,legendary_control=False):
  import mega_forms as MEGA,pokemon_entities as ENTITIES,legendary_commands as LEGENDARY
- return 0 if MEGA.uncontrolled(e,pokemon) or not legendary_control and LEGENDARY.uncontrolled(e,pokemon) else ENTITIES.loyalty_value(pokemon)
+ return 0 if MEGA.uncontrolled(e,pokemon) or not legendary_control and LEGENDARY.uncontrolled(e,pokemon) else ENTITIES.effective_loyalty_value(pokemon,engine=e)
 
 
 def loyalty_pending(e,pokemon,*,legendary_control=False):
@@ -965,6 +965,15 @@ COLLECTOR_REVISION='supp-errata/포획-메커니즘-변경'
 
 def collector_eligible(e,trainer,required=False):
  """Errata:771-775, with ch04:376-386 acquisition prerequisites."""
+ import capture_techniques as CT,capture_specialist as CS
+ if CT._rows(trainer):
+  variant=CS.feature_variant(trainer,COLLECTOR_FEAT)
+  if variant==CS.SEPT:
+   CS.official_source(e.r,CS.SEPT)
+   C.integer(trainer.spec.get('collector_stacks',0),'collector stacks',0)
+   return True
+  if required:raise ValueError('Collector requires the actually acquired official September source')
+  return False
  owned=trainer.spec.get('feats',[])
  acquired=COLLECTOR_FEAT in owned or '포켓몬 넌 내 꺼야' in owned
  if not acquired:

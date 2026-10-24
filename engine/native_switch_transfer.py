@@ -43,12 +43,12 @@ def _owner(engine,pokemon):
     return owner
 
 
-def pair(engine,outgoing,incoming,*,recalled=False):
+def pair(engine,outgoing,incoming,*,recalled=False,allow_same=False):
     import pokemon_party as PARTY
     W.require_actors(engine,outgoing,incoming)
     owner=_owner(engine,outgoing)
-    if (outgoing is incoming or outgoing.kind!='pokemon' or incoming.kind!='pokemon'
-            or incoming.spec.get('trainer_id')!=owner.entity_id or outgoing.side!=incoming.side):
+    if (outgoing is incoming and not allow_same or outgoing.kind!='pokemon' or incoming.kind!='pokemon'
+            or incoming.spec.get('trainer_id')!=owner.entity_id or getattr(outgoing,'side',None)!=getattr(incoming,'side',None)):
         raise ValueError('distinct actual Pokemon of the same Trainer required')
     PARTY.require_participation(engine,outgoing);PARTY.require_participation(engine,incoming)
     if outgoing.captured or outgoing.dead or (not recalled and (not outgoing.on_field or outgoing.fainted)):
@@ -104,6 +104,10 @@ def _feature(engine,trainer,source):
     import contest_features as FEATURES
     import skill_modifiers as SKILL
     selected(engine,source);FEATURES.conscious_trainer(trainer)
+    import juggler as JUGGLER
+    if JUGGLER.acquired(trainer,source) is not None:
+        JUGGLER.require(engine,trainer,source)
+        return
     for uid in (CLASS,ROUND_TRIP,*((TAG_IN,) if source==TAG_IN else ())):FEATURES.require(engine,trainer,uid)
     minimum=5 if source==TAG_IN else 4
     if max(SKILL.effective_rank(engine.r,trainer,key) for key in ('곡예','교활'))<minimum:
@@ -118,36 +122,51 @@ def _pay(engine,trainer,source):
     trainer.ap_account.charge(1)
 
 
-def _orders(engine,outgoing,incoming,*,scope='orders'):
+def _orders(engine,outgoing,incoming,*,scope='orders',identifiers=None):
     import native_order_transfer as ORDERS
-    return ORDERS.preflight(engine,outgoing,incoming,scope=scope)
+    return ORDERS.preflight(engine,outgoing,incoming,scope=scope,identifiers=identifiers)
 
 
-def preflight_handoff(engine,outgoing,incoming,*,source=BATON,recalled=False,contract=None):
-    selected(engine,source);selected(engine,BATON);pair(engine,outgoing,incoming,recalled=recalled)
+def preflight_handoff(engine,outgoing,incoming,*,source=BATON,recalled=False,contract=None,order_ids=None,coat_ids=None):
+    selected(engine,source);selected(engine,BATON);pair(engine,outgoing,incoming,recalled=recalled,allow_same=source==TAG_IN)
     import coat_effects as COATS
     import combat_stage_sources as CS
-    COATS.preflight_handoff(outgoing,incoming)
     CS.validate(outgoing);CS.validate(incoming)
     import native_switch_policy as POLICY
     contract=POLICY.contract(engine,outgoing) if contract is None else POLICY.validate(engine,contract)
-    _orders(engine,outgoing,incoming,scope=contract['scope'])
+    if outgoing is not incoming:
+        COATS.preflight_handoff(outgoing,incoming,identifiers=coat_ids)
+        _orders(engine,outgoing,incoming,scope=contract['scope'],identifiers=order_ids)
+    else:COATS.validate_actor(outgoing)
     return contract
 
 
-def handoff(engine,outgoing,incoming,*,source,stages,recall_id,contract):
-    preflight_handoff(engine,outgoing,incoming,source=source,recalled=not outgoing.on_field,contract=contract)
+def handoff(engine,outgoing,incoming,*,source,stages,recall_id,contract,order_ids=None,coat_ids=None):
+    preflight_handoff(engine,outgoing,incoming,source=source,recalled=not outgoing.on_field,contract=contract,order_ids=order_ids,coat_ids=coat_ids)
     import combat_stage_sources as CS
     import coat_effects as COATS
     import native_order_transfer as ORDERS
-    clocks=ORDERS.plan_clocks(engine,outgoing,incoming,scope=contract['scope'])
-    orders=ORDERS.transfer(engine,outgoing,incoming,source=source,recall_id=recall_id,scope=contract['scope'])
+    event={'source':source,'from_id':outgoing.entity_id,'to_id':incoming.entity_id,
+        'trainer_id':outgoing.spec['trainer_id'],'at':engine.elapsed_seconds,'recall_id':recall_id,
+        'from_turn':outgoing.custom_conditions.get('combat_turn_serial',0),
+        'to_turn':incoming.custom_conditions.get('combat_turn_serial',0)}
+    proof=ORDERS.require_switch_proof(engine,event,recall_id,kind='handoffs')
+    same=outgoing is incoming
+    clocks={} if same else ORDERS.plan_clocks(engine,outgoing,incoming,scope=contract['scope'],identifiers=order_ids)
+    orders=[] if same else ORDERS.transfer(engine,outgoing,incoming,source=source,recall_id=recall_id,scope=contract['scope'],identifiers=order_ids)
     if stages is not None:CS.assign_combat(incoming,stages)
-    coats=COATS.transfer_to(engine,outgoing,incoming,source=source,recall_id=recall_id)
+    coats=[] if same else COATS.transfer_to(engine,outgoing,incoming,source=source,recall_id=recall_id,identifiers=coat_ids)
     if not outgoing.on_field:
         import state_grants as G
-        G.reconcile(engine,outgoing);G.reconcile(engine,incoming)
-    return {'stages':None if stages is None else dict(stages),'coats':coats,'orders':orders,'clocks':clocks}
+        for actor in dict.fromkeys((outgoing,incoming)):G.reconcile(engine,actor)
+    result={'stages':None if stages is None else dict(stages),'coats':coats,'orders':orders,'clocks':clocks,'handoffs':[recall_id]}
+    snapshot=proof.get('juggler_snapshot')
+    if snapshot is not None:result['juggler']=[snapshot['integrity']]
+    proof['transfer']=deepcopy(result);proof['integrity']=seal(proof)
+    if snapshot is not None:
+        __import__('juggler').finish_native_transfer(engine,outgoing,incoming,snapshot,event)
+        proof['integrity']=seal(proof)
+    return result
 
 
 def inspect(engine,actor,target,effect,source):
@@ -215,9 +234,12 @@ def _execute(engine,actor,target,effect,ctx):
     engine._effect_dispatch_receipts[ctx['effect_receipt']]['native_switch']=result
     if source==BATON:
         import native_order_transfer as ORDERS,coat_effects as COATS
+        result['juggler_snapshot']=__import__('juggler').capture_transfer(engine,outgoing,
+            source=source,request_id=recall_id,native_recall_id=recall_id)
         result['transfer']={'stages':dict(stages),'coats':[row['id'] for row in COATS.live(outgoing)],
                             'orders':ORDERS.plan_ids(engine,outgoing,incoming,scope=contract['scope']),
-                            'clocks':ORDERS.plan_clocks(engine,outgoing,incoming,scope=contract['scope'])}
+                            'clocks':ORDERS.plan_clocks(engine,outgoing,incoming,scope=contract['scope']),
+                            'handoffs':[recall_id],'juggler':[result['juggler_snapshot']['integrity']]}
         result['integrity']=seal(result)
         # Transfer before recall so recall-owned cleanup cannot delete the passed effect.
         transfer=handoff(engine,outgoing,incoming,source=source,stages=stages,
@@ -229,9 +251,11 @@ def _execute(engine,actor,target,effect,ctx):
         G.reconcile(engine,outgoing);G.reconcile(engine,incoming)
     recall=outgoing.spec.get(RECALLS,[])
     recall_id=recall[-1]['id'] if recall else None
-    if incoming is not None:COMBAT.send_out(engine,incoming,pos=position)
+    if incoming is not None:COMBAT.send_out(engine,incoming,pos=position,request_id=recall_id,source_id=source)
     result.update(recalled=True,sent=incoming is not None,recall_id=recall_id,transfer=transfer)
     result['integrity']=seal(result)
+    if incoming is not None:
+        __import__('initiative_schedule').replace_party(engine,outgoing,incoming,source=source,request_id=recall_id)
     if source==BATON:
         import coat_effects as COATS
         outgoing.spec.get(COATS.TRANSFER_CHOICES,{}).pop(BATON,None)
@@ -252,29 +276,62 @@ def observe_recall(engine,outgoing,stages):
           'trainer_id':owner.entity_id,'round':engine.round_no,'at':engine.elapsed_seconds,
           'turn_serial':outgoing.custom_conditions.get('combat_turn_serial',0),'stages':dict(stages),'fainted':outgoing.fainted,
           'send_serial':owner.spec.get('native_send_serial',0),'action_boundary':action_boundary(engine),
-          'order_ids':__import__('native_order_transfer').live_ids(outgoing),
-          'stratagem_ids':__import__('native_order_transfer').live_ids(outgoing,scope='stratagems')}
+          'order_ids':__import__('native_order_transfer').live_ids(outgoing,engine=engine),
+          'stratagem_ids':__import__('native_order_transfer').live_ids(outgoing,scope='stratagems',engine=engine),
+          'coat_ids':[row['id'] for row in __import__('coat_effects').live(outgoing)]}
     rows.append({'fact':fact,'integrity':ROOT.fingerprint(fact),'id':fact['id']})
 
 
-def select_tag_in(engine,trainer,outgoing,*,reason):
+def _prepaid_tag(engine,trainer,outgoing,request_id,*,live=False):
+    import party_actions as PARTY
+    entry=trainer.spec.get(PARTY.KEY,{}).get(request_id)
+    result=None if entry is None else entry['result']
+    payment=None if result is None else result.get('tag_payment')
+    if (type(payment)is not dict or set(payment)!={'source','request_id','outgoing_id','paid_ap','before_ap','after_ap','consumed_recall'}
+            or payment.get('source')!=TAG_IN or payment.get('request_id')!=request_id
+            or payment.get('outgoing_id')!=outgoing.entity_id or payment.get('paid_ap')!=1
+            or type(payment.get('before_ap'))is not int or type(payment.get('after_ap'))is not int
+            or payment['before_ap']-payment['after_ap']!=1 or payment['after_ap']<0
+            or result.get('feature_plan',{}).get('tag_in') is not True
+            or entry['intent']['recall']!=[outgoing.entity_id]):
+        raise ValueError('actual paid party Tag In receipt required')
+    if live:
+        frame=getattr(engine,'_native_party_recall',None)
+        if (type(frame)is not dict or frame.get('trainer') is not trainer or frame.get('outgoing') is not outgoing
+                or frame.get('request_id')!=request_id or frame.get('result') is not result or not entry.get('pending')):
+            raise ValueError('prepaid Tag In requires its actual native party recall')
+    return payment,result
+
+
+def select_tag_in(engine,trainer,outgoing,*,reason,_prepaid_request=None):
     """Choose the triggered Feature before a paid party or Move recall starts."""
     W.require_actors(engine,trainer,outgoing);_feature(engine,trainer,TAG_IN)
     if _owner(engine,outgoing) is not trainer or not outgoing.on_field:
         raise ValueError('Tag In selection requires the actual owned field Pokemon')
     if type(reason)is not str or not reason.strip():raise ValueError('actual Tag In choice reason required')
-    if TAG in trainer.spec or TAG_CHOICE in trainer.spec:raise ValueError('a Tag In choice is already pending')
+    if TAG in trainer.spec or TAG_CHOICE in trainer.spec or trainer.spec.get('juggler_native',{}).get('pending_tag'):
+        raise ValueError('a Tag In choice is already pending')
     import action_points as AP
-    if AP.available(trainer)<1:raise ValueError('Tag In requires one available AP')
+    if _prepaid_request is None:
+        if AP.available(trainer)<1:raise ValueError('Tag In requires one available AP')
+    else:
+        payment,_=_prepaid_tag(engine,trainer,outgoing,_prepaid_request,live=True)
+        if payment['consumed_recall'] is not None:raise ValueError('prepaid Tag In already belongs to a recall')
+    __import__('native_order_transfer').require_supported_orders(outgoing)
     __import__('native_switch_policy').contract(engine,outgoing)
     trainer.spec[TAG_CHOICE]={'outgoing_id':outgoing.entity_id,'reason':reason,
                              'action_boundary':action_boundary(engine)}
+    if _prepaid_request is not None:trainer.spec[TAG_CHOICE]['prepaid_request']=_prepaid_request
 
 
-def _tag_activation(engine,trainer,outgoing,recall):
-    if TAG in trainer.spec or any(x.get('recall_id')==recall['id'] for x in trainer.spec.get(USES,[])):
+def _tag_activation(engine,trainer,outgoing,recall,*,prepaid_request=None):
+    if TAG in trainer.spec or trainer.spec.get('juggler_native',{}).get('pending_tag') or any(x.get('recall_id')==recall['id'] for x in trainer.spec.get(USES,[])):
         raise ValueError('Tag In already selected for this recall')
-    _pay(engine,trainer,TAG_IN)
+    if prepaid_request is None:_pay(engine,trainer,TAG_IN)
+    else:
+        payment,_=_prepaid_tag(engine,trainer,outgoing,prepaid_request,live=True)
+        if payment['consumed_recall'] is not None:raise ValueError('prepaid Tag In already belongs to a recall')
+        payment['consumed_recall']=recall['id']
     record={'source':TAG_IN,'recall_id':recall['id'],'outgoing_id':outgoing.entity_id,
             'trainer_id':trainer.entity_id,'at':engine.elapsed_seconds,'round':engine.round_no,
             'paid_ap':1,'phase':'pending','action_boundary':action_boundary(engine),
@@ -283,8 +340,20 @@ def _tag_activation(engine,trainer,outgoing,recall):
     if record['fainted_stage_rule'] is not None and record['fainted_stage_rule']['fainted_at_recall']:
         record['stage_reset']={'source':'hb-finance:36','actor_id':outgoing.entity_id,
                                'at':engine.elapsed_seconds,'round':engine.round_no}
+    import juggler as JUGGLER
+    snapshot=JUGGLER.capture_transfer(engine,outgoing,source=TAG_IN,
+        request_id=prepaid_request or recall['id'],native_recall_id=recall['id'])
+    snapshot['stages']=deepcopy(recall['fact']['stages'])
+    if 'coat_ids' in recall['fact']:snapshot['coats']=list(recall['fact']['coat_ids'])
+    snapshot['integrity']=JUGGLER.tag_seal(snapshot)
+    record['juggler_snapshot']=snapshot
+    if prepaid_request is not None:
+        record['prepaid_party_request']=prepaid_request
+        _,result=_prepaid_tag(engine,trainer,outgoing,prepaid_request,live=True)
+        result['tag_snapshot_integrity']=snapshot['integrity']
     record['integrity']=seal(record)
     trainer.spec[TAG]=record;trainer.spec.setdefault(USES,[]).append(record)
+    JUGGLER.state(trainer)['pending_tag']=snapshot
     return record
 
 
@@ -296,7 +365,7 @@ def begin_recall(engine,outgoing):
     if choice is None or choice['outgoing_id']!=outgoing.entity_id:return
     _feature(engine,trainer,TAG_IN)
     recall=outgoing.spec[RECALLS][-1]
-    _tag_activation(engine,trainer,outgoing,recall)
+    _tag_activation(engine,trainer,outgoing,recall,prepaid_request=choice.get('prepaid_request'))
     trainer.spec.pop(TAG_CHOICE)
 
 
@@ -378,25 +447,91 @@ def before_send(engine,incoming):
         recall=next((r for r in outgoing.spec.get(RECALLS,[]) if r['id']==pending['recall_id']),None)
         if recall is None:raise ValueError('pending Tag In lost its actual recall')
         import native_order_transfer as ORDERS,coat_effects as COATS
-        preflight_handoff(engine,outgoing,incoming,source=TAG_IN,recalled=True,contract=pending['contract'])
+        field='order_ids' if pending['contract']['scope']=='orders' else 'stratagem_ids'
+        order_ids=frozenset(recall['fact'][field]);coat_ids=recall['fact'].get('coat_ids')
+        preflight_handoff(engine,outgoing,incoming,source=TAG_IN,recalled=True,contract=pending['contract'],order_ids=order_ids,coat_ids=coat_ids)
         stages=recall['fact']['stages'] if pending['stage_reset'] is None else None
+        same=outgoing is incoming
         pending.update(phase='sending',incoming_id=incoming.entity_id,sent_at=engine.elapsed_seconds,
             from_turn=outgoing.custom_conditions.get('combat_turn_serial',0),
             to_turn=incoming.custom_conditions.get('combat_turn_serial',0),
             transfer={'stages':None if stages is None else dict(stages),
-                      'coats':[row['id'] for row in COATS.live(outgoing)],
-                      'orders':ORDERS.plan_ids(engine,outgoing,incoming,scope=pending['contract']['scope']),
-                      'clocks':ORDERS.plan_clocks(engine,outgoing,incoming,scope=pending['contract']['scope'])})
+                      'coats':[] if same else [row['id'] for row in COATS.live(outgoing) if coat_ids is None or row['id'] in coat_ids],
+                      'orders':[] if same else ORDERS.plan_ids(engine,outgoing,incoming,scope=pending['contract']['scope'],identifiers=order_ids),
+                      'clocks':{} if same else ORDERS.plan_clocks(engine,outgoing,incoming,scope=pending['contract']['scope'],identifiers=order_ids),
+                      'handoffs':[recall['id']]})
+        if pending.get('juggler_snapshot') is not None:pending['transfer']['juggler']=[pending['juggler_snapshot']['integrity']]
         pending['integrity']=seal(pending)
         engine._native_tag_in_use=pending
         try:result=handoff(engine,outgoing,incoming,source=TAG_IN,
-                stages=stages,recall_id=recall['id'],contract=pending['contract'])
+                stages=stages,recall_id=recall['id'],contract=pending['contract'],order_ids=order_ids,coat_ids=coat_ids)
         finally:del engine._native_tag_in_use
         pending.update(phase='completed',transfer=deepcopy(result))
         pending['integrity']=seal(pending)
         owner.spec.pop(TAG)
     owner.spec['native_send_serial']=owner.spec.get('native_send_serial',0)+1
     return result
+
+
+def validate_juggler_snapshot(engine,trainer,snapshot):
+    """A Juggler view is the same snapshot owned by one native switch receipt."""
+    import native_order_transfer as ORDERS
+    if snapshot.get('source')==TAG_IN:
+        rows=[row for row in trainer.spec.get(USES,[]) if row.get('source')==TAG_IN
+            and row.get('recall_id')==snapshot.get('native_recall_id') and row.get('juggler_snapshot') is snapshot]
+        if len(rows)!=1:raise ValueError('Tag In snapshot needs its actual paid native occurrence')
+        row=rows[0];outgoing=W.actor_index(engine).get(row['outgoing_id'])
+        recall=next((r for r in outgoing.spec.get(RECALLS,[]) if r['id']==row['recall_id']),None) if outgoing else None
+        if (row.get('integrity')!=seal(row) or row.get('trainer_id')!=trainer.entity_id or row.get('paid_ap')!=1
+                or recall is None or snapshot['stages']!=recall['fact']['stages']
+                or snapshot['pokemon_id']!=row['outgoing_id']):
+            raise ValueError('Tag In snapshot differs from its actual paid recall')
+        if 'coat_ids' in recall['fact'] and snapshot['coats']!=recall['fact']['coat_ids']:
+            raise ValueError('Tag In captured Coats differ from the actual recall')
+        if 'prepaid_party_request' in row:
+            payment,result=_prepaid_tag(engine,trainer,outgoing,row['prepaid_party_request'])
+            if payment['consumed_recall']!=row['recall_id'] or result.get('tag_snapshot_integrity')!=snapshot['integrity']:
+                raise ValueError('Tag In prepaid recall identity changed')
+        if snapshot.get('recipient_id') is None:
+            if row['phase'] not in ('pending','sending') or trainer.spec.get('juggler_native',{}).get('pending_tag') is not snapshot:
+                raise ValueError('pending Tag In view lost its native occurrence')
+            return row
+        if row['phase'] not in ('sending','completed'):
+            raise ValueError('Tag In snapshot claims an unperformed release')
+        event={'source':TAG_IN,'from_id':row['outgoing_id'],'to_id':row['incoming_id'],
+            'trainer_id':trainer.entity_id,'at':row['sent_at'],'recall_id':row['recall_id'],
+            'from_turn':row['from_turn'],'to_turn':row['to_turn']}
+    elif snapshot.get('source')==BATON:
+        rows=[r['native_switch'] for r in getattr(engine,'_effect_dispatch_receipts',{}).values()
+            if r.get('native_switch',{}).get('juggler_snapshot') is snapshot]
+        if len(rows)!=1:raise ValueError('Baton snapshot needs its actual native Move receipt')
+        row=rows[0]
+        event={'source':BATON,'from_id':row['outgoing_id'],'to_id':row['incoming_id'],
+            'trainer_id':trainer.entity_id,'at':row['at'],'recall_id':row['recall_id'],
+            'from_turn':row['from_turn'],'to_turn':row['to_turn']}
+    else:raise ValueError('reviewed native switch snapshot required')
+    if snapshot.get('recipient_id')!=event['to_id'] or snapshot.get('consumed_at')!=event['at']:
+        raise ValueError('switch snapshot release differs from its native occurrence')
+    return ORDERS.require_switch_proof(engine,event,snapshot['integrity'],kind='juggler')
+
+
+def validate_replacement(engine,incoming,source,request_id):
+    """Authorize a schedule binding from its actual Move/Feature switch receipt."""
+    import effect_contracts as CONTRACTS
+    if source not in (BATON,ROUND_TRIP):raise ValueError('actual native replacement source required')
+    matches=[]
+    for token,row in getattr(engine,'_effect_dispatch_receipts',{}).items():
+        proof=row.get('native_switch')
+        if type(proof)is not dict or proof.get('recall_id')!=request_id or proof.get('source')!=source:continue
+        if (proof.get('incoming_id')!=incoming.entity_id or not proof.get('recalled') or not proof.get('sent')
+                or proof.get('integrity')!=seal(proof)):continue
+        scoped=row.get('status')=='dispatching' and any(value is token for value in getattr(engine,'_native_switch_receipts',()))
+        if not scoped and row.get('status')!='completed':continue
+        CONTRACTS.validate_receipt(engine,token,row['source_id'],row['occurrence'],row['actor'],row['target'],row['effect'])
+        if row['source_id']!=source:raise ValueError('native replacement receipt source changed')
+        matches.append(proof)
+    if len(matches)!=1:raise ValueError('schedule replacement needs one actual native switch receipt')
+    return matches[0]
 
 
 def validate_world(engine,index):
@@ -418,6 +553,8 @@ def validate_world(engine,index):
                     raise ValueError('Tag In Q&A faint predicate differs from its actual recall')
                 if use.get('phase') not in ('pending','sending','completed'):
                     raise ValueError('Tag In requires its actual native activation phase')
+                if use.get('juggler_snapshot') is not None:
+                    validate_juggler_snapshot(engine,actor,use['juggler_snapshot'])
                 reset=use.get('stage_reset')
                 if reset is not None:
                     if (type(reset)is not dict or set(reset)!={'source','actor_id','at','round'}
