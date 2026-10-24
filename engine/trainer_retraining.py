@@ -334,6 +334,7 @@ def retrain(engine, actor, rule_id, *, request_id, reason, gm_decision,
 
     def apply(e, trainer):
         import capture_techniques as CAPTURE
+        import class_passive_combat as PASSIVE
         sources = {uid: owned_source(e, trainer, uid) for uid in owned}
         import keep_fighting as KEEP
         if KEEP.FEATURE in owned and rule_id!=KEEP.FEATURE:
@@ -383,7 +384,9 @@ def retrain(engine, actor, rule_id, *, request_id, reason, gm_decision,
                     if row.get('owner_id') == trainer.entity_id and row.get('rule_id') == rule_id and
                     row.get('lifetime') in ('while_owned', 'your_pokemon') and
                     (key == source or row.get('static_acquisition',{}).get('feature_id')==rule_id or (row.get('kind') == 'static_trainer_modifier' and key.startswith(modifier_prefix)) or
-                     (row.get('kind') == 'class_passive_combat' and row.get('source_variant') == 'C03-126' and
+                     (row.get('kind') == 'class_passive_combat' and
+                      (row.get('source_variant') == 'C03-126' or
+                       rule_id in PASSIVE.POKEMON_STATIC and not row.get('sustain') and row.get('acquisition_source') == rule_id) and
                       key.startswith('class-passive:' + trainer.entity_id + ':')))]
             if keys:
                 GRANTS.preflight_revoke(target, keys)

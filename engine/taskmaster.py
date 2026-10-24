@@ -352,9 +352,20 @@ def press(engine,owner,target,*,stats,obedience=False,whip=None):
     return G.transition(engine,owner,apply,participants=(target,),include_rulings=True)
 
 
+def is_obedience_context(context):
+    """Recognize the native check purpose without granting a Press bonus."""
+    if not isinstance(context,dict) or context.get('purpose')!='pokemon_obedience':return False
+    if set(context) not in ({'purpose'},{'purpose','reason'}):
+        raise ValueError('Press obedience context requires purpose and optional reason')
+    if 'reason' in context:G._text(context['reason'],'Press obedience observation reason')
+    return True
+
+
 def obedience_bonus(engine,actor,context,target):
-    import combat_timing as TIMING
-    if not isinstance(context,dict) or context.get('purpose')!='pokemon_obedience' or target is None:return 0
+    import combat_timing as TIMING,world_entities as WORLD
+    if not is_obedience_context(context) or target is None:return 0
+    WORLD.require_actors(engine,actor,target)
+    if target.kind!='pokemon':raise ValueError('Press obedience checks require an actual Pokemon target')
     return max([r['press_obedience'] for r in TIMING.records(actor)
         if r.get('source')==PRESS_ACTION and r.get('press_target')==target.entity_id]+[0])
 

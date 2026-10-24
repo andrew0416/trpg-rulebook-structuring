@@ -225,12 +225,16 @@ class EnvironmentalActualTypeRevisionTests(unittest.TestCase):
         e.end_of_turn(t); e.start_round(e.everyone); e.start_of_turn(a, initiative_count=20)
         reference = self.hit(e, a, t, 'move/몸통박치기')
         self.assertFalse(DECLARATIVE.live(a, 'next_normal_attack_type'))
-        producer_state = deepcopy(a.spec)
+        producer_state = deepcopy(a.spec, GRANTS._transition_token_anchors(e))
         first = self.observe(e, t, move_id='move/몸통박치기', native_attack=reference)
         self.assertEqual(first['move_type'], '전기')
         self.assertEqual(a.spec, producer_state)
+        self.assertFalse(DECLARATIVE.live(a, 'next_normal_attack_type'))
+        replay_state = e.export_state()
         self.assertEqual(self.observe(e, t, move_id='move/몸통박치기', native_attack=reference), first)
         self.assertEqual(a.spec, producer_state)
+        self.assertFalse(DECLARATIVE.live(a, 'next_normal_attack_type'))
+        self.assertEqual(e.export_state(), replay_state)
 
     def test_multiple_weather_requires_pre_cost_choice_and_preserves_rudolf_ground_exception(self):
         for ground, selected in ((False, '얼음'), (True, '땅')):

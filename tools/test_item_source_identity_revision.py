@@ -36,9 +36,14 @@ class CannonItemIdentityTests(unittest.TestCase):
 
     def test_loaded_pester_native_accuracy_range_damage_payment_and_hour(self):
         f=self.scene();before=f.t.hp;quantity=f.a.spec['items']['item/오물탄-잠듦']
-        with patch.object(f.e,'accuracy_check',wraps=f.e.accuracy_check) as accuracy:
+        with patch.object(type(f.e),'accuracy_check',autospec=True,
+                          side_effect=type(f.e).accuracy_check) as accuracy:
             result=f.use(held_selection='cannon/pester')
         self.assertTrue(result['hit'])
+        self.assertEqual(accuracy.call_count,1)
+        staged,user,target=accuracy.call_args.args[:3]
+        self.assertIsNot(staged,f.e)
+        self.assertEqual((user.entity_id,target.entity_id),(f.a.entity_id,f.t.entity_id))
         self.assertEqual(accuracy.call_args.kwargs['situational'],1)
         cannon=result['cannon']
         self.assertEqual((cannon['range_m'],cannon['fixed_damage']),(15,'2d6'))
@@ -92,9 +97,12 @@ class CannonItemIdentityTests(unittest.TestCase):
 
     def test_late_native_damage_failure_restores_load_stock_action_and_rng(self):
         f=self.scene()
-        with patch.object(f.e,'take_damage',side_effect=ValueError('actual Cannon damage failed')):
+        with patch.object(type(f.e),'take_damage',autospec=True,side_effect=ValueError('actual Cannon damage failed')) as damage:
             NATIVE.assert_rejected_unchanged(f.e,lambda:f.use(held_selection='cannon/pester'),
                                            reason_pattern='Cannon damage failed')
+        self.assertEqual(damage.call_count,1)
+        self.assertIsNot(damage.call_args.args[0],f.e)
+        self.assertEqual(damage.call_args.args[1].entity_id,f.t.entity_id)
         self.assertEqual(f.e._physical_objects['cannon/body'][PHYSICAL.OBJECT_STATE]['loaded_ball_instance_id'],'cannon/pester')
 
 

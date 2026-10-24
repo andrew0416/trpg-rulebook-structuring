@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_09",
-  "purpose": "Schedule transformations in actual producer order and historical actor bindings; source-owned Electrify lifetime; existing23 acquisition IDs with compatible4-stage real-state chain and independent intermediate builders. Exact192 impacted methods including6new, unchanged269 F71 failures retained for followup, original4115+added obligations preserved. Zero completion credit from selection.",
+  "purpose": "Source-bound existing Pokemon Fire/Ice passive acquisition and withdrawal; R59 selectable book/CSV acquisition and retained receipts with declared7+; Press composed context; real staged Cannon/Plasma/effect-rank observations; five Juggler and five weather fixture repairs. Exact120methods including10new, original4115 plus added obligations retained, source-specific existing PASS reused. No completion credit from selection.",
   "completion_credit": 0,
-  "required_unique_count": 8,
+  "required_unique_count": 4,
   "completed": {
-    "tools.test_category2_mount_relations.Tests": {
+    "tools.test_book_species_savant.BookSpeciesSavantTests": {
       "tests": [
-        "tools.test_category2_mount_relations.Tests.test_dangling_wrong_kind_and_self_relations_fail_save_but_valid_snapshot_repairs",
-        "tools.test_category2_mount_relations.Tests.test_native_boarding_restores_actual_donor_and_rejects_cycles",
-        "tools.test_category2_mount_relations.Tests.test_self_foreign_and_duplicate_identity_reject_before_actions_or_rng"
+        "tools.test_book_species_savant.BookSpeciesSavantTests.test_json_fresh_rules_and_gm_restore_keep_selection_and_reject_tampering",
+        "tools.test_book_species_savant.BookSpeciesSavantTests.test_retraining_retracts_only_own_bonus_and_preserves_historical_receipt"
       ]
     },
-    "tools.test_swarm_boss_source_revision.SwarmSourceRepairTests": {
+    "tools.test_book_taskmaster_hardened.TaskmasterTests": {
       "tests": [
-        "tools.test_swarm_boss_source_revision.SwarmSourceRepairTests.test_closed_or_past_round_incapacitation_receipt_grants_no_permission",
-        "tools.test_swarm_boss_source_revision.SwarmSourceRepairTests.test_daily_swift_uses_the_swarm_scene_quota",
-        "tools.test_swarm_boss_source_revision.SwarmSourceRepairTests.test_incapacitation_replaces_denial_for_all_remaining_windows_and_zero_points",
-        "tools.test_swarm_boss_source_revision.SwarmSourceRepairTests.test_native_schedule_interleaves_enemy_and_never_refills_the_swarm_turn",
-        "tools.test_swarm_boss_source_revision.SwarmSourceRepairTests.test_swift_window_does_not_reopen_when_its_standard_is_spent"
+        "tools.test_book_taskmaster_hardened.TaskmasterTests.test_press_and_whip_selected_effects_pay_actual_standard_swift_ap_and_free_training_order"
+      ]
+    },
+    "tools.test_environmental_actual_type_revision.EnvironmentalActualTypeRevisionTests": {
+      "tests": [
+        "tools.test_environmental_actual_type_revision.EnvironmentalActualTypeRevisionTests.test_consumed_native_plasma_type_is_retained_and_observation_cannot_consume_it_again"
       ]
     }
   }

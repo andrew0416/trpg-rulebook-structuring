@@ -28,6 +28,13 @@ import pokemon_move_edges as EDGES
 import pokemon_teaching as TEACH
 import trainer_feature_acquisition as ACQUIRE
 import type_ace as TA
+import state_grants as GRANTS
+import world_entities as WORLD
+import pokemon_party as PARTY
+import trainer_retraining as RETRAIN
+import trainer_xp_payments as XP
+from native_scenario_fixture import assert_rejected_unchanged
+import json
 
 
 class FireBurnReachabilityTests(unittest.TestCase):
@@ -64,14 +71,14 @@ class FireBurnReachabilityTests(unittest.TestCase):
             e.gm.observe_loyalty(actor, 6, reason='actual willing owned Pokemon')
         return actor
 
-    def trainer(self, e, pos, *, feats=(), edges=(), choices=None, moves=(), items=None):
+    def trainer(self, e, pos, *, feats=(), edges=(), choices=None, moves=(), items=None, type_links=None):
         return self.add(e, Combatant(self.rules, build_trainer(self.rules,
             'Source-backed acquired trainer', 30,
             {'hp':100, 'atk':15, 'def':15, 'spa':15, 'spd':15, 'spe':20},
             moves=list(moves), skills={'집중':7, '전투':4, '육상':3, '곡예':3},
             items=items or {}, extra={'classes':[], 'feats':list(feats),
                 'edges':list(edges), 'edge_choices':choices or {}, 'exp_bank':100,
-                'type_link_skills':{'불꽃':'집중'}})), pos)
+                'type_link_skills':type_links or {'불꽃':'집중'}})), pos)
 
     def begin(self, e, actor):
         e.begin_encounter(e.everyone)
@@ -143,6 +150,193 @@ class FireBurnReachabilityTests(unittest.TestCase):
                 self.assertEqual(actual, '불꽃' if synced else '물')
                 self.assertEqual(HISTORY.last_damage(target)['move_type'], actual)
                 self.assertEqual('화상' in target.conditions, burns)
+
+    def before_pokemon_passive(self, uid):
+        e = self.world()
+        branch = TA.DEFINITIONS[uid]['branch']
+        other = PASSIVE.GLACIAL_ICE if uid == PASSIVE.SHINING_FLAME else PASSIVE.SHINING_FLAME
+        trainer = self.trainer(e, (1, 1), feats=[PASSIVE.CLAUSE_BY_RULE[other]],
+            type_links={'불꽃':'집중', '얼음':'육상'})
+        species = '눈꼬마' if uid == PASSIVE.GLACIAL_ICE else '염무왕'
+        moves = [] if uid == PASSIVE.GLACIAL_ICE else ['move/불꽃세례']
+        p = self.pokemon(e, species, (2, 2), owner=trainer, moves=moves)
+        q = self.pokemon(e, species, (2, 4), owner=trainer, moves=moves)
+        for feature in (TA.CLASS, TA.REFRESH):
+            ACQUIRE.acquire_static(e, trainer, feature, branch=branch,
+                acquisition_request_id='fire-passive/parent/' + feature)
+        self.assertIsNone(PASSIVE._declaration(e, p, uid))
+        self.assertIsNone(PASSIVE._declaration(e, q, uid))
+        return e, trainer, p, q
+
+    def acquire_pokemon_passive(self, e, trainer, uid):
+        return ACQUIRE.acquire_static(e, trainer, uid,
+            acquisition_request_id='fire-passive/acquire')
+
+    def book_passive_declaration(self, e, trainer, pokemon, uid):
+        declaration = PASSIVE._declaration(e, pokemon, uid)
+        self.assertIsNotNone(declaration)
+        owner, row, source = declaration
+        self.assertIs(owner, trainer)
+        self.assertEqual(row['owner_id'], trainer.entity_id)
+        self.assertEqual(row['acquisition_source'], uid)
+        native_clause, csv_clause = {
+            PASSIVE.SHINING_FLAME: ('input/ch04-trainer-classes.md:1541-1544', 'C2CSV/input/db/feats.csv:R253:main'),
+            PASSIVE.GLACIAL_ICE: ('input/ch04-trainer-classes.md:1677-1680', 'C2CSV/input/db/feats.csv:R273:main'),
+        }[uid]
+        self.assertEqual(row['native_clause_id'], native_clause)
+        self.assertEqual(row['clause_id'], csv_clause)
+        matches = [sid for sid, record in GRANTS.state(pokemon)['sources'].items()
+                   if record.get('kind') == PASSIVE.KIND and record.get('rule_id') == uid]
+        self.assertEqual(matches, [source])
+        return row
+
+    def passive_withdrawal_options(self, e, trainer, request, feature):
+        sources = {uid: RETRAIN.owned_source(e, trainer, uid)
+                   for uid in (TA.CLASS, TA.REFRESH, feature)}
+        return dict(request_id=request, reason='actual source-specific Pokemon passive retraining',
+            gm_decision={'allowed': True, 'reason': 'GM reviewed removal without replacing retained parents'},
+            retained_dependencies={sources[TA.CLASS]: [], sources[TA.REFRESH]: [sources[TA.CLASS]]})
+
+    def test_native_brightest_flame_projects_existing_late_and_foreign_owner_boundaries_once(self):
+        for uid in (PASSIVE.SHINING_FLAME, PASSIVE.GLACIAL_ICE):
+            with self.subTest(feature=uid):
+                e, trainer, p, q = self.before_pokemon_passive(uid)
+                other = self.trainer(e, (8, 8))
+                foreign = self.pokemon(e, p.spec['species'], (8, 7), owner=other, moves=[])
+                with patch.object(Engine, 'register_abilities', side_effect=AssertionError('acquisition must not replay enter')):
+                    receipt = self.acquire_pokemon_passive(e, trainer, uid)
+                for pokemon in (p, q):
+                    self.book_passive_declaration(e, trainer, pokemon, uid)
+                self.assertIsNone(PASSIVE._declaration(e, foreign, uid))
+                late = self.pokemon(e, p.spec['species'], (4, 4), owner=trainer, moves=[])
+                self.book_passive_declaration(e, trainer, late, uid)
+                before = e.export_state()
+                with patch.object(Engine, 'register_abilities', side_effect=AssertionError('projection must not replay enter')):
+                    for _ in range(2):
+                        for pokemon in (p, q, late):
+                            PARTY.project_current_owner(e, pokemon)
+                self.assertEqual(e.export_state(), before)
+                self.assertEqual(self.acquire_pokemon_passive(e, trainer, uid), receipt)
+                self.assertEqual(e.export_state(), before)
+
+    def test_native_brightest_flame_restore_and_paid_withdrawal_preserve_csv_and_completed_attack(self):
+        for uid in (PASSIVE.SHINING_FLAME, PASSIVE.GLACIAL_ICE):
+            with self.subTest(feature=uid):
+                e, trainer, p, q = self.before_pokemon_passive(uid)
+                self.acquire_pokemon_passive(e, trainer, uid)
+                csv_source = PASSIVE.CLAUSE_BY_RULE[uid]
+                csv_owner = self.trainer(e, (8, 8), feats=[csv_source], type_links={'불꽃':'집중', '얼음':'육상'})
+                csv_pokemon = self.pokemon(e, p.spec['species'], (8, 7), owner=csv_owner, moves=[])
+                csv_row = PASSIVE._declaration(e, csv_pokemon, uid)[1]
+                self.assertEqual(csv_row['acquisition_source'], csv_source)
+                self.assertNotIn('native_clause_id', csv_row)
+                ice = uid == PASSIVE.GLACIAL_ICE
+                target = self.pokemon(e, '염무왕' if ice else '꼬부기', (5, 2), side='foe',
+                    moves=['move/불꽃세례'] if ice else ['move/몸통박치기'])
+                attacker, victim = (target, p) if ice else (p, target)
+                if ice:
+                    self.assertEqual(PASSIVE.damage_reduction(e, attacker, victim, self.rules.move('move/불꽃세례'), 2, False), 3)
+                self.begin(e, attacker)
+                self.attack(e, attacker, victim, 'move/불꽃세례', 19 if ice else 18)
+                self.assertIn('화상', victim.conditions)
+                e.end_of_turn(attacker)
+                ids = [actor.entity_id for actor in (trainer, p, q, csv_owner, csv_pokemon, target)]
+                e = Engine.import_state(self.rules, json.loads(json.dumps(e.export_state(), ensure_ascii=False)))
+                trainer, p, q, csv_owner, csv_pokemon, target = [WORLD.actor_index(e)[uid] for uid in ids]
+                for pokemon in (p, q):
+                    self.book_passive_declaration(e, trainer, pokemon, uid)
+                attacker, victim = (target, p) if ice else (p, target)
+                history = deepcopy(HISTORY.records(victim), GRANTS._transition_token_anchors(e))
+                uses = deepcopy(attacker.move_uses)
+                branch = TA.DEFINITIONS[uid]['branch']
+                parents = {parent: deepcopy(TA.acquired(trainer, parent, branch)) for parent in (TA.CLASS, TA.REFRESH)}
+                other = PASSIVE.GLACIAL_ICE if uid == PASSIVE.SHINING_FLAME else PASSIVE.SHINING_FLAME
+                unrelated = {pokemon.entity_id: deepcopy(PASSIVE._declaration(e, pokemon, other)[1])
+                             for pokemon in (p, q)}
+                options = self.passive_withdrawal_options(e, trainer, 'fire-passive/withdraw', uid)
+                saved = e.gm.snapshot('fire-passive-before-withdrawal')
+                bank = trainer.spec['exp_bank']
+                result = e.retrain_trainer_source(trainer, uid, **options)
+                self.assertEqual(trainer.spec['exp_bank'], bank-result['xp_paid'])
+                self.assertIsNone(TA.acquired(trainer, uid))
+                for pokemon in (p, q):
+                    self.assertIsNone(PASSIVE._declaration(e, pokemon, uid))
+                    PARTY.project_current_owner(e, pokemon)
+                    self.assertIsNone(PASSIVE._declaration(e, pokemon, uid))
+                for pokemon in (p, q):
+                    self.assertEqual(PASSIVE._declaration(e, pokemon, other)[1], unrelated[pokemon.entity_id])
+                    self.assertEqual(unrelated[pokemon.entity_id]['acquisition_source'], PASSIVE.CLAUSE_BY_RULE[other])
+                self.assertEqual(PASSIVE._declaration(e, csv_pokemon, uid)[1]['acquisition_source'], csv_source)
+                self.assertIn('화상', victim.conditions)
+                self.assertEqual(HISTORY.records(victim), history)
+                self.assertEqual(attacker.move_uses, uses)
+                if ice:
+                    self.assertEqual(PASSIVE.damage_reduction(e, attacker, victim, self.rules.move('move/불꽃세례'), 2, False), 0)
+                self.assertEqual({parent: TA.acquired(trainer, parent, branch) for parent in parents}, parents)
+                before = e.export_state()
+                self.assertEqual(e.retrain_trainer_source(trainer, uid, **options), result)
+                self.assertEqual(e.export_state(), before)
+                e.gm.restore(saved)
+                for pokemon in (p, q):
+                    self.book_passive_declaration(e, trainer, pokemon, uid)
+                self.assertIn('화상', victim.conditions)
+                self.assertTrue(e.validate_state()['valid'])
+
+    def test_native_brightest_flame_late_acquisition_projection_failure_is_atomic(self):
+        for uid in (PASSIVE.SHINING_FLAME, PASSIVE.GLACIAL_ICE):
+            with self.subTest(feature=uid):
+                e, trainer, p, q = self.before_pokemon_passive(uid)
+                actual = PASSIVE.register_all
+                wanted = {p.entity_id, q.entity_id}
+                installed = []
+                def reject_after_projection(staged, pokemon):
+                    result = actual(staged, pokemon)
+                    if pokemon.entity_id in wanted and pokemon.entity_id not in installed:
+                        self.assertIsNotNone(PASSIVE._declaration(staged, pokemon, uid))
+                        installed.append(pokemon.entity_id)
+                        if len(installed) == 2:
+                            raise ValueError('late Pokemon passive projection rejected')
+                    return result
+                with patch.object(PASSIVE, 'register_all', reject_after_projection):
+                    assert_rejected_unchanged(e, lambda: self.acquire_pokemon_passive(e, trainer, uid),
+                        reason_pattern='late Pokemon passive projection rejected')
+                self.assertEqual(set(installed), wanted)
+                self.assertIsNone(TA.acquired(trainer, uid))
+                for pokemon in (p, q):
+                    self.assertIsNone(PASSIVE._declaration(e, pokemon, uid))
+                self.acquire_pokemon_passive(e, trainer, uid)
+                for pokemon in (p, q):
+                    self.book_passive_declaration(e, trainer, pokemon, uid)
+
+    def test_native_brightest_flame_late_paid_withdrawal_failure_restores_every_owner_projection(self):
+        for uid in (PASSIVE.SHINING_FLAME, PASSIVE.GLACIAL_ICE):
+            with self.subTest(feature=uid):
+                e, trainer, p, q = self.before_pokemon_passive(uid)
+                self.acquire_pokemon_passive(e, trainer, uid)
+                options = self.passive_withdrawal_options(e, trainer, 'fire-passive/failed-withdrawal', uid)
+                actual = XP.mark_used
+                observed = []
+                def reject_after_used(staged, owner, request_id, *, event_id):
+                    result = actual(staged, owner, request_id, event_id=event_id)
+                    if request_id == options['request_id']:
+                        self.assertIsNone(TA.acquired(owner, uid))
+                        for pokemon_id in (p.entity_id, q.entity_id):
+                            self.assertIsNone(PASSIVE._declaration(staged, WORLD.actor_index(staged)[pokemon_id], uid))
+                        observed.append(owner.spec['exp_bank'])
+                        raise ValueError('late Pokemon passive withdrawal rejected')
+                    return result
+                with patch.object(XP, 'mark_used', reject_after_used):
+                    assert_rejected_unchanged(e,
+                        lambda: e.retrain_trainer_source(trainer, uid, **options),
+                        reason_pattern='late Pokemon passive withdrawal rejected')
+                self.assertEqual(len(observed), 1)
+                for pokemon in (p, q):
+                    self.book_passive_declaration(e, trainer, pokemon, uid)
+                bank = trainer.spec['exp_bank']
+                result = e.retrain_trainer_source(trainer, uid, **options)
+                self.assertEqual(trainer.spec['exp_bank'], bank-result['xp_paid'])
+                for pokemon in (p, q):
+                    self.assertIsNone(PASSIVE._declaration(e, pokemon, uid))
 
     def firebringer(self, *, electrify):
         e = self.world()

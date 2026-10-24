@@ -1,36 +1,19 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_03",
-  "purpose": "Schedule transformations in actual producer order and historical actor bindings; source-owned Electrify lifetime; existing23 acquisition IDs with compatible4-stage real-state chain and independent intermediate builders. Exact192 impacted methods including6new, unchanged269 F71 failures retained for followup, original4115+added obligations preserved. Zero completion credit from selection.",
+  "purpose": "Source-bound existing Pokemon Fire/Ice passive acquisition and withdrawal; R59 selectable book/CSV acquisition and retained receipts with declared7+; Press composed context; real staged Cannon/Plasma/effect-rank observations; five Juggler and five weather fixture repairs. Exact120methods including10new, original4115 plus added obligations retained, source-specific existing PASS reused. No completion credit from selection.",
   "completion_credit": 0,
-  "required_unique_count": 24,
+  "required_unique_count": 7,
   "completed": {
-    "tools.test_foundation_control_mount.MountTests": {
+    "tools.test_category3_survivalist.Tests": {
       "tests": [
-        "tools.test_foundation_control_mount.MountTests.test_actual_damage_threshold_triggers_retention_for_rider_or_mount",
-        "tools.test_foundation_control_mount.MountTests.test_actual_forced_displacement_syncs_rider_and_creates_retention",
-        "tools.test_foundation_control_mount.MountTests.test_confusion_actual_self_hit_uses_loss_and_retention_even_below_damage_threshold",
-        "tools.test_foundation_control_mount.MountTests.test_damage_and_forced_retention_late_failure_roll_back_entire_native_event",
-        "tools.test_foundation_control_mount.MountTests.test_dangling_managed_reference_and_tampered_policy_cannot_be_saved",
-        "tools.test_foundation_control_mount.MountTests.test_data_boarding_uses_actual_weight_native_action_and_body_relation",
-        "tools.test_foundation_control_mount.MountTests.test_declared_seat_capacity_uses_actual_other_riders",
-        "tools.test_foundation_control_mount.MountTests.test_dismount_keeps_current_actual_positions_and_drops_only_rider_load",
-        "tools.test_foundation_control_mount.MountTests.test_json_and_gm_restore_keep_actual_rider_aliases_load_and_spent_pool",
-        "tools.test_foundation_control_mount.MountTests.test_known_average_rider_exception_is_removed_by_heavier_mass_or_ordinary_load",
-        "tools.test_foundation_control_mount.MountTests.test_large_low_power_mount_cannot_carry_a_known_heavy_rider",
-        "tools.test_foundation_control_mount.MountTests.test_late_boarding_or_movement_failure_rolls_back_aliases_rng_and_actions",
-        "tools.test_foundation_control_mount.MountTests.test_live_capability_loss_cannot_keep_average_weight_exemption",
-        "tools.test_foundation_control_mount.MountTests.test_native_automatic_boarding_still_rolls_retention_and_failure_releases_load",
-        "tools.test_foundation_control_mount.MountTests.test_native_gm_admission_does_not_require_mountable_and_denial_is_atomic",
-        "tools.test_foundation_control_mount.MountTests.test_native_mount_suitability_uses_observed_individual_not_a_species_or_level_ban",
-        "tools.test_foundation_control_mount.MountTests.test_native_mountable_two_carries_real_riders_and_restores_shared_movement",
-        "tools.test_foundation_control_mount.MountTests.test_new_actual_round_refreshes_pool_and_dismount_cannot_refund_used_distance",
-        "tools.test_foundation_control_mount.MountTests.test_partial_rider_path_leaves_remaining_for_mount_and_preserves_diagonal_clock",
-        "tools.test_foundation_control_mount.MountTests.test_physical_rider_weight_cannot_use_remote_telekinetic_load_table",
-        "tools.test_foundation_control_mount.MountTests.test_rider_moves_mount_then_commands_a_different_actual_pokemon_in_same_round",
-        "tools.test_foundation_control_mount.MountTests.test_rider_then_mount_share_actual_remaining_movement_without_reset_on_turn",
-        "tools.test_foundation_control_mount.MountTests.test_saved_used_movement_cannot_be_reset_to_zero",
-        "tools.test_foundation_control_mount.MountTests.test_unmet_ownership_skill_adjacency_mass_and_foreign_inputs_do_not_consume"
+        "tools.test_category3_survivalist.Tests.test_actual_class_novice_and_known_source_required",
+        "tools.test_category3_survivalist.Tests.test_actual_unknown_current_environment_holds_before_rng",
+        "tools.test_category3_survivalist.Tests.test_native_five_skills_get_terrain_bonus_and_other_skills_do_not",
+        "tools.test_category3_survivalist.Tests.test_observed_skill_context_cannot_be_rewritten",
+        "tools.test_category3_survivalist.Tests.test_plains_distant_perception_works_outside_grassland_and_only_for_that_check",
+        "tools.test_category3_survivalist.Tests.test_skill_monkey_retains_terrain_talent_bonus_once_in_final_check",
+        "tools.test_category3_survivalist.Tests.test_surefooted_context_and_actual_opposed_defender_use_bonus"
       ]
     }
   }

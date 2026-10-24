@@ -1,21 +1,17 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_04",
-  "purpose": "Schedule transformations in actual producer order and historical actor bindings; source-owned Electrify lifetime; existing23 acquisition IDs with compatible4-stage real-state chain and independent intermediate builders. Exact192 impacted methods including6new, unchanged269 F71 failures retained for followup, original4115+added obligations preserved. Zero completion credit from selection.",
+  "purpose": "Source-bound existing Pokemon Fire/Ice passive acquisition and withdrawal; R59 selectable book/CSV acquisition and retained receipts with declared7+; Press composed context; real staged Cannon/Plasma/effect-rank observations; five Juggler and five weather fixture repairs. Exact120methods including10new, original4115 plus added obligations retained, source-specific existing PASS reused. No completion credit from selection.",
   "completion_credit": 0,
-  "required_unique_count": 9,
+  "required_unique_count": 5,
   "completed": {
-    "tools.test_environmental_actual_type_revision.EnvironmentalActualTypeRevisionTests": {
+    "tools.test_book_juggler_full.JugglerTests": {
       "tests": [
-        "tools.test_environmental_actual_type_revision.EnvironmentalActualTypeRevisionTests.test_clear_and_sandstorm_weather_ball_cannot_create_water_collateral",
-        "tools.test_environmental_actual_type_revision.EnvironmentalActualTypeRevisionTests.test_consumed_native_plasma_type_is_retained_and_observation_cannot_consume_it_again",
-        "tools.test_environmental_actual_type_revision.EnvironmentalActualTypeRevisionTests.test_electrify_overlaps_restore_and_expire_only_at_each_caster_next_turn_end",
-        "tools.test_environmental_actual_type_revision.EnvironmentalActualTypeRevisionTests.test_missing_or_mismatched_native_context_and_changed_replays_are_atomic",
-        "tools.test_environmental_actual_type_revision.EnvironmentalActualTypeRevisionTests.test_multiple_weather_requires_pre_cost_choice_and_preserves_rudolf_ground_exception",
-        "tools.test_environmental_actual_type_revision.EnvironmentalActualTypeRevisionTests.test_native_electrify_retypes_ranged_water_melee_fire_and_rain_weather_ball",
-        "tools.test_environmental_actual_type_revision.EnvironmentalActualTypeRevisionTests.test_native_weather_ball_forces_each_current_type_and_history_survives_later_weather",
-        "tools.test_environmental_actual_type_revision.EnvironmentalActualTypeRevisionTests.test_saved_native_type_witness_cannot_be_rebound_even_with_a_new_observation_hash",
-        "tools.test_environmental_actual_type_revision.EnvironmentalActualTypeRevisionTests.test_targetless_explicit_gm_type_and_legacy_history_do_not_use_catalogue_or_current_weather"
+        "tools.test_book_juggler_full.JugglerTests.test_party_reorder_then_mounted_exchange_restores_current_and_legacy_prefix",
+        "tools.test_book_juggler_full.JugglerTests.test_same_cursor_mounted_exchange_then_party_replacement_preserves_historical_mount",
+        "tools.test_book_juggler_full.JugglerTests.test_same_cursor_native_gm_release_reorder_precedes_mounted_exchange",
+        "tools.test_book_juggler_full.JugglerTests.test_swarm_continuations_party_reorder_and_mounted_exchange_replay_in_producer_order",
+        "tools.test_book_juggler_full.JugglerTests.test_transformation_chronology_rejects_omission_duplicate_legacy_hiding_and_resigned_binding_reorder"
       ]
     }
   }

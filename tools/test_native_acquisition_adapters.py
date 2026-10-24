@@ -119,7 +119,7 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
         return engine, actor, selection
 
     def acquire(self, engine, actor, uid, selection=None, request='native/request/1'):
-        source_id = N.DEFINITIONS[uid]['clause_id'] if uid == 'feat/파캐스트' else None
+        source_id = N.DEFINITIONS[uid]['clause_id'] if uid in ('feat/파캐스트', 'feat/탑-퍼센티지') else None
         return T.acquire_static(engine, actor, uid, acquisition_request_id=request,
             selection=selection, source_id=source_id)
 
@@ -485,6 +485,84 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
         self.assertNotIn('독', pokemon.conditions)
         self.assertEqual(a.spec['items']['응급치료키트'], 1)
         self.reject(e, lambda: e.emergency_care_expertise(a, pokemon), 'target daily')
+
+    def top_percentage_fixture(self, rules=None):
+        import tools.test_category2_class_actor_state_actions as CASES
+        case = CASES.ClassActorStateActionTests('runTest')
+        case.rules = self.rules if rules is None else rules
+        e, a, pokemon, _ = case.fixture(level=100)
+        e.gm.set_skill(a, '명령', 5, reason='actual Expert Command before acquisition')
+        T.acquire_static(e, a, 'class/에이스-트레이너', acquisition_request_id='top/parent')
+        return e, a, pokemon
+
+    def test_top_percentage_csv_choice_and_legacy_receipt_replay_keep_maximum_level_exception(self):
+        uid = 'feat/탑-퍼센티지'
+        csv_source = N.DEFINITIONS[uid]['clause_id']
+        book_source = T.STATIC_FEATURES[uid]['clause_id']
+        for legacy in (False, True):
+            with self.subTest(legacy=legacy):
+                e, a, pokemon = self.top_percentage_fixture()
+                request = 'legacy/csv/top' if legacy else 'explicit/csv/top'
+                first = (N.acquire(e, a, uid, acquisition_request_id=request) if legacy else
+                         T.acquire_static(e, a, uid, acquisition_request_id=request, source_id=csv_source))
+                self.assertEqual(first['source']['clause_id'], csv_source)
+                self.reject(e, lambda: T.acquire_static(e, a, uid,
+                    acquisition_request_id=request, source_id=book_source), 'changed intent or source')
+                e.gm.snapshot('top-source')
+                e.gm.set_skill(a, '명령', 1, reason='later skill loss preserves actual receipt')
+                before = e.export_state()
+                self.assertEqual(T.acquire_static(e, a, uid, acquisition_request_id=request), first)
+                self.assertEqual(e.export_state(), before)
+                e.gm.restore('top-source')
+                self.assertEqual(T.acquire_static(e, a, uid, acquisition_request_id=request), first)
+                event_id = e.offer_top_percentage_at_max_level(a, pokemon)
+                pokemon_id = pokemon.entity_id
+                tutor_points = pokemon.spec['tutor_points']
+                e, a = self.restore(e, a)
+                pokemon = next(p for p in e.everyone if p.entity_id == pokemon_id)
+                self.assertEqual(T.acquire_static(e, a, uid, acquisition_request_id=request), first)
+                event = e.pending_class_actor_state_actions(a)[0]
+                self.assertEqual((event['id'], event['clause_id']), (event_id, csv_source))
+                self.assertTrue(e.resolve_class_actor_state_action(a, event_id, use=True)['used'])
+                self.assertEqual(pokemon.spec['tutor_points'], tutor_points + 1)
+                self.withdraw(e, a, uid)
+                e, a = self.restore(e, a)
+                before = e.export_state()
+                self.assertEqual(T.acquire_static(e, a, uid, acquisition_request_id=request),
+                                 dict(first, status='withdrawn'))
+                self.assertEqual(e.export_state(), before)
+                self.reject(e, lambda: T.acquire_static(e, a, uid,
+                    acquisition_request_id=request, source_id=book_source), 'changed intent or source')
+                pokemon = next(p for p in e.everyone if p.entity_id == pokemon_id)
+                self.reject(e, lambda: e.offer_top_percentage_at_max_level(a, pokemon), 'acquisition required')
+                replacement = T.acquire_static(e, a, uid,
+                    acquisition_request_id='replacement/book/top', source_id=book_source)
+                self.assertEqual(replacement['source']['clause_id'], book_source)
+                before = e.export_state()
+                self.assertEqual(T.acquire_static(e, a, uid, acquisition_request_id=request),
+                                 dict(first, status='withdrawn'))
+                self.assertEqual(e.export_state(), before)
+                self.reject(e, lambda: e.offer_top_percentage_at_max_level(a, pokemon), 'Core body|CSV59')
+
+    def test_top_percentage_exact_source_exclusions_and_invalid_choice_are_atomic(self):
+        uid = 'feat/탑-퍼센티지'
+        sources = (T.STATIC_FEATURES[uid]['clause_id'], N.DEFINITIONS[uid]['clause_id'])
+        for excluded in (*sources, uid):
+            for selected in sources:
+                with self.subTest(excluded=excluded, selected=selected):
+                    profile = deepcopy(self.rules.ruleset.profile)
+                    profile['exclude_units'] = list(set(profile.get('exclude_units', [])) | {excluded})
+                    with patch.object(RuleFilter, 'load', return_value=RuleFilter(profile, name='top-source-exclusion')):
+                        rules = Rules(ROOT, ruleset='all')
+                    e, a, _ = self.top_percentage_fixture(rules)
+                    operation = lambda: T.acquire_static(e, a, uid, acquisition_request_id='selected/top', source_id=selected)
+                    if excluded in (uid, selected):
+                        self.reject(e, operation, 'excluded|Excluded')
+                    else:
+                        self.assertEqual(operation()['source']['clause_id'], selected)
+        e, a, _ = self.top_percentage_fixture()
+        self.reject(e, lambda: T.acquire_static(e, a, uid, acquisition_request_id='invalid/top',
+            source_id='Core'), 'exact book or CSV')
 
     def test_new_top_percentage_reaches_native_growth_four_use_and_stat_consumer(self):
         import tools.test_category2_class_actor_state_actions as CASES

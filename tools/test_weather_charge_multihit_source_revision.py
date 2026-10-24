@@ -1,5 +1,6 @@
 """Real native multi-hit attacks retain optional weather charges and costs."""
 from copy import deepcopy
+from contextlib import contextmanager
 import json
 from pathlib import Path
 import sys
@@ -10,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
 from engine import Rules, Engine, Combatant
 from builder import build_pokemon
+from rulings import Rulings
 from native_scenario_fixture import assert_rejected_unchanged
 import test_category2_native_setup_state as NATIVE
 import blessing_effects as B
@@ -37,21 +39,45 @@ class WeatherChargeMultihitSourceRevisionTests(unittest.TestCase):
         e.gm.set_move(a, mid, reason='actual learned selected homebrew weather Move')
         e.use_move(a, a, mid)
         e.end_of_turn(a)
+        # A type step must change integer damage, not merely repeat the one-HP floor.
+        for stat in ('def', 'spd'):
+            e.gm.set_stat(b, stat, value=10, reason='actual target defense for distinguishable native damage steps')
         return e, a, b
 
     def pool(self, actor, *, historical=False):
         rows = actor.spec.get(B.HISTORY, []) if historical else B.live(actor)
         return next(row for row in rows if WEATHER.is_weather(row))
 
+    @contextmanager
     def choose(self, e, answer):
         prompts = []
-        def decide(prompt):
+        e.rulings.answers[:] = [row for row in e.rulings.answers if row['key'] != 'weather_blessing']
+        e.rulings.add_answer('weather_blessing', answer,
+                            reason='actual optional weather charge selection', scope='scene')
+        native_decide = Rulings.decide
+        def observe(rulings, prompt):
             if prompt.get('type') == 'weather_blessing':
                 prompts.append(deepcopy(prompt))
-                return answer
-            return None
-        e.rulings.provider = decide
-        return prompts
+            return native_decide(rulings, prompt)
+        # Class instrumentation observes staged copies without entering save data.
+        with patch.object(Rulings, 'decide', new=observe):
+            yield prompts
+
+    @contextmanager
+    def final_damage_hook(self, callback):
+        calls = []
+        native_hooks = Rulings.run_hooks
+        def observe(rulings, when, value, context, engine=None):
+            value = native_hooks(rulings, when, value, context, engine)
+            if when == 'before_damage':
+                calls.append(value)
+                changed = callback(value, context)
+                if changed is not None:
+                    return changed
+            return value
+        # Keep the native hook boundary, but no unserializable instance callback.
+        with patch.object(Rulings, 'run_hooks', new=observe):
+            yield calls
 
     def turn(self, e, actor):
         if e._active_turn_actor is not None:
@@ -71,9 +97,9 @@ class WeatherChargeMultihitSourceRevisionTests(unittest.TestCase):
                     e, a, b = self.scene(role=role)
                     e.gm.set_move(a, FIVE, reason='actual learned printed Five Strike Move')
                     self.turn(e, a)
-                    prompts = self.choose(e, selected)
                     hp, rng = b.hp, e.rng.getstate()
-                    with patch.object(Engine, 'd20', return_value=18) as accuracy, \
+                    with self.choose(e, selected) as prompts, \
+                         patch.object(Engine, 'd20', return_value=18) as accuracy, \
                          patch.object(Engine, 'roll_expr', return_value=(7, [7])) as dice:
                         damage = e.use_move_on(a, b, FIVE, e.everyone, set_damage=True)
                     self.assertGreater(damage, 0)
@@ -84,6 +110,7 @@ class WeatherChargeMultihitSourceRevisionTests(unittest.TestCase):
                     pool = self.pool(a)
                     self.assertEqual((len(prompts), len(pool['decisions']), B.remaining(pool)),
                                      (1, 1, 1 if selected else 2))
+                    self.assertNotEqual(prompts[0]['damage'], prompts[0]['changed_damage'])
                     decision = pool['decisions'][0]
                     self.assertEqual((decision['selected'], decision['direction'], decision['target_id']),
                                      (selected, 'offense', b.entity_id))
@@ -95,15 +122,17 @@ class WeatherChargeMultihitSourceRevisionTests(unittest.TestCase):
     def test_actual_wild_water_shuriken_in_sunny_weather_may_use_or_decline_defense(self):
         for selected, face in ((True, 18), (False, 18), (True, 1)):
             with self.subTest(selected=selected, face=face):
-                e, a, _ = self.scene('쾌청')
+                e, a, b = self.scene('쾌청')
+                e.gm.set_position(b, (8, 8), reason='actual nonoverlapping unused participant position')
+                e.gm.set_stat(a, 'spd', value=10, reason='actual sunny defender permits a distinguishable positive damage reduction')
                 wild = Combatant(self.r, build_pokemon(
                     self.r, 'Greninja', 30, moves=[FIVE], abilities=[], wild=True,
                     pos=(3, 2), extra={'side': 'wild'}))
                 e.gm.add_combatant(wild)
                 self.turn(e, wild)
-                prompts = self.choose(e, selected)
                 hp = a.hp
-                with patch.object(Engine, 'd20', return_value=face), \
+                with self.choose(e, selected) as prompts, \
+                     patch.object(Engine, 'd20', return_value=face), \
                      patch.object(Engine, 'roll_expr', return_value=(7, [7])) as dice:
                     damage = e.use_move_on(wild, a, FIVE, e.everyone, set_damage=True)
                 self.assertEqual(dice.call_count, 1)
@@ -118,6 +147,7 @@ class WeatherChargeMultihitSourceRevisionTests(unittest.TestCase):
                     self.assertEqual(a.hp, hp - damage)
                     self.assertEqual((len(prompts), len(pool['decisions']), B.remaining(pool)),
                                      (1, 1, 1 if selected else 2))
+                    self.assertNotEqual(prompts[0]['damage'], prompts[0]['changed_damage'])
                     decision = pool['decisions'][0]
                     self.assertEqual((decision['direction'], decision['attacker_id'], decision['target_id']),
                                      ('defense', wild.entity_id, a.entity_id))
@@ -133,9 +163,9 @@ class WeatherChargeMultihitSourceRevisionTests(unittest.TestCase):
                     e, a, b = self.scene('모래바람')
                     e.gm.set_move(a, DOUBLE, reason='actual learned printed Double Strike Move')
                     self.turn(e, a)
-                    prompts = self.choose(e, selected)
                     hp = b.hp
-                    with patch.object(Engine, 'd20', side_effect=faces) as accuracy:
+                    with self.choose(e, selected) as prompts, \
+                         patch.object(Engine, 'd20', side_effect=faces) as accuracy:
                         damage = e.use_move_on(a, b, DOUBLE, e.everyone, set_damage=True)
                     self.assertEqual(accuracy.call_count, 2)
                     rolls = a.spec['multi_strike_history'][-1]['rolls']
@@ -151,6 +181,7 @@ class WeatherChargeMultihitSourceRevisionTests(unittest.TestCase):
                         self.assertEqual(b.hp, hp - damage)
                         self.assertEqual((len(prompts), len(pool['decisions']), B.remaining(pool)),
                                          (1, 1, 1 if selected else 2))
+                        self.assertNotEqual(prompts[0]['damage'], prompts[0]['changed_damage'])
                         self.assertEqual(pool['decisions'][0]['damage_after'], damage)
                     self.restored(e)
 
@@ -160,10 +191,11 @@ class WeatherChargeMultihitSourceRevisionTests(unittest.TestCase):
                 e, a, b = self.scene()
                 e.gm.set_move(a, FIVE, reason='actual learned printed Five Strike Move')
                 self.turn(e, a)
-                self.choose(e, True)
-                with patch.object(Engine, 'd20', return_value=18), \
+                with self.choose(e, True) as prompts, \
+                     patch.object(Engine, 'd20', return_value=18), \
                      patch.object(Engine, 'roll_expr', return_value=(7, [7])):
                     e.use_move_on(a, b, FIVE, e.everyone, set_damage=True)
+                self.assertEqual(len(prompts), 1)
                 identity = self.pool(a)['id']
                 first = deepcopy(self.pool(a)['decisions'])
                 hp = b.hp
@@ -178,10 +210,11 @@ class WeatherChargeMultihitSourceRevisionTests(unittest.TestCase):
                 # Every-other-turn frequency remains owned by actual turns.
                 self.turn(e, a)
                 self.turn(e, a)
-                self.choose(e, True)
-                with patch.object(Engine, 'd20', return_value=18), \
+                with self.choose(e, True) as prompts, \
+                     patch.object(Engine, 'd20', return_value=18), \
                      patch.object(Engine, 'roll_expr', return_value=(7, [7])):
                     e.use_move_on(a, b, FIVE, e.everyone, set_damage=True)
+                self.assertEqual(len(prompts), 1)
                 self.assertFalse(any(row['id'] == identity for row in B.live(a)))
                 closed = self.pool(a, historical=True)
                 self.assertEqual((closed['id'], B.remaining(closed), len(closed['decisions'])),
@@ -196,14 +229,14 @@ class WeatherChargeMultihitSourceRevisionTests(unittest.TestCase):
         e, a, b = self.scene()
         e.gm.set_move(a, FIVE, reason='actual learned printed Five Strike Move')
         self.turn(e, a)
-        prompts = self.choose(e, True)
         hp = b.hp
-        with patch.dict(e.rulings.hooks, {'before_damage': []}):
-            e.rulings.add_hook('before_damage', lambda value, context: 0,
-                               reason='actual final damage nullification')
-            with patch.object(Engine, 'd20', return_value=18), \
-                 patch.object(Engine, 'roll_expr', return_value=(7, [7])):
-                self.assertEqual(e.use_move_on(a, b, FIVE, e.everyone, set_damage=True), 0)
+        with self.choose(e, True) as prompts, \
+             self.final_damage_hook(lambda value, context: 0) as hooks, \
+             patch.object(Engine, 'd20', return_value=18), \
+             patch.object(Engine, 'roll_expr', return_value=(7, [7])):
+            self.assertEqual(e.use_move_on(a, b, FIVE, e.everyone, set_damage=True), 0)
+        self.assertEqual((len(hooks), len(prompts)), (1, 1))
+        self.assertGreater(hooks[0], 0)
         self.assertEqual((b.hp, len(prompts), self.pool(a)['decisions'], B.remaining(self.pool(a))),
                          (hp, 1, [], 2))
         self.assertEqual((a.move_uses[FIVE], a.budget['standard']), (1, 0))
@@ -214,21 +247,22 @@ class WeatherChargeMultihitSourceRevisionTests(unittest.TestCase):
         e, a, b = self.scene()
         e.gm.set_move(a, CHAIN, reason='actual learned printed chain Move')
         self.turn(e, a)
-        prompts = self.choose(e, True)
         options = {'chain_steps': [{'target': b, 'path': [], 'forgo_remaining': True}],
                    'set_damage': True}
         def reject_after_weather(value, context):
             raise ValueError('actual late weather damage rejection')
-        with patch.dict(e.rulings.hooks, {'before_damage': []}):
-            e.rulings.add_hook('before_damage', reject_after_weather,
-                               reason='actual final damage observer rejects this resolution')
-            with patch.object(Engine, 'd20', return_value=18):
-                assert_rejected_unchanged(
-                    e, lambda: e.use_move_on(a, b, CHAIN, e.everyone, **options),
-                    reason_pattern='actual late weather damage rejection')
+        with self.choose(e, True) as prompts, \
+             self.final_damage_hook(reject_after_weather) as hooks, \
+             patch.object(Engine, 'd20', return_value=18):
+            assert_rejected_unchanged(
+                e, lambda: e.use_move_on(a, b, CHAIN, e.everyone, **options),
+                reason_pattern='actual late weather damage rejection')
+        self.assertEqual(len(hooks), 1)
+        self.assertGreater(hooks[0], 0)
         self.assertEqual((len(prompts), self.pool(a)['decisions'], B.remaining(self.pool(a))), (1, [], 2))
-        with patch.object(Engine, 'd20', return_value=18):
+        with self.choose(e, True) as retry_prompts, patch.object(Engine, 'd20', return_value=18):
             self.assertGreater(e.use_move_on(a, b, CHAIN, e.everyone, **options), 0)
+        self.assertEqual(len(retry_prompts), 1)
         self.assertEqual((a.move_uses[CHAIN], len(self.pool(a)['decisions']), B.remaining(self.pool(a))),
                          (1, 1, 1))
         self.restored(e)

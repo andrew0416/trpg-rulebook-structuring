@@ -53,8 +53,8 @@ def _source(rules, uid):
     # exclusion, before consulting any existing effect dependencies.
     rules.ruleset.require({'id': uid, 'title': definition['source'].get('cells', [uid])[0],
         'source': definition['source']})
-    if uid == 'feat/파캐스트':
-        rules.ruleset.require({'id': definition['clause_id'], 'title': '파캐스트',
+    if uid in ('feat/파캐스트', 'feat/탑-퍼센티지'):
+        rules.ruleset.require({'id': definition['clause_id'], 'title': definition['source'].get('cells', [uid])[0],
             'source': definition['source']})
     selected = definition.get('selected_id')
     if selected and rules._selected_rule(selected) != selected:

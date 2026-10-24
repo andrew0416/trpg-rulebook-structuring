@@ -485,6 +485,68 @@ class AceTrainerFullTests(unittest.TestCase):
                 self.e.burst_of_motivation(self.p,native['id'],{'atk':1});self.assertEqual(self.p.stages['atk'],0)
             self.restore();self.valid()
 
+    def top_percentage_world(self):
+        import test_category2_class_actor_state_actions as CASES
+        case = CASES.ClassActorStateActionTests('runTest')
+        case.rules = self.rules
+        self.e, self.t, self.p, self.foe = case.fixture(level=100)
+        self.ps = [self.p]
+        self.q = self.p
+        self.t.spec['exp_bank'] = 10  # Actual banked XP available for retraining.
+        self.e.gm.set_skill(self.t, '명령', 5, reason='actual Expert Command before acquisition')
+
+    def test_top_percentage_explicit_book_and_old_request_replay_preserve_actual_source(self):
+        self.top_percentage_world()
+        self.acquire()
+        source = ACQ.STATIC_FEATURES[A.TOP]['clause_id']
+        csv_source = 'C2CSV/input/db/feats.csv:R59:main'
+        first = ACQ.acquire_static(self.e, self.t, A.TOP,
+            acquisition_request_id='book/top', source_id=source)
+        self.assertEqual(first['source']['clause_id'], source)
+        self.reject(lambda: ACQ.acquire_static(self.e, self.t, A.TOP,
+            acquisition_request_id='book/top', source_id=csv_source), 'changed intent or source')
+        self.e.gm.snapshot('book-top')
+        self.e.gm.set_skill(self.t, '명령', 1, reason='later skill loss preserves historical qualification')
+        before = self.e.export_state()
+        self.assertEqual(self.acquire(A.TOP, request='book/top'), first)
+        self.assertEqual(self.e.export_state(), before)
+        self.e.gm.restore('book-top')
+        self.restore()
+        self.assertEqual(self.acquire(A.TOP, request='book/top'), first)
+        self.e.gm.set_level(self.p, 100, reason='actual maximum-level Pokemon')
+        self.reject(lambda: self.e.offer_top_percentage_at_max_level(self.t, self.p), 'Core body|CSV59')
+        self.retrain(A.TOP)
+        self.restore()
+        before = self.e.export_state()
+        self.assertEqual(self.acquire(A.TOP, request='book/top'), dict(first, status='withdrawn'))
+        self.assertEqual(self.e.export_state(), before)
+        self.reject(lambda: ACQ.acquire_static(self.e, self.t, A.TOP,
+            acquisition_request_id='book/top', source_id=csv_source), 'changed intent or source')
+        self.valid()
+
+    def test_top_percentage_declared_seven_plus_command_preserves_history_and_rejects_undeclared_ranks(self):
+        self.top_percentage_world()
+        self.reject(lambda: self.e.gm.set_skill(self.t, '명령', 7, reason='undeclared rank'),
+                    'unresolved ordinary numeric skill rank')
+        for number, name in ((7, '초월'), (9, '신화')):
+            self.rules.rulings.set_mech('gameplay/skill-rank-dice', 'by_rank_name.' + name,
+                {'rank': number, 'dice': str(number) + 'd6', 'eng': 'Epic' + str(number)},
+                reason='explicit campaign rank', rules=self.rules)
+        self.e.gm.set_skill(self.t, '명령', 7, reason='actual declared rank seven')
+        self.acquire()
+        self.e.gm.set_skill(self.t, '명령', 9, reason='actual declared rank nine')
+        self.acquire(A.TOP)
+        self.assertEqual(A.acquired(self.t, A.CLASS)['snapshot']['skills']['명령'], 7)
+        self.assertEqual(A.acquired(self.t, A.TOP)['snapshot']['skills']['명령'], 9)
+        self.reject(lambda: self.e.gm.set_skill(self.t, '명령', 8, reason='undeclared gap'),
+                    'unresolved ordinary numeric skill rank')
+        self.reject(lambda: self.e.gm.set_skill(self.t, '명령', 'Epci7', reason='misspelled rank'),
+                    'unresolved skill rank')
+        self.e.gm.set_skill(self.t, '명령', 1, reason='later skill loss preserves historical qualification')
+        self.restore()
+        self.assertEqual(A.acquired(self.t, A.TOP)['snapshot']['skills']['명령'], 9)
+        self.valid()
+
     def test_top_percentage_body_exact_fifth_levels_lifetime_four_and_csv_exception_separate(self):
         import test_category2_class_actor_state_actions as EXISTING
         import downtime as DT

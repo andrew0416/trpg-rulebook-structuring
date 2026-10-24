@@ -1,23 +1,24 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_05",
-  "purpose": "Schedule transformations in actual producer order and historical actor bindings; source-owned Electrify lifetime; existing23 acquisition IDs with compatible4-stage real-state chain and independent intermediate builders. Exact192 impacted methods including6new, unchanged269 F71 failures retained for followup, original4115+added obligations preserved. Zero completion credit from selection.",
+  "purpose": "Source-bound existing Pokemon Fire/Ice passive acquisition and withdrawal; R59 selectable book/CSV acquisition and retained receipts with declared7+; Press composed context; real staged Cannon/Plasma/effect-rank observations; five Juggler and five weather fixture repairs. Exact120methods including10new, original4115 plus added obligations retained, source-specific existing PASS reused. No completion credit from selection.",
   "completion_credit": 0,
-  "required_unique_count": 11,
+  "required_unique_count": 8,
   "completed": {
-    "tools.test_book_ride_as_one.RideAsOneTests": {
+    "tools.test_core_living_weapon.CoreLivingWeaponTests": {
       "tests": [
-        "tools.test_book_ride_as_one.RideAsOneTests.test_actual_book_acquisition_parents_skill_alternatives_tags_and_historical_replay",
-        "tools.test_book_ride_as_one.RideAsOneTests.test_agility_training_and_native_orders_each_double_but_other_regimes_do_not",
-        "tools.test_book_ride_as_one.RideAsOneTests.test_faster_mount_can_keep_first_turn_and_each_round_allows_a_fresh_choice",
-        "tools.test_book_ride_as_one.RideAsOneTests.test_imported_name_capacity_and_forged_stat_source_do_not_invent_acquisition",
-        "tools.test_book_ride_as_one.RideAsOneTests.test_late_native_start_failure_rolls_back_exchange_and_forgery_cannot_restore",
-        "tools.test_book_ride_as_one.RideAsOneTests.test_native_attack_and_external_program_consume_the_mounted_evasion",
-        "tools.test_book_ride_as_one.RideAsOneTests.test_native_training_doubles_only_agility_while_actual_rider_is_mounted",
-        "tools.test_book_ride_as_one.RideAsOneTests.test_slower_rider_takes_first_initiative_and_other_turn_survives_codec_and_dismount",
-        "tools.test_book_ride_as_one.RideAsOneTests.test_source_withdrawal_reverses_only_its_tags_and_stops_new_sharing",
-        "tools.test_book_ride_as_one.RideAsOneTests.test_speed_evasion_max_tie_caps_and_existing_disabled_or_physical_evasion",
-        "tools.test_book_ride_as_one.RideAsOneTests.test_unmounted_foreign_actor_and_already_used_turn_cannot_exchange"
+        "tools.test_core_living_weapon.CoreLivingWeaponTests.test_fainted_equipment_accuracy_and_all_equipment_skill_checks_only_once"
+      ]
+    },
+    "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests": {
+      "tests": [
+        "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests.test_native_brightest_flame_late_acquisition_projection_failure_is_atomic",
+        "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests.test_native_brightest_flame_late_paid_withdrawal_failure_restores_every_owner_projection",
+        "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests.test_native_brightest_flame_projects_existing_late_and_foreign_owner_boundaries_once",
+        "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests.test_native_brightest_flame_restore_and_paid_withdrawal_preserve_csv_and_completed_attack",
+        "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests.test_r253_actual_fire_emboar_learns_scald_pays_sync_and_reaches_plus3_boundary",
+        "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests.test_r624_firebringer_flame_wheel_has_plus2_burn_boundary",
+        "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests.test_r624_native_electrify_suppresses_fire_plus2_but_keeps_printed_burn19"
       ]
     }
   }

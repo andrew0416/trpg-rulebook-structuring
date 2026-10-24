@@ -1,27 +1,32 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_07",
-  "purpose": "Schedule transformations in actual producer order and historical actor bindings; source-owned Electrify lifetime; existing23 acquisition IDs with compatible4-stage real-state chain and independent intermediate builders. Exact192 impacted methods including6new, unchanged269 F71 failures retained for followup, original4115+added obligations preserved. Zero completion credit from selection.",
+  "purpose": "Source-bound existing Pokemon Fire/Ice passive acquisition and withdrawal; R59 selectable book/CSV acquisition and retained receipts with declared7+; Press composed context; real staged Cannon/Plasma/effect-rank observations; five Juggler and five weather fixture repairs. Exact120methods including10new, original4115 plus added obligations retained, source-specific existing PASS reused. No completion credit from selection.",
   "completion_credit": 0,
-  "required_unique_count": 15,
+  "required_unique_count": 12,
   "completed": {
-    "tools.test_foundation_effect_lifetime.EffectLifetimeTests": {
+    "tools.test_category2_class_actor_state_actions.ClassActorStateActionTests": {
       "tests": [
-        "tools.test_foundation_effect_lifetime.EffectLifetimeTests.test_actual_condition_cure_ends_only_its_continuous_source",
-        "tools.test_foundation_effect_lifetime.EffectLifetimeTests.test_ambiguous_or_unbounded_declarations_fail_before_installation",
-        "tools.test_foundation_effect_lifetime.EffectLifetimeTests.test_declared_scene_boundary_leaves_seconds_and_other_sources_active",
-        "tools.test_foundation_effect_lifetime.EffectLifetimeTests.test_declared_target_turn_expiry_uses_actual_owner_and_type_consumer",
-        "tools.test_foundation_effect_lifetime.EffectLifetimeTests.test_forged_deadline_and_replayed_delivery_cannot_be_saved",
-        "tools.test_foundation_effect_lifetime.EffectLifetimeTests.test_large_time_advance_delivers_each_due_instant_and_stops_at_deadline",
-        "tools.test_foundation_effect_lifetime.EffectLifetimeTests.test_owner_turn_repeats_once_per_actual_event_and_consumes_its_limit",
-        "tools.test_foundation_effect_lifetime.EffectLifetimeTests.test_real_displacement_ends_region_contribution_using_full_body",
-        "tools.test_foundation_effect_lifetime.EffectLifetimeTests.test_repeat_cure_records_completed_delivery_before_continuous_ending",
-        "tools.test_foundation_effect_lifetime.EffectLifetimeTests.test_repeat_failure_rolls_back_time_and_all_prior_deliveries",
-        "tools.test_foundation_effect_lifetime.EffectLifetimeTests.test_save_restore_retains_real_owners_receipts_and_next_delivery",
-        "tools.test_foundation_effect_lifetime.EffectLifetimeTests.test_seconds_deadlines_and_sources_remain_independent_across_scene_and_day",
-        "tools.test_foundation_effect_lifetime.EffectLifetimeTests.test_source_and_occurrence_selectors_end_only_selected_contributions",
-        "tools.test_foundation_effect_lifetime.EffectLifetimeTests.test_turn_boundary_rolls_back_all_common_deliveries_on_late_failure",
-        "tools.test_foundation_effect_lifetime.EffectLifetimeTests.test_zero_time_preserves_native_life_synchronization"
+        "tools.test_category2_class_actor_state_actions.ClassActorStateActionTests.test_maximum_level_exception_and_pending_json_restore",
+        "tools.test_category2_class_actor_state_actions.ClassActorStateActionTests.test_top_percentage_native_level_events_four_use_cap_and_stat_source"
+      ]
+    },
+    "tools.test_item_source_identity_revision.CannonItemIdentityTests": {
+      "tests": [
+        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_exact_loaded_source_and_single_loading_reject_before_payment",
+        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_late_native_damage_failure_restores_load_stock_action_and_rng",
+        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_loaded_pester_native_accuracy_range_damage_payment_and_hour",
+        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_loaded_pester_rejects_beyond_fifteen_metres_before_payment",
+        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_miss_consumes_loaded_pester_once_without_damage_or_immunity",
+        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_unloaded_or_withdrawn_cannon_does_not_extend_hand_throw"
+      ]
+    },
+    "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests": {
+      "tests": [
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_class_fire_and_ice_declarations_preserve_live_type_and_target_conditions",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_explicit_csv_class_passive_ids_keep_exact_acquisition_source",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_explicit_csv_passive_restore_preserves_source_and_exclusion_is_atomic",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_newly_projected_book_species_retraining_and_transfer_remove_only_old_owner"
       ]
     }
   }

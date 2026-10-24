@@ -50,14 +50,14 @@ class RemainingEffectRankTests(unittest.TestCase):
         f.setup(skills={skill: rank}, **self.choices(skill, virtuoso))
         return f
 
-    def combat(self, skill, rank, virtuoso, *, press=False):
+    def combat(self, skill, rank, virtuoso, *, press=False, owns_press=True):
         f = COMBAT.ResearcherFieldsCombatTests('runTest')
         f.rules = self.rules()
         f.e = Engine(f.rules, seed=20862128)
         f.e.grid = Grid(14, 12)
         f.t = f.add('effect rank owner', 'trainer', (1, 1), speed=30,
                     classes=[] if press else ['class/연구원'],
-                    feats=[TASK.PRESS_ACTION] if press else list(CRAFT.ALL_FEATURES),
+                    feats=([TASK.PRESS_ACTION] if owns_press else []) if press else list(CRAFT.ALL_FEATURES),
                     skills=dict(CRAFT.SKILLS, **{skill: rank}),
                     feature_choices={} if press else {'class/연구원': deepcopy(CRAFT.FIELDS)},
                     feat_ranks={RESEARCH.SEED_BAG: 2}, items={}, money=10000,
@@ -68,7 +68,7 @@ class RemainingEffectRankTests(unittest.TestCase):
         dice = 6 if rank == 6 else 7
         self.assertEqual(SKILLS.rank(f.e.r, f.t, skill)[1:], (str(dice)+'d6', rank))
         result = f.e.skill_roll(f.t, skill, fixed=[2]*dice)
-        self.assertEqual((result.rank, result.dice_count, result.total), (rank, dice, 2*dice))
+        self.assertEqual((result.rank, len(result.faces), result.total), (rank, dice, 2*dice))
 
     def test_press_native_obedience_roll_adds_half_effect_rank_to_ordinary_dice(self):
         for rank, virtuoso, effect in CASES:
@@ -87,11 +87,80 @@ class RemainingEffectRankTests(unittest.TestCase):
                 dice = 6 if rank == 6 else 7
                 result = f.e.skill_roll(f.t, '협박', fixed=[2]*dice,
                                        skill_context={'purpose': 'pokemon_obedience'}, skill_target=p)
-                self.assertEqual((result.rank, result.dice_count, result.modifier, result.total),
+                self.assertEqual((result.rank, len(result.faces), result.modifier, result.total),
                                  (rank, dice, effect//2, 2*dice+effect//2))
                 other = f.e.skill_roll(f.t, '협박', fixed=[2]*dice,
                                       skill_context={'purpose': 'pokemon_obedience'}, skill_target=q)
                 self.assertEqual(other.modifier, 0)
+
+    def skill_context_scene(self, *, owns_press, owns_survivalist):
+        import book_survivalist_fixture as SURVIVAL
+        f = self.combat('협박', 6, False, press=True, owns_press=owns_press)
+        p = f.add('obedience target', 'pokemon', (2, 1), speed=25,
+                  trainer_id=f.t.entity_id, species='피카츄')
+        q = f.add('other obedience target', 'pokemon', (2, 2), speed=20,
+                  trainer_id=f.t.entity_id, species='피카츄')
+        if owns_survivalist:
+            SURVIVAL.acquire(f.e, f.t, SURVIVAL.SC.CLASS, request='context/survivalist')
+            SURVIVAL.master(f.e, f.t, 'forest')
+        f.combat(f.t)
+        if owns_press:
+            f.e.manual_feat(f.t, TASK.PRESS_ACTION, p,
+                           adjustment={'stats': ['atk', 'spe'], 'obedience': True})
+        return f, p, q
+
+    def test_press_context_composes_with_survivalist_without_borrowing_target_or_round_bonus(self):
+        for owns_press in (False, True):
+            for owns_survivalist in (False, True):
+                with self.subTest(press=owns_press, survivalist=owns_survivalist):
+                    f, p, q = self.skill_context_scene(owns_press=owns_press, owns_survivalist=owns_survivalist)
+                    terrain = 2 if owns_survivalist else 0
+                    press = 3 if owns_press else 0
+                    result = f.e.skill_roll(f.t, '생존', fixed=[2]*6,
+                        skill_context={'purpose': 'pokemon_obedience'}, skill_target=p)
+                    self.assertEqual((result.rank, len(result.faces), result.modifier, result.total),
+                                     (6, 6, terrain+press, 12+terrain+press))
+                    region = f.e.skill_roll(f.t, '생존', fixed=[2]*6,
+                        skill_context={'purpose': 'pokemon_obedience',
+                                       'region': {'kind': 'other', 'reason': 'actual non-mountain forest'}},
+                        skill_target=p)
+                    self.assertEqual(region.modifier, terrain+press)
+                    untargeted = f.e.skill_roll(f.t, '생존', fixed=[2]*6,
+                        skill_context={'purpose': 'pokemon_obedience'})
+                    self.assertEqual(untargeted.modifier, terrain)
+                    other = f.e.skill_roll(f.t, '생존', fixed=[2]*6,
+                        skill_context={'purpose': 'pokemon_obedience', 'reason': 'actual other Pokemon check'}, skill_target=q)
+                    self.assertEqual(other.modifier, terrain)
+                    ordinary = f.e.skill_roll(f.t, '생존', fixed=[2]*6,
+                        skill_context={'purpose': 'climb', 'reason': 'actual observed forest climb'}, skill_target=p)
+                    self.assertEqual(ordinary.modifier, terrain)
+                    f.e.end_of_turn(f.t)
+                    f.e.end_round()
+                    expired = f.e.skill_roll(f.t, '생존', fixed=[2]*6,
+                        skill_context={'purpose': 'pokemon_obedience'}, skill_target=p)
+                    self.assertEqual(expired.modifier, terrain)
+
+    def test_press_context_preserves_unknown_context_and_actual_target_validation_with_other_owner(self):
+        for owns_survivalist in (False, True):
+            with self.subTest(survivalist=owns_survivalist):
+                f, p, _ = self.skill_context_scene(owns_press=True, owns_survivalist=owns_survivalist)
+                def roll(context, target=p):
+                    return f.e.skill_roll(f.t, '생존', fixed=[2]*6, skill_context=context, skill_target=target)
+                assert_rejected_unchanged(f.e,
+                    lambda: roll({'purpose': 'unreviewed_context', 'reason': 'explicit but unknown purpose'}),
+                    reason_pattern='known GM skill purpose and reason required')
+                assert_rejected_unchanged(f.e,
+                    lambda: roll({'purpose': 'pokemon_obedience', 'invented': True}),
+                    reason_pattern='Press obedience context requires purpose and optional reason')
+                assert_rejected_unchanged(f.e,
+                    lambda: roll({'purpose': 'pokemon_obedience', 'reason': ''}),
+                    reason_pattern='Press obedience observation reason')
+                assert_rejected_unchanged(f.e,
+                    lambda: roll({'purpose': 'pokemon_obedience'}, copy(p)),
+                    reason_pattern='actual registered actor/target')
+                assert_rejected_unchanged(f.e,
+                    lambda: roll({'purpose': 'pokemon_obedience'}, f.t),
+                    reason_pattern='actual Pokemon target')
 
     def test_medical_techniques_native_patch_heals_tick_plus_effect_rank(self):
         for rank, virtuoso, effect in CASES:
@@ -122,7 +191,10 @@ class RemainingEffectRankTests(unittest.TestCase):
                 observed = []
                 def observe(engine, attacker, move, value):
                     result = original(engine, attacker, move, value)
-                    if attacker is f.t and '_researcher_fistful' in move:
+                    if attacker.entity_id == f.t.entity_id and '_researcher_fistful' in move:
+                        paid = attacker.spec[RESEARCH.KEY]['fistful']
+                        self.assertEqual(move['_researcher_fistful']['source'], paid['source'])
+                        self.assertIn(paid['source'], attacker.spec[RESEARCH.G.KEY]['sources'])
                         observed.append(result)
                     return result
                 before = foe.hp

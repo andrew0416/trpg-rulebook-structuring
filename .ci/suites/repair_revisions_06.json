@@ -1,49 +1,28 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_06",
-  "purpose": "Schedule transformations in actual producer order and historical actor bindings; source-owned Electrify lifetime; existing23 acquisition IDs with compatible4-stage real-state chain and independent intermediate builders. Exact192 impacted methods including6new, unchanged269 F71 failures retained for followup, original4115+added obligations preserved. Zero completion credit from selection.",
+  "purpose": "Source-bound existing Pokemon Fire/Ice passive acquisition and withdrawal; R59 selectable book/CSV acquisition and retained receipts with declared7+; Press composed context; real staged Cannon/Plasma/effect-rank observations; five Juggler and five weather fixture repairs. Exact120methods including10new, original4115 plus added obligations retained, source-specific existing PASS reused. No completion credit from selection.",
   "completion_credit": 0,
-  "required_unique_count": 37,
+  "required_unique_count": 12,
   "completed": {
-    "tools.test_foundation_initiative_schedule.InitiativeScheduleTests": {
+    "tools.test_blessing_friendship_region.FriendshipRegionTests": {
       "tests": [
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_actual_scheduled_turn_boundaries_are_atomic_after_late_failure",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_already_closed_borrower_owes_next_round_and_cannot_drop_slot",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_borrowed_turn_uses_actual_target_deadline_and_rolls_back_late_end_failure",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_borrowed_unstarted_turn_uses_native_clock_and_future_slot_once",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_changed_reaction_policy_or_forged_future_receipt_cannot_save",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_core_action_order_free_repetition_and_spent_budget_survive_codec",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_core_full_contact_keeps_trainers_in_mixed_order_and_as_attack_targets",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_core_incapacitated_partner_does_not_remove_other_role_turn",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_count_deadline_keeps_its_count_when_next_order_changes",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_current_cost_uses_actual_prior_budget_and_cannot_pay_twice",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_declared_roles_reverse_declaration_then_forward_resolution",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_distinct_future_action_costs_do_not_silently_coalesce_and_may_decline",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_existing_league_driver_uses_common_reverse_declaration_and_forward_steps",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_explicit_future_cost_conjunction_and_window_replay_are_idempotent",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_explicit_tie_policy_controls_native_order_without_automatic_randomness",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_forged_completed_slot_or_missing_native_closure_cannot_save",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_forged_future_closure_and_settlement_are_rejected",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_future_loan_remains_with_replaced_slot_in_same_round",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_invalid_layout_fails_before_random_or_round",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_late_borrow_start_failure_rolls_back_owner_budget_and_future_debt",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_league_explicit_ties_reuse_common_decision_without_cross_role_tie",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_malformed_schedule_or_reaction_is_a_codec_error",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_native_encounter_end_closes_future_slot_domain_without_extra_turn",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_nested_reactions_restore_each_actual_parent_without_refresh",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_open_reaction_json_and_gm_restore_do_not_repeat_payment",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_owner_and_target_deadlines_survive_reordered_turns_and_reaction",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_owner_clock_settlement_permits_only_zero_actions",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_priority_and_simultaneous_decision_own_actual_execution",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_reaction_resumes_paid_parent_and_next_loss_settles_once",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_real_move_event_reaction_and_resume_preserve_single_native_payment",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_real_order_denies_wrong_owner_without_clock_or_budget_progress",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_replacement_after_consumption_never_creates_second_turn",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_replacement_before_turn_keeps_slot_and_prior_initiative_position",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_schedule_roundtrip_and_gm_restore_keep_actual_continuation",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_tie_remains_pending_without_rng_round_or_schedule",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_unknown_loan_clock_and_forged_trigger_are_inert",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_unknown_reaction_precedence_is_pending_without_payment_or_rng"
+        "tools.test_blessing_friendship_region.FriendshipRegionTests.test_malformed_regions_and_unknown_purpose_reject_without_state_or_rng_changes",
+        "tools.test_blessing_friendship_region.FriendshipRegionTests.test_permitted_purpose_and_region_coexist_on_public_friends_path",
+        "tools.test_blessing_friendship_region.FriendshipRegionTests.test_r104_does_not_add_three_to_charm_or_transfer_from_trainer_to_performer",
+        "tools.test_blessing_friendship_region.FriendshipRegionTests.test_region_only_keeps_granted_poffin_pool_and_real_friendship_result"
+      ]
+    },
+    "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests": {
+      "tests": [
+        "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests.test_fistful_native_damage_reads_the_paid_effect_rank_times_three",
+        "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests.test_medical_techniques_native_patch_heals_tick_plus_effect_rank",
+        "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests.test_playing_god_declared_ten_keeps_exact_count_and_printed_nine_upgrade_ceiling",
+        "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests.test_playing_god_effect_upgrade_count_reaches_native_birth_without_learning_inheritance",
+        "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests.test_press_context_composes_with_survivalist_without_borrowing_target_or_round_bonus",
+        "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests.test_press_context_preserves_unknown_context_and_actual_target_validation_with_other_owner",
+        "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests.test_press_native_obedience_roll_adds_half_effect_rank_to_ordinary_dice",
+        "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests.test_special_lifetime_capacity_counts_native_egg_uses_and_stops_at_effect_rank_minus_two"
       ]
     }
   }

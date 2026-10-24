@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_02",
-  "purpose": "Schedule transformations in actual producer order and historical actor bindings; source-owned Electrify lifetime; existing23 acquisition IDs with compatible4-stage real-state chain and independent intermediate builders. Exact192 impacted methods including6new, unchanged269 F71 failures retained for followup, original4115+added obligations preserved. Zero completion credit from selection.",
+  "purpose": "Source-bound existing Pokemon Fire/Ice passive acquisition and withdrawal; R59 selectable book/CSV acquisition and retained receipts with declared7+; Press composed context; real staged Cannon/Plasma/effect-rank observations; five Juggler and five weather fixture repairs. Exact120methods including10new, original4115 plus added obligations retained, source-specific existing PASS reused. No completion credit from selection.",
   "completion_credit": 0,
-  "required_unique_count": 23,
+  "required_unique_count": 25,
   "completed": {
     "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests": {
       "tests": [
@@ -29,6 +29,8 @@
         "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_psychic_assault_accepts_either_focus_or_intuition_without_requiring_both",
         "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_scoped_prerequisite_waiver_has_exact_source_provider_stage_and_check",
         "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_synthetic_classes_use_actual_four_class_slots_and_atomic_fifth_rejection",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_top_percentage_csv_choice_and_legacy_receipt_replay_keep_maximum_level_exception",
+        "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_top_percentage_exact_source_exclusions_and_invalid_choice_are_atomic",
         "tools.test_native_acquisition_adapters.NativeAcquisitionAdapterTests.test_transaction_failure_after_source_write_keeps_world_rng_and_ownership_unchanged"
       ]
     }

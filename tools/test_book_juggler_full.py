@@ -17,10 +17,10 @@ class JugglerTests(unittest.TestCase):
  def setUp(self):
   old=self.rules.rulings;self.rules.rulings=deepcopy(old);self.addCleanup(setattr,self.rules,'rulings',old)
   self.setup()
- def setup(self,*,acro=6,guile=6,mode='full_contact',wild=False):
+ def setup(self,*,acro=6,guile=6,mode='full_contact',wild=False,opponent_edges=(),opponent_feats=()):
   self.e=Engine(self.rules,seed=831887);self.e.grid=Grid(40,16)
   self.a=self.actor('owner','trainer',(1,1),60,skills={'곡예':acro,'교활':guile,'명령':6,'집중':6,'육상':6})
-  self.b=self.actor('opponent','trainer',(15,1),50,side='foe')
+  self.b=self.actor('opponent','trainer',(15,1),50,side='foe',edges=opponent_edges,feats=opponent_feats)
   self.p=self.actor('outgoing','pokemon',(3,1),30,owner=self.a)
   self.q=self.actor('reserve','pokemon',(4,1),20,owner=self.a,field=False)
   self.z=self.actor('third','pokemon',(5,1),10,owner=self.a,field=False)
@@ -30,10 +30,10 @@ class JugglerTests(unittest.TestCase):
   PARTY.configure(self.e,self.b,mode='standard',reason='actual rival roster',roster=[self.u] if wild else [self.t,self.u],storage={'kind':'center','id':'rival-center'})
   P.configure(self.e,self.a,battle_mode=mode,reason='actual battle rules');P.configure(self.e,self.b,battle_mode=mode,reason='actual battle rules')
   TERRAIN.observe(self.e,[(x,y) for x in range(1,20) for y in (1,2,3)],base='regular',reason='GM observes actual ball landing ground')
- def actor(self,name,kind,pos,speed,*,owner=None,side='party',field=True,skills=None):
+ def actor(self,name,kind,pos,speed,*,owner=None,side='party',field=True,skills=None,edges=(),feats=()):
   spec={'id':kind+'/'+name,'name':name,'kind':kind,'level':30,'pos':pos,'size':'중형','weight_kg':20,
    'stats':{'hp':80,'atk':25,'def':20,'spa':25,'spd':20,'spe':speed},'skills':skills or {'곡예':6,'교활':6,'명령':6,'집중':6,'육상':6},
-   'moves':['move/몸통박치기','move/물대포','move/아쿠아링','move/트릭',J.LOCK],'abilities':[],'types':['노말'],'items':{},'feats':[],'edges':[],'movement':{'land':6},'movement_basis':'current','loyalty':6}
+   'moves':['move/몸통박치기','move/물대포','move/아쿠아링','move/트릭',J.LOCK],'abilities':[],'types':['노말'],'items':{},'feats':list(feats),'edges':list(edges),'movement':{'land':6},'movement_basis':'current','loyalty':6}
   if owner:spec['trainer_id']=owner.entity_id
   a=Combatant(self.rules,spec);self.e.gm.add_combatant(a,pos=pos,side=side,reason='actual Juggler participant')
   self.e.gm.set_footprint(a,[(0,0)],reason='observed actual one-cell body')
@@ -523,12 +523,10 @@ class JugglerTests(unittest.TestCase):
   self.assertFalse(O.live(self.e,self.q,O.LONG));self.valid()
 
  def mixed_schedule_fixture(self,*,rider_juggler=False,swarm=False,prepare=True):
-  import control_mount as M,training_features as TRAIN,state_grants as G
+  import control_mount as M,training_features as TRAIN
   if swarm:self.rules=Rules(ROOT,ruleset='all')
-  self.setup();self.family(J.CLASS)
+  self.setup(opponent_edges=['edge/탑승-기량'],opponent_feats=[TRAIN.AGILITY,TRAIN.FOCUSED,TRAIN.INSPIRED]);self.family(J.CLASS)
   P.configure(self.e,self.b,battle_mode='full_contact',command_limit=2,gm_id='gm/mixed-schedule',reason='GM explicitly admits the mount and one other Pokemon turn')
-  G.replace_baseline(self.e,self.b,'edges',['edge/탑승-기량'])
-  G.replace_baseline(self.e,self.b,'feats',[TRAIN.AGILITY,TRAIN.FOCUSED,TRAIN.INSPIRED])
   self.acquire(M.RIDER,self.b);self.acquire(M.RIDE_AS_ONE,self.b)
   if rider_juggler:self.family(J.CLASS,self.b)
   if swarm:
@@ -538,7 +536,7 @@ class JugglerTests(unittest.TestCase):
   self.e.gm.set_stat(self.q,'spe',value=75 if swarm else 55,reason='actual reserve initiative before Juggler release')
   self.e.gm.send_out(self.u,pos=self.b.pos,reason='actual mount deployment')
   out=self.e.pokemon_activity(self.b,'mounting',target=self.u,phase='mount',gm_mountable=True)
-  self.assertTrue(out['passed'])
+  self.assertTrue(out['passed']);self.assertTrue(out['automatic']);self.assertIsNone(out['check'])
   if swarm:
    self.e.gm.set_stat(self.t,'spe',value=70,reason='actual leading Swarm initiative')
    self.e.gm.set_encounter_template(self.t,kind='swarm',total_bars=3,

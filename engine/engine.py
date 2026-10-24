@@ -5950,7 +5950,7 @@ class Engine:
         rank_name,expr,n = (pokemon_plan['rank_name'],pokemon_plan['expression'],pokemon_plan['rank']) if pokemon_plan is not None else SKILL_MODIFIERS.rank(self.r,c,skill)
         resolved = SKILL_MODIFIERS.modifiers(self.r,c,skill,mods,skill_context=shared_skill_context)
         import taskmaster as TASK
-        press_bonus=TASK.obedience_bonus(self,c,skill_context,skill_target)
+        press_bonus=TASK.obedience_bonus(self,c,shared_skill_context,skill_target)
         resolved['modifier']+=press_bonus
         if press_bonus:resolved['sources']+=((TASK.PRESS_ACTION,press_bonus,'Press obedience this round'),)
         profile_sources=__import__('chronicler').profile_bonus(self,c,skill,skill_target)
@@ -5967,7 +5967,9 @@ class Engine:
         resolved['modifier']+=sum(x[1] for x in light_sources)
         resolved['sources']+=light_sources
         import survivalist_features as SURVIVALIST
-        terrain_sources=SURVIVALIST.modifier(self,c,skill,shared_skill_context)
+        # Press owns this purpose; terrain ownership and unconditional bonuses still apply.
+        terrain_context=None if TASK.is_obedience_context(shared_skill_context) else shared_skill_context
+        terrain_sources=SURVIVALIST.modifier(self,c,skill,terrain_context)
         resolved['modifier']+=sum(x[1] for x in terrain_sources)
         resolved['sources']+=terrain_sources
         import elemental_connection as ELEMENTAL

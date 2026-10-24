@@ -116,7 +116,8 @@ def qualification(actor, uid, snapshot, prerequisite_source):
     if prerequisite_source is not None or type(snapshot)is not dict or set(snapshot)!={'skills','parents','gift','selection'}:
         raise ValueError('exact Ace Trainer acquisition observations required')
     if set(snapshot['skills'])!={'명령','육상','협박','매력'}:raise ValueError('exact acquired skill observations required')
-    for value in snapshot['skills'].values():C.integer(value,'acquired skill rank',1,6)
+    # Acquisition resolves declared ranks through SK.rank; history retains that observation.
+    for value in snapshot['skills'].values():C.integer(value,'acquired skill rank',1)
     history={r['request_id']:r for r in records(actor)}
     if type(snapshot['parents'])is not list or len(set(snapshot['parents']))!=len(snapshot['parents']) or not set(snapshot['parents'])<=set(history):
         raise ValueError('actual Ace Trainer parent acquisition receipts required')
