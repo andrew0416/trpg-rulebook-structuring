@@ -40,11 +40,13 @@ class OrdinaryRefreshmentSourceRevisionTests(unittest.TestCase):
             duration_minutes=1, duration_reason='observed complete one-minute drink', **options)
 
     def restore(self, fixture, *, annotation=False):
+        if annotation:
+            # Table notes are mutable campaign state, not a silent rule-profile edit.
+            fixture.e.rulings.add_answer('refreshment_campaign_note','unrelated current table annotation',
+                reason='actual campaign note retained through restoration',scope='campaign')
         snapshot = fixture.e.gm.snapshot()
         fixture.e.gm.restore(snapshot)
         rules = Rules(ROOT, ruleset=fixture.e.r.ruleset.name)
-        if annotation:
-            rules.ruleset.profile['refreshment_campaign_note'] = 'unrelated current table annotation'
         ids = fixture.a.entity_id, fixture.p.entity_id
         fixture.e = Engine.import_state(rules, json.loads(json.dumps(fixture.e.export_state())))
         fixture.a, fixture.p = (WORLD.actor_index(fixture.e)[uid] for uid in ids)
@@ -101,7 +103,8 @@ class OrdinaryRefreshmentSourceRevisionTests(unittest.TestCase):
             'scope': query['decision_scope']}
         for supplied in (ordinary_choice, 'arbitrary_policy'):
             before = self.state(shell)
-            with self.assertRaisesRegex(ValueError, 'exact food source policy'):
+            reason='exact food source policy' if isinstance(supplied,dict) else 'exact reviewed CSV food clause selection required'
+            with self.assertRaisesRegex(ValueError, reason):
                 shell.use(food_policy=supplied)
             self.assertEqual(self.state(shell), before)
             self.assertEqual(shell.row()['stage'], 'juice')

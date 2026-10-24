@@ -1,52 +1,22 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_02",
-  "purpose": "Exact48 failed repair67 methods, repaired original source-family/gift/drink/network consumers, one new actual Dress destruction/consumption scenario, and affected native regression modules. Full original4115 plus added obligations and185/406 scope retained. No acceptance credit.",
+  "purpose": "Exact13 failed and32 previously unexecuted methods plus changed-path regression and1 new native Warper case. Original4115/added requirements and185findings/406clauses retained. Includes repair70 and pre-dispatch static fixture correction70b.",
   "completion_credit": 0,
-  "required_unique_count": 32,
+  "required_unique_count": 10,
   "completed": {
-    "tools.test_blessing_authority_repair.BlessingAuthorityTests": {
+    "tools.test_unobserved_side_attack_hooks.UnobservedSideAttackHookTests": {
       "tests": [
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_actual_actor_identity_uses_species_not_display_name_and_preserves_history",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_all_twenty_six_contradictions_reject_atomically_despite_generic_gm_permission",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_all_twenty_six_unknown_histories_stay_explicit_without_inventing_illegality",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_confirmed_roles_control_redaction_swift_ap_and_second_use_scene_limit",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_contractor_empty_facts_declined_selection_ap_shortage_and_action_failure_are_atomic",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_exact_scoped_waiver_can_override_one_patron_check_only",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_exact_twenty_six_domains_match_source_and_all_allowed_patrons_confirm",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_explicit_unknown_malformed_and_contradictory_regions_reject_before_rng",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_legacy_patron_confirmation_preserves_old_acquisition_after_prerequisite_loss",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_legacy_role_requires_explicit_confirmation_without_inventing_past_costs",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_missingno_aspects_are_not_interchangeable",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_mountain_weather_and_volcanic_perception_keep_independent_purpose",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_other_unknown_and_unrelated_skills_do_not_gain_region_bonus",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_patron_receipt_source_and_identity_corruption_fail_before_native_immunity",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_region_context_and_environment_keep_json_and_gm_restore",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_region_is_stripped_for_sleep_permission_and_other_purpose_consumers",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_role_authority_source_or_configuration_corruption_rejects_before_payment",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_role_changes_both_directions_reject_before_revelation_or_payment",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_role_cost_and_scene_receipts_survive_json_gm_and_historical_prerequisite_loss",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_royal_and_dream_immunities_survive_json_and_gm_restore",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_royal_and_dream_unapproved_contradictions_cannot_register_native_immunity",
-        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_unregistered_historical_actor_id_is_unknown_not_an_illegal_species"
-      ]
-    },
-    "tools.test_foe_side_contracts_revision.ClearAmuletCapturedHazardSideTests": {
-      "tests": [
-        "tools.test_foe_side_contracts_revision.ClearAmuletCapturedHazardSideTests.test_actual_deep_cold_feature_owner_is_distinct_from_attacking_pokemon",
-        "tools.test_foe_side_contracts_revision.ClearAmuletCapturedHazardSideTests.test_actual_web_uses_saved_hazard_side_after_setter_changes_side_recall_and_restore"
-      ]
-    },
-    "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests": {
-      "tests": [
-        "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests.test_actual_fighting_move_ally_hit_has_no_mark_penalty_or_departure_attack",
-        "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests.test_actual_foe_mark_restores_marker_identity_and_preserves_seven_rank_acquisition",
-        "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests.test_actual_trip_hit_marks_foe_only_and_self_attempt_is_atomic",
-        "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests.test_explicit_side_change_before_fighting_hit_is_current_and_unknown_target_never_marked",
-        "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests.test_pending_close_quarters_side_recipient_and_acquisition_tampering_rejects_restore",
-        "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests.test_pending_magician_foe_hit_marks_after_side_change_gm_and_cold_restore_without_repayment",
-        "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests.test_pending_pickpocket_ally_hit_never_becomes_foe_hit_after_side_change_and_restore",
-        "tools.test_foe_side_contracts_revision.CloseQuartersFoeContractTests.test_real_intercept_marks_only_actual_fighting_hit_recipient_and_not_immune_recipient"
+        "tools.test_unobserved_side_attack_hooks.UnobservedSideAttackHookTests.test_attack_by_unobserved_side_attacker_damages_once",
+        "tools.test_unobserved_side_attack_hooks.UnobservedSideAttackHookTests.test_attack_on_unobserved_side_target_damages_once",
+        "tools.test_unobserved_side_attack_hooks.UnobservedSideAttackHookTests.test_hooks_read_absent_side_as_unobserved_none",
+        "tools.test_unobserved_side_attack_hooks.UnobservedSideAttackHookTests.test_invalid_attack_option_still_rejects_before_payment_without_side",
+        "tools.test_unobserved_side_attack_hooks.UnobservedSideAttackHookTests.test_known_flanking_witness_does_not_need_unrelated_unknown_third_relation",
+        "tools.test_unobserved_side_attack_hooks.UnobservedSideAttackHookTests.test_native_accuracy_and_move_cover_absent_none_actor_target_third_on_both_maps",
+        "tools.test_unobserved_side_attack_hooks.UnobservedSideAttackHookTests.test_observed_sides_still_separate_allies_from_foes",
+        "tools.test_unobserved_side_attack_hooks.UnobservedSideAttackHookTests.test_one_unknown_large_foe_matters_only_with_sufficient_contact_weight",
+        "tools.test_unobserved_side_attack_hooks.UnobservedSideAttackHookTests.test_only_geometry_that_can_change_flanking_requires_the_missing_relation",
+        "tools.test_unobserved_side_attack_hooks.UnobservedSideAttackHookTests.test_unknown_teamwork_holder_is_not_assumed_to_be_an_ally"
       ]
     }
   }

@@ -1,60 +1,23 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_09",
-  "purpose": "Exact48 failed repair67 methods, repaired original source-family/gift/drink/network consumers, one new actual Dress destruction/consumption scenario, and affected native regression modules. Full original4115 plus added obligations and185/406 scope retained. No acceptance credit.",
+  "purpose": "Exact13 failed and32 previously unexecuted methods plus changed-path regression and1 new native Warper case. Original4115/added requirements and185findings/406clauses retained. Includes repair70 and pre-dispatch static fixture correction70b.",
   "completion_credit": 0,
-  "required_unique_count": 32,
+  "required_unique_count": 7,
   "completed": {
-    "tools.test_category2_csv_remaining_item_contracts.RemainingCsvItemContractTests": {
+    "tools.test_book_channeler_full.ChannelerTests": {
       "tests": [
-        "tools.test_category2_csv_remaining_item_contracts.RemainingCsvItemContractTests.test_all_five_form_relations_are_reversible_and_source_bound",
-        "tools.test_category2_csv_remaining_item_contracts.RemainingCsvItemContractTests.test_assault_vest_lock_and_all_four_selected_food_variants",
-        "tools.test_category2_csv_remaining_item_contracts.RemainingCsvItemContractTests.test_cannon_manual_booster_and_band_use_actual_objects_and_receipts",
-        "tools.test_category2_csv_remaining_item_contracts.RemainingCsvItemContractTests.test_capability_actions_cover_language_egg_juicer_unown_poison_life_scavenger_tinkerer",
-        "tools.test_category2_csv_remaining_item_contracts.RemainingCsvItemContractTests.test_failed_form_grants_restore_both_participants",
-        "tools.test_category2_csv_remaining_item_contracts.RemainingCsvItemContractTests.test_failed_switch_and_tutor_payment_are_atomic",
-        "tools.test_category2_csv_remaining_item_contracts.RemainingCsvItemContractTests.test_held_reactions_cover_damage_stage_switch_weather_and_multihit",
-        "tools.test_category2_csv_remaining_item_contracts.RemainingCsvItemContractTests.test_muscle_essence_hazards_and_psychic_navigation_close_numeric_and_exception_consumers",
-        "tools.test_category2_csv_remaining_item_contracts.RemainingCsvItemContractTests.test_policy_anchors_exact_remaining_34_and_every_domain",
-        "tools.test_category2_csv_remaining_item_contracts.RemainingCsvItemContractTests.test_warm_item_policies_reject_changed_current_status_bytes",
-        "tools.test_category2_csv_remaining_item_contracts.RemainingCsvItemContractTests.test_world_validation_rejects_tampered_projection"
+        "tools.test_book_channeler_full.ChannelerTests.test_sync_allies_do_not_count_scene_three_and_replay",
+        "tools.test_book_channeler_full.ChannelerTests.test_sync_native_hit_miss_foe_counters_and_actual_accuracy_evasion",
+        "tools.test_book_channeler_full.ChannelerTests.test_sync_status_hit_and_full_round_boundary"
       ]
     },
-    "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests": {
+    "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests": {
       "tests": [
-        "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests.test_shadow_progress_adds_exactly_12_without_counting_26_deduped_rows"
-      ]
-    },
-    "tools.test_native_switch_transfer_revision.NativeGuideTagHandoffRevisionTests": {
-      "tests": [
-        "tools.test_native_switch_transfer_revision.NativeGuideTagHandoffRevisionTests.test_actual_standard_tag_switch_preserves_urban_guide_until_original_count"
-      ]
-    },
-    "tools.test_owner_transfer_projections.OwnerTransferProjectionTests": {
-      "tests": [
-        "tools.test_owner_transfer_projections.OwnerTransferProjectionTests.test_current_owner_conditional_fire_and_ice_consumers_keep_their_gates",
-        "tools.test_owner_transfer_projections.OwnerTransferProjectionTests.test_eight_csv_declarations_and_six_species_stats_without_sustain_or_ap",
-        "tools.test_owner_transfer_projections.OwnerTransferProjectionTests.test_finisher_native_transfer_target_conditions_exact_index_and_unrelated_state",
-        "tools.test_owner_transfer_projections.OwnerTransferProjectionTests.test_generic_admission_variants_and_new_name_share_normal_registration",
-        "tools.test_owner_transfer_projections.OwnerTransferProjectionTests.test_generic_projection_requires_actual_ownership_and_never_calls_dedicated_registrars",
-        "tools.test_owner_transfer_projections.OwnerTransferProjectionTests.test_json_fresh_rules_gm_restore_and_restored_replay_preserve_exact_parts_once",
-        "tools.test_owner_transfer_projections.OwnerTransferProjectionTests.test_late_projection_failure_rolls_back_rulings_rng_payments_sources_and_identities",
-        "tools.test_owner_transfer_projections.OwnerTransferProjectionTests.test_no_recipient_feat_retransfer_and_replay_remain_inert",
-        "tools.test_owner_transfer_projections.OwnerTransferProjectionTests.test_normal_generic_manual_and_edge_admission_remain_separate",
-        "tools.test_owner_transfer_projections.OwnerTransferProjectionTests.test_polished_shine_transfer_steel_threshold_without_accuracy_crit_or_spatial_change",
-        "tools.test_owner_transfer_projections.OwnerTransferProjectionTests.test_seven_static_sources_level_formula_branch_and_range_size",
-        "tools.test_owner_transfer_projections.OwnerTransferProjectionTests.test_species_wrong_group_and_missing_or_invalid_selection_are_atomic"
-      ]
-    },
-    "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests": {
-      "tests": [
-        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_actual_uncertain_outside_clock_rejects_before_rng_even_when_healing_is_blocked",
-        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_berry_then_food_taste_uses_actual_receipts_and_both_explicit_lifetimes_after_restore",
-        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_native_coat_and_helping_hand_keep_single_consumption_on_the_composed_hit",
-        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_nonmatching_type_and_not_super_effective_hit_keep_berry_armed_without_policy",
-        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_real_preserves_and_dumplings_missing_invalid_policy_reject_before_rng_and_receipt",
-        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_true_steel_decision_is_used_once_for_declined_and_accepted_berry_hits",
-        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_true_steel_enables_berry_and_null_policy_refuses_before_rng_without_payment"
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_conqueror_keeps_paid_order_but_requires_new_holders_actual_run_up_and_mount",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_dress_actual_stat_capability_and_ability_channels_survive_paid_tag_handoff",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_dress_moves_only_real_item_projections_keeps_wardrobe_and_original_count",
+        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_dress_physical_item_ends_once_after_real_hit_on_transferred_holder"
       ]
     }
   }

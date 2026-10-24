@@ -129,6 +129,20 @@ class WarperTests(unittest.TestCase):
   self.family(WP.WARPED);other=self.add('second foe',(8,4),side='foes');self.e.gm.set_position(self.b,(6,4),reason='foe at final square');self.e.gm.set_position(self.c,(7,3),reason='adjacent ally excluded');self.begin();ap=AP.available(self.a)
   result=self.teleport((7,4),triple=True,warped=True);self.assertEqual(set(result['warped_targets']),{self.b.entity_id,other.entity_id});self.assertEqual(AP.available(self.a),ap-2);self.assertEqual(self.a.budget['swift'],0);self.assertEqual(WP.evasion(self.b),-3);self.assertEqual(WP.evasion(self.c),0);self.assertEqual(WP.evasion(self.a),0);self.restore();self.valid()
 
+ def test_warped_actual_teleport_does_not_invent_foes_from_absent_sides(self):
+  for role in ('source','target'):
+   with self.subTest(role=role):
+    self.setup();self.family(WP.WARPED)
+    self.e.gm.set_position(self.b,(6,4),reason='actual adjacent candidate after teleport')
+    unknown=self.a if role=='source' else self.b
+    del unknown.side;unknown.spec.pop('side',None)
+    self.begin();ap=AP.available(self.a)
+    result=self.teleport((6,3),triple=True,warped=True)
+    self.assertEqual(result['warped_targets'],[])
+    self.assertEqual(AP.available(self.a),ap-2)
+    self.assertEqual(WP.evasion(self.b),0)
+    self.restore();self.valid()
+
  def test_warped_full_round_evasion_and_next_owner_turn_end_shift_protection_differ(self):
   self.family(WP.WARPED);self.e.gm.set_position(self.b,(6,4),reason='adjacent final foe');self.begin();self.teleport((6,3),triple=True,warped=True);self.assertTrue(WP.prevents_aoo(self.b,self.a,'인접 칸 밖으로 이동'));self.assertFalse(WP.prevents_aoo(self.b,self.c,'인접 칸 밖으로 이동'));self.assertFalse(WP.prevents_aoo(self.b,self.a,'인접하지 않은 대상에게 원거리 공격'))
   self.close();self.e.end_round();self.e.start_round(self.e.everyone);self.e.at_initiative_count(60);self.assertEqual(WP.evasion(self.b),0);self.assertTrue(WP.prevents_aoo(self.b,self.a,'인접 칸 밖으로 이동'));self.e.start_of_turn(self.a,initiative_count=60)

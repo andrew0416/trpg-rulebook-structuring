@@ -81,12 +81,13 @@ class TemporaryHPBerryPreflightTests(unittest.TestCase):
 
     def provider(self, engine, selected):
         calls = []
-        def decide(prompt):
+        original=type(engine.rulings).decide
+        def decide(current,prompt):
             if prompt.get('type') == 'type_ace_choice' and prompt.get('feature') == TA.uid('True Steel'):
                 calls.append(deepcopy(prompt))
                 return selected
-            return None
-        engine.rulings.provider = decide
+            return original(current,prompt)
+        self.enterContext(patch.object(type(engine.rulings),'decide',decide))
         return calls
 
     def test_real_preserves_and_dumplings_missing_invalid_policy_reject_before_rng_and_receipt(self):
@@ -134,7 +135,7 @@ class TemporaryHPBerryPreflightTests(unittest.TestCase):
                 self.assertTrue(engine.validate_state()['valid'])
 
     def test_berry_then_food_taste_uses_actual_receipts_and_both_explicit_lifetimes_after_restore(self):
-        for mode, expected in ((None, 5), ('per_grant', 5), ('refresh_pool', 15)):
+        for mode, expected in ((None, 10), ('per_grant', 10), ('refresh_pool', 20)):
             with self.subTest(mode=mode):
                 engine, chef, actor, foe, berry, original = self.ready_berry(incoming=True)
                 if mode is not None:
@@ -143,9 +144,10 @@ class TemporaryHPBerryPreflightTests(unittest.TestCase):
                 first, second = actor.spec['food_consumption_receipts'][-2:]
                 self.assertEqual((first['buff_id'], first['producer'], second['producer']),
                     (berry, 'actual_hit', 'actual_attack'))
-                self.assertEqual(actor.temp_hp, 15)
+                self.assertEqual(actor.temp_hp, 20)
                 self.assertEqual([(row['source']['kind'], row['source']['receipt_sequence']) for row in self.rows(actor)],
-                    [('food', original['sequence']), ('chef_taste', first['sequence'])])
+                    [('food', original['sequence']), ('chef_taste', first['sequence']), ('chef_taste', second['sequence'])])
+                FIX.decline_all(engine, chef)
                 loaded, actors = FIX.restore(self.rules, engine)
                 for current, target in ((engine, actor), (loaded, actors[actor.entity_id])):
                     current.advance_time(260)

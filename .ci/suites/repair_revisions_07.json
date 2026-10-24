@@ -1,52 +1,28 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_07",
-  "purpose": "Exact48 failed repair67 methods, repaired original source-family/gift/drink/network consumers, one new actual Dress destruction/consumption scenario, and affected native regression modules. Full original4115 plus added obligations and185/406 scope retained. No acceptance credit.",
+  "purpose": "Exact13 failed and32 previously unexecuted methods plus changed-path regression and1 new native Warper case. Original4115/added requirements and185findings/406clauses retained. Includes repair70 and pre-dispatch static fixture correction70b.",
   "completion_credit": 0,
-  "required_unique_count": 32,
+  "required_unique_count": 8,
   "completed": {
-    "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests": {
+    "tools.test_book_warper_full.WarperTests": {
       "tests": [
-        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_all_eighteen_type_stratagems_keep_original_acquisition_and_actual_move_completion_hooks",
-        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_all_five_class_stratagems_move_same_source_and_reach_native_accuracy_damage_consumers",
-        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_all_five_stat_branches_keep_acquisition_binding_and_receiver_stage_consumers",
-        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_conqueror_keeps_paid_order_but_requires_new_holders_actual_run_up_and_mount",
-        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_dress_actual_stat_capability_and_ability_channels_survive_paid_tag_handoff",
-        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_dress_moves_only_real_item_projections_keeps_wardrobe_and_original_count",
-        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_dress_physical_item_ends_once_after_real_hit_on_transferred_holder",
-        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_gfw_moves_live_evasion_and_fixed_condition_without_reissuing_paid_ally_set",
-        "tools.test_native_switch_source_adapters.NativeSwitchSourceAdapterTests.test_profiling_keeps_original_archive_owner_and_active_end_on_new_holder"
+        "tools.test_book_warper_full.WarperTests.test_warped_actual_teleport_does_not_invent_foes_from_absent_sides",
+        "tools.test_book_warper_full.WarperTests.test_warped_ally_switch_offturn_cannot_invent_an_extra_swift_action",
+        "tools.test_book_warper_full.WarperTests.test_warped_full_round_evasion_and_next_owner_turn_end_shift_protection_differ",
+        "tools.test_book_warper_full.WarperTests.test_warped_requires_actual_teleporter_or_switch_own_swift_and_ap",
+        "tools.test_book_warper_full.WarperTests.test_warped_teleporter_final_adjacent_all_foes_exact_two_ap_and_swift"
       ]
     },
-    "tools.test_ordinary_refreshment_source_revision.OrdinaryRefreshmentSourceRevisionTests": {
+    "tools.test_category2_csv_remaining_item_contracts.RemainingCsvItemContractTests": {
       "tests": [
-        "tools.test_ordinary_refreshment_source_revision.OrdinaryRefreshmentSourceRevisionTests.test_authenticated_58_plan_shape_and_completed_old_history_gain_no_retroactive_choice",
-        "tools.test_ordinary_refreshment_source_revision.OrdinaryRefreshmentSourceRevisionTests.test_both_actual_gluttony_sources_override_each_ordinary_definition",
-        "tools.test_ordinary_refreshment_source_revision.OrdinaryRefreshmentSourceRevisionTests.test_complete_kr_default_and_both_scoped_definitions_use_exact_completion_boundaries",
-        "tools.test_ordinary_refreshment_source_revision.OrdinaryRefreshmentSourceRevisionTests.test_invalid_or_wrong_actual_scope_choices_never_pay_advance_or_roll",
-        "tools.test_ordinary_refreshment_source_revision.OrdinaryRefreshmentSourceRevisionTests.test_real_pending_en_work_pins_producing_choice_across_restore_and_late_failure"
+        "tools.test_category2_csv_remaining_item_contracts.RemainingCsvItemContractTests.test_held_reactions_cover_damage_stage_switch_weather_and_multihit",
+        "tools.test_category2_csv_remaining_item_contracts.RemainingCsvItemContractTests.test_world_validation_rejects_tampered_projection"
       ]
     },
-    "tools.test_temporary_hp_composition.TemporaryHPCompositionTests": {
+    "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests": {
       "tests": [
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_actual_heal_block_consumes_selected_salty_with_no_gain_and_lunchbox_rejects_atomically",
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_actual_heavy_equipment_loss_consumes_common_contribution_balance",
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_armed_salty_noop_never_blocks_the_actual_foe_attack",
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_consumption_clear_recall_and_gm_restore_cannot_resurrect_source_rights",
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_distinct_additive_lifetimes_follow_explicit_policy_and_restore",
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_fifo_default_and_explicit_lifo_change_only_surviving_sources",
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_form_lock_after_arming_preserves_attack_and_records_actual_block",
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_hits_foreign_max_zero_and_partial_delta_pay_once",
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_legacy_event_history_does_not_invent_remaining_food_or_chef_sources",
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_lunchbox_foreign_zero_partial_and_empty_are_successes",
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_lunchbox_only_adds_the_triggering_food_receipt_remaining_balance",
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_malformed_balance_source_receipt_and_policy_reject_before_persistence",
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_mixed_unknown_outside_interval_survives_restore_without_inventing_time",
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_native_food_taste_hits_and_lunchbox_keep_exact_sources",
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_new_food_after_chef_and_hits_preserves_reverse_stack_exception",
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_salty_taste_cannot_add_to_foreign_hp_and_lower_grant_has_no_source_right",
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_selected_default_keeps_native_lunchbox_and_chef_ages_fifo_and_restored_expiry",
-        "tools.test_temporary_hp_composition.TemporaryHPCompositionTests.test_soulless_is_actual_block_not_successful_max_noop"
+        "tools.test_category2_static_feature_state_grants.StaticFeatureStateGrantTests.test_shadow_progress_adds_exactly_12_without_counting_26_deduped_rows"
       ]
     }
   }

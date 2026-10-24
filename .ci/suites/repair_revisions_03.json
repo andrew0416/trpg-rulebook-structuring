@@ -1,52 +1,21 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_03",
-  "purpose": "Exact48 failed repair67 methods, repaired original source-family/gift/drink/network consumers, one new actual Dress destruction/consumption scenario, and affected native regression modules. Full original4115 plus added obligations and185/406 scope retained. No acceptance credit.",
+  "purpose": "Exact13 failed and32 previously unexecuted methods plus changed-path regression and1 new native Warper case. Original4115/added requirements and185findings/406clauses retained. Includes repair70 and pre-dispatch static fixture correction70b.",
   "completion_credit": 0,
-  "required_unique_count": 32,
+  "required_unique_count": 9,
   "completed": {
-    "tools.test_book_commander_orders.CommanderOrderTests": {
+    "tools.test_category2_timed_types.TimedTypeTests": {
       "tests": [
-        "tools.test_book_commander_orders.CommanderOrderTests.test_actual_cheerleader_single_completion_three_instances_and_bound_ap_after_battle",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_battle_invalid_extra_duplicate_nonatwill_and_late_failure_are_atomic",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_battle_late_third_actual_ap_reservation_failure_rolls_back_all_native_bindings",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_battle_three_recipients_one_original_standard_one_swift_and_each_ap",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_battle_training_uses_one_real_priority_payment_and_survives_restore",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_complex_actual_different_orders_cost_shift_and_original_action",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_complex_repeated_unknown_and_mixed_frequency_choices_reject_atomically",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_complex_two_distinct_core_training_orders_share_original_action_and_keep_each_source",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_core_commander_training_late_delivery_failure_is_atomic_and_csv_keeps_priority",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_core_commander_training_three_allies_one_standard_and_swift_has_no_priority_loan",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_core_four_training_orders_pay_actual_standard_without_priority_and_restore_expiry",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_core_training_completion_uses_actual_cheerleader_source_and_restores_after_expiry",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_leadership_replaces_own_pokemon_with_actual_allied_trainer_for_existing_stratagem",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_leadership_retains_communication_slot_and_other_target_conditions",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_mobilize_actual_opportunity_before_next_turn_during_and_after",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_mobilize_actual_ranged_attack_does_not_spend_enemy_opportunity_for_unrelated_actor",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_mobilize_allied_trainer_wrong_side_unavailable_and_auditory_rejections",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_mobilize_each_ally_once_encounter_not_scene_and_independent_csv84",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_pinpoint_gift_expert_waiver_allied_target_actual_bound_ap_owner",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_scheme_scene_two_activations_share_original_scene_use_across_targets",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_targetless_or_unacquired_order_cannot_become_targeted_and_modifier_not_inferred",
-        "tools.test_book_commander_orders.CommanderOrderTests.test_tip_all_actual_allies_ten_meter_boundary_pays_two_ap_and_base_order"
-      ]
-    },
-    "tools.test_native_switch_transfer_revision.NativeDuelistHandoffRevisionTests": {
-      "tests": [
-        "tools.test_native_switch_transfer_revision.NativeDuelistHandoffRevisionTests.test_manual1_source_and_timer_move_together_then_original_turn_closes_after_json",
-        "tools.test_native_switch_transfer_revision.NativeDuelistHandoffRevisionTests.test_manual2_next_attack_is_consumed_once_and_cannot_return_on_second_baton"
-      ]
-    },
-    "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests": {
-      "tests": [
-        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_actual_berry_receipt_shift_preserves_food_taste_and_lunchbox_receipt_identity",
-        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_food_replacement_precedes_assigned_salty_and_drops_incompatible_aged_lunchbox",
-        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_null_policy_does_not_reject_ordinary_max_lower_equal_or_equal_age",
-        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_null_policy_keeps_aged_compatible_equal_noop_and_actual_block",
-        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_outgoing_salty_dumplings_healing_block_still_checks_legacy_clock_before_rng",
-        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_standalone_assigned_salty_missing_and_invalid_policy_reject_before_rng",
-        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_standalone_explicit_lifetime_alternatives_keep_outcomes_and_json_gm_restore",
-        "tools.test_temporary_hp_preflight.TemporaryHPPreflightTests.test_standalone_food_missing_and_invalid_policy_reject_before_rng_and_all_mutation"
+        "tools.test_category2_timed_types.TimedTypeTests.test_forged_lifetime_source_receipt_or_orphan_cannot_save_or_restore",
+        "tools.test_category2_timed_types.TimedTypeTests.test_gm_and_durable_restore_preserve_owner_receipt_and_exact_expiration",
+        "tools.test_category2_timed_types.TimedTypeTests.test_native_removal_preserves_later_permanent_and_independent_source_edits",
+        "tools.test_category2_timed_types.TimedTypeTests.test_native_roost_full_hp_fraction_and_injury_ceiling_are_distinct",
+        "tools.test_category2_timed_types.TimedTypeTests.test_native_roost_heals_and_only_actual_users_next_start_ends_removal",
+        "tools.test_category2_timed_types.TimedTypeTests.test_same_source_reapplications_keep_independent_owner_boundaries",
+        "tools.test_category2_timed_types.TimedTypeTests.test_shared_add_remove_replace_fallback_and_independent_expirations",
+        "tools.test_category2_timed_types.TimedTypeTests.test_type_lock_prevents_grant_without_breaking_healing_or_other_sources",
+        "tools.test_category2_timed_types.TimedTypeTests.test_unreviewed_native_lifetimes_and_invalid_contracts_fail_before_cost"
       ]
     }
   }

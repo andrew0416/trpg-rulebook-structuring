@@ -1147,6 +1147,11 @@
       "size": 4302301
     },
     {
+      "path": "data/verification/category2-core-block-status.json",
+      "sha256": "3e9d95f5c733428cdb5ddc43624df8f59c6d6680582352a391b32a86b4eca57e",
+      "size": 1010559
+    },
+    {
       "path": "data/verification/category2-core-clause-status.json",
       "sha256": "0342e7ea5bde064ed5b9ebe040d64fe9841e36b775a534dbad940104be6ef888",
       "size": 5114125
@@ -1167,6 +1172,11 @@
       "size": 4975125
     },
     {
+      "path": "data/verification/category2-optional-additional-clause-status.json",
+      "sha256": "34b34777987389125bd2a77331836174b2dffc4d16bf67b872d20624be21c85d",
+      "size": 796975
+    },
+    {
       "path": "data/verification/category2-optional-clause-status.json",
       "sha256": "39ee0e1cee9a8d7b6f89ffa19d86a4dd069016e816efe592ef4ee3a4cad4f928",
       "size": 2014572
@@ -1175,6 +1185,11 @@
       "path": "data/verification/category2-progress.json",
       "sha256": "b02385e51bbcc7ba7c0569a90e4affb1001c31db8b9c9e6313d6e93681479dd5",
       "size": 68341
+    },
+    {
+      "path": "data/verification/category2-tabular-core-status.json",
+      "sha256": "d5ba94897021c3fbaf40a5e6f82ff67946fa66902e722c197d1f51427026419a",
+      "size": 2981219
     },
     {
       "path": "data/verification/category2-work-checkpoint.json",

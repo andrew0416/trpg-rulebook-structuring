@@ -138,8 +138,9 @@ def install(engine, actor, source_id, plan):
         }
     elif plan["kind"] == "air_balloon":
         import state_grants as GRANTS
-        GRANTS.grant(actor, "abilities", "부유", source_id, "item", owner_id=actor.entity_id,
-                     lifetime="equipped", rule_id=plan["item_id"])
+        source=GRANTS.state(actor)['sources'][source_id]
+        GRANTS.grant(actor, "abilities", "부유", source_id, "item", owner_id=source['owner_id'],
+                     lifetime=source['lifetime'], rule_id=source['rule_id'])
     state["history"].append({"event": "projected" if projection is not None else "equipped", "at": engine.elapsed_seconds, "actor_id": actor.entity_id})
     return effect_sources, 1
 

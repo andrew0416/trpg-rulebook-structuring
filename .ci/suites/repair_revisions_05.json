@@ -1,56 +1,24 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_05",
-  "purpose": "Exact48 failed repair67 methods, repaired original source-family/gift/drink/network consumers, one new actual Dress destruction/consumption scenario, and affected native regression modules. Full original4115 plus added obligations and185/406 scope retained. No acceptance credit.",
+  "purpose": "Exact13 failed and32 previously unexecuted methods plus changed-path regression and1 new native Warper case. Original4115/added requirements and185findings/406clauses retained. Includes repair70 and pre-dispatch static fixture correction70b.",
   "completion_credit": 0,
-  "required_unique_count": 32,
+  "required_unique_count": 8,
   "completed": {
-    "tools.test_category2_digital_programs.DigitalProgramTests": {
+    "tools.test_book_commander_orders.CommanderOrderTests": {
       "tests": [
-        "tools.test_category2_digital_programs.DigitalProgramTests.test_data_snare_redirects_intrusion_to_real_integrity_and_is_recognized_per_user",
-        "tools.test_category2_digital_programs.DigitalProgramTests.test_false_core_recognition_survives_json_and_gm_restore_without_real_data_permission"
+        "tools.test_book_commander_orders.CommanderOrderTests.test_core_four_training_orders_pay_actual_standard_without_priority_and_restore_expiry"
       ]
     },
-    "tools.test_foe_side_contracts_revision.ResistanceBerryPreparationFoeTests": {
+    "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests": {
       "tests": [
-        "tools.test_foe_side_contracts_revision.ResistanceBerryPreparationFoeTests.test_real_salty_berry_on_ally_hit_does_not_require_foe_consumption_policy"
-      ]
-    },
-    "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests": {
-      "tests": [
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_active_anchor_cannot_substitute_same_serial_borrowed_turn_in_json_or_gm",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_actual_standard_party_switch_selects_tag_in_and_replay_does_not_repay",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_baton_without_coats_transfers_stages_and_records_real_replacement",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_delayed_tag_stages_expire_on_actual_encounter_reset_without_erasing_receiver_base",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_director_keeps_original_paid_target_and_remaining_holder_turn",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_english_source_choice_excludes_training_but_keeps_actual_stratagem",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_fainted_tag_stage_exception_requires_selected_qna_source",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_four_actual_training_orders_keep_payment_and_issuer_deadline",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_handoff_clock_or_recipient_cannot_borrow_an_unrelated_recall",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_missing_replacement_fails_before_move_payment_or_rng",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_paid_tag_in_coat_missing_each_native_proof_field_rejects_json_and_gm",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_pending_and_independent_histories_reject_an_added_turn_anchor",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_pinpoint_same_bound_ap_instance_moves_and_releases_once",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_repeated_actual_tag_recall_keeps_one_original_open_turn_anchor",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_round_trip_actual_move_recipient_and_one_ap_not_trainer_recall",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_round_trip_same_time_intervening_action_and_replay_reject",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_tag_in_coat_without_native_recall_or_paid_occurrence_rejects_before_mutation",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_tag_in_locks_chosen_baton_scope_before_next_send",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_tag_in_real_paid_party_recall_then_next_send_survives_json_and_gm",
-        "tools.test_native_switch_transfer_revision.NativeSwitchTransferRevisionTests.test_unstarted_target_turn_moves_to_reserve_next_actual_turn_without_granting_one"
-      ]
-    },
-    "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests": {
-      "tests": [
-        "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests.test_absence_markers_cannot_be_reintroduced_as_custom_defensive_types",
-        "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests.test_all_three_paid_tera_blasts_are_typeless_neutral_without_matching_ten",
-        "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests.test_burn_up_and_neutral_tera_share_one_type_with_only_tera_bonus_added",
-        "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests.test_default_profiles_reject_permissions_and_question_marks_remain_invalid",
-        "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests.test_forced_typeless_form_is_active_with_empty_defense_and_no_type_bonus",
-        "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests.test_gm_and_fresh_rules_json_keep_stellar_and_typeless_forms_distinct",
-        "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests.test_non_tera_stellar_has_identity_stab_and_neutral_defense_without_ability",
-        "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests.test_permission_schema_is_boolean_and_selected_policy_cannot_change_silently",
-        "tools.test_personal_stellar_typeless_revision.PersonalStellarTypelessRevisionTests.test_unselected_personal_policy_keeps_printed_burn_up_fallback"
+        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_actual_uncertain_outside_clock_rejects_before_rng_even_when_healing_is_blocked",
+        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_berry_then_food_taste_uses_actual_receipts_and_both_explicit_lifetimes_after_restore",
+        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_native_coat_and_helping_hand_keep_single_consumption_on_the_composed_hit",
+        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_nonmatching_type_and_not_super_effective_hit_keep_berry_armed_without_policy",
+        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_real_preserves_and_dumplings_missing_invalid_policy_reject_before_rng_and_receipt",
+        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_true_steel_decision_is_used_once_for_declined_and_accepted_berry_hits",
+        "tools.test_temporary_hp_berry_preflight.TemporaryHPBerryPreflightTests.test_true_steel_enables_berry_and_null_policy_refuses_before_rng_without_payment"
       ]
     }
   }

@@ -175,6 +175,7 @@ class NativeSwitchSourceAdapterTests(unittest.TestCase):
         e,t,p=f.e,f.a,f.p;q=self.reserve(e,t,p,abilities=['도움닫기'],moves=['move/니트로차지'])
         import trainer_feature_acquisition as ACQUIRE,juggler as JUGGLER
         e.gm.set_skill(t,'곡예',5,reason='actual Expert Acrobatics for the native Tag In chain')
+        e.gm.set_skill(t,'교활',3,reason='actual Novice Guile required by the Juggler class')
         for feature in (JUGGLER.QUICK,JUGGLER.CLASS,JUGGLER.ROUND,JUGGLER.TAG):
             ACQUIRE.acquire_static(e,t,feature,acquisition_request_id='march-transfer/'+feature)
         e.gm.set_position(t,(0,2),reason='actual issuer beside the unmounted outgoing Pokemon')

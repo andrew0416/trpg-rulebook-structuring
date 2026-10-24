@@ -206,7 +206,9 @@ def _patron_fact(e,value):
  from builder import species_lookup
  try:species=species_lookup(e.r,value)['name']
  except KeyError:
-  if value.startswith('미싱노'):species=value
+  # The Gift table can name a species whose battle catalogue has only forms
+  # (e.g. Giratina). Preserve that explicit declaration without inventing a form.
+  if value in {name for _,names in GRANTING_PATRONS.values() for name in names} or value.startswith('미싱노'):species=value
   else:return {'kind':'historical_unknown','value':value,'species':None}
  return {'kind':'declared_species','value':value,'species':species}
 

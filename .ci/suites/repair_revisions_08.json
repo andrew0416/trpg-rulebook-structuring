@@ -1,60 +1,28 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_08",
-  "purpose": "Exact48 failed repair67 methods, repaired original source-family/gift/drink/network consumers, one new actual Dress destruction/consumption scenario, and affected native regression modules. Full original4115 plus added obligations and185/406 scope retained. No acceptance credit.",
+  "purpose": "Exact13 failed and32 previously unexecuted methods plus changed-path regression and1 new native Warper case. Original4115/added requirements and185findings/406clauses retained. Includes repair70 and pre-dispatch static fixture correction70b.",
   "completion_credit": 0,
-  "required_unique_count": 32,
+  "required_unique_count": 8,
   "completed": {
-    "tools.test_book_fashionista_wardrobe.FashionistaWardrobeTests": {
+    "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests": {
       "tests": [
-        "tools.test_book_fashionista_wardrobe.FashionistaWardrobeTests.test_chic_storage_holds_two_held_items_without_effect_and_refuses_same_type_or_repeated_effects",
-        "tools.test_book_fashionista_wardrobe.FashionistaWardrobeTests.test_chic_swift_swap_exchanges_the_active_item_and_a_choice_item_suppresses_for_the_rest_of_combat",
-        "tools.test_book_fashionista_wardrobe.FashionistaWardrobeTests.test_dress_to_impress_projects_every_stored_item_for_one_round_twice_per_scene_once_per_pokemon",
-        "tools.test_book_fashionista_wardrobe.FashionistaWardrobeTests.test_mega_evolved_chic_pokemon_keeps_its_form_when_the_stone_is_swapped_into_the_wardrobe",
-        "tools.test_book_fashionista_wardrobe.FashionistaWardrobeTests.test_versatile_wardrobe_makes_an_owned_pokemon_chic_for_two_tutor_points_as_an_extended_action"
-      ]
-    },
-    "tools.test_category2_csv_remaining_item_contracts.RegisteredItemRowsTests": {
-      "tests": [
-        "tools.test_category2_csv_remaining_item_contracts.RegisteredItemRowsTests.test_parse_reuse_reads_live_bytes_is_detached_bounded_and_not_mtime_based"
+        "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests.test_actual_hit_adds_type_changes_native_matchup_and_expires_on_fifth_target_turn",
+        "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests.test_all_four_rows_share_one_reviewed_five_target_turn_contract",
+        "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests.test_independent_type_source_expiry_preserves_later_baseline_change",
+        "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests.test_miss_does_not_install_a_type_source_or_timing_record",
+        "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests.test_report_collect_adds_exactly_four_denominator_completions"
       ]
     },
     "tools.test_foe_side_contracts_revision.FoeSideContractTests": {
       "tests": [
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_actual_hit_and_stage_producers_accept_absent_side_without_inventing_foe",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_clear_amulet_actual_self_lowering_and_positive_stages_remain_after_restore",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_clear_amulet_actual_tickle_side_matrix_preserves_unrelated_equipment_source",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_clear_amulet_gm_side_change_then_removal_restores_actual_foe_stage_loss",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_magician_actual_hit_side_matrix_preserves_item_and_frequency_without_foe",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_magician_gm_side_change_before_hit_is_observed_without_rewriting_ability",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_magician_true_hit_pending_restore_transfer_keeps_original_instance_and_source_refusal_atomic",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_resistance_berry_live_hit_side_matrix_consumes_only_for_actual_foe",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_resistance_berry_retains_real_grant_on_miss_then_restored_current_foe_hit_consumes_once",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_super_effective_berry_native_wrong_type_neutral_and_foe_hit_boundaries"
+        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_actual_hit_and_stage_producers_accept_absent_side_without_inventing_foe"
       ]
     },
-    "tools.test_foundation_fossil_creation.FossilTests": {
+    "tools.test_ordinary_refreshment_source_revision.OrdinaryRefreshmentSourceRevisionTests": {
       "tests": [
-        "tools.test_foundation_fossil_creation.FossilTests.test_actual_material_work_wait_and_declared_birth_produce_one_native_child",
-        "tools.test_foundation_fossil_creation.FossilTests.test_changed_birth_source_and_payment_evidence_are_rejected",
-        "tools.test_foundation_fossil_creation.FossilTests.test_fake_fossil_wrong_owner_and_changed_request_cannot_duplicate",
-        "tools.test_foundation_fossil_creation.FossilTests.test_gm_restore_preserves_one_lifetime_and_forged_birth_override_is_rejected",
-        "tools.test_foundation_fossil_creation.FossilTests.test_late_birth_failure_and_unknown_choices_preserve_lineage",
-        "tools.test_foundation_fossil_creation.FossilTests.test_late_egg_construction_failure_rolls_back_actual_debits",
-        "tools.test_foundation_fossil_creation.FossilTests.test_late_payment_failure_rolls_back_job_time_resources_and_fossil",
-        "tools.test_foundation_fossil_creation.FossilTests.test_material_alternatives_and_aggregate_balances_are_real",
-        "tools.test_foundation_fossil_creation.FossilTests.test_missing_permission_knowledge_and_machine_pay_nothing",
-        "tools.test_foundation_fossil_creation.FossilTests.test_native_machine_family_preserves_portable_access_and_rejects_damage",
-        "tools.test_foundation_fossil_creation.FossilTests.test_nonstandard_species_requires_an_explicit_real_gm_choice",
-        "tools.test_foundation_fossil_creation.FossilTests.test_plain_fossil_birth_domain_survives_owner_transfer_gm_and_json_restore",
-        "tools.test_foundation_fossil_creation.FossilTests.test_plain_fossil_birth_requires_one_species_basic_at_every_initial_level",
-        "tools.test_foundation_fossil_creation.FossilTests.test_shared_armor_definition_keeps_species_birth_member_and_native_receipt",
-        "tools.test_foundation_fossil_creation.FossilTests.test_transfer_json_restore_and_replay_keep_the_original_restorer"
-      ]
-    },
-    "tools.test_foundation_network_integrity.IntegrityTests": {
-      "tests": [
-        "tools.test_foundation_network_integrity.IntegrityTests.test_wall_only_technology_and_data_snare_is_not_real_extractable_core"
+        "tools.test_ordinary_refreshment_source_revision.OrdinaryRefreshmentSourceRevisionTests.test_invalid_or_wrong_actual_scope_choices_never_pay_advance_or_roll",
+        "tools.test_ordinary_refreshment_source_revision.OrdinaryRefreshmentSourceRevisionTests.test_real_pending_en_work_pins_producing_choice_across_restore_and_late_failure"
       ]
     }
   }

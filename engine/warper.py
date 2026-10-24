@@ -182,7 +182,7 @@ def warped_after(e,a,trigger):
  pay(e,a,WARPED,'swift',ap=2)
  targets=[]
  for t in W.actor_index(e).values():
-  if t is a or not t.on_field or t.fainted or t.captured or not a.side or not t.side or t.side==a.side or not e.adjacent(a,t):continue
+  if t is a or not t.on_field or t.fainted or t.captured or not getattr(a,'side',None) or not getattr(t,'side',None) or t.side==a.side or not e.adjacent(a,t):continue
   stamp={'actor_id':a.entity_id,'trigger':trigger,'position':list(a.pos),'round':e.round_no,'count':count}
   TIME.install(e,t,{'source':WARPED,'evasion_modifier':-3,'count_deadline':(e.round_no+1,count),'warped_transmission':deepcopy(stamp)})
   TIME.install(e,t,{'source':WARPED,'turn_owner':a,'turn_deadline':a.custom_conditions['combat_turn_serial']+1,'warped_shift_protection':deepcopy(stamp)})

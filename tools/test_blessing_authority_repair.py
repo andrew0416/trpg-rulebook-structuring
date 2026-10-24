@@ -48,10 +48,10 @@ class BlessingAuthorityTests(unittest.TestCase):
   if authority is not None:configuration['authority']=authority
   return case.e.confirm_blessing_gift(case.a,gift,reason='GM explicitly confirms this already acquired source-bound Gift',configuration=configuration or None)
 
- def reject(self,case,operation,pattern):
+ def reject(self,case,operation,pattern,*,invalid_start=False):
   pending=[gift for gift in case.a.spec.get('gifts',[]) if gift in B.SOURCES
            and gift not in case.a.spec.get('_blessing_gift_approvals',{})]
-  if pending:
+  if pending or invalid_start:
    # An unconfirmed claim intentionally cannot be exported as valid gameplay.
    # Compare its complete mutable native prefix while testing confirmation refusal.
    import gm_state,world_entities as WORLD
@@ -145,12 +145,12 @@ class BlessingAuthorityTests(unittest.TestCase):
    with self.subTest(field=field):
     case=self.fixture();self.pending(case,ROYAL,'라티아스');self.confirm(case,ROYAL)
     case.a.spec['_blessing_gift_approvals'][ROYAL]['patron_authority']['granting_patron'][field]=value
-    self.reject(case,lambda:items.register_feats(case.e,case.a),'patron|evidence')
+    self.reject(case,lambda:items.register_feats(case.e,case.a),'patron|evidence',invalid_start=True)
   case=self.fixture();self.pending(case,ROYAL,'라티아스');self.confirm(case,ROYAL)
   case.a.spec['_blessing_gift_approvals'][ROYAL]['patron_authority']['gift_source']['record_span']=[97,97]
-  self.reject(case,lambda:B.require(case.e,case.a,ROYAL),'receipt or source changed')
+  self.reject(case,lambda:B.require(case.e,case.a,ROYAL),'receipt or source changed',invalid_start=True)
   case.a.spec['_blessing_gift_approvals'][ROYAL]['actor_id']='trainer/another'
-  self.reject(case,lambda:B.require(case.e,case.a,ROYAL),'GM permission')
+  self.reject(case,lambda:B.require(case.e,case.a,ROYAL),'GM permission',invalid_start=True)
 
  def test_royal_and_dream_immunities_survive_json_and_gm_restore(self):
   for gift,patron in [(ROYAL,'라티오스'),(DREAM,'다크라이')]:
@@ -176,7 +176,7 @@ class BlessingAuthorityTests(unittest.TestCase):
     case=self.fixture();self.pending(case,gift,B.GRANTING_PATRONS[gift][1][0]);self.confirm(case,gift)
     previous=case.a.spec['_blessing_gift_approvals'][gift];previous.pop('patron_authority');previous=deepcopy(previous)
     required=B.PREREQUISITES[gift][1];case.a.spec['gifts'].remove(required);case.a.spec['_blessing_gift_approvals'].pop(required)
-    self.reject(case,lambda:B.require(case.e,case.a,gift),'legacy Gift')
+    self.reject(case,lambda:B.require(case.e,case.a,gift),'legacy Gift',invalid_start=True)
     record=self.confirm(case,gift);self.assertEqual(record['previous_approval'],previous)
     self.assertEqual(record['acquisition'],previous['acquisition']);self.assertTrue(B.require(case.e,case.a,gift))
 

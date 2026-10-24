@@ -260,7 +260,7 @@ def synchronize(e,actor):
 
 
 def hit(e,pokemon,foe,identity):
- if pokemon.kind!='pokemon' or not pokemon.side or not foe.side or pokemon.side==foe.side:return
+ if pokemon.kind!='pokemon' or not getattr(pokemon,'side',None) or not getattr(foe,'side',None) or pokemon.side==foe.side:return
  for owner in W.actor_index(e).values():
   if owner.kind!='trainer' or not connected(e,owner,pokemon):continue
   for row in TIME.records(owner):
@@ -281,7 +281,7 @@ def completion_hit(e,row,original):
 
 
 def synchronized_bonus(e,pokemon,foe):
- if pokemon.kind!='pokemon' or not pokemon.side or not foe.side or pokemon.side==foe.side:return 0
+ if pokemon.kind!='pokemon' or not getattr(pokemon,'side',None) or not getattr(foe,'side',None) or pokemon.side==foe.side:return 0
  return sum(row['channel_sync'].get(foe.entity_id,0) for owner in W.actor_index(e).values()
   if owner.kind=='trainer' and connected(e,owner,pokemon) and acquired(owner,SYNC)
   for row in TIME.records(owner) if row.get('channel_sync') is not None)

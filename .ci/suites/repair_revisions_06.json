@@ -1,52 +1,24 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_06",
-  "purpose": "Exact48 failed repair67 methods, repaired original source-family/gift/drink/network consumers, one new actual Dress destruction/consumption scenario, and affected native regression modules. Full original4115 plus added obligations and185/406 scope retained. No acceptance credit.",
+  "purpose": "Exact13 failed and32 previously unexecuted methods plus changed-path regression and1 new native Warper case. Original4115/added requirements and185findings/406clauses retained. Includes repair70 and pre-dispatch static fixture correction70b.",
   "completion_credit": 0,
-  "required_unique_count": 32,
+  "required_unique_count": 8,
   "completed": {
-    "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests": {
+    "tools.test_blessing_authority_repair.BlessingAuthorityTests": {
       "tests": [
-        "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests.test_actual_hit_adds_type_changes_native_matchup_and_expires_on_fifth_target_turn",
-        "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests.test_all_four_rows_share_one_reviewed_five_target_turn_contract",
-        "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests.test_independent_type_source_expiry_preserves_later_baseline_change",
-        "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests.test_miss_does_not_install_a_type_source_or_timing_record",
-        "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests.test_report_collect_adds_exactly_four_denominator_completions"
+        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_actual_actor_identity_uses_species_not_display_name_and_preserves_history",
+        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_all_twenty_six_contradictions_reject_atomically_despite_generic_gm_permission",
+        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_all_twenty_six_unknown_histories_stay_explicit_without_inventing_illegality",
+        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_exact_twenty_six_domains_match_source_and_all_allowed_patrons_confirm",
+        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_legacy_patron_confirmation_preserves_old_acquisition_after_prerequisite_loss",
+        "tools.test_blessing_authority_repair.BlessingAuthorityTests.test_patron_receipt_source_and_identity_corruption_fail_before_native_immunity"
       ]
     },
-    "tools.test_category2_timed_types.TimedTypeTests": {
+    "tools.test_unobserved_side_attack_hooks.NativeUnobservedTagAttackTests": {
       "tests": [
-        "tools.test_category2_timed_types.TimedTypeTests.test_forged_lifetime_source_receipt_or_orphan_cannot_save_or_restore",
-        "tools.test_category2_timed_types.TimedTypeTests.test_gm_and_durable_restore_preserve_owner_receipt_and_exact_expiration",
-        "tools.test_category2_timed_types.TimedTypeTests.test_native_removal_preserves_later_permanent_and_independent_source_edits",
-        "tools.test_category2_timed_types.TimedTypeTests.test_native_roost_full_hp_fraction_and_injury_ceiling_are_distinct",
-        "tools.test_category2_timed_types.TimedTypeTests.test_native_roost_heals_and_only_actual_users_next_start_ends_removal",
-        "tools.test_category2_timed_types.TimedTypeTests.test_same_source_reapplications_keep_independent_owner_boundaries",
-        "tools.test_category2_timed_types.TimedTypeTests.test_shared_add_remove_replace_fallback_and_independent_expirations",
-        "tools.test_category2_timed_types.TimedTypeTests.test_type_lock_prevents_grant_without_breaking_healing_or_other_sources",
-        "tools.test_category2_timed_types.TimedTypeTests.test_unreviewed_native_lifetimes_and_invalid_contracts_fail_before_cost"
-      ]
-    },
-    "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests": {
-      "tests": [
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_all_six_csv_stat_formulas_reach_each_native_boundary_once",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_birth_projections_preserve_inherited_moves_fossil_lineage_and_artificial_upgrades",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_capture_and_birth_do_not_replay_intrinsic_enter_or_trainer_registration",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_carried_storage_pending_all_acquire_effects_without_granting_combat_participation",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_class_fire_and_ice_declarations_preserve_live_type_and_target_conditions",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_csv_species_label_remains_distinct_and_wrong_or_absent_label_is_inert",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_explicit_csv_class_passive_ids_keep_exact_acquisition_source",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_explicit_csv_passive_restore_preserves_source_and_exclusion_is_atomic",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_failed_capture_and_invalid_thrower_never_install_owner_effects",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_json_fresh_rules_and_gm_restore_preserve_each_boundary_without_double_grants",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_late_projection_failure_rolls_back_every_native_boundary_and_live_identity",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_native_species_receipt_projects_actual_family_on_all_birth_and_join_routes",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_native_stat_mastery_receipts_survive_capture_and_all_birth_producers",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_native_stat_receipts_and_mastery_keep_the_book_source_at_late_join",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_newly_projected_book_species_retraining_and_transfer_remove_only_old_owner",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_range_generic_shine_and_both_slot_source_identities_reach_every_boundary",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_receipted_type_ace_shine_is_exactly_two_without_generic_double_projection",
-        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_same_side_foreign_owner_ownerless_and_unregistered_objects_do_not_borrow_sources"
+        "tools.test_unobserved_side_attack_hooks.NativeUnobservedTagAttackTests.test_native_tagged_appendage_accuracy_damages_and_consumes_once_without_side",
+        "tools.test_unobserved_side_attack_hooks.NativeUnobservedTagAttackTests.test_native_tagged_pending_damage_and_restore_do_not_repeat_consumption"
       ]
     }
   }

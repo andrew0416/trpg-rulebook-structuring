@@ -1,50 +1,30 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_01",
-  "purpose": "Exact48 failed repair67 methods, repaired original source-family/gift/drink/network consumers, one new actual Dress destruction/consumption scenario, and affected native regression modules. Full original4115 plus added obligations and185/406 scope retained. No acceptance credit.",
+  "purpose": "Exact13 failed and32 previously unexecuted methods plus changed-path regression and1 new native Warper case. Original4115/added requirements and185findings/406clauses retained. Includes repair70 and pre-dispatch static fixture correction70b.",
   "completion_credit": 0,
-  "required_unique_count": 34,
+  "required_unique_count": 18,
   "completed": {
-    "tools.test_book_commander_consumers.CommanderConsumerTests": {
+    "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests": {
       "tests": [
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_brace_actual_binding_standard_activation_round_quota_dr_and_native_release",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_brace_competing_existing_stratagem_and_temporary_binding_owner_are_real",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_brace_core_round_and_local_turn_quota_follow_separate_actual_turns",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_brace_real_temporary_moment_funding_ends_only_actual_native_binding_on_expiry",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_brace_self_status_move_optional_decline_accept_and_other_target_not_trigger",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_dazzling_actual_missed_attack_still_debuffs_until_foe_next_turn_end",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_dazzling_actual_shift_crosses_enemy_occupied_square_and_does_not_end_there",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_dazzling_core_per_foe_round_and_csv_one_foe_round_are_separate_sources",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_dazzling_nonstat_evasion_increases_existing_movement_not_evasion",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_explicit_local_source_differences_and_ambiguous_translation_boundary",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_long_shot_actual_extended_range_move_reaches_and_second_scene_use_is_retained",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_long_shot_doubles_origin_not_area_adds_distance_and_actual_critical_dice",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_native_order_clock_source_acquisition_and_binding_json_tampering_rejected",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_new_order_instance_gm_snapshot_restore_preserves_binding_and_rejects_changed_saved_source",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_perfect_aim_actual_natural_roll_still_supplies_critical_and_secondary_effect",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_perfect_aim_actual_protect_shield_is_bypassed_without_suppressing_other_abilities",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_perfect_aim_native_intercept_attempt_forbidden_without_spending_reactor",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_perfect_aim_native_wonder_guard_bypass_keeps_ability_and_type_resistance_one_step",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_perfect_aim_next_actual_damaging_attack_auto_hits_natural_one_and_consumes_once",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_perfect_aim_status_move_preserves_then_issuer_next_turn_end_expires",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_perfect_aim_target_blessing_forbidden_attacker_blessing_still_actual_available",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_scheme_strike_actual_pending_batch_resumes_each_native_child_and_cheers_once",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_sentinel_brace_optional_trigger_uses_one_round_quota_and_native_attempt_evidence",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_sentinel_failed_actual_intercept_still_pays_shift_and_retains_attempt_reduction",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_sentinel_native_intercept_shift_payment_attempt_dr_and_issuer_clock",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_strike_actual_pending_defense_restore_completes_same_order_without_repayment",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_strike_again_frequency_unknown_status_nonatwill_and_forged_grant_rejections",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_strike_again_immediate_known_atwill_attack_uses_scoped_native_grant",
-        "tools.test_book_commander_consumers.CommanderConsumerTests.test_strike_again_late_actual_move_failure_rolls_back_all_actors_rng_action_and_quota"
-      ]
-    },
-    "tools.test_snare_freefloat_source_revision.SnareReflectionTests": {
-      "tests": [
-        "tools.test_snare_freefloat_source_revision.SnareReflectionTests.test_extraction_and_modification_return_the_roll_once_to_the_attacker",
-        "tools.test_snare_freefloat_source_revision.SnareReflectionTests.test_legacy_paid_snare_damage_history_loads_unchanged_and_new_intrusions_reflect",
-        "tools.test_snare_freefloat_source_revision.SnareReflectionTests.test_reflection_consumes_actual_net_shield_before_integrity_and_restores_recognition",
-        "tools.test_snare_freefloat_source_revision.SnareReflectionTests.test_reflection_uses_the_attacking_avatars_actual_defensive_hacking",
-        "tools.test_snare_freefloat_source_revision.SnareReflectionTests.test_zero_reflection_ejects_attacker_and_reuses_actual_recovery_clock"
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_all_six_csv_stat_formulas_reach_each_native_boundary_once",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_birth_projections_preserve_inherited_moves_fossil_lineage_and_artificial_upgrades",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_capture_and_birth_do_not_replay_intrinsic_enter_or_trainer_registration",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_carried_storage_pending_all_acquire_effects_without_granting_combat_participation",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_class_fire_and_ice_declarations_preserve_live_type_and_target_conditions",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_csv_species_label_remains_distinct_and_wrong_or_absent_label_is_inert",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_explicit_csv_class_passive_ids_keep_exact_acquisition_source",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_explicit_csv_passive_restore_preserves_source_and_exclusion_is_atomic",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_failed_capture_and_invalid_thrower_never_install_owner_effects",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_json_fresh_rules_and_gm_restore_preserve_each_boundary_without_double_grants",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_late_projection_failure_rolls_back_every_native_boundary_and_live_identity",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_native_species_receipt_projects_actual_family_on_all_birth_and_join_routes",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_native_stat_mastery_receipts_survive_capture_and_all_birth_producers",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_native_stat_receipts_and_mastery_keep_the_book_source_at_late_join",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_newly_projected_book_species_retraining_and_transfer_remove_only_old_owner",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_range_generic_shine_and_both_slot_source_identities_reach_every_boundary",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_receipted_type_ace_shine_is_exactly_two_without_generic_double_projection",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_same_side_foreign_owner_ownerless_and_unregistered_objects_do_not_borrow_sources"
       ]
     }
   }
