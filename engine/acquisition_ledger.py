@@ -62,6 +62,9 @@ class AcquisitionLedger:
         for index,row in enumerate(actor.spec.get('learned_poke_edges',[])):
             cost=row.get('point_cost')
             if type(cost) is not int or cost<0:continue
+            if 'pusher' in row:
+                import researcher_fields as RFS
+                cost=RFS.pusher_receipt(engine.r,row)
             result.append({'schema':1,'receipt_id':'poke-edge/'+str(index),
                 'basis':'native_learned_edge','source_id':row['source'],
                 'recipient_id':actor.entity_id,'provider_id':row.get('trainer_id'),
@@ -127,7 +130,7 @@ class AcquisitionLedger:
         """Archive actual native grants, then end their current ownership."""
         state = self.actor.spec.get("state_grants", {})
         row = state.get("sources", {}).get(source_id)
-        if row is not None and (row.get("grants") or row.get("retraining")) and not row.get("payment_id"):
+        if row is not None and (row.get("grants") or row.get("retraining") or row.get("native_acquisition")) and not row.get("payment_id"):
             state.setdefault("ended_sources", []).append({
                 "source_id": source_id, "record": deepcopy(row)
             })

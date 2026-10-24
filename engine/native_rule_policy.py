@@ -28,7 +28,19 @@ def _fact(facts,name,expected=True):
     if type(value) is not bool:raise TypeError('explicit boolean or unknown required: '+name)
     return R.Predicate(R.Truth.TRUE if value is expected else R.Truth.FALSE,reads=((name,),))
 
-def evaluate(rules,policy,facts):
+def medicine_source_choices(rules,choice=None):
+    """Prepare the bounded KR Swift / EN Shift recipient-debt choice."""
+    document=json.loads((Path(rules.root)/'data/native-rule-policy.json').read_text(encoding='utf-8'))['medicine_source_choice']
+    result=rules.resolve_source_policy(document,decisions={} if choice is None else {'source_text':choice})
+    if result['status']=='PolicyValuesReady':
+        definition=result['values']['definitions'][result['values']['variant']]
+        if result['values']['variant']=='english_shift':
+            from source_context import verified_source
+            verified_source(rules,definition['source'],source_root='source-audit',label='English medicine')
+    return result
+
+
+def evaluate(rules,policy,facts,*,medicine_source_choice=None):
     """Pure policy preparation: reads source/profile and returns frozen decisions.
 
     Closed candidate sets are ONLY the named bounded native policy. An unknown
@@ -49,12 +61,18 @@ def evaluate(rules,policy,facts):
         raise PolicyPending('unreviewed_common_precedence_override',(PRECEDENCE_SOURCE,))
     fields={'medicine':{'self_use','restorative','medic'},'skill_stunt':{'dowsing'}}
     if policy not in fields:raise PolicyPending('unregistered_native_policy')
+    if medicine_source_choice is not None and policy!='medicine':raise ValueError('medicine source choice requires medicine policy')
     if not isinstance(facts,dict) or set(facts)!=fields[policy]:raise ValueError('exact native policy facts required')
     # Validate even facts whose short-circuit branch would be false.
     for name in fields[policy]:_fact(facts,name)
     if not hasattr(rules,'selection'):raise PolicyPending('missing_selected_rule_index')
     metadata=json.loads((Path(rules.root)/'data/native-rule-policy.json').read_text(encoding='utf-8'))
     if metadata.get('schema')!=1:raise PolicyPending('unsupported_native_policy_schema')
+    medicine_variant='korean_swift';medicine_resolution=None
+    if medicine_source_choice is not None:
+        medicine_resolution=medicine_source_choices(rules,medicine_source_choice)
+        if medicine_resolution['status']!='PolicyValuesReady':raise PolicyPending('explicit_medicine_source_choice_required')
+        medicine_variant=medicine_resolution['values']['variant']
     def verify(anchor,source,values):
         ref=metadata['anchors'][anchor]
         if rules.selection.units[source]['source'].get('file')!=ref['file'].removeprefix('input/'):
@@ -88,7 +106,8 @@ def evaluate(rules,policy,facts):
         self_rest=R.conjunction(_fact(facts,'self_use'),_fact(facts,'restorative'))
         clause('restorative.self.full','action','full','item-use',self_rest)
         override('item.standard','restorative.self.full','action','item-use')
-        clause('item.recipient.debt','debt',{'standard':1,'swift':1},'item-use')
+        definition=metadata['medicine_source_choice']['variants'][0]['values']['definitions'][medicine_variant]
+        clause('item.recipient.debt','debt',definition['debt'],'item-use')
         clause('restorative.self.no_debt','debt',None,'item-use',self_rest)
         medic_other=R.conjunction(_fact(facts,'medic'),_fact(facts,'self_use',False))
         clause('medic.other.no_debt','debt',None,'medic',medic_other)
@@ -102,7 +121,7 @@ def evaluate(rules,policy,facts):
     profile={'name':rules.ruleset.name,'profile':rules.ruleset.profile,
              'choices':rules.ruleset.variant_choices,'versions':rules.ruleset.unit_versions}
     request=R.ResolutionRequest('native-policy:'+policy,'native-policy',R.fingerprint(profile),
-        R.fingerprint({'metadata':metadata,'sources':used}),R.fingerprint(facts),tuple(clauses),tuple(edges),
+        R.fingerprint({'metadata':metadata,'sources':used,'medicine_source':medicine_resolution}),R.fingerprint(facts),tuple(clauses),tuple(edges),
         tuple(R.CompositionLaw(a,'exclusive','native-policy:'+policy+':'+a) for a in aspects),R.TRUE)
     answer=R.resolve(request)
     if answer.tag!='ModelReady':raise PolicyPending('unresolved_native_policy',R.plain(answer.obligations))
@@ -110,4 +129,5 @@ def evaluate(rules,policy,facts):
             'values':{a.aspect:R.plain(a.value) for a in answer.aspects},
             'aspects':R.plain(answer.aspects),'source_refs':sorted({s for c in clauses for s in c.source_refs}),
             'model_receipt':R.plain(answer.receipt),'precedence_source':PRECEDENCE_SOURCE,
-            'whole_engine_certified':False}
+            'whole_engine_certified':False,
+            **({'source_variant':medicine_variant,'source_policy':medicine_resolution} if policy=='medicine' else {})}

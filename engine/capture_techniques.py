@@ -171,9 +171,13 @@ def _choices(rules, choices):
             raise ValueError("typed Capture technique choice required")
         name = next((name for name, alias in TECHNIQUES.items() if choice.get("technique") in (name, alias)), None)
         expected = {"technique", "edge", "skill"} if name == "포획 스킬" else {"technique"}
-        if name is None or set(choice) != expected:
+        if name is None or set(choice) - {"source_variant"} != expected:
             raise ValueError("Capture technique choice differs from its printed domain")
         row = {"technique": name}
+        if "source_variant" in choice:
+            import capture_specialist as ACTIVE
+            ACTIVE.technique_source(rules, name, choice["source_variant"])
+            row["source_variant"] = choice["source_variant"]
         if name == "포획 스킬":
             canonical = SKILL.skill_id(rules.skill_policy, choice["skill"], required=True)
             matched = next((skill for skill in SKILLS if SKILL.skill_id(rules.skill_policy, skill) == canonical), None)

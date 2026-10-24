@@ -191,7 +191,7 @@ def acquire(engine,actor,group_id,grants,points,*,rule_id,reason,allocation=None
     if type(grants) is not list or not grants:raise ValueError('nonempty declared grant group required')
     children=[]
     for row in grants:
-        if type(row) is not dict or row.get('field') not in (*G.LIST_FIELDS,'stats','skill_modifier'):raise ValueError('supported source-owned list grant required')
+        if type(row) is not dict or row.get('field') not in (*G.LIST_FIELDS,'stats','skill_modifier','native_poke_edge'):raise ValueError('supported source-owned list grant required')
         fields={'source_id','field','skill','delta'} if row['field']=='skill_modifier' else {'source_id','field','stat','delta','minimum'} if row['field']=='stats' else {'source_id','field','value','learning_route'} if row['field']=='moves' else {'source_id','field','value'}
         if set(row)!=fields:raise ValueError('exact group grant fields and explicit move learning route required')
         if row['field']=='moves' and (row['learning_route'] not in ('taught','granted') or (row['learning_route']=='taught' and points==0)):
@@ -226,7 +226,11 @@ def acquire(engine,actor,group_id,grants,points,*,rule_id,reason,allocation=None
     if balance<points:raise ValueError('insufficient Tutor Points')
     def apply(e,c):
         for row in grants:
-            if row['field']=='skill_modifier':
+            if row['field']=='native_poke_edge':
+                if row['value']!=row['source_id'] or len([edge for edge in c.spec.get('learned_poke_edges',[]) if edge.get('mentor_source_id')==row['value'] and edge.get('status')=='active'])!=1:
+                    raise ValueError('one actual active native Poke Edge contribution required')
+                G._source(c,row['source_id'],'feature',rule_id=rule_id,owner_id=owner_id,lifetime=lifetime,tutor_points=0)
+            elif row['field']=='skill_modifier':
                 G.skill_modifier(c,row['skill'],row['delta'],row['source_id'],'feature',rule_id=rule_id,owner_id=owner_id,lifetime=lifetime)
             elif row['field']=='stats':
                 G._source(c,row['source_id'],'feature',rule_id=rule_id,owner_id=owner_id,lifetime=lifetime,tutor_points=0)

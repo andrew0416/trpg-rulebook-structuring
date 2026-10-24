@@ -453,8 +453,12 @@ def render(root, notes=None):
                 lines.append(f'- {label}: {links}{rest}')
         lines.append('기반 공유 후보는 실제 재사용 인증이 아니다. 사용 조건·상태 소유·소비·예외는 아래 본문과 실제 소비자에서 확인한다.')
         block = START + '\n'.join(lines) + '\n' + END
-        heading, rest = clean.split('\n', 1)
-        docs[Path(document)] = heading + '\n' + block + rest
+        newline = '\r\n' if '\r\n' in original else '\n'
+        if ('\r' in original.replace('\r\n', '')
+                or newline == '\r\n' and '\n' in original.replace('\r\n', '')):
+            raise ValueError(f'Refusing mixed note line endings: {document}')
+        heading, rest = clean.split(newline, 1)
+        docs[Path(document)] = heading + newline + block.replace('\n', newline) + rest
 
     lines = ['# 공통 구현 찾기', '', INDEX_MARKER, '',
              '동작 → 공통 연산 노트 → 실제 함수와 사용 조건 → 기존 소비자와 직접 검사 순서로 읽는다. 필요한 노트만 열고 연관 링크를 따라간다.', '',
@@ -490,8 +494,8 @@ def render(root, notes=None):
               f'정본: {md_link("기반·실제 재사용 장부", PLAN, INDEX)} · {md_link("공통 연산 계약", CONTRACTS, INDEX)}. '
               '노트 연결 수·검색 적중은 구현 완료 점수가 아니다. 계수기 종료와 문서 주입 설정을 바꾸지 않는다.']
     docs[INDEX] = '\n'.join(lines) + '\n'
-    if (root / INDEX).exists() and INDEX_MARKER not in read_note(root, INDEX, resolved_root):
-        raise ValueError('Refusing to replace a handwritten implementation index.')
+    if (root / INDEX).exists():
+        docs[INDEX] = preserve_additions(INDEX, read_note(root, INDEX, resolved_root), docs[INDEX])
     return docs
 
 
@@ -513,28 +517,47 @@ def refresh(root):
 
 
 def preserve_additions(relative, current, generated):
-    """Full legacy rebuilds must retain the added navigation and handwritten suffix."""
+    """Keep handwritten content outside the existing generated boundaries."""
+    newline = '\r\n' if '\r\n' in current else '\n'
+    if ('\r' in current.replace('\r\n', '')
+            or newline == '\r\n' and '\n' in current.replace('\r\n', '')):
+        raise ValueError(f'Refusing mixed note line endings: {relative}')
+    current = current.replace('\r\n', '\n')
+    generated = generated.replace('\r\n', '\n')
+    if relative == INDEX:
+        table = ('\n## 동작에서 출발하기\n\n'
+                 '| 동작 | 공통 연산 노트 | 실제 함수 예시 |\n|---|---|---|\n')
+        after = '\n## 연결의 의미\n'
+        footer = re.compile(r'(?m)^' + re.escape(generated.splitlines()[-1]) + r'(?:\n|$)')
+        for body in (current, generated):
+            if body.count(INDEX_MARKER) != 1:
+                raise ValueError('Refusing to replace a handwritten or ambiguous implementation index.')
+            ends = list(footer.finditer(body))
+            if (body.count(table) != 1 or body.count(after) != 1 or len(ends) != 1
+                    or not body.index(INDEX_MARKER) < body.index(table) < body.index(after) < ends[0].start()):
+                raise ValueError('Refusing an implementation index without unique generated boundaries.')
+        prefix, rest = current.split(table, 1)
+        old_rows, suffix = rest.split(after, 1)
+        new_rows = generated.split(table, 1)[1].split(after, 1)[0]
+        if not Counter(old_rows.splitlines()) <= Counter(new_rows.splitlines()):
+            raise ValueError('Refusing to discard an unrecognized implementation index row.')
+        # Only this table is generated; keep the manual preface, interior notes and tail.
+        return (prefix + table + new_rows + after + suffix).replace('\n', newline)
+
     clean = without_links(current)
-    if clean == current:
-        return generated
+    if clean == current and relative == Path('vaults/공통기반/인덱스.md'):
+        return generated.replace('\n', newline)
     if relative.parent.name == '공통기반':
-        position = clean.rfind('\n정본 상세: ')
-        if position == -1:
-            raise ValueError(f'Missing legacy footer; preserve {relative} for inspection.')
-        boundary = clean.find('\n', position + 1)
-        boundary = len(clean) if boundary == -1 else boundary + 1
+        footer = re.compile(r'(?m)^정본 상세: [^\n]*(?:\n|$)')
     elif relative.parent.name == '재사용':
-        position = clean.rfind(LEGACY_ROUTE_FOOTER)
-        if position == -1:
-            raise ValueError(f'Missing legacy footer; preserve {relative} for inspection.')
-        boundary = position + len(LEGACY_ROUTE_FOOTER)
-        if clean[boundary:boundary + 2] == '\r\n':
-            boundary += 2
-        elif clean[boundary:boundary + 1] == '\n':
-            boundary += 1
+        footer = re.compile(r'(?m)^' + re.escape(LEGACY_ROUTE_FOOTER) + r'(?:\n|$)')
     else:
         raise ValueError(f'Unexpected generated note with navigation: {relative}')
-    suffix = clean[boundary:]
-    block = current[START_BOUNDARY.search(current).start():END_BOUNDARY.search(current).end()]
+    ends = list(footer.finditer(clean))
+    if len(ends) != 1 or len(list(footer.finditer(generated))) != 1:
+        raise ValueError(f'Missing or duplicate legacy footer; preserve {relative} for inspection.')
+    suffix = clean[ends[0].end():]
+    block = (current[START_BOUNDARY.search(current).start():END_BOUNDARY.search(current).end()]
+             if clean != current else '')
     heading, rest = generated.split('\n', 1)
-    return heading + '\n' + block + rest + suffix
+    return (heading + '\n' + block + rest + suffix).replace('\n', newline)

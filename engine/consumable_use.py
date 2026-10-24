@@ -39,7 +39,8 @@ class UseRequest:
     duration_minutes: int | None = None
     duration_reason: str | None = None
     count: int = 1
-    food_policy: str | None = None
+    food_policy: str | dict | None = None
+    medicine_source_choice: Any = None
     selected_move: str | None = None
     held_selection: Any = None
     container_selection: Any = None
@@ -76,6 +77,8 @@ class ItemUse(ABC):
     def execute(self, engine, request):
         import turn as TURN, item_stock as STOCK
         r=request
+        if r.medicine_source_choice is not None and r.source_id not in __import__('restorative_items').HELD_CONSUMABLES:
+            raise ValueError('medicine source choice requires a restorative or X item')
         if type(r.accepted) is not bool or type(r.free) is not bool:
             raise ValueError('item consent and cost-waiver declarations must be boolean')
         C.integer(r.count,'actual whole item count',1)
@@ -99,6 +102,8 @@ class ItemUse(ABC):
             if not isinstance(self,(ExtendedIntake,AttackUse)):return C.PendingDecision('Selected contents need their source-specific effect consumer')
         if r.held_selection is not None:
             stock=STOCK.prepare(engine,r.user,r.source_id,held_selection=r.held_selection,count=r.count,equipment_slots=self.stock_slots(r),source_selection=r.source_selection)
+            if isinstance(r.held_selection,str) and getattr(engine,'_physical_objects',{}).get(r.held_selection,{}).get('telekinetic_holder_id')==r.user.entity_id:
+                __import__('telekinetic').item_target(engine,r.user,r.held_selection,r.target)
             if not self.supports_physical(r):
                 return C.PendingDecision('Actual held-instance consumption needs its sourced completion adapter; no inventory, action or instance consumed',basis={'holder_id':r.user.entity_id,'held_stock':stock,'source':r.source_id,'status':'unimplemented_held_consumption'})
         if not TURN.can_act(engine,r.user):return (0,0)
@@ -250,7 +255,8 @@ class ImmediateUse(ItemUse):
         before_actions = len(getattr(r.user, '_action_history', []))
         result = I._use_immediate_item(engine,r.user,r.item_name,r.target,free=r.free,
             accepted=r.accepted,duration_minutes=r.duration_minutes,
-            duration_reason=r.duration_reason,count=r.count,held_selection=r.held_selection)
+            duration_reason=r.duration_reason,count=r.count,held_selection=r.held_selection,
+            medicine_source_choice=r.medicine_source_choice)
         if len(getattr(r.user, '_action_history', [])) > before_actions:
             import class_actor_state_actions as CLASS_STATE_ACTIONS
             CLASS_STATE_ACTIONS.observe_healing_item_used(
@@ -383,9 +389,12 @@ def adapter_for(source_id) -> UseAdapter[UseRequest]:
 
 def dispatch(engine,user,item_name,target=None,**options):
     import csv_item_food_contracts as CSV
+    import food_effects as FOOD_EFFECTS
     food_policy=options.get('food_policy')
+    if food_policy is not None and type(food_policy) not in (str,dict):
+        raise ValueError('named food policy or scoped refreshment decision required')
     source_selection=None
-    if food_policy is not None and food_policy not in __import__('food_effects').BABY_POLICIES:
+    if type(food_policy) is str and food_policy not in FOOD_EFFECTS.BABY_POLICIES:
         row=__import__('csv_item_contract_policy').definition(engine.r,clause_id=food_policy)
         if row is None or row.get('domain')!='food' or row.get('item_id') not in CSV.ITEM_KINDS:raise ValueError('exact reviewed CSV food clause selection required')
         source_selection=CSV.source_choice(engine.r,row['item_id'],food_policy)
@@ -393,7 +402,9 @@ def dispatch(engine,user,item_name,target=None,**options):
     else:
         header=engine.r.item_effects(item_name)[1]
     uid=header.get('id')
-    if source_selection is None:source_selection=CSV.intake_choice(engine.r,uid,food_policy)
+    if type(food_policy)is dict and uid not in FOOD_EFFECTS.DRINKS:
+        raise ValueError('scoped refreshment decision requires an actual drink')
+    if source_selection is None:source_selection=CSV.intake_choice(engine.r,uid,None if uid in FOOD_EFFECTS.DRINKS else food_policy)
     request=UseRequest(user=user,target=target or user,item_name=item_name,source_id=uid,source_selection=source_selection,**options)
     adapter=adapter_for(uid)
     category=header.get('battle_tool')

@@ -31,10 +31,10 @@ class CoatEffectTests(unittest.TestCase):
    EXT.start_of_turn(self.e,actor);self.assertEqual(len(record['applications']),1);self.valid()
  def test_distinct_current_max_and_tick_formulas_and_persistent_scene_lifetime(self):
   self.known(self.p,'아쿠아링','뿌리박기');self.begin(self.p);self.cast(self.p,'아쿠아링');self.next_turn(self.p);self.cast(self.p,'뿌리박기')
-  self.p.injuries=3;self.p.hp=1;expected=self.p.base_max_hp//10+self.p.max_hp//10
+  self.p.injuries=3;self.p.hp=1;expected=2*(self.p.base_max_hp//10)
   self.next_turn(self.p);self.assertEqual(self.p.hp,1+expected)
   observations={r['source']:r['applications'][-1] for r in C.live(self.p)}
-  self.assertEqual(observations['move/아쿠아링']['basis'],self.p.base_max_hp);self.assertEqual(observations['move/뿌리박기']['basis'],self.p.max_hp)
+  self.assertEqual(observations['move/아쿠아링']['basis'],self.p.base_max_hp);self.assertEqual(observations['move/뿌리박기']['basis'],self.p.base_max_hp)
   self.e.end_of_turn(self.p);self.e.end_encounter();self.e.end_scene();self.assertEqual(len(C.live(self.p)),2);self.valid()
  def test_recast_with_unreviewed_composition_rejects_before_cost(self):
   self.known(self.p,'아쿠아링');self.begin(self.p);self.cast(self.p,'아쿠아링');self.next_turn(self.p);before=self.snap()

@@ -5,6 +5,9 @@ import common_checks as C,crafting_recipes as Q,world_entities as W,resolution_t
 SOURCE='edge/고생물학자'
 CONTRACT='fossil_creation_contract'
 BIRTH='fossil_birth_policy'
+BIRTH_BASIS='fossil_birth_basis'
+INITIAL_LEVEL_BASIS={'interpretation':'initial_level_cumulative_v1','authority':'authored_same_source_interpretation',
+    'initial_level':10,'initial_tutor_points':3,'source':'input/ch05-pokemon.md:211,748;input/ch04-trainer-classes.md:2122'}
 RECORDS='fossil_creation_records'
 
 
@@ -38,14 +41,15 @@ def declaration(value):
     return deepcopy(value)
 
 
-def native():
+def native(*,legacy=False):
+    """Authored initial-level budget; legacy reconstructs actual old receipts only."""
     import pokemon_entities as P
     return {'id':'native-fossil-restoration','source':SOURCE,'requirements':[
         {'id':'acquired','condition':{'kind':'owned','fields':['edges'],'names':[SOURCE,'고생물학자','Paleontologist']},'reason':'acquired Paleontologist required'},
         {'id':'rank','condition':{'kind':'any','conditions':[{'kind':'skill','skill':s,'rank':3,'effective':False} for s in ('포켓몬학','생존')]},'reason':'actual Paleontologist prerequisite required'}],
         'machine':{'kind':'native_restoration_machine'},'materials':[],'seconds':0,
         'species':{'allowed':['pokemon/'+name for name in P.STANDARD_FOSSIL_SPECIES],'allow_gm_other':True},
-        'hatch':{'level':10,'tutor_points':1,'seconds':None}}
+        'hatch':{'level':10,'tutor_points':1 if legacy else 3,'seconds':None}}
 
 
 def _machine(engine,owner,node,sources):
@@ -83,12 +87,15 @@ def prepare(engine,owner,fossil_entity_id,value,*,inputs=None,gm_species_approve
         'species_basis':fossil['species_basis'],'machine':machine,'payments':material_plan['payments'],'sources':sorted(sources)}
 
 
-def _perform(engine,owner,fossil_entity_id,value,*,request_id,inputs=None,gm_species_approved=None,reason,hatch_details=None):
+def _perform(engine,owner,fossil_entity_id,value,*,request_id,inputs=None,gm_species_approved=None,reason,hatch_details=None,birth_basis=None):
     import pokemon_entities as P,activity_jobs as J
     value=declaration(value);Q._text(request_id);Q._text(reason);Q._selected(engine,value['source'])
     if hatch_details is not None and type(hatch_details) is not dict:raise ValueError('GM hatch details must be a mapping')
     request={'request_id':request_id,'provider_id':owner.entity_id,'fossil_entity_id':fossil_entity_id,'declaration':value,
         'inputs':deepcopy(inputs),'gm_species_approved':gm_species_approved,'reason':reason,'hatch_details':deepcopy(hatch_details)}
+    if birth_basis is not None:
+        if birth_basis!=INITIAL_LEVEL_BASIS or value['id']!='native-fossil-restoration' or value['source']!=SOURCE:raise ValueError('actual native fossil initial-level birth basis required')
+        request[BIRTH_BASIS]=deepcopy(birth_basis)
     intent=TX.request_fingerprint(request);records=owner.spec.get(RECORDS,{})
     if request_id in records:
         prior=records[request_id]
@@ -106,7 +113,8 @@ def _perform(engine,owner,fossil_entity_id,value,*,request_id,inputs=None,gm_spe
     paid=Q.pay_materials(engine,owner,plan['payments'])
     egg=P.prepare_egg(engine,owner,{'id':'fossil/'+fossil['id'],'fossil_id':fossil['id'],'fossil_entity_id':fossil_entity_id,
         'restored_by':owner.entity_id,'species':fossil['species'],'source':value['source'],'hatched':False,'hatch_level':value['hatch']['level'],
-        'produced_at':engine.elapsed_seconds,'gm_hatch_details':deepcopy(hatch_details),'special_appearance':'GM decision pending',BIRTH:deepcopy(value['hatch'])})
+        'produced_at':engine.elapsed_seconds,'gm_hatch_details':deepcopy(hatch_details),'special_appearance':'GM decision pending',BIRTH:deepcopy(value['hatch']),
+        **({BIRTH_BASIS:deepcopy(birth_basis)} if birth_basis is not None else {})})
     receipt={'request':request,'intent':intent,'plan':plan,'plan_sha256':TX.request_fingerprint(plan),'payments':paid,
         'payments_sha256':TX.request_fingerprint(paid),'job_id':job_id,'produced_at':engine.elapsed_seconds}
     fossil.update(status='restored_to_egg',egg_entity_id=egg['entity_id'],restored_by=owner.entity_id)
@@ -131,7 +139,8 @@ def restore_native(engine,owner,*,fossil_id,hatch_details=None,**roll):
         import researcher_fields as RESEARCH
         value=RESEARCH.fossil_restoration_declaration(e,a,fossil_id,native())
         result=_perform(e,a,record['entity_id'],value,request_id='native:'+record['entity_id'],
-            gm_species_approved=record['species_basis']=='GM_nonstandard_fossil',reason='existing GM-observed fossil restoration',hatch_details=hatch_details)
+            gm_species_approved=record['species_basis']=='GM_nonstandard_fossil',reason='existing GM-observed fossil restoration',hatch_details=hatch_details,
+            birth_basis=INITIAL_LEVEL_BASIS)
         RESEARCH.fossil_restoration_mark(e,a,fossil_id,P.egg_index(e)[result['egg']['entity_id']][1])
         return result
     return G.transition(engine,owner,apply)
@@ -140,6 +149,7 @@ def restore_native(engine,owner,*,fossil_id,hatch_details=None,**roll):
 def validate_fossil(engine,row):
     if CONTRACT not in row:return
     record=row[CONTRACT];request=record['request'];plan=record['plan'];value=declaration(request['declaration'])
+    if BIRTH_BASIS in request and (request[BIRTH_BASIS]!=INITIAL_LEVEL_BASIS or value['id']!='native-fossil-restoration' or value['source']!=SOURCE):raise ValueError('native fossil birth basis changed')
     if record['intent']!=TX.request_fingerprint(request) or record['plan_sha256']!=TX.request_fingerprint(plan) or record['payments_sha256']!=TX.request_fingerprint(record['payments']):
         raise ValueError('fossil restoration evidence changed')
     if row['status']=='fossil' or request['fossil_entity_id']!=row['entity_id'] or plan['fossil_entity_id']!=row['entity_id'] or plan['provider_id']!=row['restored_by'] or request['provider_id']!=row['restored_by'] or plan['species']!=row['species'] or plan['species_basis']!=row['species_basis'] or plan['declaration']!=value:
@@ -149,6 +159,7 @@ def validate_fossil(engine,row):
 
 
 def validate_egg(row):
+    if BIRTH_BASIS in row and (row[BIRTH_BASIS]!=INITIAL_LEVEL_BASIS or BIRTH not in row):raise ValueError('actual native fossil birth basis required')
     if BIRTH not in row:return
     policy=birth_policy(row[BIRTH])
     if row.get('fossil_entity_id') is None or row['hatch_level']!=policy['level']:raise ValueError('fossil birth declaration disagrees with actual egg')
@@ -156,7 +167,10 @@ def validate_egg(row):
 
 def validate_world(engine,fossils,eggs,actors):
     import activity_jobs as J
+    import researcher_fields as RESEARCH
     for _,egg in eggs.values():
+        if RESEARCH.FOSSIL_MARK in egg or egg.get('fossil_entity_id') is not None:
+            RESEARCH.fossil_restoration_record(engine,egg,allow_legacy_pending=True)
         if BIRTH in egg:
             entry=fossils.get(egg.get('fossil_entity_id'))
             if entry is None or CONTRACT not in entry[1]:raise ValueError('fossil birth policy requires actual declared restoration evidence')
@@ -164,6 +178,11 @@ def validate_world(engine,fossils,eggs,actors):
         if CONTRACT not in fossil:continue
         validate_fossil(engine,fossil);record=fossil[CONTRACT];plan=record['plan'];value=plan['declaration']
         egg=eggs[fossil['egg_entity_id']][1];validate_egg(egg)
+        if egg.get(BIRTH_BASIS)!=record['request'].get(BIRTH_BASIS):raise ValueError('fossil and egg birth interpretation disagree')
+        if BIRTH_BASIS in record['request']:
+            expected=native()
+            if RESEARCH.FOSSIL_MARK in egg:expected['hatch']['tutor_points']+=RESEARCH.DEFINITIONS[RESEARCH.FOSSIL_RESTORATION]['tutor_point_delta']
+            if value!=expected:raise ValueError('native initial-level birth basis disagrees with actual restoration declaration')
         if egg.get(BIRTH)!=value['hatch'] or egg['source']!=value['source'] or egg.get('produced_at')!=record['produced_at'] or egg.get('parents'):
             raise ValueError('fossil/egg source, birth policy or production time changed')
         provider=actors[plan['provider_id']];prior=provider.spec.get(RECORDS,{}).get(record['request']['request_id'])
@@ -175,6 +194,7 @@ def validate_world(engine,fossils,eggs,actors):
         if fossil['status']=='hatched':
             child=actors[fossil['pokemon_id']]
             if child.spec.get('egg_entity_id')!=egg['entity_id']:raise ValueError('actual child lost fossil egg provenance')
+            if child.spec.get(BIRTH_BASIS)!=egg.get(BIRTH_BASIS):raise ValueError('actual child lost its original fossil birth basis')
 
 
 def _hatch(engine,owner,egg,*,name,ready,reason,details):
@@ -184,12 +204,17 @@ def _hatch(engine,owner,egg,*,name,ready,reason,details):
     fossil=P.egg_fossil(engine,egg)
     if fossil['status']!='restored_to_egg':raise ValueError('actual restored fossil producer required')
     policy=egg.get(BIRTH,{'level':10,'tutor_points':1,'seconds':None});birth_policy(policy)
-    details=__import__('researcher_fields').fossil_birth_details(engine,owner,egg,details)
+    import researcher_fields as RESEARCH
+    details=RESEARCH.fossil_birth_details(engine,owner,egg,details)
+    if egg.get(RESEARCH.FOSSIL_MARK) is None:
+        details=E.details(engine,details)
+        E.birth_abilities(engine,egg['species'],details['abilities'])
     if policy['seconds'] is None:
         if type(ready) is not bool or not ready:raise ValueError('GM must establish that this fossil egg is ready to hatch')
     elif E.hatch_remaining(engine,egg,policy['seconds']):raise ValueError('declared fossil hatch waiting time has not elapsed')
     pokemon,selected=E.construct(engine,owner,egg,name=name,birth_level=policy['level'],tutor_points=policy['tutor_points'],selected=details,
-        extra={'fossil_egg_id':egg['id'],'fossil_egg_entity_id':egg['entity_id'],'fossil_entity_id':fossil['entity_id']})
+        extra={'fossil_egg_id':egg['id'],'fossil_egg_entity_id':egg['entity_id'],'fossil_entity_id':fossil['entity_id'],
+            **({BIRTH_BASIS:deepcopy(egg[BIRTH_BASIS])} if BIRTH_BASIS in egg else {})})
     placement=PARTY.preflight_hatch(engine,owner,pokemon,egg)
     fossil.update(status='hatched',pokemon_id=pokemon.entity_id);E.commit_birth(engine,owner,egg,pokemon,selected,reason=reason,placement=placement)
     return {'activity':'hatch_fossil','pokemon':pokemon,'egg_id':egg['id']}

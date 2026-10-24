@@ -124,5 +124,5 @@ def warp(e,c,stone_id,*,reason):
  row={'source':SOURCE,'stone_id':stone_id,'origin':before,'destination':destination,'distance':distance,'reason':reason}
  e.log(c.name+': 쐐기돌 점멸 '+str(distance)+'m → '+stone_id,SOURCE)
  import effects_ext as EXT
- EXT.on_enter_cell(e,c,destination)
+ EXT.on_enter_cell(e,c,destination,previous_position=before)
  return row

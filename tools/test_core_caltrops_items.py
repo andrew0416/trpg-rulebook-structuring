@@ -17,7 +17,7 @@ import heavy_injury_adapter as HEAVY
 import consumption_execution as EXECUTION
 import test_category2_medicine_stock as STOCK_FIX
 
-ROOT = Path(r'D:\trpg-rulebook-structuring\ptk-structure-experiment')
+ROOT = Path(__file__).resolve().parents[1]
 CELLS = ((3, 1), (3, 2), (3, 3), (4, 1), (4, 2), (4, 3), (5, 1), (5, 2))
 TOOLS = ('item/마름쇠', 'item/독-마름쇠')
 

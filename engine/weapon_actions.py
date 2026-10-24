@@ -21,7 +21,7 @@ def rules_policy(rules, *, validate=True):
 def validate_grant(engine, actor, weapon, move_id):
     rules=policy(engine); row=rules["moves"].get(move_id)
     if row is None:raise ValueError("selected move is not a sourced ordinary weapon grant")
-    if actor.kind=='pokemon' and not weapon.get('living_actor') and row['rank']>4:raise ValueError('Wielder cannot gain weapon moves above Adept')
+    if actor.kind=='pokemon' and row['rank']>4:raise ValueError('Wielder cannot gain weapon moves above Adept')
     if engine.r._selected_rule(move_id)!=move_id:raise ValueError("selected weapon move variant requires its own policy")
     import optional_weapon_framework as FRAMEWORK
     if FRAMEWORK.skill_rank(engine,actor,weapon)<row["rank"]:raise ValueError("weapon move rank prerequisite not met")
@@ -31,31 +31,22 @@ def validate_grant(engine, actor, weapon, move_id):
         raise ValueError("Master weapon move requires a Fine weapon outside the off-hand slot")
 
 def prepare(engine, actor, move, weapon_id=None):
+    move=__import__('rogue').prepare_move(engine,actor,move)
     import optional_weapon_framework as FRAMEWORK
     import living_weapon as LIVING
     borrowed=LIVING.borrowed(engine,actor,move)
     if borrowed is not None:return borrowed
     borrowed=LIVING.prepare_borrowed(engine,actor,move,weapon_id)
     if borrowed is not None:return borrowed
-    if move.get('_weapon_attack',{}).get('source')=='item/몬스터볼-캐논':
-        weapon_id=move['_weapon_attack']['key']
-    if weapon_id is not None and move.get('id') == engine.r.move_id('오물폭탄'):
-        import csv_item_physical_contracts as CSV_ITEMS
-        obj = getattr(engine, '_physical_objects', {}).get(weapon_id, {})
-        if obj.get('item_rule_id') == 'item/몬스터볼-캐논':
-            profile = CSV_ITEMS.cannon_profile(engine,actor,weapon_id,projectile='sludge_bomb')
-            out = copy.deepcopy(move)
-            out['range'] = '15, 대상 1'
-            out['_weapon_attack'] = {'key':weapon_id,'range':{'origin':15,'targets':1,'parsed':True,'raw':out['range']},
-                'db_bonus':0,'accuracy_bonus':profile['accuracy_bonus'],'minimum_distance':0,'source':'item/몬스터볼-캐논'}
-            return out
+    rogue=__import__('rogue').weapon_move(engine,actor,move,weapon_id)
+    if rogue is not None:return rogue
     if "_weapon_attack" in move:
         if move['_weapon_attack'].get('intrinsic'):
             import csv_item_capability_contracts as CSV_CAPABILITIES
             intrinsic=CSV_CAPABILITIES.tinkerer_move(actor,engine.r.move(move['id']),engine=engine)
             if intrinsic is None:raise ValueError('intrinsic weapon source is no longer available')
             return intrinsic
-        return FRAMEWORK.adapt_move(engine,actor,move)
+        return __import__('telekinetic').prepare_weapon(engine,actor,FRAMEWORK.adapt_move(engine,actor,move))
     import optional_physical_equipment as OPTIONAL_EQUIPMENT
     optional=OPTIONAL_EQUIPMENT.prepare_weapon_move(engine,actor,move,weapon_id)
     if optional is not None:return FRAMEWORK.adapt_move(engine,actor,optional)
@@ -86,7 +77,7 @@ def prepare(engine, actor, move, weapon_id=None):
             FRAMEWORK.validate_loadout(engine,actor,weapon)
         else:validate_grant(engine,actor,weapon,move["id"])
     out=adapt_weapon_move(engine,actor,move,key,weapon,enhanced=enhanced)
-    return FRAMEWORK.adapt_move(engine,actor,out)
+    return __import__('telekinetic').prepare_weapon(engine,actor,FRAMEWORK.adapt_move(engine,actor,out))
 
 
 def adapt_weapon_move(engine,actor,move,key,weapon,*,enhanced=False,weapon_bonuses=True):
@@ -148,6 +139,7 @@ def range_spec(engine,move,actor=None):
             if result['size']<=0:raise ValueError('conditional effect area must remain positive')
     import dancer as DANCER
     result=DANCER.range_spec(move,result)
+    result=__import__('coordinator').range_spec(move,result)
     if actor is not None:
         import static_trainer_modifiers as STATIC_MODIFIERS
         result=STATIC_MODIFIERS.range_spec(actor,move,result)
@@ -157,7 +149,7 @@ def range_spec(engine,move,actor=None):
     import duelist as DUELIST
     result=DUELIST.range_spec(engine,actor,move,AREA_HIT.range_spec(engine,move,result))
     import style_expert as STYLE
-    return __import__('type_ace').range_spec(engine,actor,move,STYLE.range_spec(engine,actor,move,result))
+    return __import__('commander_orders').range_spec(engine,actor,move,__import__('type_ace').range_spec(engine,actor,move,STYLE.range_spec(engine,actor,move,result)))
 
 def is_self_only(rng):
     """A self origin with no area or printed alternative has only its user."""

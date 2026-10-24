@@ -85,8 +85,14 @@ def registration_only(rules,uid):
 
 
 def native_passive(rules,uid):
+ if uid in __import__('telepath').CONTRACTS:return __import__('telepath').registration(rules,uid) is not None
+ if uid==__import__('sage').TOUCH:return __import__('sage').registration(rules,uid) is not None
+ if uid in __import__('oracle').CORE_CONTRACTS:return __import__('oracle').registration(rules,uid) is not None
+ if uid=='ability/틈새포착':
+  if rules._selected_rule(uid)!=uid or rules.ability_effects.get('틈새포착')!=[{'type':'skill_mod','skill':'은신','value':2},{'type':'ignore_effects','no_hazard_trigger':True,'no_blessing_reactions':True,'ignore_substitute':True}]:raise ValueError('reviewed Core Infiltrator declaration changed')
+  return True
  # These effects are dynamic consumers of the actual active ability list.
- return uid in ('ability/불면','ability/단순','ability/멀티타입') or registration(rules,uid) is not None
+ return uid in ('ability/도주','ability/도주-playtest','ability/불면','ability/단순','ability/멀티타입') or registration(rules,uid) is not None
 
 def _raw_abilities(actor):
  st=actor.spec.get(G.KEY,{})
@@ -97,7 +103,7 @@ def _raw_abilities(actor):
  return list(dict.fromkeys(result))
 
 
-def _component_projection(actor,values,*,include_suppressed=False,ignored_sources=()):
+def _component_projection(actor,values,*,include_suppressed=False,ignored_sources=(),check_producer=True):
  rules=actor.r;result={};labels={}
  for value in values:
   uid=ability_id(rules,value);labels.setdefault(uid,value);result.setdefault(uid,set()).update(component_ids(rules,uid))
@@ -111,7 +117,7 @@ def _component_projection(actor,values,*,include_suppressed=False,ignored_source
    mode=REACTIVE.operation_mode(rules,source)
    if mode is None:
     import duelist as DUELIST
-    mode=DUELIST.operation_mode(actor,source)
+    mode='replace' if not check_producer and source==DUELIST.MANUAL else DUELIST.operation_mode(actor,source)
    if mode is None:raise ValueError('ability operation requires its reviewed producer')
   else:mode=source_row['mode']
   for uid in op['remove']:
@@ -134,6 +140,15 @@ def project_components(actor,values=None,*,include_suppressed=False,ignored_sour
 
 def project(actor,values,*,include_suppressed=False,ignored_sources=()):
  projected,labels=_component_projection(actor,values,include_suppressed=include_suppressed,ignored_sources=ignored_sources)
+ return [labels[uid] for uid in projected]
+
+
+def owned_from_spec(rules,spec):
+ """Read possession for slot/receipt checks; live producers validate their own receipts."""
+ from types import SimpleNamespace
+ import move_state as M
+ actor=SimpleNamespace(r=rules,spec=spec)
+ projected,labels=_component_projection(actor,M.effective_list(spec,'abilities'),include_suppressed=True,check_producer=False)
  return [labels[uid] for uid in projected]
 
 
@@ -279,6 +294,11 @@ def activate(engine,actor,name,target):
  return G.transition(engine,actor,staged,participants=(target,))
 
 def end(engine,actor,event):
+ # Transform explicitly restores the prior Move List at these native boundaries.
+ if event in ('recall','faint','encounter'):
+  for sid,row in list(actor.spec.get(G.KEY,{}).get('sources',{}).items()):
+   if row.get('rule_id')=='move/변신' and sid in actor.spec.get(G.KEY,{}).get('overlays',{}):
+    G.revoke(actor,sid,engine=engine)
  for record in list(TIME.records(actor)):
   if TAG in record and event in record['ends']:TIME.expire(engine,actor,record)
  import reactive_ability_events as REACTIVE

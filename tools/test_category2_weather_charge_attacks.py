@@ -101,6 +101,42 @@ class Tests(unittest.TestCase):
   self.assertEqual([d['target_id'] for d in r['decisions'] if d['selected']],[b.entity_id])
   self.assertEqual(B.remaining(r),1);e.rulings.provider=None;self.restored(e)
 
+ def test_native_area_two_real_charges_apply_to_two_targets_of_one_shared_activation(self):
+  e,a,b,r=self.setup_weather('비바라기');identity=r['id']
+  c=Combatant(e.r,dict(b.spec,id='weather/second',name='Second',kind='pokemon',trainer_id=a.entity_id))
+  c.side='wild';e.everyone=e.gm.everyone=[a,b,c];e.gm.observe_loyalty(c,6,reason='known participant')
+  a.pos=(0,0);b.pos=(1,0);c.pos=(1,1);e.grid=Grid(8,8)
+  import body_state as BODY
+  for actor in (a,b,c):BODY.observe(e,actor,[(0,0)],reason='observed one-cell body')
+  move='move/거품';e.gm.set_move(a,move,reason='known actual native area attack')
+  prompts=[]
+  def decide(prompt):
+   if prompt.get('type')=='weather_blessing':prompts.append(dict(prompt));return True
+   return None
+  e.rulings.provider=decide
+  e.start_round([a,b,c]);e.start_of_turn(a,initiative_count=12)
+  hp={target.entity_id:target.hp for target in (b,c)};uses=a.move_uses.get(move,0)
+  self.assertEqual(B.remaining(r),2)
+  with patch.object(e,'d20',return_value=18) as accuracy:e.use_move_on(a,b,move,[a,b,c],set_damage=True)
+  closed=next(row for row in a.spec[B.HISTORY] if row['id']==identity)
+  self.assertEqual(len(prompts),2);self.assertEqual([p['remaining'] for p in prompts],[2,1])
+  self.assertEqual({p['target_id'] for p in prompts},{b.entity_id,c.entity_id})
+  self.assertEqual(len(closed['decisions']),2)
+  self.assertTrue(all(d['selected'] and d['direction']=='offense' for d in closed['decisions']))
+  self.assertEqual({d['target_id'] for d in closed['decisions']},{b.entity_id,c.entity_id})
+  self.assertEqual(len({d['activation_id'] for d in closed['decisions']}),1)
+  self.assertEqual({p['activation_id'] for p in prompts},{d['activation_id'] for d in closed['decisions']})
+  for target in (b,c):
+   decision=next(d for d in closed['decisions'] if d['target_id']==target.entity_id)
+   self.assertGreater(decision['damage_after'],decision['damage_before'])
+   self.assertEqual((decision['multiplier_before'],decision['multiplier_after']),(1,1.5))
+   self.assertEqual(target.hp,hp[target.entity_id]-decision['damage_after'])
+  self.assertEqual((accuracy.call_count,a.budget['standard'],a.move_uses[move]),(1,0,uses+1))
+  self.assertEqual(B.remaining(closed),0);self.assertEqual(closed[E.KEY]['state'],'consumed')
+  self.assertFalse(any(row['id']==identity for row in B.live(a)))
+  self.assertEqual(e.weather,'rain');e.rulings.provider=None
+  self.assertTrue(e.validate_state()['valid']);self.restored(e)
+
  def test_consumption_survives_both_restore_paths_and_forged_formula_rejects(self):
   e,a,b,r=self.setup_weather('비바라기');self.attack(e,a,b,'물대포');e.gm.snapshot('one-charge')
   self.attack(e,b,a,'불꽃세례');e.gm.restore('one-charge')
@@ -123,18 +159,29 @@ class Tests(unittest.TestCase):
     self.assertEqual(b.hp,hp);self.assertEqual(B.remaining(r),2);self.assertFalse(r['decisions'])
 
  def test_unsupported_multi_roll_holds_before_resources_or_rng(self):
+  # Preserve the historical exact ID while correcting its blanket-rejection expectation.
   e,a,b,r=self.setup_weather('비바라기')
   e.gm.set_move(a,'move/물대포',reason='known attack')
   e.rule_effect('move/물대포','add',{'type':'multi_roll','rolls':2},reason='explicit multi-roll variant')
   e.start_round([a,b]);e.start_of_turn(a,initiative_count=12)
-  before=(self.resources(e,a),deepcopy(r))
-  with self.assertRaisesRegex(ValueError,'multi-hit composition'):e.use_move(a,b,'move/물대포')
-  self.assertEqual((self.resources(e,a),r),before)
+  e.rulings.add_answer('weather_blessing',True,reason='actual selected combined attack charge')
+  with patch.object(e,'d20',return_value=18) as rolls:
+   damage=e.use_move(a,b,'move/물대포',set_damage=True)
+  self.assertEqual(rolls.call_count,2);self.assertGreater(damage,0)
+  self.assertEqual((a.budget['standard'],a.move_uses['move/물대포'],B.remaining(r)),(0,1,1))
+  self.assertEqual(len(r['decisions']),1);self.assertTrue(r['decisions'][0]['selected'])
+  self.assertEqual(damage,r['decisions'][0]['damage_after']);self.restored(e)
 
  def test_native_five_strike_keyword_holds_without_consuming_type_override(self):
   e,a,b,r=self.setup_weather('비바라기');a.type_override_next='물'
-  e.gm.set_move(a,'move/연속뺨치기',reason='actual five-strike Move')
+  e.gm.set_move(a,'move/물수리검',reason='actual ranged five-strike Move')
   e.start_round([a,b]);e.start_of_turn(a,initiative_count=12)
-  before=(self.resources(e,a),deepcopy(r),a.type_override_next)
-  with self.assertRaisesRegex(ValueError,'multi-hit composition'):e.use_move(a,b,'move/연속뺨치기')
-  self.assertEqual((self.resources(e,a),r,a.type_override_next),before)
+  e.rulings.add_answer('weather_blessing',True,reason='actual selected combined attack charge')
+  with patch.object(e,'d20',return_value=18),patch.object(e,'roll_expr',return_value=(7,[7])) as dice:
+   damage=e.use_move(a,b,'move/물수리검',set_damage=True)
+  self.assertEqual(dice.call_count,1);self.assertGreater(damage,0)
+  self.assertEqual(a.spec['five_strike_history'][-1]['hits'],4)
+  self.assertIsNone(a.type_override_next)
+  self.assertEqual((a.budget['standard'],a.move_uses['move/물수리검'],B.remaining(r)),(0,1,1))
+  self.assertEqual(len(r['decisions']),1);self.assertEqual(r['decisions'][0]['move_type'],'물')
+  self.assertEqual(damage,r['decisions'][0]['damage_after']);self.restored(e)

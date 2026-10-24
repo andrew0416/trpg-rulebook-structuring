@@ -5,6 +5,9 @@ remain in spec; an equipment or temporary source never becomes that baseline.
 All receipts under spec are JSON-compatible; runtime rows carry source tokens.
 """
 from copy import deepcopy
+from contextvars import ContextVar
+
+_TRANSITION_MOVE_ALIASES = ContextVar("transition_move_aliases", default=())
 
 KEY = "state_grants"
 LIST_FIELDS = ("moves", "abilities", "capabilities")
@@ -63,7 +66,11 @@ def effective(c, field, *, include_suppressed=False, only=None):
         if field!='capabilities' or not isinstance(only,(list,tuple,set,frozenset)) or any(type(v)is not str or not v for v in only):
             raise ValueError('named capability query needs exact capability identities')
     st = c.spec.get(KEY, {}) if field == "capabilities" else state(c)
-    result = list(c.spec.get(field, [])) + st.get("legacy", {}).get(field, [])
+    result = list(c.spec.get(field, []))
+    if field == 'capabilities' and c.spec.get('csv_remaining_form_state', {}).get('weapon_union'):
+        import csv_item_form_contracts as CSV_FORMS
+        result = CSV_FORMS.capability_baseline(c, result)
+    result += st.get("legacy", {}).get(field, [])
     import move_state as MOVES_STATE
     for row in st.get("sources", {}).values():
         if not MOVES_STATE.source_active(c.spec,row):continue
@@ -879,6 +886,8 @@ def _revoke_sources(c,source_ids,engine,*,_settled_payment_ids=()):
     preflight_revoke(c,source_ids)
     old=list(c.abilities)
     sources=_revocation_sources(c,source_ids)
+    if engine is not None:__import__('telekinetic').before_revoke(engine,c,sources)
+    if engine is not None:__import__('telepath').before_revoke(engine,c,sources)
     groups={st['sources'][key]['payment_id'] for key in sources if key in st['sources'] and st['sources'][key].get('payment_id')}
     if groups-set(_settled_payment_ids):raise ValueError('group payment settlement required before withdrawal')
     found=any(key in st["sources"] or key in st["overlays"] or key in st["effects"] for key in sources)
@@ -891,6 +900,8 @@ def _revoke_sources(c,source_ids,engine,*,_settled_payment_ids=()):
         __import__("provocateur").before_revoke(c,st["sources"].get(key,{}))
         if engine is not None:remove_owned(engine,c,key)
         _forget_source(c,key);st["overlays"].pop(key,None)
+    if engine is not None:
+        __import__('ace_trainer').forget_missing(c.r,c.spec,at=engine.elapsed_seconds,reason='actual learned source withdrawal')
     for field in LIST_FIELDS:materialize(c,field)
     if engine is not None:
         for name in list(st["ability_receipts"]):remove_ability(engine,c,name)
@@ -1182,6 +1193,10 @@ def _stage_transition_payload(engine,staged_engine,payload):
         if any(staged[key]!=event[key] for key in ('id','round','kind','source')):
             raise ValueError('native precision observation identity changed during staging')
         memo[id(event)]=staged
+    for original, staged, aliases in reversed(_TRANSITION_MOVE_ALIASES.get()):
+        if original is engine and staged is staged_engine:
+            memo.update(aliases)
+            break
     if engine is staged_engine:
         # Reusing the same native transaction must retain its issued live group.
         # Unissued/look-alike payloads and ordinary snapshots still get copied.
@@ -1212,6 +1227,12 @@ def transition(engine,c,apply,*,participants=(),include_rulings=False,include_gr
         raise ValueError('native state transition requires actual combatant subjects')
     WORLD.entity_index(engine, extra=subjects)
     fields=set(gm_state.ENGINE_FIELDS)|{"log_lines","gm_prompts"}
+    # A caller-owned live target group must receive its staged index/roll/cost
+    # changes back. This is in-process reconciliation, not a save/load field.
+    if getattr(engine,"_move_activation_scopes",()):
+        fields.add("_move_activation_scopes")
+    if getattr(engine,"_setup_move_scopes",()):
+        fields.add("_setup_move_scopes")
     # Keep original container identities before staging. These include spec,
     # runtime registries and aliases reached through different actor/engine paths.
     originals={}
@@ -1246,18 +1267,38 @@ def transition(engine,c,apply,*,participants=(),include_rulings=False,include_gr
     sync_capability_losses(staged_engine)
     before_prompts=len(staged_engine.gm_prompts)
     import event_trace as TRACE
-    with TRACE.staged_scope(engine,staged_engine):
-        result=apply(staged_engine,staged_c,*staged_participants)
+    # Only the actual deepcopy graph can identify a native group's staged
+    # dictionaries. Matching contents or external IDs cannot issue authority.
+    move_aliases={}
+    staged_scopes=getattr(staged_engine,"_move_activation_scopes",())
+    for scope in getattr(engine,"_move_activation_scopes",()):
+        copied_scope=memo.get(id(scope))
+        if not any(copied_scope is actual for actual in staged_scopes):
+            raise ValueError("native move scope missing from staged graph")
+        for field in ("activation","accuracy"):
+            value=scope.get(field)
+            if value is None:continue
+            copied=memo.get(id(value))
+            if type(value) is not dict or type(copied) is not dict or copied_scope.get(field) is not copied:
+                raise ValueError("native move group alias changed during graph staging")
+            move_aliases[id(value)]=copied
+    context=_TRANSITION_MOVE_ALIASES.set((*_TRANSITION_MOVE_ALIASES.get(),
+                                        (engine,staged_engine,move_aliases)))
+    try:
+        with TRACE.staged_scope(engine,staged_engine):
+            result=apply(staged_engine,staged_c,*staged_participants)
+    finally:
+        _TRANSITION_MOVE_ALIASES.reset(context)
     import ranged_struggle as RANGED
-    for staged_actor in staged_actors.values():
+    for original_key,staged_actor in staged_actors.items():
         import csv_item_capability_contracts as CSV_CAP
         CSV_CAP.sync_essence(staged_engine,staged_actor)
         import ability_mastery as ABILITY_MASTERY
         ABILITY_MASTERY.reconcile(staged_engine,staged_actor,reason='completed native state transition')
         import advanced_connection as CONNECTION
-        CONNECTION.reconcile(staged_actor,reason='completed native state transition')
+        CONNECTION.reconcile(staged_actor,reason='completed native state transition',engine=staged_engine,before=actors[original_key])
         import capability_parameter_edges as PARAMETERS
-        PARAMETERS.reconcile(staged_actor,reason='completed native state transition')
+        PARAMETERS.reconcile(staged_actor,reason='completed native state transition',engine=staged_engine)
         RANGED.reconcile(staged_actor,reason='completed native state transition')
         import tk_mastery as TK_MASTERY
         TK_MASTERY.reconcile(staged_actor,reason='completed native state transition')
@@ -1347,6 +1388,17 @@ def replace_baseline(engine,c,field,values):
     """Atomic permanent-list transition including every passive registration."""
     def apply(staged_engine,staged_c):
         before=list(staged_c.spec.get(field,[]))
+        if field=='moves':
+            import ace_trainer as ACE
+            # Only this native permanent-list transition can forget a Move;
+            # overlays and codec restore never refund an investment.
+            proposed=deepcopy(staged_c.spec);proposed[field]=list(values)
+            legacy=proposed.get(KEY,{}).get('legacy',{})
+            legacy[field]=[v for v in legacy.get(field,[]) if v not in values and v not in before]
+            retained=ACE._known(staged_c.r,proposed)
+            for row in ACE._history(staged_c.spec):
+                if row['status']=='active' and row['move_id'] not in retained:
+                    ACE.forget_spec(staged_c.r,staged_c.spec,row['move_id'],at=staged_engine.elapsed_seconds,reason='actual permanent Move forgetting')
         set_baseline(staged_c,field,values)
         reconcile(staged_engine,staged_c)
         return {"field":field,"before":before,"after":list(staged_c.spec[field])}

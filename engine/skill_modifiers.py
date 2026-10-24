@@ -170,6 +170,8 @@ def modifiers(rules, actor, skill, additional, *, skill_context=None):
         if not counts[uid]:raise ValueError('skill bonus choice requires acquired edge')
         chosen[uid]=value
     sources=[]
+    if target=='stealth' and __import__('ability_transitions').active(actor,'ability/틈새포착'):
+        sources.append(('ability/틈새포착',2,'active Infiltrator'))
     for uid,record in policy['edges'].items():
         count=counts[uid]
         if not count:continue
@@ -230,6 +232,8 @@ def modifiers(rules, actor, skill, additional, *, skill_context=None):
     import equipment_variant_contracts as EQUIPMENT_VARIANTS
     sources.extend(EQUIPMENT_VARIANTS.skill_modifiers(rules,actor,target,skill_context))
     sources.extend(glitch_modifier(rules,actor,skill_context))
+    import capability_parameter_edges as PARAMETERS
+    sources.extend(PARAMETERS.tracker_modifiers(rules,actor,target,skill_context))
     import body_modes as BODY_MODES
     shadow_bonus=BODY_MODES.stealth(actor,target)
     if shadow_bonus:sources.append((BODY_MODES.DEFINITIONS['shadow']['source'],shadow_bonus,'active Shadow Meld'))

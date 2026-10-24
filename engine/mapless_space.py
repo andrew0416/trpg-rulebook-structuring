@@ -32,6 +32,10 @@ def _positions(e, ids):
     index = W.actor_index(e)
     if not set(ids) <= set(index):
         raise ValueError('mapless participants must retain actual actor identities')
+    import marsupial_state as MARSUPIAL
+    ids=set(ids)
+    for uid in tuple(ids):
+        ids.update(baby.entity_id for baby in MARSUPIAL.children(e,index[uid]))
     return {uid: W.location_of(index[uid]) for uid in sorted(ids)}
 
 
@@ -67,7 +71,7 @@ def configure(e, *, scene_id, places, placements, contacts, reason, environment_
     index = W.actor_index(e)
     if not set(placements) <= set(index) or any(place not in places for place in placements.values()):
         raise ValueError('placements must resolve actual actors and described places')
-    pairs = _contacts(contacts, placements)
+    pairs = _contacts(contacts, _positions(e,placements))
     def apply(staged, _):
         state = getattr(staged, FIELD, None)
         if state is not None and (state['scene_id'] != scene_id or state['places'] != places):
@@ -188,6 +192,9 @@ def observe_movement(e, actor, *, event_id, destination, movement_cost, contacts
     pairs=_contacts(contacts_after,frame['positions'])
     transport=_transport(e,actor)
     group={actor.entity_id} if transport is None else set(transport['group'])
+    import marsupial_state as MARSUPIAL
+    index=W.actor_index(e)
+    for uid in tuple(group):group.update(baby.entity_id for baby in MARSUPIAL.children(e,index[uid]))
     unaffected=lambda rows:[pair for pair in rows if not group.intersection(pair)]
     if unaffected(pairs) != unaffected(frame['contacts']):
         raise ValueError('one actor movement cannot rewrite other actors contact')
@@ -219,12 +226,13 @@ def targets(e, actor, move, candidates, primary):
     import weapon_actions as WEAPONS
     import body_modes as MODES
     import setup_move_state as SETUP
+    import marsupial_state as MARSUPIAL
     rng=_range(e,actor,move)
     if WEAPONS.is_field(rng) or WEAPONS.is_self_only(rng):return [actor]
     candidates=list(candidates)
     W.require_actors(e,*candidates)
-    live=[c for c in {c.entity_id:c for c in candidates}.values() if c is not actor and not c.fainted and not c.captured and c.on_field
-          and MODES.target_visible(e,actor,c) and SETUP.targetable(c)]
+    live=[c for c in {c.entity_id:c for c in candidates}.values() if c is not actor and not c.fainted and not c.captured and MARSUPIAL.target_present(c,engine=e)
+          and MODES.target_visible(e,actor,c) and SETUP.targetable(c,engine=e,attacker=actor,move=move)]
     if any(c.entity_id not in frame['positions'] for c in live):
         raise ValueError('observe all actual candidate positions before mapless targeting')
     # Contact establishes ordinary melee only. Reach extensions and areas need

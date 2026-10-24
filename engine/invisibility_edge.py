@@ -19,6 +19,8 @@ def validate(c,*,allow_lost=False):
  if c.kind!='pokemon' or c.r._selected_rule(SOURCE)!=SOURCE:raise ValueError('selected Pokemon Extended Invisibility source required')
  active=0
  for r in rows:
+  import poke_edge_variants as V
+  V.validate_receipt(c.r,r,history=True,minimum_level=20)
   F.integer(r.get('point_cost'),'Extended Invisibility TP',1,1)
   if r.get('status')=='active':
    active+=1

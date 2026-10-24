@@ -56,7 +56,8 @@ def choose(engine,actor,mode,*,reason):
  actor.spec['double_team_choice']={'mode':mode,'reason':reason,'source':SOURCE}
 
 
-def consume(engine,actor,mode,shared=None):
+def consume(engine,actor,mode,shared=None,*,opponent=None):
+ if opponent is not None and __import__('oracle').sight(opponent):return 0
  key='double_team_accuracy'
  if mode=='accuracy' and shared is not None and key in shared:return shared[key]
  selection=actor.spec.get('double_team_choice')

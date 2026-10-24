@@ -37,19 +37,21 @@ def _requirements(e,a,t,requirements):
 
 
 @SM.resume_entry("a",source_parameter="source")
-def _prepare(e,a,t,source,skills,challenger_skill,defender_skill,fixed_accuracy,challenger_options,defender_options,basis,_grant=None,*,config=None):
+def _prepare(e,a,t,source,skills,challenger_skill,defender_skill,fixed_accuracy,challenger_options,defender_options,basis,_grant=None,*,config=None,observe=False):
     import body_modes as BODY_MODES
     config=__import__('type_ace').threaded_config(e,a,source,config)
-    BODY_MODES.require_targetable(t)
+    BODY_MODES.require_targetable(t,engine=e)
     permission=_permission(e,a,t,source,_grant,config);basis=dict(basis,grant=permission)
     import movement_actions as MOVEMENT,temporary_hp as TEMP
     MOVEMENT.boundary(e,source);Q._selected(e,source);W.require_actors(e,a,t)
+    __import__('type_ace').close_quarters_maneuver_preflight(e,a,source)
     if a is t or a.kind not in ('trainer','pokemon') or t.kind not in ('trainer','pokemon') or a not in e.everyone or t not in e.everyone:raise ValueError('two distinct registered trainer/Pokemon participants required')
     if not e.encounter_active or e.round_start_seconds is None:raise ValueError('actual open combat round required')
     geometry={'range':1,'remote':False,'vertical':False} if config is None else config['geometry']
-    if not a.on_field or not t.on_field or a.captured or t.captured or e.grid is None or geometry['range'] is None or not BODY.in_range(e,a,t,geometry['range']):raise ValueError('reachable actual mapped maneuver target required')
-    if not geometry['remote'] and (not e.adjacent(a,t) or not BODY.in_range(e,a,t,1)):raise ValueError('one reachable adjacent on-field target required')
-    if not geometry['vertical'] and (a.spec.get('_movement_altitude',0)!=t.spec.get('_movement_altitude',0) or a.spec.get('_burrow',{}).get('underground') or t.spec.get('_burrow',{}).get('underground')):raise ValueError('vertical or underground maneuver geometry needs an explicit adapter')
+    if not SM.native_reaction_resume(e,a,t,source):
+        if not a.on_field or not t.on_field or a.captured or t.captured or e.grid is None or geometry['range'] is None or not BODY.in_range(e,a,t,geometry['range']):raise ValueError('reachable actual mapped maneuver target required')
+        if not geometry['remote'] and (not e.adjacent(a,t) or not BODY.in_range(e,a,t,1)):raise ValueError('one reachable adjacent on-field target required')
+        if not geometry['vertical'] and (a.spec.get('_movement_altitude',0)!=t.spec.get('_movement_altitude',0) or a.spec.get('_burrow',{}).get('underground') or t.spec.get('_burrow',{}).get('underground')):raise ValueError('vertical or underground maneuver geometry needs an explicit adapter')
     if (a.injuries>=5 and not __import__('taskmaster').ignores_acting_loss(a)) and permission['action_cost']=='standard':raise ValueError('heavy Standard maneuver needs its independent event-order adapter')
     if config is not None:_requirements(e,a,t,config['requirements'])
     if fixed_accuracy is not None:C.integer(fixed_accuracy,'maneuver d20',1,20)
@@ -62,7 +64,7 @@ def _prepare(e,a,t,source,skills,challenger_skill,defender_skill,fixed_accuracy,
     ao=_options(challenger_options,None if config is None else config.get('challenger_purpose'));do=_options(defender_options,purpose)
     if ao.get('roll_id') is not None and ao.get('roll_id')==do.get('roll_id'):raise ValueError('distinct opposed roll identities required')
     plans=[(a,challenger_skill,ao),(t,defender_skill,do)]
-    return plans,SM.prepare(e,a,t,source,dict(basis,fixed_accuracy=fixed_accuracy),plans)
+    return plans,SM.prepare(e,a,t,source,dict(basis,fixed_accuracy=fixed_accuracy),plans,observe=observe)
 
 
 @SM.resume_entry("a",source_parameter="source",prepared_parameter="prepared")
@@ -80,7 +82,7 @@ def _run(e,a,t,source,ac,plans,prepared,outcome,fixed_accuracy,_grant=None,*,con
         if permission['accuracy']=='automatic':hit,nat=True,None
         else:hit,nat,_=e.accuracy_check(a,t,move,situational=_accuracy_bonus,fixed_roll=fixed_accuracy)
         if context is not None:context.update(hit=hit,nat=nat)
-        PRECISE.accuracy(event,hit)
+        PRECISE.accuracy(event,hit,natural=nat)
         if hit:__import__('type_ace').maneuver_hit(e,a,t,source)
         else:__import__('martial_artist').maneuver_failed(e,a,t,source,opposed=False)
         return hit

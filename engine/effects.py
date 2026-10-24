@@ -40,12 +40,13 @@ KNOWN_IF = {
 
 
 def tgt_of(e, attacker, target, ctx=None):
+    import effect_contracts as CONTRACTS
     if ctx is not None:
         import native_area_hit_effects as AREA_HIT
         engine=ctx['engine']
         if AREA_HIT.owns(engine,ctx.get('source_id'),e):
             return AREA_HIT.recipients(engine,attacker,target,e,ctx)
-    import effect_contracts as CONTRACTS
+        return CONTRACTS.hit_recipients(engine,attacker,target,e,ctx.get('source_id'))
     return CONTRACTS.recipients(attacker,target,e)
 
 
@@ -78,7 +79,7 @@ def cond_ok(engine, e, ctx):
     if "on_natural_roll_min" in e:
         m = __import__("combat_modifiers").incoming_status_threshold(ctx["target"],e.get("status"),e["on_natural_roll_min"])
         import combat_precision_features as CPF
-        effect_face = CPF.effect_natural(engine, ctx["attacker"], ctx.get("move"), nat)
+        effect_face = CPF.effect_natural(engine, ctx["attacker"], ctx.get("move"), nat, actual_damage_type=ctx.get("actual_damage_type"))
         if not isinstance(m, int) or effect_face is None or effect_face < m:
             return False, f"natural<{m}"
     if e.get("on_natural_roll") == "even" and (nat is None or nat % 2):
@@ -173,11 +174,7 @@ def h_stage_change(engine, a, t, e, ctx):
         return "delta 비정수(보류)"
     if not isinstance(e.get("stat"), str) or e.get("stat") not in {"atk", "def", "spa", "spd", "spe", "acc", "eva", "all"}:
         return "스탯 선택/해석 필요: " + str(e.get("stat"))
-    if (ctx.get('source_id')=='move/천둥차기'
-            and e=={'type':'stage_change','stat':'def','delta':-1,'target':'all_targets'}):
-        targets=(t,)
-    else:
-        targets=tgt_of(e,a,t,ctx)
+    targets=tgt_of(e,a,t,ctx)
     changes = dict.fromkeys(
         ["atk", "def", "spa", "spd", "spe"] if e["stat"] == "all" else [e["stat"]], e["delta"])
     for c in targets:
@@ -271,6 +268,7 @@ def h_heal(engine, a, t, e, ctx):
 
 
 def h_hp_loss(engine, a, t, e, ctx):
+    if __import__('hex_maniac').skip_additional_self_cost(engine,a,e,ctx):return
     for c in tgt_of(e, a, t):
         v = _amount(e.get("value"), c, engine, ctx)
         if v is None:
@@ -278,7 +276,7 @@ def h_hp_loss(engine, a, t, e, ctx):
         tick_match=re.fullmatch(r'tick(?:\s*\*\s*([0-9]+))?',str(e.get('value')))
         if tick_match:v=engine.tick_loss(c,int(tick_match.group(1) or 1))
         import attack_damage_history as DAMAGE_HISTORY
-        DAMAGE_HISTORY.effect_loss(engine,a,t,c,e,ctx,v)
+        if not __import__('coordinator').prevent_effect_loss(engine,a,c,e,ctx):DAMAGE_HISTORY.effect_loss(engine,a,t,c,e,ctx,v)
 
 
 def h_self_hp_set(engine, a, t, e, ctx):
@@ -350,11 +348,17 @@ def h_type_change(engine, a, t, e, ctx):
     import type_state as TYPES
     TYPES.validate_types(c.r,[value],label="type-changing effect")
     if e.get("fallback") is not None:TYPES.validate_types(c.r,[e["fallback"]],label="type-changing fallback")
+    import personal_type_settings as PERSONAL
+    personal_loss=PERSONAL.neutral_burn_up(c.r,ctx.get('source_id'),mode,[value])
+    fallback=None if personal_loss else e.get('fallback')
     import state_grants as GRANTS
     source=getattr(c,"_state_registration_source",None) or GRANTS.effect_source(c,ctx,"type-change")
     if source not in GRANTS.state(c)["sources"]:
         GRANTS._source(c,source,"effect",owner_id=a.spec.get("id"),lifetime=e.get("duration") or e.get("until") or "legacy_unspecified",rule_id=ctx.get("source_id"))
-    GRANTS.type_operation(c,mode,[value],source,fallback=e.get("fallback"))
+    if personal_loss:
+        GRANTS.state(c)['sources'][source]['personal_type_setting']={
+            'source':PERSONAL.NEUTRAL_SOURCE,'identity':PERSONAL.TYPELESS,'fallback':None}
+    GRANTS.type_operation(c,mode,[value],source,fallback=fallback)
     import csv_item_capability_contracts as CSV_CAP
     CSV_CAP.sync_essence(engine,c)
     engine.log(f"    {c.name} 타입 → {c.types}")
@@ -458,7 +462,7 @@ def h_create_terrain(engine, a, t, e, ctx):
 
 def h_push(engine, a, t, e, ctx):
     import coat_effects as COATS
-    if COATS.blocks_displacement(engine,t):return None
+    if COATS.blocks_displacement(engine,t) or __import__('type_ace').push_immunity(engine,t):return None
     m = e.get("meters")
     if m == "to outside blast range":m=__import__("native_area_hit_effects").push_outside(engine,a,t,e,ctx)
     if not isinstance(m, int):
@@ -592,7 +596,7 @@ HANDLERS = {
     "never_miss": h_noop_static, "crit_range": h_noop_static, "grant_capability": h_noop_static, "weapon_restriction": h_noop_static,
     "usage_restriction": h_noop_static, "bonus_damage": h_noop_static, "damage_base_formula": h_noop_static, "conditional_damage_base": h_noop_static,
     "skill_check_mod": h_noop_static,
-    "damage_formula_override": h_noop_static, "damage_floor": h_noop_static, "damage_roll_mod": h_noop_static,
+    "oracle_mark": h_noop_static, "channel_imprint": h_noop_static, "damage_formula_override": h_noop_static, "damage_floor": h_noop_static, "damage_roll_mod": h_noop_static,
     "declarative_move_contract": h_declarative_move_contract,
 }
 # 판정 시점(명중/데미지)에 engine 이 직접 읽는 유형
@@ -961,6 +965,10 @@ def resume_effects(engine, completed_receipt):
 def apply_passives(engine, c, ability_effects):
     """특성 effect 목록을 Combatant.modifiers 로 등록 (전투 시작 시 한 번)."""
     name = next((e.get("_ability") for e in ability_effects if isinstance(e, dict) and e.get("_ability")), "?")
+    if __import__('hex_maniac').ability_registration(engine.r,name):return
+    if name in ('매복','매복 [Playtest]','ability/매복','ability/매복-playtest'):
+        # Ambush is an explicit native Priority activation, never an always-on Flinch.
+        return
     if name in ('잔인','ability/잔인'):
         # The extracted optional-purchase list is not an automatic on-hit Slow.
         # Actual damaging hits are offered once by Taskmaster's Cruelty adapter.
@@ -1100,7 +1108,7 @@ EXPR_VARS = {
     "user.weight_class": lambda c: c["attacker"].weight_class,
     "target.weight_class": lambda c: c["target"].weight_class,
     "user.injuries": lambda c: c["attacker"].injuries, "target.injuries": lambda c: c["target"].injuries,
-    "user.loyalty": lambda c: __import__("pokemon_entities").loyalty_value(c["attacker"], required=True),
+    "user.loyalty": lambda c: __import__("pokemon_entities").effective_loyalty_value(c["attacker"],engine=c.get("engine"), required=True),
     "max_hp": lambda c: c["who"].base_max_hp, "current_hp": lambda c: max(0, c["who"].hp), "tick": lambda c: c["engine"].tick(c["who"]),
     "sum(positive stages of user)": lambda c: sum(v for v in c["attacker"].stages.values() if v > 0),
     "sum(positive stages of target)": lambda c: sum(v for v in c["target"].stages.values() if v > 0),

@@ -131,6 +131,54 @@ def _native_dependencies(engine, actor, owned):
     import feature_ability_lessons as LESSONS
     import trainer_feature_acquisition as FEATURES
     result = {}
+    for child,parents in __import__('ace_trainer').PARENTS.items():
+        if child in owned and parents:
+            if not set(parents)<=set(owned):raise ValueError('actual retained Ace Trainer prerequisite required')
+            result[child]=list(parents)
+    import ace_trainer as ACE
+    for receipt in ACE.records(actor,ACE.ELITE,active=True):
+        gift=receipt['snapshot']['gift']['feature']
+        if gift in owned:result[gift]=list(dict.fromkeys([*result.get(gift,[]),ACE.ELITE]))
+    for child,parents in __import__('warper').PARENTS.items():
+        if child in owned and parents:
+            if not set(parents)<=set(owned):raise ValueError('actual retained Warper prerequisite required')
+            result[child]=list(parents)
+    for child,parents in __import__('telepath').PARENTS.items():
+        if child in owned and parents:
+            if not set(parents)<=set(owned):raise ValueError('actual retained Telepath prerequisite required')
+            result[child]=list(parents)
+    for child,parents in __import__('telekinetic').PARENTS.items():
+        if child in owned and parents:
+            if not set(parents)<=set(owned):raise ValueError('actual retained Telekinetic prerequisite required')
+            result[child]=list(parents)
+    import sage as SAGE
+    for child,parents in SAGE.PARENTS.items():
+        if child in owned and parents:
+            retained=[p for p in parents if p in owned]
+            if not retained or child!=SAGE.BENEDICTION and len(retained)!=len(parents):raise ValueError('actual retained Sage prerequisite required')
+            result[child]=retained[:1] if child==SAGE.BENEDICTION else retained
+    import ninja as NINJA
+    import oracle as ORACLE
+    for child,definition in ORACLE.DEFINITIONS.items():
+        if child in owned:
+            parent=definition['parent']
+            if parent:
+                if parent not in owned:raise ValueError('actual retained Oracle prerequisite required')
+                result[child]=[parent]
+    for child,definition in NINJA.DEFINITIONS.items():
+        parent=definition['parent']
+        if child in owned and parent:
+            if parent not in owned:raise ValueError('actual retained Ninja prerequisite required')
+            result[child]=[parent]
+    import rogue as ROGUE
+    for child,definition in ROGUE.DEFINITIONS.items():
+        if child in owned:
+            parents=definition['parents']
+            if any(parent not in owned for parent in parents):raise ValueError('actual acquired Rogue prerequisite required')
+            result[child]=list(parents)
+    import tumbler as TUMBLER
+    for child,definition in TUMBLER.DEFINITIONS.items():
+        if child in owned:result[child]=[definition["parent"]]
     import taskmaster as TASK
     for child,definition in TASK.DEFINITIONS.items():
         if child in owned:
@@ -217,6 +265,18 @@ def _native_dependencies(engine, actor, owned):
             parents=[MARTIAL.CLASS,*definition.get('prerequisites',[])]
             if any(parent not in owned for parent in parents):raise ValueError('actual acquired Martial Artist prerequisite required')
             result[child]=list(dict.fromkeys(result.get(child,[])+parents))
+    import channeler as CHANNEL
+    for child,definition in CHANNEL.DEFINITIONS.items():
+        if child in owned:
+            parent=definition['parent'] or 'edge/신비한-감각'
+            if parent not in owned:raise ValueError('actual acquired Channeler prerequisite required')
+            result[child]=[parent]
+    import aura_guardian as AURA
+    for child,definition in AURA.DEFINITIONS.items():
+        if child in owned:
+            parent=definition['parent'] or 'edge/원소-교감'
+            if parent not in owned:raise ValueError('actual acquired Aura prerequisite required')
+            result[child]=[parent]
     import provocateur as PROVOCATEUR
     for child,definition in PROVOCATEUR.DEFINITIONS.items():
         if child in owned and definition['parent']:
@@ -274,6 +334,7 @@ def retrain(engine, actor, rule_id, *, request_id, reason, gm_decision,
 
     def apply(e, trainer):
         import capture_techniques as CAPTURE
+        import class_passive_combat as PASSIVE
         sources = {uid: owned_source(e, trainer, uid) for uid in owned}
         import keep_fighting as KEEP
         if KEEP.FEATURE in owned and rule_id!=KEEP.FEATURE:
@@ -282,6 +343,18 @@ def retrain(engine, actor, rule_id, *, request_id, reason, gm_decision,
             if len(set(parents).intersection(declared))<5:
                 raise ValueError('retained Keep Fighting requires five actual Cheerleader Feature sources')
         retained = set(sources.values()) - GRANTS._revocation_sources(trainer,[sources[rule_id]])
+        import ace_trainer as ACE
+        if ACE.CHAMP in owned and sources[ACE.CHAMP] in retained:
+            parents=[sources[uid] for uid in ACE.FEATURES if uid in sources and uid!=ACE.CHAMP and sources[uid] in retained]
+            declared=retained_dependencies.get(sources[ACE.CHAMP],[])
+            if len(set(parents).intersection(declared))<4:
+                raise ValueError('retained Champ in the Making requires four actual Ace Trainer Features')
+        import oracle as ORACLE
+        if ORACLE.PREVIEW in owned and sources[ORACLE.PREVIEW] in retained:
+            parents=[sources[uid] for uid in ORACLE.FEATURES if uid in sources and uid!=ORACLE.PREVIEW and sources[uid] in retained]
+            declared=retained_dependencies.get(sources[ORACLE.PREVIEW],[])
+            if len(set(parents).intersection(declared))<3:
+                raise ValueError('retained Two-Second Preview requires three actual Oracle Features')
         import taskmaster as TASK
         if TASK.GAMBIT in owned and rule_id!=TASK.GAMBIT:
             parents=[sources[uid] for uid in TASK.FEATURES if uid in owned and uid not in (rule_id,TASK.GAMBIT)]
@@ -311,7 +384,9 @@ def retrain(engine, actor, rule_id, *, request_id, reason, gm_decision,
                     if row.get('owner_id') == trainer.entity_id and row.get('rule_id') == rule_id and
                     row.get('lifetime') in ('while_owned', 'your_pokemon') and
                     (key == source or row.get('static_acquisition',{}).get('feature_id')==rule_id or (row.get('kind') == 'static_trainer_modifier' and key.startswith(modifier_prefix)) or
-                     (row.get('kind') == 'class_passive_combat' and row.get('source_variant') == 'C03-126' and
+                     (row.get('kind') == 'class_passive_combat' and
+                      (row.get('source_variant') == 'C03-126' or
+                       rule_id in PASSIVE.POKEMON_STATIC and not row.get('sustain') and row.get('acquisition_source') == rule_id) and
                       key.startswith('class-passive:' + trainer.entity_id + ':')))]
             if keys:
                 GRANTS.preflight_revoke(target, keys)
@@ -330,6 +405,10 @@ def retrain(engine, actor, rule_id, *, request_id, reason, gm_decision,
             GRANTS.state(trainer)['sources'][source]['retraining']['granted_skill_edge_policy'] = deepcopy(granted_skill_edge_policy)
         import conquerors_march as MARCH
         MARCH.withdraw(e,trainer,rule_id)
+        __import__('ace_trainer').withdraw(e,trainer,rule_id)
+        __import__('channeler').withdraw(e,trainer,rule_id)
+        __import__('oracle').withdraw(e,trainer,rule_id)
+        __import__('sage').withdraw(e,trainer,rule_id)
         import stat_ace as STAT
         STAT.withdraw(e,trainer,rule_id)
         import chronicler as CHRONICLER

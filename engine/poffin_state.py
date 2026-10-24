@@ -61,7 +61,8 @@ def available(pokemon,trainer=None,*,engine=None):
     if len(values)>ordinary_cap+2 and not witnessed:
         raise ValueError("Poffin history exceeds the level plus Grace allowance")
     # Grace's transfer rule limits use to six, preserving every consumed benefit.
-    return values[:8 if has_grace else 6]
+    usable=values[:8 if has_grace else 6]
+    return __import__('coordinator').flexible_projection(pokemon,usable,engine=engine)
 
 
 def consumption_limit(pokemon,trainer=None,*,engine=None):

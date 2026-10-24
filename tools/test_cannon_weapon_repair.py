@@ -7,8 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 HERE = Path(__file__).resolve().parent
-ROOT = Path('D:/trpg-rulebook-structuring/ptk-structure-experiment')
-sys.path[:0] = [str(HERE / 'engine'), str(ROOT / 'engine'), str(ROOT / 'tools')]
+ROOT = HERE.parent
+sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
 
 import csv_item_physical_contracts as CANNON
 import optional_weapon_framework as WEAPON
@@ -73,7 +73,8 @@ class CannonWeaponRepair(unittest.TestCase):
         row = next(v for v in actor._item_reg.values() if v['instance_id'] == uid)
         self.assertIn(row['cannon_weapon_key'], actor.custom_conditions['equipped_weapons'])
         self.assertEqual(len(actor.custom_conditions['equipped_weapons']), 1)
-        self.assertEqual(CANNON.cannon_profile(engine, actor, uid, projectile='sludge_bomb')['range_m'], 15)
+        with self.assertRaisesRegex(ValueError, 'only Poke Ball and Pester Ball'):
+            CANNON.cannon_profile(engine, actor, uid, projectile='sludge_bomb')
         self.assertTrue(engine.validate_state()['valid'])
         Engine.import_state(engine.r, json.loads(json.dumps(engine.export_state())))
         ITEMS.unregister_item(engine, actor, 'item/몬스터볼-캐논')

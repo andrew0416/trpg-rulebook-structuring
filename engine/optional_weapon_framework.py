@@ -21,7 +21,9 @@ SOURCE = 'ch09-equipment/장비/무기'
 TRAINING = 'feat/아케인-훈련'
 ARCANIST = 'supp-fantasy/아케니스트'
 STEELHEART = 'C2CSV/input/db/feats.csv:R685:main'
+STEELHEART_CHOICE = 'steelheart_source_choice'
 CALL = 'feat/무기-부름'
+MASTER = 'feat/무기의-마스터'
 CLAUSES = {'FAN-030', 'FAN-031', 'FAN-063', 'FAN-082', 'FAN-203', 'FAN-209'}
 ALIASES = {
     TRAINING: ('아케인 훈련', 'Arcane Training'),
@@ -51,6 +53,20 @@ def policy(rules):
 
 
 def owns(actor, feature):
+    if feature == CALL:
+        # These are capabilities granted by Master of Arms, not separately
+        # acquired Call to Arms Features or unproven sheet capability strings.
+        import acquired_features as ACQUIRED
+        if actor.kind != 'trainer' or ACQUIRED.owned_rule_count(actor, MASTER) != 1:
+            return False
+        source = 'feature:' + actor.entity_id + ':' + MASTER
+        row = actor.spec.get(G.KEY, {}).get('sources', {}).get(source, {})
+        capability = ALIASES[CALL][0]
+        return (row.get('kind') == 'feature' and row.get('rule_id') == MASTER
+                and row.get('owner_id') == actor.entity_id and row.get('lifetime') == 'while_owned'
+                and source + ':0' in row.get('effect_sources', ())
+                and capability in row.get('grants', {}).get('capabilities', ())
+                and capability in G.effective_capabilities(actor, only=(capability,)))
     names = {S.key(x) for x in (feature, *ALIASES[feature])}
     return any(S.key(x) in names for field in ('features', 'feats') for x in actor.spec.get(field, ()))
 
@@ -62,6 +78,12 @@ def require_feature(engine, actor, feature):
         raise ValueError('actual acquired weapon feature required: ' + feature)
     if engine.r._selected_rule(feature) != feature:
         raise ValueError('selected weapon feature changed: ' + feature)
+    if feature == CALL:
+        # Master and its granted action share this already reviewed source.
+        from source_context import verified_source
+        reference = policy(engine.r)['clauses']['FAN-209']['source'][0]
+        verified_source(engine.r, {'file':reference['file'],'sha256':reference['file_sha256']},
+                        label='Master of Arms / Call to Arms')
 
 
 def arcane_type(engine, actor):
@@ -103,7 +125,12 @@ def object_profile(engine, instance_id, *, usable=True):
     if obj is None or PROFILE not in obj:
         raise ValueError('actual observed physical weapon required')
     if usable:
-        W.require_physical_access(obj)
+        if obj.get('telekinetic_holder_id'):
+            holder=W.actor_index(engine).get(obj['telekinetic_holder_id'])
+            if holder is None:raise ValueError('actual remote weapon holder required')
+            __import__('telekinetic').remote(engine,holder,obj)
+            W.require_usable_object(obj)
+        else:W.require_physical_access(obj)
     row = obj[PROFILE]
     expected = {'schema_version', 'source', 'name', 'kind', 'grade', 'arcane', 'metal', 'moves', 'reason', 'market'}
     if type(row) is not dict or set(row) != expected or row['schema_version'] != 1 or row['source'] != SOURCE:
@@ -127,7 +154,7 @@ def observe_weapon(engine, actor, instance_id, *, name, kind, grade, arcane, met
     """Observe a real object's profile; does not purchase, equip or create it."""
     W.require_actors(engine, actor)
     obj = getattr(engine, '_physical_objects', {}).get(instance_id)
-    if obj is None or actor.entity_id not in (obj.get('owner_id'), obj.get('carrier_id')):
+    if obj is None or actor.entity_id not in (obj.get('owner_id'), obj.get('carrier_id'),obj.get('telekinetic_holder_id')):
         raise ValueError('actual accessible owned weapon required')
     if obj.get('equipped_by') or PROFILE in obj:
         raise ValueError('observe an unequipped weapon once; profile is persistent')
@@ -146,11 +173,12 @@ def observe_weapon(engine, actor, instance_id, *, name, kind, grade, arcane, met
             import improvised_weapons as IMPROVISED
             cannon = target['item_rule_id'] == 'item/몬스터볼-캐논'
             if cannon:
-                valid = (kind, grade, arcane, name) == (
-                    '장거리 사격무기', '좋음', False, e.r.items_mech[target['item_rule_id']]['name'])
+                import csv_item_physical_contracts as CSV_ITEMS
+                printed = CSV_ITEMS.weapon_profile(e.r, target['item_rule_id'])
+                valid = (kind, grade, arcane, name) == tuple(printed[key] for key in ('kind', 'grade', 'arcane', 'name'))
             elif known and known.get('weapon_kind'):
                 valid = (kind, grade, arcane, name) == (
-                    known['weapon_kind'], '좋음', bool(known.get('arcane')), known['name'])
+                    known['weapon_kind'], known.get('weapon_grade', '좋음'), bool(known.get('arcane')), known['name'])
             else:
                 valid = IMPROVISED.ruling(e, instance_id) is not None
             if not valid:
@@ -163,11 +191,29 @@ def observe_weapon(engine, actor, instance_id, *, name, kind, grade, arcane, met
 def profile_for_weapon(engine, actor, weapon):
     uid = weapon.get('framework_instance')
     if uid is None:
-        return None
-    obj, row = object_profile(engine, uid)
+        uid = weapon.get('recipe_instance')
+        if uid is None:
+            return None
+        obj = getattr(engine, '_physical_objects', {}).get(uid)
+        if obj is None:
+            raise ValueError('crafted weapon lost its physical item')
+        W.require_physical_access(obj)
+        import optional_physical_equipment as OPTIONAL
+        definition = OPTIONAL.definition(engine.r, obj.get('item_rule_id'))
+        if definition is not None and definition.get('weapon_kind'):
+            row = dict(name=definition['name'], kind=definition['weapon_kind'],
+                       grade=definition.get('weapon_grade', '좋음'), moves=[],
+                       arcane=bool(definition.get('arcane')), metal=False)
+        else:
+            import csv_item_physical_contracts as CSV_ITEMS
+            row = CSV_ITEMS.weapon_profile(engine.r, obj.get('item_rule_id'))
+            if row is None:
+                raise ValueError('crafted weapon lost its selected recipe')
+    else:
+        obj, row = object_profile(engine, uid)
     if any(weapon.get(key) != row[key] for key in ('name', 'kind', 'grade', 'moves')):
         raise ValueError('equipped weapon and physical profile disagree')
-    if actor.entity_id not in (obj.get('owner_id'), obj.get('carrier_id'), obj.get('equipped_by')):
+    if actor.entity_id not in (obj.get('owner_id'), obj.get('carrier_id'), obj.get('equipped_by'),obj.get('telekinetic_holder_id')):
         raise ValueError('physical weapon belongs to another holder')
     holder = obj.get('equipped_by') or obj.get('carrier_id')
     if holder not in (None, actor.entity_id):
@@ -177,10 +223,12 @@ def profile_for_weapon(engine, actor, weapon):
 
 def skill_rank(engine, actor, weapon):
     row = profile_for_weapon(engine, actor, weapon)
+    if __import__('telekinetic').remote_weapon(engine,actor,weapon):return S.rank(engine.r,actor,'집중')[2]
     if row and row['arcane']:
         arcane_type(engine, actor)
         return S.rank(engine.r, actor, '오컬트학')[2]
     ranks = [S.rank(engine.r, actor, '전투')[2]]
+    if __import__('rogue').cutthroat(engine,actor,weapon):ranks.append(__import__('rogue').rank(engine,actor))
     if row and row['metal'] and '근접' in row['kind'] and steelheart(engine, actor):
         ranks.extend(S.rank(engine.r, actor, skill)[2] for skill in ('육상', '집중'))
     return max(ranks)
@@ -221,7 +269,7 @@ def move_limit(engine, actor, weapon):
 def crafted_weapon(engine, plan, weapon):
     obj = engine._physical_objects[plan['instance_id']]
     if PROFILE not in obj:
-        return weapon
+        return dict(weapon, recipe_instance=plan['instance_id'], instance_id=plan['instance_id'])
     _, row = object_profile(engine, plan['instance_id'])
     return {key: deepcopy(row[key]) for key in ('name', 'kind', 'grade', 'moves')} | {'framework_instance': plan['instance_id'], 'instance_id': plan['instance_id']}
 
@@ -233,6 +281,8 @@ def on_equip(engine, actor, key):
         return
     obj, _ = object_profile(engine, uid)
     entry['instance_id'] = uid
+    if entry['weapon'].get('telekinetic'):
+        __import__('telekinetic').remote(engine,actor,obj);return
     obj['equipped_by'] = actor.entity_id
     W._set_object_location(obj, {'kind': 'unknown'})
 
@@ -241,8 +291,9 @@ def on_unequip(engine, actor, entry):
     uid = entry['weapon'].get('framework_instance')
     if uid is None:
         return
-    obj, _ = object_profile(engine, uid)
-    if obj.get('equipped_by') != actor.entity_id:
+    obj, _ = object_profile(engine, uid,usable=not entry['weapon'].get('telekinetic',False))
+    if entry['weapon'].get('telekinetic'):return
+    if obj.get('equipped_by') != actor.entity_id and not __import__('telekinetic').remote_weapon(engine,actor,entry['weapon']):
         raise ValueError('physical weapon holder changed')
     obj.pop('equipped_by', None)
     W._set_object_location(obj, W.location_of(actor))
@@ -270,8 +321,8 @@ def equip(engine, actor, instance_id, *, slot='주요손'):
     return G.transition(engine, actor, apply)
 
 
-def disarm_skills(engine, actor):
-    result = {'combat', 'stealth'}
+def disarm_skills(engine, actor, item_name=None):
+    result = {'combat', 'stealth'} | __import__('rogue').disarm_skills(engine,actor,item_name)
     for entry in actor.custom_conditions.get('equipped_weapons', {}).values():
         row = profile_for_weapon(engine, actor, entry['weapon'])
         if not row:
@@ -288,6 +339,7 @@ def adapt_move(engine, actor, move):
     import living_weapon as LIVING
     borrowed=LIVING.borrowed(engine,actor,move)
     if borrowed is not None:return borrowed
+    if move.get('_rogue_cutthroat') is not None:return __import__('rogue').weapon_move(engine,actor,move,None)
     attack = move.get('_weapon_attack')
     if not attack:
         return move
@@ -314,8 +366,8 @@ def adapt_move(engine, actor, move):
                     else entry.get('item_id', SOURCE))
     if move.get('id') not in entry.get('available_moves', ()) or attack.get('source') != grant_source:
         raise ValueError('weapon attack is not granted by this physical source')
-    obj, _ = object_profile(engine, entry['instance_id'])
-    if obj.get('equipped_by') != actor.entity_id:
+    obj = engine._physical_objects[entry['instance_id']]
+    if obj.get('equipped_by') != actor.entity_id and not __import__('telekinetic').remote_weapon(engine,actor,entry['weapon']):
         raise ValueError('attack requires the current physical weapon holder')
     validate_loadout(engine, actor, entry['weapon'])
     out = deepcopy(move)
@@ -467,33 +519,117 @@ def recall(engine, actor, *, family, unwilling=None, skill=None,
     return G.transition(engine, actor, apply, participants=() if holder is None else (holder,))
 
 
+def _steelheart_policy(rules):
+    from source_context import verified_source
+    value = json.loads((Path(rules.root)/'data/fantasy-q30-source-policy.json').read_text(encoding='utf-8'))['steelheart']
+    if value['rule_id'] != STEELHEART:
+        raise ValueError('actual registered Steelheart source required')
+    verified_source(rules,value['source_reference'],label='Steelheart CSV')
+    for definition in value['definitions'].values():
+        reference = definition['source']
+        verified_source(rules,reference,label='Steelheart definition',
+                        source_root='source-audit' if reference['file'].startswith('source-audit/') else 'input')
+    return value
+
+
+def _steelheart_document(value):
+    return {'schema':1,'id':'native/steelheart-source','variants':[{
+        'rule_id':STEELHEART,'source':value['source_reference'],
+        'values':{'variant':{'$input':'source_text'},'definitions':value['definitions']},
+        'inputs':{'source_text':{'type':'string','authority':'gm','decision_kind':'source_conflict',
+            'choices':list(value['definitions']),
+            'question':'Steelheart: complete Korean book prior outgoing hit, or actual incoming CSV with English Melee clarification?'}}}]}
+
+
+def steelheart_source_choices(engine):
+    import source_policy as SOURCE_POLICY
+    return SOURCE_POLICY.resolve(engine.r,_steelheart_document(_steelheart_policy(engine.r)))
+
+
+def _steelheart_selected(engine,actor):
+    import source_policy as SOURCE_POLICY
+    value = _steelheart_policy(engine.r)
+    choice = actor.spec.get(STEELHEART_CHOICE)
+    result = SOURCE_POLICY.resolve(engine.r,_steelheart_document(value),decisions={} if choice is None else {'source_text':choice})
+    return (value['default'] if choice is None else result['values']['variant']),deepcopy(choice)
+
+
+def select_steelheart_source(engine,actor,choice):
+    import action_lifecycle as ACTION
+    require_feature(engine,actor,STEELHEART);ACTION.ensure_resolutions_clear(engine)
+    def apply(e,a):
+        a.spec[STEELHEART_CHOICE] = deepcopy(choice)
+        variant,_ = _steelheart_selected(e,a)
+        return variant
+    return G.transition(engine,actor,apply)
+
+
+def _hit_history(engine,holder):
+    history = holder.spec.get(HITS)
+    if history is None or history['round'] != engine.round_no:
+        variant,choice = _steelheart_selected(engine,holder)
+        history = {'round':engine.round_no,'targets':[],'receipts':[],
+                   'policy_variant':variant,'source_choice':choice}
+        holder.spec[HITS] = history
+    return history
+
+
+def _history_variant(engine,history):
+    # Unmarked rows were produced by outgoing-any, never by an inferred EN choice.
+    if 'policy_variant' not in history:
+        return 'korean_book_outgoing'
+    value = _steelheart_policy(engine.r)
+    variant,choice = history['policy_variant'],history['source_choice']
+    if variant not in value['definitions']:
+        raise ValueError('original complete Steelheart definition required')
+    if choice is None:
+        if variant != value['default']:
+            raise ValueError('nondefault Steelheart history needs its producing source decision')
+    else:
+        import root_resolution as RESOLUTION
+        document = _steelheart_document(value)
+        fixed = {'policy_id':document['id'],'selected_id':STEELHEART,'selected_version':None,
+                 'definition_hash':RESOLUTION.fingerprint(document)}
+        if (type(choice) is not dict or set(choice) != {'value','reason','scope'} or choice['value'] != variant
+                or type(choice['scope']) is not dict or set(choice['scope']) != set(fixed)|{'profile_hash'}
+                or any(choice['scope'][key] != wanted for key,wanted in fixed.items())):
+            raise ValueError('original scoped Steelheart source decision required')
+        if any(not isinstance(text,str) or not text.strip() for text in (choice['reason'],choice['scope']['profile_hash'])):
+            raise ValueError('Steelheart source reason and producing profile required')
+    return variant
+
+
 def observe_hit(engine, completion, actor, target):
     """Consume the native completed hit once, including a zero-damage hit."""
     import move_completion as COMPLETE
     result = COMPLETE.recipient_result(completion,target)
-    if not result or not result['hit'] or result['cancelled'] or actor.side == target.side or actor is target:
+    if not result or not result['hit'] or result['cancelled'] or getattr(actor,'side',None) is None or getattr(target,'side',None) is None or actor.side == target.side or actor is target:
         return
-    if not owns(actor, STEELHEART):
-        return
-    steelheart(engine, actor)
-    history = actor.spec.get(HITS)
-    if history is None or history['round'] != engine.round_no:
-        history = {'round': engine.round_no, 'targets': [], 'receipts': []}
-        actor.spec[HITS] = history
     token = completion['id'] + ':' + target.entity_id
-    if token in history['receipts']:
-        return
-    move = completion['move']
-    attack = move.get('_weapon_attack')
-    if target.entity_id in history['targets'] and attack:
-        entry = actor.custom_conditions.get('equipped_weapons', {}).get(attack['key'])
-        row = profile_for_weapon(engine, actor, entry['weapon']) if entry else None
-        if row:
-            import attack_damage_history as HISTORY
-            HISTORY.received_loss(engine,target,engine.tick_loss(target),source=STEELHEART,move=move)
-    if target.entity_id not in history['targets']:
-        history['targets'].append(target.entity_id)
-    history['receipts'].append(token)
+    original_id = completion.get('received',{}).get(target.entity_id,{}).get('original_id',target.entity_id)
+    move = completion.get('target_moves',{}).get(original_id,completion['move'])
+    for holder,foe,outgoing in ((actor,target,True),(target,actor,False)):
+        if not owns(holder,STEELHEART):
+            continue
+        steelheart(engine,holder)
+        history = _hit_history(engine,holder)
+        if token in history['receipts']:
+            continue
+        variant = _history_variant(engine,history)
+        attack = move.get('_weapon_attack')
+        if outgoing and foe.entity_id in history['targets'] and attack and attack.get('source') == SOURCE:
+            # Native preparation authenticates ordinary Weapon Attacks too;
+            # an optional physical profile is not a printed Tick prerequisite.
+            if attack['key'] in holder.custom_conditions.get('equipped_weapons',{}):
+                import attack_damage_history as HISTORY
+                HISTORY.received_loss(engine,foe,engine.tick_loss(foe),source=STEELHEART,move=move)
+        qualifies = outgoing and variant == 'korean_book_outgoing'
+        if not outgoing and variant == 'english_incoming_melee':
+            import weapon_actions as WEAPONS
+            qualifies = WEAPONS.range_spec(engine,move,actor).get('origin') == 'melee'
+        if qualifies and foe.entity_id not in history['targets']:
+            history['targets'].append(foe.entity_id)
+        history['receipts'].append(token)
 
 
 def validate_world(engine, index):
@@ -517,8 +653,10 @@ def validate_world(engine, index):
                 raise ValueError('weapon bond creation is in the future')
         history = actor.spec.get(HITS)
         if history is not None:
-            if type(history) is not dict or set(history) != {'round', 'targets', 'receipts'}:
+            legacy = {'round','targets','receipts'}
+            if type(history) is not dict or set(history) not in (legacy,legacy|{'policy_variant','source_choice'}):
                 raise ValueError('weapon hit history shape changed')
+            _history_variant(engine,history)
             C.integer(history['round'], 'weapon hit history round', 0)
             if history['round'] > engine.round_no:
                 raise ValueError('weapon hit history round is in the future')
@@ -529,11 +667,11 @@ def validate_world(engine, index):
             if any(uid not in index for uid in history['targets']):
                 raise ValueError('weapon hit history target is absent')
         for entry in actor.custom_conditions.get('equipped_weapons', {}).values():
-            if entry['weapon'].get('framework_instance'):
+            if entry['weapon'].get('framework_instance') or entry['weapon'].get('recipe_instance'):
                 profile_for_weapon(engine, actor, entry['weapon'])
                 validate_loadout(engine, actor, entry['weapon'])
                 uid = entry['instance_id']
-                if engine._physical_objects[uid].get('equipped_by') != actor.entity_id:
+                if engine._physical_objects[uid].get('equipped_by') != actor.entity_id and not __import__('telekinetic').remote_weapon(engine,actor,entry['weapon']):
                     raise ValueError('equipped physical weapon relation changed')
     import improvised_weapons as IMPROVISED
     IMPROVISED.validate_world(engine)
@@ -545,7 +683,10 @@ def atomic_move(fn):
     @wraps(fn)
     def run(engine, attacker, *args, **kwargs):
         import living_weapon as LIVING
-        interested = owns(attacker, STEELHEART) or any(entry['weapon'].get('framework_instance') for entry in attacker.custom_conditions.get('equipped_weapons', {}).values())
+        interested = owns(attacker, STEELHEART) or any(entry['weapon'].get('framework_instance') or entry['weapon'].get('recipe_instance') for entry in attacker.custom_conditions.get('equipped_weapons', {}).values())
+        # A holder may receive the prior Melee hit from an ordinary foe. Keep
+        # that same native completion/payment/history within this transaction.
+        interested = interested or any(owns(c,STEELHEART) for c in W.actor_index(engine).values())
         interested = interested or LIVING.relation(engine,attacker) is not None
         import cleanse_tags as CLEANSE
         equipped={entry.get('instance_id') for entry in attacker.custom_conditions.get('equipped_weapons',{}).values()}
@@ -557,11 +698,7 @@ def atomic_move(fn):
             return fn(engine, attacker, *args, **kwargs)
         pending = []
         def apply(e, a):
-            # transition preserves registered actor aliases, including arguments.
-            memo = {id(c): W.actor_index(e)[uid] for uid, c in W.actor_index(engine).items()}
-            memo.update(G._transition_token_anchors(engine))
-            copied_args = deepcopy(args, memo)
-            copied_kwargs = deepcopy(kwargs, memo)
+            copied_args, copied_kwargs = G._stage_transition_payload(engine, e, (args, kwargs))
             e._optional_weapon_atomic = True
             try:
                 return fn(e, a, *copied_args, **copied_kwargs)

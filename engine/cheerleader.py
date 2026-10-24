@@ -112,14 +112,29 @@ def issue(engine,actor,targets,origin):
 
 
 def after_moment(engine,actor,targets,row):
+    if __import__('commander').scope(engine,actor) is not None:return None
     return issue(engine,actor,targets,{'kind':'moment_of_action','source':M.FEATURE,'use_id':row['id']})
 
 
 def after_training(engine,actor,target,result):
     if target is actor:return None  # Training permits self Orders; the user is not an ally.
     if actor.side and target.side and actor.side!=target.side:return None
+    if 'core_standard_payment' in result:
+        return issue(engine,actor,[target],{'kind':'training_core_order','source':result['rule_id'],
+            'payment_id':result['core_standard_payment']['id'],'target_id':target.entity_id})
     return issue(engine,actor,[target],{'kind':'training_order','source':result['rule_id'],
         'priority_id':result['priority_receipt']['id'],'grant_source':result['source'],'target_id':target.entity_id})
+
+
+def complete_native_order(engine,actor,targets,source,*,origin=None):
+    targets=list(dict.fromkeys(targets))
+    serial=actor.custom_conditions.get('duelist_order_sequence',0)+1
+    actor.custom_conditions['duelist_order_sequence']=serial
+    origin=deepcopy(origin) if origin is not None else {'kind':'native','source':source,'sequence':serial}
+    if origin.get('source')!=source:raise ValueError('native Order completion source changed')
+    __import__('duelist').after_order(engine,actor,targets,origin)
+    allies=_allies(actor,targets)
+    if allies:issue(engine,actor,allies,origin)
 
 
 def order_activation(source):
@@ -128,13 +143,14 @@ def order_activation(source):
     def decorate(fn):
         @wraps(fn)
         def run(engine,actor,target,*args,**kwargs):
+            if __import__('commander').scope(engine,actor) is not None:return fn(engine,actor,target,*args,**kwargs)
             import duelist as DUELIST
             if acquired(actor) is None and not DUELIST.acquired(actor,DUELIST.DIRECTED):return fn(engine,actor,target,*args,**kwargs)
             import state_grants as G
             uid=source or args[0]
             def apply(e,owner,recipient):
                 result=fn(e,owner,recipient,*args,**kwargs)
-                successful=result is not None and (type(result) is dict or tuple(result)==(1,0))
+                successful=result is True or type(result) is dict or isinstance(result,(tuple,list)) and tuple(result)==(1,0)
                 if successful:
                     serial=owner.custom_conditions.get('duelist_order_sequence',0)+1
                     owner.custom_conditions['duelist_order_sequence']=serial
@@ -328,6 +344,7 @@ def native_action(fn):
         interested=interested or any(RESILIENCE.interested(subject) for subject in subjects)
         import roughneck as ROUGHNECK,endure as ENDURE
         interested=interested or any(ROUGHNECK.owns(subject,ROUGHNECK.CLASS) or ENDURE.known(engine,subject) for subject in subjects)
+        interested=interested or any(__import__('sage').acquired(subject) for subject in subjects)
         if _TRANSACTION.get() or not interested:return fn(engine,actor,*args,**kwargs)
         pending=[]
         def apply(e,user):
@@ -375,6 +392,7 @@ def save_roll(engine,actor,condition,natural):
     if row is None:return natural,None
     import duelist as DUELIST
     second=11 if DUELIST.choose_eleven(engine,actor,'saving_reroll') else engine.d20()
+    second=__import__('oracle').replace_d20(engine,actor,second,'saving_reroll')
     C.integer(second,'Cheered second saving d20',1,20)
     event={'kind':'saving_check','condition':condition,'rolls':[natural,second],'natural':max(natural,second)}
     consume(engine,actor,row,event)
@@ -422,8 +440,15 @@ def validate_record(actor,row,*,terminal=False):
     meta=row[E.KEY];condition=row['effect'].get('condition')
     if (row['source'] not in (CLASS,GO_FIGHT_WIN) or row['effect']!={'kind':KIND,'condition':condition} or condition not in CONDITIONS
             or meta['kind']!=KIND or meta['capacity']!={'bucket':'independent_instances','source':row['source']}
-            or meta['lifetime']!={'boundary':'until_consumed'} or len(meta['ownership'])!=1):
+            or meta['lifetime']!={'boundary':'until_consumed'}
+            or (len(meta['ownership'])!=1 and row['source']!=GO_FIGHT_WIN)):
         raise ValueError('Cheerleader effect definition changed')
+    if row['source']==GO_FIGHT_WIN and len(meta['ownership'])>1:
+        import native_order_transfer as TRANSFER
+        if TRANSFER.KEY not in row or TRANSFER.origin_id(row,actor)!=meta['origin_actor_id']:
+            raise ValueError('fixed Order condition requires its actual transfer origin')
+        if any(event['source'] not in TRANSFER.SOURCES for event in meta['ownership'][1:]):
+            raise ValueError('only native Baton Pass/Tag In passes fixed Order conditions')
     origin=row.get('origin')
     if type(origin) is not dict or set(origin)!={'issuer_id','use_id'} or meta.get('applied_by_actor_id')!=origin['issuer_id']:
         raise ValueError('actual Cheerleader issuer and use required')
@@ -481,7 +506,24 @@ def validate_world(engine,index):
 
 def validate_origin(engine,issuer,use):
     origin=use['origin'];kind=origin.get('kind')
-    if kind=='duelist_order':
+    if kind=='commander_order':
+        import commander as COMMANDER
+        rows=[row for row in issuer.spec.get(COMMANDER.ACTIVATIONS,[]) if row['id']==origin.get('activation_id')]
+        if (len(rows)!=1 or rows[0]['phase']!='complete' or rows[0]['feature']!=origin.get('source')
+                or rows[0]['at']!=use['at'] or set(use['targets'])!={r['target_id'] for r in rows[0]['orders']}):
+            raise ValueError('Cheerleader requires the actual completed Commander Order activation')
+    elif kind=='mobilize':
+        import commander as COMMANDER
+        n=origin.get('use_index');rows=COMMANDER.uses(issuer)
+        if (type(n)is not int or not 1<=n<=len(rows) or origin.get('source')!=COMMANDER.MOBILIZE
+                or set(use['targets'])!={rows[n-1]['target_id']} or rows[n-1]['at']!=use['at']):
+            raise ValueError('Cheerleader requires actual completed Mobilize')
+    elif kind=='general_order':
+        import commander_orders as ORDERS
+        row=ORDERS.find_use(issuer,origin.get('use_id'))
+        if (row['phase']!='complete' or row['feature']!=origin.get('source') or row['at']!=use['at']
+                or set(use['targets'])!={row['target_id']}):raise ValueError('Cheerleader requires actual completed general Order')
+    elif kind=='duelist_order':
         import duelist as DUELIST
         rows=[row for row in issuer.spec.get(DUELIST.USES,[]) if row['id']==origin.get('use_id')]
         if len(rows)!=1 or rows[0]['source']!=origin.get('source') or set(use['targets'])!={rows[0]['pokemon_id']}:
@@ -501,17 +543,39 @@ def validate_origin(engine,issuer,use):
         rows=[row for row in M._uses(issuer) if row['id']==origin.get('use_id')]
         if origin.get('source')!=M.FEATURE or len(rows)!=1 or set(rows[0]['targets'])!=set(use['targets']) or rows[0]['at']!=use['at']:
             raise ValueError('Cheerleader requires the actual completed Moment of Action')
+    elif kind=='training_core_order':
+        import training_features as TRAINING
+        payment=TRAINING.core_payment(issuer,origin.get('payment_id'))
+        if (payment['feature']!=origin.get('source') or payment['target_id']!=origin.get('target_id')
+                or payment['at']!=use['at'] or set(use['targets'])!={origin.get('target_id')}):
+            raise ValueError('Cheerleader requires the actual completed Core Training Order')
     elif kind=='training_order':
         import priority_limited as P,training_features as TRAINING
         rows=[row for row in P.records(issuer) if row['id']==origin.get('priority_id')]
-        if origin.get('source') not in TRAINING.RULES or len(rows)!=1 or rows[0]['source']!=origin['source'] or rows[0]['subject_id']!=origin.get('target_id') or set(use['targets'])!={origin['target_id']}:
+        ordinary=[record['result'] for record in issuer.spec.get('training_order_uses',[])
+                  if record['integrity']==TFA._digest('training-order/use/v1',record['result'])
+                  and record['result']['priority_receipt']['id']==origin.get('priority_id')
+                  and record['result']['rule_id']==origin.get('source') and record['result']['target_id']==origin.get('target_id')
+                  and record['result']['trainer_id']==issuer.entity_id and record['result']['source']==origin.get('grant_source')]
+        reserved=(len(rows)==1 and rows[0]['source']==origin.get('source')
+                  and rows[0]['subject_id']==origin.get('target_id'))
+        if origin.get('source') not in TRAINING.RULES or not (reserved or len(ordinary)==1) or set(use['targets'])!={origin['target_id']}:
             raise ValueError('Cheerleader requires the actual completed Training Order')
     elif kind=='native_order':
         import class_passive_combat as CLASS_PASSIVE,combat_precision_features as PRECISION,directive_features as DIRECTIVES
+        import stat_ace as STAT,chronicler as CHRONICLER,fashionista as FASHION
         sources={'class_passive_combat':CLASS_PASSIVE.STRATAGEMS,
-                 'combat_precision_features':{PRECISION.PINPOINT},'directive_features':{DIRECTIVES.SOURCE}}
+                 'combat_precision_features':{PRECISION.PINPOINT},'directive_features':{DIRECTIVES.SOURCE},
+                 'stat_ace':{STAT.STRATAGEM},'chronicler':{CHRONICLER.PROFILING},'fashionista':{FASHION.DRESS},
+                 'type_ace':__import__('type_ace').STRATAGEMS|{__import__('type_ace').REFRESH}}
         if origin.get('source') not in sources.get(origin.get('native_module'),()) or set(use['targets'])!={origin.get('target_id')} or origin.get('at')!=use['at']:
             raise ValueError('actual known native Orders completion required')
+    elif kind=='wilderness_guide':
+        import survivalist_class as GUIDE
+        rows=[row for row in issuer.spec.get(GUIDE.GUIDE_HISTORY,[]) if row['sequence']==origin.get('sequence')]
+        if (origin.get('source')!=GUIDE.GUIDE or len(rows)!=1 or rows[0]['owner_id']!=issuer.entity_id
+                or set(rows[0]['allies'])!=set(use['targets']) or rows[0]['seconds']!=use['at']):
+            raise ValueError('Cheerleader requires the actual completed Wilderness Guide')
     elif kind=='inspirational_support':
         snapshot=origin.get('support',{});pokemon_id=snapshot.get('pokemon_id')
         import world_entities as W

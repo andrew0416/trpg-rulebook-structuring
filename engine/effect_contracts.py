@@ -15,6 +15,8 @@ CONTROL=frozenset(('target','on','turns','scope','while','until','duration','rep
 CONDITION=frozenset(('on_miss','on_natural_roll_min','on_natural_roll','if_weather','on_ko','if'))
 ANNOTATIONS=frozenset(('note','confidence'))
 SCHEMAS={
+ 'oracle_mark':{'owner_id'},
+ 'channel_imprint':{'owner_id'},
  'forced_movement':{'distance','direction','stop_cells','allow_fainted'},
  'push':{'meters'},
  'stage_change':{'stat','delta','base','linked_to'},'stat_mod':{'stat','value','min','multiplier'},
@@ -27,7 +29,8 @@ SCHEMAS={
  'type_change':{'add_type','lose_type','set_type','fallback','single_type'},
  'size_change':{'to'},
 }
-SELF_DEFAULT=frozenset(('damage_reduction','save_mod','type_change','grant_ability','ability_change','size_change','heal_injury','consume_buff','counter','self_hp_set','drain','grant_move'))
+# Field creation, hazard cleanup and repeat locks are owned by their user.
+SELF_DEFAULT=frozenset(('damage_reduction','save_mod','type_change','grant_ability','ability_change','size_change','heal_injury','consume_buff','counter','self_hp_set','drain','grant_move','destroy_hazards','field_effect','repeat_each_turn'))
 
 @dataclass(frozen=True)
 class Issue:
@@ -93,10 +96,32 @@ def recipients(actor,target,effect):
  if selected in ('both','self and target') and effect.get('type') in {'stage_change','stat_mod','apply_status','apply_status_random','cure_status','cure_all_status','heal','hp_loss','temp_hp','evasion_mod','accuracy_mod','reset_stages','save_mod'}:return tuple(dict.fromkeys((actor,target)))
  raise ValueError('explicit native target-set binding required for '+str(selected))
 
+def hit_recipients(engine,actor,target,effect,source):
+ """Resolve supported native per-hit selectors without widening their source."""
+ if source=='feat/왕복-여행':
+  import native_switch_transfer as SWITCH
+  if effect==SWITCH.ROUND_EFFECT:return (target,)
+ if (source=='move/천둥차기'
+       and effect=={'type':'stage_change','stat':'def','delta':-1,'target':'all_targets'}):
+  # The native activation dispatches this declaration once per actual hit.
+  return (target,)
+ if effect.get('type')=='apply_coat' and effect.get('target')=='all in burst':
+  return (target,)
+ if effect.get('target')=='all_targets':
+  import native_area_hit_effects as AREA_HIT
+  return AREA_HIT.preflight(engine,actor,target,effect,source)
+ return recipients(actor,target,effect)
+
 def inspect(engine,actor,target,effect,source,index=0):
  import effects as FX
  if not isinstance(effect,dict) or not isinstance(effect.get('type'),str):return Issue('unsupported_execution','type','typed effect record required')
  kind=effect['type']
+ if kind=='oracle_mark':
+  try:__import__('oracle').mark_payload(engine,actor,target,effect,source,preflight=True)
+  except ValueError as ex:return Issue('unsupported_execution','oracle_mark',str(ex))
+ if kind=='channel_imprint':
+  try:__import__('channeler').preflight_imprint(engine,actor,target,effect,source)
+  except ValueError as ex:return Issue('unsupported_execution','channel_imprint',str(ex))
  if kind=='pledge' and 'rainbow_observed' in effect:
   import pledge_state as PLEDGE
   try:PLEDGE.prepare(engine,actor,target,effect,source)
@@ -138,17 +163,7 @@ def inspect(engine,actor,target,effect,source,index=0):
    if not WEAPONS.is_field(WEAPONS.range_spec(engine,engine.r.move(source))):
     return Issue('unresolved_source','target','Haze requires its selected Field range')
    targets=tuple(WEAPONS.field_members(engine))
-  elif (kind=='stage_change' and source=='move/천둥차기'
-        and effect=={'type':'stage_change','stat':'def','delta':-1,'target':'all_targets'}):
-   # use_move_on dispatches this target-1 Move once for every authenticated hit
-   # target.  The handler receives that current member, while the source wording
-   # retains all_targets provenance.
-   targets=(target,)
-  elif kind=='apply_coat' and effect.get('target')=='all in burst':targets=(target,)
-  elif effect.get('target')=='all_targets':
-   import native_area_hit_effects as AREA_HIT
-   targets=AREA_HIT.preflight(engine,actor,target,effect,source)
-  else:targets=recipients(actor,target,effect)
+  else:targets=hit_recipients(engine,actor,target,effect,source)
  except ValueError as ex:return Issue('unsupported_execution','target',str(ex))
  for field in ('scope','when','trigger','at','optional'):
   if field in effect and not (kind=='free_maneuver' and field=='optional') and not (kind=='reaction_shield' and field=='trigger' and effect[field]=='user hit by a move'):return Issue('unresolved_source' if field=='optional' else 'unsupported_execution',field,'source-specific '+field+' adapter required; field cannot be ignored')
@@ -192,11 +207,10 @@ def inspect(engine,actor,target,effect,source,index=0):
   affected=targets if kind=='remove_coats' else (getattr(engine,'everyone',None) or [actor,target])
   try:COATS.preflight_clear(engine,affected,source=source,applied_by=actor)
   except ValueError as ex:return Issue('unresolved_source','coat_removal',str(ex))
- if kind=='switch_out' and 'coats' in effect.get('pass',[]):
-  import coat_effects as COATS
-  if COATS.live(actor):
-   try:COATS.preflight_transfer(engine,actor,source)
-   except ValueError as ex:return Issue('unresolved_source','coat_transfer',str(ex))
+ if kind=='switch_out':
+  import native_switch_transfer as SWITCH
+  try:SWITCH.inspect(engine,actor,target,effect,source)
+  except ValueError as ex:return Issue('unresolved_source','native_switch',str(ex))
  if kind=='next_roll_bonus':
   import roll_effects as ROLLS
   try:ROLLS.preflight(engine,actor,target,effect,source)
@@ -310,7 +324,7 @@ def condition(engine,effect,ctx,*,source=None):
  nat=ctx.get('nat')
  if 'on_natural_roll_min' in effect:
   import combat_precision_features as CPF
-  face=CPF.effect_natural(engine,ctx['attacker'],ctx.get('move'),nat)
+  face=CPF.effect_natural(engine,ctx['attacker'],ctx.get('move'),nat,actual_damage_type=ctx.get('actual_damage_type'))
   checks.append(ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual natural accuracy observation') if face is None else known(face>=__import__('combat_modifiers').incoming_status_threshold(ctx['target'],effect.get('status'),effect['on_natural_roll_min'])))
  if effect.get('on_natural_roll')=='even':checks.append(ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual natural accuracy observation') if nat is None else known(nat%2==0))
  if effect.get('if_weather'):checks.append(known(FX.weather_matches(engine,effect['if_weather'],ctx.get('attacker'))))

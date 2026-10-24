@@ -133,6 +133,8 @@ def validate_world(engine, index=None):
 
 
 def _plan(engine, r):
+    import ninja as NINJA
+    if NINJA.utility_authority(engine,r):return NINJA.utility_item(engine,r)
     import world_entities as WORLD
     import item_stock as STOCK
     import area_targets as AREA
@@ -188,6 +190,8 @@ def prepare(engine, request):
 
 
 def consume(engine, request):
+    import ninja as NINJA
+    if NINJA.utility_authority(engine,request):return NINJA.utility_item(engine,request,consume=True)
     import state_grants as G
     import item_stock as STOCK
     import smoke_regions as SMOKE

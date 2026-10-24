@@ -42,7 +42,8 @@ class SetupMoveStateTests(unittest.TestCase):
         self.e, self.a, self.b = prepare_setup_move_scene(self.r)
 
     def next_turn(self):
-        self.e.end_of_turn(self.a)
+        if self.e._active_turn_actor is self.a:
+            self.e.end_of_turn(self.a)
         self.e.start_round(self.e.everyone)
         self.e.start_of_turn(self.a, initiative_count=20)
 
@@ -184,7 +185,8 @@ class SetupMoveStateTests(unittest.TestCase):
             self.e.use_move(self.a, self.b, TACKLE)
         self.e.end_encounter(self.e.everyone, round_elapsed_seconds=0)
         self.assertIsNone(SETUP.pending(self.a))
-        self.assertFalse(self.a.spec["_burrow"]["underground"])
+        self.assertTrue(self.a.spec["_burrow"]["underground"])
+        self.assertEqual(self.a.spec["_burrow"]["depth_m"], 25)
         self.assertIsNone(self.a.setup_move)
 
 

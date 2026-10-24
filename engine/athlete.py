@@ -40,7 +40,6 @@ COACHING_ACTIVE='_athlete_coaching_active'   # pokemon.custom_conditions: paid o
 COACHING_HISTORY='athlete_coaching_history'  # trainer.spec: paid Coaching receipts
 ADRENALINE_TRIGGER='athlete_adrenaline_trigger'  # trainer.spec: pending printed trigger (HP to half or below)
 ADRENALINE_HISTORY='athlete_adrenaline_history'  # trainer.spec: Adrenaline Rush receipts
-SPECIAL_CONDITIONS=('기절','사망','임시 체력')
 
 
 def uid(name):
@@ -400,8 +399,8 @@ def adrenaline_rush(engine,trainer,*,cure=()):
  if record['round']!=engine.round_no or record['at']!=engine.elapsed_seconds:raise ValueError('Adrenaline Rush trigger lapsed')
  if type(cure) not in (list,tuple) or any(type(x) is not str or not x.strip() for x in cure):raise ValueError('Adrenaline Rush cure choices must name current status afflictions')
  names=[STATUS.normalize(x) for x in cure]
- if (len(names)>DEFINITIONS[ADRENALINE]['cure_limit'] or len(set(names))!=len(names) or any(n not in trainer.conditions for n in names)
-   or any(n in SPECIAL_CONDITIONS for n in names)):raise ValueError('up to two actual current status afflictions may be cured')
+ if (len(names)>DEFINITIONS[ADRENALINE]['cure_limit'] or len(set(names))!=len(names)
+   or any(n not in STATUS.afflictions(trainer) for n in names)):raise ValueError('up to two actual current status afflictions may be cured')
  if not F.activation_allowed(trainer,ADRENALINE,ADRENALINE_DAILY,engine=engine):raise ValueError('Adrenaline Rush daily uses exhausted')
  if not F.activation_allowed(trainer,_scene_key(),ADRENALINE_SCENE,engine=engine):raise ValueError('Adrenaline Rush was already used this Scene')
  def apply(e,t):

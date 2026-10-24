@@ -236,7 +236,7 @@ class PokemonActivityTests(unittest.TestCase):
    self.a.spec.pop('fishing_session',None);self.act('fishing',phase='start',rod='대단한낚싯대',attachment=attachment);self.act('fishing',phase='wait',roll_d20=15)
    result=self.act('fishing',phase='reel',target=self.p,fixed=[1]*4,escape_d20=escape)
    self.assertFalse(result['check'].passed);self.assertEqual(result['status'],status)
-  self.assertEqual(self.a.spec['items']['미끼'],0);self.assertEqual(self.a.spec['items']['루어'],1)
+  self.assertEqual(self.a.spec['items']['미끼'],0);self.assertEqual(self.a.spec['items']['루어'],0)
  def test_fishing_invalid_inputs_no_time_rng_or_resource_consumption(self):
   self.a.spec['items'].update({'대단한낚싯대':1,'미끼':1});self.act('fishing',phase='start',rod='대단한낚싯대',attachment='미끼');before=self.state()
   with self.assertRaises(ValueError):self.act('fishing',phase='wait',roll_d20=21)
@@ -487,6 +487,7 @@ class PokemonActivityTests(unittest.TestCase):
   self.a.spec['classes']=['class/포획전문가'];self.a.spec['feat_ranks']={'feat/고급-포획-테크닉':3}
   self.a.spec['skills'].update({'곡예':'전문','육상':'전문','통찰':'초보','은신':'초보'})
   self.a.spec['collector_stacks']=stacks;self.p.spec['species']='pokemon/이상해씨'
+  __import__('items').register_feats(self.e,self.a)
  def test_collector_bonus_spends_one_to_three_and_adds_exactly_that_number(self):
   for count in (1,2,3):
    self.collector_setup();result=self.e.throw_ball(self.a,self.p,fixed_accuracy=20,fixed_capture=9-count,collector_choice={'kind':'bonus','stacks':count})

@@ -17,7 +17,13 @@ class RollResourceTests(unittest.TestCase):
     def actor(self,name,kind):
         return Combatant(self.r,{'name':name,'kind':kind,'level':20,'stats':{'hp':20,'atk':5,'def':5,'spa':5,'spd':5,'spe':5},'skills':{'육상':'달인','명령':'달인'},'moves':['move/화염방사']})
     def prepare(self,actor=None,kind='skill',rid='one'):
-        return self.e.boost_roll(self.a,actor or self.a,roll_id=rid,kind=kind)
+        actor=actor or self.a
+        if actor is not self.a:
+            # ch06:85, Core 1.05 p.221: the bonus reaches only the payer's own current, registered Pokemon.
+            actor.spec['trainer_id']=self.a.entity_id
+            for member in (self.a,actor):
+                if all(member is not known for known in self.e.gm.everyone):self.e.gm.everyone.append(member)
+        return self.e.boost_roll(self.a,actor,roll_id=rid,kind=kind)
     def test_source_before_once_free_self_or_pokemon(self):
         line=(ROOT/'input/ch06-gameplay.md').read_text(encoding='utf-8').splitlines()[84]
         for phrase in ['하기 전에 1 액션 포인트','프리 액션','굴림당 두 번 이상','포켓몬의 명중 또는 스킬']:self.assertIn(phrase,line)
@@ -37,6 +43,8 @@ class RollResourceTests(unittest.TestCase):
         class FixedRng:
             def randint(self,a,b):return 2
         self.e.rng=FixedRng();self.prepare(self.p,'accuracy','attack')
+        # The now trainer-owned attacker is a commanded Pokemon; its loyalty is an observed fact.
+        self.e.gm.observe_loyalty(self.p,6,reason='observed relationship of the payer-owned Pokemon')
         self.assertGreater(self.e.use_move(self.p,target,'move/화염방사',set_damage=True,roll_id='attack'),0)
         self.assertEqual(self.e._ap_rolls['attack']['state'],'resolved')
         self.prepare(self.p,'accuracy','miss')

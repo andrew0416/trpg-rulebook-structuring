@@ -44,4 +44,5 @@ def from_dice(rules, rng, *, raise_die=None, lower_die=None):
                if (describe(rules, name)["up_stat"], describe(rules, name)["down_stat"]) == (up, down)]
     if len(matches) != 1:
         raise ValueError("selected Nature table must have one entry per dice pair")
-    return matches[0]
+    # The rolled cell uses the chapter table label; explicit catalog spellings stay valid.
+    return next((label for label, row in ALIASES.items() if row == (matches[0], up, down)), matches[0])

@@ -277,7 +277,9 @@ class ResearcherFieldsCraftingTests(unittest.TestCase):
         self.restore('t')
         child = RFS.hatch_artificial(self.e, self.t, egg['entity_id'], name='Coil', reason='actual hatching')['pokemon']
         self.assertEqual((child.level, child.spec['nature'], child.abilities, child.spec['special_appearance']), (5, '겁쟁이', ['옹골참'], True))
-        self.assertIn('move/저주', child.moves)
+        self.assertNotIn('move/저주', child.moves)
+        self.assertEqual(child.spec['inheritance_moves'], ['move/저주'])
+        self.assertNotIn('move/저주', child.spec.get('move_learning', {}))
         self.assertEqual(child.spec['vitamin_bonus'], {'spa': 2, 'hp': 1, 'def': 1})
         self.assertEqual(RFS.vitamin_equivalents(child.spec), 4)
         import move_state as MOVES

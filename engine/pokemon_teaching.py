@@ -33,7 +33,9 @@ def _text(value,name):
 def _pokemon(e,actor,target):
  W.require_actors(e,actor,target)
  import pokemon_activities as P
- P._trainer(actor);P._outside(e);P._pokemon(target);P._owner(actor,target)
+ import researcher_fields as RESEARCH
+ if not RESEARCH.pusher_acquiring(e,actor,target):P._trainer(actor);P._outside(e)
+ P._pokemon(target);P._owner(actor,target)
  _text(target.spec.get('id'),'actual Pokemon identity')
  if target.spec.get('frequency_state',{}).get('day',0)!=actor.spec.get('frequency_state',{}).get('day',0):raise ValueError('teaching calendars must agree')
 
@@ -173,6 +175,7 @@ def _teach_machine(e,actor,*,target,instance_id,replace=None,hm_decision=None):
  if replacing is not None:
   import move_type_sync as MOVE_SYNC
   MOVE_SYNC.forget_spec(e.r,candidate,replacing,at=e.elapsed_seconds,reason='completed physical machine replacement')
+  __import__('ace_trainer').forget_spec(e.r,candidate,replacing,at=e.elapsed_seconds,reason='completed physical machine replacement')
  moves=[m for m in candidate.get('moves',[]) if e.r.move_id(m)!=replacing]
  candidate['moves']=moves
  import learning_grant as LEARNING
@@ -185,8 +188,9 @@ def _teach_machine(e,actor,*,target,instance_id,replace=None,hm_decision=None):
  MOVES_STATE.validate_spec(e.r,candidate,require_routes=True)
  import activity_jobs as JOBS
  JOBS.run_fixed(e,actor,(target,),seconds=3600,source=MACHINES,context={'instance_id':instance_id})
- for field in ('move_learning','move_learning_log',MOVES_STATE.HISTORY,'move_type_sync'):
+ for field in ('move_learning','move_learning_log',MOVES_STATE.HISTORY,'move_type_sync','signature_techniques'):
   if field in candidate:target.spec[field]=candidate[field]
+ if 'signature_techniques' in candidate:target.spec['tutor_points']=candidate['tutor_points']
  import state_grants as GRANTS
  GRANTS.set_baseline(target,'moves',moves)
  _debit_points(target.spec,point_cost)
@@ -207,6 +211,8 @@ def on_level(rules,spec):
  PROGRESSION.award_level(rules,spec)
  import move_state as MOVES_STATE
  MOVES_STATE.record_natural_opportunities(rules,spec,reason='actual level-up opportunity')
+ import growth_milestones as MILESTONES
+ MILESTONES.offer_inheritance(rules,spec)
 
 def training_safety(safe):
  import training_sessions
@@ -215,6 +221,8 @@ def training_safety(safe):
 
 def edge_training_hour(e,actor,target,source,application,*,safe):
  """Pay the ordinary Poke Edge hour through the common job owner."""
+ import researcher_fields as RESEARCH
+ if RESEARCH.pusher_acquiring(e,actor,target,source):return None
  training_safety(safe)
  import activity_jobs as JOBS
  return JOBS.run_fixed(e,actor,(target,),seconds=3600,source=source,
@@ -264,7 +272,8 @@ def consume_credit(target,application,*,from_training=False):
 def teach_edge(e,actor,*,target,edge,skill=None,stat=None,capability=None,move_id=None,growth=None,lesson=None,ability=None,negative_decision=None,from_grooming=False,from_training=False,safe=None,_pusher_funded=False):
  import researcher_fields as RESEARCH
  if not _pusher_funded and RESEARCH.pusher_funds(e,actor,target,edge) is not None:
-  return RESEARCH.teach_funded(e,actor,target,edge,lambda se,so,st:teach_edge(se,so,target=st,edge=edge,skill=skill,stat=stat,capability=capability,move_id=move_id,growth=growth,lesson=lesson,ability=ability,negative_decision=negative_decision,from_grooming=from_grooming,from_training=from_training,safe=safe,_pusher_funded=True))
+  credit_mode(from_grooming,from_training)
+  return RESEARCH.teach_funded(e,actor,target,edge,lambda se,so,st:teach_edge(se,so,target=st,edge=edge,skill=skill,stat=stat,capability=capability,move_id=move_id,growth=growth,lesson=lesson,ability=ability,negative_decision=negative_decision,safe=safe,_pusher_funded=True))
  import pokemon_move_edges as MOVE_EDGES
  if edge in (MOVE_EDGES.MIXED_POWER,'Mixed Power'):
   if any(x is not None for x in (skill,stat,capability,move_id,growth,lesson,ability,negative_decision)) or from_grooming or from_training:raise ValueError('Mixed Power uses its actual completed teaching hour without choices')
@@ -357,16 +366,15 @@ function never treats unknown edge text as an executable generic setter.
  import acquisition_qualification as Q
  Q.require(EDGE,actor.entity_id,'teaching',[Q.check('distinct_skill','repeat',not any(r.get('source')==EDGE and r.get('skill')==sid for r in learned),'Skill Improvement requires a different skill on each acquisition')])
  import researcher_features as RF
- native=RF.native_plan(e,target,skill);rank=native['rank'];flat=native['modifier']
+ native=RF.native_plan(e,target,skill)
  if native.get('pushed'):raise ValueError('temporary pushed skill must be separated before permanent skill acquisition')
+ rank,flat=EDGES.skill_pool(e.r,target.spec,sid)
  sp=species_lookup(e.r,target.spec['species'])
  values=[v['rank'] for k,v in e.r.species_skills.get(sp['name'],{}).items() if S.skill_id(e.r.skill_policy,k)==sid]
  Q.require(EDGE,actor.entity_id,'teaching',[Q.check('species_rank','prerequisite',len(values)==1 and rank<=values[0],'Skill Improvement requires a skill at or below species default rank')])
  if not (from_grooming or from_training):
   edge_training_hour(e,actor,target,EDGE,application,safe=safe)
- keys=[k for k in target.spec.get('skills',{}) if S.skill_id(e.r.skill_policy,k)==sid]
- for key in keys:target.spec['skills'].pop(key)
- target.spec.setdefault('skills',{})[skill]=str(rank+1)+'d6'+(('+' if flat>=0 else '')+str(flat) if flat else '')
+ EDGES.set_pool(e.r,target.spec,sid,rank+1,flat)
  _debit_points(target.spec,1)
  target.spec.setdefault('learned_poke_edges',[]).append({'source':EDGE,'status':'active','trainer_id':actor.entity_id,'skill':sid,'rank_before':rank,'point_cost':1,'training_source':'edge/미용사' if from_grooming else 'input/ch05-pokemon.md:229' if from_training else 'input/ch05-pokemon.md:274','completed_at':e.elapsed_seconds})
  refunded=EDGES.refund_excess(e.r,target.spec,reason='completed permanent Skill Improvement training')
@@ -390,6 +398,13 @@ def _acquired_feature(actor,uid):
 
 def select_mentor_skills(e,actor,skills,*,reason):
  W.require_actors(e,actor)
+ import mentor as MENTOR_FULL
+ bound=MENTOR_FULL.acquired(actor,MENTOR)
+ if bound is not None:
+  original=bound['snapshot']['skills']
+  if list(skills)!=original:raise ValueError('Mentor acquisition choices cannot change')
+  _text(reason,'Mentor skill selection reason')
+  return list(original)
  import mentor_csv as CSV_MENTOR
  if CSV_MENTOR.has_receipt(actor):
   original=CSV_MENTOR.receipt(actor)['selection']['values']
@@ -407,7 +422,7 @@ def select_mentor_skills(e,actor,skills,*,reason):
  return list(skills)
 
 
-def tutor_admission(rules,move_id,level):
+def tutor_admission(rules,move_id,level,*,policy=None):
  """Selected PTK tutoring errata, ch05:134-138; never a learning grant."""
  import frequency as F
  source(rules,MOVES)
@@ -415,7 +430,15 @@ def tutor_admission(rules,move_id,level):
  mid=rules.move_id(move_id)
  if mid is None:raise ValueError('selected actual tutoring move required')
  move=rules.move(mid);db=move.get('damage_base');raw_frequency=move.get('frequency')
- if level<30:
+ proof=None
+ if policy not in (None,'kr_errata','core','official_sep2015'):raise ValueError('reviewed source-specific tutoring policy required')
+ if policy in ('core','official_sep2015'):
+  import mentor as MENTOR_FULL
+  from hashlib import sha256
+  data=MENTOR_FULL.contract(rules);proof=deepcopy(data['core' if policy=='core' else 'official_sep2015'])
+  if sha256((Path(rules.root)/proof['file']).read_bytes()).hexdigest()!=proof['sha256']:
+   raise ValueError('actual selected tutoring source changed')
+ if level<30 and policy!='core':
   if not isinstance(raw_frequency,str) or not raw_frequency.strip():
    raise ValueError('tutoring restriction requires sourced move frequency')
   kind,_=F.parse(raw_frequency)
@@ -424,10 +447,11 @@ def tutor_admission(rules,move_id,level):
   if db is None and move.get('class')=='변화':pass
   elif type(db) is not int or db<0:
    raise ValueError('tutoring restriction: variable damage base requires an explicit source-backed policy')
-  elif db>(6 if level<20 else 9):
+  elif db>((7 if policy=='official_sep2015' else 6) if level<20 else 9):
    raise ValueError('tutoring restriction: damage base exceeds level allowance')
- return {'source':MOVES,'move_id':mid,'learned_at_level':level,
-         'damage_base':db,'frequency':raw_frequency}
+ result={'source':MOVES,'move_id':mid,'learned_at_level':level,'damage_base':db,'frequency':raw_frequency}
+ if policy in ('core','official_sep2015'):result.update(policy=policy,source_proof=proof)
+ return result
 
 
 def mentor_effect_ranks(rules,actor,skills):
@@ -446,7 +470,9 @@ def validate_mentor_ranks(rules,record):
  skills=record.get('mentor_skills');ranks=record.get('mentor_skill_ranks')
  ordinary={v['rank'] for v in S._declared_ranks(rules)[0].values()}
  effects={v['effective_rank'] for v in rules.skill_policy.get('rank_effects',{}).values()}
- if not isinstance(skills,list) or len(skills)!=2 or len(set(skills))!=2 or any(v not in MENTOR_SKILLS for v in skills) or not isinstance(ranks,list) or len(ranks)!=2 or any(type(v)is not int or v<3 or v not in ordinary|effects for v in ranks):
+ bound='mentor_acquisition_evidence' in record
+ if bound:__import__('mentor').validate_teaching_evidence(rules,record)
+ if not isinstance(skills,list) or len(skills)!=2 or len(set(skills))!=2 or any(v not in MENTOR_SKILLS for v in skills) or not isinstance(ranks,list) or len(ranks)!=2 or any(type(v)is not int or v<(1 if bound else 3) or v not in ordinary|effects for v in ranks):
   raise ValueError('Mentor natural exception requires both actual selected skill ranks')
  witness=record.get('mentor_rank_evidence')
  if witness is None:
@@ -463,7 +489,7 @@ def validate_mentor_ranks(rules,record):
   raise ValueError('Mentor historical rank-effect inputs required')
  from types import SimpleNamespace
  historical=SimpleNamespace(kind='trainer',level=snapshot['level'],spec=snapshot)
- if any(S.rank(rules,historical,v)[2]<3 for v in skills) or [S.effective_rank(rules,historical,v) for v in skills]!=ranks:
+ if any(S.rank(rules,historical,v)[2]<(1 if bound else 3) for v in skills) or [S.effective_rank(rules,historical,v) for v in skills]!=ranks:
   raise ValueError('Mentor ranks differ from historical owned rank-effect evidence')
  return ranks
 
@@ -485,17 +511,24 @@ def _teach_feature(e,actor,*,target,move_id,feature,seconds,reason,replace,mento
  import mentor_csv as CSV_MENTOR
  if feature==MENTOR and CSV_MENTOR.has_receipt(actor):feature=CSV_MENTOR.SOURCE
  csv_mentor=feature==CSV_MENTOR.SOURCE
+ import mentor as MENTOR_FULL
+ variant=MENTOR_FULL.teaching_variant(actor,feature) if not csv_mentor else 'local_csv'
+ bound=None if csv_mentor else MENTOR_FULL.acquired(actor,feature)
+ if feature==EGG_TUTOR and variant=='local_csv':raise ValueError('CSV109 edits the actual EggList through its source-specific entry')
+ if feature==MOVE_TUTOR and variant in ('local_translation','local_csv') and target.spec.get('trainer_id')!=actor.entity_id:
+  raise ValueError('selected local Move Tutor effect requires your own Pokemon')
  source(e.r,MENTOR,MOVES,POINTS,*([] if csv_mentor else [feature]))
  if not _acquired_feature(actor,MENTOR) or not _acquired_feature(actor,MENTOR if csv_mentor else feature):raise ValueError('actual acquired teaching feature required')
  skills=actor.spec.get('mentor_skills')
  if not isinstance(skills,list) or len(skills)!=2 or len(set(skills))!=2 or any(v not in MENTOR_SKILLS for v in skills):raise ValueError('actual selected Mentor skills required')
  ordinary_ranks=[S.rank(e.r,actor,v)[2] for v in skills]
- if min(ordinary_ranks)<3:raise ValueError('both Mentor skills require Novice rank')
- if feature not in (MENTOR,CSV_MENTOR.SOURCE) and max(ordinary_ranks)<5:raise ValueError('Move Tutor requires an Expert Mentor skill')
+ if bound is None and min(ordinary_ranks)<3:raise ValueError('both Mentor skills require Novice rank')
+ if bound is None and feature not in (MENTOR,CSV_MENTOR.SOURCE) and max(ordinary_ranks)<5:raise ValueError('Move Tutor requires an Expert Mentor skill')
  if feature==EGG_TUTOR and not _acquired_feature(actor,MOVE_TUTOR):raise ValueError('Egg Tutor requires actual acquired Move Tutor')
  if feature==EGG_TUTOR and target.spec.get('egg_tutor_history'):raise ValueError('Egg Tutor may affect this Pokemon only once')
  if actor.spec.get('frequency_state',{}).get('day',0)!=target.spec.get('frequency_state',{}).get('day',0):raise ValueError('teaching calendars must agree')
  cost=1 if feature in (MENTOR,CSV_MENTOR.SOURCE) else 2;frequency='하루x3' if feature in (MENTOR,CSV_MENTOR.SOURCE) else '하루'
+ if feature==MOVE_TUTOR and variant=='local_csv':frequency='하루x2'
  native_source=MENTOR if csv_mentor else feature
  if _balance(target.spec)<cost:raise ValueError('insufficient actual Tutor Points')
  if not F.activation_allowed(actor,native_source,frequency,engine=e):raise ValueError('teaching feature daily frequency exhausted')
@@ -517,13 +550,14 @@ def _teach_feature(e,actor,*,target,move_id,feature,seconds,reason,replace,mento
   if permission is False:raise ValueError('GM Type Sync exception forbids this Tutor move')
   import underdog_lessons as LESSONS
   if mid not in listed and permission is not True and not LESSONS.learning_permission(e.r,target.spec,mid,'tutor'):raise ValueError('move is absent from actual species Tutor List')
- elif mid not in {e.r.move_id(v) for v in ls.get('egg',[])}:raise ValueError('move is absent from actual species Egg List')
- admission=tutor_admission(e.r,mid,target.level)
+ elif mid not in set(MENTOR_FULL.individual_egg_list(e.r,target.spec)):raise ValueError('move is absent from actual species or source-scoped individual Egg List')
+ admission=tutor_admission(e.r,mid,target.level,policy=MENTOR_FULL.teaching_policy(actor))
  old=e.r.move_id(replace) if replace is not None else None;baseline=M.known(e.r,target.spec)
  if mid in baseline:raise ValueError('Pokemon already learned that move')
  if replace is not None and old not in baseline:raise ValueError('explicit replacement must name an actually learned permanent move')
  record={'method':'mentor_csv' if csv_mentor else 'mentor' if feature==MENTOR else 'tutor' if feature==MOVE_TUTOR else 'egg','source':native_source,'paid_tp':cost,'teacher_id':actor.entity_id,'species_id':sp['id'],'learned_at_level':target.level,'reason':reason,'seconds':seconds}
  record['tutoring_admission']=admission
+ if bound is not None:record['mentor_acquisition_evidence']=deepcopy(bound)
  if feature==MENTOR:record.update(mentor_skills=list(skills),mentor_skill_ranks=list(ranks))
  if feature==MENTOR and rank_evidence is not None:record['mentor_rank_evidence']=rank_evidence
  if csv_mentor:record.update(csv_plan,mentor_source_clause=CSV_MENTOR.SOURCE)
@@ -532,6 +566,7 @@ def _teach_feature(e,actor,*,target,move_id,feature,seconds,reason,replace,mento
  if old is not None:
   import move_type_sync as MOVE_SYNC
   MOVE_SYNC.forget_spec(e.r,candidate,old,at=e.elapsed_seconds,reason=reason)
+  __import__('ace_trainer').forget_spec(e.r,candidate,old,at=e.elapsed_seconds,reason=reason)
  moves=[m for m in candidate.get('moves',[]) if e.r.move_id(m)!=old]
  candidate['moves']=moves
  import learning_grant as LEARNING
@@ -547,8 +582,9 @@ def _teach_feature(e,actor,*,target,move_id,feature,seconds,reason,replace,mento
  import activity_jobs as JOBS
  JOBS.run_fixed(e,actor,(target,),seconds=seconds,source=native_source,context={'move_id':mid})
  F.consume_activation(actor,native_source,frequency,engine=e)
- for field in ('move_learning','move_learning_log',M.HISTORY,'egg_tutor_history','move_type_sync'):
+ for field in ('move_learning','move_learning_log',M.HISTORY,'egg_tutor_history','move_type_sync','signature_techniques'):
   if field in candidate:target.spec[field]=candidate[field]
+ if 'signature_techniques' in candidate:target.spec['tutor_points']=candidate['tutor_points']
  import state_grants as G
  G.set_baseline(target,'moves',moves);_debit_points(target.spec,cost)
  import trainer_retraining as RETRAINING

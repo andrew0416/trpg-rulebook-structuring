@@ -12,7 +12,7 @@ import state_codec as CODEC, world_entities as WORLD, invisibility_state as INV
 import skill_modifiers as SKILLS, effects_ext as EXT, forced_movement as FORCED
 import mapless_space as SPACE
 
-R=Path('D:/trpg-rulebook-structuring/ptk-structure-experiment')
+R=Path(__file__).resolve().parents[1]
 
 
 class SpiritBodyModesTests(unittest.TestCase):
@@ -31,7 +31,7 @@ class SpiritBodyModesTests(unittest.TestCase):
     def phase(self,c=None,**options):
         c=self.p if c is None else c
         self.own(c,'Phasing')
-        values=dict(round_loss=3,loss_reason='GM observes three HP as the unspecified small loss in this scene',reason='actual Pokemon becomes wholly intangible')
+        values=dict(reason='actual capability holder becomes wholly intangible')
         values.update(options)
         return self.e.change_body_mode(c,'phasing',**values)
 
@@ -55,11 +55,11 @@ class SpiritBodyModesTests(unittest.TestCase):
         return deepcopy((getattr(c,'budget',None),c.move_uses,getattr(c,'_action_history',None),self.e.rng.getstate()))
 
     def test_phasing_actual_entry_standard_lock_round_loss_once_and_shift_release(self):
-        original=BODY.cells(self.p);hp=self.p.hp
+        original=BODY.cells(self.p);hp=self.p.hp;loss=self.e.tick_loss(self.p)
         self.begin(self.p);out=self.phase()
         self.assertEqual((out['body_mode']['mode'],BODY.cells(self.p),self.p.budget['standard']),('phasing',original,0))
         self.e.end_of_turn(self.p);self.e.end_round()
-        self.assertEqual(self.p.hp,hp-3)
+        self.assertEqual(self.p.hp,hp-loss)
         snapshot=self.e.export_state()
         with self.assertRaisesRegex(ValueError,'no open round'):self.e.end_round()
         self.assertEqual(self.e.export_state(),snapshot)
@@ -118,8 +118,8 @@ class SpiritBodyModesTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'Phasing'):self.e.use_move(self.a,self.p,move['id'])
 
     def test_shadow_species_standard_lock_stealth_evasion_and_invisibility_are_distinct(self):
-        self.own(self.p,'Shadow Meld');self.begin(self.p)
-        with self.assertRaisesRegex(ValueError,'Gengar'):self.meld(self.p)
+        self.begin(self.p)
+        with self.assertRaisesRegex(ValueError,'actual body capability'):self.meld(self.p)
         c=self.gengar();base_evasion=c.evasion('물리')
         base=SKILLS.modifiers(self.r,c,'은신',0)['modifier'];self.begin(c);self.meld(c)
         self.assertEqual(SKILLS.modifiers(self.r,c,'은신',0)['modifier'],base+4)
@@ -220,7 +220,7 @@ class SpiritBodyModesTests(unittest.TestCase):
 
     def test_new_mode_observations_source_selection_and_actor_binding_are_validated(self):
         self.begin(self.p)
-        for bad in (None,0,True,-1):
+        for bad in (0,1,True,-1):
             before=deepcopy((self.p.spec,self.p.budget))
             with self.assertRaises(ValueError):self.phase(round_loss=bad)
             # The capability fixture is installed before the rejected operation.

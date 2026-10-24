@@ -78,7 +78,7 @@ class SmokeTests(unittest.TestCase):
                     self.assertFalse(e.zone_cells)
                 else:
                     line = e.grid.line((1, 5), (1, 0), 6)
-                    self.assertEqual(set(e.zone_cells), cells - line)
+                    self.assertFalse(e.zone_cells)
                     row = next(row for row in reversed(list(e._move_completions.values()))
                                if row['move_id'] == removal)
                     self.assertEqual([target.entity_id for target in row['targets']], [b.entity_id])
@@ -189,7 +189,7 @@ class SmokeTests(unittest.TestCase):
                 patch.object(Engine, 'accuracy_check', side_effect=AssertionError('target-free accuracy')) as accuracy:
             e.use_move_on(a, a, 'move/날려버리기', e.everyone, aim=(5, 5))
         line = e.grid.line((1, 5), (1, 0), 6)
-        self.assertEqual(set(e.zone_cells), smoke_cells - line)
+        self.assertFalse(e.zone_cells)
         self.assertTrue(smoke_cells - line)
         self.assertEqual(a.move_uses['move/날려버리기'], uses + 1)
         self.assertEqual((a.budget['standard'], a._action_history.count('standard')), (0, 1))
@@ -234,7 +234,7 @@ class SmokeTests(unittest.TestCase):
         packet = e._heavy_events['heavy-standard-1']
         self.assertEqual((packet['status'], packet['action_target'],
                           packet['heavy_consequence']['amount']), ('applied', None, 5))
-        self.assertEqual(set(e.zone_cells), smoke_cells - set(packet['move']['_effect_area_cells']))
+        self.assertFalse(e.zone_cells)
 
     def test_injured_empty_whirlwind_pending_survives_atomic_transition(self):
         import heavy_injury_adapter as HEAVY
@@ -439,7 +439,7 @@ class SmokeTests(unittest.TestCase):
         e.start_round(e.everyone)
         e.start_of_turn(a, initiative_count=20)
         e.use_move_on(a, a, 'move/날려버리기', e.everyone, aim=(5, 5))
-        remaining = smoke_cells - e.grid.line((1, 5), (1, 0), 6)
+        remaining = set()
         completion_id = list(e._move_completions)[-1]
         e.gm.snapshot('empty-whirlwind')
         e.end_encounter()

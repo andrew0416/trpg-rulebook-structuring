@@ -43,7 +43,7 @@ def deferred_registration(rules,effect):
 
 
 def _owns(actor,source,row):
-    return actor.kind=='pokemon' and not actor.abilities_suppressed and any(
+    return (row['mode']!='anticipation' or actor.kind=='pokemon') and not actor.abilities_suppressed and any(
         name in (source,row['name']) for name in actor.abilities)
 
 

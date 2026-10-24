@@ -1,4 +1,4 @@
-"""Optional Baby Template as one source-owned Pokemon growth contract.
+"""Optional and native Marsupial Baby Templates share one growth contract.
 
 The source fixes the stat/Skill/Capability changes and the fifth-level recovery
 boundary, but does not fix how much height or weight is regained at a boundary.
@@ -17,6 +17,32 @@ SOURCE_LINES = ("input/ch05-pokemon.md:674-680",
 CLAUSES = ("C05-151", "C05-152", "C05-153", "C05-154",
            "C11-148", "C11-149", "C11-150")
 STAT_SOURCE = SOURCE + "/base-stat-reduction"
+NATIVE_SOURCE = "capability/유대류/native-baby"
+NATIVE_LINES = SOURCE_LINES + ("input/ch10-index-reference.md:93",
+                              "source-audit/marsupial-indices-1.05.txt:1-3")
+NATIVE_CLAUSES = CLAUSES + ("C10-082",)
+
+
+def native_physical_choice(value):
+    """No printed amount is inferred for a newborn's physical reductions."""
+    fields={"height_base_m","weight_base_kg","height_reduction","weight_reduction","weight_class","reason"}
+    if type(value) is not dict or set(value)!=fields:
+        raise ValueError("explicit native Baby Template physical choice required")
+    result=deepcopy(value)
+    for field,label in (("height_base_m","height"),("weight_base_kg","weight")):
+        result[field]=_measurement(value[field],label)
+        if result[field] is None:raise ValueError("actual positive "+label+" required")
+    for field in ("height_reduction","weight_reduction"):
+        result[field]=_fraction(value[field],field)
+    if value["weight_class"] is not None:F.integer(value["weight_class"],"observed Weight Class",1,6)
+    if type(value["reason"]) is not str or not value["reason"].strip():
+        raise ValueError("explicit native physical observation reason required")
+    return result
+
+
+def _native_remaining(birth_level, level):
+    if level>=25:return 0
+    return max(0,5-len(range((birth_level//5+1)*5,level+1,5)))
 
 
 def _fraction(value, name):
@@ -49,18 +75,47 @@ def _record(spec):
         "permanent_weight_reduction", "level_recoveries", "pending_growth_levels",
         "physical_growth"
     }
+    native=type(row) is dict and row.get("source")==NATIVE_SOURCE
+    if native:fields.add("native_origin")
     if type(row) is not dict or set(row) != fields:
         raise ValueError("exact Baby Template state required")
-    if row["source"] != SOURCE or tuple(row["source_lines"]) != SOURCE_LINES or tuple(row["clauses"]) != CLAUSES:
+    if (row["source"] != (NATIVE_SOURCE if native else SOURCE)
+            or tuple(row["source_lines"]) != (NATIVE_LINES if native else SOURCE_LINES)
+            or tuple(row["clauses"]) != (NATIVE_CLAUSES if native else CLAUSES)):
         raise ValueError("Baby Template source identity mismatch")
     if type(row["selection_reason"]) is not str or not row["selection_reason"].strip():
         raise ValueError("explicit Baby Template selection reason required")
     F.integer(row["applied_level"], "Baby Template application level", 1, 100)
-    reduction = F.integer(row["selected_stat_reduction"], "Baby Template stat reduction", 2, 4)
-    if reduction not in (2, 3, 4):
+    reduction = F.integer(row["selected_stat_reduction"], "Baby Template stat reduction", 5 if native else 2, 5 if native else 4)
+    if not native and reduction not in (2, 3, 4):
         raise ValueError("Baby Template stat reduction must be 2, 3, or 4")
     remaining = F.integer(row["stat_penalty_remaining"], "remaining Baby Template stat reduction", 0, reduction)
     floor = F.integer(row["permanent_stat_reduction"], "permanent Baby Template stat reduction", 0, reduction)
+    initial=reduction
+    if native:
+        if row["applied_level"]>spec.get("level",0):raise ValueError("native Template application cannot be in the future")
+        origin=row["native_origin"]
+        if type(origin) is not dict or set(origin)!={"kind","birth_level","stat_reduction_at_application","physical_choice","prior_template"} or origin["kind"] not in ("birth","legacy_upgrade"):
+            raise ValueError("exact native Baby Template origin required")
+        birth=F.integer(origin["birth_level"],"native Baby Template birth level",1,row["applied_level"])
+        initial=F.integer(origin["stat_reduction_at_application"],"native application reduction",0,5)
+        expected=5 if row["applied_level"]<25 else 0
+        if origin["kind"]=="legacy_upgrade":expected=_native_remaining(birth,row["applied_level"])
+        elif birth!=row["applied_level"] or origin["prior_template"] is not None:
+            raise ValueError("native birth Template origin changed")
+        physical=native_physical_choice(origin["physical_choice"])
+        if row["selection_reason"]!=physical["reason"]:raise ValueError("native physical observation reason changed")
+        prior=origin["prior_template"]
+        if prior is not None:
+            if type(prior) is not dict or prior.get("source")!=SOURCE:
+                raise ValueError("legacy upgrade must retain the prior optional Template record")
+            _record({**spec,KEY:prior})
+        if initial!=expected or floor or row["permanent_height_reduction"] or row["permanent_weight_reduction"]:
+            raise ValueError("native Baby Template has fixed five reduction and no permanence")
+        if any(row[field]!=physical[choice] for field,choice in (
+                ("height_base_m","height_base_m"),("weight_base_kg","weight_base_kg"),
+                ("selected_height_reduction","height_reduction"),("selected_weight_reduction","weight_reduction"))):
+            raise ValueError("native physical selection differs from its producing observation")
     if remaining < floor:
         raise ValueError("Baby Template recovered past its selected permanent reduction")
     F.integer(row["species_base_total"], "Baby Template species base total", 0)
@@ -82,7 +137,9 @@ def _record(spec):
         raise ValueError("Baby Template recovery levels must be later fifth levels")
     if row["level_recoveries"] != sorted(set(row["level_recoveries"])) or any(x > spec.get("level", 0) for x in row["level_recoveries"]):
         raise ValueError("Baby Template recovery levels must be distinct and ordered")
-    expected_remaining=max(floor,reduction-len(row["level_recoveries"]))
+    expected_remaining=max(floor,initial-len(row["level_recoveries"]))
+    if native and (row["applied_level"]>=25 or 25 in row["level_recoveries"]):expected_remaining=0
+    if native and any(x>25 for x in row["level_recoveries"]):raise ValueError("native Baby Template ends at level 25")
     if remaining != expected_remaining:
         raise ValueError("Baby Template stat recovery count disagrees with its fifth-level receipts")
     pending = row["pending_growth_levels"]
@@ -129,14 +186,19 @@ def validate(rules, spec):
     base = species_lookup(rules, row["applied_species"])["base_stats"]
     if sum(base.values()) != row["species_base_total"]:
         raise ValueError("Baby Template species base-total evidence changed")
-    if any(base[stat] - row["selected_stat_reduction"] < 1 for stat in STATS):
+    if row["source"]==NATIVE_SOURCE:
+        import marsupial_state as M
+        birth=M.record(rules,spec)
+        if birth is None or row["applied_species"]!=M.SPECIES or row["native_origin"]["birth_level"]!=birth["birth_level"]:
+            raise ValueError("native Baby Template requires its actual Marsupial birth")
+    elif any(base[stat] - row["selected_stat_reduction"] < 1 for stat in STATS):
         raise ValueError("selected Baby Template reduction would make a Base Stat lower than 1")
     return row
 
 
 def base_sources(rules, spec):
     row = validate(rules, spec)
-    if row is None or not row["stat_penalty_remaining"]:
+    if row is None or not row["stat_penalty_remaining"] or row["source"]==NATIVE_SOURCE:
         return []
     from builder import STATS
     return [{"source": STAT_SOURCE, "signed": True,
@@ -184,8 +246,8 @@ def body_projection(actor):
     if row is None:
         return None
     return {
-        "source": SOURCE, "active": bool(row["stat_penalty_remaining"] or
-            row["height_reduction"] or row["weight_reduction"]),
+        "source": row["source"], "active": (actor.level<25 if row["source"]==NATIVE_SOURCE else
+            bool(row["stat_penalty_remaining"] or row["height_reduction"] or row["weight_reduction"])),
         "stat_penalty_remaining": row["stat_penalty_remaining"],
         "skill_rank_penalty": skill_rank_penalty(actor),
         "capability_penalty": 2 if _penalties_active(actor) else 0,
@@ -203,9 +265,74 @@ def _physical_value(base, reduction):
     return None if base is None else base * (1 - reduction)
 
 
+def _install_native(rules, spec, choice, *, kind, prior_template=None):
+    import marsupial_state as M
+    from builder import species_lookup
+    birth=M.record(rules,spec)
+    if birth is None:raise ValueError("actual native Marsupial birth required")
+    choice=native_physical_choice(choice)
+    if spec["level"]>=25 and (choice["height_reduction"] or choice["weight_reduction"]):
+        raise ValueError("mature native upgrade/birth needs actual dimensions without a Template reduction")
+    total=sum(species_lookup(rules,M.SPECIES)["base_stats"].values())
+    initial=(5 if spec["level"]<25 else 0) if kind=="birth" else _native_remaining(birth["birth_level"],spec["level"])
+    spec[KEY]={
+        "source":NATIVE_SOURCE,"source_lines":list(NATIVE_LINES),"clauses":list(NATIVE_CLAUSES),
+        "selection_reason":choice["reason"],"applied_level":spec["level"],"applied_species":M.SPECIES,
+        "selected_stat_reduction":5,"stat_penalty_remaining":initial,"permanent_stat_reduction":0,
+        "species_base_total":total,"high_base_total":total>60,
+        "height_base_m":choice["height_base_m"],"weight_base_kg":choice["weight_base_kg"],
+        "selected_height_reduction":choice["height_reduction"],"selected_weight_reduction":choice["weight_reduction"],
+        "height_reduction":choice["height_reduction"],"weight_reduction":choice["weight_reduction"],
+        "permanent_height_reduction":0,"permanent_weight_reduction":0,
+        "level_recoveries":[],"pending_growth_levels":[],"physical_growth":[],
+        "native_origin":{"kind":kind,"birth_level":birth["birth_level"],
+            "stat_reduction_at_application":initial,"physical_choice":choice,"prior_template":deepcopy(prior_template)}}
+    validate(rules,spec)
+    return {"height_m":_physical_value(choice["height_base_m"],choice["height_reduction"]),
+            "weight_kg":_physical_value(choice["weight_base_kg"],choice["weight_reduction"])}
+
+
+def prepare_native_birth(rules, spec, choice):
+    """Fresh birth initialization; the ordinary shared owners consume this row."""
+    spec.update(_install_native(rules,spec,choice,kind="birth"))
+
+
+def finish_native_body(actor):
+    row=validate(actor.r,actor.spec)
+    if row is None or row["source"]!=NATIVE_SOURCE:return
+    import body_state as BODY
+    choice=row["native_origin"]["physical_choice"]
+    value=BODY.mass_weight_class(actor,actor.spec["weight_kg"],chosen=choice["weight_class"])
+    F.base_patch(actor,{"weight_class":value},source=NATIVE_SOURCE,reason=choice["reason"])
+
+
+def upgrade_native(engine, actor, *, physical_choice, reason):
+    """Reconcile a legacy birth now; never backfill recovery or body history."""
+    import state_grants as G
+    return G.transition(engine,actor,lambda e,c:_upgrade_native(e,c,physical_choice,reason))
+
+
+def _upgrade_native(engine, actor, physical_choice, reason):
+    import world_entities as W, growth_stats as GS, marsupial_state as M
+    W.require_actors(engine,actor)
+    if M.record(engine.r,actor.spec) is None:raise ValueError("actual legacy Marsupial birth required")
+    prior=validate(engine.r,actor.spec)
+    if prior is not None and prior["source"]==NATIVE_SOURCE:raise ValueError("native Baby Template is already complete")
+    if type(reason) is not str or not reason.strip():raise ValueError("explicit native upgrade reason required")
+    current=GS.source_permanent(actor)
+    changes=_install_native(engine.r,actor.spec,physical_choice,kind="legacy_upgrade",prior_template=prior)
+    import body_state as BODY
+    changes["weight_class"]=BODY.mass_weight_class(actor,changes["weight_kg"],chosen=physical_choice["weight_class"])
+    GS.migrate_sources(actor,current,source=NATIVE_SOURCE,reason=reason,kind="native_baby_template_upgrade")
+    F.base_patch(actor,changes,source=NATIVE_SOURCE,reason=physical_choice["reason"])
+    engine.gm._rec("native Baby Template upgrade",deepcopy(prior),deepcopy(actor.spec[KEY]),reason,actor)
+    actor._state_revision=getattr(actor,"_state_revision",0)+1
+    return projection(engine.r,actor.spec)
+
+
 def apply(engine, actor, *, stat_reduction, height_reduction=0, weight_reduction=0,
           permanent_stat_reduction=0, permanent_height_reduction=0,
-          permanent_weight_reduction=0, reason):
+          permanent_weight_reduction=0, weight_class=None, reason):
     """Apply only after an explicit GM choice; species never auto-select it."""
     import state_grants as G
     return G.transition(engine, actor, lambda e, c: _apply(e, c,
@@ -213,7 +340,8 @@ def apply(engine, actor, *, stat_reduction, height_reduction=0, weight_reduction
         weight_reduction=weight_reduction,
         permanent_stat_reduction=permanent_stat_reduction,
         permanent_height_reduction=permanent_height_reduction,
-        permanent_weight_reduction=permanent_weight_reduction, reason=reason))
+        permanent_weight_reduction=permanent_weight_reduction,
+        weight_class=weight_class, reason=reason))
 
 
 def _apply(engine, actor, **choice):
@@ -225,6 +353,9 @@ def _apply(engine, actor, **choice):
         raise ValueError("Baby Template requires an actual Pokemon")
     if KEY in actor.spec:
         raise ValueError("Baby Template is already applied")
+    import marsupial_state as M
+    if M.record(engine.r,actor.spec) is not None:
+        raise ValueError("legacy native Baby Template requires explicit upgrade, not a second Template")
     if type(choice["reason"]) is not str or not choice["reason"].strip():
         raise ValueError("explicit Baby Template selection reason required")
     reduction = choice["stat_reduction"]
@@ -267,6 +398,11 @@ def _apply(engine, actor, **choice):
         changes["height_m"] = _physical_value(height_base, height)
     if weight_base is not None:
         changes["weight_kg"] = _physical_value(weight_base, weight)
+    if weight:
+        import body_state as BODY
+        changes["weight_class"] = BODY.mass_weight_class(actor, changes["weight_kg"], chosen=choice["weight_class"])
+    elif choice["weight_class"] is not None:
+        raise ValueError("Baby Template Weight Class observation requires changed weight")
     if changes:
         F.base_patch(actor, changes, source=SOURCE, reason=choice["reason"])
     validate(engine.r, actor.spec)
@@ -277,6 +413,11 @@ def _apply(engine, actor, **choice):
 def on_level(rules, spec, log=None):
     """Reconcile the template after the ordinary level investment is recorded."""
     row = validate(rules, spec)
+    import marsupial_state as M
+    if M.record(rules,spec) is not None and (row is None or row["source"]!=NATIVE_SOURCE):
+        raise ValueError("legacy native Baby Template requires explicit upgrade before growth")
+    native=row is not None and row["source"]==NATIVE_SOURCE
+    if native and spec["level"]>25:return False
     if row is None or spec["level"] % 5 or spec["level"] <= row["applied_level"]:
         return False
     level = spec["level"]
@@ -287,12 +428,12 @@ def on_level(rules, spec, log=None):
     row["level_recoveries"].append(level)
     recovered = row["stat_penalty_remaining"] > row["permanent_stat_reduction"]
     if recovered:
-        row["stat_penalty_remaining"] -= 1
+        row["stat_penalty_remaining"] = 0 if native and level==25 else row["stat_penalty_remaining"]-1
         prepared = GS.source_plans(rules, spec, current)
         if "form_growth_allocations" in spec:
             growth = spec["form_growth_allocations"]
             spec.setdefault("form_growth_history", []).append({"kind": "baby_template_recovery",
-                "previous": deepcopy(growth), "source": SOURCE, "level": level})
+                "previous": deepcopy(growth), "source": row["source"], "level": level})
             growth["plans"] = {name: value["plan"] for name, value in prepared.items()}
             growth["level"] = level
             spec["form_allocations"]["forms"] = {name: value["stats"] for name, value in prepared.items()}
@@ -301,13 +442,14 @@ def on_level(rules, spec, log=None):
             active = "base"
         chosen = prepared[active]
         spec.setdefault("allocation_migrations", []).append({"kind": "baby_template_recovery",
-            "species": spec["species"], "level": level, "source": SOURCE,
+            "species": spec["species"], "level": level, "source": row["source"],
             "reason": "Baby Template fifth-level Base Stat recovery", "plan": deepcopy(chosen["plan"]),
             "growth_event_offset": len(spec.get("growth_investment_events", []))})
         spec["stats"] = deepcopy(chosen["stats"])
         from builder import record_allocation, STATS
-        record_allocation(rules, spec, "baby_template_recovery",
-            delta=dict.fromkeys(STATS, 1), source=SOURCE)
+        delta=({s:chosen["plan"]["nature_base"][s]-current["nature_base"][s] for s in STATS}
+               if native else dict.fromkeys(STATS,1))
+        record_allocation(rules, spec, "baby_template_recovery",delta=delta,source=row["source"])
     if (row["height_reduction"] > row["permanent_height_reduction"] or
             row["weight_reduction"] > row["permanent_weight_reduction"]):
         row["pending_growth_levels"].append(level)
@@ -320,14 +462,14 @@ def on_level(rules, spec, log=None):
     return True
 
 
-def record_growth(engine, actor, *, level, height_reduction, weight_reduction, reason):
+def record_growth(engine, actor, *, level, height_reduction, weight_reduction, weight_class=None, reason):
     """Consume one fifth-level physical-growth choice without inventing its size."""
     import state_grants as G
     return G.transition(engine, actor, lambda e, c: _record_growth(e, c, level,
-        height_reduction, weight_reduction, reason))
+        height_reduction, weight_reduction, reason, weight_class))
 
 
-def _record_growth(engine, actor, level, height_reduction, weight_reduction, reason):
+def _record_growth(engine, actor, level, height_reduction, weight_reduction, reason, weight_class=None):
     import world_entities as W
     W.require_actors(engine, actor)
     row = validate(engine.r, actor.spec)
@@ -341,6 +483,7 @@ def _record_growth(engine, actor, level, height_reduction, weight_reduction, rea
         raise ValueError("physical growth must move toward the selected permanent floor")
     if height == row["height_reduction"] and weight == row["weight_reduction"]:
         raise ValueError("Baby Template physical growth must increase height or weight")
+    old_weight = row["weight_reduction"]
     row["height_reduction"] = height
     row["weight_reduction"] = weight
     row["pending_growth_levels"].remove(level)
@@ -351,8 +494,13 @@ def _record_growth(engine, actor, level, height_reduction, weight_reduction, rea
         changes["height_m"] = _physical_value(row["height_base_m"], height)
     if row["weight_base_kg"] is not None:
         changes["weight_kg"] = _physical_value(row["weight_base_kg"], weight)
+    if weight != old_weight:
+        import body_state as BODY
+        changes["weight_class"] = BODY.mass_weight_class(actor, changes["weight_kg"], chosen=weight_class)
+    elif weight_class is not None:
+        raise ValueError("Baby Template Weight Class observation requires changed weight")
     if changes:
-        F.base_patch(actor, changes, source=SOURCE, reason=reason)
+        F.base_patch(actor, changes, source=row["source"], reason=reason)
     validate(engine.r, actor.spec)
     actor._state_revision = getattr(actor, "_state_revision", 0) + 1
     return projection(engine.r, actor.spec)

@@ -1,5 +1,6 @@
 """Source exceptions exercised through the current native state consumers."""
 from copy import deepcopy
+from pathlib import Path
 import json,unittest
 from unittest.mock import patch
 from engine import Rules,Engine,Combatant
@@ -21,7 +22,7 @@ class Table18ItemBoundaries(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         FIX.RemainingCsvItemContractTests.setUpClass()
-        cls.polygon=Rules('D:/trpg-rulebook-structuring/ptk-structure-experiment',ruleset='polygon')
+        cls.polygon=Rules(Path(__file__).resolve().parents[1],ruleset='polygon')
     def setUp(self):self.f=FIX.RemainingCsvItemContractTests();self.r=self.f.r
     def roundtrip(self,e):return CODEC.load_engine(e.r,json.loads(json.dumps(CODEC.dump_engine(e))))
 
@@ -185,13 +186,14 @@ class Table18ItemBoundaries(unittest.TestCase):
         a=self.f.trainer('cannon-sludge',moves=('move/오물폭탄',));t=self.f.pokemon('cannon-sludge-target')
         t.pos=(15,0);e=self.f.fixture(a,t)
         self.f.equip(e,a,'boundary/sludge-cannon','item/몬스터볼-캐논',held=False)
-        e.start_round([a,t]);e.start_of_turn(a,initiative_count=20);before=t.hp
-        with patch.object(e,'d20',return_value=18):e.use_move(a,t,'move/오물폭탄',weapon_id='boundary/sludge-cannon',set_damage=True)
-        self.assertLess(t.hp,before)
+        e.start_round([a,t]);e.start_of_turn(a,initiative_count=20)
+        import native_scenario_fixture as NATIVE
+        NATIVE.assert_rejected_unchanged(e,lambda:e.use_move(a,t,'move/오물폭탄',
+            weapon_id='boundary/sludge-cannon',set_damage=True),reason_pattern='does not grant')
         import weapon_actions as WEAPONS
-        projected=WEAPONS.prepare(e,a,e.r.move('move/오물폭탄'),'boundary/sludge-cannon')
-        self.assertEqual(WEAPONS.accuracy_bonus(projected),1)
-        self.assertEqual(WEAPONS.range_spec(e,projected,a)['origin'],15)
+        projected=WEAPONS.prepare(e,a,e.r.move('move/오물폭탄'))
+        self.assertEqual(WEAPONS.accuracy_bonus(projected),0)
+        self.assertEqual(WEAPONS.range_spec(e,projected,a)['origin'],8)
         ITEMS.unregister_item(e,a,'item/몬스터볼-캐논')
         with self.assertRaises(ValueError):WEAPONS.prepare(e,a,e.r.move('move/오물폭탄'),'boundary/sludge-cannon')
 

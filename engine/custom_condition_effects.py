@@ -28,6 +28,8 @@ def _verify_source_record(rules,row):
 
 
 def definition(rules,source):
+    if source=='move/록온':
+        return __import__('juggler').lock_definition(rules)
     if source=='ability/잔인':
         import taskmaster as TASK
         return TASK.cruelty_definition(rules)
@@ -68,6 +70,8 @@ def classification(actor,name):
 def prepare(engine,actor,target,effect,source):
     import world_entities as W
     W.require_actors(engine,actor,target)
+    if source=='move/록온':
+        return __import__('juggler').prepare_lock(engine,actor,target,effect)
     if source=='ability/멸망의바디':
         import perish_body as PERISH_BODY
         return PERISH_BODY.prepare_condition(engine,actor,target,effect)
@@ -87,6 +91,10 @@ def prepare(engine,actor,target,effect,source):
 
 def grant(engine,actor,target,effect,source):
     row=prepare(engine,actor,target,effect,source)
+    if source=='move/록온':
+        # The completed native Move, rather than a second volatile-condition
+        # instance, establishes the two-ended next-attack relation.
+        return True
     import enduring_resilience as RESILIENCE
     if (not CONDITIONS.records(target,row['payload']['condition'])
             and not engine.immune_to(target,row['payload']['condition'])
@@ -125,10 +133,17 @@ def validate_record(actor,record,*,terminal=False):
     if not terminal and name not in actor.conditions:raise ValueError('custom condition presence projection missing')
     turn=C.integer(record.get('issued_turn'),'custom condition issue turn',0)
     at=record['at']
+    previous_round=0
     for event in record.get('applications',[]):
-        turn=C.integer(event['turn'],'custom condition actual turn',turn+1,actor.custom_conditions.get('combat_turn_serial',0))
+        round_tick=event['kind']=='holder_round_tick'
+        turn=C.integer(event['turn'],'custom condition actual turn',turn if round_tick else turn+1,actor.custom_conditions.get('combat_turn_serial',0))
         at=C.integer(event['at'],'custom condition actual time',at)
-        if event['kind']!='holder_turn_tick' or event['holder_id']!=actor.entity_id:raise ValueError('actual holder turn tick required')
+        if round_tick:
+            previous_round=C.integer(event['round'],'boss periodic loss round',previous_round+1)
+            import boss_transitions as BOSS
+            BOSS.require_periodic_round(actor,event)
+        elif event['kind']!='holder_turn_tick':raise ValueError('actual holder turn tick required')
+        if event['holder_id']!=actor.entity_id:raise ValueError('actual holder tick required')
         ticks=max([row['payload']['ticks']]+[n for t,n in row['payload']['typed_ticks'].items() if t in event['types']])
         if event['ticks']!=ticks or event['requested']!=event['tick']*ticks:raise ValueError('custom condition tick policy mismatch')
         C.integer(event['tick'],'actual tick HP',1)
@@ -136,24 +151,34 @@ def validate_record(actor,record,*,terminal=False):
     return True
 
 
-def turn_start(engine,actor):
+def turn_start(engine,actor,*,_boss_round=False):
+    import boss_transitions as BOSS
+    boss=BOSS.state(actor) is not None
+    if _boss_round and not boss:return
     turn=actor.custom_conditions.get('combat_turn_serial',0)
     for record in list(records(actor)):
         validate_record(actor,record)
         import linked_move_conditions as LINKED
         if LINKED.owns(record):
-            LINKED.turn_start(engine,actor,record)
+            seed=record['effect']['operation']=='seed_drain'
+            if boss and seed != _boss_round:continue
+            if _boss_round and not seed:continue
+            LINKED.turn_start(engine,actor,record,_boss_round=_boss_round)
             continue
         import healing_blocks as HEALING
         if HEALING.is_record(record):continue
+        if boss != _boss_round:continue
+        if _boss_round and any(event.get('round')==engine.round_no for event in record['applications']):continue
         last=record['applications'][-1]['turn'] if record['applications'] else record['issued_turn']
-        if turn<=last:continue
+        if not _boss_round and turn<=last:continue
         payload=record['effect'];types=list(actor.types)
         ticks=max([payload['ticks']]+[n for t,n in payload['typed_ticks'].items() if t in types])
         tick=engine.tick(actor)
         event={'kind':'holder_turn_tick','holder_id':actor.entity_id,'turn':turn,
                'at':engine.elapsed_seconds,'types':types,'ticks':ticks,'tick':tick,'requested':tick*ticks}
+        if _boss_round:event.update(kind='holder_round_tick',round=engine.round_no,source_id='C11-129')
         # Record the actual start before HP loss can faint and cure the holder.
         record['applications'].append(event)
-        engine.lose_tick_hp(actor,ticks,source=record['source'])
+        engine.lose_hp(actor,engine.tick_loss(actor,ticks),source=record['source'],
+                       loss_kind='percentage' if boss else 'loss')
 

@@ -18,7 +18,7 @@ def validate(rules,spec,*,allow_lost_prerequisite=False):
     active=set()
     for row in records(spec):
         import poke_edge_variants as VARIANTS
-        VARIANTS.validate_receipt(rules,row)
+        VARIANTS.validate_receipt(rules,row,history=True,minimum_level=20)
         if spec.get('kind')!='pokemon':raise ValueError('Accuracy Training requires an actual Pokemon')
         if rules._selected_rule(ACCURACY)!=ACCURACY:raise ValueError('selected Accuracy Training needs its own source policy')
         mid=row.get('move_id')
@@ -59,6 +59,7 @@ def prepare(engine,actor,move):
     import unown_imbuement as UNOWN
     move=UNOWN.prepare(engine,actor,move)
     move=__import__('type_ace').prepare(engine,actor,move)
+    move=__import__('ace_trainer').prepare(engine,actor,move)
     validate(engine.r,actor.spec)
     amount=int(any(r['status']=='active' and r['move_id']==move['id'] for r in records(actor.spec)))
     previous=move.get(MARKER)

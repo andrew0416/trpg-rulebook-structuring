@@ -61,12 +61,12 @@ def preflight(engine, actor, *, action='standard', source):
     return {'scope': list(_scope(engine)), 'action': declared, 'funded': funded, 'source': source}
 
 
-def reserve(engine, actor, *, action='standard', source, subject, communication):
+def reserve(engine, actor, *, action='standard', source, subject, communication=None):
     """Reserve one declared activation's costs with source/target evidence."""
     plan = preflight(engine, actor, action=action, source=source)
     if type(subject) is not str or not subject.strip():
         raise ValueError('Priority Limited subject identity required')
-    if type(communication) is not dict or communication.get('status') != 'delivered':
+    if communication is not None and (type(communication) is not dict or communication.get('status') != 'delivered'):
         raise ValueError('delivered communication evidence required')
     sequence = len(records(actor)) + 1
     receipt = {
@@ -121,6 +121,6 @@ def validate(actor):
                 raise ValueError('paid Priority Limited receipt lacks its turn')
         elif set(payment) != {'declared','funded','phase'}:
             raise ValueError('reserved Priority Limited receipt has unsupported fields')
-        if row['communication'].get('status') != 'delivered':
+        if row['communication'] is not None and (type(row['communication']) is not dict or row['communication'].get('status') != 'delivered'):
             raise ValueError('Priority Limited receipt lacks delivered communication')
     return True

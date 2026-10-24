@@ -69,7 +69,9 @@ def declaration(value):
     elif type(value['species']['parents']) is not list:raise ValueError('explicit species parent indices required')
     if type(value['species']['allowed']) is not list:raise ValueError('explicit declared species list required')
     for uid in value['species']['allowed']:Q._text(uid)
-    inheritance=value['inheritance'];Q._fields(inheritance,('kind','moves','parents','knowledge'))
+    inheritance=value['inheritance'];Q._fields(inheritance,('kind','moves','parents','knowledge',*(['tutoring_policy'] if 'tutoring_policy' in inheritance else [])))
+    if 'tutoring_policy' in inheritance and inheritance['tutoring_policy'] not in ('core','official_sep2015','kr_errata'):
+        raise ValueError('selected inheritance tutoring policy required')
     if inheritance['kind'] not in ('species_egg','parent_known_egg_and_tm','declared') or inheritance['knowledge'] not in ('any','all'):raise ValueError('explicit inheritance list and parental knowledge policy required')
     _indices(inheritance['parents'],value['parent_count'])
     if type(inheritance['moves']) is not list:raise ValueError('declared inheritance list required')
@@ -189,8 +191,8 @@ def create(engine,owner,parents,value,*,request_id,compatible=None,species=None,
             'hatched':False,'source':value['source'],'species':plan['species'],'hatch_level':value['hatch']['level'],'inheritance_moves':plan['inheritance_moves']})
         row[CONTRACT]={'request':deepcopy(request),'intent':TX.request_fingerprint(request),'plan':plan,'plan_sha256':TX.request_fingerprint(plan),
                        'job_id':None if job is None else job['job_id']}
-        P.validate_egg(e,a,row);a.spec.setdefault('eggs',[]).append(row)
         a.spec.setdefault(RECORDS,{})[request_id]={'intent':TX.request_fingerprint(request),'egg_entity_id':row['entity_id']}
+        P.validate_egg(e,a,row);a.spec.setdefault('eggs',[]).append(row)
         return deepcopy(row)
     return G.transition(engine,owner,apply,participants=parents)
 
@@ -226,8 +228,9 @@ def validate_binding(engine,row):
         raise ValueError('egg selected species, birth level or inheritance changed')
     provider=W.actor_index(engine).get(plan['provider_id'])
     if provider is None or provider.kind!='trainer':raise ValueError('actual original egg producer required')
-    receipt=provider.spec.get(RECORDS,{}).get(request['request_id'])
-    if receipt is not None and (receipt.get('intent')!=record['intent'] or receipt.get('egg_entity_id')!=row['entity_id']):raise ValueError('egg producer replay receipt changed')
+    receipts=provider.spec.get(RECORDS)
+    receipt=receipts.get(request['request_id']) if type(receipts) is dict else None
+    if type(receipt) is not dict or receipt.get('intent')!=record['intent'] or receipt.get('egg_entity_id')!=row['entity_id']:raise ValueError('egg producer replay receipt changed or missing')
     if record['job_id'] is not None:
         import activity_jobs as J
         job=J._row(engine,record['job_id'])
@@ -236,15 +239,54 @@ def validate_binding(engine,row):
 
 
 def details(engine,value):
-    Q._fields(value,('gender','nature','abilities','moves','special_appearance','inheritance_moves'))
+    fields=('gender','nature','abilities','moves','special_appearance','inheritance_moves')
+    Q._fields(value,fields+('baby_template',) if type(value) is dict and 'baby_template' in value else fields)
+    if 'baby_template' in value:
+        import baby_templates as BABY
+        BABY.native_physical_choice(value['baby_template'])
     Q._text(value['gender']);import nature_state as NATURE
     if NATURE.describe(engine.r,value['nature']) is None:raise ValueError('known selected nature required')
     if type(value['special_appearance']) is not bool:raise ValueError('explicit special-appearance choice required')
     result=deepcopy(value);result['moves']=moves(engine,value['moves']);result['inheritance_moves']=moves(engine,value['inheritance_moves'])
     if len(result['moves'])>6 or type(value['abilities']) is not list or len(set(value['abilities']))!=len(value['abilities']):raise ValueError('distinct explicit birth abilities and supported move capacity required')
+    import ability_transitions as ABILITIES
     for ability in value['abilities']:
-        selected=engine.r.selection.resolve_name(ability,('ability/',));engine.r.selection.require_supported_version(selected)
+        engine.r._selected_rule(ABILITIES.ability_id(engine.r,ability))
     return result
+
+
+def birth_abilities(engine,species,abilities):
+    """Ordinary hatch grants one Basic Ability; a birth level is not a level-up event."""
+    import growth_milestones as MILESTONES
+    import ability_transitions as ABILITIES,move_state as MOVES
+    if type(abilities) is not list or len(abilities)!=1:
+        raise ValueError('birth needs one species Basic Ability')
+    def identity(name):
+        selected=ABILITIES.ability_id(engine.r,name)
+        engine.r._selected_rule(selected)
+        registration=MOVES.ability_registration(engine.r,name) or {}
+        return selected,registration.get('acquisition_identity',selected)
+    selected=identity(abilities[0])
+    options=MILESTONES.ability_options(engine.r,{'species':species,'abilities':[]},'creation')
+    for option in options:
+        try:candidate=identity(option)
+        except ValueError:continue
+        if selected==candidate:return
+    raise ValueError('birth Ability is outside the child species Basic Ability candidates')
+
+
+def birth_gender(engine,species,gender):
+    from builder import species_lookup
+    import species_metadata as METADATA
+    if not isinstance(gender,str):raise ValueError('known birth gender required')
+    canonical={'male':'male','female':'female','genderless':'genderless','수컷':'male','암컷':'female','무성':'genderless'}.get(gender)
+    if canonical is None:raise ValueError('known birth gender required')
+    distribution=METADATA.project(engine.r,species_lookup(engine.r,species))['sex_distribution']
+    if distribution['status']=='genderless':
+        if canonical!='genderless':raise ValueError('birth gender disagrees with the genderless species')
+    elif distribution['status']=='known':
+        if canonical=='genderless' or distribution[canonical]<=0:raise ValueError('birth gender is impossible for the species')
+    return gender
 
 
 def construct(engine,owner,egg,*,name,birth_level,tutor_points,selected,extra=None,inheritance_candidates=None):
@@ -253,19 +295,32 @@ def construct(engine,owner,egg,*,name,birth_level,tutor_points,selected,extra=No
     INCUBATOR.require_access(engine,owner,egg)
     from builder import build_pokemon
     from engine import Combatant
-    import pokemon_progression as P,learning_grant as L
+    import pokemon_progression as P,move_state as M
     Q._text(name);selected=details(engine,selected)
-    inherited=selected['inheritance_moves'];learning=[] if inheritance_candidates is None else [mid for mid in selected['moves'] if mid in inherited]
-    spec=build_pokemon(engine.r,egg['species'],birth_level,name=name,nature=selected['nature'],moves=[mid for mid in selected['moves'] if mid not in learning],
+    inheritance_policy=egg.get(CONTRACT,{}).get('plan',{}).get('declaration',{}).get('inheritance',{}).get('tutoring_policy')
+    birth_gender(engine,egg['species'],selected['gender'])
+    inherited=selected['inheritance_moves']
+    natural=M.current_natural_evidence(engine.r,{'species':egg['species'],'level':birth_level})
+    if inheritance_candidates is not None and any(mid in inherited and not any(row['kind']=='level_up' for row in natural.get(mid,[])) for mid in selected['moves']):
+        raise ValueError('inheritance list does not grant a birth Move; wait for its growth milestone')
+    spec=build_pokemon(engine.r,egg['species'],birth_level,name=name,nature=selected['nature'],moves=selected['moves'],
         abilities=list(selected['abilities']),extra={'gender':selected['gender'],'trainer_id':owner.entity_id,'special_appearance':selected['special_appearance'],
         'inheritance_moves':inherited,'egg_entity_id':egg['entity_id'],'tutor_points':tutor_points,**deepcopy(extra or {})})
-    if learning:L.learn_moves(engine.r,spec,candidates=list(inheritance_candidates),selected=learning,method='egg',source=egg['source'],reason='actual selected inherited birth moves',
-        provider=egg[BINDING]['facts']['created_by'],details={'egg_entity_id':egg['entity_id'],'parent_ids':list(egg['parents'])})
+    if inheritance_policy is not None:
+        spec['inheritance_tutoring_policy']=inheritance_policy
+        __import__('growth_milestones').offer_inheritance(engine.r,spec)
     spec[P.LEVEL_STATE].update(origin='hatch',egg_entity_id=egg['entity_id'])
+    import growth_milestones as MILESTONES
+    MILESTONES.offer_inheritance(engine.r,spec)
     import marsupial_state as MARSUPIAL
-    MARSUPIAL.prepare_birth(engine,egg,spec)
+    if spec.get('species')!=MARSUPIAL.SPECIES and 'baby_template' in selected:
+        raise ValueError('native Baby Template birth choice requires actual Kangaskhan')
+    MARSUPIAL.prepare_birth(engine,egg,spec,physical_choice=selected.get('baby_template'))
     spec.pop('pos',None);spec['location']=deepcopy(owner.location)
-    pokemon=Combatant(engine.r,spec);W.actor_index(engine,extra=[pokemon])
+    pokemon=Combatant(engine.r,spec)
+    import baby_templates as BABY
+    BABY.finish_native_body(pokemon)
+    W.actor_index(engine,extra=[pokemon])
     return pokemon,selected
 
 
@@ -279,9 +334,15 @@ def commit_birth(engine,owner,egg,pokemon,selected,*,reason,placement):
     PARTY.finish_hatch(engine,owner,pokemon,placement,egg)
     engine.gm.everyone.append(pokemon)
     if engine.everyone is not engine.gm.everyone:engine.everyone.append(pokemon)
+    PARTY.project_current_owner(engine,pokemon)
     import marsupial_state as MARSUPIAL
     MARSUPIAL.finish_birth_placement(engine)
     lineage(engine,pokemon)
+    import advanced_connection as CONNECTION
+    CONNECTION.birth(engine,pokemon,egg,reason=reason)
+    # Birth ownership is established; register its actual selected passives
+    # without inventing a field-entry event for a carried newborn.
+    for ability in list(pokemon.abilities):engine.register_abilities_one(pokemon,ability)
 
 
 def lineage(engine,pokemon):
@@ -337,8 +398,9 @@ def hatch(engine,owner,egg_entity_id,*,name,ready=None,reason,choices):
         if selected['inheritance_moves']!=plan['inheritance_moves']:raise ValueError('birth inheritance differs from actual egg selection')
         if policy['known_moves']=='natural_and_inherited':
             evidence=M.current_natural_evidence(e.r,{'species':egg['species'],'level':policy['level']})
-            allowed={mid for mid,rows in evidence.items() if any(row['kind']=='level_up' for row in rows)} | set(plan['inheritance_moves'])
-            if any(mid not in allowed for mid in selected['moves']):raise ValueError('birth known move is outside natural and actual inherited candidates')
+            allowed={mid for mid,rows in evidence.items() if any(row['kind']=='level_up' for row in rows)}
+            if any(mid not in allowed for mid in selected['moves']):raise ValueError('birth known move is outside natural level-up candidates')
+        birth_abilities(e,egg['species'],selected['abilities'])
         pokemon,selected=construct(e,a,egg,name=name,birth_level=policy['level'],tutor_points=policy['tutor_points'],selected=selected,inheritance_candidates=plan['inheritance_candidates'])
         placement=PARTY.preflight_hatch(e,a,pokemon,egg)
         commit_birth(e,a,egg,pokemon,selected,reason=reason,placement=placement)

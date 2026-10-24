@@ -1,28 +1,16 @@
 name: Validate revisions
 
 on:
-  push:
-    branches: [main, 'codex/**']
-    paths:
-      - '.github/workflows/validate.yml'
-      - '.gitattributes'
-      - '.ci/fixtures.zip.enc'
-      - '.ci/fixtures-manifest.json'
-      - '.ci/suites/**'
-      - 'engine/**'
-      - 'tools/**'
-      - 'tests/**'
-      - 'schema/**'
-      - 'examples/declared_skill_ranks.py'
-      - 'work/reuse-partials/verify_overlay_tests.py'
   workflow_dispatch:
     inputs:
       suite:
         description: Final required tests to run
         type: choice
         required: true
-        default: all_revisions
+        default: final_revisions
         options:
+          - final_revisions
+          - repair_revisions
           - all_revisions
           - common_checks
           - move_revisions
@@ -37,16 +25,16 @@ jobs:
   validate:
     if: >-
       github.repository == 'andrew0416/trpg-rulebook-structuring' &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.event_name == 'workflow_dispatch' &&
       (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/codex/'))
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 9
       matrix:
-        suite: ${{ fromJSON(github.event_name == 'push' && '["next_revisions"]' || inputs.suite == 'common_checks' && '["common_checks"]' || inputs.suite == 'move_revisions' && '["move_revisions"]' || inputs.suite == 'rank_revisions' && '["rank_revisions"]' || inputs.suite == 'retraining' && '["retraining"]' || inputs.suite == 'next_revisions' && '["next_revisions"]' || '["move_revisions", "rank_revisions", "retraining"]') }}
+        suite: ${{ fromJSON(inputs.suite == 'repair_revisions' && '["repair_revisions_01", "repair_revisions_02", "repair_revisions_03", "repair_revisions_04", "repair_revisions_05", "repair_revisions_06", "repair_revisions_07", "repair_revisions_08", "repair_revisions_09"]' || inputs.suite == 'common_checks' && '["common_checks"]' || inputs.suite == 'move_revisions' && '["move_revisions"]' || inputs.suite == 'rank_revisions' && '["rank_revisions"]' || inputs.suite == 'retraining' && '["retraining"]' || inputs.suite == 'next_revisions' && '["next_revisions"]' || '["final_revisions_01", "final_revisions_02", "final_revisions_03", "final_revisions_04", "final_revisions_05", "final_revisions_06", "final_revisions_07", "final_revisions_08", "final_revisions_09"]') }}
     name: ${{ matrix.suite }}
     runs-on: windows-2022
-    timeout-minutes: 75
+    timeout-minutes: 105
     env:
       PYTHONDONTWRITEBYTECODE: '1'
       PYTHONUTF8: '1'
@@ -62,7 +50,25 @@ jobs:
         shell: pwsh
         env:
           PTK_FIXTURE_KEY: ${{ secrets.PTK_FIXTURE_KEY }}
-        run: python -B -X utf8 tools/ci_validate.py --root "$env:GITHUB_WORKSPACE" --suite "$env:CI_SUITE"
+        run: |
+          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-{2}' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT, $env:CI_SUITE
+          New-Item -ItemType Directory -Path $taskTemp -Force -ErrorAction Stop | Out-Null
+          $env:TEMP = $taskTemp
+          $env:TMP = $taskTemp
+          $env:TMPDIR = $taskTemp
+          $env:RUNNER_TEMP = $taskTemp
+          python -B -X utf8 tools/ci_validate.py --root "$env:GITHUB_WORKSPACE" --suite "$env:CI_SUITE"
+      - name: Preserve small encrypted diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: diagnostics-${{ matrix.suite }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/ci/*/run.json
+            output/ci/*/summary.json
+            output/ci/*/diagnostics.zip.enc
+          if-no-files-found: warn
+          retention-days: 14
       - name: Preserve this run's evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

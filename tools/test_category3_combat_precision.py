@@ -25,6 +25,8 @@ class CombatPrecisionTests(unittest.TestCase):
         self.a.side=self.p.side='party';self.t.side='wild';self.p.spec['trainer']=self.a.name
         self.a.spec['feats']=[CPF.PRECISION]
         self.e.everyone=[self.a,self.p,self.t];self.e.gm.everyone=self.e.everyone[:]
+        self.e.time_actors(self.e.everyone)
+        self.e.gm.observe_sensory_environment(self.a,self.p,paths={"auditory":True},present=True,reason="actual Order delivery")
     def actor(self,name,kind='trainer'):
         return Combatant(self.r,dict(name=name,kind=kind,level=20,
             stats={"hp":80,"atk":20,"def":15,"spa":20,"spd":15,"spe":5},

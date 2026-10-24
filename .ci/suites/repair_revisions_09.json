@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "id": "repair_revisions_09",
+  "purpose": "Source-bound existing Pokemon Fire/Ice passive acquisition and withdrawal; R59 selectable book/CSV acquisition and retained receipts with declared7+; Press composed context; real staged Cannon/Plasma/effect-rank observations; five Juggler and five weather fixture repairs. Exact120methods including10new, original4115 plus added obligations retained, source-specific existing PASS reused. No completion credit from selection.",
+  "completion_credit": 0,
+  "required_unique_count": 4,
+  "completed": {
+    "tools.test_book_species_savant.BookSpeciesSavantTests": {
+      "tests": [
+        "tools.test_book_species_savant.BookSpeciesSavantTests.test_json_fresh_rules_and_gm_restore_keep_selection_and_reject_tampering",
+        "tools.test_book_species_savant.BookSpeciesSavantTests.test_retraining_retracts_only_own_bonus_and_preserves_historical_receipt"
+      ]
+    },
+    "tools.test_book_taskmaster_hardened.TaskmasterTests": {
+      "tests": [
+        "tools.test_book_taskmaster_hardened.TaskmasterTests.test_press_and_whip_selected_effects_pay_actual_standard_swift_ap_and_free_training_order"
+      ]
+    },
+    "tools.test_environmental_actual_type_revision.EnvironmentalActualTypeRevisionTests": {
+      "tests": [
+        "tools.test_environmental_actual_type_revision.EnvironmentalActualTypeRevisionTests.test_consumed_native_plasma_type_is_retained_and_observation_cannot_consume_it_again"
+      ]
+    }
+  }
+}

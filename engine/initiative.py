@@ -131,7 +131,7 @@ def _roll_group(engine, group, initiative_value, policy):
             if len(part) == 1:
                 next_parts.append(part)
                 continue
-            rolls = [(row, engine.d20()) for row in part]
+            rolls = [(row, engine.roll_d20(row[1],'initiative_tie')) for row in part]
             if any(not _int(face) or not 1 <= face <= 20 for _, face in rolls):
                 return None
             faces = sorted({face for _, face in rolls}, reverse=policy["policy"] == "highest_d20")

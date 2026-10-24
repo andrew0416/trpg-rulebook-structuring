@@ -274,9 +274,17 @@ def _check_marker(engine, source, effect):
     return row
 
 
+def _normal_attack(engine, actor, move):
+    if move.get('class') not in ('물리', '특수'):
+        return False
+    import effects_ext as EXT
+    registered = EXT.revelation_dance_type(engine, actor, move)
+    return (registered if registered is not None else move.get('type')) == '노말'
+
+
 def _plasma_conflict(engine, actor, source):
     move = engine.r.move(source)
-    if move.get("type") != "노말" or move.get("class") not in ("물리", "특수"):
+    if not _normal_attack(engine, actor, move):
         return False
     if actor.type_override_next is not None:
         return True
@@ -478,7 +486,7 @@ def begin_move_use(engine, actor, target, move, mechanics, *, targetless=False):
 
     actual_type = None
     pending = list(live(actor, "next_normal_attack_type"))
-    if pending and move.get("type") == "노말" and move.get("class") in ("물리", "특수"):
+    if pending and _normal_attack(engine, actor, move):
         if _plasma_conflict(engine, actor, move["id"]):
             raise ValueError("pending Plasma Fists conflicts with another type override")
         actual_type = "전기"
@@ -497,13 +505,18 @@ def begin_move_use(engine, actor, target, move, mechanics, *, targetless=False):
     return actual_type
 
 
-def effective_type(engine, actor, target, move):
+def effective_type(engine, actor, target, move, *, preview=False):
     scopes = getattr(engine, "_event_use_scopes", ())
-    if not scopes:
-        return None
-    current = scopes[-1]
-    if current.get("actor") is actor and current.get("target") is target and current.get("move_id") == move.get("id"):
-        return current.get("declarative_move_type")
+    if scopes:
+        current = scopes[-1]
+        if current.get("actor") is actor and current.get("target") is target and current.get("move_id") == move.get("id"):
+            if "declarative_move_type" in current:
+                return current["declarative_move_type"]
+    if (preview and _normal_attack(engine, actor, move)
+            and live(actor, "next_normal_attack_type")):
+        if _plasma_conflict(engine, actor, move["id"]):
+            raise ValueError("pending Plasma Fists conflicts with another type override")
+        return "전기"
     return None
 
 

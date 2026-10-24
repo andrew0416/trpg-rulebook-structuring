@@ -18,6 +18,7 @@ def validate(actor):
     validate_appendages(actor)
     validate_parts(actor)
     validate_reach_observation(actor)
+    validate_reach_source_observation(actor)
     import body_modes as MODES
     mode=MODES.validate(actor)
     shape=mode["footprint"] if mode else actor.spec.get("footprint")
@@ -231,7 +232,14 @@ def shapeshift_weight_class(actor,row):
     if row['mass_ratio']==1:
         if chosen is not None:raise ValueError('unchanged shapeshift mass keeps its original Weight Class')
         return actor.spec.get('weight_class')
-    mass=shapeshift_mass(actor,row)
+    return mass_weight_class(actor,shapeshift_mass(actor,row),chosen=chosen)
+
+
+def mass_weight_class(actor,mass,*,chosen=None):
+    """Source-table physical class; shared endpoints need an explicit observation."""
+    from math import isfinite
+    if type(mass) not in (int,float) or not isfinite(mass) or mass<0:
+        raise ValueError('body mass must be finite and nonnegative')
     table='pokemon/weight-classes'
     if actor.r._selected_rule(table)!=table:raise ValueError('selected Weight Class table needs its own physical policy')
     # These are the kg intervals preserved by the existing selected table. Its
@@ -248,7 +256,7 @@ def shapeshift_weight_class(actor,row):
         if len(candidates)!=1:raise ValueError('shared Weight Class boundary requires observed mass_weight_class')
         return candidates[0]
     if type(chosen)is not int or chosen not in candidates:
-        raise ValueError('observed shapeshift Weight Class disagrees with actual mass interval')
+        raise ValueError('observed Weight Class disagrees with actual mass interval')
     return chosen
 
 
@@ -506,22 +514,28 @@ def flanking(engine,target):
     """
     result={'source':SPATIAL_SOURCE,'target_id':target.entity_id,'flanked':False,
             'required':None,'foes':[],'contributors':[],'pending':[],'evasion_penalty':0}
+    if __import__('tumbler').immune(target):return result
     if __import__('martial_artist').unflanked(target):return result
-    seen=set();foes=[]
+    seen=set();foes=[];unknown=set()
     for c in getattr(engine,'everyone',[]) or []:
         if c is target or id(c) in seen:continue
         seen.add(id(c))
-        if c.side!=target.side and c.on_field and not c.fainted and not c.captured:foes.append(c)
+        if not c.on_field or c.fainted or c.captured:continue
+        side=getattr(c,'side',None);target_side=getattr(target,'side',None)
+        if side is None or target_side is None:
+            unknown.add(c.entity_id);foes.append(c)
+        elif side!=target_side:foes.append(c)
     if len(foes)<2 or not target.on_field or target.fainted or target.captured:return result
     width=WIDTH.get(target.spec.get('size'))
     if engine.grid is None or width is None or not projection(target)['geometry_complete']:
         result.update(flanked=None,evasion_penalty=None,pending=['mapped target size and complete footprint required']);return result
     result['required']=width+1
-    tcells=cells(target,require_complete=True);weighted=[]
+    tcells=cells(target,require_complete=True);weighted=[];possible=[]
     from grid import cheb
     for c in foes:
         if not projection(c)['geometry_complete'] or WIDTH.get(c.spec.get('size')) is None:
             result['pending'].append('complete foe size/footprint: '+c.entity_id);continue
+        if c.entity_id in unknown and not any(cheb(q,t)<=1 for q in cells(c,require_complete=True) for t in tcells):continue
         if c.spec.get('_movement_altitude',0)!=target.spec.get('_movement_altitude',0) or bool(c.spec.get('_burrow',{}).get('underground'))!=bool(target.spec.get('_burrow',{}).get('underground')):
             result['pending'].append('cross-plane foe membership: '+c.entity_id);continue
         body=cells(c,require_complete=True)
@@ -531,29 +545,135 @@ def flanking(engine,target):
         contacts=sorted(q for q in body if any(cheb(q,t)==1 for t in tcells))
         if not contacts:continue
         weight=len(contacts) if WIDTH[c.spec['size']]>1 else 1
-        result['foes'].append({'entity_id':c.entity_id,'contact_cells':contacts,'weight':weight})
-        weighted.append((c,weight))
-    for i,(a,_) in enumerate(weighted):
-        for b,_ in weighted[i+1:]:
+        possible.append((c,weight))
+        if c.entity_id not in unknown:
+            result['foes'].append({'entity_id':c.entity_id,'contact_cells':contacts,'weight':weight})
+            weighted.append((c,weight))
+    for i,(a,_) in enumerate(possible):
+        for b,_ in possible[i+1:]:
             if cells(a).intersection(cells(b)) and not _known_overlap(engine,a,b):result['pending'].append('overlapping foes: '+a.entity_id+', '+b.entity_id)
     # Every distinct selected foe must be non-adjacent to every other selected foe.
-    def choose(index,chosen,total):
+    def choose(candidates,index,chosen,total):
         if len(chosen)>=2 and total>=result['required']:return chosen
-        if total+sum(n for _,n in weighted[index:])<result['required']:return None
-        for i in range(index,len(weighted)):
-            actor,count=weighted[i]
+        if total+sum(n for _,n in candidates[index:])<result['required']:return None
+        for i in range(index,len(candidates)):
+            actor,count=candidates[i]
             if all(not cells(actor).intersection(cells(prior)) and not adjacent(actor,prior) for prior in chosen):
-                found=choose(i+1,chosen+[actor],total+count)
+                found=choose(candidates,i+1,chosen+[actor],total+count)
                 if found:return found
         return None
-    witnesses=choose(0,[],0)
+    witnesses=choose(weighted,0,[],0)
     if witnesses:result.update(flanked=True,contributors=[c.entity_id for c in witnesses],evasion_penalty=-2)
-    elif result['pending']:result.update(flanked=None,evasion_penalty=None)
+    else:
+        potential=choose(possible,0,[],0)
+        if potential:
+            result['pending'].extend('foe relation: '+c.entity_id+' -> '+target.entity_id for c in potential if c.entity_id in unknown)
+        if result['pending']:result.update(flanked=None,evasion_penalty=None)
     return result
 
 
 REACH_SOURCE="capability/도달"
 REACH_OBSERVATION="melee_reach_observation"
+REACH_SOURCE_OBSERVATION="melee_reach_source_observation"
+REACH_CORE={'file':'input/ch10-index-reference.md','sha256':'c3a1d783b4f649f0f6e25a9443a90ca8079a6e036c42c6f8797e100127157abe'}
+REACH_SPECIES={'file':'input/db/pokemon.csv','sha256':'0b6f0fbe200a362b341322227f9d3885addd8dc0e54e2f7734a3c7a9a24b752c'}
+
+
+def _reach_capabilities(actor):
+    """Inspect only live Reach identities, including malformed source gaps."""
+    import re,state_grants as G
+    # Enumerate without resolving unrelated uncertain losses; then apply the
+    # existing exact-name loss owner to this capability family only.
+    candidates=[v for v in G.effective(actor,'capabilities',include_suppressed=True)
+                if v.removeprefix('capability/').strip().startswith('도달')]
+    live=G.effective_capabilities(actor,only=candidates)
+    values=[]
+    for value in live:
+        match=re.fullmatch(r'도달\s*([23])?',value.removeprefix('capability/').strip())
+        if match is None:raise ValueError('unsupported numeric Reach source; explicit source policy required')
+        values.append((value,int(match[1]) if match[1] else None))
+    return values
+
+
+def validate_reach_source_observation(actor):
+    """Historical evidence is not a live grant or a past decision to invent."""
+    row=actor.spec.get(REACH_SOURCE_OBSERVATION)
+    if row is None:return None
+    if type(row)is not dict or set(row)!={'source','choice','policy'} or row['source']!=REACH_SOURCE:
+        raise ValueError('exact retained Reach source observation required')
+    choice=row['choice'];policy=row['policy']
+    if (type(choice)is not dict or set(choice)!={'value','reason','scope'}
+            or choice['value'] not in ('core_size_rule','species_explicit_distance')
+            or type(choice['scope'])is not dict or type(policy)is not dict
+            or policy.get('status')!='PolicyValuesReady' or policy.get('decision_scope')!=choice['scope']):
+        raise ValueError('complete scoped Reach source decision required')
+    W._text(choice['reason'],'Reach source decision reason')
+    return row
+
+
+def _reach_source_document(actor,live):
+    """Bind the real conflicting species cells; a number is never a bonus."""
+    import csv,io
+    from builder import species_lookup
+    from source_context import verified_source
+    if not actor.spec.get('species'):raise ValueError('conflicting numeric Reach requires an actual selected species source')
+    species=species_lookup(actor.r,actor.spec.get('species'))
+    source=species.get('_source',{})
+    span=source.get('record_span')
+    if source.get('file')!='db/pokemon.csv' or type(span)is not list or len(span)!=2 or span[0]!=span[1]:
+        raise ValueError('conflicting numeric Reach requires an actual selected species source')
+    selection=actor.r.select_source_definition(species['id'],source=REACH_SPECIES)
+    if selection['selected_id']!=species['id']:raise ValueError('selected species Reach replacement requires its own policy')
+    raw=verified_source(actor.r,REACH_SPECIES,label='numeric Reach species')
+    cells=next((row for number,row in enumerate(csv.reader(io.StringIO(raw.decode('utf-8-sig'),newline='')),1)
+                if number==span[0]),None)
+    if (cells is None or len(cells)<37 or cells[0]!=species['name'] or cells[27]!=species.get('size')
+            or [v for v in cells[18:27] if v not in ('','-')]!=species.get('capabilities')):
+        raise ValueError('selected species Reach cells disagree with the current catalog')
+    import re
+    printed=[int(m[1]) for v in cells[18:27] if (m:=re.fullmatch(r'도달\s*([23])',v))]
+    numbers={number for _,number in live if number is not None}
+    if len(printed)!=1 or numbers!={printed[0]}:
+        raise ValueError('conflicting live numeric Reach needs its own explicit source policy')
+    scope={'actor_id':actor.entity_id,'species_id':species['id'],
+           'species_selection':{k:deepcopy(selection[k]) for k in ('selected_id','version','source','verified_reference','profile','selection_policy_hash')},
+           'csv_row':span[0],'capability_and_size_cells':cells[18:28],
+           'live_reach_labels':sorted(value for value,_ in live)}
+    definitions={'core_size_rule':{'distance':'live_size_2_or_3','source':REACH_CORE},
+                 'species_explicit_distance':{'distance':printed[0],'source':REACH_SPECIES,'row':span[0]}}
+    return {'schema':1,'id':'native/melee-reach-source','variants':[{
+        'rule_id':REACH_SOURCE,'source':REACH_CORE,
+        'values':{'variant':{'$input':'source_text'},'definitions':definitions,'native_scope':scope},
+        'inputs':{'source_text':{'type':'string','authority':'gm','decision_kind':'source_conflict',
+            'choices':list(definitions),
+            'question':'Reach: choose the complete Core size rule or the conflicting explicit species distance; both are total melee metres, never an added bonus.'}}}]}
+
+
+def _reach_source_resolution(actor,live,choice=None):
+    import source_policy as POLICY
+    return POLICY.resolve(actor.r,_reach_source_document(actor,live),
+                          decisions={} if choice is None else {'source_text':choice})
+
+
+def observe_melee_reach_source(engine,actor,choice=None):
+    """Prepare or record an explicit current source conflict; never grant Reach."""
+    if W.actor_index(engine).get(actor.entity_id) is not actor:raise ValueError('registered Reach actor required')
+    live=_reach_capabilities(actor)
+    width=WIDTH.get(actor.spec.get('size'))
+    if not live or width is None:raise ValueError('live Reach and observed body size required')
+    if not any(number is not None and number!=(2 if width==1 else 3) for _,number in live):
+        raise ValueError('actual numeric Reach source conflict required')
+    resolved=_reach_source_resolution(actor,live,choice)
+    if choice is None:return resolved
+    if resolved['status']!='PolicyValuesReady':raise ValueError('explicit current Reach source choice required')
+    row={'source':REACH_SOURCE,'choice':deepcopy(choice),'policy':resolved}
+    from copy import copy
+    probe=copy(actor);probe.spec=dict(actor.spec);probe.spec[REACH_SOURCE_OBSERVATION]=row
+    distance=melee_reach(probe)
+    before=deepcopy(actor.spec.get(REACH_SOURCE_OBSERVATION))
+    actor.spec[REACH_SOURCE_OBSERVATION]=row;actor._state_revision+=1
+    engine.gm._rec('melee reach source',before,row,choice['reason'],actor)
+    return distance
 
 
 def validate_reach_observation(actor):
@@ -576,28 +696,38 @@ def validate_reach_observation(actor):
 
 def melee_reach(actor):
     """Live capability, not an independent range buff or an adjacency change."""
-    import state_grants as G
     row=validate_reach_observation(actor)
-    if '도달' not in G.effective_capabilities(actor,only=('도달',)):return 1
+    live=_reach_capabilities(actor)
+    if not live:return 1
     if actor.r._selected_rule(REACH_SOURCE)!=REACH_SOURCE:
         raise ValueError('selected Reach source needs its own policy')
     width=WIDTH.get(actor.spec.get('size'))
     if width is None:raise ValueError('Reach requires observed body size')
     baseline=2 if width==1 else 3
+    if any(number is not None and number!=baseline for _,number in live):
+        source_row=validate_reach_source_observation(actor)
+        if source_row is None:raise ValueError('observe explicit current numeric Reach source choice')
+        resolved=_reach_source_resolution(actor,live,source_row['choice'])
+        retained=source_row['policy']
+        if any(retained.get(key)!=resolved[key] for key in ('status','selected_id','selected_version','values',
+                'decision_evidence','profile_hash','definition_hash','decision_scope','inputs_hash','source')):
+            raise ValueError('retained Reach source decision changed')
+        if resolved['values']['variant']=='species_explicit_distance':
+            baseline=resolved['values']['definitions']['species_explicit_distance']['distance']
     if row and row['basis_size']==actor.spec.get('size'):return row['value']
     return baseline
 
 
 def observe_melee_reach(engine,actor,value,*,anatomy,reason):
     """Record the GM's unspecified exceptional distance, without granting Reach."""
-    import state_grants as G
     from copy import copy
-    if W.actor_index(engine).get(actor.entity_id) is not actor or '도달' not in G.effective_capabilities(actor,only=('도달',)):
+    if W.actor_index(engine).get(actor.entity_id) is not actor or not _reach_capabilities(actor):
         raise ValueError('registered actor with Reach required')
     row={'source':REACH_SOURCE,'value':value,'basis_size':actor.spec.get('size'),'anatomy':anatomy,'reason':reason}
     probe=copy(actor);probe.spec=dict(actor.spec);probe.spec[REACH_OBSERVATION]=row
     validate_reach_observation(probe)
+    distance=melee_reach(probe)
     before=deepcopy(actor.spec.get(REACH_OBSERVATION));actor.spec[REACH_OBSERVATION]=deepcopy(row)
     actor._state_revision+=1
     engine.gm._rec('exceptional melee reach',before,row,reason,actor)
-    return melee_reach(actor)
+    return distance

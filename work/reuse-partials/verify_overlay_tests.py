@@ -418,6 +418,49 @@ def test_cases(suite):
             yield test
 
 
+def prepare_chained_suite(suite):
+    """Connect opt-in compatible cases without changing case identity or coverage.
+
+    Hooks prepare only empty shared contexts. Real fixtures are constructed by
+    the first running case; independently selected cases retain their builders.
+    """
+    cases = list(test_cases(suite))
+    grouped = {}
+    for case in cases:
+        grouped.setdefault(type(case), []).append(case)
+    replacements, chains = {}, []
+    for cls, selected in grouped.items():
+        hook = getattr(cls, 'prepare_chained_cases', None)
+        if hook is None:
+            continue
+        before = {id(case): case.id() for case in selected}
+        if len(before) != len(selected):
+            raise ValueError('Chained selection repeats a TestCase instance')
+        prepared = hook(tuple(selected))
+        if any(case.id() != before[id(case)] for case in selected):
+            raise ValueError('Chaining changed a test case identity')
+        if prepared is None:
+            continue
+        prepared = list(prepared)
+        if Counter(map(id, prepared)) != Counter(map(id, selected)):
+            raise ValueError('Chaining must preserve every selected TestCase instance exactly once')
+        replacements[cls] = iter(prepared)
+        chains.append({'class': cls.__module__ + '.' + cls.__qualname__,
+                       'selected_test_ids': [case.id() for case in selected],
+                       'execution_test_ids': [case.id() for case in prepared]})
+    if not chains:
+        return suite, []
+    def ordinary_suites(node):
+        if isinstance(node, unittest.TestSuite):
+            return type(node) is unittest.TestSuite and all(ordinary_suites(child) for child in node)
+        return True
+    if not ordinary_suites(suite):
+        raise ValueError('Chaining cannot replace a custom TestSuite execution contract')
+    ordered = [next(replacements[type(case)]) if type(case) in replacements else case
+               for case in cases]
+    return unittest.TestSuite(ordered), chains
+
+
 class ReportingResult(unittest.TextTestResult):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -798,6 +841,13 @@ def main() -> None:
             # Import/load_tests failures must use the same fail-before-fixture path.
             loader.errors.append(traceback.format_exc())
     redirect_fixture_roots()
+    selected_case_ids = [test.id() for test in test_cases(suite)]
+    chained_cases = []
+    if not loader.errors:
+        try:
+            suite, chained_cases = prepare_chained_suite(suite)
+        except Exception:
+            loader.errors.append(traceback.format_exc())
     cases = list(test_cases(suite))
     collected = [test.id() for test in cases]
     sources = {test.__class__.__module__: getattr(sys.modules.get(test.__class__.__module__), '__file__', None)
@@ -805,7 +855,8 @@ def main() -> None:
     details = {'version': 1, 'kind': 'discovery_error', 'canonical': str(CANONICAL),
                'stage': str(STAGE), 'requested': requested, 'collected': collected,
                'sources': sources, 'tests_run': 0, 'retry_ids': [],
-               'required_selection': required_selection, 'discovery_errors': loader.errors}
+               'required_selection': required_selection, 'discovery_errors': loader.errors,
+               'selected_case_ids': selected_case_ids, 'chained_cases': chained_cases}
     if workflow:
         details['workflow'] = workflow
         if len(collected) != len(set(collected)):
@@ -847,14 +898,14 @@ def main() -> None:
         details['declared_count'] = sum(len(group['tests']) for group in allocation)
         details['shared_ids'] = [name for name in requested if sum(
             name in group['tests'] for group in allocation) > 1]
-        if not loader.errors and collected != requested:
+        if not loader.errors and selected_case_ids != requested:
             details['discovery_errors'].append(
                 'Packet selection must resolve to exactly its declared test methods; '
-                f'requested={requested!r}, collected={collected!r}')
-    if (args.also or args.repeat_from) and not loader.errors and collected != requested:
+                f'requested={requested!r}, selected={selected_case_ids!r}')
+    if (args.also or args.repeat_from) and not loader.errors and selected_case_ids != requested:
         details['discovery_errors'].append(
             'Exact selection must resolve to exactly its declared test methods; '
-            f'requested={requested!r}, collected={collected!r}')
+            f'requested={requested!r}, selected={selected_case_ids!r}')
     report = io.StringIO() if args.log else None
     details['discovery_seconds'] = time.perf_counter() - started
     if details['discovery_errors']:

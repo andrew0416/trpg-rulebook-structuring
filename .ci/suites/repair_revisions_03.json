@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "repair_revisions_03",
+  "purpose": "Source-bound existing Pokemon Fire/Ice passive acquisition and withdrawal; R59 selectable book/CSV acquisition and retained receipts with declared7+; Press composed context; real staged Cannon/Plasma/effect-rank observations; five Juggler and five weather fixture repairs. Exact120methods including10new, original4115 plus added obligations retained, source-specific existing PASS reused. No completion credit from selection.",
+  "completion_credit": 0,
+  "required_unique_count": 7,
+  "completed": {
+    "tools.test_category3_survivalist.Tests": {
+      "tests": [
+        "tools.test_category3_survivalist.Tests.test_actual_class_novice_and_known_source_required",
+        "tools.test_category3_survivalist.Tests.test_actual_unknown_current_environment_holds_before_rng",
+        "tools.test_category3_survivalist.Tests.test_native_five_skills_get_terrain_bonus_and_other_skills_do_not",
+        "tools.test_category3_survivalist.Tests.test_observed_skill_context_cannot_be_rewritten",
+        "tools.test_category3_survivalist.Tests.test_plains_distant_perception_works_outside_grassland_and_only_for_that_check",
+        "tools.test_category3_survivalist.Tests.test_skill_monkey_retains_terrain_talent_bonus_once_in_final_check",
+        "tools.test_category3_survivalist.Tests.test_surefooted_context_and_actual_opposed_defender_use_bonus"
+      ]
+    }
+  }
+}

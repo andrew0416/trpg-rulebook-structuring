@@ -8,20 +8,20 @@ Only reviewed code, schema files, CI configuration and public test-ID packets ar
 
 Maintainers configure the repository Actions secret **PTK_FIXTURE_KEY** with the 64 hexadecimal characters representing the bundle's 32-byte key. The key must not be committed, placed in command-line arguments, or included in artifacts.
 
-Relevant pushes to `main` and `codex/**` run the current `next_revisions` packet on one Windows VM. Manual `all_revisions` runs the three historical revision groups on independent VMs with `max-parallel: 3` and `fail-fast: false`. The job additionally requires repository identity `andrew0416/trpg-rulebook-structuring`, a push or manual event, and one of those trusted branch refs. Pull requests and external forks do not receive the private-fixture validation; there is no `pull_request_target` workflow.
+Validation runs only on manual dispatch after a revision snapshot is ready. Pushes do not start game checks. The default `next_revisions` packet runs on one Windows VM. Explicit `all_revisions` runs the three historical revision groups on independent VMs with `max-parallel: 3` and `fail-fast: false`. The job additionally requires repository identity `andrew0416/trpg-rulebook-structuring`, a manual event, and a `main` or `codex/**` branch ref. Pull requests and external forks do not receive the private-fixture validation; there is no `pull_request_target` workflow.
 
 **Actions → Validate revisions → Run workflow** offers a fixed choice on a trusted branch:
 
 | Choice | Scope | Unique required IDs |
 | --- | --- | ---: |
-| `all_revisions` (manual default) | All three historical revision groups, each on its own VM | 259 across groups |
+| `all_revisions` | All three historical revision groups, each on its own VM | 259 across groups |
 | `move_revisions` | Voice/keyword final 99 plus Push Buttons final 23 | 122 |
 | `rank_revisions` | Declared ranks final 107, martial ranks final 20, integration final 2 | 126 |
 | `retraining` | Edge choice retraining final 13 | 13 |
 | `common_checks` | Existing full common-check module | 34 currently |
-| `next_revisions` | Root-reviewed integration packet, one VM and one physical execution | Defined by the packet |
+| `next_revisions` (manual default) | Root-reviewed integration packet, one VM and one physical execution | Defined by the packet |
 
-Push validation selects `.ci/suites/next_revisions.json` directly; that current integration packet must be present. A single push runs its full declared scope once, without also launching the historical groups. Manual `all_revisions` preserves those three groups, and each explicit manual suite choice still selects only that suite. Older commits use their own workflow definitions. A single integration packet avoids combining parallel execution histories into one sequential acceptance history.
+Finish and freeze the revision snapshot before dispatching `.ci/suites/next_revisions.json` for its final required checks. Reuse valid earlier PASS evidence when the behavior, inputs, dependencies and source authority remain applicable. After a failure or relevant change, rerun the failed and affected checks together; preserve the original required scope and execution history. Do not repeat a full run for an unrelated push or merely because a new packet was prepared. The full final integration check remains a separate required step. Older commits and runs keep their own workflow definitions and evidence. A single integration packet avoids combining parallel execution histories into one sequential acceptance history.
 
 The three groups make 261 test executions because two IDs are shared across independent groups. `rank_revisions` already includes the 34 common checks, so manual `all_revisions` does not add a redundant smoke job. Within each group only exact duplicate IDs are removed by the existing verifier. Its `tools.` module identity rules remain unchanged.
 
@@ -79,7 +79,7 @@ An authorized maintainer can download `evidence.zip.enc` and decrypt it with the
 node tools/ci_fixtures.mjs decrypt "<downloaded evidence.zip.enc>" "<new private evidence ZIP>"
 ```
 
-The native process has a 60-minute timeout; decryption retains a 15-minute timeout, and the complete job has a 75-minute limit. The initial 550-test integration run hit the former 45-minute native limit after 529 tests had started. A timeout is unsuccessful: preserve its original input ZIP, event journal and partial log as non-acceptance evidence, then rerun the full required suite. Missing final metadata or after-execution module origins are never reconstructed from partial observations. The first accepted result must come from a complete run and use its original unique evidence paths.
+The native process has a 90-minute timeout; decryption retains a 15-minute timeout, and the complete job has a 105-minute limit. The initial 550-test integration run hit the former 45-minute native limit after 529 tests had started. A timeout is unsuccessful: preserve its original input ZIP, event journal and partial log as non-acceptance evidence, then rerun the full required suite. Missing final metadata or after-execution module origins are never reconstructed from partial observations. The first accepted result must come from a complete run and use its original unique evidence paths.
 
 For canonical acceptance, authenticate/decrypt the evidence with the existing helper. Use the **same absolute** `execution_stage` path recorded by the original execution. Check the physical ZIP manifest and every member's SHA before materializing its `stage/` inputs through the existing Root-reviewed restoration process. Keep the raw archive's names unchanged: copy `physical/ci-native.json` to the exact `metadata_path` recorded inside it, `physical/ci-native.log` to `raw_log`, and `physical/ci-native-inputs.zip` to `frozen_inputs`. These are distinct execution directories under `data/verification/ci-runs/`. Create evidence destinations exclusively and refuse any existing destination; retain original verifier files and partial evidence separately.
 

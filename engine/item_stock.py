@@ -80,6 +80,13 @@ def inspect_held(engine,actor,rule_id,selection,*,equipment_slots=('held',)):
     body is loaded. Only prepare() creates an empty-body stock payment plan.
     """
     import items as I, world_entities as W
+    remote=getattr(engine,'_physical_objects',{}).get(selection) if isinstance(selection,str) else None
+    if remote and remote.get('telekinetic_holder_id')==actor.entity_id:
+        __import__('telekinetic').remote(engine,actor,remote)
+        W.require_usable_object(remote)
+        __import__('environmental_item_state').require_usable(engine,remote)
+        if remote.get('kind')!='item_instance' or remote.get('item_rule_id')!=rule_id:raise ValueError('remote item requires its actual selected source')
+        return remote
     held = I.selected_equipment(actor, selection, equipment_slots)
     uid = held.get('instance_id')
     obj = getattr(engine, '_physical_objects', {}).get(uid)
@@ -157,6 +164,12 @@ def _debit(engine, actor, stock):
     if stock.get('kind') != 'held_instance' or count!=1: raise ValueError('unknown item storage or invalid physical unit count')
     import items as I, world_entities as W, capability_actions as CAP
     checked = prepare(engine, actor, stock['item_id'], held_selection=stock['instance_id'],equipment_slots=stock.get('equipment_slots',('held',)),source_selection=source_selection)
+    obj = engine._physical_objects[checked['instance_id']]
+    if obj.get('telekinetic_holder_id')==actor.entity_id:
+        actor.spec['_carried_load']['objects'][:]=[x for x in actor.spec['_carried_load']['objects'] if x['id']!=obj['id']]
+        obj.pop('telekinetic_holder_id')
+        W.finish_physical_use(engine,obj,'consumed',{'source':stock['item_id'],'by_actor_id':actor.entity_id,'at':engine.elapsed_seconds})
+        return {'kind':'held_instance','item_id':stock['item_id'],'instance_id':obj['id'],'count':1,**({'source_selection':source_selection} if source_selection is not None else {})}
     row = I.selected_equipment(actor, checked['instance_id'], stock.get('equipment_slots',('held',)))
     obj = engine._physical_objects[checked['instance_id']]
     if obj.get('carrier_id'):

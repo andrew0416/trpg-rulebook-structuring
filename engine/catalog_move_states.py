@@ -160,6 +160,51 @@ def grounded(actor):
     )
 
 
+def thousand_arrows_policy(engine, move, mechanics=None):
+    """Own only this source's legacy Ice clause under the recorded interpretation."""
+    source = "move/사우전드애로"
+    if move.get("id") != source:
+        return None
+    if engine.r._selected_rule(source) != source:
+        raise ValueError("selected Thousand Arrows variant needs its own first-hit policy")
+    import json
+    from pathlib import Path
+    policy = json.loads((Path(engine.r.root) / "data/thousand-arrows-effectiveness-policy.json").read_text(encoding="utf-8"))
+    if (policy.get("source_id") != source or policy.get("actual_attack_type") != "땅"
+            or policy.get("first_immune_flying_base") != 1.0
+            or policy.get("interpretation") != "original_game_first_hit_20261023"):
+        raise ValueError("Thousand Arrows first-hit interpretation changed")
+    if mechanics is None:
+        mechanics, _ = engine.r.move_mech(source)
+    effects = [_semantic(effect) for effect in mechanics.get("effects_exec", [])]
+    for declaration in [policy["legacy_effect"], *policy["required_effects"]]:
+        if effects.count(declaration) != 1:
+            raise ValueError("Thousand Arrows first-hit policy needs its exact selected declaration")
+    return policy
+
+
+def thousand_arrows_ignores_ground_immunity(engine, move, mechanics=None):
+    return move.get("type") == "땅" and thousand_arrows_policy(engine, move, mechanics) is not None
+
+
+def thousand_arrows_base(engine, target, move, policy, multiplier):
+    if (policy is None or move.get("type") != policy["actual_attack_type"]
+            or multiplier != 0 or grounded(target)):
+        return multiplier
+    import field_effects as FIELD
+    import type_state as TYPES
+    import newground_flight_option as OPTION
+    if (TYPES.source_defense_steps(engine.r, move["type"], target.types) is not None
+            or FIELD.suppresses_ground_immunity(engine, target, {"_ability": ""})):
+        return multiplier
+    for defense in target.types:
+        if defense in ("비행", "Flying"):
+            component = TYPES.matchup(engine.r, move["type"], defense)
+            if OPTION.defense_component(engine, move["type"], defense, target, component) == 0:
+                return policy["first_immune_flying_base"]
+    return multiplier
+
+
 def _ability_names(engine, actor):
     result = set()
     for name in actor.abilities:

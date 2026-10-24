@@ -114,7 +114,7 @@ class MentorOwnedSlotTests(unittest.TestCase):
         for feature in (FEATURES[0],FEATURES[3]):
             with self.subTest(feature=feature):
                 case=self.fixture();self.qualify(case,case.a,[feature]);pokemon=case.pokemon('이상해씨',50)
-                self.assertEqual((MOVES.describe(self.r,pokemon.spec)['total'],MOVES.describe(self.r,pokemon.spec)['taught']),(6,3))
+                self.assert_capacity(pokemon,feature)
                 self.roster(case,case.a,[pokemon]);self.assert_capacity(pokemon,feature)
                 sources=deepcopy(pokemon.spec[GRANTS.KEY]['sources']);self.roster(case,case.a,[pokemon]);self.assertEqual(pokemon.spec[GRANTS.KEY]['sources'],sources)
                 later=case.pokemon('브케인',5);before=CODEC.dump_engine(case.e)

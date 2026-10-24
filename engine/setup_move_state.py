@@ -13,6 +13,9 @@ import json
 SOURCE = "data/setup-move-state-policy.json"
 STATE = "_setup_move_state"
 SCHEMA = "ptk.setup-move-state.v1"
+TURN_STATE = "_setup_following_turn"
+EXIT_STATE = "_setup_move_exit"
+TURN_SOURCE = "ch10-index-reference/준비"
 
 
 def _policy(rules):
@@ -74,6 +77,122 @@ def pending(actor):
     return row if isinstance(row, dict) else None
 
 
+def _serial(actor):
+    import common_checks as C
+    return C.integer(actor.custom_conditions.get("combat_turn_serial", 0), "actual owner turn serial", 0)
+
+
+def require_physical_exit(actor):
+    if actor.custom_conditions.get(EXIT_STATE) is not None:
+        raise ValueError("actual GM Dive physical exit observation required; targetability is unresolved")
+
+
+def prepare_turn(engine, actor, move_id):
+    if not engine.encounter_active or engine._active_turn_actor is not actor:
+        raise ValueError("Set-Up preparation requires an actual own turn")
+    require_physical_exit(actor)
+    actor.custom_conditions[TURN_STATE] = {
+        "source": TURN_SOURCE, "actor_id": actor.entity_id, "move_id": move_id,
+        "selected_source": engine.r._selected_rule(move_id),
+        "prepared_turn": _serial(actor), "prepared_round": engine.round_no,
+        "prepared_at": engine.elapsed_seconds,
+    }
+    actor.setup_move = move_id
+
+
+def _following_turn(engine, actor, move_id):
+    row = actor.custom_conditions.get(TURN_STATE)
+    if row is None:
+        raise ValueError("prepared Set-Up Move has no actual own-turn receipt; explicit reconciliation required")
+    if (row["move_id"] != move_id or row["selected_source"] != engine.r._selected_rule(move_id)):
+        raise ValueError("Set-Up preparation source changed")
+    return (engine.encounter_active and engine._active_turn_actor is actor
+            and _serial(actor) == row["prepared_turn"] + 1)
+
+
+def generic_ready(engine, actor, move_id):
+    if actor.setup_move is None or actor.setup_move != move_id or owns(engine.r, move_id):
+        return True
+    import conditional_damage_base as CONDITIONAL
+    if CONDITIONAL.pending_move(actor, move_id):
+        return True
+    if not _following_turn(engine, actor, move_id):
+        engine.log("  %s: Set-Up resolves on the following actual own turn" % actor.name, TURN_SOURCE)
+        return False
+    return True
+
+
+def consume_turn(actor):
+    actor.custom_conditions.pop(TURN_STATE, None)
+    actor.setup_move = None
+
+
+def cancel(engine, actor, reason):
+    row = pending(actor)
+    turn = actor.custom_conditions.get(TURN_STATE)
+    import conditional_damage_base as CONDITIONAL
+    if (row is None and turn is None and not (reason == "recall" and actor.custom_conditions.get(EXIT_STATE))
+            and (actor.setup_move is None or CONDITIONAL.pending_move(actor, actor.setup_move))):
+        return
+    if row is not None and row["kind"] == "dive" and reason != "recall":
+        actor.custom_conditions[EXIT_STATE] = {
+            "source": SOURCE, "actor_id": actor.entity_id, "move_id": row["move_id"],
+            "clause_id": row["clause_id"], "source_row_sha256": row["source_row_sha256"],
+            "position": list(actor.pos), "water_depth_m": row["water_depth_m"],
+            "submerged_observation": True, "cancelled_at": engine.elapsed_seconds,
+            "cancelled_turn": _serial(actor), "reason": reason,
+        }
+    if reason == "recall":
+        actor.custom_conditions.pop(EXIT_STATE, None)
+    if row is not None:
+        scope = _scope(engine, actor, row["move_id"])
+        if scope is not None and scope.get("phase") == "prepare" and scope.get("prepared"):
+            scope["cancelled"] = reason
+    # Readiness ends. Actual altitude, burrow state and rough terrain belong to
+    # their existing physical owners; cancellation does not manufacture an exit.
+    actor.custom_conditions.pop(STATE, None)
+    consume_turn(actor)
+    engine.log("  %s: Set-Up readiness cancelled (%s)" % (actor.name, reason), TURN_SOURCE)
+
+
+def start_turn(engine, actor):
+    row = actor.custom_conditions.get(TURN_STATE)
+    if row is not None and _serial(actor) > row["prepared_turn"] + 1:
+        cancel(engine, actor, "following own turn already passed")
+    elif row is None and actor.setup_move is not None:
+        import conditional_damage_base as CONDITIONAL
+        if not CONDITIONAL.pending_move(actor, actor.setup_move):
+            cancel(engine, actor, "legacy preparation has no own-turn receipt")
+
+
+def end_turn(engine, actor):
+    row = actor.custom_conditions.get(TURN_STATE)
+    if row is not None and _serial(actor) >= row["prepared_turn"] + 1:
+        cancel(engine, actor, "following own turn ended unused")
+
+
+def observe_exit(engine, actor, *, expected_state, submerged, reason):
+    """Record an actual GM-observed Dive exit; no travel or damage is executed."""
+    _text(reason, "actual Dive physical exit reason")
+    if submerged is not False:
+        raise ValueError("explicit observed Dive exit required; continued protection is not inferred")
+    import state_grants as GRANTS
+    def apply(staged, subject):
+        row = subject.custom_conditions.get(EXIT_STATE)
+        if row is None or expected_state != row or list(subject.pos) != row["position"]:
+            raise ValueError("actual pending Dive physical observation changed")
+        declaration = _catalog(staged.r).get(row["move_id"])
+        if declaration is None or declaration["source_row_sha256"] != row["source_row_sha256"]:
+            raise ValueError("Dive physical observation source changed")
+        receipt = dict(deepcopy(row), submerged=False, observed_at=staged.elapsed_seconds,
+                       observation_reason=reason)
+        subject.custom_conditions.pop(EXIT_STATE)
+        subject.custom_conditions.setdefault("setup_move_exit_history", []).append(receipt)
+        staged.gm._rec("observed Dive exit", row, receipt, reason, subject)
+        return deepcopy(receipt)
+    return GRANTS.transition(engine, actor, apply)
+
+
 def _scopes(engine):
     scopes = getattr(engine, "_setup_move_scopes", None)
     if scopes is None:
@@ -101,7 +220,8 @@ def _scope(engine, actor, move_id):
 
 def require_move_choice(engine, actor, move_id):
     """A prepared actor resumes that exact Move instead of replacing its state."""
-    row = pending(actor)
+    require_physical_exit(actor)
+    row = pending(actor) or actor.custom_conditions.get(TURN_STATE)
     if row is not None and row["move_id"] != move_id:
         raise ValueError("prepared setup Move must resolve before another Move is used")
 
@@ -112,9 +232,12 @@ def require_native_scope(engine, actor, move_id):
         raise ValueError("source-owned setup Move requires Engine.use_setup_move_on")
 
 
-def targetable(target):
+def targetable(target, *, engine=None, attacker=None, move=None):
+    require_physical_exit(target)
     import marsupial_state as MARSUPIAL
-    if MARSUPIAL.in_pouch(target):return False
+    blocked = (MARSUPIAL.attack_blocked(attacker,target,move,engine=engine)
+               if move is not None else MARSUPIAL.protected_from_attacks(target,engine=engine))
+    if blocked:return False
     row = pending(target)
     return not (row and row.get("kind") == "dive" and row.get("submerged") is True)
 
@@ -123,8 +246,9 @@ def require_targetable(engine, attacker, target, move_id):
     import partial_entities as PARTIAL
     PARTIAL.require_complete(attacker, "setup Move attacker")
     PARTIAL.require_complete(target, "setup Move target")
+    require_physical_exit(target)
     import marsupial_state as MARSUPIAL
-    if MARSUPIAL.attack_blocked(attacker,target,engine.r.move(move_id)):
+    if MARSUPIAL.attack_blocked(attacker,target,engine.r.move(move_id),engine=engine):
         raise ValueError('native Marsupial baby is protected in its actual mother pouch')
     row = pending(target)
     if target is not attacker and row and row.get('kind') == 'dive' and row.get('submerged') is True:
@@ -132,6 +256,7 @@ def require_targetable(engine, attacker, target, move_id):
 
 
 def movement_permission(engine, actor):
+    require_physical_exit(actor)
     row = pending(actor)
     if row is None:
         return True
@@ -182,6 +307,7 @@ def _base_state(engine, actor, declaration):
         "kind": declaration["kind"],
         "actor_id": actor.entity_id,
         "prepared_round": engine.round_no,
+        "prepared_turn": _serial(actor),
         "prepared_at": engine.elapsed_seconds,
         "origin": list(actor.pos),
     }
@@ -295,9 +421,11 @@ def native_phase(engine, actor, target, move_id):
         if pending(actor) is not None:
             raise ValueError("actor already has a prepared setup Move")
         row = PREPARE[declaration["kind"]](engine, actor, declaration, scope["setup_options"])
+        prepare_turn(engine, actor, move_id)
         actor.custom_conditions[STATE] = row
-        actor.setup_move = move_id
         scope["prepared"] = True
+        if declaration["kind"] in ("dig", "dive"):
+            engine.end_of_turn(actor)
         return "prepared"
     row = pending(actor)
     if scope.get("native_started"):
@@ -308,7 +436,7 @@ def native_phase(engine, actor, target, move_id):
         for stat in ("spa", "spd", "spe"):
             engine.change_stage(actor, stat, 2)
     actor.custom_conditions.pop(STATE, None)
-    actor.setup_move = None
+    consume_turn(actor)
     scope["native_started"] = True
     engine.log("  %s: %s prepared state resolves" % (actor.name, declaration["move_eng"]),
                declaration["clause_id"])
@@ -408,8 +536,8 @@ def _prepare_resolution(engine, actor, primary, declaration, options):
     row = pending(actor)
     if row is None or row["move_id"] != declaration["move_id"]:
         raise ValueError("matching prepared setup Move state required")
-    if engine.round_no <= row["prepared_round"]:
-        raise ValueError("a setup Move resolves on a later turn")
+    if not _following_turn(engine, actor, declaration["move_id"]):
+        raise ValueError("a setup Move resolves on the following actual own turn, not an arbitrary later turn")
     if declaration["kind"] == "geomancy":
         _keys(options)
     else:
@@ -504,7 +632,7 @@ def _activate(engine, actor, primary, declaration, everyone, setup_options, nati
     if native_pending and __import__('combat_move_reactions').pending_setup(engine,actor,scope):return result
     if scope.get('interrupted_by_sky_uppercut'):return result
     if phase == "prepare":
-        if not scope["prepared"] or pending(actor) is None:
+        if not scope["prepared"] or (pending(actor) is None and not scope.get("cancelled")):
             raise ValueError("native setup Move did not establish its preparation state")
     elif not scope["native_started"] or pending(actor) is not None:
         raise ValueError("native setup Move did not consume its prepared state")
@@ -513,21 +641,39 @@ def _activate(engine, actor, primary, declaration, everyone, setup_options, nati
 
 def end_encounter(engine, actors):
     for actor in actors:
-        row = pending(actor)
-        if row is None:
-            continue
-        if row["kind"] == "fly":
-            actor.spec["_movement_altitude"] = 0
-            actor.airborne = False
-        elif row["kind"] == "dig":
-            actor.spec.setdefault("_burrow", {}).update(underground=False, depth_m=0)
-        actor.custom_conditions.pop(STATE, None)
-        actor.setup_move = None
-        engine.log("  %s: unresolved setup Move cleared at encounter end" % actor.name,
-                   row["clause_id"])
+        cancel(engine, actor, "encounter end")
 
 
 def validate_actor(actor):
+    turn = actor.custom_conditions.get(TURN_STATE)
+    if turn is not None:
+        required = {"source", "actor_id", "move_id", "selected_source", "prepared_turn", "prepared_round", "prepared_at"}
+        if (type(turn) is not dict or set(turn) != required or turn["source"] != TURN_SOURCE
+                or turn["actor_id"] != actor.entity_id or turn["move_id"] != actor.setup_move
+                or actor.r._selected_rule(turn["move_id"]) != turn["selected_source"]):
+            raise ValueError("Set-Up actual own-turn receipt changed")
+        import common_checks as C
+        C.integer(turn["prepared_turn"], "Set-Up preparation own turn", 1, _serial(actor))
+        C.integer(turn["prepared_round"], "Set-Up preparation round", 1)
+        C.integer(turn["prepared_at"], "Set-Up preparation time", 0)
+    exit_row = actor.custom_conditions.get(EXIT_STATE)
+    if exit_row is not None:
+        required = {"source", "actor_id", "move_id", "clause_id", "source_row_sha256", "position",
+                    "water_depth_m", "submerged_observation", "cancelled_at", "cancelled_turn", "reason"}
+        if type(exit_row) is not dict or set(exit_row) != required:
+            raise ValueError("exact pending Dive physical observation required")
+        declaration = _catalog(actor.r).get(exit_row["move_id"])
+        if (declaration is None or declaration["kind"] != "dive" or exit_row["source"] != SOURCE
+                or exit_row["actor_id"] != actor.entity_id or exit_row["clause_id"] != declaration["clause_id"]
+                or exit_row["source_row_sha256"] != declaration["source_row_sha256"]
+                or exit_row["submerged_observation"] is not True or exit_row["water_depth_m"] < 10
+                or actor.setup_move is not None or pending(actor) is not None or turn is not None):
+            raise ValueError("pending Dive physical observation source changed")
+        _point(exit_row["position"])
+        _text(exit_row["reason"], "Dive cancellation reason")
+        import common_checks as C
+        C.integer(exit_row["cancelled_at"], "Dive cancellation time", 0)
+        C.integer(exit_row["cancelled_turn"], "Dive cancellation own turn", 1, _serial(actor))
     row = actor.custom_conditions.get(STATE)
     if row is None:
         return True
@@ -543,6 +689,9 @@ def validate_actor(actor):
         raise ValueError("setup Move state source identity changed")
     if type(row.get("prepared_round")) is not int or row["prepared_round"] < 0:
         raise ValueError("invalid setup Move preparation round")
+    if turn is not None and (row.get("prepared_turn") != turn["prepared_turn"]
+                             or row["prepared_round"] != turn["prepared_round"]):
+        raise ValueError("source-owned Set-Up preparation disagrees with its actual own turn")
     _point(row.get("origin"))
     if actor.setup_move != row["move_id"]:
         raise ValueError("legacy setup Move marker disagrees with source-owned state")

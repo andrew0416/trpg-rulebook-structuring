@@ -307,11 +307,56 @@ def accessory_slot(engine,actor,item_id,effects,options,occupied,registrations):
 
 
 def validate_projection(projection):
- if type(projection) is not dict or set(projection)!={'source_id','registration_key','owner_id','rule_id','lifetime','clause_id'}:
+ if type(projection) is not dict or set(projection)-{'wardrobe_instance_id'}!={'source_id','registration_key','owner_id','rule_id','lifetime','clause_id'}:
   raise ValueError('exact Fashionista item projection required')
  for key,value in projection.items():_text(value,'projection '+key)
  if projection['rule_id'] not in (MAKEOVER,DRESS) or not projection['source_id'].startswith((MAKEOVER_PREFIX,DRESS_PREFIX)):raise ValueError('unknown item projection source')
+ if 'wardrobe_instance_id' in projection and projection['rule_id']!=DRESS:raise ValueError('only Dress projects an actual stored item')
  return projection
+
+
+def dress_item_origin(engine,actor,item_id,projection,*,preparing=False):
+ """Resolve the stored physical source without assigning it an equipped slot."""
+ import world_entities as W
+ validate_projection(projection)
+ identity=projection.get('wardrobe_instance_id')
+ obj=getattr(engine,'_physical_objects',{}).get(identity)
+ if projection['rule_id']!=DRESS or not isinstance(obj,dict) or obj.get('item_rule_id')!=item_id:
+  raise ValueError('Dress requires its actual originating wardrobe item')
+ W.require_physical_access(obj)
+ if preparing:
+  holder=actor
+  if not wardrobe_holds(engine,holder,identity):raise ValueError('Dress activation requires its actual stored item')
+ else:
+  record=dress_record(actor)
+  if record is None:raise ValueError('projected item requires its actual Dress lifetime')
+  holder=__import__('native_order_transfer').origin(engine,actor,record)
+  facts=record['fashionista_dress']
+  if not any(row['instance_id']==identity and row['item_id']==item_id for row in facts['items']):
+   raise ValueError('projected item differs from the original Dress activation')
+ if projection['source_id']!=DRESS_PREFIX+holder.entity_id+':'+identity or projection['owner_id']!=chic(holder)['owner_id']:
+  raise ValueError('Dress physical source or original owner changed')
+ return obj
+
+
+def finish_dress_item(engine,obj):
+ """Release actual projections/storage before a native item terminal event."""
+ import items as I,capability_actions as CAP,world_entities as W
+ for actor in W.actor_index(engine).values():
+  for key,registration in list(getattr(actor,'_item_reg',{}).items()):
+   projected=registration.get('projection',{}).get('wardrobe_instance_id')==obj['id']
+   if not projected and registration.get('instance_id')!=obj['id']:continue
+   I.unregister_item(engine,actor,registration_key=key)
+   if projected:
+    facts=dress_record(actor)['fashionista_dress']
+    facts['registration_keys'].remove(key)
+    facts.setdefault('ended_item_ids',[]).append(obj['id'])
+  if obj.get(WARDROBE_HOLDER)==actor.entity_id:
+   slot=obj.pop('wardrobe_slot');obj.pop(WARDROBE_HOLDER)
+   chic(actor)['slots'][slot]=None
+  if obj.get('carrier_id')==actor.entity_id:
+   remaining=[row for row in actor.spec['_carried_load']['objects'] if row['id']!=obj['id']]
+   CAP.set_carried(engine,actor,remaining,'actual projected item terminal use')
 
 
 def _can_equip(engine,target,item_id):
@@ -636,13 +681,13 @@ def swap(engine,pokemon,slot_id):
    import world_entities as W
    W._set_object_location(o,{'kind':'unknown'})
    out=_stored_entry(e,o,slot_id,'swapped out of the active held slot',e.elapsed_seconds);out['instance_id']=active['instance_id']
+  st['slots'][slot_id]=out
   if stored is not None:
    o=e._physical_objects[stored['instance_id']];o.pop(WARDROBE_HOLDER,None);o.pop('wardrobe_slot',None)
    resolved={'can receive 억압':not e.immune_to(q,'억압')} if choice_item else None
    I.register_item(e,q,stored['item_id'],source_instance_id=stored['instance_id'],as_held=True,resolved_conditions=resolved)
    if not any(x.get('instance_id')==stored['instance_id'] for x in HELD.entries(q)):raise ValueError('swapped item did not acquire the actual held slot')
    if choice_item:_suppress(e,q,stored)
-  st['slots'][slot_id]=out
   st['swaps'].append({'slot_id':slot_id,'in':stored['instance_id'] if stored else None,'out':out['instance_id'] if out else None,'round':e.round_no,'at':e.elapsed_seconds})
   e.log('  '+q.name+': 옷장 교환 '+slot_id+' (활성 ← '+str(stored['item_id'] if stored else None)+', 보관 ← '+str(out['item_id'] if out else None)+')',WARDROBE)
   return deepcopy(st['swaps'][-1])
@@ -681,7 +726,7 @@ def dress_record(pokemon):
  return next((r for r in T.records(pokemon) if r.get('source')==DRESS),None)
 
 
-def dress_to_impress(engine,trainer,pokemon):
+def dress_to_impress(engine,trainer,pokemon,*,communication=None):
  """Scene x2 Standard action: the own Chic Pokemon gains every stored item's effects for one round, once per Scene per Pokemon."""
  import action_lifecycle as A
  require(engine,trainer,DRESS);_owned_pokemon(engine,trainer,pokemon)
@@ -689,22 +734,27 @@ def dress_to_impress(engine,trainer,pokemon):
  if row is None:raise ValueError('Dress to Impress targets your actual Chic Pokemon')
  stored=[entry for entry in row['slots'].values() if entry is not None]
  if not stored:raise ValueError('the Chic Pokemon has no stored wardrobe items')
- if not engine.encounter_active or engine._active_turn_actor is not trainer:raise ValueError('Dress to Impress is a Standard action on the Trainer own turn')
+ if not engine.encounter_active:raise ValueError('Dress to Impress requires an active encounter')
  if dress_record(pokemon) is not None:raise ValueError('Dress to Impress is already active for this Pokemon')
  d=DEFINITIONS[DRESS]
+ import cheerleader as CHEER
+ @CHEER.order_activation(DRESS)
  def apply(e,t,q):
   import frequency as F,turn as TURN,combat_timing as T,items as I
   if not F.activation_allowed(t,DRESS,d['frequency'],engine=e):raise ValueError('Dress to Impress Scene frequency exhausted')
   if not F.activation_allowed(t,DRESS+':'+q.entity_id,d['per_pokemon'],engine=e):raise ValueError('Dress to Impress may target a Pokemon only once per Scene')
   count=T.current(e)
-  if not TURN.spend(e,t,d['action'],DRESS):raise ValueError('Dress to Impress Standard action unavailable')
+  import order_actions as ORDERS
+  delivery=ORDERS.delivery(e,t,q,DRESS,communication=communication)
+  ORDERS.spend(e,t,DRESS,action=d['action'],subject=q.entity_id,communication=delivery)
   F.consume_activation(t,DRESS,d['frequency'],engine=e);F.consume_activation(t,DRESS+':'+q.entity_id,d['per_pokemon'],engine=e)
   keys=[];installed=[]
   for entry in stored:
    if any(r.get('item_id')==entry['item_id'] and not r.get('projection') for r in getattr(q,'_item_reg',{}).values()):
     raise ValueError('the Chic Pokemon already benefits from that item: '+entry['item_id'])
    sid=DRESS_PREFIX+q.entity_id+':'+entry['instance_id'];key='dress:'+entry['slot_id']
-   projection={'source_id':sid,'registration_key':key,'owner_id':t.entity_id,'rule_id':DRESS,'lifetime':'round','clause_id':clause(DRESS)}
+   projection={'source_id':sid,'registration_key':key,'owner_id':t.entity_id,'rule_id':DRESS,'lifetime':'round','clause_id':clause(DRESS),
+    'wardrobe_instance_id':entry['instance_id']}
    # A projected Choice item never enters the active slot, so the printed suppression (and its conditional stage boost) does not start here.
    resolved={'can receive 억압':False} if entry['item_id'] in CHOICE_ITEMS else None
    n=I.register_item(e,q,entry['item_id'],projection=projection,resolved_conditions=resolved)
@@ -817,7 +867,7 @@ def validate(engine):
    dress=dress_record(actor)
    if dress is not None:
     facts=dress.get('fashionista_dress')
-    if type(facts) is not dict or facts.get('owner_id') not in index or st is None:raise ValueError('invalid Dress to Impress record')
+    if type(facts) is not dict or facts.get('owner_id') not in index or chic(__import__('native_order_transfer').origin(engine,actor,dress)) is None:raise ValueError('invalid Dress to Impress record')
     if any(key not in getattr(actor,'_item_reg',{}) for key in facts.get('registration_keys',[])):raise ValueError('Dress to Impress projection missing')
  for identity,obj in objects.items():
   holder_id=obj.get(WARDROBE_HOLDER) if isinstance(obj,dict) else None

@@ -23,7 +23,7 @@ FIELDS={
  'vehicle_sections':{'section_ids','owner_id'},
  'augmentation_set':{'actor_id','body_slots','installations','allow_added_parts','essence_enabled','capacity_grant','experimental_designs','augmentation_active','capacity_profile','essence_profile','essence_removals'},
  'glyph':{'creator_id','unown_id','creation_level','level','hp','max_hp','status','visible','channeling','flat_surface_id'},
- 'prime_unown':{'creator_id','actor_id','joined'},
+ 'prime_unown':{'creator_id','actor_id','joined','hidden_power_source_choice','hidden_power_source_policy'},
  'sentry':{'creator_id','actor_id','glyph_id','creation_level','hidden_power_id','created_at','created_in_encounter','status'},
  'illusion':{'creator_id','dimensions_cm','appearance','complexity','created_at','last_manipulated_at','anchor_location','focus_rank_limit','status','revealed_to'},
 }
@@ -332,20 +332,20 @@ def validate_prime_unown(e,row,index,registry,p):
     # legacy trainer observer is provenance only; it never supplies the talent.
     if creator.kind!='trainer':_unown(e,creator)
     joined=row.get('joined')
-    if not isinstance(joined,list) or not 1<=len(joined)<=4 or any(not isinstance(x,dict) for x in joined):raise ValueError('Prime Unown has one through four permanently joined members')
+    if not isinstance(joined,list) or not joined or any(not isinstance(x,dict) for x in joined):raise ValueError('Prime Unown has permanently joined members')
+    definition=prime_definition(e.r,row);retain_all=definition['hidden_powers']=='all_additional'
     ids=_ids([actor.entity_id,*[x.get('member_id') for x in joined]],'Prime Unown member identities')
     bonuses={stat:0 for stat in F.STATS};moves=[]
-    for part in joined:
+    for number,part in enumerate(joined):
         if (set(part)-{'member_id','boosted_stat','hidden_power_id','damage_class','hidden_power_type','hidden_powers'}
-                or not {'member_id','boosted_stat','hidden_power_id','damage_class'}<=set(part)):raise ValueError('fixed joined-member source state required')
+                or not {'member_id','boosted_stat'}<=set(part)
+                or retain_all and not {'hidden_power_id','damage_class'}<=set(part)
+                or not retain_all and 'hidden_powers' not in part):raise ValueError('fixed joined-member source state required')
         member=_actor(index,part['member_id'],'joined Unown');_unown(e,member)
         if getattr(member,'on_field',False):raise ValueError('joined member cannot participate as a second actor')
-        if part['boosted_stat'] not in F.STATS:raise ValueError('joined Unown stat bonus needs a chosen base stat')
-        if part['damage_class'] not in ('physical','special'):raise ValueError('Hidden Power permanent damage class required')
-        mid=part['hidden_power_id']
-        if mid not in member.moves or not _hidden_power(e.r,mid):raise ValueError('joined member Hidden Power identity must resolve')
-        bonuses[part['boosted_stat']]+=5
-        for power in _prime_powers(e.r,part,member):
+        if part['boosted_stat'] not in F.STATS and not (number>=4 and part['boosted_stat'] is None):raise ValueError('first four joined Unown bonuses need a chosen base stat')
+        if number<4:bonuses[part['boosted_stat']]+=5
+        for power in _prime_powers(e.r,part,member,retain_all=retain_all):
             moves.append({'member_id':member.entity_id,**power})
     for other in registry.values():
         if other.get('id')!=row['id'] and other.get('kind')=='prime_unown':
@@ -359,6 +359,59 @@ PRIME_SOURCE='capability/활자'
 PRIME_KEY='prime_unown_state'
 PRIME_MEMBER='prime_unown_member'
 PRIME_PREFIX='prime-unown:'
+PRIME_KR_SOURCE={'file':'input/ch10-index-reference.md','sha256':'c3a1d783b4f649f0f6e25a9443a90ca8079a6e036c42c6f8797e100127157abe'}
+PRIME_EN_SOURCE={'file':'source-audit/unown-letter-press-indices-1.05.txt','sha256':'6f91819e1478361a6e6fd56b4026babe64b800e66b0b4efa2e8d31d7d16ac76c'}
+
+
+def _prime_definitions():
+    common={'bonus_additions':4,'bonus_value':5,'join_limit':None,'permanent_class_choice':True,
+            'inseparable':True,'counts_as_pokemon':1,'loses_underdog':True}
+    return {'korean_all_additional':dict(common,hidden_powers='all_additional',source=PRIME_KR_SOURCE),
+            'english_optional_normal_limit':dict(common,hidden_powers='optional_normal_limit',source=PRIME_EN_SOURCE)}
+
+
+def _prime_document():
+    return {'schema':1,'id':'native/unown-letter-press','variants':[{
+        'rule_id':PRIME_SOURCE,'source':PRIME_KR_SOURCE,
+        'values':{'variant':{'$input':'source_text'},'definitions':_prime_definitions()},
+        'inputs':{'source_text':{'type':'string','authority':'gm','decision_kind':'source_conflict',
+            'choices':list(_prime_definitions()),
+            'question':'Letter Press: Korean retains all member Hidden Powers in addition to the original list; English permits a chosen subset within the normal Move List limit. Which complete definition applies?'}}}]}
+
+
+def prime_source_choices(rules):
+    return __import__('source_policy').resolve(rules,_prime_document())
+
+
+def prime_definition(rules,record):
+    """Historical/default records keep Korean; explicit choices retain their complete definition."""
+    from source_context import verified_source
+    verified_source(rules,PRIME_KR_SOURCE,label='Letter Press')
+    verified_source(rules,PRIME_EN_SOURCE,source_root='source-audit',label='English Letter Press')
+    choice=record.get('hidden_power_source_choice');resolved=record.get('hidden_power_source_policy')
+    if choice is None and resolved is None:return deepcopy(_prime_definitions()['korean_all_additional'])
+    import root_resolution as ROOT,source_selection as SELECTION
+    if (type(choice)is not dict or set(choice)!={'value','reason','scope'} or type(resolved)is not dict):
+        raise ValueError('retained complete Letter Press source choice required')
+    W._text(choice['reason'],'Letter Press source reason')
+    document=_prime_document();values=SELECTION.policy_values(resolved['source_policy_binding'],document['variants'])
+    selected=choice['value']
+    if (selected not in values['definitions'] or resolved['status']!='PolicyValuesReady'
+            or resolved['values']!={'variant':selected,'definitions':values['definitions']}
+            or resolved['selected_id']!=PRIME_SOURCE or resolved['definition_hash']!=ROOT.fingerprint(document)
+            or resolved['decision_scope']!=choice['scope']
+            or resolved['inputs_hash']!=ROOT.fingerprint({'context':{},'decisions':{'source_text':choice},'state':{}})
+            or resolved['decision_evidence']!=[{'input':'source_text','reason':choice['reason'],
+                'decision_kind':'source_conflict','scope':choice['scope']}]):
+        raise ValueError('retained Letter Press source decision changed')
+    return deepcopy(values['definitions'][selected])
+
+
+def _prime_snapshot(row):
+    result={'id':row['id'],'actor_id':row['actor_id'],'source':PRIME_SOURCE,'joined':deepcopy(row['joined'])}
+    for key in ('hidden_power_source_choice','hidden_power_source_policy'):
+        if key in row:result[key]=deepcopy(row[key])
+    return result
 
 
 def _hidden_power(rules,mid):
@@ -366,7 +419,7 @@ def _hidden_power(rules,mid):
     return move.get('eng','').startswith('Hidden Power') or move.get('name','').startswith('잠재파워')
 
 
-def _prime_powers(rules,part,member=None):
+def _prime_powers(rules,part,member=None,*,retain_all=True):
     powers=part.get('hidden_powers')
     if powers is None:
         mid=part['hidden_power_id'];definition=rules.moves.get(mid,{})
@@ -374,7 +427,7 @@ def _prime_powers(rules,part,member=None):
         if kind is None and mid!='move/잠재파워':kind=definition.get('type')
         if kind is None and member is not None:kind=member.spec.get('hidden_power_type')
         powers=[{'move_id':mid,'type':kind,'damage_class':part['damage_class']}]
-    if not isinstance(powers,list) or not powers:raise ValueError('complete prior Hidden Power instances required')
+    if not isinstance(powers,list) or retain_all and not powers:raise ValueError('explicit prior Hidden Power instances required')
     ids=[];result=[]
     for power in powers:
         if (type(power)is not dict or set(power)!={'move_id','type','damage_class'} or
@@ -387,9 +440,11 @@ def _prime_powers(rules,part,member=None):
                 and power['type']!=member.spec['hidden_power_type']):raise ValueError('observed Hidden Power type disagrees with the original member')
         if power['move_id'] in ids:raise ValueError('distinct prior Hidden Power identities required')
         ids.append(power['move_id']);result.append(deepcopy(power))
-    if part['hidden_power_id'] not in ids:raise ValueError('primary Hidden Power must be included')
-    if next(x for x in result if x['move_id']==part['hidden_power_id'])['damage_class']!=part['damage_class']:raise ValueError('primary permanent Hidden Power class disagrees')
-    if member is not None and set(ids)!={mid for mid in member.moves if _hidden_power(rules,mid)}:raise ValueError('all prior member Hidden Powers require permanent choices')
+    if 'hidden_power_id' in part:
+        if part['hidden_power_id'] not in ids:raise ValueError('primary Hidden Power must be included')
+        if next(x for x in result if x['move_id']==part['hidden_power_id'])['damage_class']!=part.get('damage_class'):raise ValueError('primary permanent Hidden Power class disagrees')
+    elif 'damage_class' in part or 'hidden_power_type' in part:raise ValueError('primary Hidden Power identity required with primary choices')
+    if retain_all and member is not None and set(ids)!={mid for mid in member.moves if _hidden_power(rules,mid)}:raise ValueError('all prior member Hidden Powers require permanent choices')
     return result
 
 
@@ -417,14 +472,16 @@ def prime_instance(rules,mid):
 
 def prime_moves(rules,snapshot):
     result=[]
+    retain_all=prime_definition(rules,snapshot)['hidden_powers']=='all_additional'
     for part in snapshot['joined']:
-        for power in _prime_powers(rules,part):
+        for power in _prime_powers(rules,part,retain_all=retain_all):
             if power['type'] is not None:result.append(prime_instance_id(snapshot,part,power))
     return result
 
 
 def _prime_append_only(old,new):
     if old.get('actor_id')!=new.get('actor_id') or len(new.get('joined',[]))<len(old['joined']):return False
+    if any(old.get(key)!=new.get(key) for key in ('hidden_power_source_choice','hidden_power_source_policy')):return False
     for previous,proposed in zip(old['joined'],new['joined']):
         expected=deepcopy(previous)
         # Filling an unobserved pre-existing type is evidence enrichment.  It
@@ -443,8 +500,8 @@ def validate_prime_spec(rules,spec,*,moves=(),complete=False):
     snapshot=spec.get(PRIME_KEY)
     expected=[]
     if snapshot is not None:
-        if (type(snapshot)is not dict or set(snapshot)!={'id','actor_id','source','joined'} or snapshot['actor_id']!=spec.get('id')
-                or snapshot['source']!=PRIME_SOURCE or not 1<=len(snapshot['joined'])<=4):raise ValueError('actual Prime source snapshot required')
+        if (type(snapshot)is not dict or set(snapshot)-{'hidden_power_source_choice','hidden_power_source_policy'}!={'id','actor_id','source','joined'} or snapshot['actor_id']!=spec.get('id')
+                or snapshot['source']!=PRIME_SOURCE or not isinstance(snapshot['joined'],list) or not snapshot['joined']):raise ValueError('actual Prime source snapshot required')
         if rules._selected_rule(PRIME_SOURCE)!=PRIME_SOURCE:raise ValueError('selected Letter Press source required')
         expected=prime_moves(rules,snapshot)
     import move_state as M
@@ -452,7 +509,8 @@ def validate_prime_spec(rules,spec,*,moves=(),complete=False):
     for mid in set([*present,*moves]):
         if prime_instance(rules,mid) is not None and mid not in expected:raise ValueError('Prime Hidden Power is not owned by this actual combined actor')
     sources=spec.get('state_grants',{}).get('sources',{})
-    for mid in expected if complete else [v for v in expected if v in present]:
+    retain_all=snapshot is not None and prime_definition(rules,snapshot)['hidden_powers']=='all_additional'
+    for mid in expected if complete and retain_all else [v for v in expected if v in present]:
         sid=PRIME_PREFIX+mid
         row=sources.get(sid)
         if (row is None or row.get('rule_id')!=PRIME_SOURCE or row.get('owner_id')!=spec['id'] or
@@ -465,8 +523,9 @@ def prime_base_sources(rules,spec):
     snapshot=spec.get(PRIME_KEY)
     if snapshot is None:return []
     if snapshot.get('actor_id')!=spec.get('id') or snapshot.get('source')!=PRIME_SOURCE or rules._selected_rule(PRIME_SOURCE)!=PRIME_SOURCE:raise ValueError('actual Prime base source required')
+    prime_definition(rules,snapshot)
     bonuses=dict.fromkeys(F.STATS,0)
-    for part in snapshot['joined']:bonuses[part['boosted_stat']]+=5
+    for part in snapshot['joined'][:4]:bonuses[part['boosted_stat']]+=5
     return [{'source':PRIME_PREFIX+snapshot['id'],'values':bonuses}]
 
 
@@ -503,7 +562,7 @@ def validate_prime_world(e,index=None):
     expected={};members={}
     for row in getattr(e,'_physical_objects',{}).values():
         if row.get('kind')!='prime_unown':continue
-        expected[row['actor_id']]={'id':row['id'],'actor_id':row['actor_id'],'source':PRIME_SOURCE,'joined':deepcopy(row['joined'])}
+        expected[row['actor_id']]=_prime_snapshot(row)
         for part in row['joined']:members[part['member_id']]={'record_id':row['id'],'host_id':row['actor_id']}
     for uid,actor in index.items():
         if actor.spec.get(PRIME_KEY)!=expected.get(uid) or actor.spec.get(PRIME_MEMBER)!=members.get(uid):raise ValueError('Prime source projection disagrees with actual permanent record')
@@ -523,10 +582,10 @@ def _sync_prime(e,previous,reason):
     for row in getattr(e,'_physical_objects',{}).values():
         if row.get('kind')!='prime_unown':continue
         host=index[row['actor_id']]
-        snapshot={'id':row['id'],'actor_id':row['actor_id'],'source':PRIME_SOURCE,'joined':deepcopy(row['joined'])}
+        snapshot=_prime_snapshot(row)
         # Freeze explicit already-existing types into the permanent record once.
         for part in snapshot['joined']:
-            if part.get('hidden_power_type') is None and 'hidden_powers' not in part and part['hidden_power_id']=='move/잠재파워':
+            if part.get('hidden_power_type') is None and 'hidden_powers' not in part and part.get('hidden_power_id')=='move/잠재파워':
                 kind=index[part['member_id']].spec.get('hidden_power_type')
                 if kind is not None:raise ValueError('record the existing permanent Hidden Power type in joined state explicitly')
         old=host.spec.get(PRIME_KEY)
@@ -540,12 +599,16 @@ def _sync_prime(e,previous,reason):
         finally:del host._prime_unown_loss_pending
         current=GROWTH.source_permanent(host)
         host.spec[PRIME_KEY]=snapshot
-        if old is None or [(x['member_id'],x['boosted_stat']) for x in old['joined']]!=[(x['member_id'],x['boosted_stat']) for x in snapshot['joined']]:
+        if old is None or [(x['member_id'],x['boosted_stat']) for x in old['joined'][:4]]!=[(x['member_id'],x['boosted_stat']) for x in snapshot['joined'][:4]]:
             GROWTH.migrate_sources(host,current,source=PRIME_SOURCE,reason=reason,kind='prime_unown_join')
+        prior=set(prime_moves(e.r,old)) if old is not None else set()
+        retain_all=prime_definition(e.r,snapshot)['hidden_powers']=='all_additional'
         for mid in prime_moves(e.r,snapshot):
             sid=PRIME_PREFIX+mid
             if sid in host.spec.get('state_grants',{}).get('sources',{}):continue
-            # Exempt these additional original instances before learned preflight.
+            if not retain_all and mid in prior:continue
+            # Korean additional instances are exempt; English instances pass
+            # the ordinary learned Move List capacity before any commit.
             G._source(host,sid,'prime_unown',owner_id=host.entity_id,lifetime='permanent',rule_id=PRIME_SOURCE,tutor_points=0,move_mode='learned')
             G.grant_moves(host,[mid],sid,'prime_unown',owner_id=host.entity_id,lifetime='permanent',rule_id=PRIME_SOURCE)
         for part in row['joined']:
@@ -603,6 +666,15 @@ def _observe_batch(e,records,*,reason):
         row=deepcopy(record);p,group=_source(e,row.get('kind'))
         row.update(source_profile=e.r.ruleset.name,source_ids=p['sources'][group],provenance={'source':'gm/observation','reason':reason})
         old=registry.get(row['id'])
+        if row.get('kind')=='prime_unown' and row.get('hidden_power_source_choice') is not None:
+            choice=row['hidden_power_source_choice']
+            if old is not None and old.get('hidden_power_source_choice')==choice:
+                resolved=old.get('hidden_power_source_policy')
+            else:
+                resolved=__import__('source_policy').resolve(e.r,_prime_document(),decisions={'source_text':choice})
+            if resolved is None or resolved['status']!='PolicyValuesReady':raise ValueError('complete Letter Press source decision required')
+            if 'hidden_power_source_policy' in row and row['hidden_power_source_policy']!=resolved:raise ValueError('Letter Press source receipt changed')
+            row['hidden_power_source_policy']=deepcopy(resolved)
         if old is not None:
             if old.get('kind')!=row['kind']:raise ValueError('one identity cannot change special entity schema')
             if old.get('destroyed') and not row.get('destroyed'):raise ValueError('observation cannot silently revive a destroyed special entity')

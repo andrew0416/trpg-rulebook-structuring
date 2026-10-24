@@ -40,7 +40,7 @@ def activate(engine,actor,ability,target):
     index=WORLD.actor_index(engine)
     if index.get(actor.entity_id) is not actor or index.get(target.entity_id) is not target:raise ValueError('actual registered source and target required')
     if actor.abilities_suppressed or not any(registration(engine.r,name) for name in actor.abilities):raise ValueError('actual unsuppressed Unnerve required')
-    if actor is target or not actor.side or not target.side or actor.side==target.side:raise ValueError('Unnerve requires one actual enemy')
+    if actor is target or not getattr(actor,'side',None) or not getattr(target,'side',None) or actor.side==target.side:raise ValueError('Unnerve requires one actual enemy')
     if not actor.on_field or not target.on_field or actor.fainted or target.fainted:raise ValueError('Unnerve requires on-field conscious participants')
     if not BODY.in_range(engine,actor,target,6):raise ValueError('Unnerve target must be within6 meters')
     count=TIME.current(engine)

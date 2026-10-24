@@ -47,11 +47,15 @@ def validate_world(e,index):
  return True
 
 def range_check(e,c,obj):
+ import body_state as BODY
  a=W.location_of(c);b=W.location_of(obj)
  if a['kind']!='grid' or b['kind']!='grid' or a.get('map_id')!=b.get('map_id'):raise ValueError('actual same-map Telekinetic positions required')
  if c.spec.get('_movement_altitude',0):raise ValueError('remote vertical distance requires additional world geometry')
- dx,dy=(abs(a['cell'][i]-b['cell'][i]) for i in (0,1))
- if max(dx,dy)+min(dx,dy)//2>8:raise ValueError('remote object beyond eight metres')
+ distances=[]
+ for cell in BODY.at_position(c):
+  dx,dy=(abs(cell[i]-b['cell'][i]) for i in (0,1))
+  distances.append(max(dx,dy)+min(dx,dy)//2)
+ if min(distances)>8:raise ValueError('remote object beyond eight metres')
 
 def lift(e,c,object_ids,*,action_cost,reason,boundary_band=None):
  require(e,c)

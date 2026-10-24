@@ -21,7 +21,11 @@ MELEE = 'maneuver/근접-가로채기'
 RANGED = 'maneuver/원거리-가로채기'
 DODGE = 'ability/회피'
 DETECT = 'move/판별'
+SPLASH = 'move/튀어오르기'
 SOURCES = (MELEE, RANGED, DODGE)
+PERCEPTION = 'ability/감지'
+PERCEPTION_PLAYTEST = 'ability/감지-playtest'
+PERCEPTIONS = (PERCEPTION, PERCEPTION_PLAYTEST)
 
 
 def install(rules):
@@ -42,6 +46,11 @@ def _reason(reason):
 def _selected(e, source):
     import initiative_derivation as DERIVE
     import unown_imbuement as UNOWN
+    if source==SPLASH:
+        __import__('jump_move_actions').source(e.r,source);return
+    if source in PERCEPTIONS:
+        __import__('chronicler').perception_definition(e.r,source)
+        return
     if source==DETECT:
         import priority_actions as PRIORITY
         move=PRIORITY._move(e.r,DETECT)
@@ -81,17 +90,21 @@ def watch(e, target, requests, *, reason):
         if actor.entity_id in seen:
             raise ValueError('one ordered defense offer per actual reactor required')
         import unown_imbuement as UNOWN
-        if source==DETECT:
+        if source==SPLASH:
+            if actor is not target:raise ValueError('Splash protects only its actual user')
+            _splash_ready(e,actor)
+        elif source==DETECT:
             if actor is not target:raise ValueError('Detect protects only its actual source target')
             _detect_ready(e,actor)
         elif source == UNOWN.SOURCE:
             if actor is not target:
                 raise ValueError('Unown Detect protects its actual implanted owner')
             UNOWN.preflight_detect(e,actor)
-        elif source == DODGE:
+        elif source == DODGE or source in PERCEPTIONS:
             import ability_transitions as ABILITIES
-            if actor is not target or not ABILITIES.active(actor, source):
-                raise ValueError('Dodge offer requires the target actual owned ability')
+            title=e.r.selection.units[source]['title'] if source in PERCEPTIONS else source
+            if actor is not target or not ABILITIES.active(actor, title):
+                raise ValueError('defense offer requires the target actual owned ability')
         elif actor is target or actor.side != target.side or not actor.side:
             raise ValueError('Intercept offer requires another actual ally')
         seen.add(actor.entity_id); normalized.append(dict(request))
@@ -114,7 +127,7 @@ def watch_interested(target, move):
         return True
     import unown_imbuement as UNOWN
     return (move['class'] == '변화' and
-             any(r.get('source') in (UNOWN.SOURCE,DETECT) for r in target.spec[WATCH]['requests']))
+             any(r.get('source') in (UNOWN.SOURCE,DETECT,SPLASH,PERCEPTION) for r in target.spec[WATCH]['requests']))
 
 
 def _detect_ready(e,actor):
@@ -128,6 +141,8 @@ def authorize_move_interrupt(e,event_id,actor,move_id):
     """Authenticated by the existing actual defense delivery, never a hit flag."""
     authorize_trigger(e,event_id)
     event=e._passive_events[event_id];state=_defense(e,event)
+    if move_id==SPLASH:
+        _authorize_splash(e,event,actor);return
     import style_expert as STYLE
     if STYLE.blocks_interrupt_move(e,event):raise ValueError('Rule of Cool prevents reacting Interrupt Moves')
     requests=state['facts']['watch']['requests'];cursor=state['cursor']
@@ -143,6 +158,8 @@ def authorize_move_interrupt(e,event_id,actor,move_id):
 
 def validate_move_interrupt_request(e,window,request):
     _selected(e,request['source'])
+    if window['trigger']['kind']=='native_accuracy':return validate_native_splash_request(e,window,request)
+    if request['source']==SPLASH:return _validate_splash_request(e,window,request)
     event=e._passive_events.get(window['trigger'].get('event_id'))
     state=None if event is None else _defense(e,event)
     if (request['source']!=DETECT or request['move_id']!=DETECT or window['trigger']['kind']!='accuracy'
@@ -172,7 +189,16 @@ def bind_event(e, event, move, completion_id):
         return
     event['completion_id'] = completion_id
     _row(e, event)
-    event['defense_watch'] = deepcopy(event['target'].spec[WATCH])
+    watch=deepcopy(event['target'].spec[WATCH])
+    watch['requests']=[r for r in watch['requests'] if r['source']!=SPLASH or (event['actor'] is not event['target'] and not _splash_prohibited(e,event['target']))]
+    if any(r['source'] in PERCEPTIONS for r in watch['requests']):
+        import body_state as BODY
+        actor,target=event['actor'],event['target']
+        cells=(set(_area_cells(e,event,move)) if actor is not target and target.side and actor.side==target.side else set())
+        ally_area=bool(cells) and bool(cells.intersection(BODY.cells(target,require_complete=True)))
+        watch['requests']=[r for r in watch['requests'] if r['source'] not in PERCEPTIONS
+            or ally_area and (r['source']==PERCEPTION or move['class'] in ('물리','특수'))]
+    if watch['requests']:event['defense_watch']=watch
 
 
 def wants_boundary(event):
@@ -200,18 +226,22 @@ def _facts(e, event, args):
             'watch': event['defense_watch']}
 
 
+def _area_cells(e,event,move):
+    """Use the same native area producer for offer admission and accuracy facts."""
+    import weapon_actions as WEAPON, area_targets as AREA
+    shape=WEAPON.range_spec(e,move,event['actor']).get('shape')
+    if e.grid is not None and shape:
+        aim=move.get('_area_aim',event['actor'].pos if shape=='burst' else event['target'].pos)
+        return sorted(AREA.cells(e,event['actor'],AREA.bind(e,event['actor'],move,aim)))
+    return []
+
+
 def begin_boundary(e, event, args):
     if not wants_boundary(event):
         return
     completion = _row(e, event); key = event['target'].entity_id
     facts = _facts(e, event, args)
-    import weapon_actions as WEAPON, area_targets as AREA
-    shape=WEAPON.range_spec(e,args['move'],event['actor']).get('shape')
-    if e.grid is not None and shape:
-        aim=args['move'].get('_area_aim',event['actor'].pos if shape=='burst' else event['target'].pos)
-        prepared=AREA.bind(e,event['actor'],args['move'],aim)
-        facts['area_cells']=sorted(AREA.cells(e,event['actor'],prepared))
-    else:facts['area_cells']=[]
+    facts['area_cells']=_area_cells(e,event,args['move'])
     rows = completion.setdefault('defense', {})
     if key in rows:
         if rows[key]['fingerprint'] != ROOT.fingerprint(facts):
@@ -220,7 +250,11 @@ def begin_boundary(e, event, args):
     rows[key] = {'facts': deepcopy(facts), 'fingerprint': ROOT.fingerprint(facts),
                  'event_id': event['id'], 'cursor': 0, 'decisions': {}, 'attempts': [],
                  'phase': 'choices', 'recipients': [], 'children': {}, 'total': 0}
-    event['target'].spec.pop(WATCH, None)
+    watch=event['target'].spec.get(WATCH)
+    if watch is not None:
+        remaining=[r for r in watch['requests'] if r not in facts['watch']['requests']]
+        if remaining:watch['requests']=remaining
+        else:event['target'].spec.pop(WATCH, None)
 
 
 def _defense(e, event):
@@ -233,6 +267,17 @@ def routed(e, event_id):
     event = getattr(e, '_passive_events', {}).get(event_id)
     return bool(event and event.get('defense_watch') and
                 _defense(e, event) is not None)
+
+
+def source_route(e,args,recipient,proof):
+    """Route a printed position-exchange reaction through native recipients."""
+    event=e._passive_events[args['passive_event']]
+    if 'continuation' not in event:raise ValueError('position-exchange route requires the actual native accuracy continuation')
+    if event.get('defense_watch'):raise ValueError('resolve the actual existing defense choices before a position-exchange route')
+    event['defense_watch']={'requests':[],'reason':'actual completed Ally Switch'}
+    begin_boundary(e,event,args)
+    state=_defense(e,event);state['phase']='resolving';state['source_route']=deepcopy(proof)
+    state['recipients']=[{'actor_id':recipient.entity_id,'hit':args['hit'],'intercepted':True}]
 
 
 def choose(e, event_id, reactor, *, use, options=None, reason):
@@ -269,6 +314,7 @@ def choose(e, event_id, reactor, *, use, options=None, reason):
 
 
 def _prohibited(e, move, category):
+    if move.get('_commander_perfect') and category in ('intercept','dodge','parry','shield','avoid_hit'):return True
     if move.get('_type_ace_boo') and category in ('intercept','dodge','parry','shield'):return True
     specific = e.r.move_defense_policy['prohibited_moves'].get(move['id'], ())
     if category in specific:
@@ -301,8 +347,8 @@ def _intercept_permission(e, actor, target, attacker, move):
     if actor.kind == 'pokemon':
         import athlete as ATHLETE
         # An armed Athlete Coaching permits the Intercept for an ally regardless of loyalty.
-        if ATHLETE.coaching_ready(e, actor, 'intercept') is None:
-            loyalty = POKEMON.loyalty_value(actor, required=True)
+        if ATHLETE.coaching_ready(e, actor, 'intercept') is None and not __import__('channeler').intercept_permitted(e,actor,target):
+            loyalty = POKEMON.effective_loyalty_value(actor,engine=e, required=True)
             if loyalty < 3 or (loyalty < 6 and actor.spec.get('trainer_id') != target.entity_id):
                 raise ValueError('actual trainer relationship and loyalty do not permit Intercept')
     words = ' '.join(move.get('keywords', ())) + ' ' + str(move.get('range', ''))
@@ -313,10 +359,12 @@ def _intercept_permission(e, actor, target, attacker, move):
 def _path_plan(e, actor, target, attacker, source, options):
     import movement_actions as MOVE, body_state as BODY, map_terrain as TERRAIN
     from grid import cheb
-    allowed = {'path','skill','mode','roll_options'} | ({'shove_destination'} if source == MELEE else set())
-    if set(options) - allowed or not {'path','skill'} <= set(options):
+    perception=source in PERCEPTIONS
+    allowed = {'path','mode'} if perception else {'path','skill','mode','roll_options'} | ({'shove_destination'} if source == MELEE else set())
+    required={'path'} if perception else {'path','skill'}
+    if set(options) - allowed or not required <= set(options):
         raise ValueError('exact source-specific Intercept choices required')
-    if options['skill'] not in ('곡예','육상'):
+    if not perception and options['skill'] not in ('곡예','육상'):
         raise ValueError('Intercept requires Acrobatics or Athletics')
     path = options['path']
     if not isinstance(path, (tuple,list)) or len(path) < 2:
@@ -333,32 +381,35 @@ def _path_plan(e, actor, target, attacker, source, options):
     for point in path[1:]:
         step, diagonal = MOVE.step_cost(probe.pos, point, diagonal)
         step += MOVE.slow_terrain_penalty(e, probe, point, mode, step=step)
-        if (not TERRAIN.can_travel(e, probe, point, mode, altitude=actor.spec.get('_movement_altitude',0)) or
+        if (not TERRAIN.can_travel(e, probe, point, mode, altitude=actor.spec.get('_movement_altitude',0), capability_actor=actor) or
                 not BODY.can_place(e, probe, point, origin=probe.pos, ignore_actors=(target,) if source == MELEE and point == path[-1] else ())):
             raise ValueError('Intercept route is blocked or occupied')
         distance += step; cumulative.append(distance); probe.pos = point
     if distance > allowance:
         raise ValueError('Intercept route exceeds actual movement capability')
     if source == MELEE:
+        if __import__('type_ace').push_immunity(e,target):
+            raise ValueError('Melee Intercept requires an ally without Push immunity')
         if path[-1] != target.pos or not e.adjacent(attacker, target):
             raise ValueError('Melee Intercept ends at the ally attacked by an adjacent foe')
         destination = MOVE._point(options.get('shove_destination'))
         if cheb(target.pos,destination) != 1 or not BODY.can_place(e,target,destination,origin=target.pos):
             raise ValueError('actual legal one-metre ally push required')
-    else:
+    elif not perception:
         a,b = attacker.pos,target.pos; q = path[-1]
         if (q in (a,b) or (q[0]-a[0])*(b[1]-a[1]) != (q[1]-a[1])*(b[0]-a[0]) or
                 not all(min(a[i],b[i]) <= q[i] <= max(a[i],b[i]) for i in (0,1))):
             raise ValueError('Ranged Intercept endpoint must lie directly between actual source and target')
         destination = None
+    else:destination=None
     rolls = deepcopy(options.get('roll_options') or {})
     if type(rolls) is not dict:
         raise ValueError('actual skill roll option mapping required')
-    e._prepare_skill_roll(actor, options['skill'], **rolls)
+    if not perception:e._prepare_skill_roll(actor, options['skill'], **rolls)
     target_cells=BODY.cells(target,require_complete=True)
     offsets=sorted((p[0]-target.pos[0],p[1]-target.pos[1]) for p in target_cells)
     return {'path':path,'distance':distance,'cumulative':cumulative,'mode':mode,'ally_body_offsets':offsets,
-            'allowance':allowance,'shove_destination':destination,'skill':options['skill'],'roll_options':rolls}
+            'allowance':allowance,'shove_destination':destination,'skill':options.get('skill'),'roll_options':rolls}
 
 
 def authorize_trigger(e, event_id):
@@ -385,6 +436,13 @@ def _cost_shape(profile):
 
 
 def _paid_cost_profile(e, actor, attempt):
+    if attempt['source'] in PERCEPTIONS:
+        profile=attempt.get('cost_profile')
+        action='shift' if attempt['source']==PERCEPTION else 'free'
+        expected={'action':action,'payment':'next' if action=='shift' else None,
+                  'budget':{'shift':1} if action=='shift' else {},'modifier_sources':[]}
+        if profile!=expected:raise ValueError('Perception paid cost differs from its selected source')
+        return profile
     # Published 1220 receipts predate profiles and always paid exactly Full.
     # Removing a new Shift profile cannot forge a legacy receipt: the actual
     # initiative request and its paid action must still match the Full cost.
@@ -393,6 +451,9 @@ def _paid_cost_profile(e, actor, attempt):
     import intercept_profiles as PROFILES
     profile=_cost_shape(attempt['cost_profile'])
     PROFILES.validate_profile(e,actor,profile,historical=True)
+    sentinel=next((p for p in profile['modifier_sources'] if p.get('source_id')==__import__('commander_orders').SENTINEL),None)
+    expected=None if sentinel is None else {'instance':sentinel['order_instance'],'damage_reduction':10}
+    if attempt.get('sentinel')!=expected:raise ValueError('Sentinel damage reduction lost its actual paid stance source')
     return profile
 
 
@@ -421,11 +482,15 @@ def _attempt(e, event, state, request, choice):
     source = request['source']; _selected(e,source)
     target,attacker = event['target'],event['actor']; move = state['facts']['move']
     if state.get('active_attempt'):
+        if state['active_attempt'].get('kind')=='splash':return _continue_splash(e,event,state,actor)
         if state['active_attempt'].get('kind')=='detect':return _continue_detect(e,event,state,actor)
         return _continue_intercept(e,event,state,actor,target)
     if not choice['use']:
         return {'source':source,'actor_id':actor.entity_id,'outcome':'declined','paid':False}
     _active(e,actor)
+    if __import__('commander_orders').perfect_for_move(e,attacker,move):
+        raise ValueError('Perfect Aim prohibits Intercept, Dodge, Detect and Shield reactions')
+    if source==SPLASH:return _begin_splash(e,event,state,actor,choice)
     if source==DETECT:
         if choice['options'] or actor is not target:raise ValueError('actual Detect takes no supplied hit or recipient options')
         return _begin_detect(e,event,state,actor)
@@ -446,6 +511,8 @@ def _attempt(e, event, state, request, choice):
         ABILITY_INTERRUPTS.pay_free(e,actor,DODGE,frequency)
         state['recipients'] = [{'actor_id':target.entity_id,'hit':False,'intercepted':False}]
         return {'source':source,'actor_id':actor.entity_id,'outcome':'avoided','paid':True}
+    if source in PERCEPTIONS:
+        return _begin_perception(e,event,state,actor,source,choice)
     _intercept_permission(e,actor,target,attacker,move)
     if source == RANGED:
         import weapon_actions as WEAPON
@@ -481,12 +548,75 @@ def _attempt(e, event, state, request, choice):
                'window_id':queued['window_id'],'request_id':request_id,
                'check_total':total,'dc':divisor*plan['distance'],'plan':plan,
                'passed':passed,'allowed':allowed,'cost_profile':cost_profile}
+        __import__('commander_orders').sentinel_attempt(e,actor,facts)
         if coaching is not None:facts['coaching']=coaching
         state['active_attempt']={'facts':facts,'fingerprint':ROOT.fingerprint(facts),
                                  'progress':{},'push':None,'phase':'checked'}
         return _continue_intercept(e,event,state,actor,target)
     finally:
         del e._defense_attempt
+
+
+def _begin_perception(e,event,state,actor,source,choice):
+    """A real ally area hit supplies the trigger; the owner chooses only its route."""
+    import chronicler as CH, body_state as BODY, turn as TURN
+    import initiative_interrupts as INTERRUPTS, ability_transitions as ABILITIES
+    definition=CH.perception_definition(e.r,source)
+    attacker=event['actor'];move=state['facts']['move']
+    cells={tuple(p) for p in state['facts']['area_cells']}
+    if (actor is not event['target'] or attacker is actor or not actor.side or attacker.side!=actor.side
+            or not ABILITIES.active(actor,e.r.selection.units[source]['title']) or not cells
+            or not cells.intersection(BODY.cells(actor,require_complete=True))
+            or definition['damaging_only'] and move['class'] not in ('물리','특수')):
+        raise ValueError('Perception requires an actual ally area attack hitting its owned recipient')
+    if not TURN.movement_permission(e,actor):raise ValueError('Perception requires actual Shift movement permission')
+    plan=_path_plan(e,actor,actor,attacker,source,choice['options'])
+    if source==PERCEPTION_PLAYTEST and (len(plan['path'])!=2 or plan['distance']!=1):
+        raise ValueError('Playtest Perception grants only a one-metre Disengage')
+    offsets=plan['ally_body_offsets'];endpoint=plan['path'][-1]
+    if cells.intersection((endpoint[0]+dx,endpoint[1]+dy) for dx,dy in offsets):
+        raise ValueError('Perception route must remove the complete body from the actual attack area')
+    cost={'action':definition['action'],'payment':definition['payment'],
+          'budget':{'shift':1} if source==PERCEPTION else {},'modifier_sources':[]}
+    window_id=request_id=None
+    history=len(getattr(actor,'_action_history',[]))
+    if source==PERCEPTION:
+        request_id=event['id']+':perception:'+str(state['cursor']);e._defense_attempt=event['id']
+        try:
+            queued=INTERRUPTS.queue(e,[{'id':request_id,'actor_id':actor.entity_id,'source':source,
+                'priority':0,'mode':'reaction','payment':'next','budget':{'shift':1},'clock':'none'}],
+                trigger={'kind':'accuracy','event_id':event['id']})
+            if queued['status'] not in ('queued','already_queued'):raise ValueError('Perception Shift cost pending')
+            window_id=queued['window_id'];INTERRUPTS.begin(e,window_id,request_id)
+            if not TURN.spend(e,actor,'shift',source,movement=True):raise ValueError('Perception Shift action unavailable')
+        finally:del e._defense_attempt
+    else:
+        __import__('ability_interrupt_choices').pay_free(e,actor,source,{'kind':'at_will','uses':1})
+    payment={'source':source,'owner_id':actor.entity_id,'action':cost['action'],'round':e.round_no,
+             'at':e.elapsed_seconds,'history_index':history}
+    facts={'source':source,'actor_id':actor.entity_id,'paid':True,'window_id':window_id,'request_id':request_id,
+           'check_total':0,'dc':0,'plan':plan,'passed':True,'allowed':plan['distance'],'cost_profile':cost,
+           'payment':payment,'payment_fingerprint':ROOT.fingerprint(payment)}
+    # Nested native transitions can replace dictionaries; retain the current declaration.
+    state=_defense(e,e._passive_events[event['id']])
+    state['active_attempt']={'facts':facts,'fingerprint':ROOT.fingerprint(facts),'progress':{},'push':None,'phase':'checked'}
+    return _continue_intercept(e,e._passive_events[event['id']],state,actor,actor)
+
+
+def perception_disengage_authority(e,actor,scope,destination,altitude):
+    """Only the paid Playtest decision can suppress its one-metre opportunity attack."""
+    if type(scope) not in (tuple,list) or len(scope)!=2 or scope[1]!=actor.entity_id:
+        raise ValueError('actual Perception Disengage scope required')
+    event=e._passive_events.get(scope[0]);state=None if event is None else _defense(e,event)
+    active=None if state is None else state.get('active_attempt')
+    facts={} if active is None else active['facts'];plan=facts.get('plan',{})
+    if (event is None or event['target'] is not actor or state['phase']!='choices'
+            or facts.get('source')!=PERCEPTION_PLAYTEST or facts.get('actor_id')!=actor.entity_id
+            or active['fingerprint']!=ROOT.fingerprint(facts) or plan.get('distance')!=1
+            or len(plan.get('path',()))!=2 or tuple(plan['path'][0])!=actor.pos
+            or tuple(plan['path'][1])!=destination or altitude!=actor.spec.get('_movement_altitude',0)):
+        raise ValueError('Perception Disengage differs from its paid native route')
+    _validate_perception_attempt(e,event,actor,facts,completed=False)
 
 
 def _begin_detect(e,event,state,actor):
@@ -566,7 +696,7 @@ def _continue_intercept(e,event,state,actor,target):
     if active['fingerprint']!=ROOT.fingerprint(facts) or facts['actor_id']!=actor.entity_id:
         raise ValueError('paid Intercept check or movement declaration changed')
     frame=INTERRUPTS.frame(e)
-    if (not frame or frame['window_id']!=facts['window_id'] or frame['request_id']!=facts['request_id']
+    if facts['source']!=PERCEPTION_PLAYTEST and (not frame or frame['window_id']!=facts['window_id'] or frame['request_id']!=facts['request_id']
             or frame['actor'] is not actor):
         raise ValueError('paid Intercept requires the same actual reaction frame')
     if active['phase']=='checked':
@@ -583,7 +713,8 @@ def _continue_intercept(e,event,state,actor,target):
     receipts=set(getattr(e,'_effect_dispatch_receipts',{}))
     try:
         movement=MOVE.follow_paid_path(e,actor,selected_path,mode=plan['mode'],
-                                      maximum_distance=facts['allowed'],progress=progress)
+                                      maximum_distance=facts['allowed'],progress=progress,
+                                      **({'disengage_scope':(event['id'],actor.entity_id)} if facts['source']==PERCEPTION_PLAYTEST else {}))
     except PASSIVE.PassiveEventPending as pending:
         if e._passive_pending!=pending.event_id or pending.event_id not in e._passive_events:raise
         if progress.get('phase')=='departing':progress['phase']='reaction_pending'
@@ -602,17 +733,24 @@ def _continue_intercept(e,event,state,actor,target):
     active['movement']=movement
     if movement['steps']!=len(selected_path) or progress.get('phase')!='complete':
         return PASSIVE._pending(e,event,'intercept_paid_movement_pending')
-    INTERRUPTS.finish(e)
+    if facts['source']!=PERCEPTION_PLAYTEST:INTERRUPTS.finish(e)
     target_cells=sorted(BODY.cells(target,require_complete=True))
-    if facts['passed']:
+    if facts['source'] in PERCEPTIONS:
+        if set(target_cells).intersection(tuple(p) for p in state['facts']['area_cells']):
+            raise ValueError('Perception movement did not leave the actual attack area')
+        state['recipients']=[{'actor_id':actor.entity_id,'hit':False,'intercepted':False}]
+    elif facts['passed']:
         cells = {tuple(c) for c in state['facts']['area_cells']}
         remains = bool(cells and cells.intersection(BODY.cells(target,require_complete=True)))
         state['recipients'] = ([{'actor_id':target.entity_id,'hit':True,'intercepted':False}] if remains else [])
         state['recipients'].append({'actor_id':actor.entity_id,'hit':True,'intercepted':True})
     result={key:facts[key] for key in ('source','actor_id','paid','window_id','request_id','check_total','dc','plan')}
     if 'cost_profile' in facts:result['cost_profile']=deepcopy(facts['cost_profile'])
+    if 'sentinel' in facts:result['sentinel']=deepcopy(facts['sentinel'])
     if 'coaching' in facts:result['coaching']=deepcopy(facts['coaching'])
-    result.update(outcome='intercepted' if facts['passed'] else 'failed',movement=movement,
+    if facts['source'] in PERCEPTIONS:
+        result.update(payment=deepcopy(facts['payment']),payment_fingerprint=facts['payment_fingerprint'])
+    result.update(outcome='avoided' if facts['source'] in PERCEPTIONS else 'intercepted' if facts['passed'] else 'failed',movement=movement,
                   push=active['push'],ally_cells_after=target_cells,progress=deepcopy(progress))
     state.pop('active_attempt')
     return result
@@ -808,6 +946,7 @@ def hold_shield(e, actor, effect, ctx):
 
 
 def shield_allowed(e, attacker, target, move):
+    if __import__('commander_orders').perfect_for_move(e,attacker,move):return False
     if not _prohibited(e,move,'shield'):
         return True
     proof = (target.shield or {}).get('_native_shield')
@@ -851,7 +990,31 @@ def consume_shield(e, attacker, target, move, *, actual_hit=False):
     return True
 
 
+def _validate_perception_attempt(e,event,actor,attempt,*,completed):
+    profile=_paid_cost_profile(e,actor,attempt)
+    proof=attempt.get('payment',{})
+    if (attempt.get('payment_fingerprint')!=ROOT.fingerprint(proof)
+            or proof.get('source')!=attempt['source'] or proof.get('owner_id')!=actor.entity_id
+            or proof.get('action')!=profile['action'] or proof.get('round')!=event['round']
+            or proof.get('at')!=event['elapsed_seconds'] or actor is not event['target']):
+        raise ValueError('Perception lost its actual paid source and owner receipt')
+    if attempt['source']==PERCEPTION:
+        _paid_request(e,event,attempt,actor,completed=completed)
+    elif attempt.get('window_id') is not None or attempt.get('request_id') is not None:
+        raise ValueError('Free Perception cannot manufacture a future Shift debt')
+    if not completed and getattr(actor,'_action_history',[])[proof['history_index']:]!=[profile['action']]:
+        raise ValueError('pending Perception lost its actual paid action')
+    if completed:
+        cells={tuple(p) for p in _defense(e,event)['facts']['area_cells']}
+        if (attempt['outcome']!='avoided' or not attempt.get('paid')
+                or not attempt.get('ally_cells_after') or cells.intersection(tuple(p) for p in attempt['ally_cells_after'])
+                or attempt['movement']['steps']!=len(attempt['plan']['path'])-1
+                or attempt['movement']['distance']!=attempt['plan']['distance']):
+            raise ValueError('Perception outcome differs from its actual complete-body movement')
+
+
 def validate_world(e,index):
+    validate_native_attacks(e,index)
     import passive_events as PASSIVE,move_completion as COMPLETE
     for actor in index.values():
         value = actor.spec.get(WATCH)
@@ -881,6 +1044,18 @@ def validate_world(e,index):
                 raise ValueError('defense differs from original native accuracy result')
             if state['phase'] not in ('choices','resolving','complete','cancelled'):
                 raise ValueError('known native defense phase required')
+            if 'source_route' in state:
+                proof=state['source_route'];actor=index.get(proof.get('actor_id'))
+                import combat_move_reactions as REACTIONS,warper as WARPER
+                response=getattr(e,'_move_completions',{}).get(proof.get('response_completion'))
+                reaction=None if actor is None else actor.spec.get(REACTIONS.EVENTS,{}).get(proof.get('reaction_id'))
+                if proof.get('source')!=WARPER.SWITCH or reaction is None or response is None or response['actor']is not actor or response['move_id']!=WARPER.SWITCH or response['phase']!='complete' or reaction['completion_id']!=token:raise ValueError('position-exchange route lost its actual response Move')
+                REACTIONS.validate_event(e,actor,reaction)
+                choice=reaction['warper_choice'];replacement=choice['ally_id'] if original_id==actor.entity_id else actor.entity_id
+                if original_id not in (actor.entity_id,choice['ally_id']) or state['recipients']!=[{'actor_id':replacement,'hit':facts['hit'],'intercepted':True}]:raise ValueError('Ally Switch original recipient exchange changed')
+                owned={uid:r for uid,r in row.get('received',{}).items() if r['event_id']==event['id']}
+                if state['total']!=sum(r['dealt'] for r in owned.values()) or state['children']!={uid:r['child_event'] for uid,r in owned.items()}:raise ValueError('position-exchange route differs from native recipient results')
+                continue
             requests = facts['watch']['requests']
             if len(state['attempts']) != state['cursor'] or not 0 <= state['cursor'] <= len(requests):
                 raise ValueError('defense decision order changed')
@@ -892,10 +1067,13 @@ def validate_world(e,index):
                 if (state['phase']!='choices' or cursor>=len(requests) or
                         active['fingerprint']!=ROOT.fingerprint(attempt) or
                         any(attempt[k]!=requests[cursor][k] for k in ('source','actor_id')) or
-                        not frame or frame['window_id']!=attempt['window_id'] or
-                        frame['request_id']!=attempt['request_id'] or frame['actor'].entity_id!=attempt['actor_id']):
+                        (attempt['source']!=PERCEPTION_PLAYTEST and (not frame or frame['window_id']!=attempt['window_id'] or
+                        frame['request_id']!=attempt['request_id'] or frame['actor'].entity_id!=attempt['actor_id']))):
                     raise ValueError('paid Intercept continuation lost its actual owner frame')
-                if active.get('kind')=='detect':
+                if active.get('kind')=='splash':
+                    window=getattr(e,INTERRUPTS.KEY)['windows'][attempt['window_id']]
+                    _validate_splash_request(e,window,window['requests'][window['cursor']])
+                elif active.get('kind')=='detect':
                     window=getattr(e,INTERRUPTS.KEY)['windows'][attempt['window_id']]
                     request=window['requests'][window['cursor']]
                     validate_move_interrupt_request(e,window,request)
@@ -904,14 +1082,17 @@ def validate_world(e,index):
                             or getattr(frame['actor'],'_action_history',[])[frame['history_start']:] not in ([],['standard'])):
                         raise ValueError('pending Detect lost its one native selected Move')
                 else:
-                    plan=attempt['plan'];divisor=3 if attempt['source']==MELEE else 2
+                    plan=attempt['plan'];divisor=0 if attempt['source'] in PERCEPTIONS else 3 if attempt['source']==MELEE else 2
                     if (attempt['dc']!=divisor*plan['distance'] or
                             attempt['passed']!=(attempt['check_total']>=attempt['dc'])):
                         raise ValueError('paid Intercept continuation check changed')
                     progress=active['progress'];actor=index[attempt['actor_id']]
-                    profile=_paid_request(e,event,attempt,actor,completed=False)
-                    if getattr(actor,'_action_history',[])[frame['history_start']:]!=[profile['action']]:
-                        raise ValueError('paid Intercept continuation lost its sourced action')
+                    if attempt['source'] in PERCEPTIONS:
+                        _validate_perception_attempt(e,event,actor,attempt,completed=False)
+                    else:
+                        profile=_paid_request(e,event,attempt,actor,completed=False)
+                        if getattr(actor,'_action_history',[])[frame['history_start']:]!=[profile['action']]:
+                            raise ValueError('paid Intercept continuation lost its sourced action')
                     if progress and (tuple(progress['position'])!=actor.pos or
                             progress['diagonals']!=getattr(actor,'_diagonal_steps',0)):
                         raise ValueError('paid Intercept movement prefix was displaced')
@@ -921,8 +1102,12 @@ def validate_world(e,index):
                 import unown_imbuement as UNOWN
                 if attempt['source'] == UNOWN.SOURCE and attempt.get('paid'):
                     UNOWN.validate_detect_attempt(e,event,index[attempt['actor_id']],attempt)
-                if attempt['source']==DETECT and attempt.get('paid'):
+                if attempt['source']==SPLASH and attempt.get('paid'):
+                    _validate_splash_attempt(e,event,index[attempt['actor_id']],attempt)
+                elif attempt['source']==DETECT and attempt.get('paid'):
                     _validate_detect_attempt(e,event,index[attempt['actor_id']],attempt)
+                elif attempt['source'] in PERCEPTIONS and attempt.get('paid'):
+                    _validate_perception_attempt(e,event,index[attempt['actor_id']],attempt,completed=True)
                 elif attempt.get('window_id'):
                     _paid_request(e,event,attempt,index[attempt['actor_id']],completed=True)
                     plan=attempt['plan'];divisor=3 if attempt['source']==MELEE else 2
@@ -980,18 +1165,19 @@ def validate_world(e,index):
         for uid,receipt in row.get('received',{}).items():
             event = e._passive_events.get(receipt['event_id'])
             state = row.get('defense',{}).get(receipt['original_id'])
+            prescience_miss=uid in __import__('oracle').prescience_misses(e,receipt['event_id'])
             if (event is None or state is None or state['event_id'] != event['id'] or
                     index.get(uid) is not receipt['actor'] or
                     type(receipt.get('hit_prevented')) is not bool or
                     not any(p['actor_id']==uid and
-                        receipt['hit']==(p['hit'] and not receipt['hit_prevented']) and
+                        receipt['hit']==(p['hit'] and not receipt['hit_prevented'] and not prescience_miss) and
                         p['intercepted']==receipt['intercepted'] for p in state['recipients'])):
                 raise ValueError('received hit lacks authenticated recipient authority')
             child = e._passive_events.get(receipt['child_event'])
             if not child or child.get('defense_parent') != event['id'] or child['target'] is not receipt['actor']:
                 raise ValueError('received hit lacks its actual recipient observation')
             if child['phase']=='producer_return_boundary' and (child['dealt']!=receipt['dealt'] or
-                    receipt['hit']!=(child['hit'] and not receipt['hit_prevented']) or
+                    receipt['hit']!=(child['hit'] and not receipt['hit_prevented'] and not prescience_miss) or
                     child['effect_held_count']!=receipt['held']):
                 raise ValueError('received result differs from native recipient observation')
             if receipt['hit_prevented'] and (receipt['dealt'] or receipt['held'] or receipt['effects']):
@@ -1001,3 +1187,230 @@ def validate_world(e,index):
                     returned['facts']['hit_prevented']!=receipt['hit_prevented']):
                 raise ValueError('recipient prevention differs from native returned evidence')
     return True
+
+
+def _splash_ready(e,actor):
+ import tumbler as T,frequency as F,priority_actions as P
+ __import__('jump_move_actions').movement_allowed(e,actor)
+ if not T.acquired(actor,T.FLIP):raise ValueError('actual acquired Flip Out required')
+ P._owned_move(e,actor,SPLASH)
+ if not F.activation_allowed(actor,T.FLIP+':Splash',{'kind':'scene','uses':1},engine=e):raise ValueError('Flip Out Splash already used this Scene')
+
+def _authorize_splash(e,event,actor):
+ state=_defense(e,event);cursor=state['cursor'];requests=state['facts']['watch']['requests']
+ if (event['target'] is not actor or event['actor'] is actor or state['facts']['hit'] is not True or state['phase']!='choices' or cursor>=len(requests) or requests[cursor]!={'actor_id':actor.entity_id,'source':SPLASH} or state['decisions'].get(str(cursor),{}).get('use') is not True):raise ValueError('Splash requires its actual native successful hit and owned defense choice')
+ _splash_ready(e,actor)
+ import style_expert as STYLE
+ if STYLE.blocks_interrupt_move(e,event):raise ValueError('Rule of Cool prevents Splash Interrupt')
+
+def _validate_splash_request(e,window,request):
+ event=e._passive_events.get(window['trigger'].get('event_id'));state=None if event is None else _defense(e,event)
+ if (event is None or request['move_id']!=SPLASH or request['source']!=SPLASH or window['trigger']['kind']!='accuracy' or event['target'] is not request['actor'] or state['facts']['hit'] is not True or request['clock']!='none' or request['budget']!={'shift':1} or request['mode']!='reaction' or request['payment']!='next' or not any(r=={'actor_id':request['actor'].entity_id,'source':SPLASH} for r in state['facts']['watch']['requests'])):raise ValueError('Splash Interrupt lost actual hit/Shift payment contract')
+
+def _begin_splash(e,event,state,actor,choice):
+ import initiative_interrupts as I,jump_move_actions as J,skill_modifiers as SK
+ if actor is not event['target'] or set(choice['options'])!={'jump'}:raise ValueError('Splash requires its own actual Jump choices')
+ _splash_ready(e,actor);request_id=event['id']+':splash:'+str(state['cursor'])
+ e._defense_attempt=event['id']
+ try:
+  queued=I.queue(e,[{'id':request_id,'actor_id':actor.entity_id,'source':SPLASH,'priority':0,'mode':'reaction','payment':'next','budget':{'shift':1},'clock':'none','move_id':SPLASH}],trigger={'kind':'accuracy','event_id':event['id']})
+  if queued['status'] not in ('queued','already_queued'):raise ValueError('actual Splash Interrupt payment required')
+  I.begin(e,queued['window_id'],request_id)
+  state=_defense(e,e._passive_events[event['id']])
+  facts={'source':SPLASH,'actor_id':actor.entity_id,'window_id':queued['window_id'],'request_id':request_id,'rank':SK.effective_rank(e.r,actor,'곡예')}
+  state['active_attempt']={'kind':'splash','facts':facts,'fingerprint':ROOT.fingerprint(facts),'phase':'started'}
+  J.declare(e,actor,actor,SPLASH,event_id=request_id,jump=choice['options']['jump'],reason=choice['reason'])
+  e.use_move(actor,actor,SPLASH)
+  return _continue_splash(e,e._passive_events[event['id']],_defense(e,e._passive_events[event['id']]),actor)
+ finally:del e._defense_attempt
+
+def _continue_splash(e,event,state,actor):
+ import initiative_interrupts as I,passive_events as P,frequency as F,tumbler as T
+ active=state['active_attempt'];facts=active['facts'];frame=I.frame(e)
+ if active['fingerprint']!=ROOT.fingerprint(facts) or not frame or frame['actor'] is not actor or frame['request_id']!=facts['request_id']:raise ValueError('Splash continuation lost its real native frame')
+ completions=[r for uid,r in getattr(e,'_move_completions',{}).items() if uid not in frame['completion_ids_before'] and r['actor'] is actor]
+ if len(completions)!=1 or completions[0]['move_id']!=SPLASH:raise ValueError('actual Splash Move did not activate')
+ completion=completions[0]
+ if completion['phase']!='complete':
+  import jump_move_actions as J
+  moving=J.current(actor,SPLASH)
+  if moving is not None and moving['phase']=='moving' and not actor.spec.get('_jump_pending'):
+   jump=actor.spec.get('_jump_attempts',{}).get(moving['event_id'],{})
+   if T.quick_entry_waiting(e,jump.get('quick_gymnastics')):return P._pending(e,event,'actual_splash_quick_movement_effect')
+   J.resume(e,actor,event_id=moving['event_id'])
+  if completion['phase']!='complete':return P._pending(e,event,'actual_splash_move_completion')
+ I.finish(e);F.consume_activation(actor,T.FLIP+':Splash',{'kind':'scene','uses':1},engine=e)
+ state=_defense(e,e._passive_events[event['id']]);state.pop('active_attempt')
+ return dict(facts,outcome='reduced',paid=True,splash={'completion_id':completion['id'],'damage_reduction':2*facts['rank']})
+
+def _validate_splash_attempt(e,event,actor,attempt):
+ import initiative_interrupts as I
+ proof=attempt['splash'];completion=getattr(e,'_move_completions',{}).get(proof['completion_id'])
+ window=getattr(e,I.KEY)['windows'].get(attempt['window_id']);request=next((r for r in window['requests'] if r['id']==attempt['request_id']),None) if window else None
+ if completion is None or completion['actor'] is not actor or completion['move_id']!=SPLASH or completion['phase']!='complete' or request is None or request['status']!='completed' or request['receipt'].get('move_completion')!=completion['id'] or proof['damage_reduction']!=2*attempt['rank'] or event['target'] is not actor or attempt['outcome']!='reduced':raise ValueError('Splash reduction lacks its actual completed native Jump Move')
+ _validate_splash_request(e,window,request)
+
+def splash_reduction(e,event):
+ if event is None or event.get('passive_event') is None:return 0
+ native=e._passive_events.get(event['passive_event'])
+ if native is None:return 0
+ parent=e._passive_events.get(native.get('defense_parent'),native);state=_defense(e,parent)
+ if state is None or parent['actor'] is not event['attacker'] or parent['target'] is not event['target']:return 0
+ attempts=[a for a in state['attempts'] if a['source']==SPLASH and a.get('paid')]
+ if not attempts:return 0
+ if len(attempts)!=1:raise ValueError('one actual Splash reduction per hit required')
+ _validate_splash_attempt(e,parent,event['target'],attempts[0])
+ return attempts[0]['splash']['damage_reduction']
+
+
+NATIVE_DEFENSE='native_attack_defense'
+
+def _splash_prohibited(e,actor):
+ import grapple_state as G
+ return bool(actor.custom_conditions.get(G.MARK) and not G.movement_permission(e,actor))
+
+
+def native_attack_interested(e,target):
+ return bool(target and not _splash_prohibited(e,target) and any(r['source']==SPLASH and r['actor_id']==target.entity_id for r in target.spec.get(WATCH,{}).get('requests',[])))
+
+def native_event(e,event_id):
+ event=next((r for r in e._precision_events if r['id']==event_id),None)
+ if event is None or event.get('producer')!='combat_maneuver' or event['kind']!='attack':raise ValueError('actual native maneuver Attack observation required')
+ return event
+
+def _native_facts(event,origin):
+ return {'event_id':event['id'],'actor_id':event['actor'].entity_id,'target_id':event['target'].entity_id,'source':event['source'],'round':event['round'],'origin':deepcopy(origin)}
+
+def authorize_native_accuracy(e,event_id):
+ event=native_event(e,event_id);state=event.get(NATIVE_DEFENSE);scope=getattr(e,'_native_attack_defense_scope',None)
+ if state is None or scope!=event_id or state['phase']!='ready' or event['result']!='accuracy_hit' or e._active_turn_actor is not event['actor']:raise ValueError('actual native accuracy producer must authorize this Interrupt')
+ return {'kind':'native_accuracy','event_id':event_id,'owner':event['actor'],'round':e.round_no,'facts':deepcopy(state['facts'])}
+
+def authorize_native_splash(e,event_id,actor,request):
+ event=native_event(e,event_id);state=event.get(NATIVE_DEFENSE)
+ if getattr(e,'_native_attack_defense_scope',None)!=event_id or state is None or actor is not event['target'] or request['source']!=SPLASH or request['move_id']!=SPLASH or state['choice']['use'] is not True:raise ValueError('actual received Attack and selected Splash required')
+ _splash_ready(e,actor)
+
+def validate_native_splash_request(e,window,request):
+ event=native_event(e,window['trigger']['event_id']);state=event.get(NATIVE_DEFENSE)
+ if state is None or state['fingerprint']!=ROOT.fingerprint(state['facts']) or state['facts']!=_native_facts(event,state['facts']['origin']) or event['result'] not in ('accuracy_hit','damaging_hit','hit_prevented'):raise ValueError('native Attack defense provenance changed')
+ if request['actor'] is not event['target'] or request['source']!=SPLASH or request['move_id']!=SPLASH or request['mode']!='reaction' or request['payment']!='next' or request['clock']!='none' or request['budget']!={'shift':1}:raise ValueError('native Splash Interrupt payment/source changed')
+
+def native_splash(e,event,origin):
+ """Actual accuracy producer only. A no-response player choice is a decline."""
+ if event['result']!='accuracy_hit' or not native_attack_interested(e,event['target']):return None
+ import initiative_interrupts as I,jump_move_actions as J,skill_modifiers as SK
+ actor=event['target'];state=event.get(NATIVE_DEFENSE)
+ if state is not None:
+  if state['phase']=='complete' or state['phase']=='declined':return state
+  if state['phase']=='jump_pending':return CHECKS.PendingDecision('finish the actual Splash Jump before resuming this Attack')
+ else:
+  import frequency as F,tumbler as T
+  if not F.activation_allowed(actor,T.FLIP+':Splash',{'kind':'scene','uses':1},engine=e):return None
+  _splash_ready(e,actor)
+  answer=e.rulings.decide({'type':'native_attack_splash','unit':__import__('tumbler').FLIP,'actor':actor.name,'attacker':event['actor'].name,'source':event['source'],'event_id':event['id'],'text':'React to this actual hit with Splash once this Scene? Supply the legal Jump or decline.'})
+  if answer is None or answer is False:
+   event[NATIVE_DEFENSE]={'phase':'declined'};return event[NATIVE_DEFENSE]
+  if type(answer)is not dict or set(answer)!={'jump'}:raise ValueError('native Splash response requires explicit Jump choices')
+  facts=_native_facts(event,origin)
+  state=event[NATIVE_DEFENSE]={'phase':'ready','facts':facts,'fingerprint':ROOT.fingerprint(facts),'choice':{'use':True,'jump':deepcopy(answer['jump'])},'rank':SK.effective_rank(e.r,actor,'곡예')}
+  actor.spec.pop(WATCH,None)
+ previous=getattr(e,'_native_attack_defense_scope',None);e._native_attack_defense_scope=event['id']
+ try:
+  request_id=str(event['id'])+':splash'
+  queued=I.queue(e,[{'id':request_id,'actor_id':actor.entity_id,'source':SPLASH,'priority':0,'mode':'reaction','payment':'next','budget':{'shift':1},'clock':'none','move_id':SPLASH}],trigger={'kind':'native_accuracy','event_id':event['id']})
+  if queued['status'] not in ('queued','already_queued'):raise ValueError('native Splash reaction needs an established Shift payment')
+  I.begin(e,queued['window_id'],request_id)
+  event=native_event(e,event['id']);state=event[NATIVE_DEFENSE];state.update(phase='reacting',window_id=queued['window_id'],request_id=request_id)
+  J.declare(e,actor,actor,SPLASH,event_id=request_id,jump=state['choice']['jump'],reason='actual native Attack Splash reaction')
+  result=e.use_move(actor,actor,SPLASH)
+  if isinstance(result,CHECKS.PendingDecision):
+   state=native_event(e,event['id'])[NATIVE_DEFENSE];state['phase']='jump_pending';return result
+  return finish_native_splash(e,event['id'])
+ finally:
+  if previous is None:vars(e).pop('_native_attack_defense_scope',None)
+  else:e._native_attack_defense_scope=previous
+
+def finish_native_splash(e,event_id):
+ import initiative_interrupts as I,frequency as F,tumbler as T
+ event=native_event(e,event_id);state=event[NATIVE_DEFENSE];actor=event['target'];frame=I.frame(e)
+ if state['phase']=='complete':return state
+ if frame is None or frame['actor'] is not actor or frame['request_id']!=state['request_id']:raise ValueError('actual native Splash reaction frame required')
+ rows=[r for uid,r in e._move_completions.items() if uid not in frame['completion_ids_before'] and r['actor'] is actor]
+ if len(rows)!=1 or rows[0]['move_id']!=SPLASH or rows[0]['phase']!='complete':raise ValueError('actual native Splash Move must finish first')
+ completion=rows[0]['id'];I.finish(e)
+ event=native_event(e,event_id);state=event[NATIVE_DEFENSE];actor=event['target']
+ F.consume_activation(actor,T.FLIP+':Splash',{'kind':'scene','uses':1},engine=e)
+ state.update(phase='complete',completion_id=completion,damage_reduction=2*state['rank'],target_position=tuple(actor.pos),actor_position=tuple(event['actor'].pos))
+ state['completion_fingerprint']=ROOT.fingerprint({key:state[key] for key in ('completion_id','damage_reduction','target_position','actor_position','window_id','request_id')})
+ return state
+
+def native_parent_action(e):
+ import initiative_interrupts as I,skill_maneuver_actions as SM
+ frame=I.frame(e)
+ if frame is None:return None
+ window=getattr(e,I.KEY)['windows'][frame['window_id']]
+ if window['trigger']['kind']!='native_accuracy':return None
+ event=native_event(e,window['trigger']['event_id']);state=event[NATIVE_DEFENSE];origin=state['facts']['origin']
+ if origin['kind']!='maneuver':return None
+ record=event['actor'].custom_conditions.get(SM.RECEIPTS,{}).get(origin['receipt'])
+ if record is None or record.get('precision_id')!=event['id']:raise ValueError('native Interrupt lost the original paid maneuver')
+ return record.get('native_action')
+
+def resume_native_child(e,actor,event_id):
+ import jump_move_actions as J,initiative_interrupts as I
+ result=J.resume(e,actor,event_id=event_id)
+ frame=I.frame(e)
+ if not isinstance(result,CHECKS.PendingDecision) and frame:
+  window=getattr(e,I.KEY)['windows'][frame['window_id']]
+  if window['trigger']['kind']=='native_accuracy':finish_native_splash(e,window['trigger']['event_id'])
+ return result
+
+def maneuver_accuracy_boundary(e,actor,attack,prepared,record,aoo,can_continue):
+ import action_lifecycle as ACTION,tumbler as T
+ frame=e._native_action_stack[-1]
+ event=native_event(e,record['precision_id']) if record.get('precision_id') else next((r for r in reversed(e._precision_events) if r.get('actor') is actor and r['source']==attack['id'] and r['producer']=='combat_maneuver'),None)
+ if event is None or event['round']!=e.round_no or frame['actor'] is not actor or frame['source']!=attack['id']:raise ValueError('actual maneuver accuracy boundary required')
+ if 'native_action' not in record:
+  row=ACTION.observe_resolution(e,actor,attack['id'],{'event':'native_accuracy','precision_id':event['id'],'receipt':prepared['key']})
+  record.update(native_action=row['id'],native_frame=frame,precision_id=event['id'])
+ if record['accuracy']:T.before_maneuver(e,actor,attack,event)
+ if record.get('deferred_aoo') and not record.get('aoo_resolved'):
+  aoo();record['aoo_resolved']=True
+ if not can_continue():return False
+ if record['accuracy']:
+  result=native_splash(e,event,{'kind':'maneuver','receipt':prepared['key']})
+  if isinstance(result,CHECKS.PendingDecision):return result
+ return True
+
+def validate_native_attacks(e,index):
+ for event in e._precision_events:
+  dodge=event.get('native_dodge')
+  if dodge is not None and (dodge['fingerprint']!=ROOT.fingerprint(dodge['facts']) or dodge['facts']!=_native_facts(event,dodge['facts']['origin']) or event['result']!='hit_prevented' or dodge['source']!=DODGE):raise ValueError('native Dodge reaction source changed')
+  state=event.get(NATIVE_DEFENSE)
+  if not state or state['phase']=='declined':continue
+  if state['fingerprint']!=ROOT.fingerprint(state['facts']) or state['facts']!=_native_facts(event,state['facts']['origin']):raise ValueError('native Attack reaction receipt changed')
+  if index.get(state['facts']['actor_id']) is not event['actor'] or index.get(state['facts']['target_id']) is not event['target']:raise ValueError('native Attack reaction participants changed')
+  if state['phase']=='complete':
+   if state.get('completion_fingerprint')!=ROOT.fingerprint({key:state[key] for key in ('completion_id','damage_reduction','target_position','actor_position','window_id','request_id')}):raise ValueError('native Splash completion changed')
+   completion=e._move_completions.get(state['completion_id'])
+   if completion is None or completion['move_id']!=SPLASH or completion['actor'] is not event['target'] or completion['phase']!='complete' or state['damage_reduction']!=2*state['rank']:raise ValueError('native Splash reaction lost its completed actual Move')
+
+
+def native_dodge(e,event,origin):
+ """The referenced Dodge Ability also consumes a real damaging non-Move Attack."""
+ actor=event['target']
+ if event['result']!='accuracy_hit' or event.get('move_class') not in ('물리','특수') or not any(r['source']==DODGE and r['actor_id']==actor.entity_id for r in actor.spec.get(WATCH,{}).get('requests',[])):return False
+ import ability_transitions as AB,ability_interrupt_choices as CHOICES,frequency as F
+ _selected(e,DODGE)
+ if not AB.active(actor,DODGE):raise ValueError('actual owned Dodge Ability required')
+ frequency=e.r.move_defense_policy['sources'][DODGE]['frequency']
+ if not F.activation_allowed(actor,DODGE,frequency,engine=e):return False
+ choice=e.rulings.decide({'type':'native_attack_dodge','unit':DODGE,'actor':actor.name,'attacker':event['actor'].name,'source':event['source'],'event_id':event['id'],'text':'Use Dodge against this actual damaging Attack?'})
+ if choice is None or choice is False:return False
+ if choice is not True:raise ValueError('Dodge requires explicit use or decline')
+ CHOICES.pay_free(e,actor,DODGE,frequency)
+ facts=_native_facts(event,origin)
+ event['native_dodge']={'facts':facts,'fingerprint':ROOT.fingerprint(facts),'source':DODGE}
+ event.update(result='hit_prevented',hit_prevented=True,nullification='Dodge',resolved_damage=0)
+ return True

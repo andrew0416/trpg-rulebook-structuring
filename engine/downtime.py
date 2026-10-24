@@ -202,6 +202,8 @@ def _level_up(rules, spec, log=None, auto_evolve=False, strategy=None, stat_choi
         log.append(f"  기술 {rules.move(mid)['name']} 습득")
     import pokemon_teaching as TEACHING
     TEACHING.on_level(rules, spec)
+    import growth_milestones as MILESTONES
+    MILESTONES.offer_inheritance(rules,spec)
     # 특성 슬롯
     ls = rules.learnsets.get(sp["name"], {})
     for slot in rule["ability_slots"]:
@@ -454,6 +456,8 @@ def _gain_exp_combatant(engine, c, amount, *, stat_choices=None):
     BANDAGES.on_hp_change(engine,c,hp_before,c.hp)
     import state_grants as GRANTS
     GRANTS.reconcile(engine, c, activate_existing=False)
+    import ability_state_projection as ABILITY_PROJECTION
+    ABILITY_PROJECTION.level_changed(engine,c,old_level)
     import class_actor_state_actions as CLASS_STATE_ACTIONS
     CLASS_STATE_ACTIONS.observe_level_up(engine, c, old_level, c.level)
     import marsupial_state as MARSUPIAL
@@ -743,18 +747,17 @@ def _rest_many(engine,combatants,minutes,log=None,*,rest_id=None):
         c.spec['rested_minutes_today']=spent+minutes
         before=c.hp
         import actor_templates as TEMPLATES
-        if minutes > 0 and TEMPLATES.soulless(c):
+        milestone=rule['extended_rest']['min_hours']*60
+        if TEMPLATES.soulless(c):
             import life as LIFE
-            # Preserve the exact Soulless recovery-to-one rule while routing
-            # the gain through the shared revival prohibition.
-            if LIFE.revive(engine,c,1):
-                engine.log(f"    {c.name}: 연장 휴식 행동으로 HP 1 회복", "capability/영혼없음")
+            if TEMPLATES.soulless_rest_recovery(engine,c,record,before_total,milestone):
+                if LIFE.revive(engine,c,1):
+                    engine.log(f"    {c.name}: 선택한 영혼없음 휴식 완료로 HP 1 회복", "capability/영혼없음")
         else:
             engine.heal(c,healing,source_kind='rest')
         record['context']['injuries']=c.injuries
         gains.append(c.hp-before)
         log.append(f'{c.name}: 휴식 {minutes}분 (오늘 {spent+minutes}분) → 체력 {before} → {c.hp}')
-        milestone=rule['extended_rest']['min_hours']*60
         if before_total<milestone<=record['total_minutes']:
             _extended_rest_benefits(engine,c,log)
     return gains

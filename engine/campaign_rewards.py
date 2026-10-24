@@ -232,7 +232,7 @@ def luck(e,actor,*,event_id,reason,fixed=None,fixed_cash=None):
  if fixed_cash is not None:C.integer(fixed_cash,'observed cash d4',1,4)
  balances(actor,items={k:1 for values in p['pools'].values() for k in values})
  row=put(e,event_id,{'kind':'luck','source':SOURCE,'owner':actor.spec['id'],'reason':reason,'policy':deepcopy(p),'status':'observing','rolls':[]})
- face=POOLS.die(e.rng,20,fixed=fixed);row['rolls'].append({'die':20,'value':face});kind=p['table'][face-1];row['category']=kind
+ face=e.roll_d20(actor,'luck',fixed=fixed);row['rolls'].append({'die':20,'value':face});kind=p['table'][face-1];row['category']=kind
  if kind=='money':
   value=POOLS.die(e.rng,p['cash_die'],fixed=fixed_cash);row['rolls'].append({'die':p['cash_die'],'value':value});row['money']=value*p['cash_multiplier'];pay(actor,money=row['money'])
  elif kind!='none':
@@ -246,7 +246,7 @@ def lottery(e,actor,*,event_id,purchase_id,fixed=None):
  if fixed is not None:C.integer(fixed,'observed lottery d20',1,20)
  balances(actor,items={k:1 for k in p['lottery_choices']})
  row=put(e,event_id,{'kind':'lottery','source':SOURCE,'owner':actor.spec['id'],'purchase_id':purchase_id,'policy':deepcopy(p),'status':'observing'});purchase_row['lottery_event']=event_id
- face=POOLS.die(e.rng,20,fixed=fixed);row['face']=face;row['status']='awaiting_choice' if face in p['lottery_success'] else 'lost'
+ face=e.roll_d20(actor,'lottery',fixed=fixed);row['face']=face;row['status']='awaiting_choice' if face in p['lottery_success'] else 'lost'
  return deepcopy(row)
 def claim_lottery(e,actor,*,event_id,item_name):
  row=owned(e,actor,event_id,'lottery');p=receipt_policy(e,row)

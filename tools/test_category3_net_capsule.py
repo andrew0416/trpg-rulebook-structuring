@@ -49,7 +49,7 @@ class NetTests(unittest.TestCase):
   r=self.fire(6,accuracy_roll_id='net-shot');self.assertTrue(r['hit']);self.assertEqual(self.e._ap_rolls['net-shot']['state'],'resolved')
   self.e.remove_net(self.p,fixed=10);before=self.state()
   with self.assertRaises(ValueError):self.fire(20,accuracy_roll_id='net-shot')
-  self.assertEqual(before,self.state());self.e.boost_roll(self.a,self.p,roll_id='wrong-target',kind='accuracy');before=self.state()
+  self.assertEqual(before,self.state());self.q.spec['trainer_id']=self.a.entity_id;self.e.boost_roll(self.a,self.q,roll_id='wrong-target',kind='accuracy');before=self.state()
   with self.assertRaises(ValueError):self.fire(20,accuracy_roll_id='wrong-target')
   self.assertEqual(before,self.state())
  def test_excluded_errata_source_cannot_equip_cannon(self):

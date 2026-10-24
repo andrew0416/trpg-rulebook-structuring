@@ -29,9 +29,13 @@ def clear_recovery(c):
 
 def faint(engine,c):
     if '기절' in c.conditions:return False
+    import setup_move_state as SETUP_MOVE
+    SETUP_MOVE.cancel(engine,c,'faint')
     import stat_exchange_state as STAT_EXCHANGE
     STAT_EXCHANGE.validate_actor(c)
     c.conditions.add('기절')
+    __import__('juggler').event(engine,'faint',c,source_id='condition/기절')
+    __import__('perception_communicate').boundary(engine,'faint',c)
     import bide as BIDE
     BIDE.clear(engine,c)
     import duelist as DUELIST
@@ -47,6 +51,8 @@ def faint(engine,c):
     STATUS_SETS.cure_group(engine,c,'persistent')
     import combat_state_lifecycle as COMBAT_STATE
     COMBAT_STATE.cure_volatile(engine,c)
+    import linked_move_conditions as LINKED
+    LINKED.boundary(engine,c,'faint')
     __import__('type_ace').faint_boundary(engine,c)
     engine.log(f'    {c.name} 기절; 지속성/휘발성 상태 치료', 'condition/기절')
     return True

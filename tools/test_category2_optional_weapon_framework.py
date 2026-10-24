@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 STAGE = Path(__file__).resolve().parents[1]
-ROOT = Path(r'D:\trpg-rulebook-structuring\ptk-structure-experiment')
+ROOT = STAGE
 sys.path[:0] = [str(STAGE / 'engine'), str(ROOT / 'engine')]
 from builder import build_trainer
 from engine import Combatant, Engine, Rules
@@ -38,7 +38,7 @@ class OptionalWeaponFrameworkTests(unittest.TestCase):
     def fixture(self, *, family='arcane', element='노말', occult=5, athletics=5, focus=5, combat=2, mystic=False):
         e = Engine(self.r, seed=116306)
         e.grid = Grid(30, 15)
-        features = [FW.TRAINING, FW.ARCANIST] if family == 'arcane' else [FW.STEELHEART, FW.CALL]
+        features = [FW.TRAINING, FW.ARCANIST] if family == 'arcane' else [FW.STEELHEART, FW.MASTER]
         edges = ['edge/신비한-감각'] if mystic else ['edge/원소-교감']
         choices = {} if mystic else {'edge/원소-교감': element if family == 'arcane' else '강철'}
         people = []
@@ -217,6 +217,7 @@ class OptionalWeaponFrameworkTests(unittest.TestCase):
 
     def test_steelheart_native_skill_substitution_disarm_and_round_hit_consumer(self):
         e, a, foe, _ = self.fixture(family='steelheart', athletics=4, focus=5, combat=2)
+        FW.select_steelheart_source(e,a,{'value':'korean_book_outgoing','reason':'this existing scenario exercises the complete Korean outgoing definition','scope':FW.steelheart_source_choices(e)['decision_scope']})
         uid = self.weapon(e, a, 'steel/native', arcane=False, metal=True, moves=['move/강타'])
         key = FW.equip(e, a, uid)
         self.assertIn('move/강타', a.moves)

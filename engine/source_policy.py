@@ -858,6 +858,7 @@ def register_sources(rules, definitions):
         known[uid]=row;new_units.append(unit)
     selection=RuleSelection(rules.ruleset,list(rules.selection.units.values())+new_units)
     selection.dependencies=deepcopy(rules.selection.dependencies)
+    selection.source_audit_snapshots=deepcopy(getattr(rules.selection,'source_audit_snapshots',{}))
     rules.selection=selection
     rules._authored_policy_sources=known
     return deepcopy(definitions)

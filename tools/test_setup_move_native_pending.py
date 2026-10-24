@@ -86,7 +86,8 @@ class SetupMoveNativePendingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'later turn'):
             self.use(self.resolve_options)
         self.assertEqual(self.e.export_state(), before)
-        self.e.end_of_turn(self.a)
+        if self.e._active_turn_actor is self.a:
+            self.e.end_of_turn(self.a)
         self.e.start_round(self.e.everyone)
         self.e.start_of_turn(self.a, initiative_count=20)
         if watch:

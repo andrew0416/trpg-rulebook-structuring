@@ -60,7 +60,7 @@ def owns(engine, actor, uid, *, validate_stat=True):
         raise ValueError('Demoralize requires Adept Intimidate')
     if uid == BLUR and any(SKILL.rank(engine.r, actor, x)[2] < 5 for x in ('곡예', '은신')):
         raise ValueError('Blur requires Expert Acrobatics and Expert Stealth')
-    if uid == PRECISION and not any(SKILL.rank(engine.r, actor, x)[2] >= 5 for x in ('명령', '통찰')):
+    if uid == PRECISION and not __import__('commander').gifted(actor,uid) and not any(SKILL.rank(engine.r, actor, x)[2] >= 5 for x in ('명령', '통찰')):
         raise ValueError('Precision Orders requires Expert Command or Perception')
     if uid == PINPOINT and not owns(engine, actor, PRECISION):
         raise ValueError('Pinpoint Strike requires acquired Precision Orders')
@@ -125,6 +125,9 @@ def _live(engine, actor):
     return any(x is actor for x in engine.everyone)
 
 def _owner(engine, trainer, pokemon):
+    if __import__('commander').sustained_target(engine,trainer,pokemon,PINPOINT):return True
+    import commander as COMMANDER
+    if COMMANDER.transformed_target(engine,trainer,pokemon) or COMMANDER.leadership_target(engine,trainer,pokemon):return True
     if pokemon is None or pokemon is trainer or pokemon.kind != 'pokemon':
         raise ValueError('Pinpoint requires your own Pokemon')
     owner_id = pokemon.spec.get('trainer_id')
@@ -184,7 +187,13 @@ def _owned_target(engine, trainer, pokemon, source=None):
 import cheerleader as CHEER
 
 @CHEER.order_activation('feat/핀포인트-스트라이크')
-def activate(engine, trainer, pokemon, *, source=None):
+def activate(engine, trainer, pokemon, *, source=None, communication=None):
+    import state_grants as G
+    return G.transition(engine,trainer,lambda e,a,p:_activate(e,a,p,source=source,communication=communication),
+                        participants=(pokemon,),include_rulings=True)
+
+
+def _activate(engine, trainer, pokemon, *, source=None, communication=None):
     source = _owned_target(engine, trainer, pokemon, source)
     bound = _ledger(trainer)
     import class_passive_combat as CLASS_PASSIVE
@@ -193,8 +202,9 @@ def activate(engine, trainer, pokemon, *, source=None):
         raise ValueError('Pinpoint Strike requires two available AP')
     import temporary_ap as TEMP_AP
     TEMP_AP.preflight_binding(trainer,2,'combat_precision_features')
-    if not TURN.spend(engine, trainer, 'standard', source):
-        return (0, 1)
+    import order_actions as ORDERS
+    delivery=ORDERS.delivery(engine,trainer,pokemon,source,communication=communication)
+    ORDERS.spend(engine,trainer,source,subject=pokemon.entity_id,communication=delivery)
     # No RNG, callback, or fallible effect follows the committed Standard action.
     serial = trainer.custom_conditions.get('_pinpoint_serial', 0) + 1
     trainer.custom_conditions['_pinpoint_serial'] = serial
@@ -259,7 +269,7 @@ def effect_range_bonus(attacker, move):
     return COMBAT_MODS.effect_range_bonus(attacker, move)
 
 
-def effect_natural(engine, attacker, move, natural):
+def effect_natural(engine, attacker, move, natural, *, actual_damage_type=None):
     # Only threshold comparisons change. Natural-one misses, critical ranges and
     # even/odd effects continue to consume the actual rolled face.
     if natural is None:
@@ -275,7 +285,8 @@ def effect_natural(engine, attacker, move, natural):
     return (natural + accuracy_bonus(engine, attacker, move)
             + (TRAINING.bonus(attacker, "effect") if move else 0)
             + effect_range_bonus(attacker, move)
-            + CLASS_PASSIVE.effect_range_bonus(engine,attacker,move,mechanics)
+            + CLASS_PASSIVE.effect_range_bonus(engine,attacker,move,mechanics,actual_damage_type=actual_damage_type)
+            + __import__('coordinator').effect_range(engine,attacker,move)
             + __import__('type_ace').effect_range(engine,attacker,move)
             + __import__('martial_artist').effect_range(engine,attacker,move)
             + FRAMEWORK.effect_range_bonus(engine,attacker,move)

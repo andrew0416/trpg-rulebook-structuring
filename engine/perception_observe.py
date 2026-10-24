@@ -162,7 +162,9 @@ def observe_environment(engine,observer,target,*,paths,medium=None,present=None,
 
 
 def validate_world(engine,index):
+    __import__('oracle').validate_world(engine,index)
     for actor in index.values():
+        validate_channel_fact(engine,actor)
         thought=current_thought(actor)
         if thought is not None and 'at' in thought:C.integer(thought['at'],'thought observation world time',0,engine.elapsed_seconds)
     rows=getattr(engine,ENV,{})
@@ -195,6 +197,7 @@ def route(engine,observer,target,value,*,information=None):
     value=declaration(value);uid=_actual(engine,observer,target);Q._selected(engine,value['source'])
     chosen=list(value['information']) if information is None else information;_names(chosen)
     if not set(chosen)<=set(value['information']):raise ValueError('information exceeds this actual sensing declaration')
+    if value['mode']=='visual' and observer.spec.get('oracle_focus') is not None:return value,chosen,_result(value,'not_observable','mark_of_vision_eyes_closed')
     current={S.key(name) for name in G.effective_capabilities(observer)}
     if value['capabilities'] and not current.intersection(S.key(name) for name in value['capabilities']):raise ValueError('current declared sensing capability required')
     import aura_state as A,aura_pulse as P
@@ -238,6 +241,10 @@ def route(engine,observer,target,value,*,information=None):
 
 
 def _values(engine,observer,target,value,chosen):
+    disguised=__import__('illusion_state').ability_illusion_sensory(engine,observer,target,value,chosen)
+    if disguised is not None:return _result(value,*disguised)
+    disguised=__import__('illusion_state').genjutsu_sensory(engine,observer,target,value,chosen)
+    if disguised is not None:return _result(value,*disguised)
     if value['provider']=='aura':
         import aura_state as A
         row=A.validate(target)
@@ -298,3 +305,131 @@ def observe(engine,observer,target,value,*,information=None,roll_options=None):
         sensed['check']={'passed':result.passed,'total':result.total,'dc':check['dc']}
         return sensed
     return G.transition(engine,observer,apply,participants=(target,))
+
+
+
+CHANNEL_FACT='channel_information_observation'
+
+
+def _channel_context(engine,subject):
+    context={'location':W.effective_location(engine,subject),'conditions':sorted(subject.conditions),'capabilities':sorted(G.effective_capabilities(subject))}
+    if subject.spec.get('oracle_focus') is not None:context['eyes_closed_for_mark']=True
+    return context
+
+
+def validate_channel_fact(engine,subject):
+    row=subject.spec.get(CHANNEL_FACT)
+    if row is None:return None
+    Q._fields(row,('subject_id','at','reason','intentions','emotions','motivations','memories','senses','context','sha256'))
+    if row['subject_id']!=subject.entity_id or row['sha256']!=TX.request_fingerprint({k:v for k,v in row.items() if k!='sha256'}):raise ValueError('Channel information observation identity changed')
+    C.integer(row['at'],'Channel information observation time',0,engine.elapsed_seconds);Q._text(row['reason'])
+    for name in ('intentions','emotions','motivations'):
+        if row[name] is not None:Q._text(row[name])
+    if row['memories'] is not None:
+        if type(row['memories'])is not list:raise ValueError('observed past events must be explicit or unknown')
+        for event in row['memories']:
+            Q._fields(event,('at','text'));C.integer(event['at'],'observed memory event time',0,row['at']);Q._text(event['text'])
+    if row['senses'] is not None:
+        if type(row['senses'])is not dict or set(row['senses'])-set(MODES):raise ValueError('observed supported sensory channels required')
+        for value in row['senses'].values():
+            if value is not None:Q._text(value)
+    return row
+
+
+def observe_channel_information(engine,subject,*,intentions=None,emotions=None,motivations=None,memories=None,senses=None,reason):
+    W.require_actors(engine,subject);Q._text(reason)
+    def apply(e,c):
+        row={'subject_id':c.entity_id,'at':e.elapsed_seconds,'reason':reason,'intentions':intentions,'emotions':emotions,
+            'motivations':motivations,'memories':deepcopy(memories),'senses':deepcopy(senses),'context':_channel_context(e,c)}
+        row['sha256']=TX.request_fingerprint(row);old=c.spec.get(CHANNEL_FACT);c.spec[CHANNEL_FACT]=row
+        validate_channel_fact(e,c);e.gm._rec('observed Channel information',old,deepcopy(row),reason,c);return deepcopy(row)
+    return G.transition(engine,subject,apply)
+
+
+def channel_information(engine,subject,*,sensory=False):
+    W.require_actors(engine,subject);row=validate_channel_fact(engine,subject)
+    if sensory:
+        current=row is not None and row['context']==_channel_context(engine,subject)
+        return {'subject_id':subject.entity_id,'observed_at':None if row is None else row['at'],
+            'status':'observed' if current and row['senses'] is not None else 'unknown','senses':deepcopy(row['senses']) if current else None}
+    return {'subject_id':subject.entity_id,'intentions':None if row is None else row['intentions'],
+        'emotions':None if row is None else row['emotions'],'motivations':None if row is None else row['motivations'],
+        'moves':deepcopy(subject.moves),'abilities':deepcopy(subject.abilities),
+        'capabilities':list(G.effective_capabilities(subject)),
+        'past_hour':None if row is None or row['memories'] is None else deepcopy([v for v in row['memories'] if engine.elapsed_seconds-3600<=v['at']<=engine.elapsed_seconds])}
+
+
+DIVINATION_FACTS='divination_observation_facts'
+
+
+def divination_target(engine,observer,mode,target=None):
+    W.require_actors(engine,observer)
+    if mode=='augury':
+        if target is not None and target is not observer:raise ValueError('Augury targets Self')
+        return {'kind':'self','target_id':observer.entity_id}
+    if mode!='scrying':raise ValueError('actual Augury or Scrying required')
+    if target is None:
+        loc=W.effective_location(engine,observer)
+        if loc['kind']=='unknown':raise ValueError('actual current Scrying location required')
+        return {'kind':'location','location':loc}
+    uid=_actual(engine,observer,target)
+    if type(target)is not dict or target.get('kind')!='item_instance':raise ValueError('Scrying targets a touched actual item or current location')
+    W.require_usable_object(target)
+    import held_equipment as HELD
+    held=any(x.get('instance_id')==uid for x in HELD.entries(observer))
+    if not held:
+        declaration_value=native(__import__('oracle').DIVINATION,[],mode='touch')
+        declaration_value['path']='touch'
+        _,_,blocked=route(engine,observer,target,declaration_value)
+        if blocked is not None:raise ValueError('actual observed Scrying contact required')
+    return {'kind':'item','target_id':uid}
+
+
+def record_divination_fact(engine,observer,mode,events,*,reason,target=None,clarity='clear',memory='remembered'):
+    import oracle as O
+    O.require(engine,observer,O.DIVINATION);Q._text(reason)
+    binding=divination_target(engine,observer,mode,target)
+    if clarity not in ('clear','unclear','jumbled') or memory not in ('remembered','partial','forgotten'):raise ValueError('explicit GM vision clarity and recall required')
+    if type(events)is not list:raise ValueError('GM vision events must be a list; empty means unknown')
+    for event in events:
+        Q._fields(event,('at','text'));C.integer(event['at'],'vision event time',0);Q._text(event['text'])
+        if mode=='scrying' and event['at']>engine.elapsed_seconds:raise ValueError('Scrying cannot reveal future events')
+    def apply(e,a):
+        row={'source':'gm/divination','observer_id':a.entity_id,'mode':mode,'binding':deepcopy(binding),'events':deepcopy(events),
+            'clarity':clarity,'memory':memory,'at':e.elapsed_seconds,'reason':reason}
+        row['sha256']=TX.request_fingerprint(row)
+        a.spec.setdefault(DIVINATION_FACTS,[]).append(row);e.gm._rec('Divination vision',None,row,reason,a)
+        return deepcopy(row)
+    return G.transition(engine,observer,apply,include_rulings=True)
+
+
+def validate_divination_facts(engine,actor):
+    rows=actor.spec.get(DIVINATION_FACTS,[])
+    if type(rows)is not list:raise ValueError('observed Divination fact list required')
+    for row in rows:
+        if row.get('sha256')!=TX.request_fingerprint({k:v for k,v in row.items() if k!='sha256'}) or row.get('source')!='gm/divination' or row.get('observer_id')!=actor.entity_id:raise ValueError('GM Divination fact provenance changed')
+        C.integer(row['at'],'Divination observation time',0,engine.elapsed_seconds)
+        if row['mode'] not in ('augury','scrying') or row['clarity'] not in ('clear','unclear','jumbled') or row['memory'] not in ('remembered','partial','forgotten'):raise ValueError('GM Divination interpretation changed')
+        for event in row['events']:C.integer(event['at'],'observed event time',0);Q._text(event['text'])
+
+
+def divination_information(engine,observer,mode,binding):
+    validate_divination_facts(engine,observer)
+    row=next((r for r in reversed(observer.spec.get(DIVINATION_FACTS,[])) if r['mode']==mode and r['binding']==binding),None)
+    events=[] if row is None or row['memory']=='forgotten' else deepcopy(row['events'])
+    if mode=='scrying':events=[v for v in events if engine.elapsed_seconds-86400<=v['at']<=engine.elapsed_seconds]
+    return {'source':__import__('oracle').DIVINATION,'mode':mode,'binding':deepcopy(binding),'observed_at':None if row is None else row['at'],
+        'status':'unknown' if not events else 'observed','events':events,'clarity':None if row is None else row['clarity'],'memory':None if row is None else row['memory']}
+
+
+def pickup_item_choice(engine,actor,category,chosen,reason):
+    """The printed table chooses a category; the GM supplies the actual object."""
+    Q._fields(chosen,('item_id','instance_id','category','reason'))
+    if chosen['category']!=category:raise ValueError('GM specific item must belong to the rolled category')
+    Q._text(chosen['reason']);Q._text(chosen['instance_id'])
+    effects,header=engine.r.item_effects(chosen['item_id'])
+    if effects is None or header.get('id')!=chosen['item_id']:raise ValueError('GM Pickup choice needs an exact real item rule')
+    if chosen['instance_id'] in W.entity_index(engine):raise ValueError('Pickup cannot duplicate an existing physical identity')
+    W.register_object(engine,chosen['instance_id'],location=W.effective_location(engine,actor),reason=reason+'; '+chosen['reason'],
+        kind='item_instance',item_rule_id=chosen['item_id'],owner_id=actor.entity_id,source=__import__('oracle').PICKUP)
+    return deepcopy(engine._physical_objects[chosen['instance_id']])

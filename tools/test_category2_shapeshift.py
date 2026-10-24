@@ -17,7 +17,13 @@ class Tests(unittest.TestCase):
  known=_fixture_test_category2_body_modes.Tests.known
  normal=_fixture_test_category2_body_modes.Tests.normal
  def shape(self,ratio=1,kind='object',**kwargs):
-  return self.e.change_body_mode(self.p,'shapeshift',mass_ratio=ratio,appearance={'kind':kind,'description':'observed imitation'},offsets=kwargs.pop('offsets',[(0,0)]),reason='observed changed shape',**kwargs)
+  offsets=kwargs.pop('offsets',[(0,0)]);appearance={'kind':kind,'description':'observed imitation'}
+  if kind=='pokemon':
+   appearance['size']=self.p.spec['size']
+   pending=MODE.shapeshift_size_choices(self.e,self.p,appearance=appearance,offsets=offsets,mass_ratio=ratio,
+     mass_weight_class=kwargs.get('mass_weight_class'),height_m=kwargs.get('height_m'))
+   kwargs['pokemon_size_choice']={'value':True,'reason':'GM observes this exact intended Pokemon appearance is comparable to the actual original body','scope':pending['decision_scope']}
+  return self.e.change_body_mode(self.p,'shapeshift',mass_ratio=ratio,appearance=appearance,offsets=offsets,reason='observed changed shape',**kwargs)
  def test_mass_bounds_repeated_changes_and_standard_action(self):
   self.known(self.p,'변신');self.p.spec['height_m']=2
   for ratio in (0.5,1,1.5):
@@ -87,7 +93,10 @@ class Tests(unittest.TestCase):
   c=self.add(build_pokemon(self.r,'메타몽',10,moves=[],abilities=[],pos=(12,3)))
   before=deepcopy((c.spec['species'],c.spec['types'],c.stats,c.moves,c.abilities,c.spec.get('movement')))
   self.begin(c)
-  out=self.e.change_body_mode(c,'shapeshift',mass_ratio=1,appearance={'kind':'pokemon','description':'Pikachu appearance only'},offsets=[(0,0)],reason='observed unchanged mass')
+  appearance={'kind':'pokemon','description':'Pikachu appearance only','size':'소형'}
+  pending=MODE.shapeshift_size_choices(self.e,c,mass_ratio=1,appearance=appearance,offsets=[(0,0)])
+  choice={'value':True,'reason':'GM observes this small Pikachu appearance is comparable to the actual Ditto body','scope':pending['decision_scope']}
+  out=self.e.change_body_mode(c,'shapeshift',mass_ratio=1,appearance=appearance,offsets=[(0,0)],pokemon_size_choice=choice,reason='observed unchanged mass')
   self.assertFalse(out['appearance_limits']['grants_copied_mechanics'])
   self.assertEqual((c.spec['species'],c.spec['types'],c.stats,c.moves,c.abilities,c.spec.get('movement')),before)
   self.assertNotIn('move/변신',c.moves)

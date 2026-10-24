@@ -1,10 +1,12 @@
-"""Exact source-owned contracts for the five reviewed homebrew Fashion items.
+"""Selected printed and Homebrew Fashion contracts through their native consumers.
 
 The CSV rows combine two independent lifetimes: one contest reroll on a
 Pokemon, and one scene activation in battle when the crafted item is worn by
 its maker or a Pokemon currently owned by that maker.  Registration only
 establishes the physical source.  Each native consumer below owns its actual
 trigger and expiry.
+Printed Core items grant only the holder's battle branch.  Their accessory,
+held and sourced Fashionista projections use those same native consumers.
 """
 from copy import deepcopy
 import hashlib
@@ -13,13 +15,18 @@ import os
 
 POLICY_FILE = "fashion-item-contract-policy.json"
 STATE = "fashion_item_state"
-ITEM_IDS = frozenset({
+HOMEBREW_ITEM_IDS = frozenset({
     "item/귀여운-패션-1",
     "item/아름다운-패션-1",
     "item/근사한-패션-1",
     "item/강인한-패션-1",
     "item/슬기로운-패션-1",
 })
+CORE_ITEM_IDS = frozenset({
+    "item/귀여운-패션", "item/우아한-패션", "item/기막힌-패션",
+    "item/거친-패션", "item/번지르르한-패션",
+})
+ITEM_IDS = HOMEBREW_ITEM_IDS | CORE_ITEM_IDS
 
 
 def _path(rules):
@@ -69,9 +76,38 @@ def policy(rules):
     return value
 
 
+def _core_rows(rules):
+    with open(_path(rules), encoding="utf-8") as handle:
+        value = json.load(handle)
+    source = value["core_source"]
+    with open(os.path.join(rules.root, source["file"]), "rb") as handle:
+        if hashlib.sha256(handle.read()).hexdigest() != source["sha256"]:
+            raise ValueError("printed Fashion source changed")
+    rows = value["core_rows"]
+    if (set(rows) != CORE_ITEM_IDS or any(row.get("item_id") != key for key, row in rows.items())
+            or {row.get("kind") for row in rows.values()} != {"cute", "beauty", "cool", "tough", "smart"}):
+        raise ValueError("printed Fashion requires its exact five selected items")
+    return rows
+
+
+def core_header(rules, item_id, header):
+    if item_id not in CORE_ITEM_IDS:
+        return header
+    row = _core_rows(rules)[item_id]
+    return dict(header, category="패션 도구", slot="장신구", use="held", price=None, desc=row["desc"])
+
+
 def definition(rules, item_id):
     if item_id not in ITEM_IDS:
         return None
+    if item_id in CORE_ITEM_IDS:
+        row = deepcopy(_core_rows(rules)[item_id])
+        effects, header = rules.item_effects(item_id)
+        if (rules._selected_rule(item_id) != item_id or header.get("id") != item_id
+                or len(effects) != 1 or effects[0].get("type") != row["effect_type"]
+                or effects[0].get("if")):
+            raise ValueError("printed Fashion selected effect changed: " + item_id)
+        return row
     return deepcopy(policy(rules)["rows"].get(item_id))
 
 
@@ -81,6 +117,8 @@ def prepare_register(engine, actor, item_id, source_instance_id=None):
     row = definition(engine.r, item_id)
     if row is None:
         return None
+    if item_id in CORE_ITEM_IDS:
+        return row
     if not isinstance(source_instance_id, str) or not source_instance_id:
         raise ValueError("fashion item requires its actual crafted physical instance")
     obj = getattr(engine, "_physical_objects", {}).get(source_instance_id)
@@ -107,24 +145,44 @@ def _active(engine, actor, kind=None):
     registrations = tuple(getattr(actor, "_item_reg", {}).values())
     if not any(registration.get("item_id") in ITEM_IDS for registration in registrations):
         return []
-    rows = policy(engine.r)["rows"]
     sources = actor.spec.get("state_grants", {}).get("sources", {})
     found = []
     for registration in registrations:
-        row = rows.get(registration.get("item_id"))
+        row = definition(engine.r, registration.get("item_id"))
         if row is None or (kind is not None and row["kind"] != kind):
             continue
         if registration.get("state_source") not in sources:
             continue
         uid = registration.get("instance_id")
         obj = getattr(engine, "_physical_objects", {}).get(uid)
-        if (not isinstance(obj, dict) or obj.get("kind") != "item_instance"
-                or obj.get("item_rule_id") != row["item_id"]
-                or obj.get("equipped_by") != actor.entity_id):
-            raise ValueError("fashion registration and physical instance disagree")
-        origin = obj.get("crafting_origin")
-        if not isinstance(origin, dict) or not isinstance(origin.get("maker_id"), str):
-            raise ValueError("fashion physical instance lost its maker")
+        if row["item_id"] in CORE_ITEM_IDS and uid is None:
+            # Makeover has an actual bound-AP source rather than a physical item.
+            # Dress projects a stored physical item, retaining that item's quota.
+            import fashionista as FA
+            projection = registration.get("projection", {})
+            if projection.get("rule_id") == FA.DRESS:
+                stored = [entry for entry in (FA.chic(actor) or {}).get("slots", {}).values()
+                          if entry is not None and entry["item_id"] == row["item_id"]
+                          and registration["state_source"] == FA.DRESS_PREFIX + actor.entity_id + ":" + entry["instance_id"]]
+                if len(stored) != 1:
+                    raise ValueError("Fashion Dress projection lost its stored item")
+                uid = stored[0]["instance_id"]
+                obj = getattr(engine, "_physical_objects", {}).get(uid)
+                if not isinstance(obj, dict) or obj.get("item_rule_id") != row["item_id"]:
+                    raise ValueError("Fashion Dress physical source changed")
+            else:
+                uid = registration["state_source"] + ":" + row["item_id"]
+                obj = sources[registration["state_source"]]
+            registration = dict(registration, instance_id=uid)
+        else:
+            if (not isinstance(obj, dict) or obj.get("kind") != "item_instance"
+                    or obj.get("item_rule_id") != row["item_id"]
+                    or obj.get("equipped_by") != actor.entity_id):
+                raise ValueError("fashion registration and physical instance disagree")
+        if row["item_id"] in HOMEBREW_ITEM_IDS:
+            origin = obj.get("crafting_origin")
+            if not isinstance(origin, dict) or not isinstance(origin.get("maker_id"), str):
+                raise ValueError("fashion physical instance lost its maker")
         found.append((row, registration, obj))
     return found
 
@@ -149,14 +207,16 @@ def _choose_instance(candidates, instance_id, purpose):
         if not candidates:
             raise ValueError("selected Fashion physical instance is unavailable for " + purpose)
     if not candidates:
-        raise ValueError("battle Fashion requires the maker or that maker's currently owned Pokemon")
+        raise ValueError("selected equipped Fashion source is unavailable or its maker condition is not met")
     if len(candidates) != 1:
         raise ValueError("multiple matching Fashion instances require explicit instance_id")
     return candidates[0]
 
 
-def _available(engine, actor, kind, instance_id=None):
-    candidates = [entry for entry in _active(engine, actor, kind) if _maker_eligible(engine, actor, entry[2])]
+def _available(engine, actor, kind, instance_id=None, *, item_id=None):
+    candidates = [entry for entry in _active(engine, actor, kind)
+                  if (item_id is None or entry[0]["item_id"] == item_id)
+                  and (entry[0]["item_id"] in CORE_ITEM_IDS or _maker_eligible(engine, actor, entry[2]))]
     row, registration, obj = _choose_instance(candidates, instance_id, "battle activation")
     used = obj.get(STATE, {}).get("scene_activation")
     if isinstance(used, dict) and used.get("scene", -1) >= _scene(engine, actor):
@@ -190,7 +250,7 @@ def _consume_scene(engine, actor, row, registration, obj, *, target_id=None, tri
     state = obj.setdefault(STATE, {})
     receipt = {"item_id": row["item_id"], "clause_id": row["clause_id"],
                "instance_id": registration["instance_id"], "wearer_id": actor.entity_id,
-               "maker_id": obj["crafting_origin"]["maker_id"], "scene": _scene(engine, actor),
+               "maker_id": obj.get("crafting_origin", {}).get("maker_id"), "scene": _scene(engine, actor),
                "round": engine.round_no, "at": engine.elapsed_seconds, "trigger": trigger}
     if target_id is not None:
         receipt["target_id"] = target_id
@@ -215,10 +275,10 @@ def _round_record(engine, target, row, registration, field, value, receipt):
 def activate(engine, actor, item_id, *, target=None, instance_id=None):
     row = definition(engine.r, item_id)
     if row is None:
-        raise ValueError("selected item is not one of the five Fashion contracts")
+        raise ValueError("selected item is not a printed or Homebrew Fashion contract")
     if row["kind"] in {"beauty", "smart"}:
         raise ValueError("this Fashion activates only at its actual reaction trigger")
-    row, registration, obj = _available(engine, actor, row["kind"], instance_id)
+    row, registration, obj = _available(engine, actor, row["kind"], instance_id, item_id=item_id)
     if not engine.encounter_active:
         raise ValueError("battle Fashion requires an active encounter")
     if row["kind"] in {"cute", "tough"}:
@@ -261,7 +321,7 @@ def arm_reaction(engine, actor, item_id, *, instance_id=None):
         raise ValueError("only optional reaction Fashion can be armed")
     if not engine.encounter_active:
         raise ValueError("Fashion reaction arming requires an active encounter")
-    row, registration, _ = _available(engine, actor, row["kind"], instance_id)
+    row, registration, _ = _available(engine, actor, row["kind"], instance_id, item_id=item_id)
     armed = actor.spec.setdefault("fashion_reaction_armed", {})
     receipt = {"item_id": row["item_id"], "clause_id": row["clause_id"],
                "kind": row["kind"], "instance_id": registration["instance_id"],
@@ -292,7 +352,7 @@ def _consume_arm(actor, kind, instance_id):
 
 def all_roll_modifier(actor):
     import combat_timing as TIMING
-    return sum(record.get("fashion_all_roll_modifier", 0) for record in TIMING.records(actor))
+    return TIMING.all_roll_modifier(actor)
 
 
 def consume_save_bonus(engine, actor):
@@ -359,7 +419,7 @@ def contest_plan(engine, pokemon, stat, used, *, instance_id=None):
     if pokemon.kind != "pokemon":
         raise ValueError("Fashion contest reroll is Pokemon-only")
     matches = [(row, registration) for row, registration, _ in _active(engine, pokemon)
-               if row["contest_stat"] == stat]
+               if row.get("contest_stat") == stat]
     if not matches:
         raise ValueError("matching equipped Fashion contest stat required")
     selected = _choose_instance([(row, registration, None) for row, registration in matches],

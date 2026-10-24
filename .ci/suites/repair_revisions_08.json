@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "id": "repair_revisions_08",
+  "purpose": "Source-bound existing Pokemon Fire/Ice passive acquisition and withdrawal; R59 selectable book/CSV acquisition and retained receipts with declared7+; Press composed context; real staged Cannon/Plasma/effect-rank observations; five Juggler and five weather fixture repairs. Exact120methods including10new, original4115 plus added obligations retained, source-specific existing PASS reused. No completion credit from selection.",
+  "completion_credit": 0,
+  "required_unique_count": 9,
+  "completed": {
+    "tools.test_book_type_ace_passives.TypeAcePassiveTests": {
+      "tests": [
+        "tools.test_book_type_ace_passives.TypeAcePassiveTests.test_four_acquired_weather_stratagems_are_local_activation_views_without_virtual_hp_loss"
+      ]
+    },
+    "tools.test_book_warper_full.WarperTests": {
+      "tests": [
+        "tools.test_book_warper_full.WarperTests.test_csv_request_id_cannot_be_reused_by_other_book_feature_active_or_withdrawn",
+        "tools.test_book_warper_full.WarperTests.test_farcast_source_receipts_native_costs_and_withdrawn_request_replays_stay_distinct",
+        "tools.test_book_warper_full.WarperTests.test_farcast_source_selection_rejects_excluded_unknown_and_other_feature_before_changes"
+      ]
+    },
+    "tools.test_weather_charge_multihit_source_revision.WeatherChargeMultihitSourceRevisionTests": {
+      "tests": [
+        "tools.test_weather_charge_multihit_source_revision.WeatherChargeMultihitSourceRevisionTests.test_actual_double_strike_rolls_combine_before_one_optional_charge",
+        "tools.test_weather_charge_multihit_source_revision.WeatherChargeMultihitSourceRevisionTests.test_actual_five_strike_combined_damage_keeps_trainer_pokemon_and_optional_charge",
+        "tools.test_weather_charge_multihit_source_revision.WeatherChargeMultihitSourceRevisionTests.test_actual_multihit_charge_decision_survives_both_restores_and_exhausts_once",
+        "tools.test_weather_charge_multihit_source_revision.WeatherChargeMultihitSourceRevisionTests.test_actual_wild_water_shuriken_in_sunny_weather_may_use_or_decline_defense",
+        "tools.test_weather_charge_multihit_source_revision.WeatherChargeMultihitSourceRevisionTests.test_native_multihit_final_hook_and_actual_chain_rollback_keep_charge_capacity"
+      ]
+    }
+  }
+}

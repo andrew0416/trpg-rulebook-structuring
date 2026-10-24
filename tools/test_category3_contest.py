@@ -115,10 +115,10 @@ class Category3ContestTests(unittest.TestCase):
         c.double_next = True
         self.actors[1].excitement = 4
         self.reject(move_name='보복', contest_type='근사함', fixed_rolls=[6])
-        self.engine.perform(c, '보복', '근사함', self.actors[1:], False, fixed_rolls=[2] * 11)
+        self.engine.perform(c, '보복', '근사함', self.actors[1:], False, fixed_rolls=[2] * 12)
         self.assertEqual([a.excitement for a in self.actors[1:]], [5, 1])
         self.assertFalse(c.double_next)
-        self.assertEqual(c.appeal, 11)
+        self.assertEqual(c.appeal, 12)
 
     def test_zero_dice_opposing_type_fumble_accepts_only_empty_fixed_rolls(self):
         c = self.actors[0]

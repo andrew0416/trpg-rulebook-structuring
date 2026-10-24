@@ -65,11 +65,10 @@ def load(actor):
     table=TK.table(actor) if mode=='telekinetic' else limits(actor)
     weight=sum(number(o['weight_kg'],'object weight',minimum=0) for o in state['objects'])+rider_weight
     band=classify_load(weight,table['heavy'],table['staggering'],state.get('boundary_band'))
-    if band=='boundary':raise ValueError('heavy interval endpoint needs an explicit GM boundary ruling')
     if band=='too_heavy':raise ValueError('current carried load exceeds the actor Power limit; GM world response required')
     return {'band':band,'weight_kg':weight,'penalty':0 if band=='normal' else policy(actor)[band]['speed_stages']}
 
-def set_carried(engine,actor,objects,reason,*,blocked_actions=(),boundary_band=None):
+def set_carried(engine,actor,objects,reason,*,blocked_actions=(),boundary_band=None,mountable_load=None):
     if not isinstance(reason,str) or not reason.strip():raise ValueError('GM observation reason required')
     if not isinstance(objects,(list,tuple)):raise ValueError('actual carried object records required')
     copied=[]
@@ -85,9 +84,16 @@ def set_carried(engine,actor,objects,reason,*,blocked_actions=(),boundary_band=N
     before=deepcopy(actor.spec.get('_carried_load'))
     state={'objects':copied,'blocked_actions':list(blocked_actions),'boundary_band':boundary_band,'reason':reason,
            'checked_round':None,'failure_pending':False}
+    previous=(before or {}).get('mountable_load')
+    if mountable_load is not None or previous is not None:
+        state['mountable_load']=deepcopy(previous if mountable_load is None else mountable_load)
     # Validate the proposed observation without altering the live sheet.
     from copy import copy
-    probe=copy(actor);probe.spec=dict(actor.spec,_carried_load=state);current=load(probe)
+    probe=copy(actor);probe.spec=dict(actor.spec,_carried_load=state)
+    if mountable_load is not None:
+        import control_mount as MOUNT
+        MOUNT._mountable_observation(probe,mountable_load)
+    current=load(probe)
     if not copied and blocked_actions:raise ValueError('hand restrictions require carried objects')
     import world_entities as WORLD
     world_objects=WORLD.prepare_carried(engine,actor,copied,reason)
@@ -294,7 +300,7 @@ def _drag_object(engine,actor,*,object_id,destination,action_cost,reason,actor_d
     engine.log(f'    {actor.name}: {object_id} {before["pos"]} → {destination} (1m/round, 한계 {limit}kg)','capability/drag')
     if actor.pos!=old_actor:
         import effects_ext as EXT
-        EXT.on_enter_cell(engine,actor,actor.pos)
+        EXT.on_enter_cell(engine,actor,actor.pos,previous_position=old_actor)
     return {'object':object_id,'position':destination,'actor_position':actor.pos,'weight_kg':weight,'limit_kg':limit}
 
 def finish_round(engine):

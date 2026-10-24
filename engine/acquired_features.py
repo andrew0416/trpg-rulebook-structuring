@@ -60,12 +60,16 @@ def _branch_values(actor,uid):
 
 def class_instances(actor):
     if actor.kind!="trainer":return ()
+    import native_acquisition_adapters as NATIVE
+    synthetic=NATIVE.class_instances(actor)
+    synthetic_aliases={value for definition in NATIVE.DEFINITIONS.values() if definition.get('class_slot') for value in definition['owned_aliases']}
     names=_names(actor,"class/");selected=[]
     for field in ("classes","feats"):
         values=actor.spec.get(field,[])
         if not isinstance(values,(list,tuple)):raise ValueError("acquired classes/features must be lists")
         local=set()
         for value in values:
+            if value in synthetic_aliases:continue
             if field=="feats" and value not in names:continue
             uid=_resolve(actor,value,"class/",names)
             if uid in local:raise ValueError("duplicate class reference needs one explicit acquired branch list")
@@ -76,6 +80,7 @@ def class_instances(actor):
         branches=_branch_values(actor,uid) if uid in BRANCH_CLASSES else (None,)
         for branch in branches:
             result.append({"source_id":uid,"branch":branch,"instance_key":uid+":"+json.dumps(branch,ensure_ascii=False,sort_keys=True)})
+    result.extend(synthetic)
     Q.require("class/instances","native","owned",[Q.check("capacity","capacity",len(result)<=4,"acquired class instances exceed four slots")])
     return tuple(result)
 

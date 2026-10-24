@@ -52,7 +52,7 @@ class SwarmTransitionTests(unittest.TestCase):
     def open_turn(self, bars=3, condition=None):
         self.configure(bars)
         if condition:
-            self.p.conditions.add(condition)
+            self.e.apply_status(self.p,condition,source='test/actual-swarm-condition')
         self.e.start_round(self.e.everyone)
         if condition:
             with patch.object(RECOVERY, "saving_check", return_value={"passed": False}):
@@ -96,8 +96,11 @@ class SwarmTransitionTests(unittest.TestCase):
         self.assertEqual(SWARM.standard_cost(self.e, self.p, self.r.move(DAILY)), (4, "daily"))
         self.assertTrue(self.spend_move(DAILY)[0])
         self.assertEqual(row["swarm_points"], 5)
+        self.e.end_of_turn(self.p); self.e.start_of_turn(self.p,initiative_count=15)
+        row=SWARM.state(self.p)
         self.assertTrue(self.spend_move(DAILY)[0])
         self.assertEqual(row["swarm_points"], 1)
+        self.e.end_of_turn(self.p); self.e.start_of_turn(self.p,initiative_count=10)
         allowed, reason = FREQ.move_allowed(self.e, self.p, DAILY)
         self.assertFalse(allowed)
         self.assertIn("포인트", reason)
@@ -105,8 +108,11 @@ class SwarmTransitionTests(unittest.TestCase):
 
     def test_c11_088_additional_actions_descend_by_five_and_repeat_at_zero(self):
         row = self.open_turn(5)
-        for _ in range(6):
+        for index,count in enumerate((20,15,10,5,0,0)):
+            if index:self.e.start_of_turn(self.p,initiative_count=count)
             self.assertTrue(self.spend_move(AT_WILL)[0])
+            self.e.end_of_turn(self.p)
+        row=SWARM.state(self.p)
         receipt = row["round_trigger_receipts"][row["own_turn_key"]]
         self.assertEqual([x["initiative"] for x in receipt["actions"]], [20, 15, 10, 5, 0, 0])
         self.assertEqual([x["point_cost"] for x in receipt["actions"]], [0, 1, 1, 1, 1, 1])
@@ -123,7 +129,10 @@ class SwarmTransitionTests(unittest.TestCase):
         self.assertTrue(self.spend_move(AT_WILL_SWIFT)[0])
         self.assertFalse(self.spend_move(AT_WILL_SWIFT)[0])
         self.assertTrue(self.spend_move(EOT)[0])
+        self.assertFalse(self.spend_move(AT_WILL_SWIFT)[0])
+        self.e.end_of_turn(self.p); self.e.start_of_turn(self.p,initiative_count=15)
         self.assertTrue(self.spend_move(AT_WILL_SWIFT)[0])
+        row=SWARM.state(self.p)
         self.assertEqual(row["frequency_ledger"][AT_WILL_SWIFT]["action_index"], 1)
 
     def test_c11_091_incapacitation_costs_one_point_but_preserves_one_action(self):
@@ -136,6 +145,11 @@ class SwarmTransitionTests(unittest.TestCase):
         self.assertTrue(TURN.spend(self.e, self.p, "standard", move["name"], _native_move=move))
         self.assertTrue(turn["minimum_action_used"])
         self.assertFalse(TURN.spend(self.e, self.p, "standard", move["name"], _native_move=move))
+        for count in (15,10):
+            self.e.end_of_turn(self.p)
+            self.e.start_of_turn(self.p,initiative_count=count)
+            self.assertTrue(TURN.spend(self.e,self.p,'standard',move['name'],_native_move=move))
+        self.assertEqual(SWARM.state(self.p)['swarm_points'],0)
 
 
 if __name__ == "__main__":

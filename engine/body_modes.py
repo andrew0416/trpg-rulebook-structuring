@@ -10,6 +10,7 @@ DEFINITIONS={'inflate':{'capability':'팽창성','source':'capability/팽창성'
              'phasing':{'capability':'페이징','aliases':('페이징','Phasing','통과'),'source':'capability/페이징','minimum':1,'maximum':1,'evasion':0,'return_action':'shift'},
              'shadow':{'capability':'그림자숨기','aliases':('그림자숨기','Shadow Meld'),'source':'capability/그림자숨기','minimum':1,'maximum':1,'evasion':1,'return_action':'shift'}}
 SPIRIT_MODES={'phasing','shadow'}
+SHAPESHIFT_EN={'file':'source-audit/shapeshifter-comparable-size-core-1.05.txt','sha256':'77b284cf29a3442f8c465462b879cab00e87adaf3aefd3ef12ae3141b5b8e363'}
 SPIRIT_SOURCE={'file':'input/ch10-index-reference.md','sha256':'c3a1d783b4f649f0f6e25a9443a90ca8079a6e036c42c6f8797e100127157abe'}
 
 
@@ -17,8 +18,100 @@ def _spirit_source(actor,mode):
  if mode not in SPIRIT_MODES:return
  from source_context import verified_source
  verified_source(actor.r,SPIRIT_SOURCE,label=mode+' body mode')
- if actor.kind!='pokemon':raise ValueError('Phasing and Shadow Meld require an actual Pokemon')
- if mode=='shadow' and actor.spec.get('species')!='pokemon/팬텀':raise ValueError('Shadow Meld requires the source-listed actual Gengar species')
+ if actor.kind not in ('pokemon','trainer') or mode=='shadow' and actor.kind!='pokemon':raise ValueError('actual Phasing body or Pokemon Shadow Meld body required')
+
+
+def _pokemon_appearance(row):
+ appearance=row.get('appearance')
+ if not isinstance(appearance,dict) or appearance.get('kind')!='pokemon':return False
+ import body_state as BODY
+ if set(appearance) not in ({'kind','description'},{'kind','description','size'}):raise ValueError('exact Pokemon appearance observations required')
+ if 'size' in appearance and appearance['size'] not in BODY.WIDTH:raise ValueError('observed intended Pokemon size required')
+ return True
+
+
+def _size_intended(row):
+ return {key:deepcopy(row[key]) for key in ('appearance','height_m','mass_ratio','mass_weight_class')}|{'offsets':deepcopy(row['footprint']['offsets'])}
+
+
+def _size_document(basis_json):
+ return {'schema':1,'id':'native/shapeshifter-comparable-size','variants':[{
+  'rule_id':DEFINITIONS['shapeshift']['source'],'source':SPIRIT_SOURCE,
+  'values':{'comparable':{'$input':'comparable'},'basis_json':basis_json,'clarification_source':SHAPESHIFT_EN},
+  'inputs':{'comparable':{'type':'boolean','authority':'gm','decision_kind':'delegated_choice','choices':[True,False],
+   'question':'Is this exact intended Pokemon appearance comparable in size to the actual original body? No printed category or numerical cutoff is supplied.'}}}]}
+
+
+def _size_sources(rules):
+ from source_context import verified_source
+ verified_source(rules,SPIRIT_SOURCE,label='Shapeshifter')
+ verified_source(rules,SHAPESHIFT_EN,source_root='source-audit',label='Shapeshifter comparable-size clarification')
+
+
+def _size_resolution(actor,row,choice=None):
+ import json,body_state as BODY,source_policy as POLICY
+ _size_sources(actor.r)
+ if not _pokemon_appearance(row) or 'size' not in row['appearance']:raise ValueError('observed intended Pokemon size required')
+ if actor.spec.get('size') not in BODY.WIDTH:raise ValueError('observed original body size required')
+ base=copy(actor);base.spec=dict(actor.spec);base.spec.pop(KEY,None)
+ original={'size':actor.spec['size'],'height_m':actor.spec.get('height_m'),'offsets':BODY.offsets(base)}
+ height=original['height_m']
+ if height is not None and (type(height) not in (int,float) or not isfinite(height) or height<=0):raise ValueError('observed original body height must be positive')
+ # Exact finite facts are serialized as text because the existing source-policy
+ # declaration model deliberately accepts no floating-point policy values.
+ basis_json=json.dumps({'actor_id':actor.entity_id,'original':original,'intended':_size_intended(row)},
+                       ensure_ascii=False,sort_keys=True,separators=(',',':'),allow_nan=False)
+ return POLICY.resolve(actor.r,_size_document(basis_json),decisions={} if choice is None else {'comparable':choice})
+
+
+def _validate_size_observation(actor,row):
+ observation=row.get('pokemon_size_observation')
+ if observation is None:return  # Historical observations have no fabricated past approval.
+ import json,root_resolution as ROOT,source_selection as SELECTION
+ _size_sources(actor.r)
+ if type(observation)is not dict or set(observation)!={'choice','policy'}:raise ValueError('exact Pokemon size observation required')
+ choice=observation['choice'];policy=observation['policy']
+ if (type(choice)is not dict or set(choice)!={'value','reason','scope'} or choice['value'] is not True
+     or type(choice['reason'])is not str or not choice['reason'].strip() or type(choice['scope'])is not dict
+     or type(policy)is not dict):raise ValueError('retained explicit scoped GM Pokemon size judgement required')
+ values=policy.get('values',{});basis_json=values.get('basis_json')
+ if type(basis_json)is not str:raise ValueError('retained actual Pokemon size basis required')
+ basis=json.loads(basis_json)
+ if (type(basis)is not dict or set(basis)!={'actor_id','original','intended'} or basis['actor_id']!=actor.entity_id
+     or basis['intended']!=json.loads(json.dumps(_size_intended(row))) or 'size' not in row['appearance']):
+  raise ValueError('retained Pokemon size observation belongs to a different body or appearance')
+ document=_size_document(basis_json)
+ declared=SELECTION.policy_values(policy['source_policy_binding'],document['variants'])
+ if (declared!={'comparable':{'$input':'comparable'},'basis_json':basis_json,'clarification_source':SHAPESHIFT_EN}
+     or values!={'comparable':True,'basis_json':basis_json,'clarification_source':SHAPESHIFT_EN}
+     or policy.get('status')!='PolicyValuesReady' or policy.get('selected_id')!=DEFINITIONS['shapeshift']['source']
+     or policy.get('definition_hash')!=ROOT.fingerprint(document) or choice['scope'].get('definition_hash')!=ROOT.fingerprint(document)
+     or policy.get('decision_scope')!=choice['scope']
+     or policy.get('inputs_hash')!=ROOT.fingerprint({'context':{},'decisions':{'comparable':choice},'state':{}})
+     or policy.get('decision_evidence')!=[{'input':'comparable','reason':choice['reason'],'decision_kind':'delegated_choice','scope':choice['scope']}]):
+  raise ValueError('retained Pokemon size judgement changed')
+
+
+def shapeshift_size_status(actor):
+ """Historical shape facts are retained without certifying an unknown admission."""
+ row=validate(actor)
+ if not row or row['mode']!='shapeshift' or not _pokemon_appearance(row):return {'status':'not_applicable'}
+ return {'status':'retained_admission_observation' if row.get('pokemon_size_observation') else 'source_observation_required',
+         'source':row['source'],'clarification_source':deepcopy(SHAPESHIFT_EN),
+         'appearance':deepcopy(row['appearance']),'height_m':row['height_m'],'footprint':deepcopy(row['footprint']),
+         'new_admission_requires_current_observation':True}
+
+
+def shapeshift_size_choices(engine,actor,*,appearance,offsets,height_m=None,mass_ratio=1,mass_weight_class=None):
+ """Pure current GM query; only the ordinary paid native change admits a shape."""
+ import world_entities as W
+ if W.actor_index(engine).get(actor.entity_id)is not actor:raise ValueError('actual registered Shapeshifter required')
+ row={'mode':'shapeshift','source':DEFINITIONS['shapeshift']['source'],'size_ratio':1,'mass_ratio':mass_ratio,
+      'mass_weight_class':mass_weight_class,'appearance':deepcopy(appearance),'height_m':height_m,
+      'reason':'proposed current Pokemon appearance','footprint':{'kind':'observed_cells','offsets':deepcopy(offsets),'reason':'proposed current Pokemon appearance'}}
+ probe=copy(actor);probe.spec=dict(actor.spec);probe.spec[KEY]=row
+ validate(probe)
+ return _size_resolution(actor,row)
 
 
 def validate(actor):
@@ -36,14 +129,12 @@ def validate(actor):
  fields={'mode','source','size_ratio','reason','footprint'}
  if row['mode'] in SPIRIT_MODES:
   fields.add('actor_id')
-  if row.get('actor_id')!=actor.entity_id:raise ValueError('spirit body mode belongs to another actual Pokemon')
+  if row.get('actor_id')!=actor.entity_id:raise ValueError('spirit body mode belongs to another actual body')
  if row['mode']=='phasing':
   fields.update(('round_loss','last_loss_round'))
   loss=row.get('round_loss')
-  if type(loss)is not dict or set(loss)!={'amount','reason','source'} or loss['source']!='gm/observation':raise ValueError('Phasing requires an explicit GM observation of the unspecified small HP loss')
+  if type(loss)is not dict or set(loss)!={'ticks','source'} or type(loss['ticks'])is not int or loss['ticks']!=1 or loss['source']!=row['source']:raise ValueError('Phasing requires one source-defined Tick loss per round')
   import common_checks as C
-  C.integer(loss['amount'],'observed small Phasing HP loss',1)
-  if not isinstance(loss['reason'],str) or not loss['reason'].strip():raise ValueError('reason for the observed small Phasing HP loss required')
   if row['last_loss_round'] is not None:C.integer(row['last_loss_round'],'last actual Phasing round',0)
  if row['mode']=='shadow':
   fields.update(('host','motion'))
@@ -78,7 +169,11 @@ def validate(actor):
   BODY.shapeshift_mass(actor,row)
   BODY.shapeshift_weight_class(actor,row)
   appearance=row.get('appearance')
-  if not isinstance(appearance,dict) or set(appearance)!={'kind','description'} or appearance['kind'] not in ('object','moving_object','complex_machine','pokemon') or not isinstance(appearance['description'],str) or not appearance['description'].strip():raise ValueError('observed appearance kind and description required')
+  pokemon=_pokemon_appearance(row)
+  if not isinstance(appearance,dict) or (not pokemon and set(appearance)!={'kind','description'}) or appearance.get('kind') not in ('object','moving_object','complex_machine','pokemon') or not isinstance(appearance.get('description'),str) or not appearance['description'].strip():raise ValueError('observed appearance kind and description required')
+  if pokemon:
+   if 'pokemon_size_observation' in row:fields.add('pokemon_size_observation')
+   _validate_size_observation(actor,row)
   height=row.get('height_m')
   if height is not None and (type(height) not in (int,float) or not isfinite(height) or height<=0):raise ValueError('observed shapeshift height must be positive')
  if set(row)!=fields:raise ValueError('unreviewed body mode payload')
@@ -100,14 +195,15 @@ def permits(actor,kind,*,returning=False):
  return not uses_standard or (row['mode']=='shrink' and returning is True and kind=='standard')
 
 
-def change(engine,actor,mode,*,size_ratio=None,offsets=None,mass_ratio=None,mass_weight_class=None,volume_ratio=None,appearance=None,height_m=None,form=None,cross_section=None,round_loss=None,loss_reason=None,shadow_host=None,shadow_offset=(0,0),reason):
+def change(engine,actor,mode,*,size_ratio=None,offsets=None,mass_ratio=None,mass_weight_class=None,volume_ratio=None,appearance=None,height_m=None,form=None,cross_section=None,round_loss=None,loss_reason=None,shadow_host=None,shadow_offset=(0,0),pokemon_size_choice=None,reason):
  import world_entities as W
  if W.actor_index(engine).get(actor.entity_id)is not actor:raise ValueError('actual registered body required')
  if volume_ratio is not None:raise ValueError('legacy volume shapeshift is not official mass state; use mass_ratio')
- if mode!='shapeshift' and any(x is not None for x in (mass_ratio,mass_weight_class,appearance)):raise ValueError('appearance inputs require shapeshift mode')
+ if mode!='shapeshift' and any(x is not None for x in (mass_ratio,mass_weight_class,appearance,pokemon_size_choice)):raise ValueError('appearance inputs require shapeshift mode')
+ if pokemon_size_choice is not None and (not isinstance(appearance,dict) or appearance.get('kind')!='pokemon'):raise ValueError('Pokemon size judgement belongs only to Pokemon appearance')
  if mode not in ('shapeshift','amorphous') and height_m is not None:raise ValueError('observed height requires a supported body form')
  if mode!='amorphous' and (form is not None or cross_section is not None):raise ValueError('Amorphous observation inputs require Amorphous mode')
- if mode!='phasing' and (round_loss is not None or loss_reason is not None):raise ValueError('small HP loss observation belongs only to Phasing')
+ if round_loss is not None or loss_reason is not None:raise ValueError('Phasing loses one source-defined Tick, not an observed HP amount')
  if mode!='shadow' and shadow_host is not None:raise ValueError('actual shadow host belongs only to Shadow Meld')
  if shadow_host is not None and W.actor_index(engine).get(shadow_host.entity_id)is not shadow_host:raise ValueError('actual registered shadow host required')
  if not isinstance(reason,str) or not reason.strip():raise ValueError('body-mode reason required')
@@ -123,7 +219,7 @@ def change(engine,actor,mode,*,size_ratio=None,offsets=None,mass_ratio=None,mass
    if mode not in DEFINITIONS:raise ValueError('reviewed body mode required')
    if old and not (old['mode']==mode and mode in ('shapeshift','amorphous')):raise ValueError('return to original body before applying another body mode')
    definition=DEFINITIONS[mode]
-   if mode=='amorphous' and c.kind!='pokemon':raise ValueError('native Amorphous form requires an actual Pokemon')
+   if mode=='amorphous' and c.kind not in ('pokemon','trainer'):raise ValueError('native Amorphous form requires an actual body')
    names=definition.get('aliases',(definition['capability'],))
    import skill_modifiers as SKILLS
    if not {SKILLS.key(x) for x in names}.intersection(SKILLS.key(str(x).removeprefix('capability/')) for x in G.effective_capabilities(c,only=names)):raise ValueError('actual body capability required')
@@ -140,7 +236,7 @@ def change(engine,actor,mode,*,size_ratio=None,offsets=None,mass_ratio=None,mass
    candidate=copy(c);candidate.spec=dict(c.spec)
    candidate.spec[KEY]={'mode':mode,'source':definition['source'],'size_ratio':size_ratio_value,'reason':reason,'footprint':{'kind':'observed_cells','offsets':deepcopy(offsets_value),'reason':reason}}
    if mode in SPIRIT_MODES:candidate.spec[KEY]['actor_id']=c.entity_id
-   if mode=='phasing':candidate.spec[KEY].update(round_loss={'amount':round_loss,'source':'gm/observation','reason':loss_reason},last_loss_round=None)
+   if mode=='phasing':candidate.spec[KEY].update(round_loss={'ticks':1,'source':definition['source']},last_loss_round=None)
    if mode=='shadow':
     host=None
     if shadow_host is not None:
@@ -152,6 +248,13 @@ def change(engine,actor,mode,*,size_ratio=None,offsets=None,mass_ratio=None,mass
    if mode=='shapeshift':
     if size_ratio is not None:raise ValueError('shapeshift mass does not imply linear size ratio')
     candidate.spec[KEY].update(size_ratio=1,mass_ratio=mass_ratio,mass_weight_class=mass_weight_class,appearance=deepcopy(appearance),height_m=height_m)
+    if _pokemon_appearance(candidate.spec[KEY]):
+     validate(candidate)
+     resolved=_size_resolution(c,candidate.spec[KEY],pokemon_size_choice)
+     if resolved['status']!='PolicyValuesReady' or pokemon_size_choice is None:raise ValueError('explicit current GM Pokemon size observation required')
+     if resolved['values']['comparable'] is not True:raise ValueError('intended Pokemon appearance is not comparable in size')
+     if set(pokemon_size_choice)!={'value','reason','scope'}:raise ValueError('current scoped GM Pokemon size judgement required')
+     candidate.spec[KEY]['pokemon_size_observation']={'choice':deepcopy(pokemon_size_choice),'policy':resolved}
    if mode=='amorphous':
     # Core p303 specifies no action cost or duration. This records an actual
     # observed form, without issuing a free-action or movement permission.
@@ -204,15 +307,15 @@ def target_visible(engine,actor,target):
  return any(not blocks_line(engine,a,b,ignored=(actor,target)) for a in BODY.cells(actor,require_complete=True) for b in BODY.cells(target,require_complete=True))
 
 
-def targetable(actor,*,attack=True):
+def targetable(actor,*,attack=True,engine=None):
  import marsupial_state as MARSUPIAL
- return not (attack and MARSUPIAL.in_pouch(actor)) and (validate(actor) or {}).get('mode')!='phasing'
+ return not (attack and MARSUPIAL.protected_from_attacks(actor,engine=engine)) and (validate(actor) or {}).get('mode')!='phasing'
 
 
-def require_targetable(actor,*,attack=True):
+def require_targetable(actor,*,attack=True,engine=None):
  import marsupial_state as MARSUPIAL
- if attack and MARSUPIAL.in_pouch(actor):raise ValueError('native Marsupial baby is protected in its actual mother pouch')
- if not targetable(actor,attack=attack):raise ValueError('Phasing body cannot be a Move or attack target')
+ if attack and MARSUPIAL.protected_from_attacks(actor,engine=engine):raise ValueError('native Marsupial baby is protected in its conscious mother pouch')
+ if not targetable(actor,attack=False):raise ValueError('Phasing body cannot be a Move or attack target')
 
 
 def flat(actor):
@@ -234,7 +337,7 @@ def finish_round(engine):
  for actor in COMBAT.members(engine):
   row=validate(actor)
   if not row or row['mode']!='phasing' or row['last_loss_round']==engine.round_no:continue
-  engine.lose_hp(actor,row['round_loss']['amount'],row['source'])
+  engine.lose_tick_hp(actor,row['round_loss']['ticks'],row['source'])
   row['last_loss_round']=engine.round_no
 
 

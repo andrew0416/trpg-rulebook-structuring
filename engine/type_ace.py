@@ -16,6 +16,89 @@ CLASS='class/타입-에이스';REFRESH='feat/타입-리프레쉬';SYNC='feat/기
 STRATAGEMS=frozenset(u for u,d in DEFINITIONS.items() if d.get('bound_ap'))
 ENGLISH={d['english']:u for u,d in DEFINITIONS.items()}
 KEY='type_ace_history'
+MINDBREAK_CONDITIONS=frozenset(('악몽','혼란','저주','사슬묶기','풀죽음','헤롱헤롱','난동','억압'))
+CQM_CHOICE='close_quarters_source'
+CQM_CHOICES='close_quarters_mark_choices'
+
+
+def _close_quarters_document(rules):
+ from source_context import verified_source
+ definitions=json.loads((Path(rules.root)/'data/type-ace-close-quarters-source.json').read_text(encoding='utf8'))['definitions']
+ for row in definitions.values():
+  source=row['source']
+  verified_source(rules,source,source_root='source-audit' if source['file'].startswith('source-audit/') else 'input',label='Close Quarters Mastery')
+ return {'schema':1,'id':'native/close-quarters-marking-source','variants':[{
+  'rule_id':uid('Close Quarters Mastery'),'source':definitions['korean_one_foe_per_marker']['source'],
+  'values':{'variant':{'$input':'source_text'},'definitions':definitions},
+  'inputs':{'source_text':{'type':'string','authority':'gm','decision_kind':'source_conflict','choices':list(definitions),
+   'question':'Close Quarters Mastery: Korean permits one marked foe per marker; English permits one marker per foe. Which complete source definition applies?'}}}]}
+
+
+def close_quarters_source_choices(rules):
+ return __import__('source_policy').resolve(rules,_close_quarters_document(rules))
+
+
+def _close_quarters_choice(rules,binding,*,current=False):
+ import source_selection as SELECTION,root_resolution as ROOT
+ if type(binding)is not dict or set(binding)!={'choice','resolution'}:raise ValueError('explicit complete Close Quarters source choice required')
+ choice=binding['choice'];resolved=binding['resolution'];document=_close_quarters_document(rules)
+ if type(choice)is not dict or set(choice)!={'value','reason','scope'} or type(resolved)is not dict:raise ValueError('scoped Close Quarters source decision required')
+ if not isinstance(choice['reason'],str) or not choice['reason'].strip():raise ValueError('Close Quarters source reason required')
+ values=SELECTION.policy_values(resolved['source_policy_binding'],document['variants']);selected=choice['value']
+ if (selected not in values['definitions'] or resolved['status']!='PolicyValuesReady'
+     or resolved['values']!={'variant':selected,'definitions':values['definitions']}
+     or resolved['selected_id']!=uid('Close Quarters Mastery') or resolved['definition_hash']!=ROOT.fingerprint(document)
+     or resolved['decision_scope']!=choice['scope']
+     or resolved['inputs_hash']!=ROOT.fingerprint({'context':{},'decisions':{'source_text':choice},'state':{}})
+     or resolved['decision_evidence']!=[{'input':'source_text','reason':choice['reason'],'decision_kind':'source_conflict','scope':choice['scope']}]):
+  raise ValueError('retained Close Quarters source decision changed')
+ if current and resolved!=__import__('source_policy').resolve(rules,document,decisions={'source_text':choice}):raise ValueError('current Close Quarters source scope changed; review required')
+ return deepcopy(values['definitions'][selected])
+
+
+def choose_close_quarters_source(engine,actor,decision,*,active_targets=()):
+ """Choose future production; explicitly rebind only named live Stratagems."""
+ import world_entities as W,class_passive_combat as P
+ W.require_actors(engine,actor)
+ if actor.kind!='trainer' or acquired(actor,uid('Close Quarters Mastery')) is None:raise ValueError('actual acquired Close Quarters owner required')
+ if not isinstance(active_targets,(tuple,list)) or len(set(active_targets))!=len(active_targets):raise ValueError('distinct actual sustained target identities required')
+ index=W.actor_index(engine)
+ for identity in active_targets:
+  p=index.get(identity);row=(P._state(p) or {}).get('sustains',{}).get(uid('Close Quarters Mastery')) if p is not None else None
+  if not row or row['owner_id']!=actor.entity_id or sustained(engine,p,uid('Close Quarters Mastery')) is None:raise ValueError('actual live owned Close Quarters sustain required')
+ resolved=__import__('source_policy').resolve(engine.r,_close_quarters_document(engine.r),decisions={'source_text':decision})
+ binding={'choice':deepcopy(decision),'resolution':resolved};_close_quarters_choice(engine.r,binding,current=True)
+ def commit(e,t,*targets):
+  before=deepcopy(t.spec.get(CQM_CHOICE));t.spec[CQM_CHOICE]=deepcopy(binding)
+  for p in targets:
+   row=P._state(p)['sustains'][uid('Close Quarters Mastery')]
+   row[CQM_CHOICE]=deepcopy(binding)
+  e.gm._rec('접근전의 달인 출처 선택',before,{'choice':deepcopy(decision),'active_targets':list(active_targets)},decision['reason'],who=t)
+  return deepcopy(binding)
+ return G.transition(engine,actor,commit,participants=tuple(index[x] for x in active_targets),include_rulings=True)
+
+
+def _close_quarters_current(engine,p):
+ row=sustained(engine,p,uid('Close Quarters Mastery'))
+ if row is None:return None
+ t,source=row;binding=source.get(CQM_CHOICE)
+ _close_quarters_choice(engine.r,binding,current=True)
+ if binding!=t.spec.get(CQM_CHOICE):raise ValueError('Close Quarters active sustain requires explicit current source adoption')
+ return binding
+
+
+def close_quarters_maneuver_preflight(engine,p,source):
+ if source in ('maneuver/걸기','maneuver/밀기','maneuver/잡기','maneuver/붙잡기','maneuver/그래플') and '격투' in p.types:
+  _close_quarters_current(engine,p)
+
+
+def _close_quarters_move_preflight(engine,p,move):
+ # prepare also serves damage/accuracy projection after native activation. The
+ # actual started call has already passed pre-payment admission; later source
+ # choices must not re-admit or invalidate that committed recipient.
+ uses=getattr(engine,'_event_use_scopes',())
+ if uses and uses[-1]['actor'] is p and uses[-1]['move_id']==move['id']:return
+ _close_quarters_current(engine,p)
 
 
 def uid(name):
@@ -107,7 +190,7 @@ def sustained(engine,p,feature):
  return P._active(engine,p,feature)
 
 
-def activate(engine,a,p,feature):
+def activate(engine,a,p,feature,*,communication=None):
  """Use the existing single Stratagem slot and identified Bound AP."""
  import class_passive_combat as P,cheerleader as CHEER,turn as TURN,action_points as AP,temporary_ap as TEMP
  feature=uid(feature);require(engine,a,p,feature)
@@ -119,20 +202,24 @@ def activate(engine,a,p,feature):
   import movement_actions as M
   caps=M.capabilities(engine,p)
   if '비행' not in p.types and not(caps.get('sky',0) or caps.get('levitate',0)):raise ValueError('Flying or Sky/Levitate target required')
- @CHEER.order_activation(None)
+ @CHEER.order_activation(feature)
  def apply(e,t,q):
   if not e.encounter_active or not q.on_field or q.fainted or q.captured:raise ValueError('available encounter Stratagem target required')
-  order_delivery(e,t,q,feature)
+  binding=deepcopy(t.spec.get(CQM_CHOICE)) if feature==uid('Close Quarters Mastery') else None
+  if binding is not None or feature==uid('Close Quarters Mastery'):_close_quarters_choice(e.r,binding,current=True)
+  import order_actions as ORDERS
+  delivery=order_delivery(e,t,q,feature) if communication is None else ORDERS.delivery(e,t,q,feature,communication=communication)
   P._require_stratagem_slot(q)
   if AP.available(t)<2:raise ValueError('Stratagem requires two available AP')
   TEMP.preflight_binding(t,2,P.KIND)
   if d['action']=='free':__import__('action_lifecycle').triggered_free_action(e,t,feature)
-  elif not TURN.spend(e,t,'standard',feature):raise ValueError('Stratagem Standard unavailable')
+  else:ORDERS.spend(e,t,feature,subject=q.entity_id,communication=delivery)
   state=P._state(q,create=True);state['serial']+=1;instance='class-passive:'+t.entity_id+':'+str(state['serial'])
   while instance in t.ap_account.identified_bindings(allow_missing=True):state['serial']+=1;instance='class-passive:'+t.entity_id+':'+str(state['serial'])
   t.ap_account.charge(2,mode='bind',instance_id=instance,temporary_binding_owner=P.KIND)
   row={'owner_id':t.entity_id,'target_id':q.entity_id,'instance':instance,'rule_id':feature,'clause_id':clause(feature),
    'acquisition_source':acquired(t,feature)['request_id'],'branch':branch,'lifetime':'sustained_2_ap_encounter'}
+  if binding is not None:row[CQM_CHOICE]=binding
   state['sustains'][feature]=row
   G._source(q,instance,P.KIND,owner_id=t.entity_id,lifetime=row['lifetime'],rule_id=feature,clause_id=row['clause_id'],acquisition_source=row['acquisition_source'],sustain=True,tutor_points=0,branch=branch)
   if feature==uid('Iron Grit'):e.change_stage(q,'def',1)
@@ -223,18 +310,20 @@ def sync(engine,a,p,branch,*,seconds,**decision):
  return G.transition(engine,a,apply,participants=(p,))
 
 
-def refresh(engine,a,p,branch,scene_move):
+def refresh(engine,a,p,branch,scene_move,*,communication=None):
  import cheerleader as CHEER,action_points as AP,turn as T,frequency as F,pokemon_move_edges as EDGE
  require(engine,a,p,REFRESH,branch);mid=engine.r.move_id(scene_move)
  if mid not in p.moves:raise ValueError('actual known Scene Move required')
  chosen=EDGE.prepare(engine,p,engine.r.move(mid))
  if chosen['type']!=branch or F.move_frequency(engine,mid,p)[0]!='scene':raise ValueError('matching Scene Move required')
- @CHEER.order_activation(None)
+ @CHEER.order_activation(REFRESH)
  def apply(e,t,q):
-  order_delivery(e,t,q,REFRESH)
+  if not e.encounter_active or not q.on_field or q.fainted or q.captured:raise ValueError('available actual Order recipient required')
+  import order_actions as ORDERS
+  delivery=order_delivery(e,t,q,REFRESH) if communication is None else ORDERS.delivery(e,t,q,REFRESH,communication=communication)
   _once(e,q,REFRESH)
   if AP.available(t)<2:raise ValueError('Type Refresh requires two AP')
-  if not T.spend(e,t,'standard',REFRESH):raise ValueError('Type Refresh Standard unavailable')
+  ORDERS.spend(e,t,REFRESH,subject=q.entity_id,communication=delivery)
   AP.spend(t,2);F.restore_scene_use(e,q,mid)
   for move in q.moves:
    native=EDGE.prepare(e,q,e.r.move(move))
@@ -279,8 +368,15 @@ def _stat_owner(engine,p,name):
 
 def sneak(engine,a,t):
  if t.fainted or t.conditions.intersection({'풀죽음','잠듦','구속','넘어짐'}):return True
+ if __import__('body_state').flanking(engine,t)['flanked'] is True:return True
  # Nonmechanical surprise requires an explicit observation, not a default.
- return engine.rulings.decide({'type':'type_ace_sneak_attack','actor':a.name,'target':t.name,'text':'Is the actual target flanked, unaware, or otherwise not expecting this attack?'}) is True
+ return engine.rulings.decide({'type':'type_ace_sneak_attack','actor':a.name,'target':t.name,'text':'Is the actual target unaware or otherwise not expecting this attack?'}) is True
+
+
+def _targets_marker(engine,a,t,move,marker):
+ for s in reversed(getattr(engine,'_move_activation_scopes',())):
+  if s['actor'] is a and s['move_id']==move['id']:return marker in s['targets']
+ return t is marker
 
 
 def accuracy(engine,a,t,move,mm):
@@ -288,8 +384,8 @@ def accuracy(engine,a,t,move,mm):
  row=sustained(engine,a,uid('Sneak Attack'))
  if row and sneak(engine,a,t):result+=2
  result-=_buff(t,'ace_zephyr') if __import__('class_passive_combat')._ranged(move) else 0
- mark=marked(engine,a)
- if mark and t is not mark and engine.adjacent(a,mark):
+ for mark in markers(engine,a):
+  if _targets_marker(engine,a,t,move,mark) or not engine.adjacent(a,mark):continue
   tr=_stat_owner(engine,mark,'Face Me Whelp')
   if tr:result-=rank(engine,tr,'격투')//2
  return result
@@ -297,14 +393,14 @@ def accuracy(engine,a,t,move,mm):
 
 def damage_bonus(engine,a,t,move,mult):
  result=all_rolls(a)+sum(r.get('ace_damage',0) for r in __import__('combat_timing').records(a) if not r.get('ace_vortex') or '조이기' in a.conditions)
- if move['type'] in ability_branches(engine,a,'last_chance') and any(r.get('ability')=='last_chance' for r in a.spec.get(KEY,[])):result+=10 if a.hp*3<a.max_hp else 5
+ if move['type'] in ability_branches(engine,a,'last_chance') and any(r.get('ability')=='last_chance' for r in a.spec.get(KEY,[])):result+=10 if a.hp*3<a.base_max_hp else 5
  row=sustained(engine,a,uid('Sneak Attack'))
  if row and sneak(engine,a,t):result+=rank(engine,row[0],'악')
  row=sustained(engine,a,uid('Mindbreak'))
- if row and move['type']=='에스퍼' and move['class']!='변화':result+=3*len(a.conditions.intersection({'악몽','혼란','저주','봉인','풀죽음','헤롱헤롱','난동','억압'}))
+ if row and move['type']=='에스퍼' and move['class']!='변화':result+=3*len(a.conditions.intersection(MINDBREAK_CONDITIONS))
  if __import__('class_passive_combat')._ranged(move):result-=10*_buff(t,'ace_zephyr')
- marker=marked(engine,a)
- if marker and marker is not t and engine.adjacent(a,marker) and _stat_owner(engine,marker,'Face Me Whelp'):result-=10
+ for marker in markers(engine,a):
+  if not _targets_marker(engine,a,t,move,marker) and engine.adjacent(a,marker) and _stat_owner(engine,marker,'Face Me Whelp'):result-=10
  s=scope(engine,a,move)
  if s:result+=s.get('damage_penalty',0)
  return result
@@ -325,7 +421,7 @@ def effect_range(engine,a,move):
  result=0
  if move['type']=='강철' and _stat_owner(engine,a,'Polished Shine'):result+=2
  row=sustained(engine,a,uid('Mindbreak'))
- if row and move['type']=='에스퍼' and move['class']!='변화':result+=len(a.conditions.intersection({'악몽','혼란','저주','봉인','풀죽음','헤롱헤롱','난동','억압'}))
+ if row and move['type']=='에스퍼' and move['class']!='변화':result+=len(a.conditions.intersection(MINDBREAK_CONDITIONS))
  return result
 
 
@@ -334,19 +430,215 @@ def initiative(engine,p):
  return rank(engine,row[0],'비행') if row else 0
 
 
-def marked(engine,p):
+def markers(engine,p):
+ result=[]
  for r in __import__('combat_timing').records(p):
-  if r.get('ace_marker'):return r['ace_marker']
- return None
+  marker=r.get('ace_marker')
+  if marker is not None and marker not in result:result.append(marker)
+ return result
+
+
+def marked(engine,p):
+ """Compatibility for scalar callers; never select an arbitrary marker."""
+ rows=markers(engine,p)
+ if len(rows)>1:raise ValueError('multiple Close Quarters markers; use markers collection')
+ return rows[0] if rows else None
+
+
+def _mark_pairs(engine):
+ import world_entities as W,combat_timing as T
+ return [(p,r) for p in W.actor_index(engine).values() for r in T.records(p) if r.get('ace_marker') is not None]
+
+
+def _mark_definition(engine,binding):
+ # Actual old marks/hit snapshots were incoming-exclusive. Preserve that known
+ # contract without inventing a past English source decision.
+ return {'outgoing_per_marker':None,'incoming_per_foe':1} if binding is None else _close_quarters_choice(engine.r,binding)
+
+
+def _mark_allowed(engine,p,t,binding):
+ definition=_mark_definition(engine,binding)
+ for foe,record in _mark_pairs(engine):
+  marker=record['ace_marker']
+  if marker is p and foe is t:continue
+  old=_mark_definition(engine,record.get(CQM_CHOICE))
+  if marker is p and (definition['outgoing_per_marker']==1 or old['outgoing_per_marker']==1):return False
+  if foe is t and (definition['incoming_per_foe']==1 or old['incoming_per_foe']==1):return False
+ return True
 
 
 def mark(engine,p,t):
- old=marked(engine,t)
- if old and old is not p:return False
+ if t is p or getattr(p,"side",None) is None or getattr(t,"side",None) is None or p.side==t.side:return False
+ binding=_close_quarters_current(engine,p)
+ if binding is None:return False
+ return _mark(engine,p,t,binding=binding)
+
+
+def _mark(engine,p,t,*,event=None,binding=None):
+ facts=event['close_quarters_hit'] if event is not None else None
+ if facts is not None:binding=facts['sustain'].get(CQM_CHOICE)
+ if not _mark_allowed(engine,p,t,binding):return False
  import combat_timing as T
  for r in list(T.records(t)):
-  if r.get('ace_marker'):T.expire(engine,t,r,ending='replaced')
- _timed(engine,t,uid('Close Quarters Mastery'),ace_marker=p);return True
+  if r.get('ace_marker') is p:T.expire(engine,t,r,ending='replaced')
+ historical={} if facts is None else {'ace_mark_event':event['id'],'count_deadline':(facts['round']+1,facts['count'])}
+ if binding is not None:historical[CQM_CHOICE]=deepcopy(binding)
+ _timed(engine,t,uid('Close Quarters Mastery'),ace_marker=p,**historical);return True
+
+
+def close_quarters_interested(engine,p,move):
+ return move.get('type')=='격투' and sustained(engine,p,uid('Close Quarters Mastery')) is not None
+
+
+def observe_close_quarters_hit(engine,p,t,move,event_id):
+ """The native hit leaf captures each actual recipient before any effect wait."""
+ if not close_quarters_interested(engine,p,move):return
+ import passive_events as EVENTS,combat_timing as T
+ event=getattr(engine,'_passive_events',{}).get(event_id)
+ if (event is None or event['actor'] is not p or event['target'] is not t or
+     event['move_id']!=move['id'] or event['phase']!='activated' or
+     event['producer'] not in ('Engine.use_move','Engine.use_move/defense-recipient') or
+     not any(row['stage']=='accuracy' and row['facts']['hit'] for row in EVENTS.observations(engine,event_id))):
+  raise ValueError('actual Close Quarters native recipient hit required')
+ if 'close_quarters_hit' in event:return
+ owner,source=sustained(engine,p,uid('Close Quarters Mastery'))
+ event['close_quarters_hit']={'feature':uid('Close Quarters Mastery'),'owner_id':owner.entity_id,
+  'acquisition':source['acquisition_source'],'sustain':deepcopy(source),
+  'actor_id':p.entity_id,'target_id':t.entity_id,'move_id':move['id'],
+  'actor_side':getattr(p,'side',None),'target_side':getattr(t,'side',None),
+  'round':engine.round_no,'count':T.current(engine)}
+
+
+def _close_quarters_hit(engine,event,index):
+ facts=event['close_quarters_hit'];feature=uid('Close Quarters Mastery')
+ fields={'feature','owner_id','acquisition','sustain','actor_id','target_id','move_id','actor_side','target_side','round','count'}
+ if not isinstance(facts,dict) or set(facts)!=fields:raise ValueError('Close Quarters hit evidence shape changed')
+ owner=index.get(facts['owner_id']);p=event['actor'];t=event['target'];source=facts['sustain']
+ if (facts['feature']!=feature or facts['actor_id']!=p.entity_id or facts['target_id']!=t.entity_id or
+     index.get(p.entity_id) is not p or index.get(t.entity_id) is not t or
+     facts['move_id']!=event['move_id'] or facts['round']!=event['round'] or
+     owner is None or owner.kind!='trainer' or p.kind!='pokemon' or
+     not any(row['request_id']==facts['acquisition'] for row in records(owner,feature)) or
+     not isinstance(source,dict) or source.get('owner_id')!=owner.entity_id or
+     source.get('target_id')!=p.entity_id or source.get('rule_id')!=feature or
+     source.get('acquisition_source')!=facts['acquisition']):
+  raise ValueError('Close Quarters hit source or recipient changed')
+ if any(side is not None and (not isinstance(side,str) or not side) for side in (facts['actor_side'],facts['target_side'])):
+  raise ValueError('Close Quarters observed sides changed')
+ if CQM_CHOICE in source:_close_quarters_choice(engine.r,source[CQM_CHOICE])
+ return facts
+
+
+def _close_quarters_result(row,event):
+ import move_completion as COMPLETE
+ if (row is None or row['phase']!='complete' or row['actor'] is not event['actor'] or
+     row['id']!=event['completion_id'] or event['hit'] is not True):return False
+ t=event['target'];result=COMPLETE.recipient_result(row,t)
+ if result is None or not result['hit'] or result.get('cancelled') or result.get('hit_prevented'):return False
+ if event.get('defense_parent'):
+  if result.get('child_event')!=event['id']:return False
+ elif t.entity_id in row.get('defense',{}) or t not in row['targets']:return False
+ returned=row.get('native_returns',{}).get(event['id'])
+ prevented=returned['facts']['hit_prevented'] if returned is not None else event.get('continuation',{}).get('result',{}).get('hit_prevented',False)
+ return not prevented
+
+
+def _close_quarters_events(engine,row):
+ import passive_events as EVENTS,world_entities as WORLD
+ index=WORLD.actor_index(engine);result=[]
+ for event in getattr(engine,'_passive_events',{}).values():
+  if event.get('completion_id')!=row['id'] or 'close_quarters_hit' not in event:continue
+  EVENTS._bind_intent(engine,event)
+  facts=_close_quarters_hit(engine,event,index);p=event['actor'];t=event['target']
+  if not _close_quarters_result(row,event):continue
+  if p is t or facts['actor_side'] is None or facts['target_side'] is None or facts['actor_side']==facts['target_side']:continue
+  result.append(event)
+ return result
+
+
+def _close_quarters_pending(engine,p,record):
+ import world_entities as W
+ if type(record)is not dict or set(record)!={'completion_id','event_ids','hit_facts','status','selected_event_id'}:raise ValueError('actual Close Quarters target-choice shape required')
+ row=getattr(engine,'_move_completions',{}).get(record['completion_id'])
+ if row is None or row['actor'] is not p or row['phase']!='complete':raise ValueError('actual completed Close Quarters attack required')
+ events=_close_quarters_events(engine,row)
+ expected=[e for e in events if _mark_definition(engine,e['close_quarters_hit']['sustain'].get(CQM_CHOICE))['outgoing_per_marker']==1]
+ if (len({e['target'].entity_id for e in expected})<2 or record['event_ids']!=[e['id'] for e in expected]
+     or record['hit_facts']!=[e['close_quarters_hit'] for e in expected]
+     or record['status'] not in ('pending','selected','declined')
+     or (record['status']=='selected')!=(record['selected_event_id'] in record['event_ids'])
+     or record['status']!='selected' and record['selected_event_id'] is not None):raise ValueError('Close Quarters choice differs from immutable actual hits')
+ W.require_actors(engine,p,*(e['target'] for e in expected))
+ return expected
+
+
+def pending_close_quarters_marks(engine,p):
+ """Only real completed multi-recipient hits awaiting their original deadline."""
+ import world_entities as W,combat_timing as T
+ W.require_actors(engine,p);result=[]
+ for record in p.spec.get(CQM_CHOICES,[]):
+  events=_close_quarters_pending(engine,p,record)
+  if record['status']=='pending' and any(r.get('ace_mark_choice')==record['completion_id'] for r in T.records(p)):
+   result.append({'completion_id':record['completion_id'],'targets':[e['target'].entity_id for e in events
+    if _mark_allowed(engine,p,e['target'],e['close_quarters_hit']['sustain'].get(CQM_CHOICE))]})
+ return result
+
+
+def resolve_close_quarters_mark(engine,p,completion_id,*,target):
+ """Select an actually hit foe, or decline; never repeat the paid attack."""
+ import world_entities as W,combat_timing as T
+ W.require_actors(engine,p)
+ rows=[r for r in p.spec.get(CQM_CHOICES,[]) if r['completion_id']==completion_id]
+ if len(rows)!=1:raise ValueError('one actual Close Quarters pending attack required')
+ record=rows[0];events=_close_quarters_pending(engine,p,record)
+ timers=[r for r in T.records(p) if r.get('ace_mark_choice')==completion_id]
+ if record['status']!='pending' or len(timers)!=1:raise ValueError('Close Quarters choice already resolved or original one-round window expired')
+ chosen=next((e for e in events if e['target'] is target),None) if target is not None else None
+ if target is not None:
+  W.require_actors(engine,target)
+  if chosen is None:raise ValueError('choose an actual completed eligible Close Quarters hit')
+  if not _mark_allowed(engine,p,target,chosen['close_quarters_hit']['sustain'].get(CQM_CHOICE)):raise ValueError('Close Quarters producing mark cap already occupied')
+ target_id=None if target is None else target.entity_id
+ def commit(e,a,*foes):
+  current=next(r for r in a.spec[CQM_CHOICES] if r['completion_id']==completion_id)
+  actual=_close_quarters_pending(e,a,current)
+  if target_id is not None:
+   event=next(x for x in actual if x['target'].entity_id==target_id)
+   if not _mark(e,a,event['target'],event=event):raise ValueError('Close Quarters producing mark cap already occupied')
+   current.update(status='selected',selected_event_id=event['id'])
+  else:current['status']='declined'
+  for timer in list(T.records(a)):
+   if timer.get('ace_mark_choice')==completion_id:T.expire(e,a,timer,ending=current['status'])
+  return deepcopy(current)
+ return G.transition(engine,p,commit,participants=tuple({e['target'].entity_id:e['target'] for e in events}.values()))
+
+
+def close_quarters_after_move(engine,row):
+ events=_close_quarters_events(engine,row)
+ if not events:return
+ p=row['actor'];korean=[]
+ for event in events:
+  binding=event['close_quarters_hit']['sustain'].get(CQM_CHOICE)
+  if _mark_definition(engine,binding)['outgoing_per_marker']==1:korean.append(event)
+  else:_mark(engine,p,event['target'],event=event)
+ if not korean:return
+ outgoing=[foe for foe,record in _mark_pairs(engine) if record['ace_marker'] is p]
+ if outgoing:
+  for event in korean:
+   if event['target'] in outgoing:_mark(engine,p,event['target'],event=event)
+  return
+ eligible=[e for e in korean if _mark_allowed(engine,p,e['target'],e['close_quarters_hit']['sustain'].get(CQM_CHOICE))]
+ if len({e['target'].entity_id for e in eligible})==1:
+  _mark(engine,p,eligible[0]['target'],event=eligible[0]);return
+ if not eligible:return
+ # A free outgoing slot plus several actual completed foes has no source-
+ # authored first recipient. Keep the completed hit facts for an explicit choice.
+ if any(r['completion_id']==row['id'] for r in p.spec.get(CQM_CHOICES,[])):return
+ record={'completion_id':row['id'],'event_ids':[e['id'] for e in korean],
+  'hit_facts':deepcopy([e['close_quarters_hit'] for e in korean]),'status':'pending','selected_event_id':None}
+ p.spec.setdefault(CQM_CHOICES,[]).append(record)
+ facts=korean[0]['close_quarters_hit']
+ _timed(engine,p,uid('Close Quarters Mastery'),ace_mark_choice=row['id'],count_deadline=(facts['round']+1,facts['count']))
 
 
 def defense_locked(engine,p,stat):
@@ -362,7 +654,9 @@ def scope(engine,p,move):
 
 def prepare(engine,p,move):
  s=scope(engine,p,move)
- if not s and not(move['type']=='고스트' and _buff(p,'ace_boo')):return move
+ if not s and not(move['type']=='고스트' and _buff(p,'ace_boo')):
+  if move['type']=='격투':_close_quarters_move_preflight(engine,p,move)
+  return move
  s=s or {};out=dict(move)
  if 'range' in s:out.update(range=s['range']['raw'],_class_move_range=deepcopy(s['range']))
  if s.get('type'):out['type']=s['type']
@@ -370,6 +664,7 @@ def prepare(engine,p,move):
  if s.get('feature')==uid('New Normal'):out['_type_ace_new_normal']=True
  if move['type']=='고스트' and _buff(p,'ace_boo'):
   out['_type_ace_boo']=True;out['keywords']=list(dict.fromkeys(list(out.get('keywords') or [])+['강타']))
+ if out['type']=='격투':_close_quarters_move_preflight(engine,p,out)
  return out
 
 
@@ -417,9 +712,11 @@ def use_move(engine,a,p,target,move,*,feature,aim=None,set_damage=False,choice=N
   if type(choice) is not dict or set(choice)!={'penalty','status'}:raise ValueError('choose actual damage-roll penalty and one affliction to cure')
   s.update(penalty=choice['penalty'],status=choice['status'])
  else:raise ValueError('this Type Ace feature uses its own native producer')
+ if s.get('type',native['type'])=='격투':_close_quarters_current(engine,p)
  pending=[]
  def apply(e,t,q,b):
   if hasattr(e,'_type_ace_scope'):raise ValueError('nested selected Type Ace Move declaration')
+  if name=='Gale Strike' and not F.activation_allowed(t,feature,d['frequency'],engine=e):raise ValueError('Type Ace Feature frequency exhausted')
   if name in ('Earthroil','Flood!'):s['pokemon_action']='shift';_pay(e,t,q,feature)
   elif name not in ('Assault Armor','Gneiss Aim','New Normal','Gale Strike','Fountain of Life'):_pay(e,t,q,feature)
   s['trainer']=t;s['pokemon']=q
@@ -446,8 +743,6 @@ def damage_choice(engine,p,move,db):
  name=DEFINITIONS[s['feature']]['english']
  if name not in ('Assault Armor','New Normal'):return db
  if not s['paid']:_pay(engine,s['trainer'],p,s['feature'],per_pokemon=name=='New Normal');s['paid']=True
- if name=='New Normal':
-  db=min(14,db)
  return db
 
 
@@ -478,7 +773,7 @@ def accuracy_face(engine,p,t,move,mm,face,*,modifier,ac,evasion,automatic,cannot
  s=scope(engine,p,move)
  if not s or s['feature']!=uid('Gale Strike'):return face
  if 'gale_faces' not in s:
-  second=engine.d20();s['gale_faces']=[face,second]
+  second=engine.roll_d20(p,'gale_accuracy_reroll');s['gale_faces']=[face,second]
   answer=engine.rulings.decide({'type':'type_ace_gale_strike','unit':s['feature'],'actor':p.name,'faces':s['gale_faces'],'text':'Choose first or second actual Accuracy die.'})
   if answer not in ('first','second'):raise ValueError('explicit Gale Strike die selection required')
   chosen=face if answer=='first' else second;s['gale_selected']=chosen
@@ -513,6 +808,7 @@ def react(engine,a,p,feature,completion_id,**options):
  if name in ('Clever Ruse','Miasma') and (move['type']!=branch or (not _completed_targets(row,False) if name=='Miasma' else bool(hits))):raise ValueError('actual missed typed attack required')
  if name=='Disruption Order':options['x']=rank(engine,a,'벌레')//2
  if name=='Clever Ruse' and engine._active_turn_actor is not p:raise ValueError('Clever Ruse requires the actual own turn')
+ if name=='Cross-Pollinate' and '풀' not in p.types:raise ValueError('actual Grass Pokemon required for Cross-Pollinate')
  def apply(e,t,q,*_):
   # Staged copies only: the completion row and every hit recipient are re-read from the staged engine.
   import world_entities as W
@@ -526,8 +822,8 @@ def react(engine,a,p,feature,completion_id,**options):
   elif name=='Black-Out Strike':
    _once(e,t,feature+':scene',consume=True)
    for target in shits:
-    target.injuries+=1;__import__('precise_actions').injury(e,target,1,feature);__import__('life').sync(e,target)
-    if target.injuries>=3 or target.hp*4<=target.max_hp:__import__('life').faint(e,target)
+    __import__('precise_actions').gain_injury(e,target,1,feature);__import__('life').sync(e,target)
+    if target.injuries>=3 or target.hp*4<=target.base_max_hp:__import__('life').faint(e,target)
     else:e.apply_status(target,'잠듦',source=feature,applied_by=q)
   elif name=='Tyrant’s Roar':
    for target in e.everyone:
@@ -543,11 +839,21 @@ def react(engine,a,p,feature,completion_id,**options):
    if target not in shits or not e.adjacent(q,target):raise ValueError('actual adjacent Ghost hit recipient required')
    e.lose_hp(target,e.tick(target),source=feature);e.change_stage(target,stat,-1);e.change_stage(q,stat,1);__import__('temporary_hp').grant(e,q,e.tick(q),provenance={'feature':feature})
   elif name=='Corrosive Blight':
-   for target in (h for h in shits if h.side!=q.side):_timed(e,target,feature,ace_blight=True)
+   for target in (h for h in shits if h.side!=q.side):
+    import combat_timing as T
+    existing=[r for r in T.records(target) if r.get('ace_blight')]
+    if existing:
+     existing[0]['count_deadline']=(e.round_no+1,T.current(e))
+     for old in existing[1:]:T.expire(e,target,old,ending='refreshed')
+    else:_timed(e,target,feature,ace_blight=True)
   elif name=='Aqua Vortex':
    for target in srow['targets']:
     e.apply_status(target,'조이기',source=feature,applied_by=q)
-    _timed(e,target,feature,scene=True,ace_vortex=True,ace_damage=-x)
+    if '조이기' in target.conditions:
+     import combat_timing as T
+     for old in list(T.records(target)):
+      if old.get('ace_vortex'):T.expire(e,target,old,ending='refreshed')
+     _timed(e,target,feature,scene=True,ace_vortex=True,ace_damage=-x)
   elif name=='Bigger and Boulder':_boulder(e,t,q,shits,opts,x)
   elif name in ('Devious','Cross-Pollinate','Arctic Zeal','Psychic Resonance','Force of Will','Miasma','Chain Lightning'):
    return _extra_move(e,t,q,feature,srow,opts)
@@ -601,6 +907,7 @@ def _extra_move(engine,a,p,feature,row,options):
   if '악' not in p.types or not original_kws.intersection({'사회적','Social'}):raise ValueError('Dark Pokemon actual Social Move required')
   if mid==trigger['id'] or not((move['type']=='악' and move['class']=='변화') or kws.intersection({'사회적','Social'})):raise ValueError('different naturally Dark Status or Social Move required')
  elif name=='Cross-Pollinate':
+  if '풀' not in p.types:raise ValueError('actual Grass Pokemon required for Cross-Pollinate')
   if move['type']!='풀' or move['class']!='변화':raise ValueError('known Grass Status Move required')
  elif name=='Force of Will':
   def valid(m):return m['type']=='에스퍼' and m['class']=='변화' and any(token in str(m.get('range')) for token in ('축복','필드','함정','자신','Blessing','Field','Hazard','Self'))
@@ -655,11 +962,10 @@ def after_move(engine,row):
  if move['type'] in ability_branches(engine,p,'strategist'):
   for old in list(__import__('combat_timing').records(p)):
    if old.get('ace_strategist'):__import__('combat_timing').expire(engine,p,old,ending='refreshed')
-  _timed(engine,p,CLASS,ace_strategist=True,ace_dr=10 if p.hp*3<p.max_hp else 5)
+  _timed(engine,p,CLASS,ace_strategist=True,ace_dr=10 if p.hp*3<p.base_max_hp else 5)
  if sustained(engine,p,uid('Haunting Curse')) and move['type']=='고스트':
   _curse_token(engine,p)
- if sustained(engine,p,uid('Close Quarters Mastery')) and move['type']=='격투':
-  for t in hits:mark(engine,p,t)
+ close_quarters_after_move(engine,row)
  if sustained(engine,p,uid('Debilitate')) and move['type']=='독':
   for t in hits:
    if t.conditions.intersection({'독','맹독'}) or any(r.get('ace_blight') for r in __import__('combat_timing').records(t)):_timed(engine,t,uid('Debilitate'),accuracy_modifier=-2,ace_evasion=-2)
@@ -671,7 +977,9 @@ def after_move(engine,row):
  if sustained(engine,p,uid('Fey Trance')):
   import weapon_actions as W
   rng=W.range_spec(engine,move,p);kws=set(move.get('keywords') or [])|set(engine.r.move_mech(move['id'])[0].get('header',{}).get('keywords') or [])
-  if rng.get('targets')==1 and (kws.intersection({'사회적','Social'}) or move['type']=='페어리' and move['class']=='변화'):
+  # In both texts, "1-Target" qualifies the Social Move alternative. The
+  # separate Fairy Status alternative applies to each actual foe hit.
+  if (rng.get('targets')==1 and kws.intersection({'사회적','Social'})) or (move['type']=='페어리' and move['class']=='변화'):
    for t in hits:
     if t.side==p.side:continue
     if __import__('frequency').activation_allowed(t,uid('Fey Trance'),{'kind':'scene','uses':1},engine=engine):
@@ -736,12 +1044,21 @@ def disengage(engine,p,path,*,mode='land',free=False):
   else:engine._type_ace_disengage=previous
 
 
-def _trip(engine,a,p,target,feature,options):
+def _trip_plan(engine,a,p,target,feature,options,event,recipients):
  import maneuver_opposed as M
  opts=dict(options.get('challenger_options') or {});opts['mods']=opts.get('mods',0)+rank(engine,a,'땅')//2
+ defender=dict(options.get('defender_options') or {})
+ identity='upheaval:'+p.entity_id+':'+str(next(iter(event.items())))+':'+target.entity_id
+ opts.setdefault('roll_id',identity+':challenger');defender.setdefault('roll_id',identity+':defender')
  config={'action_cost':'free','accuracy':'ordinary','opposed':'required','success':'check','geometry':{'range':max(1,__import__('grid').cheb(p.pos,target.pos)),'remote':True,'vertical':False},'requirements':[], 'challenger_skills':['전투'],'defender_skills':['전투','곡예'],'resistance_purpose':'resist_trip','challenger_purpose':None,'accuracy_class':'변화','opportunity':'other_adjacent'}
  cs=options.get('challenger_skill','전투');ds=options.get('defender_skill');fixed=options.get('fixed_accuracy')
- plans,prepared=M._prepare(engine,p,target,M.TRIP,(),cs,ds,fixed,opts,options.get('defender_options'),{'feature':feature,'acquisition':acquired(a,feature)['request_id']},config=config)
+ plans,prepared=M._prepare(engine,p,target,M.TRIP,(),cs,ds,fixed,opts,defender,{'feature':feature,'acquisition':acquired(a,feature)['request_id'],'upheaval_event':event,'upheaval_targets':recipients},config=config,observe=True)
+ return plans,prepared,fixed,config
+
+
+def _trip(engine,p,target,feature,plan):
+ import maneuver_opposed as M
+ plans,prepared,fixed,config=plan
  def outcome(won):
   if won:engine.apply_status(target,'넘어짐',source=feature,applied_by=p)
   return won
@@ -766,10 +1083,11 @@ def ability_registration(engine,p,identity):
  return identity=='ability/마지막기회' and any(r.get('ability')=='last_chance' for r in p.spec.get(KEY,[]))
 
 
-def choose(engine,p,feature,**facts):
+def choose(engine,p,feature,*,per_pokemon=False,**facts):
  a=owner(engine,p,feature)
  if a is None:return None
  if not __import__('frequency').activation_allowed(a,feature,DEFINITIONS[feature]['frequency'],engine=engine):return None
+ if per_pokemon and not __import__('frequency').activation_allowed(p,feature,{'kind':'scene','uses':1},engine=engine):return None
  answer=engine.rulings.decide({'type':'type_ace_choice','feature':feature,'actor':p.name,**facts})
  return a if answer is True else None
 
@@ -804,6 +1122,7 @@ def hazard_definition(rules,source,data):
  __import__('trainer_feature_acquisition')._static_source(rules,source)
  row=next(dict(r) for r in data['moves'].values() if r['kind']==('spikes' if kinds[source] in ('spikes','fire') else 'stealth_rock'))
  row.update(kind=kinds[source],clause_id=clause(source),source_row_sha256=_data['source_sha256'],name='불길' if kinds[source]=='fire' else row['name'])
+ if kinds[source]=='fire':row['slow']=False
  return row
 
 
@@ -824,7 +1143,7 @@ def _boulder(engine,a,p,hits,options,x):
   d=directions[t.entity_id]
   if type(d) is not dict or set(d)!={'direction','distance'}:raise ValueError('direction and actual push distance required')
   C.integer(d['distance'],'Boulder push',0,x//2)
-  FM.displace(engine,p,t,direction=d['direction'],distance=d['distance'],source=uid('Bigger and Boulder'))
+  if not push_immunity(engine,t):FM.displace(engine,p,t,direction=d['direction'],distance=d['distance'],source=uid('Bigger and Boulder'))
   _timed(engine,t,uid('Bigger and Boulder'),statuses=['취약'])
   if t.side!=p.side:_place_rock(engine,p,uid('Bigger and Boulder'),cell=cells[t.entity_id],adjacent_to=t)
 
@@ -840,8 +1159,14 @@ def preserve_rock(engine,instance):
  return False
 
 
-def foiling(engine,a,p,move,*,seconds,reason):
- feature=uid('Foiling Foliage');require(engine,a,p,feature)
+def foiling(engine,a,p,move,*,seconds,reason,feature=None):
+ canonical=uid('Foiling Foliage');feature=canonical if feature is None else feature
+ if feature==canonical:require(engine,a,p,feature)
+ elif feature=='C2CSV/input/db/feats.csv:R265:main':
+  import move_state as MOVES,world_entities as W
+  W.require_actors(engine,a,p);MOVES._require_slot_feature(a,feature)
+  if p.kind!='pokemon' or p.spec.get('trainer_id')!=a.entity_id:raise ValueError('Foiling Foliage requires your actual Pokemon')
+ else:raise ValueError('exact book or CSV Foiling Foliage source required')
  def apply(e,t,q):
   _extended(e,t,q,feature,seconds,reason)
   return __import__('move_state').select_foiling(e,t,q,move,reason=reason,feature=feature)
@@ -1032,7 +1357,7 @@ def blocks_hit(engine,a,p,move):
 
 def incoming_hit(engine,a,p,move,hit):
  feature=uid('Chitin Shield')
- t=choose(engine,p,feature,trigger='hit_status_move',move=move['id']) if hit and '벌레' in p.types and move['class']=='변화' else None
+ t=choose(engine,p,feature,per_pokemon=True,trigger='hit_status_move',move=move['id']) if hit and '벌레' in p.types and move['class']=='변화' else None
  if t:
   _pay(engine,t,p,feature,per_pokemon=True);_timed(engine,p,feature,scene=True,ace_chitin_move=move['id']);return False
  pool=_lights(p)
@@ -1046,8 +1371,8 @@ def incoming_hit(engine,a,p,move,hit):
 
 
 def after_damage(engine,a,p,move,dealt,crit):
- if '바위' in p.types and (crit or p.fainted):
-  feature=uid('Gravel Before Me');t=choose(engine,p,feature,trigger='critical_or_faint')
+ if '바위' in p.types and crit:
+  feature=uid('Gravel Before Me');t=choose(engine,p,feature,trigger='actual_critical_hit')
   if t:_pay(engine,t,p,feature);_place_rock(engine,p,feature)
 
 
@@ -1062,13 +1387,13 @@ def return_from_ghost(engine,p):
   for node in answer:
    if mode in ('sky','levitate'):
     if type(node) is not dict:raise ValueError('actual aerial return path required')
-    point=M._point(node.get('position'));height=node.get('altitude');M._aerial_height(engine,probe,mode,height)
+    point=M._point(node.get('position'));height=node.get('altitude');M._aerial_height(engine,probe,mode,height,destination=point,capability_actor=p)
     segment=[{'position':probe.pos,'altitude':probe.spec.get('_movement_altitude',0)},node]
     cost=M.observed_path(engine,probe,segment)['distance']
    else:
     point=M._point(node);height=probe.spec.get('_movement_altitude',0)
     cost,diagonals=M.step_cost(probe.pos,point,diagonals);cost+=M.slow_terrain_penalty(engine,probe,point,mode,step=cost)
-   if not TERRAIN.can_travel(engine,probe,point,mode,altitude=height) or not B.can_place(engine,probe,point,origin=probe.pos,altitude=height):raise ValueError('Ghost Step return path is blocked')
+   if not TERRAIN.can_travel(engine,probe,point,mode,altitude=height,capability_actor=p) or not B.can_place(engine,probe,point,origin=probe.pos,altitude=height):raise ValueError('Ghost Step return path is blocked')
    spent+=cost
    if spent>r['maximum']:raise ValueError('Ghost Step return exceeds actual Shift reach')
    probe.pos=point;probe.spec['_movement_altitude']=height
@@ -1088,7 +1413,7 @@ def start_turn(engine,p):
   for r in returned:r.pop('reappeared')
   feature=uid('Boo!');t=choose(engine,p,feature,trigger='actual_ghost_reappearance' if returned else 'actual_setup_reappearance',**({} if returned else {'move':setup}))
   if t:_pay(engine,t,p,feature);_timed(engine,p,feature,this_turn=True,ace_boo=True)
- feature=uid('Simple Improvements');t=choose(engine,p,feature,trigger='gains_initiative') if '노말' in p.types else None
+ feature=uid('Simple Improvements');t=choose(engine,p,feature,per_pokemon=True,trigger='gains_initiative') if '노말' in p.types else None
  if t:
   _pay(engine,t,p,feature,per_pokemon=True);x=rank(engine,t,'노말')
   _timed(engine,p,feature,this_turn=True,ace_all_rolls=x);__import__('temporary_hp').grant(engine,p,2*x,provenance={'feature':feature})
@@ -1103,14 +1428,18 @@ def mold(engine,a,p,row,*,changes,geometry,reason):
  """The actual Ground Move supplies the extra Groundshaper footprint."""
  feature=uid('Mold the Earth');require(engine,a,p,feature)
  if row['move']['type']!='땅':raise ValueError('actual completed Ground Move required')
+ if not _cap(p,'지형변화','Groundshaper'):raise ValueError('actual Groundshaper capability required')
  import terrain_actions as T,hazard_state as H,world_entities as W,body_state as B
- if geometry=='move_area':
+ if geometry=='normal':
+  body=B.cells(p,require_complete=True)
+  cells={(x+dx,y+dy) for x,y in body for dx,dy in ((1,0),(-1,0),(0,1),(0,-1))}-body
+ elif geometry=='move_area':
   cells={tuple(x) for x in row['move'].get('_effect_area_cells',[])}
   if not cells:raise ValueError('actual Move area cells required')
  elif geometry=='around_target':
   if len(row['targets'])!=1:raise ValueError('one actual targeted cell required')
   x,y=row['targets'][0].pos;cells={(x,y),(x+1,y),(x-1,y),(x,y+1),(x,y-1)}
- else:raise ValueError('choose actual Move area or targeted cell and cardinal neighbors')
+ else:raise ValueError('choose normal Groundshaper range, actual Move area or targeted cell and cardinal neighbors')
  if not {T.point(c['cell']) for c in changes}<=cells:raise ValueError('Groundshaper changes outside actual Move scope')
  scope={'pokemon':p,'completion_id':row['id'],'allowed_cells':[list(x) for x in sorted(cells)],'feature':feature}
  old=getattr(engine,'_type_ace_terrain',None);engine._type_ace_terrain=scope
@@ -1172,24 +1501,25 @@ def action_cost(engine,p,move,current):
 
 
 def mark_departure(engine,p,destination):
- marker=marked(engine,p)
- if marker is None or not engine.adjacent(marker,p):return
  from copy import copy
  import body_state as B
  probe=copy(p);probe.spec=dict(p.spec);probe.pos=tuple(destination)
- if not B.adjacent(marker,probe):__import__('turn').trigger_aoo(engine,p,'Close Quarters mark departure',[marker])
+ leaving=[marker for marker in markers(engine,p) if engine.adjacent(marker,p) and not B.adjacent(marker,probe)]
+ if leaving:__import__('turn').trigger_aoo(engine,p,'Close Quarters mark departure',leaving)
 
 
 def smite(engine,p,target,move,set_damage):
  s=scope(engine,p,move)
- if not(move.get('_type_ace_boo') or s and s['feature']==uid('Gneiss Aim')):return 0
- import arithmetic_policy as M
- amount=M.ratio(engine.roll_damage(p,target,move,False,set_damage),2)
- engine.take_damage(target,amount);return amount
+ if not(move.get('_type_ace_boo') or s and s['feature']==uid('Gneiss Aim') or __import__('ace_trainer').vicious_storm(engine,p,move)):return 0
+ import arithmetic_policy as M,attack_damage_history as HISTORY
+ facts={}
+ amount=M.ratio(engine.roll_damage(p,target,move,False,set_damage,_precision_observation=facts),2)
+ HISTORY.apply_smite(engine,p,target,move,amount,facts.get('actual_damage_type',move['type']))
+ return amount
 
 
 def aoo(engine,p,target,grant):
- feature=uid('Smashing Punishment');t=choose(engine,p,feature,trigger='actual_marked_opportunity_attack',target=target.name) if '격투' in p.types and marked(engine,target) is p else None
+ feature=uid('Smashing Punishment');t=choose(engine,p,feature,trigger='actual_marked_opportunity_attack',target=target.name) if '격투' in p.types and p in markers(engine,target) else None
  if not t:return engine.use_move(p,target,'struggle',count_use=False,free_action=True,_action_grant=grant)
  _pay(engine,t,p,feature)
  s={'trainer':t,'pokemon':p,'feature':feature,'move_id':'struggle','type':'격투','ace_aoo':True,'paid':True}
@@ -1215,15 +1545,43 @@ def lockdown(engine,p,condition,source,applied_by):
 
 
 def up_execution(engine,a,p,completion_id,targets,*,options=None):
- feature=uid('Upheaval');require(engine,a,p,feature);row=completion(engine,p,completion_id)
- kws=set(row['move'].get('keywords') or [])
- terrain=[r for r in p.spec.get('groundshaper_history',[]) if r.get('seconds')==engine.elapsed_seconds]
- if not terrain and not kws.intersection({'지면통과','Groundsource'}):raise ValueError('actual Groundsource or Groundshaper activation required')
- eligible=set(row['targets']);cells={tuple(c['cell']) for r in terrain for c in r['changes']}
- eligible.update(t for t in engine.everyone if t.pos in cells)
- if not targets or not set(targets)<=eligible:raise ValueError('actual targeted or changed-cell Trip recipients required')
- _pay(engine,a,p,feature)
- return [_trip(engine,a,p,t,feature,(options or {}).get(t.entity_id,{})) for t in targets]
+ feature=uid('Upheaval');require(engine,a,p,feature)
+ import terrain_actions as T,world_entities as W,body_state as B
+ T.validate_history(p)
+ if completion_id is not None:
+  row=completion(engine,p,completion_id)
+  if not set(row['move'].get('keywords') or []).intersection({'지면통과','Groundsource'}):raise ValueError('actual Groundsource Move required')
+  eligible=set(row['targets']);event={'completion_id':completion_id}
+ else:
+  terrain=p.spec.get(T.HISTORY,[])
+  if not terrain or terrain[-1]['seconds']!=engine.elapsed_seconds:raise ValueError('current actual Groundshaper activation required')
+  receipt=terrain[-1];cells={tuple(c['cell']) for c in receipt['changes']}
+  eligible={t for t in engine.everyone if t.kind=='pokemon' and t.on_field and B.cells(t,require_complete=True).intersection(cells)}
+  event={'groundshaper_sequence':receipt['sequence']}
+ if not targets or len(set(targets))!=len(targets) or any(t.kind!='pokemon' for t in targets) or not set(targets)<=eligible:raise ValueError('actual targeted or changed-cell Trip recipients required')
+ W.require_actors(engine,*targets)
+ import skill_maneuver_actions as M
+ consumed=any(r['source']==feature and all(r.get(k)==v for k,v in event.items()) for r in p.spec.get(KEY,[]))
+ active=p.custom_conditions.get(M.RECEIPTS,{}).get(p.custom_conditions.get(M.ACTIVE),{})
+ basis=active.get('basis',{})
+ recipients=[t.spec['id'] for t in targets]
+ resume=consumed and basis.get('feature')==feature and basis.get('acquisition')==acquired(a,feature)['request_id'] and basis.get('upheaval_event')==event and basis.get('upheaval_targets')==recipients
+ if consumed and not resume:raise ValueError('Upheaval already consumed this actual activation')
+ if resume:
+  start=next((i for i,t in enumerate(targets) if t.spec.get('id')==basis.get('target')),None)
+  if start is None:raise ValueError('same observed Upheaval recipient required')
+  targets=targets[start:]
+ # Validate every Trip before the first payment. An observed retry first
+ # finishes its current maneuver; the same owner then admits later recipients.
+ plans=[_trip_plan(engine,a,p,t,feature,(options or {}).get(t.entity_id,{}),event,recipients) for t in (targets[:1] if resume else targets)]
+ if not resume:_pay(engine,a,p,feature);_history(p,feature,**event)
+ # The maneuver owner retains paid observations and its existing resume boundary.
+ results=[]
+ for i,t in enumerate(targets):
+  plan=plans[i] if i<len(plans) else _trip_plan(engine,a,p,t,feature,(options or {}).get(t.entity_id,{}),event,recipients)
+  result=_trip(engine,p,t,feature,plan);results.append(result)
+  if isinstance(result,C.PendingDecision):break
+ return results
 
 
 def chain(engine,a,p,row,options):
@@ -1440,23 +1798,35 @@ def move_interested(engine,p,t=None):
  return bool(sustained(engine,p,uid('Fey Trance')))
 
 
+def _this_will_owner(engine,p):
+ feature=uid('This Will Not Stand');a=owner(engine,p,feature)
+ if a is not None:return a
+ a=trainer(engine,p)
+ # Existing receipt history stays authoritative, including withdrawn ownership.
+ if a is None or records(a,feature):return None
+ import world_entities as W,class_actor_state_reactions as REACTIONS
+ W.require_actors(engine,a,p)
+ return a if REACTIONS.acquired_source(a,feature) is not None else None
+
+
 def hp_interested(engine,p):
- return '드래곤' in p.types and owner(engine,p,uid('This Will Not Stand')) is not None
+ return '드래곤' in p.types and _this_will_owner(engine,p) is not None
 
 
 def hp_changed(engine,p,before,maximum):
  if not hp_interested(engine,p) or not before*2>maximum>=p.hp*2:return
  feature=uid('This Will Not Stand')
  if not __import__('frequency').activation_allowed(p,feature,{'kind':'scene','uses':1},engine=engine):return
- t=choose(engine,p,feature,trigger='above_half_to_half_or_below')
- if not t:return
+ t=_this_will_owner(engine,p)
+ if not __import__('frequency').activation_allowed(t,feature,DEFINITIONS[feature]['frequency'],engine=engine):return
+ if engine.rulings.decide({'type':'type_ace_choice','feature':feature,'actor':p.name,'trigger':'above_half_to_half_or_below'}) is not True:return
  _pay(engine,t,p,feature,per_pokemon=True)
  engine.apply_status(p,'난동',source=feature,applied_by=p)
  for stat in ('atk','spa','spe'):engine.change_stage(p,stat,1)
 
 
 def maneuver_hit(engine,p,t,source):
- if source in ('maneuver/걸기','maneuver/밀기','maneuver/잡기','maneuver/붙잡기','maneuver/그래플') and '격투' in p.types and p.side!=t.side and sustained(engine,p,uid('Close Quarters Mastery')):mark(engine,p,t)
+ if source in ('maneuver/걸기','maneuver/밀기','maneuver/잡기','maneuver/붙잡기','maneuver/그래플') and '격투' in p.types and sustained(engine,p,uid('Close Quarters Mastery')):mark(engine,p,t)
 
 
 def range_actor(engine,p,move):
@@ -1467,7 +1837,40 @@ def range_actor(engine,p,move):
 def validate(engine):
  import world_entities as W
  index=W.actor_index(engine)
+ for event in getattr(engine,'_passive_events',{}).values():
+  if 'close_quarters_hit' in event:
+   _close_quarters_hit(engine,event,index)
+   if event['phase']!='activated':__import__('passive_events')._bind_intent(engine,event)
  for p in index.values():
+  if CQM_CHOICE in p.spec:_close_quarters_choice(engine.r,p.spec[CQM_CHOICE])
+  active=(__import__('class_passive_combat')._state(p) or {}).get('sustains',{}).get(uid('Close Quarters Mastery'))
+  if active and CQM_CHOICE in active:_close_quarters_choice(engine.r,active[CQM_CHOICE])
+  choices=p.spec.get(CQM_CHOICES,[])
+  if not isinstance(choices,list) or len({r['completion_id'] for r in choices})!=len(choices):raise ValueError('distinct actual Close Quarters choice histories required')
+  for choice in choices:_close_quarters_pending(engine,p,choice)
+  seen=set()
+  for effect in __import__('combat_timing').records(p):
+   if effect.get('ace_marker') is not None:
+    marker=effect['ace_marker']
+    if index.get(marker.entity_id) is not marker or marker.entity_id in seen:raise ValueError('one actual Close Quarters pair record required')
+    seen.add(marker.entity_id)
+    if CQM_CHOICE in effect:_close_quarters_choice(engine.r,effect[CQM_CHOICE])
+    if not _mark_allowed(engine,marker,p,effect.get(CQM_CHOICE)):raise ValueError('active Close Quarters producing cap violated')
+   if effect.get('ace_mark_choice') is not None:
+    pending=[r for r in choices if r['completion_id']==effect['ace_mark_choice'] and r['status']=='pending']
+    if len(pending)!=1:raise ValueError('Close Quarters choice timer lacks actual pending hits')
+    facts=pending[0]['hit_facts'][0]
+    if tuple(effect.get('count_deadline',()))!=(facts['round']+1,facts['count']):raise ValueError('Close Quarters choice cannot renew its actual hit deadline')
+   if 'ace_mark_event' in effect:
+    event=getattr(engine,'_passive_events',{}).get(effect['ace_mark_event'])
+    if event is None or 'close_quarters_hit' not in event:raise ValueError('Close Quarters mark lacks native hit')
+    facts=_close_quarters_hit(engine,event,index)
+    if (event['target'] is not p or effect.get('ace_marker') is not event['actor'] or
+        not _close_quarters_result(getattr(engine,'_move_completions',{}).get(event['completion_id']),event) or
+        effect.get('source')!=facts['feature'] or tuple(effect.get('count_deadline',()))!=(facts['round']+1,facts['count']) or
+        effect.get(CQM_CHOICE)!=facts['sustain'].get(CQM_CHOICE) or
+        facts['actor_id']==facts['target_id'] or facts['actor_side'] is None or facts['target_side'] is None or facts['actor_side']==facts['target_side']):
+     raise ValueError('Close Quarters mark differs from actual foe hit')
   __import__('pokemon_move_edges').mixed_power(p)
   for r in p.spec.get(KEY,[]):
    if not isinstance(r,dict) or r.get('source') not in FEATURES:raise ValueError('actual Type Ace history source required')

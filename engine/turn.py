@@ -67,7 +67,8 @@ def _weather_turn_start_one(engine,c,w,*,_boss_round=False):
     if WEATHER_KO.get(w, w) in getattr(c, "weather_immune", ()) or w in getattr(c, "weather_immune", ()):
         engine.log(f"    {c.name}: {WEATHER_KO.get(w, w)} 피해 면역 (도구)", "combat/weather")
         return
-    if any(e.get("type") == "immunity" and ("weather" in str(e.get("to", "")) or WEATHER_KO.get(w, w) in str(e.get("to", "")) or w in str(e.get("to", ""))) for e in c.modifiers + c.registry):
+    if any(e.get("type") == "immunity" and ("weather" in str(e.get("to", "")) or WEATHER_KO.get(w, w) in str(e.get("to", "")) or w in str(e.get("to", "")))
+           and (e.get('_rule_id')!='ability/방진' or __import__('ability_transitions').active(c,'ability/방진')) for e in c.modifiers + c.registry):
         engine.log(f"    {c.name}: {WEATHER_KO.get(w, w)} 피해 면역 (특성)", "combat/weather")
         return
     if c.fainted or not c.on_field:
@@ -153,6 +154,7 @@ def movement_permission(engine, c, *, equipment_transport=None):
     import grapple_state as GRAPPLE
     if not GRAPPLE.movement_permission(engine,c):return False
     for status in c.conditions:
+        if __import__('blessing_effects').ignored(c,status):continue
         effects = engine.r.condition_effects(status)
         if any(e.get("type") in ("no_shift_movement", "must_stand_up") for e in effects):
             engine.log(f"    {c.name}: {status} 상태로 현재 이동할 수 없음", "condition/" + status)
@@ -160,7 +162,7 @@ def movement_permission(engine, c, *, equipment_transport=None):
     return True
 
 
-def disengage(engine, c, destination, *, movement_mode=None):
+def disengage(engine, c, destination, *, movement_mode=None, _telepathy_source=None):
     """ch07 Disengage: one Shift, one metre, no opportunity attack.
 
     The existing grid and action ledger carry the actual move. This grants no
@@ -189,6 +191,9 @@ def disengage(engine, c, destination, *, movement_mode=None):
     if not BODY.can_place(engine, c, destination, origin=c.pos):
         raise ValueError("Disengage destination body is blocked or outside its movement region")
     distance, mode = engine.move_profile(c, movement_mode=movement_mode)
+    import movement_actions as MOVEMENT
+    if not MOVEMENT.free_float_destination(engine,c,destination,movement_mode or mode):
+        raise ValueError('Free Floating destination requires observed zero gravity')
     if movement_mode == "teleport":
         raise ValueError("Teleport has its own movement conditions")
     if distance <= 0:
@@ -201,17 +206,23 @@ def disengage(engine, c, destination, *, movement_mode=None):
     import stat_ace as STAT
     swift=STAT.has(engine,c,STAT.MASTERY,'spe')
     if swift and not movement_permission(engine,c):return False
-    if not getattr(c, "on_field", True) or c.captured or not spend(engine, c, "swift" if swift else "shift", "이탈", movement=not swift):
-        return False
+    if _telepathy_source is not None:
+        proof=getattr(engine,'_telepath_disengage_boundary',None)
+        if not proof or proof['actor_id']!=c.entity_id or proof['source']!=_telepathy_source or _telepathy_source!=__import__('telepath').FEB or engine._move_completions[proof['completion']]['phase']=='complete':raise ValueError('actual Telepathy Free Disengage boundary required')
+        if not movement_permission(engine,c):return False
+        __import__('action_lifecycle').triggered_free_action(engine,c,_telepathy_source)
+    elif not getattr(c, "on_field", True) or c.captured or not spend(engine, c, "swift" if swift else "shift", "이탈", movement=not swift):return False
     import type_ace as TA
     TA.mark_departure(engine,c,destination)
+    import field_effects as FIELD
+    origin=c.pos;origin_altitude=c.spec.get('_movement_altitude',0);origin_contact=FIELD.touches_ground(c)
     c.pos = destination
     import living_weapon as LIVING
     LIVING.sync(engine,c)
     c.airborne = mode == "공중/부유"
     if diagonal:
         c._diagonal_steps = getattr(c, "_diagonal_steps", 0) + 1
-    EXT.on_enter_cell(engine, c, destination)
+    EXT.on_enter_cell(engine, c, destination,previous_position=origin if origin_altitude==c.spec.get('_movement_altitude',0) and origin_contact==FIELD.touches_ground(c) else None)
     engine.log(f"    {c.name}: 이탈 1m → {destination} (기회공격 유발 없음)", "maneuver/이탈")
     return True
 
@@ -237,26 +248,29 @@ def spend(engine, c, kind, what="", *, movement=False, sleep_cure=False, _native
         raise ValueError("movement purpose requires a shift action and a boolean flag")
     if not can_act(engine, c):
         return False
+    if kind == "shift":
+        import grapple_state as GRAPPLE
+        if not GRAPPLE.movement_permission(engine, c):return False
     if movement:
         import vision_impairment as VISION
         if VISION.accuracy_level(engine,c)=='total' and getattr(engine,'_relative_mover',None)!=c.entity_id:
             raise ValueError('Total Blindness Shift movement requires its relative declaration')
     if movement and not movement_permission(engine, c):
         return False
+    if __import__('capture_specialist').shift_grant(engine,c,kind,movement=movement):return True
     if not ACTION.ordinary_permission(engine, c):
         return False
     import order_actions as ORDERS
     kind=ORDERS.pay(engine,c,what,kind)
     status_allowed=ACTION.status_permission(engine, c, kind, sleep_cure=sleep_cure,
-        _standing_up=_standing_up, _condition_recovery=_condition_recovery)
+        _standing_up=_standing_up, _condition_recovery=_condition_recovery,_native_move=_native_move)
     if not status_allowed:
-        import swarm_transitions as SWARM
-        if not SWARM.minimum_action_permission(c,kind):return False
+        return False
     b = getattr(c, "budget", None)
     import combat_maneuvers as MANEUVERS
     import body_modes as BODY_MODES
     if not BODY_MODES.permits(c,kind,returning=_body_mode_return):return False
-    if not assisted and not MANEUVERS.standard_allowed(c,kind,_native_move):
+    if not assisted and not MANEUVERS.standard_allowed(c,kind,_native_move,engine=engine):
         engine.log(f"    {c.name}: 재담 난동 중 기본 행동은 데미지 공격에 사용", "maneuver/술수")
         return False
     import wild_equipment as WILD
@@ -270,9 +284,9 @@ def spend(engine, c, kind, what="", *, movement=False, sleep_cure=False, _native
     if swarm_spend is not None:
         if swarm_spend:ACTION.record_action(engine,c,kind)
         return swarm_spend
-    if kind == "extended" and not engine.encounter_active:
+    if not engine.encounter_active:
         # Ended encounters may leave a budget record; it does not constrain a
-        # later Extended activity once the normal permissions above pass.
+        # later outside action once the normal permissions above pass.
         ACTION.record_action(engine, c, kind)
         return True
     if b is None:          # Outside-encounter component execution only.
@@ -326,6 +340,9 @@ def spend_compound(engine, c, cost, what="", *, movement=False, sleep_cure=False
         raise ValueError("compound movement purpose is not implemented")
     if not can_act(engine, c) or not ACTION.ordinary_permission(engine, c):
         return False
+    if "shift" in cost.components:
+        import grapple_state as GRAPPLE
+        if not GRAPPLE.movement_permission(engine, c):return False
     if not ACTION.status_permission(engine, c, cost, sleep_cure=sleep_cure):
         return False
     import combat_maneuvers as MANEUVERS
@@ -359,6 +376,7 @@ def spend_compound(engine, c, cost, what="", *, movement=False, sleep_cure=False
 
 
 def action_kind_of_move(engine, c, move, mm):
+    if move['id']==__import__('tumbler').SPLASH:return 'shift'
     if __import__('provocateur').quick_scope(engine,c,move):return 'swift'
     """기술의 행동 종류: 레지스트리의 action_type_change / 헤더 키워드 / 기본값 standard."""
     ace=__import__('type_ace').scope(engine,c,move)
@@ -399,7 +417,7 @@ def can_aoo(engine, c):
     import coup_de_grace as COUP
     if COUP.bound(engine,c):return False
     # Hunter's Reflexes raises the single per-round Attack of Opportunity to three for the Hunter and their Pokemon.
-    return c.on_field and not c.fainted and not c.captured and not __import__("hunter").opportunity_exhausted(engine, c) and not (c.conditions & {"잠듦", "풀죽음", "마비", "혼란", "넘어짐"}) and not LIFETIMES.forbids(c,"attack_of_opportunity")
+    return c.on_field and not c.fainted and not c.captured and not __import__("hunter").opportunity_exhausted(engine, c) and not (__import__('blessing_effects').effective_conditions(c) & {"잠듦", "풀죽음", "마비", "넘어짐"}) and __import__('confusion_attacks').permits_opportunity(engine,c) and not LIFETIMES.forbids(c,"attack_of_opportunity")
 
 
 def adjacent_enemies(engine, c):
@@ -408,17 +426,21 @@ def adjacent_enemies(engine, c):
 
 
 def trigger_aoo(engine, mover, why, enemies=None):
+    if __import__('commander').no_opportunity(engine, mover):
+        return
     """이동/원거리 공격으로 기회 공격 조건이 걸린 (이동 전) 인접 적들이 발버둥으로 방해 공격."""
     if engine.grid is None:
         import mapless_space as MAPLESS
         if not MAPLESS.active(engine):return
     if any(e.get("type") == "movement_rule" and (e.get("ignore_aoo") or e.get("no_aoo")) for e in mover.registry):
         return
+    if __import__("tumbler").immune(mover) or why=="인접 칸 밖으로 이동" and __import__("tumbler").run_away(mover):return
     enemies = enemies if enemies is not None else adjacent_enemies(engine, mover)
     import fashion_items as FASHION
     if FASHION.prevents_opportunity(engine,mover,why,enemies):
         return
     for enemy in enemies:
+        if __import__('warper').prevents_aoo(enemy,mover,why):continue
         if not can_aoo(engine, enemy):
             continue
         enemy.aoo_used = True
@@ -505,7 +527,7 @@ def equip_weapon(engine, c, weapon):
     allowed = 0 if grade == "조잡" or rank < 4 else 2 if grade == "좋음" and rank >= 6 and slot != "반대손" else 1
     framework_limit = FRAMEWORK.move_limit(engine,c,weapon)
     if framework_limit is not None:allowed=framework_limit
-    if c.kind=='pokemon' and not living:allowed=min(allowed,1)
+    if c.kind=='pokemon':allowed=min(allowed,1)
     supplied = weapon.get("moves", [])
     if not isinstance(supplied, list) or any(not isinstance(v,str) for v in supplied):
         raise ValueError("weapon moves must be an explicit list")
@@ -584,11 +606,11 @@ def disarm(engine, actor, target, *, attacker_skill, defender_skill, item_name=N
     if actor is target or actor.kind not in ("trainer","pokemon") or target.kind not in ("trainer","pokemon"):
         raise ValueError("Disarm needs two distinct trainer/Pokemon actors")
     threaded=__import__('type_ace').threaded_scope(engine,actor)
-    if engine.grid is None or (not engine.adjacent(actor,target) and threaded is None) or not actor.on_field or not target.on_field or target.captured:
+    if not SM.native_reaction_resume(engine,actor,target,source) and (engine.grid is None or (not engine.adjacent(actor,target) and threaded is None) or not actor.on_field or not target.on_field or target.captured):
         raise ValueError("Disarm requires one adjacent on-field target")
     import optional_weapon_framework as FRAMEWORK
     for c,skill in ((actor,attacker_skill),(target,defender_skill)):
-        allowed_skills=FRAMEWORK.disarm_skills(engine,c) if c is target else {"combat","stealth"}
+        allowed_skills=FRAMEWORK.disarm_skills(engine,c,item_name) if c is target else {"combat","stealth"}
         if SKILL.skill_id(engine.r.skill_policy,skill,required=True) not in allowed_skills:
             raise ValueError("Disarm permits Combat or Stealth only")
     import weapon_actions as WEAPONS
@@ -621,8 +643,8 @@ def disarm(engine, actor, target, *, attacker_skill, defender_skill, item_name=N
     def accuracy():
         import precise_actions as PRECISE
         event=PRECISE.attacked(engine,actor,target,move,producer='combat_maneuver')
-        hit,_,_=engine.accuracy_check(actor,target,move,fixed_roll=fixed_accuracy)
-        PRECISE.accuracy(event,hit)
+        hit,natural,_=engine.accuracy_check(actor,target,move,fixed_roll=fixed_accuracy)
+        PRECISE.accuracy(event,hit,natural=natural)
         if not hit:__import__('martial_artist').maneuver_failed(engine,actor,target,source,opposed=False)
         return hit
     def outcome(won):

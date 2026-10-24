@@ -43,10 +43,14 @@ def activate(engine,actor,*,reason):
  return G.transition(engine,actor,apply)
 
 
-def evasion(engine,actor,move):
+def evasion(engine,actor,move,attacker=None):
  if validate(actor) is None:return 0
  import weapon_actions as WEAPONS
- origin=WEAPONS.range_spec(engine,move).get('origin')
+ effective=WEAPONS.range_spec(engine,move,attacker);origin=effective.get('origin')
  if origin=='melee':return 2
  if type(origin)is int and origin>0:return 4
- raise ValueError('Blender area attack needs a source-reviewed melee/ranged classification')
+ # Q6 adopted area interpretation; explicit effective attack origins take precedence.
+ if origin in (None,'self'):
+  if effective.get('shape') in ('burst','cone','close_blast'):return 2
+  if effective.get('shape')=='line':return 4
+ raise ValueError('Blender requires an admitted effective attack range')

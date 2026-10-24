@@ -11,7 +11,7 @@ from grid import Grid
 import grapple_state as GRAPPLE
 import state_grants as GRANTS
 
-ROOT = Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
+ROOT = Path(__file__).resolve().parents[1]
 BIND = 'move/조이기'
 
 
@@ -56,7 +56,8 @@ class StaticBindPassiveTests(unittest.TestCase):
     def contest(self, e, challenger, defender, faces_a, faces_b, *, mods_a=0, mods_b=0):
         return e.grapple_action(challenger, 'contest', challenger_skill='육상',
             defender_skill='전투', challenger_options={'fixed': faces_a, 'mods': mods_a},
-            defender_options={'fixed': faces_b, 'mods': mods_b}, winner_choice='keep')
+            defender_options={'fixed': faces_b, 'mods': mods_b},
+            winner_choices={challenger.entity_id: 'keep', defender.entity_id: 'keep'})
 
     def next_round_a(self, e, a):
         active = getattr(e, '_active_turn_actor', None)

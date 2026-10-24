@@ -137,8 +137,9 @@ class CompletedCsvNativeRemaining(unittest.TestCase):
         e=self.fixture(actor)
         result=e.scavenge(actor,fixed_d20=20,during='extended_rest', duration_minutes=240,
             duration_reason='actual uninterrupted four-hour rest',rest_id='scavenger-rest')
-        self.assertEqual(result['item_id'],'item/이상한사탕')
-        self.assertEqual(actor.spec['items']['item/이상한사탕'],1)
+        self.assertEqual((result['category'],result['item_id']),('tm',None))
+        CAP.resolve_scavenge_reward(e,actor,day=result['day'],item_id='TM1',reason='GM selected the actual TM')
+        self.assertEqual(actor.spec['items']['TM1'],1)
         restored=Engine.import_state(self.r,json.loads(json.dumps(e.export_state())))
         actual=WORLD.actor_index(restored)[actor.entity_id]
         before=deepcopy(actual.spec)

@@ -251,7 +251,13 @@ def _eligible_species(trainer, pokemon):
         if family is None:
             raise ValueError("Species Savant target evolution family is unresolved")
         return family == receipt["selection"]["acquisition_snapshot"]["family"]
-    return pokemon.spec.get("evolution_group") == _species_group(trainer)
+    selected = _species_family(trainer, _species_group(trainer))
+    if selected is None:
+        raise ValueError("Species Savant needs one explicit resolved evolution family")
+    family = _species_family(pokemon, pokemon.spec.get("species"))
+    if family is None:
+        raise ValueError("Species Savant target evolution family is unresolved")
+    return family == selected
 
 
 def _species_book_source(rules):
@@ -270,19 +276,24 @@ def _species_book_source(rules):
     excerpt = "\n".join(path.read_text(encoding="utf-8").splitlines()[654:659])
     if hashlib.sha256(excerpt.encode("utf-8")).hexdigest() != row["excerpt_sha256"]:
         raise ValueError("book Species Savant source changed")
-    for relative, digest in row["family_sources"].items():
-        if hashlib.sha256((Path(rules.root) / relative).read_bytes()).hexdigest() != digest:
-            raise ValueError("Species Savant evolution source changed: " + relative)
+    _species_family_sources(rules)
     rules.ruleset.require({"id": "C03-126", "source": {"file": row["file"].removeprefix("input/"), "lines": row["span"]}})
     return {"clause_id": "C03-126", "file": row["file"],
             "sha256": _policy(rules)["source_files"][row["file"]], "version": 1}
+
+
+def _species_family_sources(rules):
+    """Verify shared family facts independently of a Feature acquisition source."""
+    for relative, digest in _policy(rules)["species_savant_book"]["family_sources"].items():
+        if hashlib.sha256((Path(rules.root) / relative).read_bytes()).hexdigest() != digest:
+            raise ValueError("Species Savant evolution source changed: " + relative)
 
 
 def _species_family(actor, species):
     """Reuse the actual connected evolution owner; arbitrary group labels are not facts."""
     import pokemon_activities as ACTIVITIES
     from builder import species_lookup
-    _species_book_source(actor.r)
+    _species_family_sources(actor.r)
     try:
         selected = species_lookup(actor.r, species)
         if selected.get("_source", {}).get("file") != "db/pokemon.csv":
@@ -498,7 +509,10 @@ def _active(engine, pokemon, uid):
     if not engine.encounter_active or row.get("target_id") != pokemon.entity_id:
         raise ValueError("sustained Stratagem needs its actual active encounter target")
     owner = _trainer_index(engine).get(row.get("owner_id"))
-    if uid==STAT_STRATAGEM:
+    if uid==__import__('channeler').SPIRIT:
+        receipt=None if owner is None else __import__('channeler').acquired(owner,uid)
+        source=None if receipt is None else receipt['request_id']
+    elif uid==STAT_STRATAGEM:
         import stat_ace as STAT
         receipt=None if owner is None else STAT.acquired(owner,uid,row.get('branch'))
         source=None if receipt is None else receipt['request_id']
@@ -509,7 +523,7 @@ def _active(engine, pokemon, uid):
     if owner is None or source != row.get("acquisition_source"):
         raise ValueError("sustained Stratagem owner or acquisition changed")
     _validate_native(owner.r, uid, row)
-    if _owner(engine, pokemon) is not owner:
+    if uid!=__import__('channeler').SPIRIT and not __import__('commander').sustained_target(engine,owner,pokemon,uid) and _owner(engine, pokemon) is not owner:
         raise ValueError("sustained Stratagem target ownership changed")
     if AP.ActionPointAccount(owner).identified_bindings(allow_missing=True).get(row.get("instance")) != 2:
         raise ValueError("sustained Stratagem needs its matching two-AP reservation")
@@ -520,6 +534,8 @@ def _require_stratagem_slot(pokemon):
     """Read both native sustain owners and the existing legacy occupancy marks."""
     state = _state(pokemon)
     if ((state is not None and state["sustains"])
+            or any(not row['ended'] and row['feature']==__import__('commander_orders').BRACE
+                   for row in __import__('commander_orders').records(pokemon))
             or PRECISION.KEY in pokemon.custom_conditions
             or pokemon.custom_conditions.get("stratagem") or pokemon.spec.get("stratagem")):
         raise ValueError("only one Stratagem may be sustained on a Pokemon")
@@ -530,17 +546,22 @@ def _require_stratagem_slot(pokemon):
 import cheerleader as CHEER
 
 @CHEER.order_activation(None)
-def activate(engine, trainer, pokemon, uid):
+def activate(engine, trainer, pokemon, uid, *, edition=None, communication=None):
     if uid not in STRATAGEMS or acquired_source(trainer, uid) is None:
         raise ValueError("actual acquired Stratagem required")
     if not engine.encounter_active:
         raise ValueError("Stratagem may only be sustained in an encounter")
-    if _trainer_index(engine).get(trainer.entity_id) is not trainer or _owner(engine, pokemon) is not trainer:
+    interpreted=None
+    if edition is not None:
+        if uid!=RECKLESS:raise ValueError('this existing Stratagem source has no alternate interpretation selection')
+        interpreted=__import__('commander_orders').reckless_source(engine.r,edition)
+    allied = __import__('commander').transformed_target(engine,trainer,pokemon) or __import__('commander').leadership_target(engine,trainer,pokemon)
+    if _trainer_index(engine).get(trainer.entity_id) is not trainer or (not allied and _owner(engine, pokemon) is not trainer):
         raise ValueError("Stratagem requires your actual registered Pokemon")
     if not pokemon.on_field or pokemon.fainted or pokemon.captured:
         raise ValueError("Stratagem target must be available")
-    register_all(engine, pokemon)
-    if _declaration(engine, pokemon, uid) is None:
+    if not allied:register_all(engine, pokemon)
+    if not allied and _declaration(engine, pokemon, uid) is None:
         raise ValueError("Stratagem target declaration is missing")
     _require_stratagem_slot(pokemon)
     state = _state(pokemon, create=True)
@@ -548,8 +569,9 @@ def activate(engine, trainer, pokemon, uid):
         raise ValueError("Stratagem requires two available AP")
     import temporary_ap as TEMP_AP
     TEMP_AP.preflight_binding(trainer,2,"class_passive_combat")
-    if not TURN.spend(engine, trainer, "standard", uid):
-        return (0, 1)
+    import order_actions as ORDERS
+    delivery=ORDERS.delivery(engine,trainer,pokemon,uid,communication=communication)
+    ORDERS.spend(engine,trainer,uid,subject=pokemon.entity_id,communication=delivery)
     state["serial"] += 1
     instance = "class-passive:" + trainer.entity_id + ":" + str(state["serial"])
     while instance in AP.ActionPointAccount(trainer).identified_bindings(allow_missing=True):
@@ -561,6 +583,7 @@ def activate(engine, trainer, pokemon, uid):
            "instance": instance, "rule_id": uid, "clause_id": CLAUSE_BY_RULE[uid],
            "acquisition_source": source, "lifetime": "sustained_2_ap_encounter"}
     row.update(_native_metadata(engine.r, uid, source))
+    if interpreted is not None:row['commander_source']=interpreted
     state["sustains"][uid] = row
     GRANTS._source(pokemon, instance, KIND, owner_id=trainer.entity_id,
                    lifetime=row["lifetime"], rule_id=uid, clause_id=row["clause_id"],
@@ -725,7 +748,7 @@ def effectiveness_modifier(engine, attacker, move, multiplier):
 
 
 def damage_roll_modifier(engine, attacker, target, move, multiplier):
-    result = __import__('researcher_fields').damage_roll_modifier(engine, attacker)
+    result = __import__('researcher_fields').damage_roll_modifier(engine, attacker)+__import__('channeler').spirit_bonus(engine,attacker,'damage',move)
     reckless = _active(engine, attacker, RECKLESS)
     if reckless and _melee(move):
         result += 8
@@ -774,9 +797,9 @@ def _burn_move(mm):
     return "화상" in values or "Burned" in values
 
 
-def effect_range_bonus(engine, attacker, move, mm):
+def effect_range_bonus(engine, attacker, move, mm, *, actual_damage_type=None):
     rainbow = __import__('researcher_fields').effect_range_bonus(engine, attacker, move)
-    if move.get("type") != "불꽃" or not _burn_move(mm):
+    if (actual_damage_type or move.get("type")) != "불꽃" or not _burn_move(mm):
         return rainbow
     result = rainbow
     if _damaging(move) and _declaration(engine, attacker, SHINING_FLAME):
@@ -816,7 +839,7 @@ def _qualifying_equipment(engine, target, slot, move):
 
 
 def damage_reduction(engine, attacker, target, move, multiplier, crit):
-    result = 0
+    result = __import__('channeler').spirit_bonus(engine,target,'reduction',move)
     glacial = _declaration(engine, target, GLACIAL_ICE)
     if (glacial and "얼음" in target.types and move.get("type") in ("격투", "불꽃", "바위", "강철")
             and multiplier > 1):
@@ -936,13 +959,27 @@ def activate_blessed_resilience(engine, actor, move_type):
     eligible = _patron_resistance_domain(engine,actor,_resilience_patron(engine,actor,choice))
     if choice.get("role") != "contractor" or not isinstance(eligible, list) or move_type not in eligible:
         raise ValueError("Contractor must choose an eligible patron type")
+    import blessing_skill_rules as BLESSINGS
+    import frequency as FREQ
+    cost_source = BLESSINGS.sign_cost_source(actor)
+    frequency_key = "blessing-sign:" + BLESSED_RESILIENCE
+    previous = (_state(actor) or {}).get("contractor")
+    if isinstance(previous, dict) and previous.get("scene") == FREQ.state(actor)["scene"]:
+        raise ValueError("Contractor Sign already used this scene")
+    if not FREQ.activation_allowed(actor, frequency_key, "장면", engine=engine):
+        raise ValueError("Contractor Sign already used this scene")
+    if AP.available(actor) < 1:
+        raise ValueError("Contractor Sign requires one available AP")
     if not TURN.spend(engine, actor, "standard", BLESSED_RESILIENCE):
         return (0, 1)
-    import frequency as FREQ
+    AP.charge(actor, 1, mode="spend")
+    FREQ.consume_activation(actor, frequency_key, "장면", engine=engine)
     _state(actor, create=True)["contractor"] = {
         "type": move_type,
         "scene": FREQ.state(actor)["scene"],
         "clause_id": CLAUSE_BY_RULE[BLESSED_RESILIENCE],
+        "cost_source": cost_source,
+        "ap": 1,
     }
     engine.time_actors([actor])
     return (1, 0)
@@ -955,7 +992,7 @@ def end_scene(engine, actors):
             state["contractor"] = None
 
 
-def after_move(engine, attacker, target, move, mm, natural, dealt):
+def after_move(engine, attacker, target, move, mm, natural, dealt, *, actual_damage_type=None):
     if not _damaging(move) or dealt <= 0:
         return
     reckless = _active(engine, attacker, RECKLESS)
@@ -965,15 +1002,17 @@ def after_move(engine, attacker, target, move, mm, natural, dealt):
         import effect_lifetimes as LIFETIMES
         effect = {"type": "apply_status", "status": "취약", "target": "self", "duration": "1라운드"}
         LIFETIMES.install(engine, attacker, attacker, effect, RECKLESS, None, None)
-    if move.get("type") != "불꽃" or natural is None or _burn_move(mm):
+    if (actual_damage_type or move.get("type")) != "불꽃" or natural is None or _burn_move(mm):
         return
-    if _declaration(engine, attacker, SHINING_FLAME) and natural >= 18:
+    if (_declaration(engine, attacker, SHINING_FLAME)
+            and PRECISION.effect_natural(engine, attacker, move, natural, actual_damage_type=actual_damage_type) >= 18):
         engine.apply_status(target, "화상", source=SHINING_FLAME, applied_by=attacker)
     elif _declaration(engine, attacker, BURNING_BRAND) and natural >= 19:
         engine.apply_status(target, "화상", source=BURNING_BRAND, applied_by=attacker)
 
 
 def _validate_native(rules, uid, row):
+    if uid==__import__('channeler').SPIRIT:return __import__('channeler').validate_spirit(rules,row)
     import type_ace as TA
     if uid in TA.STRATAGEMS and row.get('branch') in TA.TYPES:
         __import__('trainer_feature_acquisition')._static_source(rules,uid)
@@ -985,6 +1024,9 @@ def _validate_native(rules, uid, row):
         if row.get('branch') not in STAT.STATS or row.get('clause_id')!='input/ch04-trainer-classes.md:1154-1164':raise ValueError('Stat Stratagem branch source changed')
         return
     expected = _native_metadata(rules, uid, row.get("acquisition_source"))
+    if row.get('commander_source') is not None:
+        if uid!=RECKLESS or row['commander_source']!=__import__('commander_orders').reckless_source(rules,row['commander_source'].get('edition')):
+            raise ValueError('Reckless Advance actual Core interpretation source changed')
     # Older saves retain their behavior-clause identity; registration adds the
     # native binding without replacing the historical CSV behavior reference.
     if "native_clause_id" in row and row["native_clause_id"] != expected.get("native_clause_id"):
@@ -992,6 +1034,7 @@ def _validate_native(rules, uid, row):
 
 
 def _sustain_clause(uid,row):
+    if uid==__import__('channeler').SPIRIT:return __import__('channeler').DEFINITIONS[uid]['clause_id']
     import type_ace as TA
     if uid in TA.STRATAGEMS and row.get('branch') in TA.TYPES:return TA.clause(uid)
     return 'input/ch04-trainer-classes.md:1154-1164' if uid==STAT_STRATAGEM else CLAUSE_BY_RULE.get(uid)
@@ -1003,7 +1046,7 @@ def validate(actor):
         if row.get("kind") != KIND:
             continue
         uid = row.get("rule_id")
-        if uid not in ALL_RULES|{STAT_STRATAGEM}|__import__('type_ace').STRATAGEMS or row.get("clause_id") != _sustain_clause(uid,row):
+        if uid not in ALL_RULES|{STAT_STRATAGEM,__import__('channeler').SPIRIT}|__import__('type_ace').STRATAGEMS or row.get("clause_id") != _sustain_clause(uid,row):
             raise ValueError("class passive source has an unreviewed clause")
         if row.get("source_variant") is not None:
             if (uid != SPECIES_SAVANT or row["source_variant"] != "C03-126" or
@@ -1024,7 +1067,7 @@ def validate(actor):
     local = _state(actor)
     if local is not None:
         for uid, row in local["sustains"].items():
-            if uid not in STRATAGEMS|{STAT_STRATAGEM}|__import__('type_ace').STRATAGEMS or row.get("rule_id") != uid or row.get("clause_id") != _sustain_clause(uid,row):
+            if uid not in STRATAGEMS|{STAT_STRATAGEM,__import__('channeler').SPIRIT}|__import__('type_ace').STRATAGEMS or row.get("rule_id") != uid or row.get("clause_id") != _sustain_clause(uid,row):
                 raise ValueError("invalid sustained class passive record")
             _validate_native(actor.r, uid, row)
     return True

@@ -57,7 +57,8 @@ def _kernel_state(state):
     return K.State(**{k:state[k] for k in
         ("hp","temporary_hp","injuries","real_max_hp","actor_kind")})
 
-def apply_attack_damage(engine, attacker, target, amount, move, *, producer, remainder, native_context=None):
+@__import__('channeler').native_move
+def apply_attack_damage(engine, attacker, target, amount, move, *, producer, remainder, native_context=None, actual_damage_type=None):
     """Retain the original hit and halt before caller's remaining effects.
 
     take_damage's existing own primitive/hook behavior is observed, not certified
@@ -83,10 +84,13 @@ def apply_attack_damage(engine, attacker, target, amount, move, *, producer, rem
         certified = not certificate.failures and not diagnostic.failures
     else:
         certified = False
+    import channeler as CHANNEL
+    replacement=CHANNEL.replace_attack(engine,attacker,target,amount,move,actual_damage_type)
+    if replacement is not None:return replacement
     before = observe(target)
     cap = copy.deepcopy(getattr(target,"damage_cap",None))
     import attack_damage_history as HISTORY
-    with HISTORY.damage_source(engine,target,move):
+    with HISTORY.damage_source(engine,target,move), __import__('focus_punch').damage_scope(engine,target) as focus_damage:
         if receipt is None:
             original_result = engine.take_damage(target, amount)
         else:
@@ -101,7 +105,7 @@ def apply_attack_damage(engine, attacker, target, amount, move, *, producer, rem
         hardened_loss=target.injuries
         engine.lose_hp(target,hardened_loss,source='heavily_injured_attack')
     import persistent_conditions as PERSISTENT
-    PERSISTENT.attack_hit(engine,target,move)
+    PERSISTENT.attack_hit(engine,target,move if actual_damage_type is None else dict(move,type=actual_damage_type))
     after = observe(target)
     engine._heavy_sequence += 1
     event_id = f"heavy-attack-{engine._heavy_sequence}"
@@ -145,6 +149,7 @@ def apply_attack_damage(engine, attacker, target, amount, move, *, producer, rem
                   kernel_reason=proposal.reason, issues=list(dict.fromkeys(issues)),
                   unexecuted_remainder=remainder, continuation_reified=False,
                   status="pending" if relevant else "not_applicable")
+    if focus_damage is not None:packet['focus_punch_damage']=copy.deepcopy(focus_damage)
     engine._heavy_events[event_id] = packet
     if hardened:
         packet['status']='applied'
@@ -157,7 +162,9 @@ def apply_attack_damage(engine, attacker, target, amount, move, *, producer, rem
         # boundary. Caps/interactions are absent by the concrete certificate.
         # This typed HP-loss consequence is not another attack-damage event.
         final = proposal.snapshot.state
-        target.hp, target.temp_hp = final.hp, final.temporary_hp
+        import temporary_hp as TEMP_HP
+        TEMP_HP.absorb(engine, target, target.temp_hp - final.temporary_hp)
+        target.hp = final.hp
         import bandages as BANDAGES
         BANDAGES.on_hp_change(engine,target,after["hp"],target.hp)
         packet["status"] = "applied"
@@ -253,7 +260,7 @@ def passive_prefix_failures(engine,actor,target,*,require_actor_budget=False):
   if require_actor_budget and label=='actor' and type(budget) is not dict:failures.append('actor:missing_native_budget')
  # These containers are read by native use, accuracy, damage and no-effect
  # after_move/fire_event paths. Token/identity ledgers remain trusted internals.
- for field in ('zones','zone_cells','weather','field','taunt','effect_stats','gm_prompts',
+ for field in ('zones','zone_cells','_smoke_regions','weather','field','taunt','effect_stats','gm_prompts',
                'delayed','hazards','hazards_nogrid','_hazard_sequence','_hazard_region_sequence','zone_rules','condition_params',
                'session_frequency','session_epoch','encounter_active','round_no',
                'round_start_seconds','death_enabled','friendly_battle'):
@@ -340,7 +347,7 @@ def certify_native_context(engine, attacker, target, move, mm, *, ordinary_singl
         if c.dead or c.hp<=0 or c.captured or not c.on_field:
             failures.append(label+":not_ordinary_conscious_on_field")
         checked.append(label+":registered-effects/statuses/items/reactions-empty")
-    for field in ("weather","field","grid","zones","zone_cells","hazards","hazards_nogrid","_hazard_sequence","_hazard_region_sequence",
+    for field in ("weather","field","grid","zones","zone_cells","_smoke_regions","hazards","hazards_nogrid","_hazard_sequence","_hazard_region_sequence",
                   "delayed","zone_rules","taunt","condition_params","_action_grants"):
         if getattr(engine,field,None):failures.append("engine:"+field)
     for rules in (engine.rulings,engine.r.rulings):

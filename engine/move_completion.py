@@ -58,13 +58,20 @@ def record_return(e,event_id,*,hit_prevented):
     old=row.setdefault('native_returns',{}).get(event_id)
     if old is not None:
         if old['facts']!=facts:raise ValueError('native returned recipient facts changed')
+        refresh(e,row['id'])
         return
     row['native_returns'][event_id]={'facts':facts,'fingerprint':R.fingerprint(facts)}
+    import ace_trainer as ACE
+    recipient=event['target'];actual=recipient_result(row,recipient)
+    ACE.after_target(e,row,recipient)
+    if actual and actual['hit'] and not actual.get('cancelled') and event_move(e,event).get('class') in ('물리','특수'):
+        ACE.after_damaging_hit(e,recipient,row['id'])
     import ability_reaction_choices as REACTIONS
     REACTIONS.observe_return(e,event_id)
     import gleeful_interference as GLEEFUL
     GLEEFUL.after_move(e,row)
     __import__("roughneck").after_move(e,row)
+    refresh(e,row['id'])
 
 
 def require_returned_event(e,event_id):
@@ -173,13 +180,20 @@ def start_target(e,actor,target,move,mm,scope):
             'profile':ACTIVATION._profile(e),
             'move':deepcopy(move,memo),'post_effects':deepcopy([x for x in mm.get('effects_exec',[]) if after_all(x,e.r,move)]),
             'started':[],'target_moves':{},'results':{},'effects':[],'sealed':scope is None,'phase':'targets',
-            'round':e.round_no,'seconds':e.elapsed_seconds,'turn_serial':actor.custom_conditions.get('combat_turn_serial',0)}
+            'round':e.round_no,'seconds':e.elapsed_seconds,'turn_serial':actor.custom_conditions.get('combat_turn_serial',0),
+            'full_turn':__import__('action_lifecycle').current_full_turn(e)}
         action=getattr(e,'_native_action_stack',[])
         if action and action[-1]['actor'] is actor and action[-1]['kind']=='move':
             rows[token]['native_action_frame']=action[-1]
         import cheerleader as CHEER
         rows[token]['cheerleader_support']=CHEER.support_snapshot(e,actor) if move.get('class')=='변화' else None
+        __import__('coordinator').begin_move(e,rows[token])
         __import__("provocateur").begin_move(e,rows[token])
+        __import__('hex_maniac').begin_move(e,rows[token])
+        __import__('rogue').begin_move(e,rows[token])
+        __import__("tumbler").begin_move(e,rows[token])
+        __import__('focus_punch').begin_move(e,rows[token])
+        __import__('ace_trainer').begin_move(e,rows[token])
         import duelist as DUELIST
         DUELIST.begin_move(e,rows[token])
         import style_expert as STYLE
@@ -202,21 +216,27 @@ def start_target(e,actor,target,move,mm,scope):
         import world_entities as W
         memo={id(a):a for a in W.actor_index(e).values()}
         row['target_moves'][target.entity_id]=deepcopy(move,memo)
+    __import__('battle_contest').bind_move(e,row)
     return token
 
 
-def finish_target(e,token,actor,target,*,hit,dealt,effects=(),cancelled=False):
+def finish_target(e,token,actor,target,*,hit,dealt,effects=(),cancelled=False,hit_prevented=False):
     if token is None:return
     row=getattr(e,KEY)[token]
     if row['actor'] is not actor or target.entity_id not in row['started']:
         raise ValueError('actual target activation required for completion')
     cancelled=cancelled or row.get('drown_out',{}).get('cancelled',False)
-    result={'hit':bool(hit),'dealt':dealt,'cancelled':bool(cancelled)}
+    result={'hit':bool(hit) and not hit_prevented,'dealt':dealt,'cancelled':bool(cancelled)}
+    if hit_prevented:result['hit_prevented']=True
     old=row['results'].get(target.entity_id)
     if old is not None:
         if old!=result:raise ValueError('completed target observation changed')
         return refresh(e,token)
     row['results'][target.entity_id]=result
+    __import__('ace_trainer').after_target(e,row,target)
+    if result['hit'] and not result['cancelled'] and row['move'].get('class') in ('물리','특수'):
+        __import__('ace_trainer').after_damaging_hit(e,target,token)
+    __import__('channeler').completion_hit(e,row,target)
     import optional_weapon_framework as FRAMEWORK
     if target.entity_id not in row.get('defense',{}) and target.entity_id not in row.get('recipient_aliases',{}):
         FRAMEWORK.observe_hit(e,row,actor,target)
@@ -277,8 +297,11 @@ def apply_empty_field(e,actor,move,effects,cells):
          'move':deepcopy(move,memo),'post_effects':deepcopy(effects),'started':[],
          'results':{},'effects':[],'sealed':True,'phase':'applying',
          'activation':'empty_area_field','field_cells':cells,
-         'round':e.round_no,'seconds':e.elapsed_seconds,'turn_serial':actor.custom_conditions.get('combat_turn_serial',0)}
+         'round':e.round_no,'seconds':e.elapsed_seconds,'turn_serial':actor.custom_conditions.get('combat_turn_serial',0),
+            'full_turn':__import__('action_lifecycle').current_full_turn(e)}
     rows[token]=row
+    import optional_state_effect_contracts as OPTIONAL_STATE
+    OPTIONAL_STATE.begin_move(e,actor,None,move,token)
     __import__('provocateur').begin_move(e,row)
     ICE_LAKE.bind_move(e,row)
     import confusion_attacks as CONFUSION
@@ -303,6 +326,8 @@ def apply_empty_field(e,actor,move,effects,cells):
     ICE_LAKE.observe_completion(e,row)
     row['phase']='complete';row['completed_at']=e.elapsed_seconds
     __import__('musician').after_empty_use(e,actor,row)
+    __import__('juggler').after_move(e,row)
+    __import__('native_switch_transfer').observe_move(e,row)
     return row
 
 
@@ -314,7 +339,11 @@ def refresh(e,token=None):
         for key in list(rows):refresh(e,key)
         return
     row=rows[token]
-    if row['phase'] in ('complete','interrupted','applying'):return row
+    if row['phase']=='complete':
+        __import__('native_switch_transfer').observe_move(e,row)
+        __import__('battle_contest').complete_move(e,row)
+        return row
+    if row['phase'] in ('interrupted','applying'):return row
     if not row['sealed'] or any(t.entity_id not in row['results'] for t in row['targets']):return row
     if ACTION.pending_resolution_effects(e,row):return row
     if row['phase']=='completion_effects':
@@ -329,7 +358,9 @@ def refresh(e,token=None):
         import improvised_weapons as IMPROVISED
         IMPROVISED.observe_completion(e,row)
         row['phase']='complete';row['completed_at']=e.elapsed_seconds
+        __import__('commander_orders').mark_complete(e,row)
         __import__('musician').after_completion(e,row)
+        __import__('rogue').after_move(e,row)
         import duelist as DUELIST
         DUELIST.after_move(e,row)
         import cheerleader as CHEER
@@ -340,12 +371,20 @@ def refresh(e,token=None):
         import style_expert as STYLE
         STYLE.after_move(e,row)
         __import__('type_ace').after_move(e,row)
+        __import__('ace_trainer').after_move(e,row)
         __import__('martial_artist').after_move(e,row)
         __import__('type_ace').clear_fire(e,row)
         __import__('type_ace').cleanup_permissions(e,row)
         __import__('provocateur').after_move(e,row)
+        __import__('tumbler').after_move(e,row)
+        __import__('jump_move_actions').completed(e,row['actor'],row['move'],row['id'])
+        if row['move_id']==__import__('tumbler').ACROBATICS:row['actor'].spec.pop('tumbler_acrobatics_choice',None)
         __import__('combat_move_reactions').after_move(e,row)
-        return row
+        __import__('coordinator').after_move(e,row)
+        __import__('commander_orders').after_completion(e,row)
+        __import__('juggler').after_move(e,row)
+        __import__('native_switch_transfer').observe_move(e,row)
+        return refresh(e,token)
     profile=ACTIVATION._profile(e)
     if row['profile']!=profile or e.r._selected_rule(row['move_id'])!=row['move_id']:
         raise ValueError('selected move completion policy changed')
@@ -391,6 +430,10 @@ def validate_return_continuation(e,event):
 
 
 def validate_world(e,index):
+    __import__('coordinator').validate_world(e,index)
+    __import__('ace_trainer').validate_world(e,index)
+    __import__('aura_guardian').validate_world(e,index)
+    __import__('focus_punch').validate_world(e,index)
     __import__("endure").validate(e,index)
     __import__("roughneck").validate_world(e,index)
     import confusion_attacks as CONFUSION
@@ -462,3 +505,4 @@ def validate_world(e,index):
                         if target_id not in row['results'])
     if set(pending_counts)!=expected:
         raise ValueError('delayed attack completion requires exactly one pending queue per target')
+    __import__('battle_contest').validate_world(e,index)

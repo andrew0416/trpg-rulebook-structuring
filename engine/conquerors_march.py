@@ -174,14 +174,21 @@ def conversion(engine,pokemon,move):
     if not eligible(move):raise ValueError('Conqueror converts only Dash, Burst, Blast, Cone or Line Moves')
     row=current(engine,pokemon)
     if row is None:raise ValueError('this-round Conqueror Order and actual current mounted Run Up Pokemon required')
-    return {'issuer_id':row['intent']['issuer_id'],'order_id':row['id'],'integrity':row['integrity'],
+    return _conversion_proof(engine,pokemon,row)
+
+
+def _conversion_proof(engine,pokemon,row):
+    result={'issuer_id':row['intent']['issuer_id'],'order_id':row['id'],'integrity':row['integrity'],
             'mounted_riders':sorted(rider.entity_id for rider,_ in MOUNT.mounted_pairs(pokemon))}
+    import native_order_transfer as TRANSFER
+    effect=next(effect for effect in live(pokemon) if effect[FLAG]['order_id']==row['id'])
+    if TRANSFER.KEY in effect:result[TRANSFER.KEY]=deepcopy(effect[TRANSFER.KEY])
+    return result
 
 
 def require_conversion(engine,pokemon,proof):
     row=current(engine,pokemon)
-    expected=None if row is None else {'issuer_id':row['intent']['issuer_id'],'order_id':row['id'],'integrity':row['integrity'],
-        'mounted_riders':sorted(rider.entity_id for rider,_ in MOUNT.mounted_pairs(pokemon))}
+    expected=None if row is None else _conversion_proof(engine,pokemon,row)
     if proof!=expected or expected is None:raise ValueError('Conqueror Pass lost its actual live mounted Order')
     return row
 
@@ -197,6 +204,8 @@ def withdraw(engine,trainer,feature):
 def _order_origin(engine,actor_id,proof,round_no):
     index=W.actor_index(engine);owner=index.get(proof.get('issuer_id'))
     matches=[] if owner is None else [row for row in _uses(owner) if row['id']==proof.get('order_id')]
+    import native_order_transfer as TRANSFER
+    if TRANSFER.KEY in proof:actor_id=TRANSFER.origin_id(proof,index[actor_id])
     if (len(matches)!=1 or matches[0]['integrity']!=proof.get('integrity')
             or matches[0]['intent']['target_id']!=actor_id or matches[0]['round']!=round_no):
         raise ValueError('converted Pass requires its actual historical Conqueror Order')
@@ -208,7 +217,7 @@ def validate_conversion(engine,actor_id,proof,round_no):
     row=_order_origin(engine,actor_id,proof,round_no)
     index=W.actor_index(engine)
     riders=proof.get('mounted_riders')
-    if (set(proof)!={'issuer_id','order_id','integrity','mounted_riders'} or type(riders) is not list
+    if (set(proof)!=({'issuer_id','order_id','integrity','mounted_riders'}|({'native_order_handoff'} if 'native_order_handoff' in proof else set())) or type(riders) is not list
             or not riders or len(set(riders))!=len(riders) or any(uid not in index or uid==actor_id for uid in riders)):
         raise ValueError('converted Pass requires its actual mounted-body observation')
     return row
@@ -252,7 +261,7 @@ def validate_world(engine,index):
         issuers=set()
         for effect in live(target):
             proof=effect[FLAG]
-            row=_order_origin(engine,target.entity_id,proof,effect['round_end_deadline'])
+            row=_order_origin(engine,__import__('native_order_transfer').origin_id(effect,target),proof,effect['round_end_deadline'])
             if (set(proof)!={'issuer_id','order_id','integrity'} or effect['source']!=FEATURE or effect.get('encounter_end') is not True
                     or not engine.encounter_active or effect['round_end_deadline']!=engine.round_no
                     or proof['issuer_id'] in issuers):

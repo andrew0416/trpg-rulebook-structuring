@@ -32,7 +32,8 @@ def limits(c):
  if c.kind=='pokemon':
   import baby_templates as BABY
   mv=BABY.capability_values(c,mv,('high_jump','long_jump'))
- return {key:number(mv.get(key),key,minimum=0) for key in ('high_jump','long_jump')}
+ bonus=__import__('jump_move_actions').bonus(c)
+ return {key:number(mv.get(key),key,minimum=0)+bonus for key in ('high_jump','long_jump')}
 
 def _fall_options(options):
  if type(options) is not dict:raise ValueError('explicit native falling options required for lower landing')
@@ -77,16 +78,18 @@ def _continue_landing(e,c,record,jump_id,fall_options):
   if not M._paid_entry(e,c,progress,surface=True):return C.PendingDecision('actual jump landing effects must finish')
  progress['phase']='complete'
  for key in ('movement_pending','movement','movement_intent'):record.pop(key,None)
+ __import__('tumbler').quick_shift(e,c,record.get('quick_gymnastics'))
  if 'launch_altitude' in record:return _landing_fall(e,c,record,jump_id,fall_options)
  return record
 
 
-def jump(e,c,destination,*,jump_id,apex_height=0,landing_altitude=0,difficult=None,difficulty_skill=None,difficulty_dc=None,difficulty_options=None,boost=None,boost_options=None,reason_text,gm_distance=None,clear_path=None,running_start=False,running_reason=None,running_bonus_included=None,wall_run=None,fall_options=None,_wall_staged=False):
+def jump(e,c,destination,*,jump_id,apex_height=0,landing_altitude=0,difficult=None,difficulty_skill=None,difficulty_dc=None,difficulty_options=None,boost=None,boost_options=None,reason_text,gm_distance=None,clear_path=None,running_start=False,running_reason=None,running_bonus_included=None,wall_run=None,fall_options=None,_wall_staged=False,_prepaid_move=None):
  if (wall_run is not None or fall_options is not None) and not _wall_staged:
   options={key:value for key,value in locals().items() if key not in ('e','c','destination','_wall_staged')}
   import wallrunner as WALL
   return WALL.run_jump(e,c,destination,options)
  M.boundary(e,'jump');M.reason(reason_text);M.reason(jump_id)
+ prepaid=__import__('jump_move_actions').prepaid(e,c,_prepaid_move)
  if c.spec.get('_jump_pending'):return C.PendingDecision('GM consequence of the preceding jump check')
  attempts=c.spec.get('_jump_attempts',{})
  if any(uid!=jump_id and record.get('movement_pending') for uid,record in attempts.items()):
@@ -153,7 +156,7 @@ def jump(e,c,destination,*,jump_id,apex_height=0,landing_altitude=0,difficult=No
  staged,probe=deepcopy((e,c),{id(e.r):e.r,**G._transition_token_anchors(e)})
  probe.budget=getattr(probe,'budget',None)
  staged.log_lines=[]
- if not inflight and (not c.on_field or c.captured or not TURN.spend(staged,probe,'shift','점프',movement=True)):return False
+ if not inflight and (not c.on_field or c.captured or not prepaid and not TURN.spend(staged,probe,'shift','점프',movement=True)):return False
  def resolve(roll_engine,observed=None):
   checks={};effective=dict(cap)
   for index,(key,skill,dc,opts) in enumerate(plans):
@@ -197,6 +200,7 @@ def jump(e,c,destination,*,jump_id,apex_height=0,landing_altitude=0,difficult=No
  if wall is not None:record['wall_run']=deepcopy(wall)
  if descending:record['launch_altitude']=old_altitude
  c.spec.setdefault('_jump_attempts',{})[jump_id]=record
+ record['quick_gymnastics']=__import__('tumbler').quick_offer(e,c,{'kind':'jump','jump_id':jump_id})
  if failed:
   c.spec['_jump_pending']=jump_id
   return C.PendingDecision('GM jump failure consequence; no automatic falling or damage',checks[failed],basis=deepcopy(record))
@@ -214,5 +218,6 @@ def resolve_failure(e,c,*,decision,reason_text):
   c.pos=tuple(record['destination']);c.spec['_movement_altitude']=record['landing_altitude'];c.airborne=False
  record['gm_consequence']={'decision':decision,'reason':reason_text}
  c.spec.pop('_jump_pending')
+ __import__('tumbler').quick_shift(e,c,record.get('quick_gymnastics'))
  e.gm._rec('점프 실패 결과',pending,decision,reason_text,c)
  return deepcopy(record)

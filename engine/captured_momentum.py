@@ -80,15 +80,23 @@ def _owner(actor,target):
     if target is actor:return
     if target.kind!='pokemon' or target.spec.get('trainer_id')!=actor.entity_id:raise ValueError('accuracy beneficiary must be this trainer or their actual Pokemon')
 
-def conversion_plan(engine,actor,conversion):
+def conversion_plan(engine,actor,conversion,capture_source=None):
     import arithmetic_policy as M
     import capture_resolution as RESOLUTION
     import skill_modifiers as SKILLS
-    procedure,selected=RESOLUTION.bind_native(engine.r)
+    procedure,selected=RESOLUTION.bind_native(engine.r,capture_source)
     ordinary={skill:SKILLS.rank(engine.r,actor,skill)[2] for skill in CT.SKILLS}
     ranks={skill:SKILLS.effective_rank(engine.r,actor,skill) for skill in CT.SKILLS}
     maximum=max(ranks.values())
-    if conversion is None:
+    import capture_specialist as CS
+    variant=CS.feature_variant(actor,FEATURE)
+    if variant==CS.CSV:
+        if conversion is not None or procedure.sides!=20:raise ValueError('CSV Captured Momentum is fixed +2 on its d20 capture procedure')
+        value=2;basis={'kind':'csv_fixed','modifier':2,'source':CS._file(engine.r,'input/db/feats.csv'),'record':74}
+    elif procedure.sides==100:
+        if conversion is not None:raise ValueError('Core Captured Momentum uses its original six-skill modifier')
+        value=-maximum;basis={'kind':'core_original'}
+    elif conversion is None:
         if selected.get('ball_modifier_conversion')!=CONVERSION:raise ValueError('Book capture modifier needs selected errata conversion or explicit GM conversion')
         import source_context as SOURCE
         authority={'file':'input/supp-errata.md','sha256':'90e533bde766c6ffe8fb480dd8e2478e5fddf3ed1fef9a7a1032070245622a3e'}
@@ -102,7 +110,7 @@ def conversion_plan(engine,actor,conversion):
         basis={'kind':'gm_ruling',**deepcopy(conversion)}
     return {'skills':ranks,'ordinary_skills':ordinary,'book_modifier':-maximum,'modifier':value,'procedure':{'source':procedure.source,'sides':procedure.sides,'comparison':procedure.comparison},'basis':basis}
 
-def choose(engine,actor,*,attempt_id,choice,target=None,conversion=None,composition=None,ap_policy=None):
+def choose(engine,actor,*,attempt_id,choice,target=None,conversion=None,composition=None,ap_policy=None,capture_source=None):
     import world_entities as W,state_grants as G,turn as TURN,temporary_ap as AP
     W.require_actors(engine,actor,*(() if target is None else (target,)))
     attempt,event=_attempt(actor,attempt_id)
@@ -110,6 +118,7 @@ def choose(engine,actor,*,attempt_id,choice,target=None,conversion=None,composit
     if choice not in ('decline','accuracy','capture','temporary_ap'):raise ValueError('choose exactly one Captured Momentum benefit or decline')
     if choice!='accuracy' and target is not None:raise ValueError('only accuracy chooses a beneficiary')
     if choice!='capture' and conversion is not None:raise ValueError('capture conversion belongs only to capture choice')
+    if choice!='capture' and capture_source is not None:raise ValueError('capture procedure belongs only to capture choice')
     if choice!='temporary_ap' and ap_policy is not None:raise ValueError('temporary AP funding belongs only to AP choice')
     if choice=='decline':
         if composition is not None:raise ValueError('decline has no composition')
@@ -120,7 +129,7 @@ def choose(engine,actor,*,attempt_id,choice,target=None,conversion=None,composit
     if engine.round_no!=event['round'] or engine.elapsed_seconds!=event['at']:raise ValueError('capture-success choice window has passed')
     target=actor if target is None else target
     _owner(actor,target)
-    plan=conversion_plan(engine,actor,conversion) if choice=='capture' else None
+    plan=conversion_plan(engine,actor,conversion,capture_source) if choice=='capture' else None
     if choice=='temporary_ap':
         AP.policy(ap_policy)
         if engine.encounter_active:T.current(engine)
@@ -171,11 +180,14 @@ def validate_record(actor,row,*,terminal=False,consuming=False):
     if choice=='capture':
         plan=payload['capture_plan'];ranks=plan['skills']
         if set(ranks)!=set(CT.SKILLS) or any(type(v) is not int or v not in (1,2,3,4,5,6,8) for v in ranks.values()) or plan['book_modifier']!=-max(ranks.values()):raise ValueError('exact six skill rank evidence required')
-        if plan['procedure']!={'source':'pokemon/capture-rate','sides':20,'comparison':'>='}:raise ValueError('Momentum selected capture procedure changed')
+        if plan['procedure'] not in ({'source':'pokemon/capture-rate','sides':20,'comparison':'>='},{'source':'core_105/capture-p214','sides':100,'comparison':'<='}):raise ValueError('Momentum selected capture procedure changed')
         basis=plan['basis']
-        expected=__import__('arithmetic_policy').ratio(-plan['book_modifier'],5) if basis['kind']=='selected_errata' else basis['modifier']
+        expected=__import__('arithmetic_policy').ratio(-plan['book_modifier'],5) if basis['kind']=='selected_errata' else plan['book_modifier'] if basis['kind']=='core_original' else basis['modifier']
         if basis['kind']=='selected_errata' and basis['field']!=CONVERSION:raise ValueError('selected errata conversion changed')
         if basis['kind']=='gm_ruling' and (basis.get('scope')!='next_capture_roll' or not basis.get('reason')):raise ValueError('GM conversion scope changed')
+        if basis['kind']=='csv_fixed' and (basis.get('record')!=74 or basis.get('modifier')!=2 or plan['procedure']['sides']!=20):raise ValueError('CSV Momentum fixed +2 source changed')
+        if basis['kind']=='core_original' and (set(basis)!={'kind'} or plan['procedure']['sides']!=100):raise ValueError('Core Momentum original modifier changed')
+        if basis['kind'] not in ('gm_ruling','selected_errata','csv_fixed','core_original'):raise ValueError('unknown Momentum source policy')
         if plan['modifier']!=expected or payload['amount']!=expected:raise ValueError('Momentum capture conversion changed')
     if row[E.KEY]['capacity']!={'bucket':'explicit_composition','source':FEATURE}:raise ValueError('Momentum capacity changed')
     C.integer(row.get('issued_round'),'Momentum issuing round',1)
@@ -190,7 +202,7 @@ def validate_record(actor,row,*,terminal=False,consuming=False):
             observed=application['capture_plan'];ranks=observed['skills']
             if set(ranks)!=set(CT.SKILLS) or any(type(v) is not int or v not in (1,2,3,4,5,6,8) for v in ranks.values()) or observed['book_modifier']!=-max(ranks.values()):raise ValueError('actual capture roll skill observation changed')
             if observed['basis']!=payload['capture_plan']['basis'] or observed['procedure']!=payload['capture_plan']['procedure']:raise ValueError('actual capture procedure differs from granted policy')
-            expected=__import__('arithmetic_policy').ratio(-observed['book_modifier'],5) if observed['basis']['kind']=='selected_errata' else observed['basis']['modifier']
+            expected=__import__('arithmetic_policy').ratio(-observed['book_modifier'],5) if observed['basis']['kind']=='selected_errata' else observed['book_modifier'] if observed['basis']['kind']=='core_original' else observed['basis']['modifier']
             if observed['modifier']!=expected:raise ValueError('actual capture modifier changed')
     expected_count=1 if (terminal and row[E.KEY]['state']=='consumed') or (not terminal and consuming) else 0
     if len(applications)!=expected_count:raise ValueError('Momentum active/consumed state must match its actual one-shot application count')
@@ -225,13 +237,18 @@ def accuracy(engine,actor,target,move,natural,shared_roll):
     if cache is not None:cache[index]=total
     return total
 
-def capture_plan(engine,actor):
+def capture_plan(engine,actor,source_variant=None):
     ensure_clear(engine)
     rows=eligible(engine,actor,'capture')
     for row in rows:
+        import capture_resolution as RESOLUTION
+        procedure,_=RESOLUTION.bind_native(engine.r,source_variant)
+        if row['effect']['capture_plan']['procedure']!={'source':procedure.source,'sides':procedure.sides,'comparison':procedure.comparison}:raise ValueError('next capture needs the granted matching procedure')
         if row['effect']['capture_plan']['basis']['kind']=='selected_errata' and engine.r.mech('pokemon/capture-rate').get('ball_modifier_conversion')!=CONVERSION:
             raise ValueError('Momentum capture conversion no longer selected')
-    return {row['id']:conversion_plan(engine,actor,None if row['effect']['capture_plan']['basis']['kind']=='selected_errata' else {k:v for k,v in row['effect']['capture_plan']['basis'].items() if k!='kind'}) for row in rows}
+    return {row['id']:conversion_plan(engine,actor,
+        {k:v for k,v in row['effect']['capture_plan']['basis'].items() if k!='kind'} if row['effect']['capture_plan']['basis']['kind']=='gm_ruling' else None,
+        source_variant) for row in rows}
 
 def capture(engine,actor,target,attempt,plan):
     rows=eligible(engine,actor,'capture')
@@ -246,6 +263,7 @@ def capture(engine,actor,target,attempt,plan):
 
 def validate_world(engine,index):
     import missed_ball_body as BALL,temporary_ap as AP
+    __import__('capture_specialist').validate_world(engine,index)
     for actor in index.values():
         for attempt in actor.spec.get('capture_attempts',{}).values():
             if 'momentum' not in attempt:continue

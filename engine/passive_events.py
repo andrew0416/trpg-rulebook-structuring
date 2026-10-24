@@ -170,7 +170,7 @@ def _finish_recipient_return(e,frame):
                 DEFENSE._move_facts(COMPLETE.event_move(e,ev))!=DEFENSE._move_facts(args['move'])):
             raise ValueError('native recipient prepared Move changed')
     COMPLETE.finish_target(e,args['completion_id'],args['attacker'],args['target'],
-        hit=result['hit'],dealt=result['dealt'],effects=result['effects'])
+        hit=result['hit'],dealt=result['dealt'],effects=result['effects'],hit_prevented=result['hit_prevented'])
     REACTIVE.resolved_hit(e,args['attacker'],args['target'],args['move'],args['completion_id'],
         hit_prevented=result['hit_prevented'])
     COMPLETE.record_return(e,event_id,hit_prevented=result['hit_prevented'])
@@ -206,7 +206,7 @@ def after_accuracy(e,**args):
     if ev is not None:
         ev.update(hit=args['hit'],natural_roll=args['nat'],critical=args['crit'])
     import ability_interrupt_choices as ABILITY_INTERRUPTS
-    if ev is None or not (DEFENSE.wants_boundary(ev) or ABILITY_INTERRUPTS.wants_boundary(ev) or any(p.get('event')=='accuracy_resolved' for p in ev['listener_profiles'].values())):
+    if ev is None or not (__import__('coordinator').damage_offer(e,args['attacker']) is not None or DEFENSE.wants_boundary(ev) or ABILITY_INTERRUPTS.wants_boundary(ev) or __import__('warper').switch_interested(e,args['attacker'],args['target']) or __import__('tumbler').acquired(args['attacker'],__import__('tumbler').QUICK) or any(p.get('event')=='accuracy_resolved' for p in ev['listener_profiles'].values())):
         return e._finish_move_resolution(**args)
     from root_resolution import fingerprint as request_fingerprint
     frame={'args':args,'scopes':list(getattr(e,'_event_use_scopes',()))}
@@ -244,6 +244,8 @@ def _deliver_accuracy(e,event_id):
     if not cancelled:
         DEFENSE.deliver_boundary(e,ev)
         ABILITY_INTERRUPTS.deliver_boundary(e,ev,frame['args'])
+        import warper as WARPER
+        if WARPER.switch_interested(e,args['attacker'],args['target']):WARPER.reaction(e,args)
     if cancelled or not DEFENSE.routed(e,event_id):
         del ev['continuation'];ev['phase']='activated'
     ev.pop('reason',None)
@@ -257,7 +259,12 @@ def _deliver_accuracy(e,event_id):
             COMPLETE.finish_target(e,args.get('completion_id'),args['attacker'],args['target'],
                                    hit=args['hit'],dealt=0,cancelled=True)
             return 0
-        return e._finish_move_resolution(**args)
+        try:return e._finish_move_resolution(**args)
+        except PassiveEventPending as pending:
+            current=e._passive_events[event_id]
+            if pending.event_id==event_id and current.get('reason') in ('quick_gymnastics_movement_pending','coordinator_damage_pending'):
+                current['continuation']=frame;current['phase']='accuracy_boundary'
+            raise
     finally:
         if previous is None:del e._event_use_scopes
         else:e._event_use_scopes=previous
@@ -342,7 +349,7 @@ def begin(e,actor,target,move,*,ordinary_single,move_mechanics=None,completion_i
     import gleeful_interference as GLEEFUL
     import style_expert as STYLE
     import roughneck as ROUGHNECK,endure as ENDURE
-    if not ROUGHNECK.owns(actor,ROUGHNECK.CLASS) and ENDURE.known(e,target) is None and not GLEEFUL.interested(e,actor,move) and not ICE_LAKE.interested(e) and not ABILITY_REACTIONS.interested(e) and not interested(e,actor) and not ABILITY_INTERRUPTS.interested(e) and not DEFENSE.watch_interested(target,move) and not warning_interested and not STYLE.reaction_interested(e,target):
+    if not __import__('type_ace').close_quarters_interested(e,actor,move) and __import__('coordinator').innovation_instance(e.r,move['id']) is None and __import__('coordinator').damage_offer(e,actor) is None and not ROUGHNECK.owns(actor,ROUGHNECK.CLASS) and ENDURE.known(e,target) is None and not GLEEFUL.interested(e,actor,move) and not ICE_LAKE.interested(e) and not ABILITY_REACTIONS.interested(e) and not interested(e,actor) and not ABILITY_INTERRUPTS.interested(e) and not DEFENSE.watch_interested(target,move) and not warning_interested and not STYLE.reaction_interested(e,target) and not __import__('tumbler').acquired(actor,__import__('tumbler').QUICK) and not __import__('hex_maniac').attack_interested(e,actor,target,move) and not __import__('warper').switch_interested(e,actor,target):
         return None
     e._passive_sequence+=1
     uid="passive-move-"+str(e._passive_sequence)
@@ -424,6 +431,19 @@ def _bind_intent(e, ev):
                'intent_fingerprint'}
     intent = {key:value for key,value in ev.items() if key not in mutable}
     intent.update(actor_id=W.actor_id(ev['actor']), target_id=W.actor_id(ev['target']))
+    # Coordinator stores its full native reaction graph separately. Bind its
+    # verified observation seal and stable receipt facts, not runtime objects.
+    if 'coordinator_damage' in intent:
+        import coordinator as C
+        row=intent['coordinator_damage']
+        if row.get('sha256')!=C._damage_seal(row):raise ValueError('Coordinator damage observation changed')
+        intent['coordinator_damage']={'sha256':row['sha256']}
+    if 'coordinator_recipient_prefix' in intent:
+        import coordinator as C
+        from root_resolution import fingerprint
+        row=intent['coordinator_recipient_prefix'];facts=C._prefix_facts(e,row)
+        if row.get('sha256')!=fingerprint(facts):raise ValueError('Coordinator native recipient prefix changed')
+        intent['coordinator_recipient_prefix']=facts
     bind_request_intent(ev, intent)
 
 

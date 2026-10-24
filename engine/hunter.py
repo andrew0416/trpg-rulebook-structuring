@@ -261,13 +261,13 @@ def teamwork_bonus(engine,attacker,target,move):
  for their Pokemon's Teamwork (Hunter's Reflexes); any ally attack counts for a Pack Master Hunter or their Pokemon."""
  import world_entities as W
  if getattr(attacker,'kind',None) not in ('trainer','pokemon') or getattr(target,'kind',None) not in ('trainer','pokemon'):return 0
- if getattr(attacker,'side',None)==getattr(target,'side',None):return 0
+ if getattr(attacker,'side',None) is None or getattr(target,'side',None) is None or attacker.side==target.side:return 0
  index=W.actor_index(engine)
  if index.get(attacker.entity_id) is not attacker or index.get(target.entity_id) is not target:return 0
  melee=_melee(move)
  reflexes=covered(engine,attacker,REFLEXES) if attacker.kind=='trainer' else None
  for holder in index.values():
-  if holder is attacker or holder is target or holder.side!=attacker.side or not _present(holder) or not _ability(holder,TEAMWORK):continue
+  if holder is attacker or holder is target or getattr(holder,'side',None)!=attacker.side or not _present(holder) or not _ability(holder,TEAMWORK):continue
   if not engine.adjacent(holder,target):continue
   if melee:return TEAMWORK_RULE['accuracy']
   if reflexes is not None and _owned_by(engine,holder,reflexes,index):return TEAMWORK_RULE['accuracy']
@@ -326,13 +326,13 @@ def after_damage(engine,attacker,target,move,dealt):
  The Hunter's own attacks count as melee for their Pokemon's Pack Hunt (Hunter's Reflexes)."""
  import world_entities as W
  if type(dealt) is not int or dealt<=0 or getattr(attacker,'kind',None) not in ('trainer','pokemon') or getattr(target,'kind',None) not in ('trainer','pokemon'):return
- if attacker.side==target.side:return
+ if getattr(attacker,'side',None) is None or getattr(target,'side',None) is None or attacker.side==target.side:return
  index=W.actor_index(engine)
  if index.get(attacker.entity_id) is not attacker or index.get(target.entity_id) is not target:return
  melee=_melee(move)
  reflexes=covered(engine,attacker,REFLEXES) if attacker.kind=='trainer' else None
  for holder in index.values():
-  if holder is attacker or holder is target or holder.side!=attacker.side or not _present(holder) or not _ability(holder,PACK_HUNT):continue
+  if holder is attacker or holder is target or getattr(holder,'side',None)!=attacker.side or not _present(holder) or not _ability(holder,PACK_HUNT):continue
   if not engine.adjacent(holder,target):continue
   counted_melee=melee or (reflexes is not None and _owned_by(engine,holder,reflexes,index))
   if not counted_melee:continue
@@ -351,7 +351,7 @@ def pack_hunt(engine,holder):
  if record['round']!=engine.round_no or record['at']!=engine.elapsed_seconds:raise ValueError('Pack Hunt trigger lapsed')
  index=W.actor_index(engine)
  foe=index.get(record['foe_id'])
- if foe is None or not _present(foe) or foe.side==holder.side:raise ValueError('Pack Hunt foe is no longer an actual target')
+ if foe is None or not _present(foe) or getattr(foe,'side',None) is None or getattr(holder,'side',None) is None or foe.side==holder.side:raise ValueError('Pack Hunt foe is no longer an actual target')
  if not engine.adjacent(holder,foe):raise ValueError('Pack Hunt attack requires the adjacent foe')
  def apply(e,h,f):
   import action_lifecycle as A
@@ -452,7 +452,7 @@ def accuracy_face(engine,attacker,target,move,mm,face,*,modifier,ac,evasion,auto
   return face
  AP.spend(attacker,plan['cost'])
  F.consume_activation(attacker,_surprise_key(target),SURPRISE_QUOTA,engine=engine)
- second=engine.d20()
+ second=engine.roll_d20(attacker,'surprise_accuracy_reroll')
  results=[HIT.resolve(natural=n,modifier=modifier,accuracy=ac,evasion=evasion,automatic=automatic,cannot_hit=cannot_hit or None,
   auto_miss_natural=ac_rule['auto_miss_natural'],auto_hit_natural=ac_rule['auto_hit_natural'])['hit'] for n in (face,second)]
  chosen=face if results[0] and not results[1] else second if results[1] and not results[0] else max(face,second)

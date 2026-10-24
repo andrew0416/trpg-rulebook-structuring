@@ -56,6 +56,55 @@ class StateCodecTests(unittest.TestCase):
         with self.assertRaisesRegex(StateCodecError, 'fingerprint mismatch'):
             load_engine(r, saved)
 
+    def test_native_feature_policy_reads_preserve_fresh_rules_restore_and_reject_override(self):
+        import class_actor_state_reactions as REACTIONS
+        import feature_ability_lessons as LESSONS
+        import optional_state_effect_contracts as OPTIONAL
+        import optional_weapon_framework as WEAPONS
+        import survivalist_class as SURVIVAL
+        import juggler as JUGGLER
+        r = Rules(str(ROOT), ruleset='all')
+        e = Engine(r, seed=712)
+        saved = dump_engine(e)
+        for reader in (REACTIONS.policy, REACTIONS.native_policy, LESSONS._policy,
+                       OPTIONAL._policy, WEAPONS.policy, SURVIVAL.definitions, JUGGLER.contract):
+            reader(r)
+        warmed = dump_engine(e)
+        self.assertEqual(saved['rules'], warmed['rules'])
+        restored = load_engine(Rules(str(ROOT), ruleset='all'),
+                              json.loads(json.dumps(warmed, ensure_ascii=False)))
+        self.assertEqual(warmed['rules'], dump_engine(restored)['rules'])
+        r._feature_ability_lessons = copy.deepcopy(r._feature_ability_lessons)
+        r._feature_ability_lessons['feat/요리-음미']['point_cost'] += 1
+        with self.assertRaisesRegex(StateCodecError, 'fingerprint mismatch'):
+            load_engine(r, warmed)
+
+    def test_verified_lookup_indexes_preserve_cold_state_but_not_changed_results(self):
+        from unittest.mock import patch
+        import source_catalog as CATALOG
+        import equipment_variant_contracts as EQUIPMENT
+        import skill_modifiers as SKILLS
+        r = Rules(str(ROOT), ruleset='all')
+        e = Engine(r, seed=712)
+        saved = dump_engine(e)
+        CATALOG._document(r)
+        EQUIPMENT._punch_moves(r)
+        for section in ('edges', 'rank_effects'):
+            for row in r.skill_policy.get(section, {}).values():
+                source = row.get('equivalent_csv_source')
+                if source:
+                    SKILLS.validate_csv_source(r, row, [source['id']])
+        self.assertEqual(saved['rules'], dump_engine(e)['rules'])
+        altered = copy.deepcopy(r._source_catalog)
+        altered['unreviewed-source'] = ({}, [])
+        for name, value in (
+                ('_source_catalog', altered),
+                ('_equipment_variant_punch_moves', r._equipment_variant_punch_moves | {'move/not-a-punch'}),
+                ('_skill_csv_sources', r._skill_csv_sources | {('unreviewed-source', '0' * 64)})):
+            with self.subTest(cache=name), patch.object(r, name, value):
+                with self.assertRaisesRegex(StateCodecError, 'fingerprint mismatch'):
+                    load_engine(r, saved)
+
     def test_selected_rule_fingerprint_keeps_nested_order_independent_and_rejects_bad_keys(self):
         from state_codec import _plain
         from resolution_transaction import json_fingerprint

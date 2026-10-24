@@ -110,6 +110,8 @@ class RuleFilter:
         self.name = name
         if profile is not None and not isinstance(profile, dict):raise TypeError("Profile must be a mapping")
         self.profile = profile or {}
+        import personal_type_settings as PERSONAL_TYPES
+        PERSONAL_TYPES.validate(self.profile)
         for key, universe in (("sources", ALL_GROUPS), ("variants", ALL_VARIANTS)):
             value = self.profile.get(key, "*")
             if value != "*" and (not isinstance(value, list) or any(not isinstance(x, str) or x not in universe for x in value)):
@@ -219,7 +221,7 @@ class RuleFilter:
         fields=('sources','variants','exclude_units','exclude_tags','replaces',
                 'variant_choices','unit_versions','rulings_files')
         declared=('sources','variants','exclude_units','exclude_tags','variant_replaces_core',
-                  'variant_choices','unit_versions','rulings_files')
+                  'variant_choices','unit_versions','rulings_files','personal_type_settings')
         return {'effective':{key:getattr(self,key) for key in fields},
                 'declared':{key:self.profile[key] for key in declared if key in self.profile}}
 

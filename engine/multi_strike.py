@@ -15,7 +15,10 @@ def preflight(e,a,move):
  import five_strike as F
  verified_source(e.r,F.SOURCE_REF,label='Double Strike source')
  import priority_actions as P
- if kind(P._move(e.r,move['id']))!=kind(move):raise ValueError('combined strike requires its actual printed keyword')
+ if kind(P._move(e.r,move['id']))!=kind(move):
+  authority=__import__('ace_trainer').strike_authority(e,a,move)
+  if not authority or kind(move)!='double':raise ValueError('combined strike requires its actual printed keyword or source-owned Double Down')
+  return authority
 
 def mechanics(r,mid,mm):
  if mid not in r.moves:return mm
@@ -31,8 +34,9 @@ def mechanics(r,mid,mm):
 def record(e,a,t,move,results):
  which=kind(move)
  if which is None:return move
- preflight(e,a,move)
+ authority=preflight(e,a,move)
  row={'sequence':len(a.spec.get(KEY,[]))+1,'actor_id':a.entity_id,'target_id':t.entity_id,'move_id':move['id'],'kind':which,'rolls':[list(x) for x in results]}
+ if authority:row['technique_authority']=authority
  row['fingerprint']=R.fingerprint(row);a.spec.setdefault(KEY,[]).append(row)
  return dict(move,_multi_strike=deepcopy(row))
 
@@ -66,7 +70,9 @@ def validate(e):
  for a in index.values():
   for n,row in enumerate(a.spec.get(KEY,[]),1):
    facts={k:v for k,v in row.items() if k!='fingerprint'}
-   if set(facts)!={'sequence','actor_id','target_id','move_id','kind','rolls'} or row['fingerprint']!=R.fingerprint(facts) or row['sequence']!=n or row['actor_id']!=a.entity_id or row['target_id'] not in index or kind(e.r.move(row['move_id']))!=row['kind']:raise ValueError('native multi-strike observation changed')
+   expected={'sequence','actor_id','target_id','move_id','kind','rolls'}|({'technique_authority'} if 'technique_authority' in row else set())
+   authorized=__import__('ace_trainer').validate_strike_record(e,a,row) if 'technique_authority' in row else kind(e.r.move(row['move_id']))==row['kind']
+   if set(facts)!=expected or row['fingerprint']!=R.fingerprint(facts) or row['sequence']!=n or row['actor_id']!=a.entity_id or row['target_id'] not in index or not authorized:raise ValueError('native multi-strike observation changed')
    if len(row['rolls'])!=(2 if row['kind']=='double' else 3):raise ValueError('multi-strike roll count changed')
    for hit,face,critical in row['rolls']:
     if type(hit) is not bool or type(critical) is not bool or critical and not hit:raise ValueError('actual multi-strike outcomes required')

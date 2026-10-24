@@ -207,6 +207,7 @@ class TypeAceActionsTests(unittest.TestCase):
                 self.valid()
 
     def test_boo_ghost_return_and_actual_setup_resolution_gain_smite_and_block_defenses(self):
+        import attack_damage_history as HISTORY
         for source in ('Ghost Step','move/고스트다이브','move/섀도다이브'):
             with self.subTest(source=source):
                 self.branch('고스트', 'Ghost Step', 'Haunting Curse', 'Boo!')
@@ -227,9 +228,16 @@ class TypeAceActionsTests(unittest.TestCase):
                     move = source
                     expected_tokens = 2
                 hp = self.b.hp
+                history_before = len(HISTORY.records(self.b))
                 # A natural miss still deals Smite damage, not an automatic hit.
                 self.native(self.p,self.b,move,face=1)
                 self.assertLess(self.b.hp,hp)
+                rows = HISTORY.records(self.b)[history_before:]
+                self.assertEqual(len(rows), 1)
+                self.assertEqual(rows[0]['receipt']['source'], move)
+                self.assertEqual(rows[0]['move_type'], '고스트')
+                self.assertEqual(rows[0]['attacker_id'], self.p.entity_id)
+                self.assertEqual(HISTORY.amount(rows[0]), hp - self.b.hp)
                 actual = self.completed(self.p,move)['move']
                 self.assertIn('강타',actual['keywords'])
                 for category in ('intercept','dodge','parry','shield'):
@@ -264,6 +272,37 @@ class TypeAceActionsTests(unittest.TestCase):
                 self.assertEqual(self.b.pos,(5,2))
                 self.assertEqual(RESOURCES.pending(self.b),{})
                 self.valid()
+
+    def test_fey_trance_fairy_area_affects_each_actual_foe_but_social_area_does_not(self):
+        self.branch('페어리','Fairy Lights','Fey Trance')
+        self.e.gm.set_position(self.b,(3,2),reason='actual adjacent first foe')
+        second=self.add('second actual Fey Trance foe','pokemon',(3,3),side='foe')
+        self.e.gm.set_position(self.q,(2,3),reason='actual adjacent ally excluded by Friendly')
+        self.sustain('Fey Trance')
+        # Growl is an actual multi-target Social Move, not the other branch.
+        self.native(self.p,self.b,'move/울음소리')
+        for foe in (self.b,second):
+            self.assertNotIn('헤롱헤롱',foe.conditions)
+            self.assertEqual(RESOURCES.pending(foe),{})
+        self.assertEqual(self.p.budget['standard'],0)
+        self.next_turn(self.p)
+        self.native(self.p,self.b,'move/페어리록')
+        completed=self.completed(self.p,'move/페어리록')
+        self.assertIn(self.b,completed['targets'])
+        self.assertIn(second,completed['targets'])
+        self.assertNotIn(self.q,completed['targets'])
+        self.assertEqual(self.p.budget['standard'],0)
+        for foe in (self.b,second):
+            self.assertIn('헤롱헤롱',foe.conditions)
+            self.assertEqual(RESOURCES.pending(foe),{'shift':1})
+        self.assertNotIn('헤롱헤롱',self.q.conditions)
+        self.assertEqual(RESOURCES.pending(self.q),{})
+        self.e.end_of_turn(self.p)
+        for foe in (self.b,second):
+            self.e.start_of_turn(foe,initiative_count=20)
+            self.assertEqual(foe.budget['shift'],0)
+            self.e.end_of_turn(foe)
+        self.valid()
 
     def test_fey_trance_pure_vertical_approach_and_away_path_boundary(self):
         self.branch('페어리','Fairy Lights','Fey Trance')

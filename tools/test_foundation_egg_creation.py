@@ -22,7 +22,7 @@ class EggTests(unittest.TestCase):
  def create(self,value=None,**observations):
   return self.e.create_declared_egg(self.a,self.parents,self.policy() if value is None else value,
     **dict({'request_id':'egg','compatible':True,'species':'pokemon/이상해씨','inheritance_moves':['move/뿌리박기'],'reason':'actual observed breeding'},**observations))
- def choices(self):return {'gender':'male','nature':'노력','abilities':['심록'],'moves':['move/뿌리박기'],'special_appearance':False,'inheritance_moves':['move/뿌리박기']}
+ def choices(self):return {'gender':'male','nature':'노력','abilities':['심록'],'moves':[],'special_appearance':False,'inheritance_moves':['move/뿌리박기']}
  def hatch(self,row,**observations):return self.e.hatch_declared_egg(self.a,row['entity_id'],**dict({'name':'child','ready':True,'reason':'observed actual hatch','choices':self.choices()},**observations))
  def snap(self):return dump_engine(self.e)
  def test_declared_parent_knowledge_and_native_learning_produce_a_fresh_child(self):
@@ -32,9 +32,9 @@ class EggTests(unittest.TestCase):
   self.assertNotIn('stats',row);self.assertEqual(row['hatch_level'],1)
   result=self.hatch(row);child=result['pokemon'];self.assertEqual(child.level,1);self.assertEqual(child.spec['tutor_points'],1)
   self.assertEqual(child.spec[PROGRESSION.LEVEL_STATE]['origin'],'hatch');self.assertEqual(child.spec[PROGRESSION.LEVEL_STATE]['awards'],[])
-  self.assertEqual(L.validate(self.r,child.spec),None);self.assertEqual(child.spec['move_learning']['move/뿌리박기']['method'],'egg')
-  self.assertEqual(child.spec['move_learning']['move/뿌리박기']['teacher_id'],self.a.entity_id)
-  self.assertEqual(M.classifications(self.r,child.spec)['move/뿌리박기'],'natural');self.assertTrue(self.e.validate_state()['valid'])
+  self.assertEqual(L.validate(self.r,child.spec),None);self.assertNotIn('move/뿌리박기',child.spec['moves'])
+  self.assertEqual(child.spec['inheritance_moves'],['move/뿌리박기'])
+  self.assertNotIn('move/뿌리박기',child.spec.get('move_learning',{}));self.assertTrue(self.e.validate_state()['valid'])
   before=self.snap()
   with self.assertRaises(ValueError):self.hatch(row)
   self.assertEqual(before,self.snap())
@@ -99,7 +99,8 @@ class EggTests(unittest.TestCase):
   out=loaded.create_declared_egg(actors[self.a.entity_id],[actors[p.entity_id] for p in self.parents],self.policy(),request_id='egg',compatible=True,species='pokemon/이상해씨',inheritance_moves=['move/뿌리박기'],reason='actual observed breeding')
   self.assertEqual(out['entity_id'],row['entity_id']);self.assertEqual(out['owner_id'],other.entity_id);self.assertEqual(before,dump_engine(loaded))
   child=loaded.hatch_declared_egg(actors[other.entity_id],row['entity_id'],name='gift child',ready=True,reason='actual recipient observes readiness',choices=self.choices())['pokemon']
-  self.assertEqual(child.spec['trainer_id'],other.entity_id);self.assertEqual(child.spec['move_learning']['move/뿌리박기']['teacher_id'],self.a.entity_id)
+  self.assertEqual(child.spec['trainer_id'],other.entity_id);self.assertEqual(child.spec['inheritance_moves'],['move/뿌리박기'])
+  self.assertNotIn('move/뿌리박기',child.spec['moves'])
  def test_changed_parentage_inheritance_birth_level_and_gm_snapshot_are_checked(self):
   row=self.create();actual=P.egg_index(self.e)[row['entity_id']][1];snapshot=self.e.gm.snapshot()
   for key,value in (('parents',list(reversed(actual['parents']))),('inheritance_moves',[]),('hatch_level',10)):
@@ -163,7 +164,8 @@ class EggTests(unittest.TestCase):
   with self.assertRaises(ValueError):self.create(changed)
   self.assertEqual(before,self.snap())
   self.e.gm.set_move(self.parents[0],'move/뿌리박기',False,reason='parent forgot the move after egg production')
-  child=self.hatch(row)['pokemon'];self.assertIn('move/뿌리박기',child.spec['moves'])
+  child=self.hatch(row)['pokemon'];self.assertIn('move/뿌리박기',child.spec['inheritance_moves'])
+  self.assertNotIn('move/뿌리박기',child.spec['moves'])
   self.assertTrue(self.e.validate_state()['valid'])
 
 

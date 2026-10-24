@@ -122,6 +122,10 @@ def _merge_partner(actor):
 
 
 def power_projection(actor, value):
+    union = _relation(actor, "weapon_union")
+    if union is not None:
+        stock, _, crowned = _weapon_union_profile(actor, union)
+        value += crowned["movement"]["power"] - stock["movement"]["power"]
     partner = _merge_partner(actor)
     if partner is None:
         return value
@@ -229,22 +233,119 @@ def _release_necrozma(engine, necrozma):
     return {"released": partner.entity_id}
 
 
-def weapon_union(engine, actor, item_instance_id):
+def _weapon_union_profile(actor, union=None):
+    """Read only the actual stock form identities; capability queries stay pure."""
+    from builder import species_lookup
+    stock = _species(actor)
+    identity = stock.get("id")
+    if identity in ("pokemon/자시안", "pokemon/자시안-검왕", "pokemon/자시안-역전의-용사"):
+        ids, spans, form, item, move = (
+            ("pokemon/자시안", "pokemon/자시안-검왕", "pokemon/자시안-역전의-용사"),
+            (940, 941, 942), "검왕", "item/녹슨검", "move/거수참")
+    elif identity in ("pokemon/자마젠타", "pokemon/자마젠타-방패왕", "pokemon/자마젠타-역전의-용사"):
+        ids, spans, form, item, move = (
+            ("pokemon/자마젠타", "pokemon/자마젠타-방패왕", "pokemon/자마젠타-역전의-용사"),
+            (943, 944, 945), "방패왕", "item/녹슨방패", "move/거수탄")
+    else:
+        raise ValueError("Weapon Union is limited to actual stock Zacian or Zamazenta")
+    hero, crowned = (species_lookup(actor.r, key) for key in ids[:2])
+    for value in (stock, hero, crowned):
+        source = value.get("_source", {})
+        expected = spans[ids.index(value.get("id"))]
+        if source.get("file") != "db/pokemon.csv" or source.get("record_span") != [expected, expected]:
+            raise ValueError("Weapon Union needs its source-bound stock form rows")
+    if union is not None:
+        if (union.get("hero_species_id") != hero["id"] or union.get("crowned_species_id") != crowned["id"]
+                or union.get("form") != form or union.get("item_id") != item or union.get("move") != move
+                or actor.form != form or actor.spec.get("form_allocations", {}).get("active") != form):
+            raise ValueError("Weapon Union current form disagrees with its actual source relation")
+    return stock, hero, crowned
+
+
+def capability_baseline(actor, values):
+    """Replace only stock Hero contributions, before unrelated grants are added."""
+    union = _relation(actor, "weapon_union")
+    if union is None:
+        return values
+    stock, _, crowned = _weapon_union_profile(actor, union)
+    removed = set(stock.get("capabilities", ())) - set(crowned.get("capabilities", ()))
+    return [value for value in values if value not in removed]
+
+
+def _weapon_union_allocations(actor, hero, crowned):
+    import form_allocations as FORMS
+    import growth_stats as GROWTH
+    if "form_allocations" not in actor.spec or "form_growth_allocations" not in actor.spec:
+        raise ValueError("Weapon Union requires explicit native Hero and Crowned form investments")
+    FORMS.project(actor)
+    GROWTH.form_projection(actor.r, actor.spec)
+    plans = actor.spec["form_growth_allocations"]["plans"]
+    form = "검왕" if crowned["id"] == "pokemon/자시안-검왕" else "방패왕"
+    normal = [name for name, plan in plans.items() if plan["species_base"] == hero["base_stats"]]
+    if (len(normal) != 1 or set(plans) != {normal[0], form}
+            or plans[form]["species_base"] != crowned["base_stats"]):
+        raise ValueError("Weapon Union allocations must bind exactly the printed Hero and Crowned bases")
+    return actor.spec["form_allocations"]
+
+
+def _weapon_union_source(actor):
+    from source_context import verified_source
+    verified_source(actor.r, {"file": "input/db/pokemon.csv",
+        "sha256": "0b6f0fbe200a362b341322227f9d3885addd8dc0e54e2f7734a3c7a9a24b752c"},
+        label="Weapon Union printed species forms")
+    if POLICY.definition(actor.r, clause_id="C2CSV/item-data:78:5")["kind"] != "weapon_union":
+        raise ValueError("Weapon Union selected source changed")
+
+
+def _weapon_union_duration(minutes, reason):
+    import common_checks as C
+    C.integer(minutes, "actual Weapon Union Extended Action minutes", 1)
+    if not isinstance(reason, str) or not reason.strip():
+        raise ValueError("actual Weapon Union Extended Action reason required")
+
+
+def _validate_weapon_union(actor):
+    union = _relation(actor, "weapon_union")
+    if union is None:
+        return
+    _weapon_union_source(actor)
+    stock, hero, crowned = _weapon_union_profile(actor, union)
+    allocation = _weapon_union_allocations(actor, hero, crowned)
+    if union.get("allocation_source") != allocation["source"] or union.get("before_form") not in allocation["forms"]:
+        raise ValueError("Weapon Union original form allocation is missing")
+    _weapon_union_duration(union.get("minutes"), union.get("reason"))
+    source = union.get("source")
+    if source != "csv-form:weapon-union:" + union.get("instance_id", ""):
+        raise ValueError("Weapon Union actual item source identity changed")
+    grants = actor.spec.get("state_grants", {})
+    issued = grants.get("sources", {}).get(source, {})
+    added = sorted(set(crowned["capabilities"]) - set(stock["capabilities"]))
+    if (issued.get("rule_id") != "C2CSV/item-data:78:5" or issued.get("lifetime") != "faint_or_exit"
+            or issued.get("owner_id") != actor.entity_id or issued.get("move_mode") != "permission"
+            or issued.get("grants", {}).get("moves") != [union["move"]]
+            or sorted(issued.get("grants", {}).get("capabilities", [])) != added):
+        raise ValueError("Weapon Union actual form permission or capabilities changed")
+    expected = {"mode": "set", "values": list(crowned["types"]), "fallback": None}
+    if grants.get("type_sources", {}).get("sources", {}).get(source) != expected:
+        raise ValueError("Weapon Union actual Crowned type source changed")
+
+
+def weapon_union(engine, actor, item_instance_id, *, minutes, reason):
     import state_grants as GRANTS
     return GRANTS.transition(engine, actor,
-        lambda staged, actual: _weapon_union(staged, actual, item_instance_id))
+        lambda staged, actual: _weapon_union(staged, actual, item_instance_id, minutes=minutes, reason=reason))
 
 
-def _weapon_union(engine, actor, item_instance_id):
+def _weapon_union(engine, actor, item_instance_id, *, minutes, reason):
+    _weapon_union_duration(minutes, reason)
+    _weapon_union_source(actor)
     _require(actor, "무기합일")
-    species = _species(actor)
-    stock = species.get("_source", {}).get("file") == "db/pokemon.csv"
-    if stock and species.get("id") in ("pokemon/자시안", "pokemon/자시안-검왕", "pokemon/자시안-역전의-용사"):
+    stock, hero, crowned = _weapon_union_profile(actor)
+    if crowned["id"] == "pokemon/자시안-검왕":
         item_id, form, move = "item/녹슨검", "검왕", "move/거수참"
-    elif stock and species.get("id") in ("pokemon/자마젠타", "pokemon/자마젠타-방패왕", "pokemon/자마젠타-역전의-용사"):
-        item_id, form, move = "item/녹슨방패", "방패왕", "move/거수탄"
     else:
-        raise ValueError("Weapon Union is limited to Zacian or Zamazenta")
+        item_id, form, move = "item/녹슨방패", "방패왕", "move/거수탄"
+    allocation = _weapon_union_allocations(actor, hero, crowned)
     obj = getattr(engine, "_physical_objects", {}).get(item_instance_id)
     if (not isinstance(obj, dict) or obj.get("csv_form_item_id", obj.get("item_rule_id")) != item_id
             or actor.entity_id not in (obj.get("owner_id"), obj.get("carrier_id"), obj.get("equipped_by"))):
@@ -254,23 +355,58 @@ def _weapon_union(engine, actor, item_instance_id):
     state = _state(actor)
     if "weapon_union" in state:
         raise ValueError("Weapon Union is already active")
+    before = actor.form
+    import turn as TURN
+    if not TURN.spend(engine, actor, "extended", "무기합일"):
+        raise ValueError("Weapon Union requires an available actual Extended Action")
+    started_at = engine.elapsed_seconds
+    engine.advance_time(minutes * 60, [actor])
+    if not TURN.can_act(engine, actor):
+        # A real clock consequence is retained, rather than rolled back as a declaration error.
+        return {"completed": False, "reason": "actor cannot complete the observed Extended Action"}
     source = "csv-form:weapon-union:" + item_instance_id
     import state_grants as GRANTS
     GRANTS.grant_moves(actor, [move], source, "form", owner_id=actor.entity_id, lifetime="faint_or_exit",
                       rule_id="C2CSV/item-data:78:5", mode="permission")
-    before = getattr(actor, "form", None)
-    actor.form = form
-    state["weapon_union"] = {"source": source, "instance_id": item_instance_id, "before_form": before,
-                              "form": form, "move": move, "started_at": engine.elapsed_seconds}
-    return deepcopy(state["weapon_union"])
+    for capability in sorted(set(crowned["capabilities"]) - set(stock["capabilities"])):
+        GRANTS.grant(actor, "capabilities", capability, source, "form", owner_id=actor.entity_id,
+                     lifetime="faint_or_exit", rule_id="C2CSV/item-data:78:5")
+    if GRANTS.type_operation(actor, "set", crowned["types"], source) is False:
+        raise ValueError("Weapon Union Crowned typing is blocked by an actual source")
+    import form_allocations as FORMS
+    FORMS.switch(engine, actor, form)
+    row = {"source": source, "instance_id": item_instance_id, "item_id": item_id,
+           "before_form": before, "form": form, "move": move, "started_at": started_at,
+           "completed_at": engine.elapsed_seconds,
+           "minutes": minutes, "reason": reason, "allocation_source": allocation["source"],
+           "hero_species_id": hero["id"], "crowned_species_id": crowned["id"]}
+    # The nested native switch commits fresh spec containers; reacquire their owner.
+    state = _state(actor)
+    state["weapon_union"] = row
+    state["history"].append({"event": "weapon_union_enter", **deepcopy(row)})
+    return deepcopy(row)
 
 
-def end_weapon_union(engine, actor):
+def end_weapon_union(engine, actor, *, minutes, reason):
     import state_grants as GRANTS
-    return GRANTS.transition(engine, actor, lambda staged, actual: _end_weapon_union(staged, actual))
+    def apply(staged, actual):
+        if _relation(actual, "weapon_union") is None:
+            return False
+        _weapon_union_duration(minutes, reason)
+        _validate_weapon_union(actual)
+        import turn as TURN
+        if not TURN.spend(staged, actual, "extended", "무기합일 종료"):
+            raise ValueError("Weapon Union exit requires an available actual Extended Action")
+        staged.advance_time(minutes * 60, [actual])
+        # An actual faint during the interval has already used the free lifecycle exit.
+        if _relation(actual, "weapon_union") is None:
+            return True
+        return _end_weapon_union(staged, actual, cause="extended", minutes=minutes, reason=reason)
+    return GRANTS.transition(engine, actor, apply)
 
 
-def _end_weapon_union(engine, actor):
+def _end_weapon_union(engine, actor, *, cause="faint", minutes=None, reason=None):
+    _validate_weapon_union(actor)
     state = actor.spec.get(STATE)
     row = state.pop("weapon_union", None) if isinstance(state, dict) else None
     if not isinstance(row, dict):
@@ -278,7 +414,11 @@ def _end_weapon_union(engine, actor):
     import state_grants as GRANTS
     if row["source"] in actor.spec.get("state_grants", {}).get("sources", {}):
         GRANTS.revoke(actor, row["source"], engine=engine)
-    actor.form = row["before_form"]
+    import form_allocations as FORMS
+    FORMS.switch(engine, actor, row["before_form"])
+    _state(actor)["history"].append({"event": "weapon_union_exit", "source": row["source"],
+        "instance_id": row["instance_id"], "cause": cause, "minutes": minutes,
+        "reason": reason, "ended_at": engine.elapsed_seconds})
     return True
 
 
@@ -536,6 +676,7 @@ def validate_world(engine, index):
     POLICY.policy(engine.r)
     for actor in index.values():
         validate_actor(actor)
+        _validate_weapon_union(actor)
         state = actor.spec.get(STATE, {})
         for key in ("necrozma_merge", "as_one"):
             row = state.get(key)

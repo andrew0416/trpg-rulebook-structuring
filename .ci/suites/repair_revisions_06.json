@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "repair_revisions_06",
+  "purpose": "Source-bound existing Pokemon Fire/Ice passive acquisition and withdrawal; R59 selectable book/CSV acquisition and retained receipts with declared7+; Press composed context; real staged Cannon/Plasma/effect-rank observations; five Juggler and five weather fixture repairs. Exact120methods including10new, original4115 plus added obligations retained, source-specific existing PASS reused. No completion credit from selection.",
+  "completion_credit": 0,
+  "required_unique_count": 12,
+  "completed": {
+    "tools.test_blessing_friendship_region.FriendshipRegionTests": {
+      "tests": [
+        "tools.test_blessing_friendship_region.FriendshipRegionTests.test_malformed_regions_and_unknown_purpose_reject_without_state_or_rng_changes",
+        "tools.test_blessing_friendship_region.FriendshipRegionTests.test_permitted_purpose_and_region_coexist_on_public_friends_path",
+        "tools.test_blessing_friendship_region.FriendshipRegionTests.test_r104_does_not_add_three_to_charm_or_transfer_from_trainer_to_performer",
+        "tools.test_blessing_friendship_region.FriendshipRegionTests.test_region_only_keeps_granted_poffin_pool_and_real_friendship_result"
+      ]
+    },
+    "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests": {
+      "tests": [
+        "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests.test_fistful_native_damage_reads_the_paid_effect_rank_times_three",
+        "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests.test_medical_techniques_native_patch_heals_tick_plus_effect_rank",
+        "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests.test_playing_god_declared_ten_keeps_exact_count_and_printed_nine_upgrade_ceiling",
+        "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests.test_playing_god_effect_upgrade_count_reaches_native_birth_without_learning_inheritance",
+        "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests.test_press_context_composes_with_survivalist_without_borrowing_target_or_round_bonus",
+        "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests.test_press_context_preserves_unknown_context_and_actual_target_validation_with_other_owner",
+        "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests.test_press_native_obedience_roll_adds_half_effect_rank_to_ordinary_dice",
+        "tools.test_remaining_effect_rank_consumers.RemainingEffectRankTests.test_special_lifetime_capacity_counts_native_egg_uses_and_stops_at_effect_rank_minus_two"
+      ]
+    }
+  }
+}

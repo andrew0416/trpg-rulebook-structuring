@@ -11,9 +11,57 @@ STATE = "csv_remaining_capability_state"
 POISON_MOVES = frozenset(("애시드봄", "독침천발", "페이탈클로", "맹독엄니", "독찌르기", "독침",
                           "포이즌테일", "셸암즈", "오물공격", "오물폭탄", "스모그"))
 PICKUP_TABLE = (
-    (5, "item/상처약"), (9, "item/해독제"), (12, "item/몬스터볼"), (15, "item/좋은상처약"),
-    (17, "item/수퍼볼"), (19, "item/기력의조각"), (20, "item/이상한사탕"),
+    (5, 'none'), (7, 'x_item'), (10, 'berry'), (13, 'poke_ball'),
+    (16, 'status_healing'), (17, 'evolution_stone'), (18, 'vitamin'),
+    (19, 'held_item'), (20, 'tm'),
 )
+PICKUP_SOURCE = {'file':'input/ch10-index-reference.md',
+    'sha256':'c3a1d783b4f649f0f6e25a9443a90ca8079a6e036c42c6f8797e100127157abe'}
+PICKUP_ITEMS_SOURCE = {'file':'input/ch09-equipment.md',
+    'sha256':'b5aeb6b82af4b05fe0b369368f8b0181ed3b1d22079e8a86a1c4248e6cbf92d2'}
+
+
+def pickup_category(rules, face):
+    from source_context import verified_source
+    verified_source(rules, PICKUP_SOURCE, label='Pickup category table')
+    C.integer(face, 'Pickup d20 face', 1, 20)
+    return next(category for maximum, category in PICKUP_TABLE if face <= maximum)
+
+
+def _pickup_item(rules, category, item_id):
+    from source_context import verified_source
+    verified_source(rules, PICKUP_ITEMS_SOURCE, label='Pickup item categories')
+    if category == 'tm':
+        import pokemon_teaching as TEACHING
+        row = TEACHING.catalog(rules)['machines'].get(item_id)
+        if (not isinstance(row, dict) or row.get('kind') != 'TM'
+                or type(row.get('number')) is not int or item_id != 'TM' + str(row['number'])):
+            raise ValueError('Pickup TM reward needs an actual selected TM catalog identity')
+        return item_id
+    import equipment_item_contracts as EQUIPMENT,restorative_items as MEDICINE
+    import vitamin_moves as VITAMINS,food_effects as FOOD
+    header = EQUIPMENT.selected_item(rules, item_id)
+    stones = {'item/' + name for name in ('불꽃의돌','물의돌','천둥의돌','리프의돌','달의돌',
+                                         '태양의돌','빛의돌','어둠의돌','각성의돌')}
+    # These Chapter 9 evolution-only entries share the catalog's coarse
+    # use='held'; unlike King's Rock/Razor Claw/Razor Fang, they have no
+    # separate entry in the printed Held Items table.
+    evolution_only = {'item/' + name for name in ('심해의이빨','심해의비늘','용의비늘','업그레이드',
+        '괴상한패치','에레키부스터','마그마부스터','동글동글돌','금속코트','프로텍터',
+        '영계의천','향기주머니','휘핑팝')}
+    eligible = {
+        'x_item': item_id in MEDICINE.X_ITEMS,
+        'berry': header.get('category') == '음식' and item_id.endswith('열매') and FOOD.handles(item_id),
+        'poke_ball': header.get('use') == 'ball',
+        'status_healing': item_id in (MEDICINE.HELD_CONSUMABLES - MEDICINE.X_ITEMS) | set(FOOD.DRINKS),
+        'evolution_stone': item_id in stones,
+        'vitamin': item_id in VITAMINS.ALL_ITEMS,
+        'held_item': header.get('category') == '포켓몬 도구' and header.get('use') == 'held'
+                     and item_id not in stones | evolution_only,
+    }
+    if not eligible.get(category, False):
+        raise ValueError('GM selected item is outside the rolled Pickup category')
+    return item_id
 
 
 def _caps(actor):
@@ -407,14 +455,53 @@ def scavenge(engine, actor, *, fixed_d20=None, during="extended_action",
             raise ValueError('Scavenger actual activity clock did not complete')
         # The actual activity and reward share the native rollback boundary.
         face = POOLS.die(e.rng, 20, fixed=fixed_d20)
-        item_id = next(item for maximum, item in PICKUP_TABLE if face <= maximum)
-        a.spec.setdefault('items', {})[item_id] = a.spec.get('items', {}).get(item_id, 0) + 1
+        face = __import__('oracle').replace_d20(e,a,face,'scavenger')
+        category = pickup_category(e.r, face)
         _state(a).setdefault('scavenger_days', []).append(day)
-        receipt = {'kind':'scavenger', 'day':day, 'd20':face, 'item_id':item_id, 'during':during,
-                   'activity':activity, 'actor_id':a.entity_id}
+        receipt = {'kind':'scavenger', 'day':day, 'd20':face, 'item_id':None, 'category':category,
+                   'pickup_source':deepcopy(PICKUP_SOURCE), 'during':during,
+                   'activity':activity, 'actor_id':a.entity_id, 'rolled_at':e.elapsed_seconds, 'gm_selection':None}
         receipt['sha256'] = TX.request_fingerprint(receipt)
         _state(a)['receipts'].append(receipt)
         return deepcopy(receipt)
+    return GRANTS.transition(engine, actor, apply)
+
+
+def _legacy_scavenge_receipt(receipt):
+    # Preserve historical stock and receipts without inventing a past GM choice.
+    return set(receipt) == {'kind','day','d20','item_id','during','activity','actor_id','sha256'}
+
+
+def resolve_scavenge_reward(engine, actor, *, day, item_id, reason):
+    """The rolled category is fixed; the GM selects the actual item once."""
+    import world_entities as WORLD,state_grants as GRANTS,resolution_transaction as TX
+    WORLD.require_actors(engine, actor)
+    validate_world(engine, WORLD.actor_index(engine))
+    C.integer(day, 'Scavenger reward day', 0)
+    WORLD._text(reason, 'Scavenger GM item selection reason')
+    rows = [row for row in _read_state(actor).get('receipts', [])
+            if row.get('kind') == 'scavenger' and row.get('day') == day]
+    if len(rows) != 1:raise ValueError('one actual rolled Scavenger activity required')
+    receipt = rows[0]
+    if _legacy_scavenge_receipt(receipt):
+        return C.PendingDecision('Legacy Scavenger loot needs actual GM and inventory reconciliation',
+            basis={'original_receipt':deepcopy(receipt),
+                   'printed_category':pickup_category(engine.r, receipt['d20']),
+                   'inventory_preserved':True, 'actual_gm_selection_required':True,
+                   'automatic_inventory_adjustment':False})
+    if receipt['category'] == 'none':raise ValueError('Pickup 1-5 finds nothing')
+    if receipt['gm_selection'] is not None:raise ValueError('Scavenger reward was already selected')
+    selected = _pickup_item(engine.r, receipt['category'], item_id)
+    def apply(e, a):
+        row = next(row for row in _state(a)['receipts'] if row.get('kind') == 'scavenger' and row['day'] == day)
+        previous = deepcopy(row)
+        a.spec.setdefault('items', {})[selected] = C.integer(a.spec.get('items', {}).get(selected, 0),
+                                                           'actual reward inventory count', 0) + 1
+        row.update(item_id=selected, gm_selection={'item_id':selected, 'reason':reason,
+                                                  'at':e.elapsed_seconds, 'source':deepcopy(PICKUP_ITEMS_SOURCE)})
+        row['sha256'] = TX.request_fingerprint({k:v for k,v in row.items() if k != 'sha256'})
+        e.gm._rec('Scavenger GM Pickup item', previous, row, reason, a)
+        return deepcopy(row)
     return GRANTS.transition(engine, actor, apply)
 
 
@@ -680,9 +767,25 @@ def validate_actor(actor):
             raise ValueError('Scavenger actual activity receipt changed')
         C.integer(receipt['day'],'Scavenger observed day',0)
         C.integer(receipt['d20'],'Scavenger actual d20 face',1,20)
-        if receipt['item_id']!=next(item for maximum,item in PICKUP_TABLE if receipt['d20']<=maximum):
-            raise ValueError('Scavenger actual reward differs from its roll')
         if receipt['day'] not in state.get('scavenger_days',[]):raise ValueError('Scavenger daily receipt missing')
+        if _legacy_scavenge_receipt(receipt):
+            if not isinstance(receipt['item_id'], str) or not receipt['item_id']:
+                raise ValueError('legacy Scavenger receipt needs its original item identity')
+            continue
+        C.integer(receipt.get('rolled_at'), 'Scavenger actual roll time', 0)
+        if (receipt.get('pickup_source') != PICKUP_SOURCE
+                or receipt.get('category') != pickup_category(actor.r, receipt['d20'])
+                or 'gm_selection' not in receipt):
+            raise ValueError('Scavenger needs its actual source category and GM selection receipt')
+        choice = receipt['gm_selection']
+        if choice is None:
+            if receipt.get('item_id') is not None:raise ValueError('Pickup item requires actual GM selection')
+        elif (not isinstance(choice, dict) or choice.get('source') != PICKUP_ITEMS_SOURCE
+                or choice.get('item_id') != receipt.get('item_id')
+                or _pickup_item(actor.r, receipt['category'], receipt['item_id']) != receipt['item_id']
+                or not isinstance(choice.get('reason'), str) or not choice['reason'].strip()):
+            raise ValueError('Scavenger GM item differs from its source category')
+        else:C.integer(choice.get('at'), 'Scavenger GM item selection time', receipt['rolled_at'])
     row=state.get('tinkerer')
     if row is not None:
         if not isinstance(row,dict) or row.get('source')!='C2CSV/item-data:92:5' or row.get('weapon_id')!='intrinsic-scrap:'+actor.entity_id:
@@ -731,6 +834,9 @@ def validate_world(engine, index):
         validate_actor(actor)
         for receipt in actor.spec.get(STATE,{}).get('receipts',[]):
             if not isinstance(receipt,dict) or receipt.get('kind')!='scavenger' or 'activity' not in receipt:continue
+            if not _legacy_scavenge_receipt(receipt) and (receipt['rolled_at'] > engine.elapsed_seconds
+                    or (receipt['gm_selection'] is not None and receipt['gm_selection']['at'] > engine.elapsed_seconds)):
+                raise ValueError('Scavenger roll and GM selection need actual observed time')
             activity=receipt['activity']
             if receipt['during']=='extended_action':
                 import activity_jobs as JOBS

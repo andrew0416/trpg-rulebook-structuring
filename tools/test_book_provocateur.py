@@ -38,7 +38,7 @@ class ProvocateurTests(ProvocateurScene,unittest.TestCase):
   self.assertTrue(P.waive_demoralize(self.a));self.assertIn(P.DEMO,self.a.spec['edges'])
   self.begin();row=self.use(self.a,self.t,'move/째려보기',face=18)
   self.assertTrue(row['results'][self.t.entity_id]['hit']);self.assertLess(self.t.hp,self.t.max_hp)
-  self.setup();self.acquire(P.CLASS);self.acquire(P.PUSH,selection={'edge':None})
+  self.setup();self.acquire(P.CLASS);self.reject(lambda:self.acquire(P.PUSH,selection={'edge':None}),'must grant Demoralize')
   self.assertNotIn(P.DEMO,self.a.spec['edges']);self.assertFalse(P.waive_demoralize(self.a));self.valid()
  def test_existing_demoralize_replacement_requires_actual_qualified_edge(self):
   self.setup(edges=['edge/호감인',P.DEMO]);self.acquire(P.CLASS)
@@ -169,6 +169,7 @@ class ProvocateurTests(ProvocateurScene,unittest.TestCase):
   self.e.cure_status(self.t,'혼란');self.assertFalse(P.blocked(self.t,'confusion_opportunities'))
   self.assertTrue(self.e.disengage(self.t,(5,1)))
  def test_fiddle_confusion_self_hit_triggers_each_adjacent_enemy_once(self):
+  self.rules=Rules(str(ROOT),ruleset='core-confusion-feb2016');self.setup()
   self.whole();self.e.gm.set_position(self.a,(3,2),reason='actual adjacent foe');self.e.gm.set_position(self.b,(4,1),reason='actual second adjacent foe')
   self.begin();self.fiddle(P.MOVES[3]);self.turn(self.t)
   with patch('roll_pools.die',return_value=1):self.use(self.t,self.a,'move/몸통박치기',face=1)

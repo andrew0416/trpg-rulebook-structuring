@@ -8,7 +8,7 @@ SOURCES=(*DREAM_SOURCES,*PESTER.SOURCES)
 
 def prepare(engine,r):
  import body_modes as BODY_MODES
- BODY_MODES.require_targetable(r.target)
+ BODY_MODES.require_targetable(r.target,engine=engine)
  if r.source_id in PESTER.SOURCES:return PESTER.prepare(engine,r)
  import world_entities as W,body_state as B,dream_state as D
  if r.source_id not in SOURCES or engine.r._selected_rule(r.source_id)!=r.source_id:raise ValueError('selected consumable attack needs its own source contract')
@@ -49,7 +49,12 @@ def _consume(engine,r):
  # Payment precedes an actual observed roll; do not roll back this event.
  hit,natural,_=engine.accuracy_check(r.user,r.target,move,fixed_roll=r.fixed_accuracy)
  PRECISE.accuracy(event,hit)
+ import dream_state as DREAM,field_effects as FIELD
+ from copy import deepcopy
+ serial_before=r.target.spec.get(DREAM.KEY,{}).get('serial',0)
+ deferred_before=deepcopy(FIELD._pending(r.target))
  applied=bool(engine.apply_status(r.target,'잠듦',source=r.source_id,applied_by=r.user)) if hit else False
+ if applied:DREAM.bind_mist(engine,r.user,payment,r.target,source=r.source_id,serial_before=serial_before,deferred_before=deferred_before)
  result={'source':r.source_id,'target_id':r.target.entity_id,'hit':hit,'natural':natural,'status_applied':applied,'payment':payment}
  engine.log('    Dream Mist: '+('sleep applied' if applied else 'hit without new sleep' if hit else 'miss'),r.source_id)
  return result

@@ -124,6 +124,7 @@ class TypeAceReactionTests(unittest.TestCase):
                 self.valid()
 
     def test_actual_mark_face_me_and_smite_opportunity_follow_disengaging_departure(self):
+        import attack_damage_history as HISTORY
         self.family('격투','Close Quarters Mastery','Face Me Whelp','Smashing Punishment')
         self.e.gm.set_position(self.p,(3,2),reason='actual adjacent Fighting marker')
         self.sustain('Close Quarters Mastery')
@@ -140,13 +141,41 @@ class TypeAceReactionTests(unittest.TestCase):
         self.assertEqual(TA.damage_bonus(self.e,self.b,self.q,attack,1),-10)
         self.answer('type_ace_choice',True)
         hp = self.b.hp
+        history_before = len(HISTORY.records(self.b))
         with patch.object(Engine,'d20',return_value=1):
             TA.disengage(self.e,self.b,[(5,2)])
         self.assertEqual(self.b.pos,(5,2))
         self.assertLess(self.b.hp,hp)
+        rows = HISTORY.records(self.b)[history_before:]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['receipt']['source'], 'struggle')
+        self.assertEqual(rows[0]['move_type'], '격투')
+        self.assertEqual(HISTORY.amount(rows[0]), hp - self.b.hp)
         opportunity = self.completed(self.p,'struggle')
         self.assertEqual(opportunity['move']['type'],'격투')
         self.assertTrue(TA._completed_targets(opportunity))
+        self.valid()
+
+    def test_gneiss_aim_native_miss_records_one_attack_and_pays_feature_once(self):
+        import attack_damage_history as HISTORY
+        self.family('바위', 'Gravel Before Me', 'Gneiss Aim')
+        self.known(self.p, 'move/돌떨구기')
+        self.answer('type_ace_choice', False)
+        self.combat(self.p)
+        before = self.b.hp
+        self.selected('Gneiss Aim', 'move/돌떨구기', face=1)
+        completion = self.completed(self.p, 'move/돌떨구기')
+        self.assertFalse(completion['results'][self.b.entity_id]['hit'])
+        self.assertLess(self.b.hp, before)
+        rows = HISTORY.records(self.b)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['receipt']['source'], 'move/돌떨구기')
+        self.assertEqual(rows[0]['move_type'], '바위')
+        self.assertEqual(rows[0]['attacker_id'], self.p.entity_id)
+        self.assertEqual(HISTORY.amount(rows[0]), before - self.b.hp)
+        self.assertEqual(self.p.move_uses['move/돌떨구기'], 1)
+        self.assertEqual(FREQUENCY.state(self.t)['activations'][TA.uid('Gneiss Aim')]['used'], 1)
+        self.assertEqual(self.p.budget['standard'], 0)
         self.valid()
 
     def test_additional_moves_devious_normal_social_cross_non_grass_and_force_distinct(self):
@@ -157,12 +186,16 @@ class TypeAceReactionTests(unittest.TestCase):
         for branch,features,feature,trigger,extra,nonmatching in rows:
             with self.subTest(feature=feature):
                 self.family(branch,*features)
-                if nonmatching:self.e.gm.set_types(self.p,['노말'],reason='actual unrestricted Cross-Pollinate Pokemon')
+                if nonmatching:self.e.gm.set_types(self.p,['노말'],reason='actual non-Grass Cross-Pollinate rejection')
                 self.e.gm.set_position(self.b,(3,2),reason='actual Social burst target')
                 self.known(self.p,trigger,extra)
                 self.combat(self.p)
                 self.native(self.p,self.p if feature=='Force of Will' else self.b,trigger)
                 actual = self.completed()
+                if nonmatching:
+                    self.rejected(lambda:self.react(feature,actual,move=extra,target=self.p),'Grass Pokemon')
+                    self.valid()
+                    continue
                 if feature=='Force of Will':
                     self.rejected(lambda:self.react(feature,actual,move=trigger,target=self.p),'different')
                 self.react(feature,actual,move=extra,target=self.p if feature!='Devious' else self.b)

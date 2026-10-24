@@ -120,6 +120,10 @@ def effect_loss(engine, attacker, target, recipient, effect, context, amount):
     entry=engine._effect_dispatch_receipts[token]
     if entry['status']!='dispatching' or 'attack_hp_loss' in entry:
         raise ValueError('one actual dispatched HP-loss occurrence required')
+    substitute=__import__('substitute').receive_damage(engine,attacker,target,move,amount)
+    if substitute is not None:
+        entry['substitute_hp_loss']=deepcopy(substitute)
+        return
     def apply(staged,actual,source_actor):
         before=DAMAGE.observe(actual)
         staged.lose_hp(actual,amount,source=move['id'],unpreventable=effect.get('unpreventable') is True)
@@ -151,13 +155,14 @@ def validate_actor(actor):
             raise ValueError('attack history needs an attacker')
         C.integer(row['round'], 'attack round', 0)
         C.integer(row['at'], 'attack time', 0)
-        TYPES.validate_types(actor.r, [row['move_type']])
+        TYPES.validate_attack(actor.r, row['move_type'])
         receipt = row['receipt']
         expected = DAMAGE.application(**{k: receipt[k] for k in
             ('requested', 'before', 'after', 'source', 'damage_class')})
         import special_entities as SPECIAL
         instance=SPECIAL.prime_instance(actor.r,receipt['source'])
-        valid_source=receipt['source'] in actor.r.moves or (instance is not None and instance['host_id']==row['attacker_id'])
+        innovation=__import__('coordinator').innovation_instance(actor.r,receipt['source'])
+        valid_source=receipt['source'] in actor.r.moves or (instance is not None and instance['host_id']==row['attacker_id']) or (innovation is not None and innovation['template']==3)
         if receipt != expected or not valid_source:
             raise ValueError('attack observation changed')
     return True
@@ -172,6 +177,12 @@ def native_application(engine, attacker, target, move, native_context):
         # call. Preserve it without inventing a Move activation receipt.
         yield None
         return
+    with _application_scope(engine, attacker, target, move) as token:
+        yield token
+
+
+@contextmanager
+def _application_scope(engine, attacker, target, move):
     token = object()
     scopes = getattr(engine, '_attack_history_scopes', None)
     if scopes is None: scopes = engine._attack_history_scopes = {}
@@ -180,6 +191,34 @@ def native_application(engine, attacker, target, move, native_context):
     finally:
         scopes.pop(token, None)
         if not scopes: del engine._attack_history_scopes
+
+
+def apply_smite(engine, attacker, target, move, amount, actual_type):
+    """Record genuine miss damage without entering any successful-hit consumer."""
+    stack = getattr(engine, '_attack_loss_effect_scopes', ())
+    if not stack:
+        raise ValueError('Smite damage requires its live native Move recipient')
+    completion_id = stack[-1][3]
+    frame = native_recipient(engine, attacker, target, {'move_completion': completion_id,
+        'source_id': move['id'], 'hit': False}, allow_miss=True)
+    if frame[2] is not move:
+        raise ValueError('Smite damage must use its actual prepared Move')
+    completion = engine._move_completions[completion_id]
+    defense = getattr(engine, '_defense_recipient_scope', None)
+    if defense is not None:
+        import move_defense_reactions as DEFENSE
+        DEFENSE.require_recipient(engine, defense, attacker, target, move, completion_id)
+    elif target not in completion['targets'] or target.entity_id not in completion['started']:
+        raise ValueError('Smite damage requires its actual started recipient')
+    C.integer(amount, 'Smite damage', 0)
+    TYPES.validate_attack(engine.r, actual_type)
+    before = DAMAGE.observe(target)
+    with _application_scope(engine, attacker, target, move) as token, damage_source(engine, target, move):
+        engine.take_damage(target, amount)
+        receipt = DAMAGE.application(requested=amount, before=before, after=DAMAGE.observe(target),
+                                     source=move['id'], damage_class=move['class'])
+        record(engine, attacker, target, move, receipt, actual_type, token)
+    return receipt
 
 
 def record(engine, attacker, target, move, receipt, actual_type, native_context):

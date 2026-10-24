@@ -28,8 +28,18 @@ SUITES = {
     "rank_revisions": ".ci/suites/rank_revisions.json",
     "retraining": ".ci/suites/retraining.json",
     "next_revisions": ".ci/suites/next_revisions.json",
+    "final_revisions_01": ".ci/suites/final_revisions_01.json",
+    "final_revisions_02": ".ci/suites/final_revisions_02.json",
+    "final_revisions_03": ".ci/suites/final_revisions_03.json",
+    "final_revisions_04": ".ci/suites/final_revisions_04.json",
+    "final_revisions_05": ".ci/suites/final_revisions_05.json",
+    "final_revisions_06": ".ci/suites/final_revisions_06.json",
+    "final_revisions_07": ".ci/suites/final_revisions_07.json",
+    "final_revisions_08": ".ci/suites/final_revisions_08.json",
+    "final_revisions_09": ".ci/suites/final_revisions_09.json",
 }
-NATIVE_TIMEOUT_SECONDS = 3600
+SUITES.update({f"repair_revisions_{n:02d}": f".ci/suites/repair_revisions_{n:02d}.json" for n in range(1, 10)})
+NATIVE_TIMEOUT_SECONDS = 5400
 STAGE_PARENT = Path("D:/trpg-rulebook-structuring/ci")
 VERIFIER = "work/reuse-partials/verify_overlay_tests.py"
 BUNDLE = ".ci/fixtures.zip.enc"
@@ -262,7 +272,39 @@ def encrypt_evidence(root, output, key, temp_root):
         result = crypt_file(root, "encrypt", archive, sealed, key, output / "evidence-encrypt.log")
         if result["exit_code"] != 0:
             raise RuntimeError("Evidence encryption failed")
-    return {"file": sealed.name, "sha256": file_hash(sealed), "raw_file_count": len(files)}
+    evidence = {"file": sealed.name, "sha256": file_hash(sealed), "raw_file_count": len(files)}
+    # Keep the complete original archive. A separate encrypted diagnostic view
+    # avoids downloading each job's duplicate input corpus during failure repair.
+    # It is explicitly insufficient for physical-input acceptance.
+    try:
+        diagnostics = [path for path in files if path.suffix != ".zip"]
+        excluded = {path.relative_to(output).as_posix(): file_hash(path)
+                    for path in files if path.suffix == ".zip"}
+        with tempfile.TemporaryDirectory(prefix="ptk-diagnostics-", dir=temp_root) as directory:
+            archive = Path(directory).resolve() / "diagnostics.zip"
+            if not archive.is_relative_to(temp_root):
+                raise ValueError("Diagnostic temporary directory leaves RUNNER_TEMP")
+            with zipfile.ZipFile(archive, "x", compression=zipfile.ZIP_DEFLATED) as bundle:
+                for path in sorted(diagnostics):
+                    if path.is_symlink() or not path.resolve().is_relative_to(output):
+                        raise ValueError("Raw diagnostic leaves its run directory")
+                    bundle.write(path, path.relative_to(output).as_posix())
+                bundle.writestr("diagnostic-scope.json", json.dumps({
+                    "schema_version": 1, "kind": "diagnostic_only",
+                    "complete_input_capture": False, "full_evidence": evidence,
+                    "excluded_input_archives": excluded,
+                }, sort_keys=True))
+            small = output / "diagnostics.zip.enc"
+            result = crypt_file(root, "encrypt", archive, small, key, output / "diagnostics-encrypt.log")
+            if result["exit_code"] != 0:
+                raise RuntimeError("Diagnostic encryption failed")
+        evidence["diagnostics"] = {"file": small.name, "sha256": file_hash(small),
+                                   "raw_file_count": len(diagnostics), "complete_input_capture": False}
+    except Exception as exc:
+        # A convenience artifact must not change the original verifier outcome
+        # or conceal the full authenticated evidence that was already preserved.
+        evidence["diagnostics_error_type"] = type(exc).__name__
+    return evidence
 
 
 def public_summary(suite, reports, outcome, public_ids):
@@ -485,6 +527,25 @@ def self_check():
             assert set(bundle.namelist()) == set(raw_paths)
             for name in raw_paths:
                 assert hashlib.sha256(bundle.read(name)).hexdigest() == raw_hashes[name]
+        compact = sealed["diagnostics"]
+        assert compact["complete_input_capture"] is False
+        assert compact["sha256"] == file_hash(evidence / compact["file"])
+        assert marker.encode() not in (evidence / compact["file"]).read_bytes()
+        small_recovered = root / "diagnostics-recovered.zip"
+        result = crypt_file(project, "decrypt", evidence / compact["file"], small_recovered,
+                            key, root / "diagnostics-recovered.log")
+        assert result["exit_code"] == 0
+        with zipfile.ZipFile(small_recovered) as bundle:
+            expected = set(raw_paths) - {"physical/ci-native-inputs.zip"}
+            assert set(bundle.namelist()) == expected | {"diagnostic-scope.json"}
+            for name in expected:
+                assert hashlib.sha256(bundle.read(name)).hexdigest() == raw_hashes[name]
+            scope = json.loads(bundle.read("diagnostic-scope.json"))
+            assert scope["kind"] == "diagnostic_only" and scope["complete_input_capture"] is False
+            assert scope["full_evidence"]["sha256"] == sealed["sha256"]
+            assert scope["excluded_input_archives"] == {
+                "physical/ci-native-inputs.zip": raw_hashes["physical/ci-native-inputs.zip"]}
+        assert not list(root.glob("ptk-diagnostics-*"))
         assert "PTK_FIXTURE_KEY" not in os.environ
         rejected = root / "encryption-failure"
         rejected.mkdir()

@@ -32,13 +32,9 @@ def classify_load(weight,heavy,staggering,boundary_band=None):
     number(staggering,'staggering-load limit',minimum=0)
     if not lo<hi<=staggering:
         raise ValueError('ordered heavy and staggering load limits required')
-    if weight==lo:
-        if boundary_band is None:return 'boundary'
-        if boundary_band not in ('normal','heavy'):raise ValueError('invalid lower-boundary ruling')
-        return boundary_band
-    if weight==hi:
-        if boundary_band is None:return 'boundary'
-        if boundary_band not in ('heavy','staggering'):raise ValueError('invalid upper-boundary ruling')
-        return boundary_band
-    if boundary_band is not None:raise ValueError('boundary ruling cannot override an ordinary interval')
-    return 'normal' if weight<lo else 'heavy' if weight<hi else 'staggering' if weight<=staggering else 'too_heavy'
+    band = ('normal' if weight < lo else 'heavy' if weight <= hi
+            else 'staggering' if weight <= staggering else 'too_heavy')
+    # Old endpoint observations may repeat the source result, never override it.
+    if boundary_band is not None and (weight not in (lo, hi) or boundary_band != band):
+        raise ValueError('boundary observation conflicts with the closed Heavy range')
+    return band

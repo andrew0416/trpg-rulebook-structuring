@@ -19,6 +19,7 @@ class ProtectionTests(unittest.TestCase):
    c=Combatant(self.r,build_pokemon(self.r,'파오리',30,name='P'+str(i),moves=[mid],abilities=[],wild=True,pos=(i,0)))
    actors.append(c)
   e.everyone=e.gm.everyone=actors;e.grid=Grid(10,10)
+  for i,c in enumerate(actors):e.gm.add_combatant(c,side='party' if i==0 else 'foe',reason='observed sides of actual equipment attack participants')
   for i,(c,item) in enumerate(zip(actors,held)):
    if item:
     c.item=item;c.spec['item']=item;uid='object/'+str(i)

@@ -72,14 +72,14 @@ class ActionLifecycleTests(unittest.TestCase):
    with self.subTest(roll=n):
     e,a,b=self.pair();e.start_round([a,b]);a.conditions.add('마비');rolls=[]
     def die():rolls.append(n);return n
-    e.d20=die;e.start_of_turn(a);self.assertEqual(rolls,[n]);self.assertIn('마비',a.conditions);e.end_of_turn(a);self.assertEqual(rolls,[n]);self.assertIn('마비',a.conditions)
+    e.d20=die;e.start_of_turn(a,initiative_count=__import__('initiative').value(self.rules,a,engine=e).value);self.assertEqual(rolls,[n]);self.assertIn('마비',a.conditions);e.end_of_turn(a);self.assertEqual(rolls,[n]);self.assertIn('마비',a.conditions)
  def test_014_failed_paralysis_allows_only_one_standard_or_shift(self):
   for first,second in [('standard','shift'),('shift','standard')]:
    with self.subTest(first=first):
-    e,a,b=self.pair();e.start_round([a,b]);a.conditions.add('마비');e.d20=lambda:10;e.start_of_turn(a)
+    e,a,b=self.pair();e.start_round([a,b]);a.conditions.add('마비');e.d20=lambda:10;e.start_of_turn(a,initiative_count=__import__('initiative').value(self.rules,a,engine=e).value)
     self.assertTrue(self.turn.spend(e,a,first));self.assertFalse(self.denied_or_inert(lambda:self.turn.spend(e,a,second)))
  def test_015_successful_paralysis_permits_both_actions_without_cure(self):
-  e,a,b=self.pair();e.start_round([a,b]);a.conditions.add('마비');e.d20=lambda:11;e.start_of_turn(a)
+  e,a,b=self.pair();e.start_round([a,b]);a.conditions.add('마비');e.d20=lambda:11;e.start_of_turn(a,initiative_count=__import__('initiative').value(self.rules,a,engine=e).value)
   self.assertTrue(self.turn.spend(e,a,'standard'));self.assertTrue(self.turn.spend(e,a,'shift'));self.assertIn('마비',a.conditions)
  def test_016_sleep_blocks_ordinary_attack(self):
   e,a,b=self.pair();e.start_round([a,b]);a.conditions.add('잠듦');e.start_of_turn(a);before=copy.deepcopy(a.budget)
@@ -174,7 +174,7 @@ class ActionLifecycleTests(unittest.TestCase):
   e,a,b=self.pair();c=self.Combatant(self.rules,dict(copy.deepcopy(b.spec),id='fixture/second',name='second'));e.everyone=e.gm.everyone=[a,b,c]
   mid=self.contract_move(e,'standard',[dict(type='injury',value=1,target='target')]);e.r.moves[mid]['range']='파열 1';e.r.moves_mech[mid]['header']['range']={'shape':'burst','size':1,'parsed':True};e.targets_in_range=lambda *args:[b,c];e.start_round([a,b,c])
   if paralyzed:a.conditions.add('마비')
-  e.d20=lambda:10;e.start_of_turn(a);e.d20=lambda:20
+  e.d20=lambda:10;e.start_of_turn(a,initiative_count=__import__('initiative').value(self.rules,a,engine=e).value if paralyzed else None);e.d20=lambda:20
   return e,a,b,c,mid
  def test_036_area_continuation_one_action_and_frequency(self):
   e,a,b,c,mid=self.area_contract();e.use_move_on(a,b,mid,[a,b,c]);self.assertEqual((b.injuries,c.injuries),(1,1));self.assertEqual(a.move_uses[mid],1);self.assertEqual(a.budget['standard'],0);self.assertEqual(a._action_history,['standard'])
@@ -200,7 +200,7 @@ class ActionLifecycleTests(unittest.TestCase):
   import effects as FX
   e,a,b=self.pair();a.conditions.add('마비');e.start_round([a,b]);e.d20=lambda:10
   a.ability_triggers=[{'name':'test-only/turn-start-cost','_feat':True,'spec':{'event':'turn_start'},'frequency':{'kind':'at_will'},'activation_header':{'frequency':{'kind':'at_will','action':'standard'}},'effects':[{'type':'injury','value':1,'target':'self'}]}]
-  e.start_of_turn(a);self.assertEqual(a.injuries,0);self.assertEqual(a.budget['standard'],1);self.assertEqual(a._action_history,[])
+  e.start_of_turn(a,initiative_count=__import__('initiative').value(self.rules,a,engine=e).value);self.assertEqual(a.injuries,0);self.assertEqual(a.budget['standard'],1);self.assertEqual(a._action_history,[])
   self.assertTrue(self.turn.spend(e,a,'shift'));self.assertFalse(self.turn.spend(e,a,'standard'))
  def test_042_standard_acted_evidence_survives_end_not_next_round(self):
   import effects as FX

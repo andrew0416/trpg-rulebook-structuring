@@ -38,7 +38,19 @@ class Procedure:
                     status=self.success_state if captured else self.failure_state)
 
 
-def bind_native(rules):
+def bind_native(rules, source_variant=None):
+    if source_variant == 'core_105':
+        import source_context as SOURCES
+        SOURCES.verified_source(rules, {'file':'source-audit/ptu-core-1.05.pdf',
+            'sha256':'e5e0371031601c3ad0a04056771c17599a2d8826e5a5102ccd37f9b368108907'},
+            label='Core capture p214',source_root='source-audit')
+        return Procedure('core_105/capture-p214',100,'<=',(100,)), {
+            'source_variant':source_variant,'throw':{'action':'standard','ac':6,'class':'변화','range':'4 + athletics_rank'},
+            'trainer_bonus_by_level':{},'capture_rate':{'source':'Core 1.05 p214'}}
+    if source_variant not in (None,'official_sep2015'):
+        raise ValueError('select an actual complete capture procedure')
+    if source_variant=='official_sep2015':
+        __import__('capture_specialist').official_source(rules,source_variant)
     selected=rules.mech('pokemon/capture-rate')
     if selected.get('_version') is not None:
         raise ValueError('selected capture version needs a complete procedure and matching ball modifiers')
@@ -66,3 +78,40 @@ def bind_native(rules):
         if not isinstance(level,str) or not level.isdigit():raise ValueError('trainer bonus level must be numeric')
         C.integer(bonus,'trainer capture bonus')
     return Procedure('pokemon/capture-rate',20,'>='),deepcopy(selected)
+
+
+def rate(engine,target,rarity=0,*,source_variant=None,hp=None):
+    procedure,selected=bind_native(engine.r,source_variant)
+    current=target.hp if hp is None else C.integer(hp,'capture-only HP observation',1)
+    if procedure.sides==20:
+        cr=selected['capture_rate'];boxes=0
+        ctx={'hp_le_50':current<=0.5*target.base_max_hp,'hp_le_25':current<=0.25*target.base_max_hp,
+             'injuries_ge_5':target.injuries>=5,
+             'any_status':any(engine.r.condition_class(s) in ('persistent','volatile') for s in target.conditions),
+             'two_evolutions_left':target.spec.get('evolutions_remaining',0)==2,
+             'one_evolution_left':target.spec.get('evolutions_remaining',0)==1}
+        boxes=sum(row['boxes'] for row in cr['checkboxes'] if ctx[row['id']])
+        import arithmetic_policy as M
+        return cr['base']+M.ratio(target.level,10)*cr['per_10_levels']+rarity-boxes*cr['checkbox_penalty'],boxes
+    C.integer(rarity,'Core GM capture rarity adjustment')
+    if current<=0:raise ValueError('Core capture requires positive HP or actual Catch Combo')
+    health=30 if current==1 else 15 if current<=target.base_max_hp/4 else 0 if current<=target.base_max_hp/2 else -15 if current<=target.base_max_hp*3/4 else -30
+    evolutions=C.integer(target.spec.get('evolutions_remaining',0),'remaining evolution stages',0,2)
+    conditions=sum(10 if engine.r.condition_class(s)=='persistent' else 5 if engine.r.condition_class(s)=='volatile' else 0 for s in target.conditions)
+    total=100-2*target.level+health+{2:10,1:0,0:-10}[evolutions]+5*target.injuries+conditions
+    total-=10 if target.spec.get('shiny',False) else 0
+    total-=30 if target.spec.get('legendary',False) else 0
+    total+=10 if '구속' in target.conditions else 0
+    total+=5 if '둔화' in target.conditions else 0
+    return total+rarity,0
+
+
+def ball_modifier(engine,name,trainer,target,procedure):
+    import items
+    value,why=items.ball_modifier(engine,name,trainer,target)
+    # The official September conversion explicitly gives the inverse of each
+    # original modifier. Use that complete paired table, including Timer bounds.
+    if procedure.sides==100:
+        __import__('capture_specialist').official_source(engine.r,'official_sep2015')
+        return -5*value,why+' (Core paired modifier)'
+    return value,why

@@ -21,7 +21,7 @@ class ParalysisStateTests(unittest.TestCase):
     def begin(self, actor, face):
         self.e.start_round(self.e.gm.everyone)
         with patch.object(self.e, 'd20', return_value=face) as roller:
-            self.e.start_of_turn(actor)
+            self.e.start_of_turn(actor, initiative_count=INITIATIVE.value(self.r, actor, engine=self.e).value)
         return roller.call_count
 
     def state(self, engine, actor):
@@ -97,7 +97,7 @@ class ParalysisStateTests(unittest.TestCase):
                     engine.end_of_turn(actual)
                     engine.start_round(engine.gm.everyone)
                     with patch.object(engine, 'd20', return_value=11):
-                        engine.start_of_turn(actual)
+                        engine.start_of_turn(actual, initiative_count=INITIATIVE.value(self.r, actual, engine=engine).value)
                     self.assertTrue(TURN.spend(engine, actual, 'standard', 'next turn success'))
                     self.assertTrue(TURN.spend(engine, actual, 'shift', 'next turn success'))
                     self.assertIn('마비', actual.conditions)

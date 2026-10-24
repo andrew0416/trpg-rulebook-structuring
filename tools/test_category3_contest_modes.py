@@ -79,7 +79,7 @@ class Tests(unittest.TestCase):
             before=deepcopy(vars(c))
             with self.assertRaises(ValueError):self.e.perform(c,'연속자르기','근사함',[],False,reroll_decision=lambda first:True)
             self.assertEqual(vars(c),before);self.assertFalse(self.e._coordinator_used)
-        self.coordinator();c=self.cs[0];self.trainers[0].spec['skills']={'명령':'초보'}
+        self.trainers[0].spec['skills']={'명령':'초보'};self.coordinator();c=self.cs[0]
         self.e.perform(c,'연속자르기','근사함',[],False,reroll_decision=lambda first:True)
         self.assertEqual(len(self.e._coordinator_used),1)
     def test_coordinator_choice_sees_first_roll_and_declining_keeps_use(self):

@@ -54,7 +54,8 @@ class NativeSetupStateTests(unittest.TestCase):
                          self.e.rng.getstate()))
 
     def next_turn(self):
-        self.e.end_of_turn(self.a)
+        if self.e._active_turn_actor is self.a:
+            self.e.end_of_turn(self.a)
         self.e.start_round(self.e.everyone)
         self.e.start_of_turn(self.a, initiative_count=20)
 

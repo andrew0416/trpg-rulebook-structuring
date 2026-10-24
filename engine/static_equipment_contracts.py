@@ -71,7 +71,11 @@ def _active(engine,actor,kind):
 
 def blocks_stage_loss(engine,target,source_actor,context,*,origin_source_id=None,source_side=None):
     rows=_active(engine,target,"clear_amulet")
-    if not rows or (source_actor is target if source_side is None else source_side==target.side):return False
+    if not rows:return False
+    if source_side is None:
+        if source_actor is target:return False
+        source_side=getattr(source_actor,"side",None)
+    if source_side is None or getattr(target,"side",None) is None or source_side==target.side:return False
     source=origin_source_id if origin_source_id is not None else str((context or {}).get("source_id") or "")
     return any(source.startswith(prefix) for prefix in rows[0][0]["blocked_source_prefixes"])
 

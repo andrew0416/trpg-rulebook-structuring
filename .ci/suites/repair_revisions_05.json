@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "id": "repair_revisions_05",
+  "purpose": "Source-bound existing Pokemon Fire/Ice passive acquisition and withdrawal; R59 selectable book/CSV acquisition and retained receipts with declared7+; Press composed context; real staged Cannon/Plasma/effect-rank observations; five Juggler and five weather fixture repairs. Exact120methods including10new, original4115 plus added obligations retained, source-specific existing PASS reused. No completion credit from selection.",
+  "completion_credit": 0,
+  "required_unique_count": 8,
+  "completed": {
+    "tools.test_core_living_weapon.CoreLivingWeaponTests": {
+      "tests": [
+        "tools.test_core_living_weapon.CoreLivingWeaponTests.test_fainted_equipment_accuracy_and_all_equipment_skill_checks_only_once"
+      ]
+    },
+    "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests": {
+      "tests": [
+        "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests.test_native_brightest_flame_late_acquisition_projection_failure_is_atomic",
+        "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests.test_native_brightest_flame_late_paid_withdrawal_failure_restores_every_owner_projection",
+        "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests.test_native_brightest_flame_projects_existing_late_and_foreign_owner_boundaries_once",
+        "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests.test_native_brightest_flame_restore_and_paid_withdrawal_preserve_csv_and_completed_attack",
+        "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests.test_r253_actual_fire_emboar_learns_scald_pays_sync_and_reaches_plus3_boundary",
+        "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests.test_r624_firebringer_flame_wheel_has_plus2_burn_boundary",
+        "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests.test_r624_native_electrify_suppresses_fire_plus2_but_keeps_printed_burn19"
+      ]
+    }
+  }
+}

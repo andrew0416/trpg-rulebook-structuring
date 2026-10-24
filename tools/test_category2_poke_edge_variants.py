@@ -17,6 +17,9 @@ class Tests(unittest.TestCase):
  restored=_fixture_test_category2_progression_state.ProgressionStateTests.restored
  def setUp(self):
   _fixture_test_category2_progression_state.ProgressionStateTests.setUp(self)
+  self.e.pokemon_activity(self.a,'configure_intelligence',
+      portrayal='Pokemon may learn the selected social and education specializations',discussed_with=['edge training participants'],
+      social=True,education=True,reason='explicit campaign permission for assigned and taught skill pools')
   self.p=self.add(build_pokemon(self.r,'근육몬',20,moves=[],abilities=[],extra={'trainer_id':self.a.entity_id,'tutor_points':20}))
   self.raw=dict(land=4,sky=3,swim=2,levitate=2,burrow=2,teleport=2,power=3,high_jump=1,long_jump=2)
   self.e.gm.set_movement_capabilities(self.p,self.raw,basis='base',reason='observed base capabilities')

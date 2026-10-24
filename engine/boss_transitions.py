@@ -34,6 +34,22 @@ def supports(actor, operation):
     return state(actor) is not None and operation in SUPPORTED_ORDINARY_OPERATIONS
 
 
+def require_periodic_round(actor, event):
+    """Bind round ticks to the boss boundary that actually issued them."""
+    candidates=[state(actor)]+[
+        row.get('state') for row in actor.spec.get('retired_encounter_templates',[])
+        if row.get('source_id')=='C11-137']
+    round_no=event.get('round')
+    for row in candidates:
+        if not isinstance(row,dict) or row.get('kind')!='boss':continue
+        receipt=row.get('round_trigger_receipts',{}).get('boss-round:'+str(round_no))
+        if (isinstance(receipt,dict) and receipt.get('kind')=='boss_round_start'
+                and receipt.get('round')==round_no and receipt.get('source_id')=='C11-129'
+                and event.get('source_id')=='C11-129'):
+            return
+    raise ValueError('periodic round tick requires its actual boss round-start receipt')
+
+
 def _integer(value, label, low=0):
     if type(value) is not int or value < low:
         raise ValueError(label + " must be an integer at least " + str(low))
@@ -47,13 +63,44 @@ def action_count(*, pokemon_turns, combat_trainers, focused_command_extra=0):
             + _integer(focused_command_extra, "Focused Command extra turns"))
 
 
-def initiative_slots(base_initiative, count):
+def _initiative_policy(actor):
+    import json
+    from pathlib import Path
+    from source_context import verified_source
+    value=json.loads((Path(actor.r.root)/'data/boss-initiative-source-policy.json').read_text(encoding='utf-8'))
+    if value.get('schema_version')!=1 or value.get('source')!='ch11-running-the-game/보스-인카운터/일반-보스-템플릿':
+        raise ValueError('known boss initiative source policy required')
+    verified_source(actor.r,value['source_reference'],label='boss initiative')
+    for definition in value['definitions'].values():
+        ref=definition['source']
+        verified_source(actor.r,ref,label='boss initiative definition',
+                        source_root='source-audit' if ref['file'].startswith('source-audit/') else 'input')
+    return value
+
+
+def _initiative_document(value):
+    return {'schema':1,'id':'native/boss-initiative-floor','variants':[{
+        'rule_id':value['source'],'source':value['source_reference'],
+        'values':{'variant':{'$input':'source_text'},'definitions':value['definitions']},
+        'inputs':{'source_text':{'type':'string','authority':'gm','decision_kind':'source_conflict',
+            'choices':list(value['definitions']),
+            'question':'Boss downward Initiative slots: Korean stays above 1; English permits 1. Which complete derivation applies?'}}}]}
+
+
+def initiative_choices(actor):
+    import source_policy as POLICY
+    return POLICY.resolve(actor.r,_initiative_document(_initiative_policy(actor)))
+
+
+def initiative_slots(base_initiative, count, *, downward_minimum=1):
     """C11-118 slot derivation; never imports the contradictory C11-119 sixth slot."""
     base = _integer(base_initiative, "base initiative", 1)
     count = _integer(count, "boss action count", 1)
     values = [base]
     below = base - 5
-    while len(values) < count and below >= 1:
+    if type(downward_minimum)is not int or downward_minimum not in (1,2):
+        raise ValueError('known downward Initiative floor required')
+    while len(values) < count and below >= downward_minimum:
         values.append(below)
         below -= 5
     above = base + 5
@@ -65,7 +112,8 @@ def initiative_slots(base_initiative, count):
 
 
 def prepare_configuration(actor, *, total_bars, action_slots, action_basis,
-                          base_initiative, capture_level, transition_effects):
+                          base_initiative, capture_level, transition_effects,
+                          initiative_source_choice=None):
     if action_basis is not None:
         if not isinstance(action_basis, dict) or set(action_basis) != {
                 "pokemon_turns", "combat_trainers", "focused_command_extra"}:
@@ -81,9 +129,18 @@ def prepare_configuration(actor, *, total_bars, action_slots, action_basis,
     if action_slots is None:
         if base_initiative is None:
             base_initiative = actor.staged("spe")
-        action_slots = initiative_slots(base_initiative, count)
+        import source_policy as POLICY
+        value=_initiative_policy(actor);document=_initiative_document(value)
+        result=POLICY.resolve(actor.r,document,decisions={} if initiative_source_choice is None else {'source_text':initiative_source_choice})
+        variant=value['default'] if initiative_source_choice is None else result['values']['variant']
+        basis['initiative_derivation']={'base':base_initiative,'variant':variant,
+            'choice':deepcopy(initiative_source_choice),'scope':deepcopy(result['decision_scope']),
+            'binding':deepcopy(result['source_policy_binding'])}
+        action_slots = initiative_slots(base_initiative, count,downward_minimum=value['definitions'][variant]['downward_minimum'])
     elif len(action_slots) != count:
         raise ValueError("boss party basis and action-slot count disagree")
+    elif initiative_source_choice is not None:
+        raise ValueError('source floor choice applies only to newly derived boss slots')
     if total_bars is None:
         total_bars = count
         bar_basis = "one_per_action"
@@ -158,6 +215,27 @@ def validate(actor, row=None):
     _integer(basis.get("result"), "boss action result", 1)
     if basis["result"] != len(row["action_slots"]):
         raise ValueError("boss action basis and slots disagree")
+    if 'initiative_derivation' in basis:
+        import source_selection as SELECTION
+        value=_initiative_policy(actor);document=_initiative_document(value)
+        record=basis['initiative_derivation']
+        if type(record)is not dict or set(record)!={'base','variant','choice','scope','binding'}:
+            raise ValueError('actual producing boss initiative derivation required')
+        SELECTION.policy_values(record['binding'],document['variants'])
+        scope=record['scope'];choice=record['choice'];variant=record['variant']
+        if (type(scope)is not dict or scope.get('policy_id')!=document['id']
+                or scope.get('definition_hash')!=SELECTION.fingerprint(document)
+                or scope.get('selected_id')!=value['source'] or scope.get('selected_version') is not None):
+            raise ValueError('producing boss source scope changed')
+        if choice is None:
+            if variant!=value['default']:raise ValueError('authored default boss source changed')
+        elif (type(choice)is not dict or set(choice)!={'value','reason','scope'}
+              or choice['value']!=variant or choice['scope']!=scope
+              or not isinstance(choice['reason'],str) or not choice['reason'].strip()):
+            raise ValueError('actual scoped boss source choice required')
+        if variant not in value['definitions'] or row['action_slots']!=initiative_slots(
+                record['base'],basis['result'],downward_minimum=value['definitions'][variant]['downward_minimum']):
+            raise ValueError('boss slots differ from their producing source derivation')
     if runtime["hp_bar_basis"] not in ("one_per_action", "explicit_gm_selection"):
         raise ValueError("boss HP-bar basis required")
     for key in ("half_bar_injury_awarded", "vulnerable_until_damaged"):
@@ -169,6 +247,17 @@ def validate(actor, row=None):
     level = runtime["capture_level"]
     if level is not None:
         _integer(level, "captured boss level", 1)
+    capture=row.get('capture_form')
+    if level is not None and level!=row['normal_form_baseline']['level']:
+        if (not isinstance(capture,dict) or capture.get('source_id')!='C11-136'
+                or capture.get('sheet',{}).get('level')!=level
+                or capture.get('sheet',{}).get('species')!=actor.spec['species']):
+            raise ValueError('lowered boss capture requires its selected normal-form sheet')
+        choices=capture.get('choices',{});sheet=capture['sheet']
+        if (choices.get('strategy')!=sheet.get('strategy') or choices.get('moves')!=sheet.get('moves')
+                or choices.get('abilities')!=sheet.get('abilities')):
+            raise ValueError('captured sheet must retain its actual GM choices')
+    elif capture is not None:raise ValueError('capture reallocation requires a lowered capture level')
     if not isinstance(runtime["flinch_rounds"], dict):
         raise ValueError("boss flinch receipt map required")
     for round_key, disposition in runtime["flinch_rounds"].items():
@@ -229,6 +318,10 @@ def start_round(engine, actor):
     TURN.weather_turn_start(engine, actor, _boss_round=True)
     if actor.hp != before:
         receipt["hp_loss"].append({"source": "weather", "amount": before - actor.hp})
+    import vortex_state as VORTEX
+    import custom_condition_effects as CUSTOM
+    VORTEX.turn_start(engine, actor, _boss_round=True)
+    CUSTOM.turn_start(engine, actor, _boss_round=True)
     for condition in sorted(actor.conditions):
         for effect in actor.r.condition_effects(VARIANT_SOURCES.get(condition, condition)):
             if effect.get("type") != "tick_damage" or effect.get("when") != "end_of_turn":
@@ -252,6 +345,7 @@ def start_turn(engine, actor, initiative_count=None):
     if runtime["pending_skip_turns"]:
         runtime["pending_skip_turns"] -= 1
         skip = True; reason = "stagger"
+        runtime["flinch_rounds"][str(engine.round_no)] = "consumed"
     binding = row["condition_bindings"].get("풀죽음")
     if (binding and binding.get("slot_id") == slot["id"]
             and runtime["flinch_rounds"].get(str(engine.round_no)) == "scheduled"):
@@ -301,6 +395,7 @@ def close_action_lifecycle(engine, actor):
 
 
 def condition_applies_this_turn(actor, condition):
+    if __import__('blessing_effects').ignored(actor,condition):return False
     row = state(actor)
     if row is None:
         return True
@@ -450,11 +545,14 @@ def _apply_effect(engine, actor, effect):
     if kind == "vulnerable_until_damaged":
         actor.spec["encounter_template"]["boss_runtime"]["vulnerable_until_damaged"] = True
     elif kind == "skip_next_turn":
-        actor.spec["encounter_template"]["boss_runtime"]["pending_skip_turns"] += 1
+        runtime = actor.spec["encounter_template"]["boss_runtime"]
+        # Stagger's printed Flinch shares the ordinary once-per-round pool.
+        if str(engine.round_no) not in runtime["flinch_rounds"]:
+            runtime["flinch_rounds"][str(engine.round_no)] = "scheduled"
+            runtime["pending_skip_turns"] = 1
     elif kind == "refresh_scene_move":
-        move_id = effect["move_id"]
-        actor.move_uses.pop(move_id, None); actor.spec["move_uses"] = dict(actor.move_uses)
-        actor.spec.get("frequency_state", {}).get("moves", {}).pop(move_id, None)
+        import frequency as FREQUENCY
+        FREQUENCY.restore_scene_use(engine, actor, effect["move_id"])
     elif kind == "cure_volatile":
         condition = effect["condition"]
         if condition in actor.conditions:
@@ -465,6 +563,7 @@ def _apply_effect(engine, actor, effect):
         engine.change_stage(actor, effect["stage"], 1)
     elif kind == "set_attack_stage_6":
         import combat_stage_sources as STAGE_SOURCES
+        actor.spec["encounter_template"]["baseline_stages"]["atk"] = 6
         STAGE_SOURCES.assign_combat(actor, {"atk": 6})
     elif kind == "unlock_move":
         move_id = effect["move_id"]
@@ -502,9 +601,10 @@ def after_hp_change(engine, actor, before, source, *, carry_over=True, attack=Fa
         row["bar_transition_receipts"].append(receipt); receipts.append(receipt)
         if (not runtime["half_bar_injury_awarded"]
                 and bars["spent"] * 2 >= bars["total"]):
-            actor.injuries += 1
+            import precise_actions as PRECISE
+            retained=PRECISE.gain_injury(engine,actor,1,'C11-126')
             runtime["half_bar_injury_awarded"] = True
-            receipt["half_bar_injury"] = True
+            receipt["half_bar_injury"] = bool(retained)
         if remaining:
             actor.hp = actor.max_hp - overflow if carry_over else actor.max_hp
             for effect in row["chosen_transition_effects"]:
@@ -544,6 +644,61 @@ def _rebase_capture_milestones(actor, level):
     return removed
 
 
+def prepare_capture_form(actor, level, choices):
+    """Lowering a catch requires the GM's actual normal-sheet choices first."""
+    if level is None or level == actor.level:
+        if choices is not None:
+            raise ValueError('capture choices require an explicitly changed capture level')
+        return None
+    if (not isinstance(choices,dict) or set(choices) != {'strategy','moves','abilities'}
+            or not isinstance(choices['moves'],list) or not isinstance(choices['abilities'],list)):
+        raise ValueError('lowered boss capture requires explicit GM capture_choices: strategy, moves, abilities')
+    import builder
+    if choices['strategy'] not in builder.STRATEGY:
+        raise ValueError('captured normal form needs an actual allocation strategy')
+    if len(choices['abilities']) > 1 + (level >= 20) + (level >= 40):
+        raise ValueError('captured normal form exceeds its level ability milestones')
+    # The complete selected native sheet is retained as evidence; it never
+    # inherits the encounter's high-level allocation or selected abilities.
+    form = builder.build_pokemon(actor.r,actor.spec['species'],level,
+        nature=actor.spec.get('nature'),strategy=choices['strategy'],
+        moves=choices['moves'],abilities=choices['abilities'])
+    import growth_milestones as MILESTONES
+    chosen=[]
+    for index, ability in enumerate(choices['abilities']):
+        milestone=('creation',20,40)[index]
+        options=MILESTONES.ability_options(actor.r,dict(form,abilities=chosen),milestone)
+        if ability not in options:
+            raise ValueError('captured normal-form ability is not an eligible milestone choice')
+        chosen.append(ability)
+    import growth_stats as GROWTH
+    import pokemon_stat_edges as EDGES
+    import arithmetic_policy as M
+    inherited=deepcopy(actor.spec)
+    inherited.update(level=level,moves=deepcopy(form['moves']),abilities=chosen)
+    plan=builder.allocation_plan(builder.species_lookup(actor.r,inherited['species'])['base_stats'],
+        M.floor(builder.calc(actor.r.mech('pokemon/stat-build')['stat_points'],{'level':level})),
+        choices['strategy'],inherited.get('nature'),actor.r,
+        base_sources=EDGES.base_sources(actor.r,inherited),
+        fixed_point_sources=EDGES.point_sources(actor.r,inherited),
+        relation_exempt=EDGES.exemptions(actor.r,inherited))
+    form['initial_allocation']=plan
+    form['stats']={stat:value+inherited.get('vitamin_bonus',{}).get(stat,0) for stat,value in plan['stats'].items()}
+    form['vitamin_bonus']=deepcopy(inherited.get('vitamin_bonus',{}))
+    form['learned_poke_edges']=deepcopy(inherited.get('learned_poke_edges',[]))
+    for key in ('underdog','baby_template','researcher_training'):
+        if key in inherited:form[key]=deepcopy(inherited[key])
+    # Validate against the individual's actual permanent-source declarations.
+    inherited.update(stats=deepcopy(form['stats']),initial_allocation=deepcopy(plan),
+                     growth_investment_events=[],allocation_migrations=[])
+    inherited.pop('form_growth_allocations',None)
+    GROWTH.project(actor.r,inherited)
+    builder.record_allocation(actor.r,inherited,'boss_capture_reallocation')
+    form['stat_allocation']=deepcopy(inherited['stat_allocation'])
+    form['stat_history']=deepcopy(inherited['stat_history'][-1:])
+    return {'source_id':'C11-136','choices':deepcopy(choices),'sheet':form}
+
+
 def after_capture(engine, actor):
     row = state(actor)
     if row is None:
@@ -554,6 +709,23 @@ def after_capture(engine, actor):
     runtime = row["boss_runtime"]
     previous_level = actor.level
     actor.level = runtime["capture_level"] or baseline["level"]
+    selected = row.get('capture_form')
+    if actor.level != baseline['level']:
+        if selected is None:
+            raise ValueError('lowered boss capture requires an explicit GM normal-form reallocation')
+        baseline = deepcopy(selected['sheet'])
+        row['capture_reallocation_previous']={field:deepcopy(actor.spec[field]) for field in (
+            'initial_allocation','stat_allocation','stat_history','growth_investment_events',
+            'allocation_migrations','form_growth_allocations','growth_milestone_choices',
+            'move_natural_history') if field in actor.spec}
+        # Preserve the individual's earned history in the retired template;
+        # live allocation and learning projections belong to the selected form.
+        for field in ('initial_allocation','stat_allocation','stat_history','growth_investment_events',
+                      'allocation_migrations','form_growth_allocations','growth_milestone_choices',
+                      'move_natural_history'):
+            actor.spec.pop(field,None)
+            if field in baseline:actor.spec[field]=deepcopy(baseline[field])
+        actor.spec['strategy']=baseline['strategy']
     actor.stats = deepcopy(baseline["stats"]); actor.spec["stats"] = deepcopy(baseline["stats"])
     actor.moves = deepcopy(baseline["moves"] or []); actor.spec["moves"] = deepcopy(actor.moves)
     actor.abilities = deepcopy(baseline["abilities"] or []); actor.spec["abilities"] = deepcopy(actor.abilities)

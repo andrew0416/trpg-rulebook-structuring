@@ -17,15 +17,16 @@ def dirty_trick(engine,actor,target,trick,*,fixed_accuracy=None,challenger_optio
     from grid import cheb
     import skill_maneuver_actions as SM
     trick=ALIASES.get(trick,trick)
+    rogue=__import__('rogue').dirty_context(engine,actor,target)
     if trick not in TRICKS:raise ValueError("unknown Dirty Trick selection")
     if engine.r._selected_rule(SOURCE)!=SOURCE:raise ValueError("selected Dirty Trick variant requires its own policy")
     if actor is target or actor.kind not in ("trainer","pokemon") or target.kind not in ("trainer","pokemon"):
         raise ValueError("Dirty Trick needs two distinct trainer/Pokemon actors")
     if not engine.encounter_active or engine.round_start_seconds is None:
         raise ValueError("Dirty Trick requires an active combat round")
-    if engine.grid is None or not engine.adjacent(actor,target) or not actor.on_field or not target.on_field or target.captured:
+    if not SM.native_reaction_resume(engine,actor,target,SOURCE) and (engine.grid is None or not engine.adjacent(actor,target) or not actor.on_field or not target.on_field or target.captured):
         raise ValueError("Dirty Trick requires one adjacent on-field target")
-    if (actor.injuries>=5 and not __import__('taskmaster').ignores_acting_loss(actor)):raise ValueError("heavy Standard Dirty Trick needs its event ordering adapter")
+    if rogue is None and (actor.injuries>=5 and not __import__('taskmaster').ignores_acting_loss(actor)):raise ValueError("heavy Standard Dirty Trick needs its event ordering adapter")
     if not SM.resuming(actor,SOURCE,challenger_options or {}) and any(t==trick and victim is target for t,victim in actor.custom_conditions.get("dirty_trick_uses",[])):
         raise ValueError("this Dirty Trick has already been used on this target this scene")
     if trick in ("hinder","low_blow"):
@@ -57,7 +58,7 @@ def dirty_trick(engine,actor,target,trick,*,fixed_accuracy=None,challenger_optio
             prepared=engine._prepare_skill_roll(c,skill,**opts)
             if prepared[3] is not None:opts['fixed']=prepared[3]
             if prepared[4] is not None:opts['fixed_penalties']=prepared[4]
-    prepared=SM.prepare(engine,actor,target,SOURCE,{'trick':trick,'duration_policy':duration_policy,'policy_reason':policy_reason,'fixed_accuracy':fixed_accuracy,'count':count if trick in ('hinder','blind') else None},plans)
+    prepared=SM.prepare(engine,actor,target,SOURCE,{'trick':trick,'duration_policy':duration_policy,'policy_reason':policy_reason,'fixed_accuracy':fixed_accuracy,'count':count if trick in ('hinder','blind') else None,'rogue_completion':rogue['completion'] if rogue else None},plans)
     def outcome(won):
         result=_dirty_trick_outcome(engine,actor,target,trick,status,duration_policy,policy_reason,count if trick in ('hinder','blind') else None) if won else False
         if success_only:EDGES.charge_on_success(actor,target,SOURCE,trick,'dirty_trick_uses',result)
@@ -66,15 +67,16 @@ def dirty_trick(engine,actor,target,trick,*,fixed_accuracy=None,challenger_optio
             STAT.maneuver_success(engine,actor,target,SOURCE)
         return result
     def spend():
-        if not TURN.spend(engine,actor,'standard','치사한 짓: '+trick):return False
+        if not __import__('rogue').dirty_spend(engine,actor,target,trick):return False
         if not success_only:actor.custom_conditions.setdefault('dirty_trick_uses',[]).append((trick,target))
         return True
     move={'id':SOURCE,'name':'치사한 짓: '+trick,'type':'노말','class':'변화','ac':2,'range':'근접, 대상1','keywords':[]}
     def accuracy():
         import precise_actions as PRECISE
         event=PRECISE.attacked(engine,actor,target,move,producer='combat_maneuver')
-        hit,_,_=engine.accuracy_check(actor,target,move,fixed_roll=fixed_accuracy)
-        PRECISE.accuracy(event,hit)
+        if rogue is not None:hit,natural=True,None
+        else:hit,natural,_=engine.accuracy_check(actor,target,move,fixed_roll=fixed_accuracy)
+        PRECISE.accuracy(event,hit,natural=natural)
         return hit
     return SM.run(engine,actor,prepared,attack=move,spend=spend,
         aoo=lambda:TURN.trigger_aoo(engine,actor,'치사한 짓',[x for x in TURN.adjacent_enemies(engine,actor) if x is not target]),
@@ -119,7 +121,7 @@ def flirt_existing(engine,actor,target):
 
 @ACTION.continued_maneuver(MANIPULATE)
 def manipulate(engine,actor,target,kind,*,defender_skill,fixed_accuracy=None,challenger_options=None,defender_options=None,_provocateur_quick=False):
-    from grid import cheb
+    import body_state as BODY
     import skill_modifiers as SKILL
     import skill_maneuver_actions as SM
     if _provocateur_quick:__import__('provocateur')._live(engine,actor,__import__('provocateur').QUICK)
@@ -129,7 +131,7 @@ def manipulate(engine,actor,target,kind,*,defender_skill,fixed_accuracy=None,cha
     if actor.kind!='trainer' or actor is target or target.kind not in ('trainer','pokemon'):
         raise ValueError('Manipulate requires a trainer and distinct trainer/Pokemon target')
     if not engine.encounter_active or engine.round_start_seconds is None:raise ValueError('Manipulate requires an active combat round')
-    if engine.grid is None or not 1<=cheb(actor.pos,target.pos)<=6 or engine.grid.blocked(actor.pos,target.pos) or not actor.on_field or not target.on_field or target.captured:
+    if not SM.native_reaction_resume(engine,actor,target,MANIPULATE) and (engine.grid is None or not actor.on_field or not target.on_field or target.captured or not BODY.in_range(engine,actor,target,6)):
         raise ValueError('Manipulate requires one visible on-field target within six metres')
     if not _provocateur_quick and (actor.injuries>=5 and not __import__('taskmaster').ignores_acting_loss(actor)):raise ValueError('heavy Standard Manipulate needs its event ordering adapter')
     if not SM.resuming(actor,MANIPULATE,challenger_options or {}) and any(k==kind and victim is target for k,victim in actor.custom_conditions.get('manipulate_uses',[])):
@@ -168,8 +170,8 @@ def manipulate(engine,actor,target,kind,*,defender_skill,fixed_accuracy=None,cha
         import precise_actions as PRECISE
         event=PRECISE.attacked(engine,actor,target,move,producer='combat_maneuver')
         if event is not None:event['manipulation']=kind
-        hit,_,_=engine.accuracy_check(actor,target,move,fixed_roll=fixed_accuracy)
-        PRECISE.accuracy(event,hit)
+        hit,natural,_=engine.accuracy_check(actor,target,move,fixed_roll=fixed_accuracy)
+        PRECISE.accuracy(event,hit,natural=natural)
         return hit
     def outcome(won):
         result=_manipulate_outcome(engine,actor,target,kind,status,count) if won else False
@@ -211,16 +213,16 @@ def move_allowed(engine,actor,move):
     import frequency as FREQ
     if any(record.get('at_will_moves_only') for record in TIMING.records(actor)) and FREQ.move_frequency(engine,move['id'],actor)[0]!='at_will':
         return False,'위협하기 동안 임의 빈도 기술만 사용 가능'
-    if force_attack(actor) and move.get('class') not in ('물리','특수'):
+    if force_attack(actor) and move.get('class') not in ('물리','특수') and not __import__('ace_trainer').supreme(engine,actor,move):
         return False,'재담 난동 중 데미지 기술 또는 발버둥만 사용 가능'
     return True,''
 
-def standard_allowed(actor,kind,native_move=None):
+def standard_allowed(actor,kind,native_move=None,engine=None):
     if not force_attack(actor):return True
     budget=getattr(actor,'budget',None)
     standard=kind in ('standard','full') or (kind in ('shift','swift') and budget is not None and budget.get(kind,0)<=0 and budget.get('standard',0)>0)
     if not standard:return True
-    return isinstance(native_move,dict) and native_move.get('class') in ('물리','특수')
+    return isinstance(native_move,dict) and (native_move.get('class') in ('물리','특수') or (engine is not None and __import__('ace_trainer').supreme(engine,actor,native_move)))
 
 def infatuation_damage(actor,target,move,attack_source,attack_stat_value):
     if getattr(actor,'_duelist_ignoring',False):return attack_stat_value,0

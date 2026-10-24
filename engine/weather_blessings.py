@@ -159,9 +159,6 @@ def preflight_attack(engine,attacker,target,move,mm):
     if move['class'] not in ('물리','특수'):return
     import effects_ext as EXT
     if not candidates(engine,attacker,target,EXT.effective_type(engine,attacker,target,move,mm,consume=False)):return
-    if (EXT.multi_roll_spec(mm) is not None or {'이단타격','오단타격'} & EXT.keywords_for(attacker,move) or
-        any(e.get('type') in ('multi_hit','double_hit','multi_target_chain') for e in mm.get('effects_exec',[]))):
-        raise ValueError('weather charge multi-hit composition remains unresolved before attack cost')
     C.integer(attacker.spec.get(ATTACK_SEQUENCE,0),'weather attack issuance',0)
 
 

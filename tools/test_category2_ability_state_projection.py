@@ -96,12 +96,10 @@ class AbilityStateProjectionTests(unittest.TestCase):
 
   leafy=self.actor(e,'ability/잎사귀망토',name='leafy')
   choices=list(P.definition(self.r,'ability/잎사귀망토')['choices'])
-  first=P.definition(self.r,'ability/잎사귀망토')['choices'][choices[0]]['abilities']
-  second=P.definition(self.r,'ability/잎사귀망토')['choices'][choices[-1]]['abilities']
-  e.activate_ability_state(leafy,'ability/잎사귀망토',choice=choices[0],reason='first pair')
-  self.assertTrue(set(first)<=set(leafy.abilities))
-  e.activate_ability_state(leafy,'ability/잎사귀망토',choice=choices[-1],reason='reactivated pair')
-  self.assertTrue(set(second)<=set(leafy.abilities));self.assertFalse((set(first)-set(second))&set(leafy.abilities))
+  before=e.export_state()
+  with self.assertRaises(ValueError):
+   e.activate_ability_state(leafy,'ability/잎사귀망토',choice=choices[0],reason='independent activation has no printed permission')
+  self.assertEqual(e.export_state(),before)
   self.assertTrue(e.validate_state()['valid'])
 
  def test_hunger_switch_consumes_pending_choices_at_actual_turn_start(self):
@@ -209,6 +207,45 @@ class AbilityStateProjectionTests(unittest.TestCase):
   restored=n.everyone[0];self.assertEqual(restored.types,['페어리']);self.assertTrue(n.validate_state()['valid'])
   restored.spec[P.KEY]['ability/멀티타입']['payload']['types']=['불꽃']
   with self.assertRaises(Exception):n.export_state()
+
+ def test_poltergeist_native_level_39_to_40_adds_form_permission_without_regranting_ability(self):
+  for ability in ('ability/폴터가이스트-playtest','폴터가이스트 [Playtest]'):
+   with self.subTest(ability=ability):
+    import state_grants as G
+    e=self.engine();rotom=self.actor(e,ability,level=39,species='로토무',name='growing Rotom',
+     moves=('move/몸통박치기','move/화염방사','move/물대포','move/덩굴채찍','move/전기쇼크','move/염동력'))
+    FORMS.switch(e,rotom,'히트로토무');source='ability/폴터가이스트-playtest'
+    before_abilities=list(rotom.abilities);receipts=deepcopy(rotom.spec[G.KEY]['ability_receipts'])
+    source_before=deepcopy(rotom.spec[G.KEY]['sources'][rotom.spec[P.KEY][source]['grant_source']])
+    self.assertNotIn('move/오버히트',rotom.moves)
+    e.gm.snapshot('level39');D.gain_exp_combatant(e,rotom,'to next level')
+    self.assertEqual(rotom.level,40);self.assertIn('move/오버히트',rotom.moves)
+    self.assertNotIn('move/오버히트',rotom.spec['moves'])
+    self.assertEqual(rotom.abilities,before_abilities);self.assertEqual(rotom.spec[G.KEY]['ability_receipts'],receipts)
+    grant=rotom.spec[G.KEY]['sources'][rotom.spec[P.KEY][source]['grant_source']]
+    self.assertEqual(grant['move_mode'],'permission');self.assertEqual(grant['grants']['abilities'],source_before['grants']['abilities'])
+    e.gm.restore('level39',reason='actual rollback of native growth')
+    self.assertEqual(rotom.level,39);self.assertNotIn('move/오버히트',rotom.moves)
+    D.gain_exp_combatant(e,rotom,'to next level')
+    loaded=Engine.import_state(self.r,json.loads(json.dumps(e.export_state(),ensure_ascii=False)))
+    actual=next(c for c in loaded.everyone if c.entity_id==rotom.entity_id)
+    self.assertEqual(actual.moves.count('move/오버히트'),1)
+    D.gain_exp_combatant(loaded,actual,'to next level');self.assertEqual(actual.moves.count('move/오버히트'),1)
+    FORMS.switch(loaded,actual,'워시로토무')
+    self.assertNotIn('move/오버히트',actual.moves);self.assertIn('move/하이드로펌프',actual.moves)
+    self.assertTrue(loaded.validate_state()['valid'],loaded.validate_state())
+
+ def test_poltergeist_level_refresh_keeps_normal_form_without_move_and_below_40_unchanged(self):
+  for form in ('보통 로토무','히트로토무'):
+   with self.subTest(form=form):
+    e=self.engine();rotom=self.actor(e,'ability/폴터가이스트-playtest',level=38,species='로토무')
+    FORMS.switch(e,rotom,form);before=deepcopy(rotom.spec[P.KEY])
+    D.gain_exp_combatant(e,rotom,'to next level')
+    self.assertEqual(rotom.spec[P.KEY],before);self.assertNotIn('move/오버히트',rotom.moves)
+    D.gain_exp_combatant(e,rotom,'to next level')
+    if form=='보통 로토무':self.assertNotIn('moves',rotom.spec[P.KEY]['ability/폴터가이스트-playtest']['payload'])
+    else:self.assertIn('move/오버히트',rotom.moves)
+    self.assertTrue(e.validate_state()['valid'],e.validate_state())
 
 
 if __name__=='__main__':unittest.main()
