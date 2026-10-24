@@ -2,6 +2,8 @@
 
 Experimental Python rules engine with source-aware PTK / PTU 1.05 implementations and an external rule-scripting boundary.
 
+Before reviewing rule compliance, consult [User rule decisions and audit exclusions](USER_RULE_DECISIONS.md). Explicit user rules are intentional differences from the source rules; their implementations still require verification.
+
 This repository is a clean source snapshot for hosted validation. It is work in progress: an implemented clause or a passing test is not a claim that every rule and interaction has been independently verified. The initial source snapshot corresponds to the local project's 1,503-of-2,352 implementation checkpoint. The current revision integrates the five repair and extension candidates described in [REVISION.md](REVISION.md), without changing the clause completion count.
 
 ## Hosted validation
