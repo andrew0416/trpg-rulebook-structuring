@@ -24,10 +24,10 @@
   "previous_failed_run": 40066282820,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "repair71",
-  "active_repair_scope": "Correctness-first: all443 original failed/fixture-blocked methods not yet re-executed, all23 current failures, new native regressions and affected source-owner suites. Original4115/added preservation obligations and185findings/406clauses remain; this is not final acceptance. Test optimization drafts are held.",
-  "active_repair_candidate_sha256": "89a57ac29ab993a5aa91fb60185c9cf0ea3974eea367878b93ddd3fb4bd78bbc",
-  "active_repair_required_tests": 804,
+  "active_repair": "repair72",
+  "active_repair_scope": "Schedule transformations in actual producer order and historical actor bindings; source-owned Electrify lifetime; existing23 acquisition IDs with compatible4-stage real-state chain and independent intermediate builders. Exact192 impacted methods including6new, unchanged269 F71 failures retained for followup, original4115+added obligations preserved. Zero completion credit from selection.",
+  "active_repair_candidate_sha256": "150218920decb2ea365a23b94310e3b36645d48104c286ef854e1d410e9eb938",
+  "active_repair_required_tests": 192,
   "active_repair_groups": [
     "repair_revisions_01",
     "repair_revisions_02",
@@ -39,5 +39,11 @@
     "repair_revisions_08",
     "repair_revisions_09"
   ],
-  "original_final_required_tests": 4115
+  "original_final_required_tests": 4115,
+  "validation_chain_controls": {
+    "work/reuse-partials/verify_overlay_tests.py": "24e7198176026797dc69dd9b4e1216a948ca35d31c5b39bcc493bb8dc97b0476",
+    "tools/ci_physical_selfcheck.py": "f16d7d93e0081c5fdb5195bfaa433a4b5dae03732817b354c0db40640be515ad"
+  },
+  "fixture_archive_reused_from": "repair71 exact386-file manifest and every ZIP entry verified",
+  "class_sharding": "latest observed method time estimates;11classes remain atomic"
 }

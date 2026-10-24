@@ -25,6 +25,42 @@ from ruleset import RuleFilter
 
 
 class NativeAcquisitionAdapterTests(unittest.TestCase):
+    LIFECYCLE_METHODS = (
+        'test_exact_fifteen_sources_have_native_success_and_existing_receipt_reader',
+        'test_all_requests_replay_without_state_change_and_changed_intent_is_atomic',
+        'test_historical_skill_ownership_and_route_loss_survive_json_and_gm_restore',
+        'test_all_sources_withdraw_keep_archived_qualification_and_old_replay_does_not_reacquire',
+    )
+
+    @classmethod
+    def prepare_chained_cases(cls, cases):
+        """Opt in without running game code or replacing any selected TestCase."""
+        if any(type(case) is not cls for case in cases):
+            raise ValueError('lifecycle hook requires cases from this exact class')
+        stages = [case for case in cases if case._testMethodName in cls.LIFECYCLE_METHODS]
+        if {case._testMethodName for case in stages} != set(cls.LIFECYCLE_METHODS):
+            return None
+        if len(stages) != len(cls.LIFECYCLE_METHODS):
+            raise ValueError('each lifecycle stage must be selected exactly once')
+        if any(hasattr(case, '_native_lifecycle_context') for case in stages):
+            raise ValueError('lifecycle cases already have a shared context')
+        by_name = {case._testMethodName: case for case in stages}
+        ordered_stages = tuple(by_name[name] for name in cls.LIFECYCLE_METHODS)
+        context = {'case_ids': tuple(case.id() for case in ordered_stages),
+                   'source_ids': None, 'states': {}, 'completed': {}, 'next_stage': 0}
+        for case in ordered_stages:
+            case._native_lifecycle_context = context
+        ordered = []
+        inserted = False
+        for case in cases:
+            if case._testMethodName in cls.LIFECYCLE_METHODS:
+                if not inserted:
+                    ordered.extend(ordered_stages)
+                    inserted = True
+            else:
+                ordered.append(case)
+        return ordered
+
     @classmethod
     def setUpClass(cls):
         cls.rules = Rules(ROOT, ruleset='all')
@@ -105,17 +141,116 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
             __import__('class_passive_combat').register_all(staged, owner)
         G.transition(engine, actor, apply)
 
+    def build_acquisition_input(self, uid):
+        engine, actor, selection = self.fixture(uid)
+        return {'uid': uid, 'engine': engine, 'actor': actor, 'selection': selection}
+
+    def build_replay_input(self, uid):
+        state = self.build_acquisition_input(uid)
+        state['receipt'] = self.acquire(state['engine'], state['actor'], uid, state['selection'])
+        return state
+
+    def build_history_input(self, uid):
+        # Successful replay leaves the acquired input unchanged.
+        return self.build_replay_input(uid)
+
+    def build_withdrawal_input(self, uid):
+        # History verification ends by restoring this acquisition snapshot.
+        return self.build_replay_input(uid)
+
+    def _run_lifecycle_stage(self, stage):
+        builders = (self.build_acquisition_input, self.build_replay_input,
+                    self.build_history_input, self.build_withdrawal_input)
+        verifiers = (self.verify_native_acquisition, self.verify_request_replay,
+                     self.verify_historical_restore, self.verify_source_withdrawal)
+        context = getattr(self, '_native_lifecycle_context', None)
+        source_ids = tuple(N.DEFINITIONS)
+        if context is not None:
+            self.assertEqual(context['case_ids'][stage], self.id())
+            self.assertEqual(context['next_stage'], stage, 'previous lifecycle case did not finish')
+            if stage == 0:
+                self.assertIsNone(context['source_ids'])
+                context['source_ids'] = source_ids
+                context['completed'] = {uid: [] for uid in source_ids}
+            self.assertEqual(context['source_ids'], source_ids)
+        for uid in source_ids:
+            with self.subTest(source=uid):
+                if context is None:
+                    state = builders[stage](uid)
+                elif stage == 0:
+                    state = self.build_acquisition_input(uid)
+                else:
+                    self.assertEqual(context['completed'][uid], list(range(stage)),
+                                     'source has a failed or missing predecessor; no synthetic fallback')
+                    self.assertIn(uid, context['states'])
+                    state = context['states'][uid]
+                verifiers[stage](state)
+                if context is not None:
+                    context['states'][uid] = state
+                    context['completed'][uid].append(stage)
+        if context is not None:
+            context['next_stage'] = stage + 1
+
+    def verify_native_acquisition(self, state):
+        uid = state['uid']; definition = N.DEFINITIONS[uid]
+        e, a, selection = state['engine'], state['actor'], state['selection']
+        row = self.acquire(e, a, uid, selection)
+        self.assertEqual(row['source']['clause_id'], definition['clause_id'])
+        self.assertEqual(row['qualification']['status'], 'qualified')
+        self.assertIn(definition['owned_value'], a.spec[definition['field']])
+        self.assertEqual(row['snapshot']['trainer'], True)
+        self.assertEqual([r['request_id'] for r in e.acquisition_receipts(a) if r['basis'] == N.LABEL], ['native/request/1'])
+        state['receipt'] = row
+
+    def verify_request_replay(self, state):
+        uid = state['uid']; first = state['receipt']
+        e, a, selection = state['engine'], state['actor'], state['selection']
+        before = e.export_state()
+        self.assertEqual(self.acquire(e, a, uid, selection), first)
+        self.assertEqual(e.export_state(), before)
+        changed = deepcopy(selection)
+        changed['waivers'] = [{'source_id': uid, 'provider': 'native', 'stage': 'acquire',
+                              'checks': ['trainer'], 'reason': 'explicit changed request intent'}]
+        self.reject(e, lambda: self.acquire(e, a, uid, changed), 'changed intent')
+
+    def verify_historical_restore(self, state):
+        uid = state['uid']; d = N.DEFINITIONS[uid]; receipt = state['receipt']
+        e, a = state['engine'], state['actor']
+        e.gm.snapshot('native-admission')
+        for skill in d.get('skills', {}):
+            e.gm.set_skill(a, skill, 1, reason='later actual skill loss does not rewrite old qualification')
+        for parent in d.get('parents', []):
+            # Preserve the parent static projection when a dependent was acquired.
+            if parent.startswith('class/'):
+                a.spec['classes'].remove(parent)
+        if d['kind'] == 'blessing':
+            a.spec['feat_ranks'][N.ROUTES[state['selection']['role']]] = 1
+        self.assertEqual(N.receipts(a)[0]['snapshot'], receipt['snapshot'])
+        N.validate_actor(a)
+        restored, actor = self.restore(e, a)
+        self.assertEqual(N.receipts(actor)[0]['snapshot'], receipt['snapshot'])
+        if d['kind'] == 'blessing':
+            self.assertTrue(B.approval(actor, uid))
+        e.gm.restore('native-admission')
+        self.assertEqual(N.receipts(a)[0]['snapshot'], receipt['snapshot'])
+
+    def verify_source_withdrawal(self, state):
+        uid = state['uid']; d = N.DEFINITIONS[uid]; receipt = state['receipt']
+        e, a, selection = state['engine'], state['actor'], state['selection']
+        self.withdraw(e, a, uid)
+        self.assertNotIn(d['owned_value'], a.spec[d['field']])
+        archived = N.receipts(a)[0]
+        self.assertEqual((archived['state'], archived['snapshot']), ('ended', receipt['snapshot']))
+        before = e.export_state()
+        self.assertEqual(self.acquire(e, a, uid, selection)['status'], 'withdrawn')
+        self.assertEqual(e.export_state(), before)
+        self.assertFalse(any(row['source_id'] == uid for row in A.class_instances(a)))
+        restored, actor = self.restore(e, a)
+        self.assertEqual(N.receipts(actor)[0]['state'], 'ended')
+
     def test_exact_fifteen_sources_have_native_success_and_existing_receipt_reader(self):
         self.assertEqual(len(N.DEFINITIONS), 15)
-        for uid, definition in N.DEFINITIONS.items():
-            with self.subTest(source=uid):
-                e, a, selection = self.fixture(uid)
-                row = self.acquire(e, a, uid, selection)
-                self.assertEqual(row['source']['clause_id'], definition['clause_id'])
-                self.assertEqual(row['qualification']['status'], 'qualified')
-                self.assertIn(definition['owned_value'], a.spec[definition['field']])
-                self.assertEqual(row['snapshot']['trainer'], True)
-                self.assertEqual([r['request_id'] for r in e.acquisition_receipts(a) if r['basis'] == N.LABEL], ['native/request/1'])
+        self._run_lifecycle_stage(0)
 
     def test_each_printed_skill_rejects_below_boundary_and_accepts_exact_boundary(self):
         for uid, d in N.DEFINITIONS.items():
@@ -225,17 +360,7 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
         self.assertEqual(len(a.spec['techniques']), 3)
 
     def test_all_requests_replay_without_state_change_and_changed_intent_is_atomic(self):
-        for uid in N.DEFINITIONS:
-            with self.subTest(source=uid):
-                e, a, selection = self.fixture(uid)
-                first = self.acquire(e, a, uid, selection)
-                before = e.export_state()
-                self.assertEqual(self.acquire(e, a, uid, selection), first)
-                self.assertEqual(e.export_state(), before)
-                changed = deepcopy(selection)
-                changed['waivers'] = [{'source_id': uid, 'provider': 'native', 'stage': 'acquire',
-                    'checks': ['trainer'], 'reason': 'explicit changed request intent'}]
-                self.reject(e, lambda: self.acquire(e, a, uid, changed), 'changed intent')
+        self._run_lifecycle_stage(1)
 
     def test_changed_feature_for_same_request_rejects_and_no_retroactive_owned_certification(self):
         e, a, selection = self.fixture('edge/파워-부스트')
@@ -254,43 +379,10 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
             self.reject(e, lambda: self.acquire(e, a, uid, selection), 'already-owned')
 
     def test_historical_skill_ownership_and_route_loss_survive_json_and_gm_restore(self):
-        for uid, d in N.DEFINITIONS.items():
-            with self.subTest(source=uid):
-                e, a, selection = self.fixture(uid)
-                receipt = self.acquire(e, a, uid, selection)
-                e.gm.snapshot('native-admission')
-                for skill in d.get('skills', {}):
-                    e.gm.set_skill(a, skill, 1, reason='later actual skill loss does not rewrite old qualification')
-                for parent in d.get('parents', []):
-                    # Preserve the parent static projection when a dependent was acquired.
-                    if parent.startswith('class/'):
-                        a.spec['classes'].remove(parent)
-                if d['kind'] == 'blessing':
-                    a.spec['feat_ranks'][N.ROUTES[selection['role']]] = 1
-                self.assertEqual(N.receipts(a)[0]['snapshot'], receipt['snapshot'])
-                N.validate_actor(a)
-                restored, actor = self.restore(e, a)
-                self.assertEqual(N.receipts(actor)[0]['snapshot'], receipt['snapshot'])
-                if d['kind'] == 'blessing':
-                    self.assertTrue(B.approval(actor, uid))
-                e.gm.restore('native-admission')
-                self.assertEqual(N.receipts(a)[0]['snapshot'], receipt['snapshot'])
+        self._run_lifecycle_stage(2)
 
     def test_all_sources_withdraw_keep_archived_qualification_and_old_replay_does_not_reacquire(self):
-        for uid, d in N.DEFINITIONS.items():
-            with self.subTest(source=uid):
-                e, a, selection = self.fixture(uid)
-                receipt = self.acquire(e, a, uid, selection)
-                self.withdraw(e, a, uid)
-                self.assertNotIn(d['owned_value'], a.spec[d['field']])
-                archived = N.receipts(a)[0]
-                self.assertEqual((archived['state'], archived['snapshot']), ('ended', receipt['snapshot']))
-                before = e.export_state()
-                self.assertEqual(self.acquire(e, a, uid, selection)['status'], 'withdrawn')
-                self.assertEqual(e.export_state(), before)
-                self.assertFalse(any(row['source_id'] == uid for row in A.class_instances(a)))
-                restored, actor = self.restore(e, a)
-                self.assertEqual(N.receipts(actor)[0]['state'], 'ended')
+        self._run_lifecycle_stage(3)
 
     def test_transaction_failure_after_source_write_keeps_world_rng_and_ownership_unchanged(self):
         transition = G.transition

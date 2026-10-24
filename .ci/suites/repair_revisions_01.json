@@ -1,166 +1,69 @@
 {
   "schema_version": 1,
   "id": "repair_revisions_01",
-  "purpose": "Correctness-first: all443 original failed/fixture-blocked methods not yet re-executed, all23 current failures, new native regressions and affected source-owner suites. Original4115/added preservation obligations and185findings/406clauses remain; this is not final acceptance. Test optimization drafts are held.",
+  "purpose": "Schedule transformations in actual producer order and historical actor bindings; source-owned Electrify lifetime; existing23 acquisition IDs with compatible4-stage real-state chain and independent intermediate builders. Exact192 impacted methods including6new, unchanged269 F71 failures retained for followup, original4115+added obligations preserved. Zero completion credit from selection.",
   "completion_credit": 0,
-  "required_unique_count": 90,
+  "required_unique_count": 57,
   "completed": {
-    "tools.test_battle_contest_cancelled.BattleContestCancellationTests": {
+    "tools.test_book_juggler_full.JugglerTests": {
       "tests": [
-        "tools.test_battle_contest_cancelled.BattleContestCancellationTests.test_paid_attacker_faint_cancellation_settles_once_restores_and_allows_next_performer"
-      ]
-    },
-    "tools.test_book_chronicler_acquisition.ChroniclerAcquisitionTests": {
-      "tests": [
-        "tools.test_book_chronicler_acquisition.ChroniclerAcquisitionTests.test_archival_training_ranks_add_archives_in_order_and_travel_needs_a_selected_ability"
-      ]
-    },
-    "tools.test_book_rogue.RogueTests": {
-      "tests": [
-        "tools.test_book_rogue.RogueTests.test_actual_intercept_recipient_drives_scoundrel_not_declared_target",
-        "tools.test_book_rogue.RogueTests.test_actual_intercept_recipient_keeps_prepared_cutthroat_weapon_for_dirty_fighting",
-        "tools.test_book_rogue.RogueTests.test_ambush_possession_never_applies_flinch_or_db_without_activation",
-        "tools.test_book_rogue.RogueTests.test_ambush_wrong_selected_edition_is_not_implicit_alias",
-        "tools.test_book_rogue.RogueTests.test_class_rank_count_and_parent_selection_rejections_are_atomic",
-        "tools.test_book_rogue.RogueTests.test_core_ambush_real_priority_turn_and_hit_flinch",
-        "tools.test_book_rogue.RogueTests.test_core_ambush_rejects_ranged_and_printed_db_above_six",
-        "tools.test_book_rogue.RogueTests.test_cutthroat_disarmed_prepared_weapon_cannot_be_reused",
-        "tools.test_book_rogue.RogueTests.test_cutthroat_real_weapon_move_qualification_uses_highest_rogue_skill",
-        "tools.test_book_rogue.RogueTests.test_cutthroat_rejects_noneligible_weapon_and_no_long_range_leak",
-        "tools.test_book_rogue.RogueTests.test_cutthroat_resists_real_disarm_with_athletics_without_offensive_substitution",
-        "tools.test_book_rogue.RogueTests.test_cutthroat_short_weapon_range_and_original_move_are_independent",
-        "tools.test_book_rogue.RogueTests.test_cutthroat_small_weapon_bonus_and_explicit_selection",
-        "tools.test_book_rogue.RogueTests.test_dirty_fighting_lost_opposed_check_keeps_payment_and_no_effect",
-        "tools.test_book_rogue.RogueTests.test_dirty_fighting_observed_opposed_retry_preserves_ap_swift_and_first_faces",
-        "tools.test_book_rogue.RogueTests.test_dirty_fighting_plain_move_and_changed_range_reject_before_cost",
-        "tools.test_book_rogue.RogueTests.test_dirty_fighting_real_weapon_hit_pays_swift_ap_and_skips_only_accuracy",
-        "tools.test_book_rogue.RogueTests.test_payback_actual_burst_extra_turn_uses_its_own_full_turn_hit_history",
-        "tools.test_book_rogue.RogueTests.test_payback_excludes_basic_and_enhanced_struggle_attacks",
-        "tools.test_book_rogue.RogueTests.test_payback_genuine_priority_full_turn_intervenes_in_global_sequence",
-        "tools.test_book_rogue.RogueTests.test_payback_includes_genuine_priority_full_turn_hit",
-        "tools.test_book_rogue.RogueTests.test_payback_intercept_uses_actual_hit_recipient_not_declared_target",
-        "tools.test_book_rogue.RogueTests.test_payback_interrupt_hit_uses_suspended_full_turn_not_temporary_actor",
-        "tools.test_book_rogue.RogueTests.test_payback_intervening_full_turn_removes_bonus_not_targets_latest_turn",
-        "tools.test_book_rogue.RogueTests.test_payback_miss_and_status_are_not_damaging_hits",
-        "tools.test_book_rogue.RogueTests.test_payback_prevented_immunity_is_not_a_zero_damage_hit",
-        "tools.test_book_rogue.RogueTests.test_payback_previous_actual_turn_zero_damage_hit_survives_restore",
-        "tools.test_book_rogue.RogueTests.test_playtest_ambush_allows_ranged_and_adds_exact_accuracy_penalty",
-        "tools.test_book_rogue.RogueTests.test_playtest_ambush_native_pending_keeps_priority_and_actual_hit_effects",
-        "tools.test_book_rogue.RogueTests.test_pursuit_pending_flee_response_resumes_native_shift_once",
-        "tools.test_book_rogue.RogueTests.test_pursuit_pending_response_restores_and_completes_original_paid_recall_once",
-        "tools.test_book_rogue.RogueTests.test_pursuit_requires_observed_enemy_for_actual_recall_and_flee",
-        "tools.test_book_rogue.RogueTests.test_reference_assurance_native_damage_and_per_target_scene_limit",
-        "tools.test_book_rogue.RogueTests.test_reference_pursuit_actual_flee_interrupt_precedes_native_shift",
-        "tools.test_book_rogue.RogueTests.test_reference_pursuit_actual_recall_hits_before_offfield_and_pays_next_standard",
-        "tools.test_book_rogue.RogueTests.test_reference_pursuit_ordinary_db4_has_no_reaction_bonus",
-        "tools.test_book_rogue.RogueTests.test_reference_sucker_punch_can_answer_real_opportunity_attack_during_own_turn",
-        "tools.test_book_rogue.RogueTests.test_reference_sucker_punch_cutthroat_keeps_actual_weapon_and_trigger",
-        "tools.test_book_rogue.RogueTests.test_reference_sucker_punch_interrupts_real_adjacent_damaging_declaration",
-        "tools.test_book_rogue.RogueTests.test_reference_sucker_punch_status_other_target_and_nonadjacent_do_not_trigger",
-        "tools.test_book_rogue.RogueTests.test_reference_thief_acquired_move_uses_existing_actual_equipment_transfer",
-        "tools.test_book_rogue.RogueTests.test_retraining_cannot_remove_actual_rogue_parent_and_keep_dependent_feature",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_ambush_penalty_reaches_real_skill_accuracy_damage_and_save",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_branch_uses_possessed_ability_but_ambush_activation_requires_active",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_cruelty_actual_grapple_dodge_preserves_hp_and_signed_once_receipt",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_cruelty_actual_zero_damage_hit_still_loses_five",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_cruelty_after_each_later_damaging_hit_other_actor_not_initial",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_cruelty_includes_actual_counter_hp_loss_attack",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_cruelty_miss_and_status_do_not_trigger",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_cruelty_native_grapple_prevented_immunity_does_not_trigger",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_cruelty_native_grapple_struggle_hit_and_replay_apply_once",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_cruelty_never_triggers_from_prevented_immune_attack",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_cruelty_two_strike_native_combination_is_one_damaging_attack",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_followup_after_another_action_is_not_immediate",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_hp_loss_uses_highest_rank_and_temp_hp_policy",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_one_full_round_survives_turn_and_round_end_then_same_count_expires",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_rejects_miss_wrong_move_wrong_actual_recipient",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_same_target_second_scene_use_rejected_even_new_attack",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_scene_reset_restores_target_use_but_keeps_daily_count",
-        "tools.test_book_rogue.RogueTests.test_scoundrel_target_scene_quota_and_daily_three_are_separate",
-        "tools.test_book_rogue.RogueTests.test_seven_independent_acquisitions_and_attack_tags",
-        "tools.test_book_rogue.RogueTests.test_sucker_punch_pending_response_restores_and_resumes_paid_incoming_move_once",
-        "tools.test_book_rogue.RogueTests.test_sucker_punch_requires_observed_enemy_without_spending_unknown_reaction",
-        "tools.test_book_rogue.RogueTests.test_underhand_cruelty_uses_existing_real_ability_without_taskmaster",
-        "tools.test_book_rogue.RogueTests.test_underhand_withdrawal_removes_only_granted_ability_and_attack_tag"
-      ]
-    },
-    "tools.test_cannon_weapon_repair.CannonWeaponRepair": {
-      "tests": [
-        "tools.test_cannon_weapon_repair.CannonWeaponRepair.test_unconfigured_item_keeps_native_cannon_and_one_weapon_identity",
-        "tools.test_cannon_weapon_repair.CannonWeaponRepair.test_wrong_identity_unqualified_move_and_foreign_owner_cannot_observe_cannon"
-      ]
-    },
-    "tools.test_category2_csv_stellar_tera_blast.StellarTeraBlastTests": {
-      "tests": [
-        "tools.test_category2_csv_stellar_tera_blast.StellarTeraBlastTests.test_native_plasma_owns_stab_over_radiation_even_when_both_choose_electric"
-      ]
-    },
-    "tools.test_category2_poke_edge_variants.Tests": {
-      "tests": [
-        "tools.test_category2_poke_edge_variants.Tests.test_all_29_definitions_change_actual_readers_and_preserve_origin"
-      ]
-    },
-    "tools.test_category2_type_state.Tests": {
-      "tests": [
-        "tools.test_category2_type_state.Tests.test_tera_defense_immunity_and_stab_survive_durable_restore_then_end"
-      ]
-    },
-    "tools.test_completed_optional_boundaries_deep.StateBoundaryTests": {
-      "tests": [
-        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_three_round_gifts_reach_native_round_end_and_survive_restore"
-      ]
-    },
-    "tools.test_confusion_native_actions.Tests": {
-      "tests": [
-        "tools.test_confusion_native_actions.Tests.test_capture_hit_miss_and_refusal_use_actual_ball_once",
-        "tools.test_confusion_native_actions.Tests.test_late_consequence_failure_restores_hp_and_resumes_only_consequence"
-      ]
-    },
-    "tools.test_core_physical_incubator.PhysicalIncubatorTests": {
-      "tests": [
-        "tools.test_core_physical_incubator.PhysicalIncubatorTests.test_exact_double_speed_uses_original_native_declared_birth_and_frees_slot"
-      ]
-    },
-    "tools.test_heavy_load_closed_endpoints_source_revision.HeavyLoadClosedEndpointSourceRevisionTests": {
-      "tests": [
-        "tools.test_heavy_load_closed_endpoints_source_revision.HeavyLoadClosedEndpointSourceRevisionTests.test_opposite_legacy_boundary_rulings_never_override_source_or_mutate_native_state"
-      ]
-    },
-    "tools.test_living_weapon_caps_shield_source_revision.LivingWeaponCapsShieldSourceRevisionTests": {
-      "tests": [
-        "tools.test_living_weapon_caps_shield_source_revision.LivingWeaponCapsShieldSourceRevisionTests.test_same_move_other_source_cannot_bypass_english_choice_and_rank_permissions_remain_live",
-        "tools.test_living_weapon_caps_shield_source_revision.LivingWeaponCapsShieldSourceRevisionTests.test_source_scope_and_stale_core_shield_reject_without_silent_conversion"
-      ]
-    },
-    "tools.test_passive_event_runtime.Cases": {
-      "tests": [
-        "tools.test_passive_event_runtime.Cases.test_024_actual_encounter_driver_returns_incomplete"
-      ]
-    },
-    "tools.test_pusher_automatic_source_revision.PusherAutomaticSourceRevisionTests": {
-      "tests": [
-        "tools.test_pusher_automatic_source_revision.PusherAutomaticSourceRevisionTests.test_all_nine_native_sources_acquire_without_training_job_credit_tp_or_action",
-        "tools.test_pusher_automatic_source_revision.PusherAutomaticSourceRevisionTests.test_basic_ranged_requires_each_real_choice_and_does_not_repeat_or_fund_other_edges",
-        "tools.test_pusher_automatic_source_revision.PusherAutomaticSourceRevisionTests.test_new_capability_consumers_read_actual_aura_grant_bait_bonus_and_scoped_tracker_check"
-      ]
-    },
-    "tools.test_selected_cumulative_telepathy.SelectedCumulativeTelepathyWitness": {
-      "tests": [
-        "tools.test_selected_cumulative_telepathy.SelectedCumulativeTelepathyWitness.test_legacy_compatibility_cannot_authorize_fresh_old_policy_or_changed_request_inputs",
-        "tools.test_selected_cumulative_telepathy.SelectedCumulativeTelepathyWitness.test_previous_native_policy_restores_and_replays_without_rewriting_any_prior_receipt"
-      ]
-    },
-    "tools.test_snare_freefloat_source_revision.SnareReflectionTests": {
-      "tests": [
-        "tools.test_snare_freefloat_source_revision.SnareReflectionTests.test_nonintrusion_technology_damages_snare_and_saved_reflection_target_is_checked"
-      ]
-    },
-    "tools.test_stellar_r663_optional_source_revision.StellarR663OptionalSourceRevisionTests": {
-      "tests": [
-        "tools.test_stellar_r663_optional_source_revision.StellarR663OptionalSourceRevisionTests.test_actual_group_option_and_next_default_miss_pay_once_without_reusing_choice",
-        "tools.test_stellar_r663_optional_source_revision.StellarR663OptionalSourceRevisionTests.test_actual_paid_choice_history_and_new_default_survive_gm_and_fresh_rules_json",
-        "tools.test_stellar_r663_optional_source_revision.StellarR663OptionalSourceRevisionTests.test_dormant_stellar_choice_has_no_bonus_but_actual_radiation_form_bonus_survives_decline",
-        "tools.test_stellar_r663_optional_source_revision.StellarR663OptionalSourceRevisionTests.test_real_legacy_paid_accuracy_continuation_keeps_forced_projection_without_repayment"
+        "tools.test_book_juggler_full.JugglerTests.test_actual_paid_tag_recall_pending_pursuit_restores_and_resumes_once",
+        "tools.test_book_juggler_full.JugglerTests.test_actual_party_round_trip_tag_in_updates_battle_contest_slot_without_recall_voltage_or_duplicate_action",
+        "tools.test_book_juggler_full.JugglerTests.test_bounce_and_actual_csv_curve_share_ball_damage_standard_and_native_capture",
+        "tools.test_book_juggler_full.JugglerTests.test_bounce_capture_before_and_after_uses_one_quantity_body_stock_and_function_coordinates",
+        "tools.test_book_juggler_full.JugglerTests.test_bounce_missing_landing_unknown_direction_and_wrong_function_target_reject_atomically",
+        "tools.test_book_juggler_full.JugglerTests.test_bounce_release_before_and_after_keeps_containing_ball_identity_and_pokemon_position",
+        "tools.test_book_juggler_full.JugglerTests.test_core_emergency_release_two_ap_shift_interrupt_and_suspended_turn_restore",
+        "tools.test_book_juggler_full.JugglerTests.test_core_missed_ball_bounce_and_csv_single_bounce_limit_keep_separate_authorities",
+        "tools.test_book_juggler_full.JugglerTests.test_csv132_and136_are_selected_actual_acquisitions_with_independent_speed_and_next_release",
+        "tools.test_book_juggler_full.JugglerTests.test_emergency_source_selection_is_immutable_and_insufficient_ap_does_not_release",
+        "tools.test_book_juggler_full.JugglerTests.test_existing_juggling_show_native_introduction_owner_remains_the_consumer",
+        "tools.test_book_juggler_full.JugglerTests.test_first_blood_actual_paid_move_defense_pending_restores_and_finishes_without_second_payment",
+        "tools.test_book_juggler_full.JugglerTests.test_first_blood_current_slot_native_move_consumes_one_pokemon_turn_without_clock",
+        "tools.test_book_juggler_full.JugglerTests.test_first_blood_next_round_uses_league_switch_debt_and_same_owner_command_pool",
+        "tools.test_book_juggler_full.JugglerTests.test_first_blood_scene_limit_stale_release_wrong_pokemon_and_future_duplicate_reject",
+        "tools.test_book_juggler_full.JugglerTests.test_gm_actual_release_consumes_tag_and_grants_only_current_round_pokemon_initiative",
+        "tools.test_book_juggler_full.JugglerTests.test_integrated_commander_order_pending_and_started_turn_clocks_do_not_restart",
+        "tools.test_book_juggler_full.JugglerTests.test_integrated_declared_rank_seven_keeps_actual_juggler_qualification",
+        "tools.test_book_juggler_full.JugglerTests.test_integrated_direct_party_tag_supports_deferred_same_holder_without_self_transfer",
+        "tools.test_book_juggler_full.JugglerTests.test_integrated_english_baton_scope_does_not_pass_non_stratagem_commander_order",
+        "tools.test_book_juggler_full.JugglerTests.test_integrated_prepaid_tag_rejects_unissued_party_context_and_double_selection",
+        "tools.test_book_juggler_full.JugglerTests.test_integrated_tag_payment_snapshot_alias_and_replay_have_one_native_owner",
+        "tools.test_book_juggler_full.JugglerTests.test_integrated_tag_preserves_actual_commander_brace_binding_and_release",
+        "tools.test_book_juggler_full.JugglerTests.test_league_native_open_turn_marker_does_not_admit_forged_or_other_custom_state",
+        "tools.test_book_juggler_full.JugglerTests.test_local_csv_emergency_release_one_ap_free_once_per_actual_turn",
+        "tools.test_book_juggler_full.JugglerTests.test_native_schedule_replaces_binding_reorders_unspent_bonus_and_no_extra_turn",
+        "tools.test_book_juggler_full.JugglerTests.test_parent_rank_nonranked_and_source_selection_are_actual_acquisition_contracts",
+        "tools.test_book_juggler_full.JugglerTests.test_party_reorder_then_mounted_exchange_restores_current_and_legacy_prefix",
+        "tools.test_book_juggler_full.JugglerTests.test_quick_switch_opponent_actual_release_restores_suspended_turn_and_budget",
+        "tools.test_book_juggler_full.JugglerTests.test_quick_switch_own_native_faint_trigger_and_recursive_release_rejection",
+        "tools.test_book_juggler_full.JugglerTests.test_quick_switch_own_turn_one_ap_and_no_standard_or_shift_payment",
+        "tools.test_book_juggler_full.JugglerTests.test_quick_switch_rejects_stale_trigger_and_invalid_party_atomically",
+        "tools.test_book_juggler_full.JugglerTests.test_quick_switch_requires_either_novice_but_juggler_requires_both",
+        "tools.test_book_juggler_full.JugglerTests.test_quick_switch_without_class_still_costs_two_ap_and_needs_real_acquisition",
+        "tools.test_book_juggler_full.JugglerTests.test_real_baton_pass_uses_the_same_stage_stratagem_and_lock_on_receiver_without_tag_acquisition",
+        "tools.test_book_juggler_full.JugglerTests.test_released_pokemon_only_round_initiative_bonus_and_exact_ordinary_clock",
+        "tools.test_book_juggler_full.JugglerTests.test_round_trip_open_schedule_owner_closes_once_then_rebinds_consumed_slot",
+        "tools.test_book_juggler_full.JugglerTests.test_round_trip_requires_completed_whole_move_then_free_one_ap_and_trapped_exception",
+        "tools.test_book_juggler_full.JugglerTests.test_round_trip_wrong_actor_or_later_action_cannot_reuse_old_move",
+        "tools.test_book_juggler_full.JugglerTests.test_same_cursor_mounted_exchange_then_party_replacement_preserves_historical_mount",
+        "tools.test_book_juggler_full.JugglerTests.test_same_cursor_native_gm_release_reorder_precedes_mounted_exchange",
+        "tools.test_book_juggler_full.JugglerTests.test_seven_independent_speed_acquisitions_no_auto_children_exact_replay_and_restore",
+        "tools.test_book_juggler_full.JugglerTests.test_swarm_continuations_party_reorder_and_mounted_exchange_replay_in_producer_order",
+        "tools.test_book_juggler_full.JugglerTests.test_tag_captured_coat_actual_native_removal_does_not_resurrect_or_block_release",
+        "tools.test_book_juggler_full.JugglerTests.test_tag_in_actual_round_trip_recall_no_fake_baton_move_or_duplicate_payment",
+        "tools.test_book_juggler_full.JugglerTests.test_tag_in_captures_before_reset_and_only_next_real_release_consumes_stages",
+        "tools.test_book_juggler_full.JugglerTests.test_tag_in_lock_on_target_endpoint_preserves_original_user_relation",
+        "tools.test_book_juggler_full.JugglerTests.test_tag_in_lock_on_user_endpoint_moves_and_next_real_attack_consumes_once",
+        "tools.test_book_juggler_full.JugglerTests.test_tag_in_next_legal_same_holder_release_preserves_identity_and_consumes_once",
+        "tools.test_book_juggler_full.JugglerTests.test_tag_in_passes_actual_bound_stratagem_issuer_binding_and_native_consumer",
+        "tools.test_book_juggler_full.JugglerTests.test_tag_in_pending_has_no_invented_scene_expiry_and_cannot_be_replaced",
+        "tools.test_book_juggler_full.JugglerTests.test_tag_in_same_coat_instance_origin_and_future_holder_turn_after_json",
+        "tools.test_book_juggler_full.JugglerTests.test_tag_in_same_source_coat_collision_rejects_next_release_without_new_policy",
+        "tools.test_book_juggler_full.JugglerTests.test_tag_lock_snapshot_forged_endpoint_and_transfer_history_cannot_restore",
+        "tools.test_book_juggler_full.JugglerTests.test_tag_pre_recall_lock_relation_snapshot_excludes_later_actual_move",
+        "tools.test_book_juggler_full.JugglerTests.test_tag_snapshot_tamper_rejects_codec_and_naturally_ended_stratagem_is_not_resurrected",
+        "tools.test_book_juggler_full.JugglerTests.test_transformation_chronology_rejects_omission_duplicate_legacy_hiding_and_resigned_binding_reorder"
       ]
     }
   }

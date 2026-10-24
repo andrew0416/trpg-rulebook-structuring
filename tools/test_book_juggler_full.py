@@ -522,4 +522,179 @@ class JugglerTests(unittest.TestCase):
   self.begin();self.e.use_general_order(self.a,self.p,O.LONG);self.begin();self.tag_recall();self.release()
   self.assertFalse(O.live(self.e,self.q,O.LONG));self.valid()
 
+ def mixed_schedule_fixture(self,*,rider_juggler=False,swarm=False,prepare=True):
+  import control_mount as M,training_features as TRAIN,state_grants as G
+  if swarm:self.rules=Rules(ROOT,ruleset='all')
+  self.setup();self.family(J.CLASS)
+  P.configure(self.e,self.b,battle_mode='full_contact',command_limit=2,gm_id='gm/mixed-schedule',reason='GM explicitly admits the mount and one other Pokemon turn')
+  G.replace_baseline(self.e,self.b,'edges',['edge/탑승-기량'])
+  G.replace_baseline(self.e,self.b,'feats',[TRAIN.AGILITY,TRAIN.FOCUSED,TRAIN.INSPIRED])
+  self.acquire(M.RIDER,self.b);self.acquire(M.RIDE_AS_ONE,self.b)
+  if rider_juggler:self.family(J.CLASS,self.b)
+  if swarm:
+   self.swarm_reserve=self.actor('swarm-successor','pokemon',(14,3),10,owner=self.b,side='foe',field=False)
+   PARTY.configure(self.e,self.b,mode='standard',reason='actual Swarm replacement roster',roster=[self.t,self.u,self.swarm_reserve],storage={'kind':'center','id':'rival-center'})
+  self.e.gm.set_stat(self.u,'spe',value=58 if swarm else 45,reason='actual unused mounted initiative')
+  self.e.gm.set_stat(self.q,'spe',value=75 if swarm else 55,reason='actual reserve initiative before Juggler release')
+  self.e.gm.send_out(self.u,pos=self.b.pos,reason='actual mount deployment')
+  out=self.e.pokemon_activity(self.b,'mounting',target=self.u,phase='mount',gm_mountable=True)
+  self.assertTrue(out['passed'])
+  if swarm:
+   self.e.gm.set_stat(self.t,'spe',value=70,reason='actual leading Swarm initiative')
+   self.e.gm.set_encounter_template(self.t,kind='swarm',total_bars=3,
+     action_slots=[{'id':'native','initiative':70}],member_count_or_band='25_to_40',reason='actual selected Swarm template')
+  if not prepare:return
+  actors=[self.a,self.b,self.p,self.t,self.u]
+  S.prepare(self.e,actors,source='gm/juggler-mounted-swarm-schedule');self.e.start_round(actors)
+
+ def mixed_schedule_view(self):
+  state=self.e._initiative_schedule;owner=self.e._active_turn_actor;suspended=I.suspended_owner(self.e)
+  return deepcopy({'steps':state['steps'],'cursor':state['cursor'],'history':state.get('change_history'),
+   'slots':[(key,row['actor'].entity_id,row['turn']) for key,row in state['slots'].items()],
+   'records':[(row['slot'],row['actor'].entity_id,row['outcome']) for row in state['records']],
+   'owner':None if owner is None else owner.entity_id,'suspended':None if suspended is None else suspended.entity_id,
+   'budget':None if owner is None else owner.budget,
+   'closures':[(row['actor'].entity_id,row['sequence']) for row in self.e._turn_closures]})
+
+ def mixed_schedule_restore(self):
+  before=self.mixed_schedule_view();owner=self.e._active_turn_actor
+  self.e.gm.snapshot('mixed-transformations');self.e.end_of_turn(owner)
+  self.e.gm.restore('mixed-transformations',reason='restore the actual open transformed slot')
+  self.assertEqual(self.mixed_schedule_view(),before);self.restore()
+  self.assertEqual(self.mixed_schedule_view(),before);self.valid()
+
+ def test_party_reorder_then_mounted_exchange_restores_current_and_legacy_prefix(self):
+  for legacy in (False,True):
+   with self.subTest(legacy_prefix=legacy):
+    self.mixed_schedule_fixture();self.e.start_of_turn(self.a)
+    if legacy:
+     # Actual native producers with only the historical append operation restored.
+     with patch.object(S,'record_step_change',side_effect=lambda state,kind,row:state.setdefault(kind,[]).append(row)):
+      self.action(request='legacy-before-mounted')
+     self.assertNotIn('change_history',self.e._initiative_schedule);self.restore()
+    else:self.action(request='party-before-mounted')
+    self.close();self.assertEqual(S.status(self.e)['next']['actor_id'],self.q.entity_id)
+    self.e.start_of_turn(self.q);self.close()
+    self.assertEqual(S.status(self.e)['next']['actor_id'],self.b.entity_id)
+    self.e.start_of_turn(self.u)
+    state=self.e._initiative_schedule;history=state['change_history']
+    self.assertEqual(history['events'][-1]['kind'],'mounted_exchanges')
+    self.assertEqual(history['legacy_prefix']['party_orders'],int(legacy))
+    self.assertIs(state['slots'][state['open_slot']]['actor'],self.u)
+    self.mixed_schedule_restore();self.close()
+    self.reject(lambda:self.e.start_of_turn(self.q),'next unconsumed|ordinary turn')
+    self.e.start_of_turn(self.b);self.close();self.e.start_of_turn(self.t);self.close();self.e.end_round()
+    self.assertEqual([row['actor'].entity_id for row in self.e._turn_closures],
+                     [self.a.entity_id,self.q.entity_id,self.u.entity_id,self.b.entity_id,self.t.entity_id])
+    self.valid()
+
+ def mounted_then_replacement(self):
+  self.mixed_schedule_fixture(rider_juggler=True,prepare=False)
+  self.e.gm.set_stat(self.u,'spe',value=80,reason='actual faster mount for first-slot choice')
+  reserve=self.actor('rider-reserve','pokemon',(14,3),70,owner=self.b,side='foe',field=False)
+  PARTY.configure(self.e,self.b,mode='standard',reason='actual expanded rider party',roster=[self.t,self.u,reserve],storage={'kind':'center','id':'rival-center'})
+  actors=[self.a,self.b,self.p,self.t,self.u]
+  S.prepare(self.e,actors,source='gm/mounted-before-party-schedule');self.e.start_round(actors)
+  self.assertEqual(S.status(self.e)['next']['actor_id'],self.u.entity_id)
+  self.e.start_of_turn(self.b);self.e.dismount(self.b,reason='actual rider releases the unused mount before switching it')
+  J.act(self.e,self.b,recall=[self.u],send=[(reserve,(14,1))],source_id=J.QUICK,
+        request_id='mounted-then-replace',reason='actual own-turn Quick Switch of the unused mount')
+  return reserve.entity_id
+
+ def test_same_cursor_mounted_exchange_then_party_replacement_preserves_historical_mount(self):
+  reserve_id=self.mounted_then_replacement();state=self.e._initiative_schedule
+  self.assertEqual([row['kind'] for row in state['change_history']['events']],['mounted_exchanges','replacements','party_orders'])
+  self.assertEqual({row['cursor'] for row in state['change_history']['events']},{0})
+  self.assertIs(state['mounted_exchanges'][0]['mount'],self.u)
+  self.assertEqual(state['slots'][self.u.entity_id]['actor'].entity_id,reserve_id)
+  self.assertIs(self.e._active_turn_actor,self.b);self.mixed_schedule_restore();self.close()
+  self.assertEqual(S.status(self.e)['next']['actor_id'],reserve_id)
+  self.reject(lambda:self.e.start_of_turn(self.b),'next unconsumed|ordinary turn');self.valid()
+
+ def test_same_cursor_native_gm_release_reorder_precedes_mounted_exchange(self):
+  self.mixed_schedule_fixture(rider_juggler=True,prepare=False)
+  for actor,speed in ((self.u,80),(self.a,60),(self.b,50),(self.p,20),(self.t,15)):
+   self.e.gm.set_stat(actor,'spe',value=speed,reason='actual distinct release-order boundary')
+  actors=[self.a,self.b,self.p,self.t,self.u]
+  S.prepare(self.e,actors,source='gm/release-before-mounted-schedule');self.e.start_round(actors)
+  self.e.gm.recall(self.t,reason='actual GM recall before its unused turn')
+  self.e.gm.send_out(self.t,pos=(6,1),reason='actual GM release grants Juggler initiative')
+  self.e.start_of_turn(self.b)
+  events=self.e._initiative_schedule['change_history']['events']
+  self.assertEqual([row['kind'] for row in events],['party_orders','mounted_exchanges'])
+  self.assertEqual([row['cursor'] for row in events],[0,0]);self.mixed_schedule_restore()
+
+ def test_swarm_continuations_party_reorder_and_mounted_exchange_replay_in_producer_order(self):
+  import swarm_transitions as SWARM,turn as TURN,frequency as F
+  self.mixed_schedule_fixture(rider_juggler=True,swarm=True)
+  for count in (70,65):
+   self.e.start_of_turn(self.t,initiative_count=count)
+   self.assertTrue(TURN.spend(self.e,self.t,'standard','actual Swarm action before party reorder'))
+   self.e.end_of_turn(self.t)
+  serial=self.t.custom_conditions['combat_turn_serial'];turn=F.state(self.t)['turn']
+  self.e.start_of_turn(self.a);self.action(request='swarm-party-reorder');self.close()
+  self.e.start_of_turn(self.q);self.close();self.e.start_of_turn(self.t,initiative_count=60)
+  self.assertTrue(TURN.spend(self.e,self.t,'standard','actual Swarm action after party reorder'));self.e.end_of_turn(self.t)
+  self.assertEqual(S.status(self.e)['next']['actor_id'],self.u.entity_id)
+  self.e.start_of_turn(self.b);self.mixed_schedule_restore();self.close()
+  self.e.start_of_turn(self.t,initiative_count=55)
+  self.assertEqual((self.t.custom_conditions['combat_turn_serial'],F.state(self.t)['turn']),(serial,turn))
+  self.assertTrue(TURN.spend(self.e,self.t,'standard','actual final Swarm action'));self.e.end_of_turn(self.t)
+  self.e.start_of_turn(self.u)
+  # A real opposing release opens Quick Switch while the mount owner turn is suspended.
+  self.e.gm.recall(self.q,reason='actual opposing recall after its consumed turn')
+  self.e.gm.send_out(self.q,pos=(3,1),reason='actual opposing release triggers the rider reaction')
+  request='replace-closed-swarm-slot';saved={};finish=J.finish_party_reaction
+  reserve=W.actor_index(self.e)[self.swarm_reserve.entity_id];reserve_id=reserve.entity_id
+  def save_suspended(e,a,request_id):
+   if request_id==request:
+    self.assertEqual(I.suspended_owner(e).entity_id,self.u.entity_id)
+    saved['payload']=json.loads(json.dumps(CODEC.dump_engine(e),ensure_ascii=False))
+   return finish(e,a,request_id)
+  with patch.object(J,'finish_party_reaction',side_effect=save_suspended):
+   J.act(self.e,self.b,recall=[self.t],send=[(reserve,(6,1))],source_id=J.QUICK,
+         event_id=self.last_event('release',self.b),request_id=request,reason='actual reaction replaces the already-consumed Swarm slot')
+  self.assertIs(self.e._active_turn_actor,self.u)
+  self.e=CODEC.load_engine(self.rules,saved['payload']);index=W.actor_index(self.e)
+  self.assertEqual(I.suspended_owner(self.e).entity_id,self.u.entity_id)
+  J.finish_party_reaction(self.e,index[self.b.entity_id],request);self.restore()
+  state=self.e._initiative_schedule;self.assertEqual(state['slots'][self.t.entity_id]['actor'].entity_id,reserve_id)
+  self.assertEqual(state['slots'][self.t.entity_id]['turn'],'closed');self.assertIs(self.e._active_turn_actor,self.u)
+  self.close();self.e.end_round()
+  row=SWARM.state(self.t);actions=row['round_trigger_receipts'][row['own_turn_key']]['actions']
+  self.assertEqual([action['initiative'] for action in actions],[70,65,60,55]);self.assertEqual(row['swarm_points'],0)
+  self.assertEqual(sum(row['actor'] is self.t for row in self.e._turn_closures),1);self.valid()
+
+ def test_transformation_chronology_rejects_omission_duplicate_legacy_hiding_and_resigned_binding_reorder(self):
+  self.mounted_then_replacement();state=self.e._initiative_schedule;before=self.e.export_state()
+  history=deepcopy(state['change_history'])
+  rows=[row for kind in S.STEP_CHANGES for row in state.get(kind,[])]
+  stamps=[(row,row['change_sequence'],row.get('sha256')) for row in rows]
+  def resign():
+   data=state['change_history'];previous=data['legacy_sha256']
+   for sequence,event in enumerate(data['events']):
+    row=state[event['kind']][event['index']];row['change_sequence']=sequence
+    if event['kind']=='mounted_exchanges':row['sha256']=S._exchange_sha(row)
+    event['sha256']=S._change_hash(state,event,row,previous);previous=event['sha256']
+  for change in ('omit','duplicate','prefix','resigned-binding-order','missing-history'):
+   with self.subTest(change=change):
+    state['change_history']=deepcopy(history)
+    try:
+     data=state['change_history']
+     if change=='omit':data['events'].pop()
+     elif change=='duplicate':data['events'].append(deepcopy(data['events'][-1]))
+     elif change=='prefix':
+      data['legacy_prefix']['mounted_exchanges']=1
+      data['legacy_sha256']=S._legacy_change_hash(state,data['legacy_prefix']);resign()
+     elif change=='resigned-binding-order':
+      data['events'][0],data['events'][1]=data['events'][1],data['events'][0];resign()
+     else:state.pop('change_history')
+     with self.assertRaises(ValueError):self.e.export_state()
+    finally:
+     state['change_history']=deepcopy(history)
+     for row,sequence,digest in stamps:
+      row['change_sequence']=sequence
+      if digest is not None:row['sha256']=digest
+    self.assertEqual(self.e.export_state(),before)
+
 if __name__=='__main__':unittest.main()

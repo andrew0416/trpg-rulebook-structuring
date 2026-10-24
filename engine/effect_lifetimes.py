@@ -10,7 +10,7 @@ import common_checks as C
 import effect_lifetime_policy as POLICY
 
 FIELDS={'skill_check_mod':'skill_modifier','accuracy_mod':'accuracy_modifier','evasion_mod':'evasion_modifier','damage_reduction':'damage_reduction','save_mod':'save_modifier'}
-KINDS=set(FIELDS)|{'oracle_mark','channel_imprint','apply_status','initiative','initiative_multiplier','type_change','size_change','forbid','swap_stats','move_lock','damage_roll_mod'}
+KINDS=set(FIELDS)|{'oracle_mark','channel_imprint','apply_status','initiative','initiative_multiplier','type_change','size_change','forbid','swap_stats','move_lock','damage_roll_mod','type_override_moves'}
 class TimingUnsupported(ValueError):pass
 class TimingAmbiguous(ValueError):pass
 
@@ -54,6 +54,11 @@ def prepare(engine,actor,target,effect,source):
   C.integer(effect.get('value'),'timed damage modifier')
   if set(effect)-{'type','value','move_type','target','until','duration','while','note','confidence'} or ('move_type' in effect and type(effect['move_type'])is not str):
    raise TimingUnsupported('timed damage modifier needs an exact supported passive payload')
+ if effect['type']=='type_override_moves':
+  if (source!='move/송전' or effect.get('moves')!='water moves and melee attacks'
+      or effect.get('as_type')!='전기' or effect.get('until')!="end of user's next turn"
+      or set(effect)-{'type','moves','as_type','target','until','note','confidence'}):
+   raise TimingUnsupported('timed move-type override needs the reviewed Electrify payload')
  if effect['type']=='apply_status' and not isinstance(effect.get('status'),str):raise TimingUnsupported('one sourced status required for timed application')
  if 'duration' in effect and 'until' in effect:raise TimingAmbiguous('multiple lifetime declarations require an explicit composition rule')
  raw=effect.get('until',effect.get('duration'))
@@ -84,6 +89,7 @@ def prepare(engine,actor,target,effect,source):
  else:raise TimingUnsupported('unimplemented explicit lifetime: '+raw)
  if effect['type']=='channel_imprint':record['channel_imprint']=__import__('channeler').imprint_payload(engine,actor,target,effect,source)
  elif effect['type']=='damage_roll_mod':pass
+ elif effect['type']=='type_override_moves':record['move_type_override']={key:effect[key] for key in ('type','moves','as_type')}
  elif effect['type']=='size_change':
   import body_state as BODY,body_modes as MODES
   if source!='move/작아지기' or effect.get('to')!='Small' or raw not in ('encounter_end','encounter','인카운터 끝까지'):
@@ -127,6 +133,13 @@ def install(engine,actor,target,effect,source,receipt,occurrence):
   GRANTS._source(target,grant,'effect',owner_id=actor.entity_id,rule_id=source,lifetime=record['timing_text'])
   passive={k:effect[k] for k in ('type','value','move_type') if k in effect}
   GRANTS.apply_owned(engine,target,grant,lambda:FX.apply_passives(engine,target,[passive]),effects=[passive])
+  record['grant_source']=grant
+ if 'move_type_override' in record:
+  import state_grants as GRANTS
+  grant=GRANTS.effect_source(target,{'source_id':source,'effect_occurrence':occurrence},'timed-move-type')
+  GRANTS._source(target,grant,'effect',owner_id=actor.entity_id,rule_id=source,lifetime=record['timing_text'])
+  passive=record['move_type_override']
+  GRANTS.apply_owned(engine,target,grant,lambda:target.registry.append(passive),effects=[passive])
   record['grant_source']=grant
  if 'size_value' in record:
   import state_grants as GRANTS

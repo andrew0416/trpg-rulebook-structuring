@@ -114,6 +114,103 @@ class Check(unittest.TestCase):
     return {"stage": stage, "cases": cases, "first": first, "second": second}
 
 
+def chaining_runs(project, home):
+    prefix = "tools.test_ci_chain.Check."
+    order = [prefix + name for name in ("test_a", "test_b", "test_c")]
+    body = '''import unittest
+
+class Check(unittest.TestCase):
+    builds = []
+    @classmethod
+    def prepare_chained_cases(cls, cases):
+        by_name = {case._testMethodName: case for case in cases}
+        if not {"test_a", "test_b", "test_c"} <= by_name.keys():
+            return None
+        context = {}
+        ordered = [by_name[name] for name in ("test_a", "test_b", "test_c")]
+        for case in ordered:
+            case.context = context
+        return ordered  # HOOK_RESULT
+
+    def build_o(self):
+        self.builds.append("O")
+        return {"phase": "O"}
+
+    def build_o_a(self):
+        self.builds.append("O_A")
+        return {"phase": "A"}
+
+    def build_o_ab(self):
+        self.builds.append("O_AB")
+        return {"phase": "B"}
+
+    def test_a(self):
+        state = self.build_o()
+        self.assertEqual(state["phase"], "O")
+        state["phase"] = "A"
+        self.assertTrue(True)  # FIRST_STAGE
+        if hasattr(self, "context"):
+            self.context["state"] = state
+            self.context["object_id"] = id(state)
+
+    def test_b(self):
+        state = self.context["state"] if hasattr(self, "context") else self.build_o_a()
+        self.assertEqual(state["phase"], "A")
+        if hasattr(self, "context"):
+            self.assertEqual(id(state), self.context["object_id"])
+            self.assertEqual(self.builds, ["O"])
+        else:
+            self.assertEqual(self.builds, ["O_A"])
+        state["phase"] = "B"
+
+    def test_c(self):
+        state = self.context["state"] if hasattr(self, "context") else self.build_o_ab()
+        self.assertEqual(state["phase"], "B")
+        if hasattr(self, "context"):
+            self.assertEqual(id(state), self.context["object_id"])
+            self.assertEqual(self.builds, ["O"])
+        else:
+            self.assertEqual(self.builds, ["O_AB"])
+        state["phase"] = "C"
+'''
+    runs = {}
+    for mode in ("whole", "only_b", "only_c", "failed_a", "omitted_case"):
+        stage = home / mode / "stage"
+        (stage / "tools").mkdir(parents=True)
+        for name in ("tools/ci_physical.py", "work/reuse-partials/verify_overlay_tests.py"):
+            destination = stage / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(project / name, destination)
+        selected = order[1:2] if mode == "only_b" else order[2:] if mode == "only_c" else order[::-1]
+        code = body
+        if mode == "failed_a":
+            code = code.replace("self.assertTrue(True)  # FIRST_STAGE", "self.fail('upstream stage failed')")
+        if mode == "omitted_case":
+            code = code.replace("return ordered  # HOOK_RESULT", "return ordered[:-1]")
+        (stage / "tools/test_ci_chain.py").write_text(code, encoding="utf-8")
+        (stage / "packet.json").write_text(json.dumps({"completed": {"chain": {"tests": selected}}}), encoding="utf-8")
+        run = runs[mode] = capture(stage, home / mode / "evidence", selected[0])
+        meta = run["metadata"]
+        assert meta is not None and meta["stable_hashes"] and meta["complete_pre_input_capture"]
+        details = json.loads(Path(meta["original_cli_report"]).read_text(encoding="utf-8"))
+        if mode == "omitted_case":
+            assert meta["actual_test_ids"] == [] and meta["tests"] == 0
+            assert details["discovery_errors"] and run["outcome"]["exit_code"] != 0
+            continue
+        expected = selected if mode in ("only_b", "only_c") else order
+        assert meta["test_ids"] == meta["actual_test_ids"] == expected
+        assert details["selected_case_ids"] == selected
+        assert bool(details["chained_cases"]) == (mode not in ("only_b", "only_c"))
+        assert meta["tests"] == len(expected)
+        assert [row["id"] for row in meta["method_timings"]] == expected
+        if mode == "failed_a":
+            assert meta["failure_ids"] == order[:1] and meta["error_ids"] == order[1:]
+            assert run["outcome"]["exit_code"] != 0
+        else:
+            assert meta["successful"] and run["outcome"]["exit_code"] == 0
+    return runs
+
+
 def self_check(project):
     assert "PTK_FIXTURE_KEY" not in os.environ
     # The unchanged verifier rejects C: stages. Tests only copy its source and
@@ -166,6 +263,7 @@ def self_check(project):
                 assert not meta["complete_pre_input_capture"]
             elif variant == "wrong_origin":
                 assert any(row["module"] == "outside_project" for row in meta["changed_origin_errors"])
+        chaining_runs(project, home / "chaining")
         continuity = continuity_runs(project, home / "continuity")
         first, second = continuity["first"], continuity["second"]
         assert first["outcome"]["exit_code"] == 1 and second["outcome"]["exit_code"] == 0
@@ -193,7 +291,7 @@ def self_check(project):
         duplicate = capture(continuity["stage"], home / "duplicate/run-second", continuity["cases"][1])
         assert duplicate["outcome"]["exit_code"] != 0 and duplicate["metadata"] is None
         assert destination.read_bytes() == saved
-    print("CI physical self-check passed: synthetic boundaries and same-stage failure/subset continuity.")
+    print("CI physical self-check passed: synthetic boundaries, stage builders/chaining and same-stage failure/subset continuity.")
 
 
 if __name__ == "__main__":

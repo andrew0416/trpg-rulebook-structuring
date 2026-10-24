@@ -9,7 +9,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
 from engine import Rules, Engine, Combatant
-from builder import build_pokemon
+from builder import build_pokemon, build_trainer
 from grid import Grid
 import attack_damage_history as HISTORY
 import declarative_move_contracts as DECLARATIVE
@@ -18,6 +18,9 @@ import environmental_item_state as ITEMS
 import resolution_transaction as TX
 import weather_state as WEATHER
 import world_entities as WORLD
+import combat_timing as TIMING
+import frequency as FREQUENCY
+import state_grants as GRANTS
 import native_scenario_fixture as SCENARIO
 import test_core_nicolette_weather as NICOLETTE
 
@@ -105,6 +108,102 @@ class EnvironmentalActualTypeRevisionTests(unittest.TestCase):
                 SCENARIO.assert_rejected_unchanged(e,
                     lambda: self.observe(e, t, 'herb', move_id=move, material='herb', native_attack=reference),
                     reason_pattern='actual attack type does not support')
+
+    def test_electrify_overlaps_restore_and_expire_only_at_each_caster_next_turn_end(self):
+        e, a, caster = self.world(['move/물대포'], ['move/송전'])
+        provider = Combatant(self.r, build_trainer(self.r, 'actual PP Up provider', 20,
+            dict.fromkeys(('hp', 'atk', 'def', 'spa', 'spd', 'spe'), 10),
+            moves=[], abilities=[], extra={'items': {'item/pp업': 1}}))
+        e.gm.set_position(caster, (4, 1), reason='actual three-metre separation for ranged attacks')
+        e.gm.add_combatant(provider, pos=(4, 2), side='foe', reason='actual possessed PP Up dose')
+        self.object(e, caster, 'charged-camera'); self.object(e, caster, 'restored-camera')
+
+        def live(expected):
+            rows = [row for row in TIMING.records(a) if row.get('source') == 'move/송전']
+            self.assertEqual({row['grant_source'] for row in rows}, expected)
+            self.assertEqual(len(rows), len(expected))
+            self.assertTrue(all(row['turn_owner'] is caster for row in rows))
+            registered = [row for row in a.registry if row.get('type') == 'type_override_moves']
+            self.assertEqual({row[GRANTS.TAG] for row in registered}, expected)
+            self.assertEqual(len(registered), len(expected))
+            for source in expected:
+                self.assertEqual(a.spec[GRANTS.KEY]['sources'][source]['owner_id'], caster.entity_id)
+                self.assertIn(source, a.spec[GRANTS.KEY]['effects'])
+            return rows
+
+        def next_target_turn():
+            e.end_round(); e.start_round(e.everyone); e.start_of_turn(a, initiative_count=20)
+
+        def next_caster_turn():
+            e.start_of_turn(provider, initiative_count=19); e.end_of_turn(provider)
+            e.start_of_turn(caster, initiative_count=18)
+
+        # Electrify is EOT. An actual paid PP Up dose permits legal overlapping uses.
+        self.assertEqual(FREQUENCY.move_frequency(e, 'move/송전', caster), ('every_other_turn', 1))
+        e.end_of_turn(a); e.start_of_turn(provider, initiative_count=19)
+        self.assertEqual(e.use_item(provider, 'item/pp업', caster, selected_move='move/송전'), (1, 0))
+        self.assertEqual(provider.spec['items']['item/pp업'], 0)
+        self.assertEqual(provider.budget['standard'], 0)
+        self.assertEqual(FREQUENCY.move_frequency(e, 'move/송전', caster), ('at_will', 1))
+        e.end_of_turn(provider); e.start_of_turn(caster, initiative_count=18)
+        e.use_move(caster, a, 'move/송전')
+        rows = [row for row in TIMING.records(a) if row.get('source') == 'move/송전']
+        self.assertEqual(len(rows), 1)
+        first_row = rows[0]
+        first = first_row['grant_source']
+        self.assertEqual(first_row['turn_deadline'], caster.custom_conditions['combat_turn_serial'] + 1)
+        e.end_of_turn(caster); live({first})
+
+        next_target_turn(); live({first})
+        charged_reference = self.hit(e, a, caster, 'move/물대포')
+        self.assertEqual(HISTORY.records(caster)[-1]['move_type'], '전기')
+        e.end_of_turn(a); live({first})
+        next_caster_turn(); live({first})
+        e.use_move(caster, a, 'move/송전')
+        rows = [row for row in TIMING.records(a) if row.get('source') == 'move/송전']
+        self.assertEqual(len(rows), 2)
+        sources = {row['grant_source'] for row in rows}
+        self.assertEqual(len(sources), 2); self.assertIn(first, sources)
+        second = next(iter(sources - {first}))
+        self.assertEqual({row['turn_deadline'] for row in rows},
+                         {caster.custom_conditions['combat_turn_serial'],
+                          caster.custom_conditions['combat_turn_serial'] + 1})
+        live({first, second})
+        self.assertEqual(caster.move_uses['move/송전'], 2)
+        snapshot = e.gm.snapshot('actual-overlapping-electrify')
+        e.end_of_turn(caster); live({second})
+        self.assertNotIn(first, a.spec[GRANTS.KEY]['sources'])
+        self.assertNotIn(first, a.spec[GRANTS.KEY]['effects'])
+        e.gm.restore(snapshot); live({first, second})
+        self.assertIs(e._active_turn_actor, caster)
+
+        ids = (a.entity_id, caster.entity_id, provider.entity_id)
+        e = Engine.import_state(Rules(ROOT, ruleset='core'),
+            json.loads(json.dumps(e.export_state(), ensure_ascii=False)))
+        a, caster, provider = (WORLD.actor_index(e)[uid] for uid in ids)
+        live({first, second}); self.assertIs(e._active_turn_actor, caster)
+        e.end_of_turn(caster); live({second})
+        self.assertNotIn(first, a.spec[GRANTS.KEY]['sources'])
+        self.assertNotIn(first, a.spec[GRANTS.KEY]['effects'])
+
+        next_target_turn(); live({second})
+        self.hit(e, a, caster, 'move/물대포')
+        self.assertEqual(HISTORY.records(caster)[-1]['move_type'], '전기')
+        e.end_of_turn(a); live({second})
+        next_caster_turn(); live({second})
+        e.end_of_turn(caster); live(set())
+        self.assertNotIn(second, a.spec[GRANTS.KEY]['sources'])
+        self.assertNotIn(second, a.spec[GRANTS.KEY]['effects'])
+
+        next_target_turn()
+        restored_reference = self.hit(e, a, caster, 'move/물대포')
+        self.assertEqual(HISTORY.records(caster)[-1]['move_type'], '물')
+        old = self.observe(e, caster, 'charged-camera', move_id='move/물대포',
+            native_attack=charged_reference)
+        new = self.observe(e, caster, 'restored-camera', move_id='move/물대포',
+            native_attack=restored_reference)
+        self.assertEqual((old['move_type'], new['move_type']), ('전기', '물'))
+        self.assertTrue(e.validate_state()['valid'])
 
     def test_clear_and_sandstorm_weather_ball_cannot_create_water_collateral(self):
         for weather, actual in ((None, '노말'), ('sandstorm', '바위')):

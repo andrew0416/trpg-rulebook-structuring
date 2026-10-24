@@ -279,7 +279,7 @@ def select_mounted_turn(engine,actor):
          'rider':pair[0],'mount':pair[1],'source':MOUNT.RIDE_AS_ONE,'acquisition_request_id':receipt['request_id'],
          'mount_contract_sha256':pair[0].spec[MOUNT.CONTRACT]['sha256']}
     row['sha256']=_exchange_sha(row)
-    state.setdefault('mounted_exchanges',[]).append(row)
+    record_step_change(state,'mounted_exchanges',row)
     state['steps'][state['cursor']]['slot'],state['steps'][later]['slot']=key,step['slot']
 
 
@@ -289,8 +289,100 @@ def _exchange_sha(row):
                                    for k,v in row.items() if k!='sha256'})
 
 
-def _exchanged_steps(engine,state,bound_at,index):
-    steps=_layout(state['slots'],state['order'],state['layout'])
+STEP_CHANGES=('replacements','mounted_exchanges','party_orders','swarm_continuations')
+
+
+def _change_payload(kind,row):
+    actors=('rider','mount') if kind=='mounted_exchanges' else ('before','after') if kind=='replacements' else ()
+    return {key:(value.entity_id if key in actors else value) for key,value in row.items()}
+
+
+def _change_hash(state,event,row,previous):
+    import resolution_transaction as TX
+    return TX.request_fingerprint({'round':state['round'],'source':state['source'],'previous':previous,
+        'event':{k:v for k,v in event.items() if k!='sha256'},'record':_change_payload(event['kind'],row)})
+
+
+def _legacy_change_hash(state,prefix):
+    import resolution_transaction as TX
+    return TX.request_fingerprint({kind:[_change_payload(kind,row) for row in state.get(kind,[])[:prefix[kind]]]
+                                   for kind in STEP_CHANGES})
+
+
+def record_step_change(state,kind,row):
+    """Record the real producer order; never infer an order for old receipts."""
+    if kind not in STEP_CHANGES:raise ValueError('known schedule transformation required')
+    if 'change_history' not in state:
+        prefix={key:len(state.get(key,[])) for key in STEP_CHANGES}
+        state['change_history']={'legacy_prefix':prefix,'legacy_sha256':_legacy_change_hash(state,prefix),'events':[]}
+    history=state['change_history'];events=history['events'];rows=state.setdefault(kind,[])
+    row['change_sequence']=len(events)
+    if kind=='mounted_exchanges':row['sha256']=_exchange_sha(row)
+    event={'kind':kind,'index':len(rows),'cursor':state['cursor']}
+    event['sha256']=_change_hash(state,event,row,events[-1]['sha256'] if events else history['legacy_sha256'])
+    rows.append(row);events.append(event)
+
+
+def _chronological_steps(engine,state,index):
+    history=state['change_history']
+    if type(history)is not dict or set(history)!={'legacy_prefix','legacy_sha256','events'} or type(history['events'])is not list or not history['events']:
+        raise ValueError('actual schedule chronology required')
+    prefix=history['legacy_prefix']
+    if type(prefix)is not dict or set(prefix)!=set(STEP_CHANGES):raise ValueError('exact legacy schedule prefix required')
+    for kind in STEP_CHANGES:
+        rows=state.get(kind,[])
+        if type(rows)is not list:raise ValueError('schedule transformation receipts must be lists')
+        C.integer(prefix[kind],'legacy schedule prefix',0,len(rows))
+        if any('change_sequence' in row for row in rows[:prefix[kind]]):raise ValueError('new schedule change cannot be hidden in the legacy prefix')
+    if history['legacy_sha256']!=_legacy_change_hash(state,prefix):raise ValueError('legacy schedule prefix evidence changed')
+    legacy=dict(state,**{kind:state.get(kind,[])[:prefix[kind]] for kind in STEP_CHANGES})
+    legacy.pop('change_history')
+    def prefix_bound(at):
+        actors={key:row['actor'] for key,row in state['initial_bindings'].items()}
+        for row in legacy['replacements']:
+            if row['cursor']>at:break
+            actors[row['slot']]=row['after']
+        return actors
+    actors=prefix_bound(state['cursor'])
+    legacy['slots']={key:dict(row,actor=actors[key]) for key,row in state['slots'].items()}
+    steps=_exchanged_steps(engine,legacy,prefix_bound,index)
+    counts=dict(prefix);previous=history['legacy_sha256']
+    last=max((row.get('after_cursor',row.get('cursor',0)) for kind in STEP_CHANGES for row in legacy[kind]),default=0)
+    mounted=max((row['cursor'] for row in legacy['mounted_exchanges']),default=-1)
+    swarm=max((row['after_cursor'] for row in legacy['swarm_continuations']),default=0)
+    for sequence,event in enumerate(history['events']):
+        if type(event)is not dict or set(event)!={'kind','index','cursor','sha256'} or event['kind'] not in STEP_CHANGES:
+            raise ValueError('exact schedule change reference required')
+        kind=event['kind'];position=C.integer(event['index'],'schedule change reference',0)
+        at=C.integer(event['cursor'],'schedule change cursor',last,state['cursor'])
+        if position!=counts[kind] or position>=len(state.get(kind,[])):raise ValueError('schedule chronology omitted, repeated or reordered a receipt')
+        row=state[kind][position]
+        if (type(row.get('change_sequence'))is not int or row['change_sequence']!=sequence
+                or at!=row.get('after_cursor',row.get('cursor')) or event['sha256']!=_change_hash(state,event,row,previous)):
+            raise ValueError('schedule chronology evidence changed')
+        previous=event['sha256'];last=at;counts[kind]+=1
+        if kind=='replacements':
+            if actors[row['slot']] is not row['before']:raise ValueError('schedule chronology lost its prior actor binding')
+            actors[row['slot']]=row['after'];continue
+        if kind=='mounted_exchanges':
+            if at<=mounted:raise ValueError('mounted initiative exchange evidence changed')
+            mounted=at
+        if kind=='swarm_continuations':
+            if at<=swarm:raise ValueError('swarm continuation must follow its actual closed action')
+            swarm=at
+        one=dict(state,**{key:[row] if key==kind else [] for key in STEP_CHANGES})
+        one['slots']={key:dict(value,actor=actors[key]) for key,value in state['slots'].items()}
+        steps=_exchanged_steps(engine,one,lambda _:actors,index,_steps=steps)
+    if any(counts[kind]!=len(state.get(kind,[])) for kind in STEP_CHANGES):raise ValueError('schedule chronology omitted an actual transformation')
+    return steps
+
+
+def _exchanged_steps(engine,state,bound_at,index,*,_steps=None):
+    if _steps is None:
+        if 'change_history' in state:return _chronological_steps(engine,state,index)
+        if any('change_sequence' in row for kind in STEP_CHANGES for row in state.get(kind,[])):
+            raise ValueError('new schedule receipts require their actual chronology')
+    steps=_layout(state['slots'],state['order'],state['layout']) if _steps is None else _steps
     import swarm_transitions as SWARM
     continuation_cursor=0
     previous=-1
@@ -380,7 +472,7 @@ def replace(engine, slot, actor, *, source, reason,_party_request=None):
         if row['actor'] is subject:
             raise ValueError('replacement must change the actual participant')
         INTERRUPTS.preflight_replacement(staged,slot,subject)
-        state['replacements'].append({'slot':slot,'before':row['actor'],'after':subject,
+        record_step_change(state,'replacements',{'slot':slot,'before':row['actor'],'after':subject,
                                       'source':source,'reason':reason,'cursor':state['cursor']})
         row['actor'] = subject
         return status(staged)
@@ -419,7 +511,7 @@ def reorder_party(engine,slot,request_id):
     actor_slots={row['actor'].entity_id:key for key,row in state['slots'].items()}
     after=[actor_slots[a.entity_id] for a in order]
     if after==before:return
-    state.setdefault('party_orders',[]).append({'source':__import__('juggler').CLASS,'request_id':request_id,'cursor':state['cursor'],'positions':positions,'before':before,'after':after})
+    record_step_change(state,'party_orders',{'source':__import__('juggler').CLASS,'request_id':request_id,'cursor':state['cursor'],'positions':positions,'before':before,'after':after})
     for n,key in zip(positions,after):state['steps'][n]['slot']=key
 
 

@@ -254,7 +254,7 @@ def schedule_continuation(engine, actor, schedule, slot, phase):
     record={'after_cursor':schedule['cursor'],'insert_at':at,'slot':slot,'phase':phase,
             'initiative':count,'origin_initiative':turn['current_initiative'],
             'action_index':turn['action_index'],'action_key':turn['key']}
-    schedule.setdefault('swarm_continuations',[]).append(record)
+    __import__('initiative_schedule').record_step_change(schedule,'swarm_continuations',record)
     schedule['steps'].insert(at,{'phase':phase,'slot':slot,'kind':'turn'})
     schedule['slots'][slot]['turn']='ready'
 
