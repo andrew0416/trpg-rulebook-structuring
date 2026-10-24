@@ -62,7 +62,8 @@ def acquisition_snapshot(e,a,u,rank=None,selection=None):
 def qualification(a,u,snapshot,prerequisite_source):
  import acquisition_qualification as Q
  if prerequisite_source is not None or type(snapshot)is not dict or set(snapshot)!={'rank','psychic_connection','parents'}:raise ValueError('actual Warper acquisition observations required')
- C.integer(snapshot['rank'],'Guile prerequisite rank',1,6)
+ # Acquisition already resolves declared ranks through skill_modifiers.rank.
+ C.integer(snapshot['rank'],'Guile prerequisite rank',1)
  if type(snapshot['psychic_connection'])is not bool or type(snapshot['parents'])is not list:raise ValueError('actual Psychic Connection and parent observations required')
  known={r['request_id']:r['feature_id'] for r in records(a) if r['feature_id'] in PARENTS[u]}
  if not set(snapshot['parents'])<=set(known):raise ValueError('actual Warper parent receipts required')

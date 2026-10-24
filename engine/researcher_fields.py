@@ -386,7 +386,7 @@ def rainbow_light(engine,trainer):
 def _is_ally(trainer,actor):
  if actor is trainer:return True
  if actor.spec.get('trainer_id')==trainer.entity_id:return True
- return trainer.side is not None and actor.side==trainer.side
+ return getattr(trainer,'side',None) is not None and getattr(actor,'side',None)==trainer.side
 
 
 def effect_range_bonus(engine,attacker,move):
@@ -1263,18 +1263,24 @@ def set_razors_reaction(engine,pokemon,enabled):
 
 
 def _held_relic(engine,pokemon,stat):
- name=getattr(pokemon,'item',None)
- row=relic_definition(name)
- if row is None or row[0]!=stat:return None
- effects=RF.relic_effects(engine,pokemon,name)
- if effects is None or not effects[0]:return None
- return name
+ import held_equipment as HELD,items as ITEMS
+ HELD.validate(pokemon);matches=[]
+ for held in HELD.entries(pokemon):
+  name=held['name'];row=relic_definition(name)
+  if row is None or row[0]!=stat or held.get('effects_pending'):continue
+  registered=getattr(pokemon,'_item_reg',{}).get(held.get('registration_key'))
+  if registered is None or not ITEMS.equipment_benefit_active(pokemon,registered):continue
+  effects=RF.relic_effects(engine,pokemon,name)
+  if effects is not None and effects[0]:matches.append(name)
+ if len(matches)>1:raise ValueError('multiple active relic effect sources need an explicit stacking policy')
+ return matches[0] if matches else None
 
 
 def relic_after_hit(engine,attacker,target,move,dealt):
  """Prehistoric Razors: after a damaging melee hit, the holder's reaction makes the attacker lose a Tick."""
  if type(dealt) is not int or dealt<=0 or move.get('class') not in ('물리','특수') or '근접' not in str(move.get('range','')):return None
  if getattr(target,'kind',None)!='pokemon':return None
+ if not getattr(attacker,'side',None) or not getattr(target,'side',None) or attacker.side==target.side:return None
  name=_held_relic(engine,target,'def')
  if name is None or not target.spec.get('researcher_razors_reaction'):return None
  if attacker is target or attacker.fainted:return None

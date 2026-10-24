@@ -117,6 +117,37 @@ class TelepathTests(unittest.TestCase):
   self.allow(self.b);out=self.core_read('aware-deliver');self.assertEqual(out['message']['surface_thought'],'Actual current surface');self.assertIsNone(out['check']);self.restore();self.valid()
   self.e.elapsed_seconds+=86400;out=self.core_read('expired-retry');self.assertEqual(out['retry_modifier'],0)
 
+ def test_core308_read_and_group_replay_keep_current_policy_after_restore(self):
+  self.capable();self.allow(self.b);O.observe_thought(self.e,self.b,'Actual remembered surface',reason='observed actual thought')
+  read=self.core_read('core-stored-read')
+  projected=self.e.project_telepathic_thought(self.a,[self.b],'actual stored projection',source_policy='core_1.05',request_id='core-stored-group')
+  before=deepcopy(M._state(self.e));self.restore();self.valid()
+  self.assertEqual(M._state(self.e),before)
+  self.assertEqual(self.core_read('core-stored-read'),dict(read,replayed=True))
+  self.assertEqual(self.e.project_telepathic_thought(self.a,[self.b],'actual stored projection',source_policy='core_1.05',request_id='core-stored-group'),dict(projected,replayed=True))
+  self.assertEqual(M._state(self.e),before)
+  self.reject(lambda:self.e.project_telepathic_thought(self.a,[self.b],'changed projection',source_policy='core_1.05',request_id='core-stored-group'),'changed input')
+ def test_core308_resigned_policy_changes_reject_and_do_not_borrow_capability_history(self):
+  import resolution_transaction as TX
+  self.capable();self.allow(self.b);self.core_read('core-policy')
+  state=deepcopy(M._state(self.e));original=state['policies'][TC.SOURCE]['declaration']
+  self.assertTrue(TC.accepts_stored_policy(self.rules,original))
+  self.assertFalse(TC.accepts_stored_policy(self.rules,M._body(T.policy(self.rules)['declaration'])))
+  historical=T._previous_policy(self.rules);self.assertIsNotNone(historical)
+  self.assertFalse(TC.accepts_stored_policy(self.rules,historical))
+  for path,replacement in ((('range','maximum','multiplier'),3),(('retry','penalty','modifier'),-1),
+                           (('retry','penalty','seconds'),60),(('retry','scope'),'sender'),(('retry','penalty','stacking'),'single')):
+   with self.subTest(field='.'.join(path)):
+    forged=deepcopy(state);row=forged['policies'][TC.SOURCE];target=row['declaration']
+    for key in path[:-1]:target=target[key]
+    target[path[-1]]=replacement
+    M.declaration(dict(row['declaration'],id='well-formed-core-forgery'))
+    row['sha256']=TX.request_fingerprint(row['declaration']);before=deepcopy(forged)
+    with patch.object(self.e,M.KEY,forged):
+     with self.assertRaisesRegex(ValueError,'native communication source contract changed'):M.validate_world(self.e,W.actor_index(self.e))
+     self.assertEqual(M._state(self.e),before)
+  self.assertEqual(M._state(self.e),state);self.valid()
+
  def test_core308_focus_twice_range_projection_floor_one_read_unknown_and_mindlock(self):
   self.capable();self.allow(self.b);self.e.gm.set_position(self.b,(14,2),reason='Focus times two boundary');self.assertEqual(self.core_read('boundary')['message']['status'],'unknown');self.e.gm.set_position(self.b,(15,2),reason='outside read range');self.assertNotEqual(self.core_read('outside')['status'],'delivered')
   self.e.gm.set_position(self.b,(6,2),reason='inside mindlock test');self.grant(self.b);self.assertNotEqual(self.core_read('mindlock')['status'],'delivered');many=[self.b,self.c,self.add('fourth',(4,4)),self.add('fifth',(5,4))];self.reject(lambda:self.e.project_telepathic_thought(self.a,many,'too many',source_policy='core_1.05',request_id='too-many'),'maximum');self.restore();self.valid()

@@ -363,7 +363,7 @@ def arm_knockout(engine,trainer,target,*,choice,ball_name='몬스터볼',ball_op
  name={'false_strike':'거짓 타격','catch_combo':'캐치 콤보'}.get(choice)
  if name is None:raise ValueError('choose False Strike or Catch Combo')
  W.require_actors(engine,trainer,target);technique(trainer,name,required=True)
- if not target.spec.get('wild',target.side=='wild') or target.spec.get('trainer_id'):raise ValueError('actual unowned wild target required')
+ if not target.spec.get('wild',getattr(target,'side',None)=='wild') or target.spec.get('trainer_id'):raise ValueError('actual unowned wild target required')
  if ball_options is not None and type(ball_options)is not dict:raise ValueError('actual ball options required')
  def apply(e,a,t):
   a.spec.setdefault('capture_knockout_choices',{})[t.entity_id]={'choice':choice,'ball_name':ball_name,
@@ -371,7 +371,7 @@ def arm_knockout(engine,trainer,target,*,choice,ball_name='몬스터볼',ball_op
  return G.transition(engine,trainer,apply,participants=(target,))
 
 def _knockout_owner(engine,attacker,target,name):
- if not target.spec.get('wild',target.side=='wild') or target.spec.get('trainer_id') or target.captured:return None
+ if not target.spec.get('wild',getattr(target,'side',None)=='wild') or target.spec.get('trainer_id') or target.captured:return None
  owners=[a for a in W.actor_index(engine).values() if a.kind=='trainer' and
   (attacker is a or attacker.kind=='pokemon' and attacker.spec.get('trainer_id')==a.entity_id) and
   a.spec.get('capture_knockout_choices',{}).get(target.entity_id,{}).get('choice')==name]

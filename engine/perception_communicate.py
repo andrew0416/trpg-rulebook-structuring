@@ -264,7 +264,7 @@ def send(engine,sender,recipient,value,thought,*,request_id,roll_options=None,op
     validate_world(engine,W.actor_index(engine));body=_body(value)
     intent={'sender_id':sender.entity_id,'recipient_id':recipient.entity_id,'policy':body,'text':thought,'roll_options':options}
     if native is not None:intent['operation']=operation
-    if native is not None:intent=native.replay_intent(engine,intent,_state(engine)['requests'].get(request_id),'policy')
+    if native is not None and hasattr(native,'replay_intent'):intent=native.replay_intent(engine,intent,_state(engine)['requests'].get(request_id),'policy')
     prior=TX.replay_result(_state(engine)['requests'],request_id,intent,fingerprint_field='intent')
     if prior is not None:return dict(deepcopy(prior['result']),replayed=True)
     if native is not None:native.prepare(engine,sender,recipient,value,operation,thought)
@@ -341,7 +341,7 @@ def send_many(engine,sender,recipients,value,thought,*,request_id,maximum,roll_o
     options={} if roll_options is None else deepcopy(roll_options)
     intent={'source':_body(value),'sender_id':sender.entity_id,'recipient_ids':ids,'text':thought,'roll_options':options}
     native=_native(value)
-    if native is not None:intent=native.replay_intent(engine,intent,_state(engine).get('batches',{}).get(request_id),'source')
+    if native is not None and hasattr(native,'replay_intent'):intent=native.replay_intent(engine,intent,_state(engine).get('batches',{}).get(request_id),'source')
     prior=TX.replay_result(_state(engine).get('batches',{}),request_id,intent,fingerprint_field='intent')
     if prior is not None:return dict(deepcopy(prior['result']),replayed=True)
     C.integer(maximum,'actual communication recipient maximum',0)

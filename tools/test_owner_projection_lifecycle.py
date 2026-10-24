@@ -201,9 +201,14 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
             for ice in (False, True):
                 if kind == 'artificial' and ice: continue  # No printed artificial-egg species has Ice type.
                 with self.subTest(boundary=kind, ice=ice):
-                    species = ('아마루스' if kind == 'fossil' else '바닐프티') if ice else None
+                    # Amaura's Basic Ice Shield has an exact selected CSV identity.
+                    species = '아마루스' if ice else None
                     b = self.boundary(kind, {'feats': [CLASS.SHINING_FLAME, CLASS.GLACIAL_ICE]}, species=species)
                     p = b.run(); enemy = self.participant(b.e, species='꼬부기')
+                    if ice:
+                        self.assertIn('얼음', p.types)
+                        if kind in ('egg', 'fossil'):
+                            self.assertEqual(p.abilities, ['아이스실드'])
                     fire = b.e.r.move('move/화염방사')
                     self.assertEqual(CLASS.damage_roll_modifier(b.e, p, enemy, fire, 1), 0)
                     b.e.apply_status(enemy, '화상', source='condition/화상', applied_by=b.owner)
@@ -229,22 +234,20 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
             for kind in BOUNDARIES:
                 with self.subTest(source=source, boundary=kind):
                     ice = uid == CLASS.GLACIAL_ICE and kind != 'artificial'
-                    species = ('아마루스' if kind == 'fossil' else '바닐프티') if ice else None
+                    species = '아마루스' if ice else None
+                    family = species or {'late_join': '잉어킹', 'capture': '잉어킹',
+                        'egg': '이상해씨', 'fossil': '암나이트', 'artificial': '코일'}[kind]
                     b = self.boundary(kind, {'feats': [source],
-                        'class_passive_choices': {CLASS.SPECIES_SAVANT: {'evolution_group': 'accepted-family'}}},
+                        'class_passive_choices': {CLASS.SPECIES_SAVANT: {'evolution_group': 'pokemon/' + family}}},
                         species=species)
-                    if uid == CLASS.SPECIES_SAVANT and b.target is not None:
-                        b.target.spec['evolution_group'] = 'accepted-family'
                     p = b.run(); rows = GRANTS.state(p)['sources']
                     key = CLASS._source_id(b.owner, p, uid)
-                    species_bonus = uid == CLASS.SPECIES_SAVANT and b.target is not None
-                    if uid == CLASS.SPECIES_SAVANT and not species_bonus:
-                        self.assertNotIn(key, rows)  # No authored CSV family label is invented at birth.
-                    else:
-                        self.assertEqual(rows[key]['acquisition_source'], source)
-                        self.assertEqual(rows[key]['clause_id'], source)
-                        self.assertNotIn('native_clause_id', rows[key])
-                        self.assertNotIn('source_variant', rows[key])
+                    species_bonus = uid == CLASS.SPECIES_SAVANT
+                    self.assertEqual(rows[key]['acquisition_source'], source)
+                    self.assertEqual(rows[key]['clause_id'], source)
+                    self.assertNotIn('native_clause_id', rows[key])
+                    self.assertNotIn('source_variant', rows[key])
+                    self.assertFalse(ACQUIRE.receipts(b.owner))
                     self.assertEqual(p.stats, {stat: p.spec['stats'][stat] + int(species_bonus) for stat in STATS})
                     for other in records:
                         if other != uid:
@@ -267,9 +270,8 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
             with patch.object(self, 'rules', rules):
                 with self.subTest(source=source):
                     b = self.boundary('late_join', {'feats': [source],
-                        'class_passive_choices': {CLASS.SPECIES_SAVANT: {'evolution_group': 'accepted-family'}}},
-                        species='바닐프티' if uid == CLASS.GLACIAL_ICE else None)
-                    b.target.spec['evolution_group'] = 'accepted-family'
+                        'class_passive_choices': {CLASS.SPECIES_SAVANT: {'evolution_group': 'pokemon/잉어킹'}}},
+                        species='아마루스' if uid == CLASS.GLACIAL_ICE else None)
                     p = b.run()
                     loaded = CODEC.load_engine(fresh, json.loads(json.dumps(CODEC.dump_engine(b.e), ensure_ascii=False)))
                     restored = WORLD.actor_index(loaded)[p.entity_id]
@@ -280,16 +282,20 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
                     PARTY.project_current_owner(loaded, restored)
                     self.assertEqual(CODEC.dump_engine(loaded), before)
                     old = rules.ruleset
+                    before = CODEC.dump_engine(b.e)
                     try:
                         profile = deepcopy(old.profile)
                         profile['exclude_units'] = [*profile.get('exclude_units', []), source]
                         rules.ruleset = RuleFilter(profile, name=old.name)
                         rules._apply_ruleset()
-                        NATIVE.assert_rejected_unchanged(b.e, lambda: PARTY.project_current_owner(b.e, p),
-                            reason_pattern='Excluded rule selection')
+                        # The deliberately incompatible profile cannot serialize
+                        # existing grants; reach the operation before restoring it.
+                        with self.assertRaisesRegex(ValueError, 'Excluded rule selection'):
+                            PARTY.project_current_owner(b.e, p)
                     finally:
                         rules.ruleset = old
                         rules._apply_ruleset()
+                    self.assertEqual(CODEC.dump_engine(b.e), before)
 
     def species_owner(self, e, species):
         f = SPECIES_FIX.BookSpeciesSavantTests(); f.rules = e.r; f.e = e
@@ -324,6 +330,14 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
                     p = b.run()
                     self.assertEqual(p.stats, {s: p.spec['stats'][s] + expected for s in STATS})
                     self.assertFalse(ACQUIRE.receipts(b.owner))
+            with self.subTest(boundary=kind, forged_matching_label=True):
+                b = self.boundary(kind, {'feats': [CLASS.SPECIES_SAVANT],
+                    'class_passive_choices': {CLASS.SPECIES_SAVANT: {'evolution_group': 'fish-family'}}})
+                b.target.spec['evolution_group'] = 'fish-family'
+                before = deepcopy(b.target.spec)
+                NATIVE.assert_rejected_unchanged(b.e, b.run,
+                    reason_pattern='explicit resolved evolution family')
+                self.assertEqual(b.target.spec, before)
 
     def type_owner(self, e, species):
         # Reuse the native fixture's exact initial sheet and XP budget, then its
@@ -424,11 +438,35 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
                 self.assertFalse(b.target.captured); self.assertNotIn('trainer_id', b.target.spec)
                 self.assertEqual(b.target.stats, b.target.spec['stats']); self.assertEqual(self.shine(b.e, b.target), 13)
         b = self.boundary('capture', {'feats': [SHINE]})
-        fake_spec = deepcopy(b.owner.spec)
-        fake_spec.pop('id')
-        fake = Combatant(b.e.r, fake_spec)
-        self.assertNotIn(fake.entity_id, WORLD.actor_index(b.e))
-        NATIVE.assert_rejected_unchanged(b.e, lambda: b.fixture.catch(b.target, trainer=fake), reason_pattern='actual registered')
+        for actor in (b.owner, b.target):
+            for same_id in (False, True):
+                with self.subTest(fake_kind=actor.kind, copied_identity=same_id):
+                    fake_spec = deepcopy(actor.spec)
+                    if not same_id:
+                        fake_spec.pop('id')
+                    fake = Combatant(b.e.r, fake_spec)
+                    self.assertIsNot(WORLD.actor_index(b.e).get(fake.entity_id), fake)
+                    before = deepcopy(fake.spec)
+                    trainer, target = (fake, b.target) if actor is b.owner else (b.owner, fake)
+                    NATIVE.assert_rejected_unchanged(b.e,
+                        lambda: b.fixture.catch(target, trainer=trainer), reason_pattern='actual registered')
+                    self.assertEqual(fake.spec, before)
+
+    def test_capture_with_absent_or_unknown_side_uses_registered_ownership(self):
+        for absent in (False, True):
+            with self.subTest(absent=absent):
+                b = self.boundary('capture', {'classes': [STATIC.ENDURING], 'feats': [SHINE]})
+                b.target.spec.pop('side', None)
+                if absent:
+                    del b.target.side
+                else:
+                    b.target.side = None
+                p = b.run(); self.assert_identity(b, p)
+                self.assertEqual(self.shine(b.e, p), 15)
+                self.assertEqual(p.stats['hp'], p.spec['stats']['hp'] + 1 + p.level // 10)
+                before = deepcopy((b.owner.spec, p.spec, b.e.rng.getstate()))
+                self.assertFalse(b.fixture.catch(p, trainer=b.owner))
+                self.assertEqual((b.owner.spec, p.spec, b.e.rng.getstate()), before)
 
     def test_birth_projections_preserve_inherited_moves_fossil_lineage_and_artificial_upgrades(self):
         for kind in ('egg', 'fossil', 'artificial'):
@@ -440,8 +478,9 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
                 self.assertIs(b.e.everyone, rosters[0]); self.assertIs(b.e.gm.everyone, rosters[1])
                 if kind == 'egg':
                     self.assertEqual((p.level, p.spec['tutor_points']), (1, 1))
-                    learned = p.spec['move_learning']['move/뿌리박기']
-                    self.assertEqual((learned['method'], learned['teacher_id']), ('egg', b.fixture.a.entity_id))
+                    self.assertEqual(p.spec['inheritance_moves'], ['move/뿌리박기'])
+                    self.assertNotIn('move/뿌리박기', p.moves)
+                    self.assertNotIn('move/뿌리박기', p.spec.get('move_learning', {}))
                 elif kind == 'fossil':
                     self.assertEqual(p.level, 10)
                     self.assertEqual(p.spec['fossil_entity_id'], b.fixture.fossil['entity_id'])
@@ -449,7 +488,10 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
                 else:
                     self.assertEqual((p.level, p.spec['nature'], p.abilities), (5, '겁쟁이', ['옹골참']))
                     self.assertEqual(p.spec['vitamin_bonus'], {'spa': 2, 'hp': 1, 'def': 1})
-                    self.assertIn('move/저주', p.moves); self.assertEqual(b.fixture.t.spec['money'], 6500)
+                    self.assertEqual(p.spec['inheritance_moves'], ['move/저주'])
+                    self.assertNotIn('move/저주', p.moves)
+                    self.assertNotIn('move/저주', p.spec.get('move_learning', {}))
+                    self.assertEqual(b.fixture.t.spec['money'], 6500)
                 NATIVE.assert_rejected_unchanged(b.e, b.run, reason_pattern='unhatched')
 
     def test_late_projection_failure_rolls_back_every_native_boundary_and_live_identity(self):

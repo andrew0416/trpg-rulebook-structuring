@@ -426,10 +426,33 @@ def _validate_static_acquisitions(actor):
             raise ValueError('actual active Ranked acquisition and rank projection differ')
 
 
-def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequisite_source=None, branch=None, rank=None, selection=None):
-    """Acquire a reviewed no-choice Feature without manufacturing a selection."""
+def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequisite_source=None, branch=None, rank=None, selection=None, source_id=None):
+    """Acquire a reviewed Feature; Farcast may select its exact book or CSV clause."""
     import native_acquisition_adapters as NATIVE
-    if feature_id in NATIVE.DEFINITIONS:
+    native = feature_id in NATIVE.DEFINITIONS
+    if feature_id == __import__('warper').FARCAST:
+        book_source = STATIC_FEATURES[feature_id]['clause_id']
+        csv_source = NATIVE.DEFINITIONS[feature_id]['clause_id']
+        if source_id not in (None, book_source, csv_source):
+            raise ValueError('select the exact book or CSV Farcast acquisition source')
+        history = [row['static_acquisition'] for _, row, _ in _static_records(actor)
+                   if row['static_acquisition']['request_id'] == acquisition_request_id]
+        history.extend(row[NATIVE.KEY] for _, row, _ in NATIVE._rows(actor)
+                       if row[NATIVE.KEY]['request_id'] == acquisition_request_id)
+        if history:
+            if (len(history) != 1 or history[0]['feature_id'] != feature_id or
+                    source_id is not None and source_id != history[0]['source']['clause_id']):
+                raise ValueError('Farcast acquisition request replay changed intent or source')
+            source_id = history[0]['source']['clause_id']
+        # Old named requests retain their source, including withdrawn CSV receipts.
+        native = source_id == csv_source
+    elif source_id is not None:
+        raise ValueError('explicit acquisition source choice is only defined for Farcast')
+    other_records = _static_records(actor) if native else NATIVE._rows(actor)
+    other_key = 'static_acquisition' if native else NATIVE.KEY
+    if any(row[other_key]['request_id'] == acquisition_request_id for _, row, _ in other_records):
+        raise ValueError('acquisition request belongs to another source adapter')
+    if native:
         if prerequisite_source is not None or branch is not None or rank is not None:
             raise ValueError('this source uses its exact native acquisition selection')
         return NATIVE.acquire(engine, actor, feature_id,

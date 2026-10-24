@@ -7,6 +7,7 @@ import world_entities as W
 import item_stock as STOCK
 import items as I
 import map_terrain as TERRAIN
+import action_lifecycle as ACTION
 
 SOURCE='ch05-pokemon/포켓몬-포획'
 REFERENCE={'file':'input/ch05-pokemon.md','sha256':'bdfb5d39fec8fede32cac615a7788301336aaceefc46079c8ed7014ea76d174b'}
@@ -23,8 +24,11 @@ def source(rules):
 def atomic_throw(fn):
     @wraps(fn)
     def run(e,trainer,target,*args,**options):
-        return G.transition(e,trainer,lambda se,sa,st:fn(se,sa,st,*args,**options),
-                            participants=(target,),include_rulings=True,include_grid=e.grid is not None)
+        # Action frames and staged participants are not world registration.
+        W.require_actors(e,trainer,target)
+        with ACTION.resolution(e,trainer,'pokemon/capture-rate',kind='capture'):
+            return G.transition(e,trainer,lambda se,sa,st:fn(se,sa,st,*args,**options),
+                                participants=(target,),include_rulings=True,include_grid=e.grid is not None)
     return run
 
 

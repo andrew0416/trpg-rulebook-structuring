@@ -47,11 +47,11 @@ class WarperTests(unittest.TestCase):
  def needs_item(self,*args):return {'common':True,'normally_possessed':True,'needed_now':True,'reason':'actual wound and no medicine remaining'}
  def event(self,outcomes=None,kind='in_world_random'):
   return lambda e,a:{'id':'world:coin:1','kind':kind,'outcomes':outcomes or ['heads','tails'],'reason':'GM observes this actual in-world random event'}
- def retrain(self,u):
+ def retrain(self,u,request=None):
   import trainer_retraining as R
   owned=R._owned(self.a);sources={v:R.owned_source(self.e,self.a,v) for v in owned};required=R._native_dependencies(self.e,self.a,owned)
   deps={sid:[sources[p] for p in required.get(v,[])] for v,sid in sources.items() if v!=u}
-  return self.e.retrain_trainer_source(self.a,u,request_id='retire:'+u,reason='actual retraining consultation',gm_decision={'allowed':True,'reason':'approved'},retained_dependencies=deps)
+  return self.e.retrain_trainer_source(self.a,u,request_id=request or 'retire:'+u,reason='actual retraining consultation',gm_decision={'allowed':True,'reason':'approved'},retained_dependencies=deps)
 
  def test_all_seven_actual_acquisitions_speed_pairs_no_auto_siblings_and_restore(self):
   before=self.a.stats['spe'];self.acquire();self.assertEqual(len(WP.records(self.a,active=True)),1);self.assertEqual(self.a.stats['spe'],before+1);self.assertNotIn(WP.TELEPORT,self.a.moves);self.assertIn('확률제어',self.a.abilities)
@@ -63,6 +63,134 @@ class WarperTests(unittest.TestCase):
   self.setup(rank=2);self.reject(lambda:self.acquire(),'Guile|rank');self.setup(rank=3);self.a.spec['edge_choices']={'edge/원소-교감':'불꽃'};self.reject(lambda:self.acquire(),'Psychic|Connection')
   self.setup(rank=3);self.reject(lambda:self.acquire(WP.SPACE),'parent');self.family(WP.GROUND);self.reject(lambda:self.acquire(WP.ENERGY),'parent');self.family(WP.ENERGY);self.reject(lambda:self.acquire(WP.FARCAST),'rank')
   self.setup(rank=5);self.family(WP.FARCAST);self.reject(lambda:self.acquire(WP.WARPED),'rank');self.reject(lambda:ACQ.acquire_static(self.e,self.a,WP.REALITY,rank=1,acquisition_request_id='invented-ranked'),'rank|Ranked')
+
+ def test_farcast_source_receipts_native_costs_and_withdrawn_request_replays_stay_distinct(self):
+  import native_acquisition_adapters as N
+  self.rules=Rules(ROOT,ruleset='all');self.setup();self.family(WP.SPACE)
+  book_id=WP.DEFINITIONS[WP.FARCAST]['clause_id'];csv_id=N.DEFINITIONS[WP.FARCAST]['clause_id'];speed=self.a.stats['spe']
+  book=self.acquire(WP.FARCAST,request='farcast:book')
+  self.assertEqual((book['source']['file'],book['source']['span'],book['source']['clause_id']),('input/ch04-trainer-classes.md',[3271,3276],book_id))
+  self.assertEqual(self.a.stats['spe'],speed+1);self.assertFalse(__import__('ability_transitions').active(self.a,WP.TRANSPORTER))
+  before=self.e.export_state()
+  self.assertEqual(ACQ.acquire_static(self.e,self.a,WP.FARCAST,acquisition_request_id='farcast:book',source_id=book_id),book)
+  self.assertEqual(self.e.export_state(),before)
+  self.reject(lambda:ACQ.acquire_static(self.e,self.a,WP.FARCAST,acquisition_request_id='farcast:book',source_id=csv_id),'changed intent or source')
+  self.reject(lambda:N.acquire(self.e,self.a,WP.FARCAST,acquisition_request_id='farcast:book'),'acquisition request belongs to another source adapter')
+  self.begin();self.teleport((14,2),triple=True);self.assertEqual(self.used(self.a,WP.FARCAST),1);self.assertEqual(self.used(self.a,WP.TRANSPORTER),0);self.close()
+  bank=self.a.spec['exp_bank'];retired=self.retrain(WP.FARCAST)
+  self.assertEqual(self.a.spec['exp_bank'],bank-retired['xp_paid']);self.assertEqual(self.a.stats['spe'],speed)
+  csv=N.acquire(self.e,self.a,WP.FARCAST,acquisition_request_id='farcast:csv')
+  self.assertEqual((csv['source']['file'],csv['source']['record'],csv['source']['clause_id']),('input/db/feats.csv',513,csv_id))
+  self.assertFalse(WP.acquired(self.a,WP.FARCAST));self.assertTrue(__import__('ability_transitions').active(self.a,WP.TRANSPORTER));self.assertEqual(self.a.stats['spe'],speed+1)
+  before=self.e.export_state()
+  self.assertEqual(self.acquire(WP.FARCAST,request='farcast:book')['status'],'withdrawn')
+  self.assertEqual(self.acquire(WP.FARCAST,request='farcast:csv'),csv)
+  self.assertEqual(self.e.export_state(),before)
+  self.reject(lambda:ACQ.acquire_static(self.e,self.a,WP.FARCAST,acquisition_request_id='farcast:csv',source_id=book_id),'changed intent or source')
+  self.begin();self.reject(lambda:self.teleport((26,2),triple=True),'actual acquired Warper')
+  self.teleport((26,2),triple=True,source=WP.TRANSPORTER);self.assertEqual(self.used(self.a,WP.TRANSPORTER),1);self.assertEqual(self.used(self.a,WP.FARCAST),1);self.close();self.restore();self.valid()
+  bank=self.a.spec['exp_bank'];retired=self.retrain(WP.FARCAST,request='retire:farcast:csv')
+  self.assertEqual(self.a.spec['exp_bank'],bank-retired['xp_paid']);self.assertEqual(self.a.stats['spe'],speed)
+  self.assertFalse(__import__('ability_transitions').active(self.a,WP.TRANSPORTER))
+  replacement=ACQ.acquire_static(self.e,self.a,WP.FARCAST,acquisition_request_id='farcast:book:new',source_id=book_id)
+  before=self.e.export_state()
+  self.assertEqual(self.acquire(WP.FARCAST,request='farcast:csv')['status'],'withdrawn')
+  self.assertEqual(self.e.export_state(),before);self.assertEqual(WP.acquired(self.a,WP.FARCAST)['integrity'],replacement['integrity']);self.restore();self.valid()
+
+ def test_farcast_source_selection_rejects_excluded_unknown_and_other_feature_before_changes(self):
+  import native_acquisition_adapters as N
+  self.family(WP.SPACE);csv_id=N.DEFINITIONS[WP.FARCAST]['clause_id']
+  self.reject(lambda:ACQ.acquire_static(self.e,self.a,WP.FARCAST,acquisition_request_id='farcast:excluded',source_id=csv_id),'excluded|Excluded')
+  self.reject(lambda:ACQ.acquire_static(self.e,self.a,WP.FARCAST,acquisition_request_id='farcast:unknown',source_id='C2CSV/input/db/feats.csv:R515:main'),'exact book or CSV')
+  self.reject(lambda:ACQ.acquire_static(self.e,self.a,WP.REALITY,acquisition_request_id='farcast:wrong-feature',source_id=csv_id),'only defined for Farcast')
+  self.assertFalse(WP.acquired(self.a,WP.FARCAST));self.valid()
+
+ def test_csv_request_id_cannot_be_reused_by_other_book_feature_active_or_withdrawn(self):
+  import native_acquisition_adapters as N
+  self.rules=Rules(ROOT,ruleset='all')
+  for withdrawn in (False,True):
+   with self.subTest(withdrawn=withdrawn):
+    self.setup();self.family(WP.SPACE)
+    first=N.acquire(self.e,self.a,WP.FARCAST,acquisition_request_id='shared:request')
+    if withdrawn:self.retrain(WP.FARCAST)
+    self.reject(lambda:self.acquire(WP.REALITY,request='shared:request'),'acquisition request belongs to another source adapter')
+    self.assertFalse(WP.acquired(self.a,WP.REALITY))
+    self.acquire(WP.REALITY,request='separate:book')
+    before=self.e.export_state();replayed=self.acquire(WP.FARCAST,request='shared:request')
+    self.assertEqual(replayed['integrity'],first['integrity']);self.assertEqual(replayed['status'],'withdrawn' if withdrawn else 'acquired')
+    self.assertEqual(self.e.export_state(),before);self.restore();self.valid()
+
+ def test_book_request_id_cannot_be_reused_by_other_native_adapter_active_or_withdrawn(self):
+  self.rules=Rules(ROOT,ruleset='all')
+  for withdrawn in (False,True):
+   with self.subTest(withdrawn=withdrawn):
+    self.setup();self.family(WP.SPACE);self.e.gm.set_skill(self.a,'육상',5,reason='actual Power Boost prerequisite')
+    first=self.acquire(WP.REALITY,request='shared:request')
+    if withdrawn:self.retrain(WP.REALITY)
+    self.reject(lambda:ACQ.acquire_static(self.e,self.a,'edge/파워-부스트',acquisition_request_id='shared:request'),'acquisition request belongs to another source adapter')
+    self.assertNotIn('edge/파워-부스트',self.a.spec['edges'])
+    ACQ.acquire_static(self.e,self.a,'edge/파워-부스트',acquisition_request_id='separate:native')
+    self.assertIn('edge/파워-부스트',self.a.spec['edges'])
+    before=self.e.export_state();replayed=self.acquire(WP.REALITY,request='shared:request')
+    self.assertEqual(replayed['integrity'],first['integrity']);self.assertEqual(replayed['status'],'withdrawn' if withdrawn else 'acquired')
+    self.assertEqual(self.e.export_state(),before);self.restore();self.valid()
+
+ def test_direct_native_request_cannot_reuse_other_book_feature_active_or_withdrawn(self):
+  import native_acquisition_adapters as N
+  self.rules=Rules(ROOT,ruleset='all')
+  for withdrawn in (False,True):
+   with self.subTest(withdrawn=withdrawn):
+    self.setup();self.family(WP.SPACE);self.e.gm.set_skill(self.a,'육상',5,reason='actual Power Boost prerequisite')
+    book=self.acquire(WP.REALITY,request='shared:request')
+    if withdrawn:self.retrain(WP.REALITY)
+    self.reject(lambda:N.acquire(self.e,self.a,'edge/파워-부스트',acquisition_request_id='shared:request'),'acquisition request belongs to another source adapter')
+    self.assertEqual(N.receipts(self.a),[]);self.assertNotIn('edge/파워-부스트',self.a.spec['edges'])
+    native=N.acquire(self.e,self.a,'edge/파워-부스트',acquisition_request_id='separate:native')
+    before=self.e.export_state()
+    self.assertEqual(N.acquire(self.e,self.a,'edge/파워-부스트',acquisition_request_id='separate:native'),native)
+    replayed=self.acquire(WP.REALITY,request='shared:request')
+    self.assertEqual((replayed['integrity'],replayed['status']),(book['integrity'],'withdrawn' if withdrawn else 'acquired'))
+    self.assertEqual(self.e.export_state(),before);self.restore();self.valid()
+
+ def test_resealed_cross_adapter_request_collisions_reject_validation_export_and_import(self):
+  import native_acquisition_adapters as N
+  self.rules=Rules(ROOT,ruleset='all');uid='edge/파워-부스트'
+  for book_ended,native_ended in ((False,False),(True,False),(False,True),(True,True)):
+   with self.subTest(book_ended=book_ended,native_ended=native_ended):
+    self.setup();self.family(WP.SPACE);self.e.gm.set_skill(self.a,'육상',5,reason='actual Power Boost prerequisite')
+    self.acquire(WP.REALITY,request='book:request');N.acquire(self.e,self.a,uid,acquisition_request_id='native:request')
+    if book_ended:self.retrain(WP.REALITY)
+    if native_ended:self.retrain(uid)
+    payload=json.loads(json.dumps(self.e.export_state(),ensure_ascii=False))
+    record=next(row[N.KEY] for _,row,_ in N._rows(self.a) if row[N.KEY]['feature_id']==uid)
+    honest=deepcopy(record);record['request_id']='book:request';record['receipt_id']=N.LABEL+'/book:request'
+    record['integrity']=N._digest({key:value for key,value in record.items() if key!='integrity'})
+    try:
+     for validator in (N.validate_actor,ACQ.validate_actor):
+      with self.assertRaisesRegex(ValueError,'acquisition request belongs to another source adapter'):validator(self.a)
+     with self.assertRaisesRegex(CODEC.StateCodecError,'acquisition request belongs to another source adapter'):self.e.export_state()
+     nodes=[node for node in payload['nodes'].values() if node['kind']=='dict' and ['basis',N.LABEL] in node['items'] and ['request_id','native:request'] in node['items'] and ['feature_id',uid] in node['items']]
+     self.assertEqual(len(nodes),1)
+     for pair in nodes[0]['items']:
+      if pair[0] in ('request_id','receipt_id','integrity'):pair[1]=record[pair[0]]
+     with self.assertRaisesRegex(CODEC.StateCodecError,'acquisition request belongs to another source adapter'):CODEC.load_engine(self.rules,payload)
+    finally:
+     record.clear();record.update(honest)
+    self.restore();self.valid()
+
+ def test_declared_seven_plus_guile_acquires_and_restores_but_undeclared_ranks_reject(self):
+  self.reject(lambda:self.e.gm.set_skill(self.a,'교활',7,reason='undeclared rank'),'unresolved ordinary numeric skill rank')
+  for number,name in ((7,'초월'),(9,'신화')):
+   self.rules.rulings.set_mech('gameplay/skill-rank-dice','by_rank_name.'+name,
+    {'rank':number,'dice':str(number)+'d6','eng':'Epic'+str(number)},reason='explicit campaign rank',rules=self.rules)
+  self.e.gm.set_skill(self.a,'교활',7,reason='actual declared rank seven');self.acquire()
+  self.e.gm.set_skill(self.a,'교활',9,reason='actual declared rank nine');self.family(WP.WARPED)
+  self.assertEqual(WP.acquired(self.a,WP.CLASS)['snapshot']['rank'],7)
+  self.assertEqual([WP.acquired(self.a,u)['snapshot']['rank'] for u in (WP.SPACE,WP.FARCAST,WP.WARPED)],[9,9,9])
+  self.reject(lambda:self.e.gm.set_skill(self.a,'교활',8,reason='undeclared gap'),'unresolved ordinary numeric skill rank')
+  self.reject(lambda:self.e.gm.set_skill(self.a,'교활','Epci7',reason='misspelled rank'),'unresolved skill rank')
+  self.e.gm.set_skill(self.a,'교활',1,reason='later skill loss preserves historical qualification')
+  self.restore();self.assertEqual(WP.acquired(self.a,WP.FARCAST)['snapshot']['rank'],9);self.valid()
 
  def test_while_owned_pairs_speed_probability_and_independent_baseline_survive_revoke(self):
   self.family(WP.SPACE);__import__('state_grants').replace_baseline(self.e,self.a,'moves',list(self.a.spec['moves'])+[WP.TELEPORT]);before=self.a.stats['spe']

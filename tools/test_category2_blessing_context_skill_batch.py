@@ -54,11 +54,11 @@ class BlessingContextSkillBatchTests(unittest.TestCase):
   with tempfile.TemporaryDirectory(prefix='csv-blessing-report-') as tmp:
    shadow=Path(tmp)
    plan_path=ROOT/'data/verification/category2-edge-work-plan.json'
-   plan=json.loads(plan_path.read_text(encoding='utf-8'))
    files={p for p in (ROOT/'input').rglob('*') if p.is_file()}
    files.update(ROOT/'data/verification'/name for _,name,_ in PROGRESS_SOURCES)
    files.update((plan_path,ROOT/'data/verification/category2-scope-freeze.json'))
-   files.update(ROOT/proof['log'] for route in plan['post_foundation_reuse']['itemized_audit']['routes'].values() for proof in route['evidence'])
+   # This fixture measures four clause changes; keep historical proof references
+   # unchanged without copying logs or awarding unsupported reuse credit.
    for source in sorted(files):
     target=shadow/source.relative_to(ROOT);target.parent.mkdir(parents=True,exist_ok=True)
     try:os.link(source,target)
@@ -81,6 +81,9 @@ class BlessingContextSkillBatchTests(unittest.TestCase):
     if row['id'] in clause_ids:row['status']='implemented'
    registry_path.write_text(json.dumps(registry,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
    after=collect_category2(shadow)
+   self.assertEqual(after['edge_reuse_inspection'],before['edge_reuse_inspection'])
+   for report in (before,after):
+    self.assertEqual(report['edge_reuse_inspection']['category2_completion_credit'],0)
   self.assertEqual(after['validation_errors'],[]);self.assertTrue(after['denominator_frozen'])
   self.assertEqual(after['denominator'],before['denominator'])
   self.assertEqual(after['included_clause_ids'],before['included_clause_ids'])

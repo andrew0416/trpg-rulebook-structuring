@@ -74,6 +74,11 @@ def policy(rules):
   'frequency':{'kind':'at_will','uses':1},'retry':None,'distance_exceptions':[]}}
 
 
+def accepts_stored_policy(rules,body):
+ import perception_communicate as COMM
+ return body==COMM._body(policy(rules)['declaration'])
+
+
 def raw_link(e,actor,target):
  import perception_communicate as COMM
  return COMM._state(e)['connections'].get(COMM._pair(CLASS,actor.entity_id,target.entity_id))

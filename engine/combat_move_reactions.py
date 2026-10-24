@@ -20,6 +20,21 @@ def _ready(e,a,mid):
  selected(e.r,mid);P._owned_move(e,a,mid)
  return a.on_field and not a.fainted and not a.captured and T.can_act(e,a) and not A.pending(a) and F.move_allowed(e,a,mid,outside_combat=not e.encounter_active)[0]
 
+def _opponents(left,right):
+ a=getattr(left,'side',None);b=getattr(right,'side',None)
+ return left is not right and a is not None and b is not None and a!=b
+
+
+def _protects(e,actor,target,mid):
+ if actor is target:return True
+ side=getattr(actor,'side',None)
+ if side is None or side!=getattr(target,'side',None):return False
+ if mid==GUARD:return e.adjacent(actor,target)
+ import world_entities as W
+ distance=W.distance_known(actor,target)
+ return distance is not None and distance<=6
+
+
 def arm(e,a,mid,*,protect=None,weapon_id=None,overload=False):
  """Choose the next printed reaction before its actual trigger; no fabricated hit."""
  import world_entities as W
@@ -33,8 +48,8 @@ def arm(e,a,mid,*,protect=None,weapon_id=None,overload=False):
   if mid not in (SUCKER,PURSUIT):raise ValueError('weapon choice belongs to Rogue reaction Move')
   __import__('weapon_actions').prepare(e,a,e.r.move(mid),weapon_id)
  target=protect or a;W.require_actors(e,target)
- if mid==KINESIS and (target.side!=a.side or W.distance_known(a,target) is None or W.distance_known(a,target)>6):raise ValueError('Kinesis requires self or an ally within six metres')
- if mid==GUARD and (target.side!=a.side or target is not a and not e.adjacent(a,target)):raise ValueError('Quick Guard requires self or adjacent ally')
+ if mid==KINESIS and not _protects(e,a,target,mid):raise ValueError('Kinesis requires self or an observed ally within six metres')
+ if mid==GUARD and not _protects(e,a,target,mid):raise ValueError('Quick Guard requires self or an observed adjacent ally')
  if mid==GUARD and any(x is not a and x.spec.get(CHOICES,{}).get(GUARD,{}).get('target_id')==target.entity_id for x in e.everyone):raise ValueError('choose one actual Quick Guard responder for this target')
  return G.transition(e,a,lambda se,c:c.spec.setdefault(CHOICES,{}).update({mid:{'target_id':target.entity_id,**({'weapon_id':weapon_id} if weapon_id is not None else {}),**({'overload':overload} if mid==KINESIS else {})}}))
 
@@ -141,7 +156,7 @@ def before_recipient(e,attacker,target,move,hit,completion):
  if hit:
   for reactor in e.everyone:
    choice=reactor.spec.get(CHOICES,{}).get(GUARD)
-   if not choice or choice['target_id']!=target.entity_id or reactor.side!=target.side or reactor is not target and not e.adjacent(reactor,target):continue
+   if not choice or choice['target_id']!=target.entity_id or not _protects(e,reactor,target,GUARD):continue
    keywords=str(move.get('range',''))+' '+str(move.get('keywords',[]))
    if not any(k in keywords for k in ('우선','방해','Priority','Interrupt')) or not _ready(e,reactor,GUARD):continue
    event=_observe(e,reactor,GUARD,attacker,target,move,'accuracy',completion)
@@ -157,10 +172,10 @@ def before_recipient(e,attacker,target,move,hit,completion):
 def kinesis_accuracy(e,attacker,target,move,hit):
  """Suspend the actual about-to-hit attack; return the original roll penalty."""
  if not hit:return 0
- import world_entities as W,initiative_interrupts as I
+ import initiative_interrupts as I
  for actor in e.everyone:
   choice=actor.spec.get(CHOICES,{}).get(KINESIS)
-  if not choice or choice['target_id']!=target.entity_id or actor.side!=target.side or W.distance_known(actor,target) is None or W.distance_known(actor,target)>6 or not _ready(e,actor,KINESIS):continue
+  if not choice or choice['target_id']!=target.entity_id or not _protects(e,actor,target,KINESIS) or not _ready(e,actor,KINESIS):continue
   if choice['overload'] and (e._active_turn_actor is not actor or I.frame(e) is not None or e._ordinary_turn_rounds.get(actor)!=e.round_no):raise ValueError('Kinesis Overload Swift requires the reactor own ordinary turn')
   event=_observe(e,actor,KINESIS,attacker,target,move,'accuracy')
   _run(e,actor,target,event)
@@ -190,7 +205,7 @@ def after_move(e,completion):
 
 def initiation(e,attacker,target,move,*,continuation):
  """The native Move has paid its action, before Bounce/Fly/Sky Drop preparation."""
- if SUCKER in target.spec.get(CHOICES,{}) and attacker.side!=target.side and move.get('class') in ('물리','특수') and e.adjacent(attacker,target) and _ready(e,target,SUCKER):
+ if SUCKER in target.spec.get(CHOICES,{}) and _opponents(attacker,target) and move.get('class') in ('물리','특수') and e.adjacent(attacker,target) and _ready(e,target,SUCKER):
   event=_observe(e,target,SUCKER,attacker,target,move,'initiation')
   _run(e,target,attacker,event,continuation=continuation)
   if attacker.fainted:
@@ -200,7 +215,7 @@ def initiation(e,attacker,target,move,*,continuation):
  if attacker.setup_move==move['id']:return False
  import body_state as B
  for actor in e.everyone:
-  if UPPER not in actor.spec.get(CHOICES,{}) or actor.side==attacker.side or not B.in_range(e,actor,attacker,1) or not _ready(e,actor,UPPER):continue
+  if UPPER not in actor.spec.get(CHOICES,{}) or actor is attacker or not B.in_range(e,actor,attacker,1) or not _ready(e,actor,UPPER):continue
   event=_observe(e,actor,UPPER,attacker,attacker,move,'initiation')
   result=_run(e,actor,attacker,event,continuation=continuation)
   import move_completion as COMPLETE
@@ -407,7 +422,7 @@ def before_escape(e,owner,target,source,*,kind,request_id):
   __import__('capture_specialist').before_escape(e,owner,target,source,kind=kind,request_id=request_id)
   for actor in list(e.everyone):
    choice=actor.spec.get(CHOICES,{}).get(PURSUIT)
-   if not choice or actor.side==target.side or not _ready(e,actor,PURSUIT):continue
+   if not choice or not _opponents(actor,target) or not _ready(e,actor,PURSUIT):continue
    move=WEAPONS.prepare(e,actor,e.r.move(PURSUIT),choice.get('weapon_id'))
    reach=WEAPONS.range_spec(e,move,actor).get('origin');reach=B.melee_reach(actor) if reach=='melee' else reach
    if not B.in_range(e,actor,target,reach,move=move):continue

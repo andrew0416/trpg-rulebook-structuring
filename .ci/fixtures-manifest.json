@@ -1187,6 +1187,11 @@
       "size": 68341
     },
     {
+      "path": "data/verification/category2-scope-freeze.json",
+      "sha256": "9127a8cf8bc464ad460dceb2375ef940a482e58738fe64f3ed4806b4cc31834e",
+      "size": 73321
+    },
+    {
       "path": "data/verification/category2-tabular-core-status.json",
       "sha256": "d5ba94897021c3fbaf40a5e6f82ff67946fa66902e722c197d1f51427026419a",
       "size": 2981219

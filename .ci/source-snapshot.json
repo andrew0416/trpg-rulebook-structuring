@@ -1,7 +1,7 @@
 {
   "canonical_completed": 1503,
-  "fixture_files": 385,
-  "fixture_zip_sha256": "aca05926c2f1c34b7721e9d636c83caea8db8f59be25fb38d357df8f462d2915",
+  "fixture_files": 386,
+  "fixture_zip_sha256": "ac878dd95ec96d75910297b4cec9f7c658829e242957f7df5da28fd19a498e87",
   "scope": "Full fixed185-finding/406-clause revision drafts plus accepted shared-runtime regressions and explicitly separate personal type permissions; no current PASS or completion credit.",
   "revision_groups": [
     "final_revisions_01",
@@ -24,10 +24,10 @@
   "previous_failed_run": 40066282820,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "repair70",
-  "active_repair_scope": "Exact13 failed and32 previously unexecuted methods plus changed-path regression and1 new native Warper case. Original4115/added requirements and185findings/406clauses retained. Includes repair70 and pre-dispatch static fixture correction70b.",
-  "active_repair_candidate_sha256": "7404b75063fe6d005cb385c92c4b5628ba283fcf1f4611313907743d41ef6e98",
-  "active_repair_required_tests": 84,
+  "active_repair": "repair71",
+  "active_repair_scope": "Correctness-first: all443 original failed/fixture-blocked methods not yet re-executed, all23 current failures, new native regressions and affected source-owner suites. Original4115/added preservation obligations and185findings/406clauses remain; this is not final acceptance. Test optimization drafts are held.",
+  "active_repair_candidate_sha256": "89a57ac29ab993a5aa91fb60185c9cf0ea3974eea367878b93ddd3fb4bd78bbc",
+  "active_repair_required_tests": 804,
   "active_repair_groups": [
     "repair_revisions_01",
     "repair_revisions_02",

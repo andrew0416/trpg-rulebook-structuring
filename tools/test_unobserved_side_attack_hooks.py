@@ -161,7 +161,8 @@ class UnobservedSideAttackHookTests(unittest.TestCase):
         self.assertEqual(state['pending'],[])
 
     def test_unknown_teamwork_holder_is_not_assumed_to_be_an_ally(self):
-        self.o.pos=(3,3);self.o.abilities=['팀워크'];self.e.register_abilities(self.o)
+        self.o.pos=(3,3)
+        self.e.gm.set_ability(self.o,'팀워크',reason='actual observed Teamwork holder for the relation test')
         move=self.rules.move('move/몸통박치기')
         for absent in (False,True):
             if absent:self.unobserve(self.o)

@@ -97,6 +97,27 @@ class DuelistMomentumTests(unittest.TestCase):
         self.start(self.a);self.e.manual_feat(self.a,D.CLASS,other)
         self.assertFalse(D.tagged(self.e,self.p,self.t));self.assertTrue(D.tagged(self.e,self.p,other));self.valid()
 
+    def test_tag_requires_observed_opposing_sides_before_spending_swift(self):
+        from native_scenario_fixture import assert_rejected_unchanged
+        for sides in (('absent','absent'),(None,None),(None,'foes'),('party',None),('party','party'),('party','foes')):
+            with self.subTest(sides=sides):
+                self.setup();self.start(self.a)
+                for actor,side in zip((self.a,self.t),sides):
+                    actor.spec.pop('side',None)
+                    if side=='absent':vars(actor).pop('side',None)
+                    else:actor.side=side
+                self.assertEqual(self.a.budget['swift'],1)
+                if sides==('party','foes'):
+                    self.assertEqual(self.e.manual_feat(self.a,D.CLASS,self.t)['tagged_id'],None)
+                    self.assertEqual(self.a.budget['swift'],0)
+                else:
+                    assert_rejected_unchanged(self.e,lambda:self.e.manual_feat(self.a,D.CLASS,self.t),
+                        reason_pattern='observed opposing foe')
+                self.valid()
+        self.start(self.a)
+        assert_rejected_unchanged(self.e,lambda:self.e.manual_feat(self.a,D.CLASS,self.a),
+            reason_pattern='opposing Trainer or Pokemon')
+
     def test_actual_hit_round_end_cap_and_recall_faint_combat_end_clear(self):
         self.setup();self.start(self.p);self.attack();self.assertEqual(D.momentum(self.p),1)
         row=next(iter(self.e._move_completions.values()));COMPLETE.refresh(self.e)

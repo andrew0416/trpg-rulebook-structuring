@@ -15,6 +15,8 @@ def policy(rules):
  if rules._selected_rule(SOURCE)!=SOURCE:raise ValueError('selected exact Core Telepath source required')
  return value
 
+def accepts_stored_policy(rules,body):return body==M._body(policy(rules)['declaration'])
+
 def prepare(e,a,t,value,operation,thought):
  if M._body(policy(e.r)['declaration'])!=M._body(value):raise ValueError('Core Telepath retains its selected printed contract')
  if not T.owns(a):raise ValueError('actual Telepathy Capability required')

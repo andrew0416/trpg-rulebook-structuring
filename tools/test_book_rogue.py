@@ -225,6 +225,25 @@ class RogueTests(RogueScene,unittest.TestCase):
   self.next_round(self.t);self.use(self.t,self.b,'move/몸통박치기');self.assertNotIn('move/기습',self.a.move_uses)
   self.next_round(self.t);self.e.gm.set_position(self.t,(6,2),reason='actual distant foe')
   self.use(self.t,self.a,'move/전기쇼크');self.assertNotIn('move/기습',self.a.move_uses)
+
+ def test_sucker_punch_requires_observed_enemy_without_spending_unknown_reaction(self):
+  import combat_move_reactions as CMR,action_resources as RES
+  for sides in (('absent','absent'),(None,None),(None,'foes'),('party',None),('party','party'),('party','foes')):
+   with self.subTest(sides=sides):
+    self.setup();self.family(R.UNEXPECTED);self.begin(self.t);CMR.arm(self.e,self.a,CMR.SUCKER)
+    for actor,side in zip((self.a,self.t),sides):
+     actor.spec.pop('side',None)
+     if side=='absent':vars(actor).pop('side',None)
+     else:actor.side=side
+    self.restore();before=self.t.hp;choice=deepcopy(self.a.spec[CMR.CHOICES][CMR.SUCKER])
+    self.use(self.t,self.a,'move/몸통박치기')
+    if sides==('party','foes'):
+     self.assertLess(self.t.hp,before);self.assertEqual(self.a.move_uses[CMR.SUCKER],1)
+     self.assertEqual(RES.pending(self.a),{'standard':1});self.assertNotIn(CMR.SUCKER,self.a.spec[CMR.CHOICES])
+    else:
+     self.assertEqual(self.t.hp,before);self.assertNotIn(CMR.SUCKER,self.a.move_uses)
+     self.assertEqual(RES.pending(self.a),{});self.assertEqual(self.a.spec[CMR.CHOICES][CMR.SUCKER],choice)
+    self.restore();self.valid()
  def test_reference_sucker_punch_cutthroat_keeps_actual_weapon_and_trigger(self):
   import combat_move_reactions as CMR
   self.family(R.UNEXPECTED);self.family(R.CUT);key=self.weapon();self.begin(self.t)
@@ -338,6 +357,49 @@ class RogueTests(RogueScene,unittest.TestCase):
   self.assertLess(self.t.hp,before);self.assertEqual(self.a.move_uses['move/따라가때리기'],1)
   self.assertEqual(self.t.pos,(7,2));self.assertEqual(self.t.budget['shift'],0)
   self.assertEqual(result['status'],'attempted');self.restore();self.valid()
+
+ def test_pursuit_requires_observed_enemy_for_actual_recall_and_flee(self):
+  import pokemon_party as PARTY,combat_move_reactions as CMR,action_resources as RES,movement_actions as M
+  for kind in ('recall','flee'):
+   for sides in (('absent','absent'),(None,None),(None,'foes'),('party',None),('party','party'),('party','foes')):
+    with self.subTest(kind=kind,sides=sides):
+     self.setup();self.family(R.UNEXPECTED)
+     self.e.gm.set_position(self.b,(12,10),reason='uninvolved observer outside the actual flee path')
+     self.e.gm.set_position(self.u,(12,11),reason='uninvolved observer outside the actual flee path')
+     if kind=='recall':
+      owner=self.add('actual recalling owner','trainer',(6,2),side='foes',feats=[],classes=[],edges=[])
+      self.t.spec['trainer_id']=owner.entity_id
+      PARTY.configure(self.e,owner,mode='standard',reason='actual recall roster',roster=[self.t],storage={'kind':'center','id':'recall-center'})
+      self.e.configure_party_combat(owner,battle_mode='full_contact',reason='actual full contact encounter')
+      owner_id=owner.entity_id;self.begin(owner)
+     else:
+      self.e.gm.set_level(self.t,5,reason='actual low-level wild target')
+      M.set_capabilities(self.e,self.t,{'land':4,'swim':0},basis='current',reason_text='actual observed land movement')
+      self.e.use_item(self.a,'item/벌레회피스프레이',aim={'reason':'actual wearer spray'})
+      self.e.observe_repel_approach(self.a,self.t,nearby=True,reason='actual close approach')
+      self.e.observe_relative_directions(self.t,directions={'away':(1,0)},quickly_trip_placement='before_entry',reason='actual understood away direction')
+      self.e.observe_repel_flee(self.t,movement={'direction':'away','distance':4,'pace':'quickly','movement_id':'side-boundary-flee'},reason='actual fastest feasible retreat')
+      self.begin(self.t)
+     CMR.arm(self.e,self.a,CMR.PURSUIT)
+     for actor,side in zip((self.a,self.t),sides):
+      actor.spec.pop('side',None)
+      if side=='absent':vars(actor).pop('side',None)
+      else:actor.side=side
+     self.restore();before=self.t.hp;choice=deepcopy(self.a.spec[CMR.CHOICES][CMR.PURSUIT])
+     with patch.object(Engine,'d20',return_value=15):
+      if kind=='recall':
+       owner=__import__('world_entities').actor_index(self.e)[owner_id]
+       self.e.act_on_party(owner,recall=[self.t],request_id='side-boundary-recall',reason='actual voluntary recall')
+      else:self.e.resolve_repel_flee(self.t)
+     if sides==('party','foes'):
+      self.assertLess(self.t.hp,before);self.assertEqual(self.a.move_uses[CMR.PURSUIT],1)
+      self.assertEqual(RES.pending(self.a),{'standard':1});self.assertNotIn(CMR.PURSUIT,self.a.spec[CMR.CHOICES])
+     else:
+      self.assertEqual(self.t.hp,before);self.assertNotIn(CMR.PURSUIT,self.a.move_uses)
+      self.assertEqual(RES.pending(self.a),{});self.assertEqual(self.a.spec[CMR.CHOICES][CMR.PURSUIT],choice)
+     if kind=='recall':self.assertFalse(self.t.on_field)
+     else:self.assertEqual(self.t.pos,(7,2));self.assertEqual(self.t.budget['shift'],0)
+     self.restore();self.valid()
  def test_scoundrel_branch_uses_possessed_ability_but_ambush_activation_requires_active(self):
   self.family(R.STRIKE);self.a.abilities_suppressed=True;self.begin();token=self.hit()
   self.e.scoundrel_strike(self.a,self.t,token)

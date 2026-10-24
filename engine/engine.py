@@ -5652,7 +5652,6 @@ class Engine:
         rate += 5 * target.injuries
         return rate
 
-    @ACTION.resolved_native("trainer","pokemon/capture-rate","capture")
     @BALL_BODY.atomic_throw
     def throw_ball(self, trainer, target, ball_name="몬스터볼", rarity=0, *, fixed_accuracy=None, fixed_capture=None, accuracy_roll_id=None, collector_choice=None, fixed_reroll=None, cannon_instance_id=None, type_manual_instance_id=None, physical_instance_id=None, snare_conversion=None, capture_source=None, curve_ball=False, suppression_case=None, gotta_swap=None,bounce=None):
         """Native capture attempt; retain the actual thrown ball for GM recovery/repair.
@@ -5684,7 +5683,7 @@ class Engine:
             return False
         if trainer.kind != 'trainer' or target.kind != 'pokemon':
             raise ValueError('capture needs a trainer and a Pokemon target')
-        if ((target.fainted or target.hp <= 0) and not combo) or target.dead or target.captured or target.side == "party" or target.spec.get('trainer_id') or target.spec.get('trainer'):
+        if ((target.fainted or target.hp <= 0) and not combo) or target.dead or target.captured or getattr(target,'side',None) == "party" or target.spec.get('trainer_id') or target.spec.get('trainer'):
             self.log(f"    {target.name}: 기절했거나 이미 주인이 있어 포획 불가", "pokemon/capture-rate")
             return False
         import captured_momentum as MOMENTUM

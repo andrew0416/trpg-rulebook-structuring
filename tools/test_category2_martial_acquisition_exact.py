@@ -196,7 +196,7 @@ class MartialArtistAcquisitionExactTests(unittest.TestCase):
         rows = {row["source_clause_id"]: row for row in ledger["entries"]}
         pending = {clause_id for clause_id in TABLES if rows[clause_id]["status"] == "incomplete"}
         self.assertIn(len(pending), (0, 3))
-        with tempfile.TemporaryDirectory(prefix="martial-tables-", dir=ROOT / "tmp") as tmp:
+        with tempfile.TemporaryDirectory(prefix="martial-tables-") as tmp:
             shadow = Path(tmp)
             for tree in ("input", "data/verification"):
                 for source in (ROOT / tree).rglob("*"):

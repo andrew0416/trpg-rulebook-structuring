@@ -352,7 +352,7 @@ def movement_bonus(engine, actor):
 
 
 def dazzle(engine, actor, victim):
-    if actor is victim or actor.side is None or victim.side is None or actor.side == victim.side:return
+    if actor is victim or getattr(actor,'side',None) is None or getattr(victim,'side',None) is None or actor.side == victim.side:return
     import combat_timing as T
     for row in live(engine, actor, DAZZLING):
         key = str(engine.round_no) + (':one_foe' if row['source']['edition'] == 'local_csv' else ':' + victim.entity_id)
@@ -376,7 +376,7 @@ def passers(engine, actor):
     if not live(engine,actor,DAZZLING):return ()
     import world_entities as W
     return tuple(c for c in W.actor_index(engine).values() if c is not actor and c.on_field
-                 and not c.captured and actor.side is not None and c.side is not None and c.side!=actor.side)
+                 and not c.captured and getattr(actor,'side',None) is not None and getattr(c,'side',None) is not None and c.side!=actor.side)
 
 
 def path_passers(engine, actor, path, *, mode, remaining):

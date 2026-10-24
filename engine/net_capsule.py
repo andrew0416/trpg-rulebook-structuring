@@ -156,7 +156,7 @@ def _remove(e,actor,*,method='standard',fixed=None,minutes=None,reason=None):
 def capture_bonus(e,target):
  if active(target) is None:return 0
  _selected(e)
- if target.kind!='pokemon' or target.captured or target.spec.get('trainer_id') or target.spec.get('trainer') or not target.spec.get('wild',target.side=='wild'):return 0
+ if target.kind!='pokemon' or target.captured or target.spec.get('trainer_id') or target.spec.get('trainer') or not target.spec.get('wild',getattr(target,'side',None)=='wild'):return 0
  # +20 to the former target rate eases capture: modern target DC -20/5,
  # equivalently +4 to the modern roll (not a ball's -20 roll modifier).
  if e.r._selected_rule('supp-errata/포획-메커니즘-변경')!='supp-errata/포획-메커니즘-변경':raise ValueError('selected modern capture conversion needs its own adapter')

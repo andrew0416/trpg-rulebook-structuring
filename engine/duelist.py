@@ -103,7 +103,8 @@ def tag(engine,trainer,foe):
     W.require_actors(engine,trainer,foe)
     if not acquired(trainer) or foe.kind not in ('trainer','pokemon') or foe is trainer:
         raise ValueError('actual Duelist and opposing Trainer or Pokemon required')
-    if trainer.side is not None and trainer.side==foe.side:raise ValueError('Duelist tags a foe')
+    own_side=getattr(trainer,'side',None);foe_side=getattr(foe,'side',None)
+    if own_side is None or foe_side is None or own_side==foe_side:raise ValueError('Duelist tags an observed opposing foe')
     def apply(e,a,t):
         if not TURN.spend(e,a,'swift',CLASS):raise ValueError('Duelist requires its Swift action')
         state=_state(a);state['tag']=None if state['tag']==t.entity_id else t.entity_id

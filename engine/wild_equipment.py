@@ -20,7 +20,7 @@ def _selected(e,uid):
 
 def _wild(e,target):
  P=_p();P._pokemon(target);P._text(target.spec.get('id'),'wild Pokemon identity')
- if not target.spec.get('wild',target.side=='wild') or target.spec.get('trainer_id') or target.spec.get('trainer') or target.captured or target.dead or target.fainted or target.hp<=0:raise ValueError('conscious unowned wild Pokemon required')
+ if not target.spec.get('wild',getattr(target,'side',None)=='wild') or target.spec.get('trainer_id') or target.spec.get('trainer') or target.captured or target.dead or target.fainted or target.hp<=0:raise ValueError('conscious unowned wild Pokemon required')
  if target not in list(e.everyone or [])+list(e.gm.everyone or []):raise ValueError('actual encountered Pokemon required')
 
 def technique(e,actor,name):

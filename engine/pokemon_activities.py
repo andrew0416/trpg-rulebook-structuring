@@ -1043,7 +1043,7 @@ def collector_new_family(e,trainer,target):
  """Current ownership, not historical caught_species; runs before capture."""
  from builder import species_lookup
  _text(trainer.spec.get('id'),'collector trainer identity')
- if not target.spec.get('wild',target.side=='wild'):return False
+ if not target.spec.get('wild',getattr(target,'side',None)=='wild'):return False
  family=_evolution_family(e,target.spec.get('species'))
  everyone=list(e.gm.everyone or [])+list(e.everyone or [])
  for owned in everyone:

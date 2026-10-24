@@ -83,7 +83,9 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
         return engine, actor, selection
 
     def acquire(self, engine, actor, uid, selection=None, request='native/request/1'):
-        return T.acquire_static(engine, actor, uid, acquisition_request_id=request, selection=selection)
+        source_id = N.DEFINITIONS[uid]['clause_id'] if uid == 'feat/파캐스트' else None
+        return T.acquire_static(engine, actor, uid, acquisition_request_id=request,
+            selection=selection, source_id=source_id)
 
     def reject(self, engine, operation, pattern):
         return FIXTURE.assert_rejected_unchanged(engine, operation, reason_pattern=pattern)
@@ -331,6 +333,30 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
         self.assertEqual(row['snapshot']['skill:육상'], 7)
         restored, actor = self.restore(e, a)
         self.assertEqual(N.receipts(actor)[0]['snapshot']['skill:육상'], 7)
+
+    def test_farcast_legacy_csv_receipt_replay_preserves_source_before_and_after_withdrawal(self):
+        uid = 'feat/파캐스트'
+        e, a, selection = self.fixture(uid)
+        first = N.acquire(e, a, uid, acquisition_request_id='legacy/csv/farcast', selection=selection)
+        before = e.export_state()
+        self.assertEqual(T.acquire_static(e, a, uid, acquisition_request_id='legacy/csv/farcast'), first)
+        self.assertEqual(e.export_state(), before)
+        self.withdraw(e, a, uid)
+        e, a = self.restore(e, a)
+        before = e.export_state()
+        self.assertEqual(T.acquire_static(e, a, uid, acquisition_request_id='legacy/csv/farcast')['status'], 'withdrawn')
+        self.assertEqual(e.export_state(), before)
+        self.reject(e, lambda: T.acquire_static(e, a, uid,
+            acquisition_request_id='legacy/csv/farcast', source_id='C04-119'), 'changed intent or source')
+
+    def test_farcast_exact_csv_source_exclusion_is_enforced_even_with_book_identity_enabled(self):
+        uid = 'feat/파캐스트'
+        profile = deepcopy(self.rules.ruleset.profile)
+        profile['exclude_units'] = list(set(profile.get('exclude_units', [])) | {N.DEFINITIONS[uid]['clause_id']})
+        with patch.object(RuleFilter, 'load', return_value=RuleFilter(profile, name='farcast-csv-source-exclusion')):
+            rules = Rules(ROOT, ruleset='all')
+        e, a, selection = self.fixture(uid, rules=rules)
+        self.reject(e, lambda: self.acquire(e, a, uid, selection), 'excluded|Excluded')
 
     def test_exact_source_exclusion_and_invalid_choices_fail_before_any_commit(self):
         uid = 'feat/파캐스트'

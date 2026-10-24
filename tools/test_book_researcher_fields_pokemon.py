@@ -515,6 +515,124 @@ class ResearcherFieldsPokemonTests(unittest.TestCase):
                 self.assertEqual(ITEMS.register_item(self.e, k, record['id']), 0)
                 self.valid()
 
+    def dual_relic(self, species, stat, name):
+        import items as ITEMS
+        holder = self.restored(species, name)
+        record = RFS.craft_relic(self.e, self.t, holder, relic=stat, minutes=10)
+        self.e.gm.set_ability(holder, '배달부', reason='actual two-held capability')
+        RF.equip_relic(self.e, self.t, holder, record['id'])
+        WORLD.register_object(self.e, 'relic-companion', location={'kind': 'unknown'},
+                              reason='actual second held item', kind='item_instance',
+                              item_rule_id='item/선제공격손톱', owner_id=holder.entity_id)
+        ITEMS.equip_held(self.e, holder, '선제공격손톱', source_instance_id='relic-companion')
+        return holder, record['id']
+
+    def test_dual_held_sash_requires_live_registration_and_preserves_suppression_after_restore(self):
+        import held_equipment as HELD, items as ITEMS, field_effects as FIELD
+        holder, identity = self.dual_relic('프테라', 'spe', 'actual sash holder')
+        status = self.rules.move('move/꼬리흔들기');held = deepcopy(HELD.entries(holder))
+        self.assertEqual(len(held), 2);self.assertEqual(RFS.evasion_bonus(self.e, holder, status), 2)
+        self.assertEqual(RFS.evasion_bonus(self.e, holder, self.rules.move('move/몸통박치기')), 0)
+        # A bare sheet name cannot substitute for an actual equipped registration.
+        with patch.dict(holder.spec, {'held_equipment': [{'slot_id': 'held:1', 'name': identity,
+                        'instance_id': None, 'registration_key': None, 'identity_evidence': 'legacy_slot'}], 'item': identity}):
+            self.assertEqual(RFS.evasion_bonus(self.e, holder, status), 0)
+        FIELD.install(self.e, self.t, self.rules.move_mech('move/매직룸')[0]['effects_exec'][0], 'move/매직룸')
+        self.assertEqual(RFS.evasion_bonus(self.e, holder, status), 0)
+        uid = holder.entity_id;self.restore('t');holder = WORLD.actor_index(self.e)[uid]
+        self.assertEqual(HELD.entries(holder), held);self.assertEqual(RFS.evasion_bonus(self.e, holder, status), 0)
+        FIELD.clear(self.e);self.assertEqual(RFS.evasion_bonus(self.e, holder, status), 2)
+        ITEMS.unregister_item(self.e, holder, registration_key=identity)
+        self.assertEqual(RFS.evasion_bonus(self.e, holder, status), 0)
+        self.assertEqual([row['instance_id'] for row in HELD.entries(holder)], ['relic-companion']);self.valid()
+
+    def test_dual_held_razors_react_once_to_native_melee_hit_and_stop_while_suppressed(self):
+        from grid import Grid
+        from native_scenario_fixture import prepare_body
+        from engine import Engine
+        import held_equipment as HELD, field_effects as FIELD
+        holder, identity = self.dual_relic('방패톱스', 'def', 'actual razors holder')
+        self.e.grid = Grid(8, 8)
+        self.e.gm.add_combatant(holder, pos=(1, 0), side='foes', reason='actual opposing held-item recipient')
+        if not holder.on_field:self.e.gm.send_out(holder, pos=(1, 0), reason='actual native field entry')
+        for actor in (self.t, holder):prepare_body(self.e, actor, size=actor.spec.get('size', '중형'), offsets=[(0, 0)], reason='actual attack bodies')
+        self.e.gm.set_move(self.t, 'move/몸통박치기', reason='actual learned melee attack')
+        RFS.set_razors_reaction(self.e, holder, True);held = deepcopy(HELD.entries(holder))
+        for suppressed in (False, True, False):
+            with self.subTest(suppressed=suppressed):
+                if self.e.encounter_active:self.e.end_of_turn(self.t);self.e.end_round()
+                if holder.fainted:self.e.gm.revive(holder, hp=holder.base_max_hp, reason='actual recipient restored for next attack')
+                else:self.e.gm.set_hp(holder, value=holder.base_max_hp, reason='actual recipient healed for next attack')
+                if suppressed:FIELD.install(self.e, self.t, self.rules.move_mech('move/매직룸')[0]['effects_exec'][0], 'move/매직룸')
+                else:FIELD.clear(self.e)
+                self.e.start_round(self.e.everyone);self.e.start_of_turn(self.t, initiative_count=20)
+                before = self.t.hp;count = len(holder.spec.get('researcher_relic_reactions', []));tick = self.e.tick_loss(self.t)
+                with patch.object(Engine, 'd20', return_value=15):dealt = self.e.use_move(self.t, holder, 'move/몸통박치기', set_damage=True)
+                self.assertGreater(dealt, 0);self.assertEqual(self.t.hp, before - (0 if suppressed else tick))
+                rows = holder.spec.get('researcher_relic_reactions', [])
+                self.assertEqual(len(rows), count + int(not suppressed));self.assertEqual(HELD.entries(holder), held)
+                if not suppressed:self.assertEqual(rows[-1]['relic'], identity)
+        uid = holder.entity_id;self.restore('t');holder = WORLD.actor_index(self.e)[uid]
+        self.assertEqual(len(holder.spec['researcher_relic_reactions']), 2);self.assertEqual(HELD.entries(holder), held)
+
+    def test_native_razors_require_observed_opposing_sides_without_cancelling_the_attack(self):
+        from grid import Grid
+        from native_scenario_fixture import prepare_body
+        from engine import Engine
+        import held_equipment as HELD
+        holder, identity = self.dual_relic('방패톱스', 'def', 'razors side boundary')
+        self.e.grid = Grid(8, 8)
+        self.e.gm.add_combatant(holder, pos=(1, 0), side='foes', reason='actual opposing held-item recipient')
+        if not holder.on_field:self.e.gm.send_out(holder, pos=(1, 0), reason='actual native field entry')
+        for actor in (self.t, holder):prepare_body(self.e, actor, size=actor.spec.get('size', '중형'), offsets=[(0, 0)], reason='actual attack bodies')
+        self.e.gm.set_move(self.t, 'move/몸통박치기', reason='actual learned melee attack')
+        RFS.set_razors_reaction(self.e, holder, True)
+        absent = object()
+        cases = (('same', 'party', 'party', False), ('absent-both', absent, absent, False),
+                 ('absent-attacker', absent, 'foes', False), ('absent-holder', 'party', absent, False),
+                 ('none-both', None, None, False), ('none-attacker', None, 'foes', False),
+                 ('none-holder', 'party', None, False), ('opposed', 'party', 'foes', True))
+        for label, attacker_side, holder_side, reacts in cases:
+            with self.subTest(sides=label):
+                for actor, side in ((self.t, 'party'), (holder, 'foes')):
+                    actor.side = side;actor.spec['side'] = side
+                if self.e.encounter_active:self.e.end_of_turn(self.t);self.e.end_round()
+                if holder.fainted:self.e.gm.revive(holder, hp=holder.base_max_hp, reason='actual recipient restored for next attack')
+                else:self.e.gm.set_hp(holder, value=holder.base_max_hp, reason='actual recipient healed for next attack')
+                self.e.start_round(self.e.everyone);self.e.start_of_turn(self.t, initiative_count=20)
+                for actor, side in ((self.t, attacker_side), (holder, holder_side)):
+                    if side is absent:del actor.side;actor.spec.pop('side', None)
+                    else:actor.side = side;actor.spec['side'] = side
+                before_hp = self.t.hp;count = len(holder.spec.get('researcher_relic_reactions', []))
+                before_equipment = deepcopy((HELD.entries(holder), holder._item_reg, holder.spec['researcher_razors_reaction']))
+                uses = self.t.move_uses.get('move/몸통박치기', 0);tick = self.e.tick_loss(self.t)
+                with patch.object(Engine, 'd20', return_value=15):dealt = self.e.use_move(self.t, holder, 'move/몸통박치기', set_damage=True)
+                self.assertGreater(dealt, 0);self.assertEqual(self.t.hp, before_hp - (tick if reacts else 0))
+                self.assertEqual(self.t.move_uses['move/몸통박치기'], uses + 1);self.assertEqual(self.t.budget['standard'], 0)
+                rows = holder.spec.get('researcher_relic_reactions', [])
+                self.assertEqual(len(rows), count + int(reacts))
+                self.assertEqual((HELD.entries(holder), holder._item_reg, holder.spec['researcher_razors_reaction']), before_equipment)
+                for actor, side in ((self.t, attacker_side), (holder, holder_side)):
+                    self.assertEqual(hasattr(actor, 'side'), side is not absent)
+                    if side is not absent:self.assertEqual(actor.side, side)
+                if reacts:self.assertEqual(rows[-1]['relic'], identity)
+        self.valid()
+
+    def test_two_distinct_active_sashes_do_not_choose_an_arbitrary_effect_source(self):
+        import items as ITEMS, held_equipment as HELD
+        holder, first = self.dual_relic('프테라', 'spe', 'first sash source')
+        ITEMS.drop_item(self.e, holder, selection='relic-companion')
+        donor = self.restored('프테라', 'second sash source')
+        second = RFS.craft_relic(self.e, self.t, donor, relic='spe', minutes=10)['id']
+        RF.equip_relic(self.e, self.t, donor, second)
+        ITEMS.transfer_equipment(self.e, donor, holder, 'legacy:' + second)
+        before = deepcopy((HELD.entries(holder), holder._item_reg, self.e.rng.getstate()))
+        self.assertEqual({row['name'] for row in HELD.entries(holder)}, {first, second})
+        with self.assertRaisesRegex(ValueError, 'multiple active relic effect sources'):
+            RFS.evasion_bonus(self.e, holder, self.rules.move('move/꼬리흔들기'))
+        self.assertEqual((HELD.entries(holder), holder._item_reg, self.e.rng.getstate()), before)
+        self.valid()
+
     def test_relics_require_the_restorer_the_expert_rank_and_the_field_and_stay_bound_to_the_individual(self):
         k = self.restored('아마루스', 'crown')
         self.t.spec['skills']['포켓몬학'] = 4

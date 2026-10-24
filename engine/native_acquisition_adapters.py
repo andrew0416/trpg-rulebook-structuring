@@ -53,6 +53,9 @@ def _source(rules, uid):
     # exclusion, before consulting any existing effect dependencies.
     rules.ruleset.require({'id': uid, 'title': definition['source'].get('cells', [uid])[0],
         'source': definition['source']})
+    if uid == 'feat/파캐스트':
+        rules.ruleset.require({'id': definition['clause_id'], 'title': '파캐스트',
+            'source': definition['source']})
     selected = definition.get('selected_id')
     if selected and rules._selected_rule(selected) != selected:
         raise ValueError('selected source needs its own acquisition adapter')
@@ -297,12 +300,16 @@ def class_instances(actor):
 
 
 def validate_actor(actor):
+    import trainer_feature_acquisition as T
+    book_requests = {row['static_acquisition']['request_id'] for _, row, _ in T._static_records(actor)}
     requests = set()
     for sid, row, active in _rows(actor):
         uid = row[KEY]['feature_id']
         if uid not in DEFINITIONS:
             raise ValueError('unknown native acquisition source')
         record = _record(actor, uid, row[KEY])
+        if record['request_id'] in book_requests:
+            raise ValueError('acquisition request belongs to another source adapter')
         if record['request_id'] in requests:
             raise ValueError('native acquisition request identity reused')
         requests.add(record['request_id'])
@@ -334,6 +341,10 @@ def acquire(engine, actor, uid, *, acquisition_request_id, selection=None):
     import acquired_features as A
     W.require_actors(engine, actor)
     _text(acquisition_request_id, 'native acquisition request identity')
+    import trainer_feature_acquisition as T
+    if any(row['static_acquisition']['request_id'] == acquisition_request_id
+           for _, row, _ in T._static_records(actor)):
+        raise ValueError('acquisition request belongs to another source adapter')
     source = _source(engine.r, uid)
     selection = _selection(uid, selection)
     A.validate_class_slots(actor)

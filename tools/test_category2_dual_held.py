@@ -108,6 +108,14 @@ class DualHeldTests(unittest.TestCase):
   projected=ROOT_CHECK.actor_projection(e,{'holder':b},{});self.assertIn('item',projected['holder']['modifier_sources'])
   result=e.skill_check(b,'감지',5);self.assertIsInstance(result,tuple);self.assertEqual(len(result),2)
   e.gm.snapshot('ordinary');e.gm.restore('ordinary',reason='dual world ordinary action');loaded=self.roundtrip(e);self.assertEqual(len(H.entries(W.actor_index(loaded)[b.entity_id])),2);self.valid(loaded)
+ def test_native_status_attack_with_two_unrelated_items_has_no_relic_evasion(self):
+  from unittest.mock import patch
+  import researcher_fields as RESEARCH
+  e,a,b,mid=self.fixture('울음소리');held=deepcopy(H.entries(b));before=b.stages['atk']
+  self.assertEqual(RESEARCH.evasion_bonus(e,b,e.r.move(mid)),0)
+  with patch.object(Engine,'d20',return_value=20):e.use_move(a,b,mid)
+  self.assertEqual(b.stages['atk'],before-1);self.assertEqual(H.entries(b),held)
+  self.assertNotIn('researcher_relic_reactions',b.spec);self.valid(e)
  def test_held_food_waits_for_actual_intake_duration_without_cost(self):
   e,a,b,mid=self.f.fixture(held=(None,None),abilities=((),('배달부',)));self.add(e,b,'오랭열매','berry');self.add(e,b)
   before=deepcopy((b.spec,e._physical_objects));rng=e.rng.getstate();result=e.use_item(b,'오랭열매',held_selection='berry')

@@ -147,6 +147,53 @@ class TelekineticTests(unittest.TestCase):
   with patch.object(Engine,'d20',return_value=11) as die:self.e.use_move(self.b,self.c,'move/몸통박치기',set_damage=True)
   original=self.completion(self.b,'move/몸통박치기');self.assertFalse(MC.recipient_result(original,self.c)['hit']);self.assertEqual(self.c.hp,hp);self.assertEqual(self.completion(self.a,TK.KINESIS)['phase'],'complete');self.assertEqual(die.call_count,1);self.assertIsNone(__import__('initiative_interrupts').frame(self.e));self.restore();self.valid()
 
+ def test_kinesis_self_without_side_or_distance_and_live_ally_observation_boundaries(self):
+  import action_resources as RES
+  cases=(('absent','absent'),(None,None),(None,'party'),('party',None),('party','party'),('party','foes'))
+  for self_target in (False,True):
+   for sides in (cases if not self_target else cases[:2]):
+    with self.subTest(self_target=self_target,sides=sides):
+     self.setup();self.family(TK.ALPHA);target=self.a if self_target else self.c
+     REACTIONS.arm(self.e,self.a,TK.KINESIS,protect=target)
+     for actor,side in zip((self.a,target),sides):
+      actor.spec.pop('side',None)
+      if side=='absent':vars(actor).pop('side',None)
+      else:actor.side=side
+     allowed=self_target or sides==('party','party')
+     if self_target:
+      location=deepcopy(self.a.location);self.a.location={'kind':'unknown'}
+      REACTIONS.arm(self.e,self.a,TK.KINESIS)
+      self.a.location=location
+     elif allowed:REACTIONS.arm(self.e,self.a,TK.KINESIS,protect=target)
+     else:self.reject(lambda:REACTIONS.arm(self.e,self.a,TK.KINESIS,protect=target),'observed ally within six metres')
+     self.begin(self.b);self.e.gm.set_position(self.b,(target.pos[0]+1,target.pos[1]),reason='actual adjacent attacker')
+     self.e.gm.set_stat(target,'def',value=40,reason='actual Evasion8 makes natural11 miss after Kinesis')
+     self.restore();target=self.a if self_target else self.c;hp=target.hp
+     choice=deepcopy(self.a.spec[REACTIONS.CHOICES][TK.KINESIS])
+     with patch.object(Engine,'d20',return_value=11):self.e.use_move(self.b,target,'move/몸통박치기',set_damage=True)
+     result=MC.recipient_result(self.completion(self.b,'move/몸통박치기'),target)
+     if allowed:
+      self.assertFalse(result['hit']);self.assertEqual(target.hp,hp)
+      self.assertEqual(self.a.move_uses[TK.KINESIS],1);self.assertEqual(RES.pending(self.a),{'standard':1})
+      self.assertNotIn(TK.KINESIS,self.a.spec[REACTIONS.CHOICES])
+     else:
+      self.assertTrue(result['hit']);self.assertLess(target.hp,hp)
+      self.assertNotIn(TK.KINESIS,self.a.move_uses);self.assertEqual(RES.pending(self.a),{})
+      self.assertEqual(self.a.spec[REACTIONS.CHOICES][TK.KINESIS],choice)
+     self.restore();self.valid()
+
+ def test_kinesis_rechecks_actual_six_metre_range_before_consuming_choice(self):
+  import action_resources as RES
+  self.family(TK.ALPHA);REACTIONS.arm(self.e,self.a,TK.KINESIS,protect=self.c)
+  self.e.gm.set_position(self.c,(9,2),reason='ally moved seven metres from reactor')
+  self.e.gm.set_position(self.b,(10,2),reason='actual adjacent attacker')
+  self.reject(lambda:REACTIONS.arm(self.e,self.a,TK.KINESIS,protect=self.c),'six metres')
+  self.begin(self.b);hp=self.c.hp
+  with patch.object(Engine,'d20',return_value=18):self.e.use_move(self.b,self.c,'move/몸통박치기',set_damage=True)
+  self.assertLess(self.c.hp,hp);self.assertNotIn(TK.KINESIS,self.a.move_uses)
+  self.assertIn(TK.KINESIS,self.a.spec[REACTIONS.CHOICES]);self.assertEqual(RES.pending(self.a),{})
+  self.restore();self.valid()
+
  def test_kinesis_overload_completed_real_reaction_own_ordinary_swift_original_attacker(self):
   self.family(TK.OVERLOAD);REACTIONS.arm(self.e,self.a,TK.KINESIS,protect=self.c,overload=True);self.begin();ap=AP.available(self.a)
   # Friendly fire is an actual permitted attack during the Telekinetic own turn.
