@@ -37,7 +37,7 @@ class ForcedMovementTests(unittest.TestCase):
   self.assertEqual(self.b.pos,origin)
  def test_entry_effect_interrupts_remaining_displacement(self):
   self.b.pos=(3,1);budget=deepcopy(getattr(self.b,'budget',None))
-  def stop(e,c,cell):c.hp=0
+  def stop(e,c,cell,**kw):c.hp=0
   with patch.object(EXT,'on_enter_cell',side_effect=stop) as entry:
    out=F.displace(self.e,self.a,self.b,direction=(1,0),distance=3,source='observed push')
   self.assertEqual(out['moved'],1);self.assertEqual(out['stopped_by'],'interrupted')
@@ -68,7 +68,7 @@ class ForcedMovementTests(unittest.TestCase):
   self.assertEqual(self.b.pos,origin)
  def test_entry_relocation_ends_original_vector(self):
   self.b.pos=(3,1)
-  def relocate(e,c,cell):c.pos=(1,8)
+  def relocate(e,c,cell,**kw):c.pos=(1,8)
   with patch.object(EXT,'on_enter_cell',side_effect=relocate):
    out=F.displace(self.e,self.a,self.b,direction=(1,0),distance=4,source='slide')
   self.assertEqual(self.b.pos,(1,8));self.assertEqual(out['stopped_by'],'relocated')

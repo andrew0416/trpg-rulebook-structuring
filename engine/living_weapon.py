@@ -5,6 +5,7 @@ temporary move permissions are projections of that relation, never new actors.
 """
 from copy import deepcopy
 import hashlib
+import json
 from pathlib import Path
 import state_grants as G
 import world_entities as W
@@ -13,6 +14,7 @@ import skill_modifiers as S
 SOURCE='capability/살아있는-무기'
 KEY='living_weapon'
 HISTORY='_living_weapon_detached'
+MOVEMENT='_living_weapon_movement'
 SOURCE_SHA='c3a1d783b4f649f0f6e25a9443a90ca8079a6e036c42c6f8797e100127157abe'
 PROFILES={
  '단칼빙':{'grade':'간단','moves':['move/상처내기'],'hands':1,'shield':False},
@@ -25,6 +27,82 @@ def selected(engine):
     if engine.r._selected_rule(SOURCE)!=SOURCE:raise ValueError('selected Living Weapon source required')
     if hashlib.sha256((Path(engine.r.root)/'input/ch10-index-reference.md').read_bytes()).hexdigest()!=SOURCE_SHA:
         raise ValueError('Living Weapon source changed; review required')
+
+
+def policy(engine):
+    selected(engine)
+    value=json.loads((Path(engine.r.root)/'data/living-weapon-policy.json').read_text(encoding='utf-8'))
+    if value.get('schema_version')!=1 or value.get('source')!=SOURCE:
+        raise ValueError('known Living Weapon policy required')
+    return value
+
+
+def _borrowing_document(value):
+    return {'schema':1,'id':'native/living-weapon-borrowing','variants':[{
+        'rule_id':SOURCE,'source':value['source_reference'],
+        'values':{'variant':{'$input':'source_text'},'definitions':value['borrowing']},
+        'inputs':{'source_text':{'type':'string','authority':'gm','decision_kind':'source_conflict',
+            'choices':list(value['borrowing']),
+            'question':'Living Weapon: Korean borrows all equipped weapon moves; English borrows only this Living Weapon\'s moves. Which complete source definition applies?'}}}]}
+
+
+def borrowing_choices(engine):
+    """Prepare an explicit source decision before the native equipment action."""
+    import source_policy as POLICY
+    return POLICY.resolve(engine.r,_borrowing_document(policy(engine)))
+
+
+def _borrowing_definition(engine,row):
+    value=policy(engine);choice=row.get('source_choice')
+    definition=value['borrowing']['korean_all_equipped']
+    if choice is not None:
+        import source_policy as POLICY
+        resolved=POLICY.resolve(engine.r,_borrowing_document(value),decisions={'source_text':choice})
+        if resolved['status']!='PolicyValuesReady':raise ValueError('explicit Living Weapon source decision required')
+        definition=resolved['values']['definitions'][resolved['values']['variant']]
+    from source_context import verified_source
+    reference=definition['source']
+    verified_source(engine.r,reference,label='Living Weapon borrowing',
+                    source_root='source-audit' if reference['file'].startswith('source-audit/') else 'input')
+    return definition
+
+
+def _no_guard_document(value):
+    return {'schema':1,'id':'native/living-weapon-no-guard','variants':[{
+        'rule_id':SOURCE,'source':value['source_reference'],
+        'values':{'variant':{'$input':'source_text'},'definitions':value['no_guard']},
+        'inputs':{'source_text':{'type':'string','authority':'gm','decision_kind':'source_conflict',
+            'choices':list(value['no_guard']),
+            'question':'Living Weapon: Korean is unaffected by No Guard; English cannot benefit from its own No Guard. Which complete source definition applies?'}}}]}
+
+
+def no_guard_choices(engine):
+    import source_policy as POLICY
+    return POLICY.resolve(engine.r,_no_guard_document(policy(engine)))
+
+
+def _no_guard_definition(engine,row):
+    value=policy(engine);choice=row.get('no_guard_choice')
+    definition=value['no_guard']['korean_unaffected']
+    if choice is not None:
+        import source_policy as POLICY
+        resolved=POLICY.resolve(engine.r,_no_guard_document(value),decisions={'source_text':choice})
+        if resolved['status']!='PolicyValuesReady':raise ValueError('explicit Living Weapon No Guard source decision required')
+        definition=resolved['values']['definitions'][resolved['values']['variant']]
+    from source_context import verified_source
+    reference=definition['source']
+    verified_source(engine.r,reference,label='Living Weapon No Guard',
+                    source_root='source-audit' if reference['file'].startswith('source-audit/') else 'input')
+    return definition
+
+
+def shield_bonus(engine):
+    definitions=policy(engine)['shield']
+    # Presence of the errata file is not adoption; the campaign profile admits it.
+    definition=definitions['errata'] if definitions['errata']['admission'] in engine.r.ruleset.sources else definitions['core']
+    from source_context import verified_source
+    verified_source(engine.r,definition['source'],label='Living Weapon shield')
+    return definition['bonus']
 
 
 def species(engine,actor):
@@ -50,7 +128,8 @@ def relation(engine,actor,*,usable=False):
     if not rows:return None
     if len(rows)!=1:raise ValueError('Living Weapon participants have multiple relations')
     pokemon,row=rows[0]
-    if (type(row)is not dict or set(row)!={'source','pokemon_id','wielder_id','species','consent','slots','grant_source'}
+    fields={'source','pokemon_id','wielder_id','species','consent','slots','grant_source'}
+    if (type(row)is not dict or not fields<=set(row)<=fields|{'source_choice','no_guard_choice'}
         or row['source']!=SOURCE or row['pokemon_id']!=pokemon.entity_id or row['consent'] is not True
         or row['species']!=species(engine,pokemon)):
         raise ValueError('Living Weapon relation identity/source/consent changed')
@@ -60,6 +139,8 @@ def relation(engine,actor,*,usable=False):
     if row['slots'] not in (['주요손'],['반대손'],['주요손','반대손']):raise ValueError('Living Weapon hand slots changed')
     if (row['species']=='킬가르도' and row['slots']!=['주요손','반대손'] or
         row['species']=='단칼빙' and len(row['slots'])!=1):raise ValueError('Living Weapon species/hand shape changed')
+    _borrowing_definition(engine,row)
+    _no_guard_definition(engine,row)
     if usable:
         selected(engine)
         for participant in (pokemon,wielder):
@@ -122,7 +203,7 @@ def _pay_standard(engine,actor):
     if pending:RESOURCES.schedule(actor,{'standard':1})
 
 
-def equip(engine,wielder,pokemon,*,consent,slots=None):
+def equip(engine,wielder,pokemon,*,consent,slots=None,source_choice=None,no_guard_choice=None):
     W.require_actors(engine,wielder,pokemon);selected(engine)
     if pokemon.kind!='pokemon' or wielder.kind not in ('trainer','pokemon') or pokemon is wielder:
         raise ValueError('actual distinct wielder and Pokemon required')
@@ -140,11 +221,15 @@ def equip(engine,wielder,pokemon,*,consent,slots=None):
     occupied={s for row in wielder.custom_conditions.get('equipped_weapons',{}).values() for s in row['slots']}
     occupied.update(s for row in getattr(wielder,'_item_reg',{}).values() for s in row.get('slots',()))
     if occupied.intersection(slots):raise ValueError('Living Weapon hand slot already occupied')
+    _borrowing_definition(engine,{'source_choice':source_choice})
+    _no_guard_definition(engine,{'no_guard_choice':no_guard_choice})
     def apply(e,a,p):
         import turn as TURN
         _pay_standard(e,a);_pay_standard(e,p)
         row={'source':SOURCE,'pokemon_id':p.entity_id,'wielder_id':a.entity_id,'species':name,
              'consent':True,'slots':slots,'grant_source':'living:'+p.entity_id}
+        if source_choice is not None:row['source_choice']=deepcopy(source_choice)
+        if no_guard_choice is not None:row['no_guard_choice']=deepcopy(no_guard_choice)
         p.spec[KEY]=row;p.pos=a.pos
         p.spec['_movement_altitude']=a.spec.get('_movement_altitude',0)
         keys=[]
@@ -156,7 +241,7 @@ def equip(engine,wielder,pokemon,*,consent,slots=None):
             a.custom_conditions['equipped_weapons'][keys[0]]['slots']=['주요손','반대손']
         if name=='쌍검킬' and len(slots)==2 or profile['shield']:
             G._source(a,row['grant_source'],'living_weapon',owner_id=p.entity_id,rule_id=SOURCE,lifetime='equipped')
-            G.numeric(a,'evasion_mod',2 if name=='쌍검킬' else 1,row['grant_source'],bounds=(-6,6))
+            G.numeric(a,'evasion_mod',2 if name=='쌍검킬' else shield_bonus(e),row['grant_source'],bounds=(-6,6))
         if name=='킬가르도':
             import ability_state_projection as PROJECTION
             PROJECTION._battle_forms(p);PROJECTION._switch_form_direct(e,p,'블레이드폼')
@@ -187,10 +272,12 @@ def detach(engine,actor,*,destination=None):
     return G.transition(engine,actor,apply,participants=(pokemon,wielder))
 
 
-def _available(engine,wielder):
+def _available(engine,pokemon,wielder,row):
     import weapon_actions as WEAPONS
+    own_only=_borrowing_definition(engine,row)['scope']=='own_living_weapon'
     result={}
     for key,entry in wielder.custom_conditions.get('equipped_weapons',{}).items():
+        if own_only and entry['weapon'].get('living_actor')!=pokemon.entity_id:continue
         for mid in entry['available_moves']:
             if mid==entry['struggle_id']:continue
             try:WEAPONS.prepare(engine,wielder,engine.r.move(mid),weapon_id=key)
@@ -216,7 +303,7 @@ def refresh(engine,actor):
                 wielder.moves.append(mid)
                 if mid not in entry['introduced_moves']:entry['introduced_moves'].append(mid)
         entry['available_moves']=desired
-    wanted=list(_available(engine,wielder)) if _present(pokemon) and _present(wielder) else []
+    wanted=list(_available(engine,pokemon,wielder,row)) if _present(pokemon) and _present(wielder) else []
     prior=pokemon.spec.get(G.KEY,{}).get('sources',{}).get(sid,{})
     if prior.get('grants',{}).get('moves',[])==wanted:return
     G.revoke(pokemon,sid,engine=engine)
@@ -228,7 +315,7 @@ def prepare_borrowed(engine,actor,move,weapon_id=None):
     found=relation(engine,actor)
     if not found or found[0] is not actor:return None
     pokemon,wielder,row=relation(engine,actor,usable=True)
-    options=_available(engine,wielder).get(move['id'],[])
+    options=_available(engine,pokemon,wielder,row).get(move['id'],[])
     if not options:
         if move.get('_living_borrow'):raise ValueError('wielder no longer has this weapon move permission')
         return None
@@ -277,8 +364,50 @@ def check_sources(engine,actor,context):
 
 def movement_donor(engine,actor):
     found=relation(engine,actor,usable=True)
-    if found and found[0] is actor and found[1].kind=='pokemon':return found[1]
+    if found and found[0] is actor:return found[1]
     return actor
+
+
+def _movement_used(engine,pokemon):
+    row=pokemon.spec.get(MOVEMENT)
+    if row is None:return 0
+    from physical_limits import number
+    if (type(row)is not dict or set(row)!={'source','round','distance'} or row['source']!=SOURCE
+        or type(row['round'])is not int or not 1<=row['round']<=engine.round_no):
+        raise ValueError('Living Weapon shared round movement receipt changed')
+    number(row['distance'],'Living Weapon shared movement',minimum=0)
+    return row['distance'] if row['round']==engine.round_no else 0
+
+
+def movement_remaining(engine,actor,*,movement_mode=None):
+    found=relation(engine,actor,usable=True)
+    if not found or not engine.encounter_active:return None
+    pokemon,wielder,_=found
+    definition=policy(engine)['movement']
+    from source_context import verified_source
+    verified_source(engine.r,definition['source'],label='Living Weapon shared round movement',source_root='source-audit')
+    speed,_=engine.move_profile(wielder,movement_mode=movement_mode)
+    return max(0,speed-_movement_used(engine,pokemon))
+
+
+def can_shift(engine,actor,distance,*,movement_mode=None):
+    remaining=movement_remaining(engine,actor,movement_mode=movement_mode)
+    return remaining is None or distance<=remaining
+
+
+def shifted(engine,actor,distance):
+    """Receipt for actual committed native movement, shared across both turns.
+
+    Keep it outside the equipped relation so detaching/re-engaging cannot refill
+    the same round. Native movement cursors own continuation and duplicate entry.
+    """
+    found=relation(engine,actor)
+    if not found:return
+    if engine.encounter_active:
+        pokemon=found[0]
+        pokemon.spec[MOVEMENT]={'source':SOURCE,'round':engine.round_no,
+                               'distance':_movement_used(engine,pokemon)+distance}
+    sync(engine,actor)
 
 
 def sync(engine,actor):
@@ -299,19 +428,39 @@ def no_guard(effect):
     return any(x in ('노가드 [Playtest]','ability/노가드-playtest','ability:노가드 [Playtest]','No Guard') for x in values)
 
 
-def ignore_no_guard(engine,attacker,target,effect):
+def ignore_no_guard(engine,attacker,target,effect,*,effect_owner=None):
     if not no_guard(effect):return False
-    return any((found:=relation(engine,a)) and found[0] is a for a in (attacker,target))
+    for actor in (attacker,target):
+        found=relation(engine,actor)
+        if not found or found[0] is not actor:continue
+        if _no_guard_definition(engine,found[2])['scope']=='unaffected':return True
+        metadata=(getattr(effect_owner,'spec',{}).get(G.KEY,{}).get('sources',{})
+                  .get(effect.get(G.TAG),{}))
+        owner_id=metadata.get('owner_id') or getattr(effect_owner,'entity_id',None)
+        if (actor is attacker and owner_id==actor.entity_id
+            and type(effect.get('value'))in (int,float) and effect['value']>0):return True
+    return False
 
 
 def accuracy_stage(engine,attacker,target,ordinary):
     """Exclude only sourced No Guard, then keep the existing bounded law."""
-    if not any((found:=relation(engine,a)) and found[0] is a for a in (attacker,target)):return ordinary
+    endpoints=[(a,found) for a in (attacker,target)
+               if (found:=relation(engine,a)) and found[0] is a]
+    if not endpoints:return ordinary
     ledger=attacker.spec.get(G.KEY,{})
     row=ledger.get('numbers',{}).get('accuracy_stage')
     if row is None:return ordinary
     sources=ledger.get('sources',{})
-    removed=[uid for uid in row['sources'] if no_guard({'_rule_id':sources.get(uid,{}).get('rule_id'),'source_id':uid})]
+    broad=any(_no_guard_definition(engine,found[2])['scope']=='unaffected' for _,found in endpoints)
+    own=any(a is attacker for a,_ in endpoints)
+    receipts=ledger.get('ability_receipts',{})
+    removed=[]
+    for uid,value in row['sources'].items():
+        metadata=sources.get(uid,{})
+        if not no_guard({'_rule_id':metadata.get('rule_id'),'source_id':uid}):continue
+        owner=metadata.get('owner_id')
+        own_source=owner==attacker.entity_id or (owner is None and uid in receipts.values())
+        if broad or own and own_source and value>0:removed.append(uid)
     if not removed:return ordinary
     import effect_lifetimes as LIFE
     stage=row['base']+sum(value for uid,value in row['sources'].items() if uid not in removed)
@@ -320,6 +469,7 @@ def accuracy_stage(engine,attacker,target,ordinary):
 
 def validate_world(engine,index):
     for p in index.values():
+        if MOVEMENT in p.spec:_movement_used(engine,p)
         if KEY not in p.spec:continue
         pokemon,w,row=relation(engine,p)
         selected(engine)
@@ -331,6 +481,9 @@ def validate_world(engine,index):
             # Unavailable actors retain identity, but cannot be used remotely.
             if _present(p) and _present(w):require_weapon(engine,w,entry['weapon'])
         if locked_form(engine,p,p.form):raise ValueError('equipped Aegislash must remain in Blade Form')
+        if row['species']=='킬가르도':
+            bonus=w.spec.get(G.KEY,{}).get('numbers',{}).get('evasion_mod',{}).get('sources',{}).get(row['grant_source'])
+            if bonus!=shield_bonus(engine):raise ValueError('Living Weapon shield differs from the selected source profile')
         permission=p.spec.get(G.KEY,{}).get('sources',{}).get(row['grant_source'])
         if permission and (permission.get('move_mode')!='permission' or permission.get('rule_id')!=SOURCE or permission.get('owner_id')!=w.entity_id):
             raise ValueError('Living Weapon move permission ownership changed')

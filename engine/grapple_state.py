@@ -186,25 +186,11 @@ def _turn(e,actor,row):
     return eligibility['dominant'] and row['dominant']==actor.entity_id
 
 
-def _skills(e,actor,other,row,skill,other_skill,ao,do):
-    import skill_modifiers as SKILLS
-    allowed={SKILLS.skill_id(e.r.skill_policy,x,required=True) for x in ('전투','육상')}
-    for value in (skill,other_skill):
-        if SKILLS.skill_id(e.r.skill_policy,value,required=True) not in allowed:raise ValueError('Combat or Athletics grapple check required')
-    ao=dict(ao or {});do=dict(do or {})
-    if ao.get('roll_id') is not None and ao.get('roll_id')==do.get('roll_id'):raise ValueError('distinct grapple roll identities required')
-    for owner,chosen,options in ((actor,skill,ao),(other,other_skill,do)):
-        _,skill_bonus=_bind_bonuses(e,owner)
-        options['mods']=options.get('mods',0)+row['secure'].get(owner.entity_id,0)+skill_bonus
-        e._prepare_skill_roll(owner,chosen,**options)
-    return ao,do
-
-
 class _AwaitContestDecision(Exception):
     def __init__(self,pending):self.pending=pending
 
 
-def _multipart_contest(e,actor,row,checks,choices,tie_winner,request_id,intent):
+def _multipart_contest(e,actor,row,checks,choices,tie_winner,request_id,intent,*,cost='full'):
     import skill_modifiers as SKILLS
     if request_id is None:raise ValueError('identified all-participant grapple contest required')
     if type(checks) is not dict or set(checks)!=set(row['participants']):raise ValueError('each actual grapple participant must choose a check')
@@ -252,7 +238,7 @@ def _multipart_contest(e,actor,row,checks,choices,tie_winner,request_id,intent):
             return result
         return G.transition(e,actor,apply,participants=tuple(c for c in actors if c is not actor))
     try:
-        result=SM.run(e,actor,prepared,spend=lambda:TURN.spend(e,actor,'full',SOURCE+'/contest'),
+        result=SM.run(e,actor,prepared,spend=lambda:TURN.spend(e,actor,cost,SOURCE+'/contest'),
             aoo=lambda:None,can_continue=lambda:TURN.can_act(e,actor),accuracy=lambda:True,outcome=outcome,resolve_rolls=resolve)
     except _AwaitContestDecision as decision:return decision.pending
     if result is False:_state(e)['requests'][request_id]=_sign(dict(intent=intent,result=False))
@@ -299,6 +285,8 @@ def action(e,actor,kind,*,challenger_skill=None,defender_skill=None,challenger_o
     if type(intent.get('participant_checks')) is dict:
         for check in intent['participant_checks'].values():
             if type(check) is dict and type(check.get('options')) is dict:check['options'].pop('feature_options',None)
+    for key in ('challenger_options','defender_options'):
+        if type(intent[key]) is dict:intent[key].pop('feature_options',None)
     if type(intent['escape']) is dict and type(intent['escape'].get('cleanse_checks')) is dict:
         # A UI callback may change while resuming the same observed Focus.
         # It is not serializable intent or a fresh permission token.
@@ -329,9 +317,22 @@ def action(e,actor,kind,*,challenger_skill=None,defender_skill=None,challenger_o
         if multipart:
             if any(x is not None for x in (challenger_skill,defender_skill,challenger_options,defender_options,winner_choice)):raise ValueError('multi-participant contest requires each actual participant declaration')
             return _multipart_contest(e,actor,row,participant_checks,winner_choices,tie_winner,request_id,intent)
-        if any(x is not None for x in (participant_checks,winner_choices,tie_winner)):raise ValueError('paired contest uses its original challenger and defender declaration')
-        if winner_choice not in ('keep','end'):raise ValueError('winner must choose to keep/dominance or end')
-        _skills(e,actor,other,row,challenger_skill,defender_skill,challenger_options,defender_options)
+        if participant_checks is not None or tie_winner is not None:raise ValueError('paired contest uses its original challenger and defender declaration')
+        if winner_choice is not None and winner_choice not in ('keep','end'):raise ValueError('winner must choose to keep/dominance or end')
+        if winner_choices is not None and type(winner_choices) is not dict:raise ValueError('actual participant winner choices must be keep or end')
+        choices=dict(winner_choices or {})
+        # The scalar is only this challenger's conditional preference.
+        if winner_choice is not None:
+            if actor.entity_id in choices and choices[actor.entity_id]!=winner_choice:raise ValueError('challenger winner choices disagree')
+            choices[actor.entity_id]=winner_choice
+        if request_id is None:
+            request_id=SOURCE+'/contest:'+row['id']+':'+actor.entity_id+':'+str(actor.custom_conditions['combat_turn_serial'])+':'+str(len(row['history']))
+        checks={}
+        for owner,skill,options in ((actor,challenger_skill,challenger_options),(other,defender_skill,defender_options)):
+            options=dict(options or {});options.setdefault('roll_id',request_id+':'+owner.entity_id)
+            checks[owner.entity_id]=dict(skill=skill,options=options)
+        return _multipart_contest(e,actor,row,checks,choices,None,request_id,intent,
+            cost=__import__('martial_artist').grapple_action_cost(e,actor))
     if multipart and kind=='attack' and target is None:raise ValueError('multi-participant grapple attack needs its actual target')
     if kind=='secure' and row['secure'].get(actor.entity_id) and row['policy']['secure_stacking'] is None:return C.PendingDecision('declare repeated Secure stacking policy')
     if kind=='drag':
@@ -377,10 +378,13 @@ def action(e,actor,kind,*,challenger_skill=None,defender_skill=None,challenger_o
                 if isinstance(result,C.PendingDecision) or result is False:return result
             else:
                 if max(abs(destination[i]-a.pos[i]) for i in range(2))>staged.move_profile(a,movement_mode='land')[0]:raise ValueError('Phasing escape exceeds native movement')
-                if not TURN.spend(staged,a,escape['cost'],SOURCE+'/escape'):return False
-                a.pos=destination
+                staged._grapple_motion_actor=a
+                try:
+                    if not TURN.spend(staged,a,escape['cost'],SOURCE+'/escape'):return False
+                finally:vars(staged).pop('_grapple_motion_actor',None)
+                origin=a.pos;a.pos=destination
                 import effects_ext as EXT
-                EXT.on_enter_cell(staged,a,destination)
+                EXT.on_enter_cell(staged,a,destination,previous_position=origin)
             _end(staged,current,'capability_escape');result=dict(success=True,ended=True)
         else:
             if not TURN.spend(staged,a,__import__('martial_artist').grapple_action_cost(staged,a),SOURCE+'/'+kind):return False
@@ -389,12 +393,6 @@ def action(e,actor,kind,*,challenger_skill=None,defender_skill=None,challenger_o
             elif kind=='secure':
                 old=current['secure'].get(a.entity_id,0)
                 current['secure'][a.entity_id]=current['policy']['secure_bonus']+(old if current['policy']['secure_stacking']=='add' else 0);_save(current)
-            elif kind=='contest':
-                ao,do=_skills(staged,a,b,current,challenger_skill,defender_skill,challenger_options,defender_options)
-                won=staged.opposed_check(a,challenger_skill,b,defender_skill,challenger_options=ao,defender_options=do)
-                winner=a if won else b
-                current['secure'].clear();current['dominant']=winner.entity_id;_save(current);result['winner_id']=winner.entity_id
-                if winner_choice=='end':_end(staged,current,'contest_winner_release')
             elif kind=='attack':
                 import precise_actions as PRECISE
                 move=staged.r.move('struggle');event=PRECISE.attacked(staged,a,b,move,producer='combat_maneuver')
@@ -416,8 +414,9 @@ def action(e,actor,kind,*,challenger_skill=None,defender_skill=None,challenger_o
             elif kind=='drag':
                 import effects_ext as EXT
                 for pa,pb in plan:
+                    old_a,old_b=a.pos,b.pos
                     a.pos=pa;b.pos=pb
-                    EXT.on_enter_cell(staged,a,pa);EXT.on_enter_cell(staged,b,pb)
+                    EXT.on_enter_cell(staged,a,pa,previous_position=old_a);EXT.on_enter_cell(staged,b,pb,previous_position=old_b)
                     if current['status']!='active' or a.pos!=pa or b.pos!=pb:break
                 result.update(actor_position=a.pos,partner_position=b.pos)
             entry=dict(action=kind,actor=a.entity_id,seconds=staged.elapsed_seconds)

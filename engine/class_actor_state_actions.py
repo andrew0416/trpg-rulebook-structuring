@@ -390,13 +390,19 @@ def _apply_triggered(engine, owner, target, event):
             target,
             rank * 2,
             stack=True,
+            contribution_source=TEMP_HP.food_source(target, 'chef_hits',
+                target.spec['food_consumption_receipts'][event['payload']['receipt_sequence'] - 1]),
             provenance={
                 "source": source,
                 "event_id": event["id"],
                 "food_receipt_sequence": event["payload"]["receipt_sequence"],
             },
         )
-        return {"intuition_rank": rank, "temporary_hp_granted": granted, "ap_spent": 1}
+        result = {"intuition_rank": rank, "temporary_hp_granted": granted, "ap_spent": 1}
+        blocked = TEMP_HP.blocked_reason(target)
+        if blocked is not None:
+            result["temporary_hp_blocked_reason"] = blocked
+        return result
     if source == MEDICAL_TECHNIQUE:
         import skill_modifiers as SKILL
         rank = SKILL.effective_rank(engine.r, owner, "의학")

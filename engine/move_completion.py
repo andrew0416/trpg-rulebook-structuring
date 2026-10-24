@@ -58,6 +58,7 @@ def record_return(e,event_id,*,hit_prevented):
     old=row.setdefault('native_returns',{}).get(event_id)
     if old is not None:
         if old['facts']!=facts:raise ValueError('native returned recipient facts changed')
+        refresh(e,row['id'])
         return
     row['native_returns'][event_id]={'facts':facts,'fingerprint':R.fingerprint(facts)}
     import ability_reaction_choices as REACTIONS
@@ -65,6 +66,7 @@ def record_return(e,event_id,*,hit_prevented):
     import gleeful_interference as GLEEFUL
     GLEEFUL.after_move(e,row)
     __import__("roughneck").after_move(e,row)
+    refresh(e,row['id'])
 
 
 def require_returned_event(e,event_id):
@@ -202,6 +204,7 @@ def start_target(e,actor,target,move,mm,scope):
         import world_entities as W
         memo={id(a):a for a in W.actor_index(e).values()}
         row['target_moves'][target.entity_id]=deepcopy(move,memo)
+    __import__('battle_contest').bind_move(e,row)
     return token
 
 
@@ -279,6 +282,8 @@ def apply_empty_field(e,actor,move,effects,cells):
          'activation':'empty_area_field','field_cells':cells,
          'round':e.round_no,'seconds':e.elapsed_seconds,'turn_serial':actor.custom_conditions.get('combat_turn_serial',0)}
     rows[token]=row
+    import optional_state_effect_contracts as OPTIONAL_STATE
+    OPTIONAL_STATE.begin_move(e,actor,None,move,token)
     __import__('provocateur').begin_move(e,row)
     ICE_LAKE.bind_move(e,row)
     import confusion_attacks as CONFUSION
@@ -303,6 +308,7 @@ def apply_empty_field(e,actor,move,effects,cells):
     ICE_LAKE.observe_completion(e,row)
     row['phase']='complete';row['completed_at']=e.elapsed_seconds
     __import__('musician').after_empty_use(e,actor,row)
+    __import__('native_switch_transfer').observe_move(e,row)
     return row
 
 
@@ -314,7 +320,11 @@ def refresh(e,token=None):
         for key in list(rows):refresh(e,key)
         return
     row=rows[token]
-    if row['phase'] in ('complete','interrupted','applying'):return row
+    if row['phase']=='complete':
+        __import__('native_switch_transfer').observe_move(e,row)
+        __import__('battle_contest').complete_move(e,row)
+        return row
+    if row['phase'] in ('interrupted','applying'):return row
     if not row['sealed'] or any(t.entity_id not in row['results'] for t in row['targets']):return row
     if ACTION.pending_resolution_effects(e,row):return row
     if row['phase']=='completion_effects':
@@ -345,7 +355,8 @@ def refresh(e,token=None):
         __import__('type_ace').cleanup_permissions(e,row)
         __import__('provocateur').after_move(e,row)
         __import__('combat_move_reactions').after_move(e,row)
-        return row
+        __import__('native_switch_transfer').observe_move(e,row)
+        return refresh(e,token)
     profile=ACTIVATION._profile(e)
     if row['profile']!=profile or e.r._selected_rule(row['move_id'])!=row['move_id']:
         raise ValueError('selected move completion policy changed')
@@ -462,3 +473,4 @@ def validate_world(e,index):
                         if target_id not in row['results'])
     if set(pending_counts)!=expected:
         raise ValueError('delayed attack completion requires exactly one pending queue per target')
+    __import__('battle_contest').validate_world(e,index)

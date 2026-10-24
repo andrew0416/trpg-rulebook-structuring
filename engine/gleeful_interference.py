@@ -17,7 +17,7 @@ def interested(engine,pokemon,move):
 
 def snapshot(engine,pokemon,target,move):
     if move.get('class') not in ('물리','특수') or pokemon is target:return None
-    if pokemon.side is None or target.side is None or pokemon.side==target.side:return None
+    if getattr(pokemon,'side',None) is None or getattr(target,'side',None) is None or pokemon.side==target.side:return None
     if target.kind not in ('trainer','pokemon'):return None
     facts=CHEER.owned_friend_guard(engine,pokemon,FEATURE)
     if facts is None:return None

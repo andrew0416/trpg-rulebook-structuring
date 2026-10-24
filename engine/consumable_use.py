@@ -40,6 +40,7 @@ class UseRequest:
     duration_reason: str | None = None
     count: int = 1
     food_policy: str | None = None
+    medicine_source_choice: Any = None
     selected_move: str | None = None
     held_selection: Any = None
     container_selection: Any = None
@@ -76,6 +77,8 @@ class ItemUse(ABC):
     def execute(self, engine, request):
         import turn as TURN, item_stock as STOCK
         r=request
+        if r.medicine_source_choice is not None and r.source_id not in __import__('restorative_items').HELD_CONSUMABLES:
+            raise ValueError('medicine source choice requires a restorative or X item')
         if type(r.accepted) is not bool or type(r.free) is not bool:
             raise ValueError('item consent and cost-waiver declarations must be boolean')
         C.integer(r.count,'actual whole item count',1)
@@ -250,7 +253,8 @@ class ImmediateUse(ItemUse):
         before_actions = len(getattr(r.user, '_action_history', []))
         result = I._use_immediate_item(engine,r.user,r.item_name,r.target,free=r.free,
             accepted=r.accepted,duration_minutes=r.duration_minutes,
-            duration_reason=r.duration_reason,count=r.count,held_selection=r.held_selection)
+            duration_reason=r.duration_reason,count=r.count,held_selection=r.held_selection,
+            medicine_source_choice=r.medicine_source_choice)
         if len(getattr(r.user, '_action_history', [])) > before_actions:
             import class_actor_state_actions as CLASS_STATE_ACTIONS
             CLASS_STATE_ACTIONS.observe_healing_item_used(

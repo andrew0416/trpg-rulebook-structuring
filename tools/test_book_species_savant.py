@@ -243,7 +243,7 @@ class BookSpeciesSavantTests(unittest.TestCase):
         self.assertEqual(self.snapshot(), before)
         fixture = legacy.ClassPassiveCombatBulkTests(); fixture.rules = self.rules
         e, owner, pokemon, _ = fixture.fixture(feats=[C.SPECIES_SAVANT],
-            choices={C.SPECIES_SAVANT: {"evolution_group": "bulbasaur-line"}})
+            choices={C.SPECIES_SAVANT: {"evolution_group": "pokemon/이상해씨"}})
         self.assert_bonus(pokemon)
         self.assertIsNone(C._species_book_receipt(owner))
         row = G.state(pokemon)["sources"][C._source_id(owner, pokemon, C.SPECIES_SAVANT)]

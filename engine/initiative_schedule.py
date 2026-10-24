@@ -30,6 +30,11 @@ def status(engine):
         return {'status':'not_attached','next':None}
     step = _current(state)
     next_step = None if step is None else dict(step, actor_id=state['slots'][step['slot']]['actor'].entity_id)
+    if next_step is not None:
+        import swarm_transitions as SWARM
+        actor=state['slots'][step['slot']]['actor']
+        if SWARM.continuation_pending(engine,actor):
+            next_step['initiative']=SWARM.state(actor)['swarm_turn']['next_initiative']
     return {'status':state['status'],'round':state['round'],'source':state['source'],
             'next':next_step,'completed_steps':state['cursor'],'total_steps':len(state['steps'])}
 
@@ -285,9 +290,13 @@ def _exchange_sha(row):
 
 def _exchanged_steps(engine,state,bound_at,index):
     steps=_layout(state['slots'],state['order'],state['layout'])
+    import swarm_transitions as SWARM
+    continuation_cursor=0
     previous=-1
     for row in state.get('mounted_exchanges',[]):
         at=C.integer(row['cursor'],'mounted initiative cursor',0,state['cursor'])
+        steps=SWARM.expanded_schedule(engine,state,steps,after=continuation_cursor,before=at)
+        continuation_cursor=at
         later=C.integer(row['later'],'second mounted initiative',at+1,len(steps)-1)
         if at<=previous or row.get('sha256')!=_exchange_sha(row):raise ValueError('mounted initiative exchange evidence changed')
         previous=at
@@ -306,7 +315,7 @@ def _exchanged_steps(engine,state,bound_at,index):
         receipts=[r for r in MOUNT._acquisitions(rider,MOUNT.RIDE_AS_ONE) if r['request_id']==row['acquisition_request_id']]
         if len(receipts)!=1:raise ValueError('historical Ride as One acquisition required')
         steps[at]['slot'],steps[later]['slot']=row['other_slot'],row['slot']
-    return steps
+    return SWARM.expanded_schedule(engine,state,steps,after=continuation_cursor)
 
 
 def turn_started(engine, actor):
@@ -321,19 +330,22 @@ def turn_started(engine, actor):
     state['open_slot'] = key; state['slots'][key]['turn'] = 'open'
 
 
-def turn_closed(engine, actor):
+def turn_closed(engine, actor, *, continuation=False):
     state = getattr(engine,KEY,None)
     if state is None:
         return
     key = _actor_slot(state,actor); step = _current(state)
     if state['open_slot'] != key or state['slots'][key]['turn'] != 'open':
         raise ValueError('actor does not own the open schedule turn')
-    state['records'].append(dict(step,actor=actor,outcome='closed',
-                                closure_sequence=len(engine._turn_closures)+1))
+    receipt=dict(step,actor=actor,outcome='swarm_action_closed' if continuation else 'closed')
+    if not continuation:receipt['closure_sequence']=len(engine._turn_closures)+1
+    state['records'].append(receipt)
     state['slots'][key]['turn'] = 'closed'; state['open_slot'] = None
     state['cursor'] += 1
+    import swarm_transitions as SWARM
+    SWARM.schedule_continuation(engine,actor,state,key,step['phase'])
     import initiative_interrupts as INTERRUPTS
-    INTERRUPTS.ordinary_closed(engine,key,actor)
+    if not continuation:INTERRUPTS.ordinary_closed(engine,key,actor)
 
 
 def replace(engine, slot, actor, *, source, reason):
@@ -479,6 +491,12 @@ def _validate_world(engine,index):
                 raise ValueError('declaration differs from its completed receipt')
             declared.add(step['slot'])
         else:
+            if record['outcome']=='swarm_action_closed':
+                if set(record)!={'phase','slot','kind','actor','outcome'} or not any(
+                        r['after_cursor']==n+1 and r['slot']==step['slot']
+                        for r in state.get('swarm_continuations',[])):
+                    raise ValueError('swarm action close requires its queued continuation')
+                continue
             closed.add(step['slot'])
             if record['outcome'] in ('borrow_settled','switch_interrupt_settled'):
                 import initiative_interrupts as INTERRUPTS
@@ -502,7 +520,8 @@ def _validate_world(engine,index):
         if step is None or step['kind'] != 'turn' or step['slot'] != open_slot or state['slots'][open_slot]['actor'] is not owner:
             raise ValueError('schedule open slot differs from actual Engine turn ownership')
     for key,row in state['slots'].items():
-        expected = 'closed' if key in closed else 'open' if key==open_slot else 'ready'
+        later=any(s['kind']=='turn' and s['slot']==key for s in state['steps'][cursor:])
+        expected = 'open' if key==open_slot else 'ready' if later else 'closed' if key in closed else 'ready'
         if row['turn'] != expected:
             raise ValueError('slot turn right differs from actual completed/open steps')
     if state['status']=='completed' and cursor != len(state['steps']):

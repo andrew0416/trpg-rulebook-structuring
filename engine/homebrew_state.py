@@ -2,6 +2,7 @@
 from copy import deepcopy
 import state_fields as F
 import world_entities as W
+import personal_type_settings as PERSONAL
 SOURCE='hb-terastal/테라스탈하는-방법'
 KEY='terastal_state'
 
@@ -11,8 +12,11 @@ def _selected(r):
 def _type_value(c,value):
  if value is None:return None
  if not isinstance(value,str) or not value.strip():raise ValueError('exact nonempty Tera type identity required')
- _selected(c.r)
  if c.kind!='pokemon':raise ValueError('permanent Tera type belongs to Pokemon')
+ if value==PERSONAL.TYPELESS:
+  if not PERSONAL.enabled(c.r,'typeless_tera'):raise ValueError('personal typeless Terastal permission required')
+  return value
+ _selected(c.r)
  if value=='스텔라':
   if not any(x in ('스텔라버스트','ability/스텔라버스트') for x in c.abilities):raise ValueError('Stellar imitation requires the actual Stellar Blast ability')
  else:
@@ -22,14 +26,21 @@ def _type_value(c,value):
 
 def tera_type(c):return _type_value(c,c.spec.get('tera_type'))
 
+def _source(c,chosen):
+ if chosen==PERSONAL.TYPELESS:
+  _type_value(c,chosen)
+  return PERSONAL.SOURCE
+ _selected(c.r)
+ return SOURCE
+
 def validate(c):return _validate_record(c,c.spec.get(KEY),tera_type(c))
 
 def _validate_record(c,row,chosen):
  if row is None:return True
- _selected(c.r)
+ source=_source(c,chosen)
  required={'source','active','tera_type','original_stab_types','activated_at','origin','ended_reason'}
  if not isinstance(row,dict) or not required<=set(row) or set(row)-required-{'episode_id'}:raise ValueError('explicit Terastal state schema required')
- if row['source']!=SOURCE or type(row['active']) is not bool:raise ValueError('sourced boolean Terastal state required')
+ if row['source']!=source or type(row['active']) is not bool:raise ValueError('sourced boolean Terastal state required')
  if row['tera_type']!=chosen:raise ValueError('active-form receipt and permanent Tera type disagree')
  import type_state as TYPES
  if not isinstance(row['original_stab_types'],list):raise ValueError('explicit pre-transformation STAB types required')
@@ -37,7 +48,6 @@ def _validate_record(c,row,chosen):
  from math import isfinite
  if isinstance(row['activated_at'],bool) or not isinstance(row['activated_at'],(int,float)) or not isfinite(row['activated_at']) or row['activated_at']<0:raise ValueError('actual activation time required')
  if not isinstance(row['origin'],dict) or not row['origin'].get('reason'):raise ValueError('actual state observation provenance required')
- if row['active'] and chosen=='스텔라':raise ValueError('Stellar Blast imitation has its own radiation state; no fabricated Stellar defense type')
  return True
 
 def tera_active(c):
@@ -48,7 +58,11 @@ def tera_active(c):
  return row['active'] and not c.fainted
 
 def actual_types(c,ordinary):
- return [c.spec[KEY]['tera_type']] if tera_active(c) else list(ordinary)
+ # Stellar preserves defense; it is neither Normal nor an empty type list.
+ if not tera_active(c):return list(ordinary)
+ chosen=c.spec[KEY]['tera_type']
+ if chosen==PERSONAL.TYPELESS:return []
+ return list(ordinary) if chosen=='스텔라' else [chosen]
 
 def stab_types(c):
  import tera_shell as TERA_SHELL
@@ -59,7 +73,7 @@ def stab_types(c):
 
 def ability_stab_types(c):
  values=stab_types(c)
- if tera_active(c) and c.spec['tera_type'] not in values:values.append(c.spec['tera_type'])
+ if tera_active(c) and c.spec['tera_type']!=PERSONAL.TYPELESS and c.spec['tera_type'] not in values:values.append(c.spec['tera_type'])
  return values
 
 def effect_stab_types(c,e):
@@ -71,7 +85,7 @@ def type_change_blocked(c):return tera_active(c)
 
 def damage_bonus(c,move,*,engine=None):
  import tera_shell as TERA_SHELL
- ordinary=10 if tera_active(c) and move.get('type')==c.spec['tera_type'] else 0
+ ordinary=10 if tera_active(c) and c.spec['tera_type']!=PERSONAL.TYPELESS and move.get('type')==c.spec['tera_type'] else 0
  return ordinary+TERA_SHELL.damage_bonus(c,move,engine=engine)
 
 def observe_type(e,c,value,*,reason):
@@ -92,16 +106,17 @@ def observe_active(e,c,active,*,reason):
  if W.actor_index(e).get(W.actor_id(c)) is not c:raise ValueError('actual world actor required')
  chosen=tera_type(c)
  if chosen is None:raise ValueError('permanent Tera choice required before activation')
- if active and (c.fainted or chosen=='스텔라'):raise ValueError('conscious ordinary-type Pokemon required; Stellar imitation uses Stellar Blast state')
+ if active and c.fainted:raise ValueError('conscious Pokemon required for active Terastal')
  old=deepcopy(c.spec.get(KEY))
  if active and tera_active(c):return deepcopy(old)
  if not active:
   if old is not None:end_active(c,reason=reason)
   return deepcopy(c.spec.get(KEY))
- row={'source':SOURCE,'active':True,'tera_type':chosen,'original_stab_types':list(c.types),'activated_at':e.elapsed_seconds,'origin':{'source':'gm/observation','reason':reason,'activation_legality_certified':False},'ended_reason':None}
+ source=_source(c,chosen)
+ row={'source':source,'active':True,'tera_type':chosen,'original_stab_types':list(c.types),'activated_at':e.elapsed_seconds,'origin':{'source':'gm/observation','reason':reason,'activation_legality_certified':False},'ended_reason':None}
  _validate_record(c,row,chosen)
  import state_episodes as EPISODES
- row['episode_id']=EPISODES.start(c,family='terastal',source=SOURCE,native_ref={'field':KEY,'activated_at':e.elapsed_seconds})
+ row['episode_id']=EPISODES.start(c,family='terastal',source=source,native_ref={'field':KEY,'activated_at':e.elapsed_seconds})
  c.spec[KEY]=row
  e.gm._rec('active Terastal state',old,row,reason,c)
  return deepcopy(row)
@@ -116,7 +131,7 @@ def end_active(c,*,reason,episode_id=None):
  if not row.get('active'):return
  identity=row.get('episode_id')
  if identity is None:
-  identity=EPISODES.start(c,family='terastal',source=SOURCE,native_ref={'field':KEY,'activated_at':row['activated_at']})
+  identity=EPISODES.start(c,family='terastal',source=row['source'],native_ref={'field':KEY,'activated_at':row['activated_at']})
   row['episode_id']=identity
  EPISODES.require(c,identity,family='terastal')
  def cleanup():row.update(active=False,ended_reason=reason)

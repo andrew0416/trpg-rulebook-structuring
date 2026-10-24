@@ -91,7 +91,7 @@ class DigitalProgramTests(unittest.TestCase):
  def test_data_snare_redirects_intrusion_to_real_integrity_and_is_recognized_per_user(self):
   snare=self.snare();core=self.node();physical=(self.a.hp,self.t.hp)
   self.assertEqual((snare['integrity'],snare['max_integrity'],snare['defense'],snare['evasion']),(50,50,0,0))
-  out=self.intrude();self.assertTrue(out['false_core_revealed']);self.assertEqual(snare['integrity'],26)
+  out=self.intrude();self.assertTrue(out['false_core_revealed']);self.assertEqual(snare['integrity'],50);self.assertEqual(self.e._physical_objects['avatar']['integrity'],16)
   self.assertEqual(snare['data_state'],'not_applicable');self.assertEqual(core['data_state'],'intact')
   self.assertNotIn('snare',getattr(self.e,I.FIELD)['data_permissions'])
   self.assertEqual(D.known_data_snares(self.e,self.a,'avatar'),{'snare':'snare/intrude'})
@@ -102,9 +102,10 @@ class DigitalProgramTests(unittest.TestCase):
   self.assertEqual(before,self.snap())
   self.e.end_of_turn(self.a);self.e.start_of_turn(self.t)
   self.intrude(operator=self.t,avatar='target-avatar',request='target/snare-intrude')
-  self.assertEqual(snare['integrity'],2)
-  self.next_turn();damage=self.run_effect(self.policy(1),target='snare',request='ordinary/snare-destruction')
-  self.assertEqual(damage['requested'],20);self.assertEqual(damage['derivation']['reduction'],0)
+  self.assertEqual(snare['integrity'],50);self.assertEqual(self.e._physical_objects['target-avatar']['integrity'],16)
+  self.next_turn();value=self.policy(1);value['effect']['amount']['value']=50
+  damage=self.run_effect(value,target='snare',request='ordinary/snare-destruction')
+  self.assertEqual(damage['requested'],50);self.assertEqual(damage['derivation']['reduction'],0)
   self.assertEqual((snare['integrity'],snare['status']),(0,'disabled'));self.assertEqual(physical,(self.a.hp,self.t.hp))
   self.assertEqual(core['data_state'],'intact')
  def test_false_core_recognition_survives_json_and_gm_restore_without_real_data_permission(self):
@@ -115,7 +116,7 @@ class DigitalProgramTests(unittest.TestCase):
   for e in (self.e,restored):
    a=W.actor_index(e)[self.a.entity_id]
    self.assertEqual(D.known_data_snares(e,a,'avatar'),{'snare':'snare/intrude'})
-   self.assertEqual(e._physical_objects['snare']['integrity'],26)
+   self.assertEqual(e._physical_objects['snare']['integrity'],50);self.assertEqual(e._physical_objects['avatar']['integrity'],16)
    self.assertNotIn('snare',getattr(e,I.FIELD)['data_permissions'])
   before=self.snap()
   with self.assertRaisesRegex(ValueError,'cannot reset'):self.snare()
@@ -127,7 +128,7 @@ class DigitalProgramTests(unittest.TestCase):
   self.assertEqual(before,self.snap());self.snare();row=deepcopy(self.e._physical_objects['snare']);row['integrity']=20
   S.observe(self.e,row,reason='actual prior packet damage');before=self.snap()
   with patch.object(I,'_node_end',side_effect=RuntimeError('late false-core destruction')):
-   with self.assertRaisesRegex(RuntimeError,'late false-core'):self.intrude()
+   with self.assertRaisesRegex(RuntimeError,'late false-core'):self.run_effect(self.policy(1),target='snare',request='ordinary/late-destruction')
   self.assertEqual(before,self.snap());self.assertEqual(D.known_data_snares(self.e,self.a,'avatar'),{})
  def test_false_core_cannot_claim_real_data_or_forged_recognition_in_saved_state(self):
   self.snare();row=deepcopy(self.e._physical_objects['snare']);row['data_state']='intact';before=self.snap()

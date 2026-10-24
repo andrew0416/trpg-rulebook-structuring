@@ -239,12 +239,13 @@ def _friendship_pool(e,trainer,pokemon,options,count):
  M.validate_source(e.r);ENVIRONMENT.ensure_clear(e)
  if pokemon.dead or pokemon.fainted:raise ValueError('conscious Pokemon performer required')
  skill='매력';context=options.get('skill_context')
+ shared_skill_context=BLESSINGS.ADVANCED.shared_context(context)
  BLESSINGS.validate_sleep_check(e,pokemon,skill,context)
  e.r.mech('gameplay/skill-check');AP_ROLL.bonus(e,pokemon,options.get('roll_id'),'skill')
  mods=options.get('mods',0);helper=options.get('helper_rank',0);penalty_count=options.get('penalty_count',0)
  C.validate_request(1,mods,helper,penalty_count,options.get('helper_bonus'))
  resolved=SKILL.modifiers(e.r,pokemon,skill,mods)
- for additions in (SURVIVALIST.modifier(e,pokemon,skill,context),ELEMENTAL.modifier(e,pokemon,skill,options.get('skill_target')),BLESSINGS.modifiers(e,pokemon,skill,context)):
+ for additions in (SURVIVALIST.modifier(e,pokemon,skill,shared_skill_context),ELEMENTAL.modifier(e,pokemon,skill,options.get('skill_target')),BLESSINGS.modifiers(e,pokemon,skill,context)):
   resolved['modifier']+=sum(row[1] for row in additions);resolved['sources']+=additions
  base_count=count
  # Skill Trainer modifies the final replacement pool, not an unused ordinary

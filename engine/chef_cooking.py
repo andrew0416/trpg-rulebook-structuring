@@ -108,8 +108,25 @@ def definitions(rules):
     for uid in (CLASS, *data['features']):
         if rules._selected_rule(uid) != uid:
             raise ValueError('selected Chef feature needs its own policy: ' + uid)
+    prohibition = data['dumplings']['nested_dumplings_prohibition']
+    if rules.ruleset.allows(prohibition)[0]:
+        source = prohibition['source']
+        if hashlib.sha256((root / source['file']).read_bytes()).hexdigest() != source['sha256']:
+            raise ValueError('Dumplings errata source changed')
     _VERIFIED.add(key)
     return data
+
+
+def _nested_dumplings_allowed(rules):
+    rule = definitions(rules)['dumplings']
+    return rule['nested_dumplings'] and not rules.ruleset.allows(rule['nested_dumplings_prohibition'])[0]
+
+
+def _composite_parts(parts):
+    """Keep the two actual ingredients in the batch; consumers receive their leaf effects once."""
+    return [deepcopy(leaf) for part in parts for leaf in
+            (part['effect']['components'] if part['effect']['kind'] == 'chef_composite'
+             else [{'item': part['item'], 'effect': part['effect']}])]
 
 
 # ---------- acquisition (shared static receipts) ----------
@@ -249,7 +266,7 @@ def _expected_payload(rules, row):
     if kind == 'preserves':
         return FOOD.snack_effect(rules, row['origin_item'])
     if kind == 'dumplings':
-        return {'kind': 'chef_composite', 'components': [{'item': part['item'], 'effect': FOOD.snack_effect(rules, part['item'])} for part in row['components']]}
+        return {'kind': 'chef_composite', 'components': _composite_parts(row['components'])}
     return None
 
 
@@ -290,6 +307,20 @@ def _validate_batch(actor, batch_id, row):
             if type(parts) is not list or len(parts) != 2 or parts[0]['item'] != item_id:
                 raise ValueError('Dumplings batch needs its two components')
             _validate_components(actor.r, parts)
+            for index, part in enumerate(parts):
+                if part['batch_kind'] != 'dumplings':
+                    continue
+                origin = part['ingredient']
+                if type(origin) is not dict or set(origin) != {'kind', 'batch_id', 'taste'} or origin['kind'] != 'batch':
+                    raise ValueError('nested Dumplings needs its actual ingredient batch')
+                parent = batches(actor).get(origin['batch_id'])
+                debits = row.get('ingredients')
+                if (parent is None or parent is row or parent['kind'] != 'dumplings'
+                        or parent['created_at'] >= row['created_at'] or parent['item_id'] != part['item']
+                        or parent['payload'] != part['effect'] or parent['taste'] != origin['taste']
+                        or type(debits) is not list or len(debits) != 2
+                        or debits[index] != {'kind': 'batch', 'batch_id': parent['id']}):
+                    raise ValueError('nested Dumplings ingredient provenance changed')
         if row['payload'] != _expected_payload(actor.r, row):
             raise ValueError('Chef batch payload differs from its source effect')
     _validate_taste(actor.r, row['taste'], kind=row['kind'], item_id=item_id)
@@ -303,11 +334,16 @@ def _validate_components(rules, parts):
     for part in parts:
         if type(part) is not dict or set(part) != {'item', 'effect', 'ingredient', 'batch_kind'}:
             raise ValueError('typed Dumplings component required')
-        if part['batch_kind'] not in ('leftovers', 'preserves', 'tasty_snack', 'inventory_leftovers'):
+        if part['batch_kind'] not in ('leftovers', 'preserves', 'tasty_snack', 'inventory_leftovers', 'dumplings'):
             raise ValueError('Dumplings component kind changed')
-        effect = FOOD.snack_effect(rules, part['item'])
-        if effect is None or part['effect'] != effect or effect['kind'] not in data['dumplings']['composite_component_kinds']:
-            raise ValueError('Dumplings component effect differs from its source')
+        if part['batch_kind'] == 'dumplings':
+            if not _nested_dumplings_allowed(rules):
+                raise ValueError('Dumplings cannot be mixed from another Dumplings under the selected errata')
+            validate_composite(rules, {'item': part['item'], 'effect': part['effect'], 'effect_source': DUMPLINGS})
+        else:
+            effect = FOOD.snack_effect(rules, part['item'])
+            if effect is None or part['effect'] != effect or effect['kind'] not in data['dumplings']['composite_component_kinds']:
+                raise ValueError('Dumplings component effect differs from its source')
         identity = (part['batch_kind'] if part['batch_kind'] != 'inventory_leftovers' else 'leftovers', part['item'])
         if identity in seen:
             raise ValueError('the two Dumplings ingredients must be different items')
@@ -555,17 +591,17 @@ def _ingredient(e, actor, selection, allowed, label):
     batch = _batch(actor, selection['batch_id'])
     _validate_batch(actor, batch['id'], batch)
     kind = batch['kind']
-    if kind == 'dumplings':
-        raise ValueError(label + ': Dumplings cannot be mixed from another Dumplings')
+    if kind == 'dumplings' and not _nested_dumplings_allowed(e.r):
+        raise ValueError(label + ': Dumplings cannot be mixed from another Dumplings under the selected errata')
     if kind == 'hearty_meal':
         raise ValueError(label + ': Hearty Meals are not a Snack ingredient')
-    bucket = 'chef_snack' if kind in ('tasty_snack',) else kind
+    bucket = 'chef_snack' if kind in ('tasty_snack', 'dumplings') else kind
     if bucket not in allowed:
         raise ValueError(label + ': ' + ', '.join(allowed) + ' required')
     if batch['count'] < 1:
         raise ValueError(label + ': the selected Chef batch is exhausted')
     effect = batch['payload']
-    if effect['kind'] not in data['dumplings']['composite_component_kinds']:
+    if kind != 'dumplings' and effect['kind'] not in data['dumplings']['composite_component_kinds']:
         raise ValueError(label + ': this ingredient effect needs its source-specific composite consumer: ' + effect['kind'])
     return ({'item': batch['item_id'], 'effect': deepcopy(effect), 'ingredient': {'kind': 'batch', 'batch_id': batch['id'], 'taste': deepcopy(batch['taste'])}, 'batch_kind': kind},
             {'kind': 'batch', 'batch_id': batch['id']})
@@ -589,9 +625,10 @@ def _mix_dumplings(e, actor, *, ingredient_1, ingredient_2, minutes, reason, tas
     _validate_components(e.r, [first, second])
     if debit_1 == debit_2:
         raise ValueError('the two Dumplings ingredients must be different items')
-    triggers = [part['effect']['kind'] for part in (first, second) if part['effect']['kind'] in TRIGGER_KINDS]
+    effects = _composite_parts((first, second))
+    triggers = [part['effect']['kind'] for part in effects if part['effect']['kind'] in TRIGGER_KINDS]
     if len(triggers) > 1:
-        signature = {(part['effect']['kind'], part['effect'].get('trigger'), part['effect'].get('move_type')) for part in (first, second) if part['effect']['kind'] in TRIGGER_KINDS}
+        signature = {(part['effect']['kind'], part['effect'].get('trigger'), part['effect'].get('move_type')) for part in effects if part['effect']['kind'] in TRIGGER_KINDS}
         if len(signature) > 1:
             raise ValueError('Dumplings with two different trigger-bound ingredient effects need a GM trade-in policy before mixing')
     materials = []
@@ -607,7 +644,7 @@ def _mix_dumplings(e, actor, *, ingredient_1, ingredient_2, minutes, reason, tas
     for debit in (debit_1, debit_2):
         if debit['kind'] == 'batch':
             payments.append(dict(_take_batch_unit(e, actor, debit['batch_id'], reason='Dumplings ingredient'), group='ingredient'))
-    payload = {'kind': 'chef_composite', 'components': [{'item': first['item'], 'effect': deepcopy(first['effect'])}, {'item': second['item'], 'effect': deepcopy(second['effect'])}]}
+    payload = {'kind': 'chef_composite', 'components': effects}
     batch = _store_batch(e, actor, kind='dumplings', recipe=DUMPLINGS, item_id=first['item'], units=1, taste=assignment, payload=payload,
                          components=[first, second], ingredients=[debit_1, debit_2])
     result = _result(e, actor, recipe=DUMPLINGS, plan=plan, payments=payments, job=job, batch=batch)
@@ -766,8 +803,10 @@ def serve(e, actor, *, batch_id, target=None, minutes=None, reason=None, accepte
 def composite_expected(rules, buff):
     import food_effects as FOOD
     effect = buff.get('effect')
-    if type(effect) is not dict or effect.get('kind') != 'chef_composite' or type(effect.get('components')) is not list or len(effect['components']) != 2:
-        raise ValueError('Dumplings Digestion Buff needs its two components')
+    if type(effect) is not dict or effect.get('kind') != 'chef_composite' or type(effect.get('components')) is not list or len(effect['components']) < 2:
+        raise ValueError('Dumplings Digestion Buff needs its ingredient effects')
+    if len(effect['components']) > 2 and not _nested_dumplings_allowed(rules):
+        raise ValueError('Dumplings cannot be mixed from another Dumplings under the selected errata')
     return {'kind': 'chef_composite', 'components': [{'item': part['item'], 'effect': FOOD.snack_effect(rules, part['item'])} for part in effect['components']]}
 
 
@@ -863,8 +902,15 @@ def _ruling(engine):
     return answer
 
 
-def taste_bonus_preflight(engine, actor, buff):
+def taste_bonus_preflight(engine, actor, buff, *, temporary_hp_grants=None, temporary_hp_plan=None):
     plan = bonus_plan(engine, actor, buff)
+    if temporary_hp_grants is not None:
+        import temporary_hp as TEMP_HP
+        grants = list(temporary_hp_grants)
+        if plan is not None and plan['kind'] == 'temporary_hp':
+            grants.append((plan['value'], 'chef_taste'))
+        if grants:
+            TEMP_HP.preflight_food_grants(engine, actor, grants, plan=temporary_hp_plan)
     if plan is None or plan['kind'] == 'temporary_hp':
         return None
     if _ruling(engine) is None:
@@ -881,8 +927,12 @@ def apply_taste_bonus(engine, actor, buff, receipt):
     provenance = {'source': ACCENTUATED, 'taste': plan['taste'], 'buff_id': buff['id'], 'receipt_sequence': receipt['sequence'], 'item': buff.get('item')}
     if plan['kind'] == 'temporary_hp':
         import temporary_hp as TEMP_HP
-        gained = TEMP_HP.grant(engine, actor, plan['value'], stack=True, provenance=provenance)
+        gained = TEMP_HP.grant(engine, actor, plan['value'], stack=True, provenance=provenance,
+                               contribution_source=TEMP_HP.food_source(actor, 'chef_taste', receipt))
         result = {'kind': 'temporary_hp', 'taste': plan['taste'], 'disposition': plan['disposition'], 'value': plan['value'], 'gained': gained, 'stack': True}
+        blocked = TEMP_HP.blocked_reason(actor)
+        if blocked is not None:
+            result['blocked_reason'] = blocked
     else:
         boundary = _ruling(engine)
         if boundary is None:

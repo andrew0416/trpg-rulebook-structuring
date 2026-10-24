@@ -1,8 +1,8 @@
 """C09-087: actual expert burn, native Focus, source-owned five-minute loss.
 
-English p302 supplies <= and both-required eligibility; Korean source remains
-unchanged. No action cost is stated. This boundary records an identified GM
-observation of the real burn, then resumes the same native compound checks.
+Korean and English eligibility/tie rules are complete selectable definitions.
+No action cost is stated. This boundary records an identified GM observation
+of the real burn, then resumes the same native compound checks and policy.
 """
 from copy import deepcopy
 import cleanse_tags as TAG
@@ -20,15 +20,84 @@ DURATION=300
 INVISIBLE=('투명','Invisibility')
 PHASING=('Phasing','통과','페이징')
 LOST=list(INVISIBLE+PHASING)
+# Actual pre-selection receipts used this English policy. Keep their schema,
+# policy and compound-check basis unchanged; do not invent a past GM decision.
 POLICY={'eligibility':'both_required','focus':'not_exceed_power','active_invisibility':'end_and_native_cooldown'}
+
+
+def _policies(rules):
+    import json
+    from pathlib import Path
+    from source_context import verified_source
+    TAG.definition(rules)
+    value=json.loads((Path(rules.root)/'data/cleanse-tag-burn-policy.json').read_text(encoding='utf-8'))
+    if value.get('schema_version')!=1 or value.get('source')!=TAG.ITEM or value.get('clause')!=CLAUSE:
+        raise ValueError('known Cleanse Tag burn policy required')
+    verified_source(rules,value['source_reference'],label='Cleanse Tag burn')
+    for definition in value['definitions'].values():
+        reference=definition['source']
+        verified_source(rules,reference,label='Cleanse Tag burn definition',
+                        source_root='source-audit' if reference['file'].startswith('source-audit/') else 'input')
+    return value
+
+
+def _document(value):
+    return {'schema':1,'id':'native/cleanse-tag-burn','variants':[{
+        'rule_id':TAG.ITEM,'source':value['source_reference'],
+        'values':{'variant':{'$input':'source_text'},'definitions':value['definitions']},
+        'inputs':{'source_text':{'type':'string','authority':'gm','decision_kind':'source_conflict',
+            'choices':list(value['definitions']),
+            'question':'Cleanse Tag burn: Korean targets either capability with Focus < Power; English requires both with Focus <= Power. Which complete definition applies?'}}}]}
+
+
+def source_choices(engine):
+    import source_policy as SOURCE
+    return SOURCE.resolve(engine.r,_document(_policies(engine.r)))
+
+
+def _selected_policy(engine,choice):
+    import source_policy as SOURCE
+    value=_policies(engine.r);variant=value['default']
+    if choice is not None:
+        result=SOURCE.resolve(engine.r,_document(value),decisions={'source_text':choice})
+        if result['status']!='PolicyValuesReady':raise ValueError('actual Cleanse Tag source decision required')
+        variant=result['values']['variant']
+    return variant,deepcopy(value['definitions'][variant]['policy'])
+
+
+def _recorded_policy(engine,row):
+    if 'policy_variant' not in row:
+        if row['policy']!=POLICY:raise ValueError('original historical English burn policy required')
+        return row['policy']
+    value=_policies(engine.r);variant=row['policy_variant'];choice=row['source_choice']
+    if variant not in value['definitions'] or row['policy']!=value['definitions'][variant]['policy']:
+        raise ValueError('original complete Cleanse Tag definition required')
+    if choice is None:
+        if variant!=value['default']:raise ValueError('nondefault burn needs its actual source decision')
+    else:
+        # The producing decision is history, not permission for another burn.
+        # Current profile changes require a new choice only for future burns.
+        scope=source_choices(engine)['decision_scope']
+        if (type(choice)is not dict or set(choice)!={'value','reason','scope'}
+            or choice['value']!=variant or type(choice['scope'])is not dict
+            or set(choice['scope'])!=set(scope)
+            or any(choice['scope'][key]!=scope[key] for key in scope if key!='profile_hash')):
+            raise ValueError('original scoped Cleanse Tag source decision required')
+        TAG._text(choice['reason']);TAG._text(choice['scope']['profile_hash'])
+    return row['policy']
 
 
 def _names(values):return {S.key(value.removeprefix('capability/')) for value in values}
 
 
-def _eligible(values):
+def _eligible(values,policy):
     names=_names(values)
-    return bool(names&_names(INVISIBLE)) and bool(names&_names(PHASING))
+    invisible=bool(names&_names(INVISIBLE));phasing=bool(names&_names(PHASING))
+    return (invisible or phasing) if policy['eligibility']=='either_capability' else invisible and phasing
+
+
+def _lost(total,power,policy):
+    return total<power if policy['focus']=='below_power' else total<=power
 
 
 def _range(engine,actor,target,reach):
@@ -73,7 +142,7 @@ def _access(engine,actor,obj):
         if distance is None or distance>1:raise ValueError('actual tag must be within physical reach of the burner')
 
 
-def burn(engine,actor,instance_id,*,event_id,reason,checks=None):
+def burn(engine,actor,instance_id,*,event_id,reason,checks=None,source_choice=None):
     """Observe one actual burn; checks maps every eligible actor ID to options.
 
     Validate every initial declaration before the real tag is destroyed or dice
@@ -91,8 +160,11 @@ def burn(engine,actor,instance_id,*,event_id,reason,checks=None):
         if old['event_id']!=event_id or old['actor_id']!=actor.entity_id or old['reason']!=reason:
             raise ValueError('resume the same observed Cleanse Tag burn')
         if old['status']!='pending':raise ValueError('same tag has already been burned')
+        if source_choice is not None and source_choice!=old.get('source_choice'):
+            raise ValueError('resume the original producing Cleanse Tag policy')
         targets=[W.actor_index(engine)[uid] for uid in old['targets']]
     else:
+        variant,policy=_selected_policy(engine,source_choice)
         TAG.level(engine,instance_id);_access(engine,actor,obj)
         rank=S.effective_rank(engine.r,actor,'오컬트학')
         if rank<5:raise ValueError('current Expert Occult Education required')
@@ -102,7 +174,7 @@ def burn(engine,actor,instance_id,*,event_id,reason,checks=None):
         for c in W.actor_index(engine).values():
             if c.kind not in ('trainer','pokemon'):continue
             values=G.effective_capabilities(c)
-            if _eligible(values) and _range(engine,actor,c,30):targets.append(c)
+            if _eligible(values,policy) and _range(engine,actor,c,30):targets.append(c)
         targets.sort(key=lambda c:c.entity_id)
     checks={} if checks is None else checks
     if type(checks)is not dict:raise ValueError('per-actor native Focus declarations required')
@@ -121,7 +193,8 @@ def burn(engine,actor,instance_id,*,event_id,reason,checks=None):
     if old is None:
         token=TAG._hash([TAG.ITEM,CLAUSE,instance_id,event_id])
         row=dict(source=TAG.ITEM,clause=CLAUSE,instance_id=instance_id,event_id=event_id,
-            actor_id=actor.entity_id,reason=reason,rank_at_burn=rank,policy=deepcopy(POLICY),
+            actor_id=actor.entity_id,reason=reason,rank_at_burn=rank,policy=deepcopy(policy),
+            policy_variant=variant,source_choice=deepcopy(source_choice),
             original=deepcopy(obj[TAG.PROFILE]),power=obj[TAG.PROFILE]['level'],
             sequence_id='cleanse-burn:'+token,status='pending',burned_at=engine.elapsed_seconds,
             resolved_at=None,resolved_unknown_index=None,targets={c.entity_id:dict(kind=c.kind,location=deepcopy(W.location_of(c)),
@@ -145,7 +218,7 @@ def burn(engine,actor,instance_id,*,event_id,reason,checks=None):
         def apply(e,user,*subjects):
             row=e._physical_objects[instance_id][KEY];index=W.actor_index(e)
             for uid,roll in zip(row['targets'],rolls):
-                c=index[uid];lost=roll.total<=row['power']
+                c=index[uid];lost=_lost(roll.total,row['power'],row['policy'])
                 row['targets'][uid]['result']=dict(total=roll.total,lost=lost)
                 if lost:
                     INVISIBILITY.force_end(e,c,reason='actual Cleanse Tag burn '+event_id)
@@ -185,11 +258,13 @@ def validate_world(engine,index=None):
         row=obj.get(KEY)
         if row is None:continue
         TAG.definition(engine.r);TAG._verified(row)
-        if set(row)!={'source','clause','instance_id','event_id','actor_id','reason','rank_at_burn','policy','original','power','sequence_id','status','burned_at','resolved_at','resolved_unknown_index','targets','sha256'}:
+        fields={'source','clause','instance_id','event_id','actor_id','reason','rank_at_burn','policy','original','power','sequence_id','status','burned_at','resolved_at','resolved_unknown_index','targets','sha256'}
+        if set(row) not in (fields,fields|{'policy_variant','source_choice'}):
             raise ValueError('original Cleanse burn receipt fields required')
-        if (row['source'],row['clause'],row['instance_id'],row['policy'],row['original'],row['power'])!=(TAG.ITEM,CLAUSE,uid,POLICY,obj.get(TAG.PROFILE),obj.get(TAG.PROFILE,{}).get('level')):
+        policy=_recorded_policy(engine,row)
+        if (row['source'],row['clause'],row['instance_id'],row['original'],row['power'])!=(TAG.ITEM,CLAUSE,uid,obj.get(TAG.PROFILE),obj.get(TAG.PROFILE,{}).get('level')):
             raise ValueError('Cleanse burn original source or Power changed')
-        TAG._text(row['event_id']);TAG._text(row['reason']);C.integer(row['rank_at_burn'],'historical expert rank',5,6)
+        TAG._text(row['event_id']);TAG._text(row['reason']);C.integer(row['rank_at_burn'],'historical expert rank',5)
         if row['event_id'] in events or row['actor_id'] not in index:raise ValueError('one actual burn event and user required')
         events.add(row['event_id'])
         expected_sequence='cleanse-burn:'+TAG._hash([TAG.ITEM,CLAUSE,uid,row['event_id']])
@@ -205,7 +280,7 @@ def validate_world(engine,index=None):
         requests=[]
         for actor_id,target in row['targets'].items():
             c=index.get(actor_id)
-            if c is None or target['kind'] not in ('trainer','pokemon') or not _eligible(target['capabilities']):raise ValueError('original both-capability target required')
+            if c is None or target['kind'] not in ('trainer','pokemon') or not _eligible(target['capabilities'],policy):raise ValueError('original policy-eligible capability target required')
             if set(target)-{'kind','location','capabilities','skill_options','result','elapsed_observations'}:raise ValueError('original Focus target fields required')
             options=target['skill_options'];expected=_options(uid,row['event_id'],c,{k:v for k,v in options.items() if k!='roll_id'})
             if options!=expected:raise ValueError('original native Focus identity changed')
@@ -218,7 +293,7 @@ def validate_world(engine,index=None):
             if row['status']=='pending':
                 if target['result']is not None or loss is not None:raise ValueError('unfinished Focus cannot own a result or loss')
                 continue
-            if event is None or event.state!='final' or target['result']!=dict(total=event.final.total,lost=event.final.total<=row['power']):
+            if event is None or event.state!='final' or target['result']!=dict(total=event.final.total,lost=_lost(event.final.total,row['power'],policy)):
                 raise ValueError('Cleanse burn result differs from actual native Focus')
             if not target['result']['lost']:
                 if loss is not None:raise ValueError('successful Focus cannot own capability loss')

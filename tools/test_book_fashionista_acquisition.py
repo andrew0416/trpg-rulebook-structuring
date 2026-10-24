@@ -58,6 +58,8 @@ class FashionistaAcquisitionTests(unittest.TestCase):
         self.e.gm.add_combatant(actor, pos=pos, side=extra.get('side', 'party'),
             reason='actual Fashionista scene participant')
         prepare_body(self.e, actor, size='중형', offsets=[(0, 0)], reason='observed complete body')
+        if hasattr(self,'t') and actor.spec.get('trainer_id')==self.t.entity_id:
+            self.e.gm.observe_sensory_environment(self.t,actor,paths={'auditory':True},present=True,reason='actual Dress Order delivery')
         return actor
 
     def acquire(self, feature=None, actor=None):
@@ -158,9 +160,10 @@ class FashionistaAcquisitionTests(unittest.TestCase):
         self.assertEqual(FA.chosen_skills(self.t), ['매력', '직감'])
         for feature in (FA.MAKEOVER, FA.STYLE, FA.ACCESSORIZE, FA.PARFUMIER, FA.WARDROBE, FA.DRESS):
             self.assertIsNone(FA.acquired(self.t, feature))
-        # The class alone permits the three Contest Trends recipes; the Basic Fashion rows are homebrew-excluded under core.
+        # Core includes the printed Basic Fashion items for the two chosen skills.
         self.assertEqual(FA.craftable(self.e, self.t),
-            ['fashionista/contest-accessory', 'fashionista/contest-fashion', 'fashionista/fancy-clothes'])
+            ['fashionista/contest-accessory', 'fashionista/contest-fashion', 'fashionista/fancy-clothes',
+             'fashionista/basic-fashion-charm', 'fashionista/basic-fashion-intuition'])
         self.restore()
         self.valid()
         self.assertEqual(FA.chosen_skills(self.t), ['매력', '직감'])
@@ -234,7 +237,7 @@ class FashionistaAcquisitionTests(unittest.TestCase):
         self.acquire()
         self.rejected(lambda:self.craft('fashionista/practical-winter-cloak'), 'requirements are not met')
         self.rejected(lambda:self.craft('fashionista/incense-lax'), 'requirements are not met')
-        self.rejected(lambda:self.craft('fashionista/basic-fashion-charm'), 'requirements are not met')
+        self.rejected(lambda:self.craft('fashionista/basic-fashion-command'), 'requirements are not met')
         self.rejected(lambda:self.craft('fashionista/unknown'), 'printed Fashionista recipe')
         self.rejected(lambda:FA.craft(self.e, self.t, 'fashionista/contest-accessory', seconds=0, reason='x'), 'seconds')
         self.rejected(lambda:self.craft('fashionista/contest-accessory', incense_move='달콤한향기'), 'only a Parfumier')

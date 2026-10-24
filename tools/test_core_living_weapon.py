@@ -8,7 +8,7 @@ STAGE=Path(__file__).resolve().parents[1]
 ROOT=Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
 sys.path[:0]=[str(STAGE/'engine'),str(ROOT/'engine')]
 from engine import Engine,Rules,Combatant
-from builder import build_pokemon
+from builder import build_pokemon,build_trainer
 from grid import Grid
 import living_weapon as L
 import weapon_actions as WEAPONS
@@ -23,7 +23,7 @@ class CoreLivingWeaponTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.r=Rules(ROOT,ruleset='core')
 
-    def fixture(self,species='단칼빙',rank=6,*,abilities=(),holder_abilities=(),rules=None):
+    def fixture(self,species='단칼빙',rank=6,*,abilities=(),holder_abilities=(),rules=None,trainer_holder=False):
         rules=rules or self.r
         e=Engine(rules,seed=71079);e.grid=Grid(25,15)
         actors=[]
@@ -32,6 +32,10 @@ class CoreLivingWeaponTests(unittest.TestCase):
                 moves=['move/몸통박치기'],abilities=list(abilities if n==1 else holder_abilities if n==0 else ()),
                 wild=True,pos=(2+n,2),extra={'size':'소형','skills':{'전투':rank,'집중':6},
                     'movement':{'land':6 if n==0 else 2,'power':3},'movement_basis':'current'})
+            if n==0 and trainer_holder:
+                spec=build_trainer(rules,'holder',40,dict.fromkeys(('hp','atk','def','spa','spd','spe'),30),
+                    moves=['move/몸통박치기'],skills={'전투':rank,'집중':6},abilities=list(holder_abilities),
+                    pos=(2,2),extra={'size':'소형','movement':{'land':6,'power':3},'movement_basis':'current'})
             c=Combatant(rules,spec);c.side='party' if n<2 else 'wild';actors.append(c)
         e.everyone=e.gm.everyone=actors
         return e,*actors
@@ -61,7 +65,7 @@ class CoreLivingWeaponTests(unittest.TestCase):
         self.valid(e)
 
     def test_species_shapes_hand_occupancy_consent_and_native_rank_matrix(self):
-        for name,count,grade,evasion in (('단칼빙',1,'간단',0),('쌍검킬',2,'간단',2),('킬가르도',1,'좋음',1)):
+        for name,count,grade,evasion in (('단칼빙',1,'간단',0),('쌍검킬',2,'간단',2),('킬가르도',1,'좋음',2)):
             for rank in (3,4,6):
                 with self.subTest(species=name,rank=rank):
                     e,a,p,t=self.fixture(name,rank)
@@ -70,7 +74,7 @@ class CoreLivingWeaponTests(unittest.TestCase):
                     self.assertEqual((a.spec,p.spec,a.moves,p.moves),before)
                     out=e.equip_living_weapon(a,p,consent=True);ledger=a.custom_conditions['equipped_weapons']
                     self.assertEqual(len(ledger),count);self.assertEqual(a.evasion_mod,evasion)
-                    expected=[] if rank==3 else L.PROFILES[name]['moves'][:1 if rank==4 else 2]
+                    expected=[] if rank==3 else L.PROFILES[name]['moves'][:1]
                     self.assertEqual(ledger[out['weapon_keys'][0]]['available_moves'][1:],expected)
                     self.assertTrue(all(row['weapon']['grade']==grade for row in ledger.values()))
                     with self.assertRaisesRegex(ValueError,'already equipped'):e.equip_living_weapon(t,p,consent=True)
@@ -119,14 +123,15 @@ class CoreLivingWeaponTests(unittest.TestCase):
         self.assertEqual(first['distance'],6);self.assertEqual(p.pos,a.pos)
         self.assertEqual(a.budget['shift'],0);self.assertIsNone(getattr(p,'budget',None))
         self.begin(e,p);second=e.approach(p,t)
-        self.assertEqual(second['distance'],6);self.assertEqual(p.pos,a.pos)
-        self.assertEqual(p.budget['shift'],0);self.assertEqual(a.budget['shift'],0)
-        self.assertEqual(a.pos[0],14);self.assertEqual(a.spec['movement']['land'],6)
+        # Retain this scenario ID; EN72 clarifies the previously omitted pool.
+        self.assertEqual(second['distance'],0);self.assertEqual(p.pos,a.pos)
+        self.assertEqual(p.budget['shift'],1);self.assertEqual(a.budget['shift'],0)
+        self.assertEqual(a.pos[0],8);self.assertEqual(a.spec['movement']['land'],6)
         self.assertEqual(p.spec['movement']['land'],2)
         self.valid(e)
 
     def test_live_borrowed_native_moves_use_own_actions_and_frequency_and_detach_preserves_learning(self):
-        e,a,p,t=self.fixture('킬가르도');key=e.equip_living_weapon(a,p,consent=True)['weapon_keys'][0]
+        e,a,p,t=self.fixture('킬가르도',trainer_holder=True);key=e.equip_living_weapon(a,p,consent=True)['weapon_keys'][0]
         self.assertIn('move/출혈',p.moves)
         sid=p.spec[L.KEY]['grant_source'];self.assertEqual(p.spec[G.KEY]['sources'][sid]['move_mode'],'permission')
         e.gm.set_move(p,'move/상처내기',True,reason='independent natural learning overlaps permission')

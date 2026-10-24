@@ -311,7 +311,7 @@ def _derived(engine, observer, gift, rule, target, selection):
 
 def _project(engine, observer, gift, rule, value, target, selection):
     if gift=='gift/위대한-존재의-통찰력':
-        role=_choice(observer,gift,'role',{'메시아','계약자'})
+        role=BLESSINGS.confirmed_insight_role(observer)
         if role=='메시아':return deepcopy(value)
         weakness=None
         if value['weaknesses']:
@@ -340,7 +340,8 @@ def _project(engine, observer, gift, rule, value, target, selection):
 
 def _frequency(observer, gift, rule):
     if rule['frequency']!='variant':return rule['frequency']
-    return '장면' if _choice(observer,gift,'role',{'메시아','계약자'})=='메시아' else None
+    BLESSINGS.confirmed_insight_role(observer)
+    return '장면'
 
 
 def observe(engine, observer, gift, *, target=None, selection=None):
@@ -356,6 +357,7 @@ def observe(engine, observer, gift, *, target=None, selection=None):
     value=_derived(engine,observer,gift,rule,target,selection)
     projected=_project(engine,observer,gift,rule,value,target,selection)
     frequency=_frequency(observer,gift,rule); key='blessing-observation:'+gift
+    ap=1 if gift==BLESSINGS.INSIGHT and BLESSINGS.confirmed_insight_role(observer)=='계약자' else rule['ap']
     active=observer.spec.get(ACTIVE,{}).get(gift)
     reuse=(gift=='gift/메이저-기프트-접속-시각화' and isinstance(active,dict) and active.get('owner_id')==owner_id and
            type(active.get('expires_at')) is int and engine.elapsed_seconds<active['expires_at'])
@@ -372,9 +374,9 @@ def observe(engine, observer, gift, *, target=None, selection=None):
         if staged_projected!=projected:raise ValueError('Blessing information changed during staged execution')
         if frequency and not FREQUENCY.activation_allowed(owner,key,frequency,engine=staged):
             raise ValueError('Blessing observation frequency exhausted')
-        if rule['ap']:
-            if AP.available(owner)<rule['ap']:raise ValueError('Blessing observation AP unavailable')
-            AP.charge(owner,rule['ap'],mode='spend')
+        if ap:
+            if AP.available(owner)<ap:raise ValueError('Blessing observation AP unavailable')
+            AP.charge(owner,ap,mode='spend')
         if rule['action'] and not TURN.spend(staged,owner,rule['action'],gift):
             raise ValueError('Blessing observation action unavailable')
         if gift=='gift/메이저-기프트-꿈의-전조' and not staged.apply_status(owner,'잠듦',source=gift,applied_by=owner):

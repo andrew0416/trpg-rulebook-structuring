@@ -97,7 +97,7 @@ def _raw_abilities(actor):
  return list(dict.fromkeys(result))
 
 
-def _component_projection(actor,values,*,include_suppressed=False,ignored_sources=()):
+def _component_projection(actor,values,*,include_suppressed=False,ignored_sources=(),check_producer=True):
  rules=actor.r;result={};labels={}
  for value in values:
   uid=ability_id(rules,value);labels.setdefault(uid,value);result.setdefault(uid,set()).update(component_ids(rules,uid))
@@ -111,7 +111,7 @@ def _component_projection(actor,values,*,include_suppressed=False,ignored_source
    mode=REACTIVE.operation_mode(rules,source)
    if mode is None:
     import duelist as DUELIST
-    mode=DUELIST.operation_mode(actor,source)
+    mode='replace' if not check_producer and source==DUELIST.MANUAL else DUELIST.operation_mode(actor,source)
    if mode is None:raise ValueError('ability operation requires its reviewed producer')
   else:mode=source_row['mode']
   for uid in op['remove']:
@@ -134,6 +134,15 @@ def project_components(actor,values=None,*,include_suppressed=False,ignored_sour
 
 def project(actor,values,*,include_suppressed=False,ignored_sources=()):
  projected,labels=_component_projection(actor,values,include_suppressed=include_suppressed,ignored_sources=ignored_sources)
+ return [labels[uid] for uid in projected]
+
+
+def owned_from_spec(rules,spec):
+ """Read possession for slot/receipt checks; live producers validate their own receipts."""
+ from types import SimpleNamespace
+ import move_state as M
+ actor=SimpleNamespace(r=rules,spec=spec)
+ projected,labels=_component_projection(actor,M.effective_list(spec,'abilities'),include_suppressed=True,check_producer=False)
  return [labels[uid] for uid in projected]
 
 
@@ -279,6 +288,11 @@ def activate(engine,actor,name,target):
  return G.transition(engine,actor,staged,participants=(target,))
 
 def end(engine,actor,event):
+ # Transform explicitly restores the prior Move List at these native boundaries.
+ if event in ('recall','faint','encounter'):
+  for sid,row in list(actor.spec.get(G.KEY,{}).get('sources',{}).items()):
+   if row.get('rule_id')=='move/변신' and sid in actor.spec.get(G.KEY,{}).get('overlays',{}):
+    G.revoke(actor,sid,engine=engine)
  for record in list(TIME.records(actor)):
   if TAG in record and event in record['ends']:TIME.expire(engine,actor,record)
  import reactive_ability_events as REACTIVE

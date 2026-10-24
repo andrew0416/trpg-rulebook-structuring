@@ -110,6 +110,7 @@ class SceneFeatureAbilityGrantTests(unittest.TestCase):
 
     def open_style_priority(self, engine, trainer, target):
         engine.start_round(engine.everyone)
+        engine.at_initiative_count(30)
         engine.gm.observe_sensory_environment(
             trainer, target, paths={"auditory": True}, present=True,
             reason="observed audible Style Entrainment path",

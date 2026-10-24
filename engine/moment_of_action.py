@@ -120,11 +120,12 @@ def use(engine,actor,targets,*,funding,allies,communication=None):
         E.text(fact['reason'],'allied relationship reason')
         if actor.side and target.side and actor.side!=target.side:raise ValueError('actual opposing sides are not allies')
         AP.policy(funding[target.entity_id])
+    import order_actions as ORDERS
     if engine.encounter_active:
-        P.preflight(engine,actor,action='standard',source=FEATURE);T.current(engine)
+        ORDERS.preflight(engine,actor,FEATURE);T.current(engine)
     def apply(e,owner,*recipients):
         import turn as TURN,action_lifecycle as ACTION,body_modes as BODY,effect_lifetimes as LIFE
-        if e.encounter_active:
+        if ORDERS.priority(e,owner,FEATURE):
             ACTION.ensure_resolutions_clear(e)
             if not TURN.can_act(e,owner) or not ACTION.status_permission(e,owner,'standard') or not BODY.permits(owner,'standard') or LIFE.forbids(owner,'priority'):
                 raise ValueError('actual Standard Priority action permission required')
@@ -135,7 +136,7 @@ def use(engine,actor,targets,*,funding,allies,communication=None):
             request,result=_communication(e,owner,target,use_id,None if communication is None else communication[target.entity_id])
             deliveries[target.entity_id]={'request_id':request,'result':result}
         group={'status':'delivered','recipients':deepcopy(deliveries)}
-        if e.encounter_active:
+        if ORDERS.priority(e,owner,FEATURE):
             payment={'kind':'priority_limited','receipt_id':P.reserve(e,owner,action='standard',source=FEATURE,subject=use_id,communication=group)['id']}
         else:
             if not TURN.spend(e,owner,'standard','Moment of Action'):raise ValueError('actual Standard action permission required')

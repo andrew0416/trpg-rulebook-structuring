@@ -124,7 +124,7 @@ class StellarTeraBlastTests(unittest.TestCase):
         original_stab = HOME.stab_types(self.owner)
         self.radiate()
         for move_id in STELLAR.rows(self.rules):
-            move = self.rules.move(move_id)
+            move = STELLAR.prepare(self.engine, self.owner, self.rules.move(move_id), True)
             mm, _ = self.rules.move_mech(move_id)
             self.assertEqual(EXT.effective_type(self.engine, self.owner, self.foe, move, mm, consume=False), "불꽃")
         self.assertEqual(self.owner.types, original_types)
@@ -135,9 +135,49 @@ class StellarTeraBlastTests(unittest.TestCase):
         main = self.rules.move("move/테라버스트")
         physical = self.rules.move("move/테라버스트-물리")
         special = self.rules.move("move/테라버스트-특수")
+        self.assertFalse(EXT.grants_stab(self.engine, self.owner, main))
+        self.assertFalse(EXT.grants_stab(self.engine, self.owner, physical))
+        self.assertFalse(EXT.grants_stab(self.engine, self.owner, special))
+        HOME.observe_type(self.engine, self.owner, '물', reason='actual permanent Tera type')
+        HOME.observe_active(self.engine, self.owner, True, reason='actual Terastal state')
         self.assertTrue(EXT.grants_stab(self.engine, self.owner, main))
         self.assertFalse(EXT.grants_stab(self.engine, self.owner, physical))
         self.assertFalse(EXT.grants_stab(self.engine, self.owner, special))
+
+    def test_radiation_preserves_pre_radiation_stab_for_actual_native_damage_and_restore(self):
+        for species, foe_species, radiated, tera, stab in (
+                ('이상해씨', '이상해씨', '풀', None, False),
+                ('꼬렛', '파이리', '불꽃', None, True),
+                ('이상해씨', '파이리', '불꽃', None, False),
+                ('이상해씨', '이상해씨', '풀', '물', False),
+                ('이상해씨', '파이리', '불꽃', '풀', True)):
+            with self.subTest(species=species, radiated=radiated, tera=tera):
+                e = Engine(self.rules, seed=610);e.grid = Grid(12, 12)
+                user = Combatant(self.rules, build_pokemon(self.rules, species, 20,
+                    name='radiating user', side='party', pos=(2, 2), abilities=['스텔라버스트'],
+                    moves=['move/몸통박치기', 'move/테라버스트', 'move/테라버스트-물리', 'move/테라버스트-특수']))
+                target = Combatant(self.rules, build_pokemon(self.rules, foe_species, 20,
+                    name='actual foe', side='wild', pos=(3, 2), abilities=[]))
+                for actor in (user, target):e.gm.add_combatant(actor)
+                if tera is not None:
+                    HOME.observe_type(e,user,tera,reason='actual permanent Tera type')
+                    HOME.observe_active(e,user,True,reason='actual pre-radiation Terastal state')
+                e.start_round([user,target]);e.start_of_turn(user, initiative_count=20)
+                e.rng.seed(0);e.use_move(user,target,'move/몸통박치기',set_damage=True)
+                opportunity = user.spec[STELLAR.STATE]['opportunities'][0]
+                e.gm.activate_stellar_blast(user,opportunity['id'],radiated,reason='actual hit type')
+                e.gm.snapshot('radiation');e.gm.restore('radiation',reason='preserve source STAB')
+                e = Engine.import_state(self.rules,json.loads(json.dumps(e.export_state(),ensure_ascii=False)))
+                user = next(c for c in e.everyone if c.entity_id == user.entity_id)
+                target = next(c for c in e.everyone if c.entity_id == target.entity_id)
+                for move_id in STELLAR.rows(self.rules):
+                    move = STELLAR.prepare(e,user,self.rules.move(move_id),True)
+                    prepared = EXT.prepare_versatile_move(e,move,'atk') if move_id=='move/테라버스트' else move
+                    expected_stab = stab or (tera is not None and move_id=='move/테라버스트')
+                    self.assertEqual(e.damage_base(user,prepared,target=target),8+(2 if expected_stab else 0))
+                    before=len(e.log_lines);e.roll_damage(user,target,prepared,set_damage=True)
+                    self.assertEqual(any('자속보정' in line for line in e.log_lines[before:]),expected_stab)
+                self.assertTrue(e.validate_state()['valid'],e.validate_state())
 
     def test_burst_two_allies_gain_one_matching_type_bonus_and_far_or_other_type_do_not(self):
         self.radiate()
@@ -149,6 +189,49 @@ class StellarTeraBlastTests(unittest.TestCase):
         self.assertEqual(FX.passive_damage_mods(
             self.engine, self.ally, self.foe, grass, {"actual_damage_type": "풀"}
         )[1], 0)
+
+    def test_native_plasma_owns_stab_over_radiation_even_when_both_choose_electric(self):
+        import math
+        import declarative_move_contracts as DECLARATIVE
+        import state_grants as GRANTS
+        from tools import test_actual_damage_type_revision as NATIVE_FIXTURE
+        fixture = NATIVE_FIXTURE.ActualDamageTypeRevisionTests();fixture.rules = self.rules
+        for own_type, radiated, plasma in (
+                ('전기','풀',True),('노말','풀',True),
+                ('전기','전기',True),('노말','전기',True),
+                ('전기','풀',False),('노말','풀',False)):
+            with self.subTest(own_type=own_type,radiated=radiated,plasma=plasma):
+                move_id = 'move/테라버스트-물리'
+                e,user,target = fixture.world(['move/몸통박치기',move_id],types=(own_type,),
+                    target_types=(radiated,),target_moves=('move/플라스마피스트',))
+                GRANTS.replace_baseline(e,user,'abilities',['스텔라버스트'])
+                fixture.hit(e,user,target,'move/몸통박치기')
+                opportunity = user.spec[STELLAR.STATE]['opportunities'][0]
+                e.gm.activate_stellar_blast(user,opportunity['id'],radiated,reason='actual hit radiation')
+                e.end_of_turn(user)
+                if plasma:
+                    e.start_of_turn(target,initiative_count=19)
+                    fixture.hit(e,target,user,'move/플라스마피스트');e.end_of_turn(target)
+                    self.assertEqual(len(DECLARATIVE.live(user,'next_normal_attack_type')),1)
+                e.start_round(e.everyone);e.start_of_turn(user,initiative_count=20)
+                e,user,target = fixture.restore(e,user,target)
+                move = STELLAR.prepare(e,user,self.rules.move(move_id),True)
+                actual_type = '전기' if plasma else radiated
+                stab_type = actual_type if plasma else '노말'
+                db = move['damage_base']+(math.floor(e.formula('stab')) if own_type==stab_type else 0)
+                before = deepcopy((user.spec,user.budget,e.rng.getstate()))
+                self.assertEqual(EXT.effective_type(e,user,target,move,self.rules.move_mech(move_id)[0],consume=False),actual_type)
+                self.assertEqual(e.damage_base(user,move,target=target),db)
+                self.assertEqual((user.spec,user.budget,e.rng.getstate()),before)
+                expected = math.floor(fixture.expected(e,user,target,move_id,db,
+                    bonus=10 if actual_type==radiated else 0)*e.type_multiplier(actual_type,target)[0])
+                self.assertEqual(fixture.hit(e,user,target,move_id,use_radiated_type=True),expected)
+                self.assertFalse(DECLARATIVE.live(user,'next_normal_attack_type'))
+                if plasma:
+                    consumed = [row for row in DECLARATIVE.history(user) if row['operation']=='next_normal_attack_type']
+                    self.assertEqual(len(consumed),1)
+                    self.assertEqual(consumed[0]['payload']['consumed_by']['move_id'],move_id)
+                self.assertTrue(e.validate_state()['valid'],e.validate_state())
 
     def test_ordinary_tera_type_projects_all_three_and_main_forces_stab(self):
         HOME.observe_type(self.engine, self.owner, "물", reason="established ordinary Tera type")

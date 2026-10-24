@@ -2,7 +2,7 @@
 
 The path determines all recipients; callers adjudicate only physical-object
 hits/pre-DR damage. Creature accuracy, damage and completion stay native.
-Printed Pass uses reviewed Cut/Slash; Conqueror's actual Order converts its
+Printed Pass uses reviewed Move contracts; Conqueror's actual Order converts its
 five eligible printed range families without changing their native effects.
 Native recipient waits preserve the paid ordered path in the activation owner.
 """

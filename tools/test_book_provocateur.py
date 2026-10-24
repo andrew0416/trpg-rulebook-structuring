@@ -38,7 +38,7 @@ class ProvocateurTests(ProvocateurScene,unittest.TestCase):
   self.assertTrue(P.waive_demoralize(self.a));self.assertIn(P.DEMO,self.a.spec['edges'])
   self.begin();row=self.use(self.a,self.t,'move/째려보기',face=18)
   self.assertTrue(row['results'][self.t.entity_id]['hit']);self.assertLess(self.t.hp,self.t.max_hp)
-  self.setup();self.acquire(P.CLASS);self.acquire(P.PUSH,selection={'edge':None})
+  self.setup();self.acquire(P.CLASS);self.reject(lambda:self.acquire(P.PUSH,selection={'edge':None}),'must grant Demoralize')
   self.assertNotIn(P.DEMO,self.a.spec['edges']);self.assertFalse(P.waive_demoralize(self.a));self.valid()
  def test_existing_demoralize_replacement_requires_actual_qualified_edge(self):
   self.setup(edges=['edge/호감인',P.DEMO]);self.acquire(P.CLASS)

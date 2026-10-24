@@ -36,6 +36,7 @@ class DirectiveFeatureTests(unittest.TestCase):
         self.c = Combatant(self.r, build_trainer(self.r, 'observer', 20, stats))
         for actor in (self.a, self.b, self.c):
             self.e.gm.add_combatant(actor)
+        self.e.gm.observe_sensory_environment(self.a,self.b,paths={"auditory":True},present=True,reason="actual audible enemy-directed Order")
         self.e.start_round(self.e.everyone)
         self.e.start_of_turn(self.a)
         self.base = self.e.initiative_value(self.b).value

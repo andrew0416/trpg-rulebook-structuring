@@ -34,6 +34,10 @@ class FrequencyTests(unittest.TestCase):
         return e,a,b,mid
     def cast(self,e,a,b,mid):return e.use_move(a,b,mid,free_action=True)
     def turn(self,e,a):e.start_of_turn(a)
+    def combat_turn(self,e,a):
+        if getattr(e,'_active_turn_actor',None) is not None:e.end_of_turn(e._active_turn_actor)
+        if e.round_start_seconds is not None:e.end_round()
+        e.start_round(e.everyone);e.start_of_turn(a)
     def auto(self,a,frequency):
         a.ability_triggers=[dict(name='감사 빈도',spec={'event':'audit'},frequency=frequency,effects=[dict(type='injury',value=1,target='target')])]
     def fire(self,e,a,b):FX.fire_event(e,a,{'event':'audit'},b)
@@ -42,8 +46,8 @@ class FrequencyTests(unittest.TestCase):
         self.assertEqual(b.injuries,1);self.assertEqual(a.move_uses[m],1)
     def test_scene_move_cap_and_no_action_cost_on_rejection(self):
         e,a,b,m=self.fixture()
-        for _ in range(2):self.turn(e,a);self.turn(e,a);self.cast(e,a,b,m)
-        self.turn(e,a);before=dict(a.budget);e.use_move(a,b,m)
+        for _ in range(2):self.combat_turn(e,a);self.combat_turn(e,a);self.cast(e,a,b,m)
+        self.combat_turn(e,a);before=dict(a.budget);e.use_move(a,b,m)
         self.assertEqual(b.injuries,2);self.assertEqual(a.budget,before)
     def test_scene_end_refreshes_scene_move(self):
         e,a,b,m=self.fixture(uses=1);self.cast(e,a,b,m);e.end_scene([a,b]);self.cast(e,a,b,m)
@@ -139,9 +143,9 @@ class FrequencyTests(unittest.TestCase):
         self.cast(e,a,b,m);self.assertEqual(b.injuries,2)
 
     def test_scene_move_cannot_repeat_consecutive_turns(self):
-        e,a,b,m=self.fixture();self.turn(e,a);self.cast(e,a,b,m)
-        self.turn(e,a);self.cast(e,a,b,m);self.assertEqual(b.injuries,1)
-        self.turn(e,a);self.cast(e,a,b,m);self.assertEqual(b.injuries,2)
+        e,a,b,m=self.fixture();self.combat_turn(e,a);self.cast(e,a,b,m)
+        self.combat_turn(e,a);self.cast(e,a,b,m);self.assertEqual(b.injuries,1)
+        self.combat_turn(e,a);self.cast(e,a,b,m);self.assertEqual(b.injuries,2)
     def test_eot_cannot_repeat_same_or_next_turn(self):
         e,a,b,m=self.fixture('every_other_turn');self.turn(e,a);self.cast(e,a,b,m)
         self.cast(e,a,b,m);self.assertEqual(b.injuries,1)

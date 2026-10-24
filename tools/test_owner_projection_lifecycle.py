@@ -93,7 +93,7 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
                     extra={'gender': gender}) for gender in ('female', 'male')]
                 egg = e.create_declared_egg(f.a, parents, f.policy(), request_id='projection/ice-egg',
                     compatible=True, species=species, inheritance_moves=[], reason='actual selected parents')
-                choices = dict(gender='male', nature='노력', abilities=[], moves=[],
+                choices = dict(gender='male', nature='노력', abilities=e.r.learnsets[species_lookup(e.r, species)['name']]['abilities']['기본 특성'][:1], moves=[],
                     special_appearance=False, inheritance_moves=[])
         elif kind == 'fossil':
             f = self.case(FOSSIL_FIX.FossilTests); e = f.e
@@ -144,7 +144,7 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
                     ready=True, reason='actual hatch observation', choices=choices)['pokemon']
             elif kind == 'fossil':
                 operation = lambda: e.hatch_restored_fossil(owner, egg['entity_id'], name='projection fossil newborn',
-                    ready=True, reason='actual hatch observation', details=f.details())['pokemon']
+                    ready=True, reason='actual hatch observation', details=dict(f.details(), abilities=e.r.learnsets[species_lookup(e.r, species)['name']]['abilities']['기본 특성'][:1]))['pokemon']
             else:
                 operation = lambda: RESEARCH.hatch_artificial(e, owner, egg['entity_id'],
                     name='projection artificial newborn', reason='actual hatch observation')['pokemon']
@@ -260,11 +260,11 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
                     self.assertEqual((p.spec[GRANTS.KEY], p.stats, p.modifiers), before)
 
     def test_explicit_csv_passive_restore_preserves_source_and_exclusion_is_atomic(self):
-        rules = Rules(ROOT, ruleset='all')
-        fresh = Rules(ROOT, ruleset='all')
-        with patch.object(self, 'rules', rules):
-            for uid in (CLASS.SPECIES_SAVANT, CLASS.SHINING_FLAME, CLASS.GLACIAL_ICE):
-                source = CLASS.CLAUSE_BY_RULE[uid]
+        for uid in (CLASS.SPECIES_SAVANT, CLASS.SHINING_FLAME, CLASS.GLACIAL_ICE):
+            rules = Rules(ROOT, ruleset='all')
+            fresh = Rules(ROOT, ruleset='all')
+            source = CLASS.CLAUSE_BY_RULE[uid]
+            with patch.object(self, 'rules', rules):
                 with self.subTest(source=source):
                     b = self.boundary('late_join', {'feats': [source],
                         'class_passive_choices': {CLASS.SPECIES_SAVANT: {'evolution_group': 'accepted-family'}}},
@@ -421,7 +421,10 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
                 self.assertFalse(b.target.captured); self.assertNotIn('trainer_id', b.target.spec)
                 self.assertEqual(b.target.stats, b.target.spec['stats']); self.assertEqual(self.shine(b.e, b.target), 13)
         b = self.boundary('capture', {'feats': [SHINE]})
-        fake = Combatant(b.e.r, deepcopy(b.owner.spec))
+        fake_spec = deepcopy(b.owner.spec)
+        fake_spec.pop('id')
+        fake = Combatant(b.e.r, fake_spec)
+        self.assertNotIn(fake.entity_id, WORLD.actor_index(b.e))
         NATIVE.assert_rejected_unchanged(b.e, lambda: b.fixture.catch(b.target, trainer=fake), reason_pattern='actual registered')
 
     def test_birth_projections_preserve_inherited_moves_fossil_lineage_and_artificial_upgrades(self):

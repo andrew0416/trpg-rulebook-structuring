@@ -122,10 +122,12 @@ class SourceSelectionTests(unittest.TestCase):
   registry=json.loads((ROOT/'data/content-source-identities.json').read_text(encoding='utf-8'))
   units=registry['units']
   pinned=[unit for unit in units if 'sha256' in unit['source']]
-  self.assertEqual(len(pinned),140)
-  by_id={unit['id']:unit for unit in pinned};self.assertEqual(len(by_id),140)
-  # Nine explicit anchors were registered after the old 131-source fixture.
-  # Keep their exact CSV records/front lines as well as checking every pin.
+  self.assertEqual(len(pinned),144)
+  by_id={unit['id']:unit for unit in pinned};self.assertEqual(len(by_id),144)
+  for number in (14,15,16,17):
+   uid='C2CSV/input/db/feats.csv:R'+str(number)+':main'
+   self.assertEqual(by_id[uid]['source']['record_span'],[number,number])
+  # Retain the earlier exact CSV/front anchors alongside the four Training sources.
   for number in (759,51,107,110,265,33,36,128):
    uid='C2CSV/input/db/feats.csv:R'+str(number)+':main'
    self.assertEqual(by_id[uid]['source']['record_span'],[number,number])

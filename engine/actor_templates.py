@@ -34,8 +34,147 @@ def validate(actor):
             raise ValueError("Soulless state cannot carry temporary HP, injuries or death")
         if actor.hp > 1 or actor.base_max_hp != 1 or actor.max_hp != 1:
             raise ValueError("Soulless maximum HP must be one")
+    if SOULLESS_REST_CHOICE in actor.spec or SOULLESS_REST_TASKS in actor.spec:
+        _soulless_rest_definition(actor);_soulless_rest_tasks(actor)
     validate_template(actor)
     return True
+
+
+# This is a Soulless timing leaf; common rest clocks and revival remain owners.
+SOULLESS_REST_CHOICE = 'soulless_rest_source_choice'
+SOULLESS_REST_TASKS = 'soulless_rest_tasks'
+
+
+def _soulless_rest_policy(actor):
+    import json
+    from pathlib import Path
+    from source_context import verified_source
+    if not soulless(actor):raise ValueError('actual selected Soulless actor required')
+    value=json.loads((Path(actor.r.root)/'data/soulless-rest-policy.json').read_text(encoding='utf-8'))
+    if value.get('schema_version')!=1 or value.get('source')!=SOULLESS:
+        raise ValueError('known Soulless rest policy required')
+    verified_source(actor.r,value['source_reference'],label='Soulless rest')
+    return value
+
+
+def _soulless_rest_document(value):
+    return {'schema':1,'id':'native/soulless-rest','variants':[{
+        'rule_id':SOULLESS,'source':value['source_reference'],
+        'values':{'variant':{'$input':'source_text'},'definitions':value['definitions']},
+        'inputs':{'source_text':{'type':'string','authority':'gm','decision_kind':'source_conflict',
+            'choices':list(value['definitions']),
+            'question':'Soulless: Korean requires an Extended Action spent resting; English requires four continuous hours of rest. Which complete timing definition applies?'}}}]}
+
+
+def soulless_rest_choices(actor):
+    import source_policy as POLICY
+    return POLICY.resolve(actor.r,_soulless_rest_document(_soulless_rest_policy(actor)))
+
+
+def _soulless_rest_definition(actor):
+    import source_policy as POLICY
+    from source_context import verified_source
+    value=_soulless_rest_policy(actor);choice=actor.spec.get(SOULLESS_REST_CHOICE)
+    variant=value['default']
+    if choice is not None:
+        result=POLICY.resolve(actor.r,_soulless_rest_document(value),decisions={'source_text':choice})
+        if result['status']!='PolicyValuesReady':raise ValueError('actual Soulless rest source decision required')
+        variant=result['values']['variant']
+    definition=value['definitions'][variant];reference=definition['source']
+    if 'action_source' in definition:
+        action={key:definition['action_source'][key] for key in ('file','sha256')}
+        verified_source(actor.r,action,label='Soulless Extended Action')
+    verified_source(actor.r,reference,label='Soulless rest timing',
+                    source_root='source-audit' if reference['file'].startswith('source-audit/') else 'input')
+    return variant,definition
+
+
+def _soulless_rest_tasks(actor):
+    import common_checks as C
+    rows=actor.spec.get(SOULLESS_REST_TASKS,{})
+    if type(rows)is not dict:raise ValueError('Soulless rest tasks must be a mapping')
+    for identity,row in rows.items():
+        fields={'source','actor_id','rest_id','variant','choice','start','minutes','context','reason','status','finished_at'}
+        if (type(row)is not dict or set(row)!=fields or not isinstance(identity,str) or not identity.strip()
+            or row['rest_id']!=identity or row['source']!=SOULLESS or row['actor_id']!=actor.entity_id
+            or row['variant']!='korean_extended_action' or row['status'] not in ('pending','complete','interrupted')
+            or not isinstance(row['reason'],str) or not row['reason'].strip()):
+            raise ValueError('actual source-bound Soulless rest task required')
+        C.integer(row['start'],'Soulless rest start',0)
+        C.integer(row['minutes'],'GM-established multi-minute rest task',2)
+        if type(row['context'])is not dict or set(row['context'])!={'gap_count','round_no','day'}:
+            raise ValueError('Soulless rest continuity context required')
+        for key,value in row['context'].items():C.integer(value,'Soulless rest '+key,0)
+        if row['status']=='pending':
+            if row['finished_at'] is not None:raise ValueError('pending rest task cannot claim completion')
+        else:
+            C.integer(row['finished_at'],'Soulless rest finish',row['start'])
+            if row['status']=='complete' and row['finished_at']!=row['start']+row['minutes']*60:
+                raise ValueError('Soulless rest completion duration changed')
+    if sum(row['status']=='pending' for row in rows.values())>1:raise ValueError('one actual Soulless rest task at a time')
+    return rows
+
+
+def select_soulless_rest(engine,actor,choice):
+    import state_grants as G
+    from copy import deepcopy
+    import world_entities as WORLD
+    if WORLD.actor_index(engine).get(actor.entity_id) is not actor:raise ValueError('registered Soulless actor required')
+    if type(choice)is not dict:raise ValueError('actual scoped source decision required')
+    def apply(e,c):
+        c.spec[SOULLESS_REST_CHOICE]=deepcopy(choice)
+        _soulless_rest_definition(c)
+        for row in _soulless_rest_tasks(c).values():
+            if row['status']=='pending':row.update(status='interrupted',finished_at=e.elapsed_seconds)
+        return deepcopy(c.spec[SOULLESS_REST_CHOICE])
+    return G.transition(engine,actor,apply)
+
+
+def observe_soulless_rest_task(engine,actor,*,rest_id,minutes,reason):
+    """GM establishes a current rest task; only real native rest can complete it."""
+    import common_checks as C,pokemon_activities as ACTIVITIES,state_grants as G
+    from copy import deepcopy
+    import world_entities as WORLD
+    if WORLD.actor_index(engine).get(actor.entity_id) is not actor:raise ValueError('registered Soulless actor required')
+    C.integer(minutes,'GM-established multi-minute rest task',2)
+    if not isinstance(rest_id,str) or not rest_id.strip():raise ValueError('actual rest task identity required')
+    if not isinstance(reason,str) or not reason.strip():raise ValueError('actual Extended rest task reason required')
+    def apply(e,c):
+        ACTIVITIES._outside(e)
+        variant,_=_soulless_rest_definition(c)
+        if variant!='korean_extended_action':raise ValueError('selected Korean Extended-Action definition required')
+        rows=_soulless_rest_tasks(c)
+        if rest_id in rows or (c.spec.get('rest_interval') or {}).get('id')==rest_id:
+            raise ValueError('rest task identity already used')
+        for row in rows.values():
+            if row['status']=='pending':row.update(status='interrupted',finished_at=e.elapsed_seconds)
+        row={'source':SOULLESS,'actor_id':c.entity_id,'rest_id':rest_id,'variant':variant,
+             'choice':deepcopy(c.spec.get(SOULLESS_REST_CHOICE)),'start':e.elapsed_seconds,
+             'minutes':minutes,'reason':reason,'status':'pending','finished_at':None,
+             'context':{'gap_count':len(e.unresolved_time_intervals),'round_no':e.round_no,
+                        'day':c.spec.get('frequency_state',{}).get('day',0)}}
+        c.spec.setdefault(SOULLESS_REST_TASKS,{})[rest_id]=row
+        return deepcopy(row)
+    return G.transition(engine,actor,apply)
+
+
+def soulless_rest_recovery(engine,actor,record,before_total,milestone):
+    """Read source timing and finish a real observed task inside the rest commit."""
+    variant,_=_soulless_rest_definition(actor)
+    rows=_soulless_rest_tasks(actor)
+    pending=next((row for row in rows.values() if row['status']=='pending'),None)
+    if pending is not None:
+        context={key:record['context'][key] for key in ('gap_count','round_no','day')}
+        matches=(variant==pending['variant'] and pending['choice']==actor.spec.get(SOULLESS_REST_CHOICE)
+                 and pending['rest_id']==record['id'] and pending['context']==context
+                 and pending['start']==record['end_seconds']-record['total_minutes']*60
+                 and not engine.encounter_active)
+        if not matches:
+            pending.update(status='interrupted',finished_at=engine.elapsed_seconds)
+        elif before_total<pending['minutes']<=record['total_minutes']:
+            pending.update(status='complete',finished_at=pending['start']+pending['minutes']*60)
+            return True
+    return variant=='english_extended_rest' and before_total<milestone<=record['total_minutes']
 
 
 # Template state is an explicit GM observation. It does not create extra turns
@@ -159,20 +298,21 @@ def validate_template(actor, row=None):
 def configure(engine, actor, *, kind, total_bars=None, action_slots=None, reason,
               member_count_or_band=None, baseline_stages=None,
               transition_effects=(), action_basis=None, base_initiative=None,
-              capture_level=None):
+              capture_level=None, capture_choices=None, initiative_source_choice=None):
     import state_grants as G
     return G.transition(engine, actor, lambda e, c: _configure(
         e, c, kind=kind, total_bars=total_bars, action_slots=action_slots,
         reason=reason, member_count_or_band=member_count_or_band,
         baseline_stages=baseline_stages, transition_effects=transition_effects,
         action_basis=action_basis, base_initiative=base_initiative,
-        capture_level=capture_level))
+        capture_level=capture_level, capture_choices=capture_choices,
+        initiative_source_choice=initiative_source_choice))
 
 
 def _configure(engine, actor, *, kind, total_bars, action_slots, reason,
                member_count_or_band=None, baseline_stages=None,
                transition_effects=(), action_basis=None, base_initiative=None,
-               capture_level=None):
+               capture_level=None, capture_choices=None, initiative_source_choice=None):
     from copy import deepcopy
     import world_entities as W
     if W.actor_index(engine).get(actor.entity_id) is not actor:
@@ -190,9 +330,16 @@ def _configure(engine, actor, *, kind, total_bars, action_slots, reason,
         total_bars, action_slots, transition_effects, boss_runtime = BOSS.prepare_configuration(
             actor, total_bars=total_bars, action_slots=action_slots,
             action_basis=action_basis, base_initiative=base_initiative,
-            capture_level=capture_level, transition_effects=transition_effects)
+            capture_level=capture_level, transition_effects=transition_effects,
+            initiative_source_choice=initiative_source_choice)
+    elif initiative_source_choice is not None:
+        raise ValueError('boss initiative source choice requires a boss')
     elif total_bars is None or action_slots is None:
         raise ValueError("swarm bars and action slots must be explicit")
+    if baseline_stages is None and kind=='boss':
+        import combat_stage_sources as STAGE_SOURCES
+        sources=STAGE_SOURCES.validate(actor)
+        if sources is not None:baseline_stages=deepcopy(sources['combat'])
     row = {"version": 1, "kind": kind, "active": True, "reason": reason,
            "source_id": p["sources"][kind][0],
            "hp_bars": {"total": total_bars, "spent": 0, "current_hp_authority": "actor.hp", "current_capacity_authority": "actor.max_hp"},
@@ -208,6 +355,8 @@ def _configure(engine, actor, *, kind, total_bars, action_slots, reason,
     else:
         row["capture_visibility"] = "public"
         row["boss_runtime"] = boss_runtime
+        import boss_transitions as BOSS
+        row['capture_form'] = BOSS.prepare_capture_form(actor, capture_level, capture_choices)
     validate_template(actor, row)
     actor.spec["encounter_template"] = row
     actor._state_revision += 1
@@ -237,7 +386,7 @@ def _record(engine, actor, *, state, reason, request_id):
             raise ValueError("observation identity reused with different state")
         return projection(actor)
     wanted = deepcopy(state)
-    for name in ("version", "kind", "source_id", "normal_form_baseline"):
+    for name in ("version", "kind", "source_id", "normal_form_baseline", "capture_form"):
         if wanted.get(name) != previous.get(name):
             raise ValueError("observation cannot rewrite template identity or normal baseline")
     if wanted.get("hp_bars", {}).get("total") != previous["hp_bars"]["total"]:

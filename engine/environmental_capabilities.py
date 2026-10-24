@@ -212,13 +212,16 @@ def resolve_vacuum_check(engine, actor, *, check_id, injury_delta, reason):
         if check is None:
             raise ValueError("actual due vacuum injury check required")
         before = subject.injuries
-        if injury_delta:
-            subject.injuries += injury_delta
+        import actor_templates as TEMPLATES
+        applied = 0 if TEMPLATES.injuries_immune(subject) else injury_delta
+        if applied:
+            subject.injuries += applied
             import precise_actions as PRECISE
             injury_source = row["intent"]["environment"]["source"] + "#vacuum-exposure"
-            PRECISE.injury(staged, subject, injury_delta, injury_source)
+            PRECISE.injury(staged, subject, applied, injury_source)
             staged.check_fainted(subject)
-        receipt = dict(check, injury_delta=injury_delta, injuries_before=before,
+        receipt = dict(check, injury_delta=applied, injury_delta_requested=injury_delta,
+                       injury_delta_prevented=injury_delta-applied, injuries_before=before,
                        injuries_after=subject.injuries, resolved_at=staged.elapsed_seconds, reason=reason)
         row["resolved"].append(receipt)
         validate(subject, staged)

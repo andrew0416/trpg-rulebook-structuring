@@ -157,7 +157,11 @@ class Tests(unittest.TestCase):
             builder.add_stat_points(self.r, c.spec, 1, choice="hp")
         downtime.rest(self.e, c, 0)
         self.assertLess(c.hp, 0)
-        downtime.rest(self.e, c, 30)
+        import actor_templates as TEMPLATES
+        TEMPLATES.observe_soulless_rest_task(
+            self.e,c,rest_id='actual-thirty-minute-rest-task',minutes=30,
+            reason='GM establishes the current thirty-minute Extended Action spent resting')
+        downtime.rest(self.e,c,30,rest_id='actual-thirty-minute-rest-task')
         self.assertEqual(c.hp, 1)
         self.assertFalse(c.fainted)
         self.assertEqual(c.spec["stat_allocation"]["hp"], 0)

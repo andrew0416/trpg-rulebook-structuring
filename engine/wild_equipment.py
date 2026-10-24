@@ -87,7 +87,7 @@ def _attract(e,actor,*,phase,bait_id,target=None,party=None,level_match_reason=N
   else:
    key=_inventory(actor,'미끼',1)
    actor.spec['items'][key]-=1
-  record={'id':bait_id,'source':profile['source'],'unit_price':profile['price'],'owner_id':actor.spec['id'],'placed_at':e.elapsed_seconds,'misses':0,'status':'placed','checks':[],'regional_candidates':pool}
+  record={'id':bait_id,'source':profile['source'],'attraction_source':'capability/매혹' if alluring else profile['source'],'unit_price':profile['price'],'owner_id':actor.spec['id'],'placed_at':e.elapsed_seconds,'misses':0,'status':'placed','checks':[],'regional_candidates':pool}
   actor.spec.setdefault('placed_bait',{})[bait_id]=record
   return deepcopy(record)
  if not record or record.get('owner_id')!=actor.spec['id']:raise ValueError('actual placed bait required')
@@ -105,6 +105,8 @@ def _attract(e,actor,*,phase,bait_id,target=None,party=None,level_match_reason=N
   if fixed is not None:C.integer(fixed,'bait attraction d20',1,20)
   import style_expert as STYLE
   bonus=tools_bonus(e,actor,'attraction')+STYLE.lure_bonus(actor)
+  import capability_parameter_edges as PARAMETERS,state_grants as G
+  if record.get('attraction_source')=='capability/매혹' and actor.kind=='pokemon' and '매혹' in G.effective_capabilities(actor):bonus+=PARAMETERS.enticing_bonus(actor)
   e.advance_time(900,[actor]);face=fixed if fixed is not None else e.d20();result={'natural':face,'bonus':bonus,'total':face+bonus,'dc':15,'at':e.elapsed_seconds};record['checks'].append(result)
   if face+bonus>=15:record['status']='awaiting_encounter'
   else:

@@ -1,8 +1,10 @@
 """PTK pre-roll AP spending, ch06:85. Native rolls consume designated bonuses.
 
 A trainer uses a permitted Free action before a named ordinary skill/accuracy
-roll. The named beneficiary is that trainer or a GM-designated Pokemon. Each
+roll. The named beneficiary is that trainer or its currently owned Pokemon. Each
 roll ID is unique within the Engine; preparation is never a post-result edit.
+Ownership is checked at preparation; the prepaid named-roll bonus lasts until
+consumption or scene expiry, including a later ownership transfer.
 Multi-target shared accuracy and other composite rolls require a separate policy.
 """
 import action_points as AP
@@ -25,6 +27,11 @@ def prepare(engine, payer, beneficiary, *, roll_id, kind):
         raise ValueError('trainer AP may boost self or a designated Pokemon')
     if payer.r is not engine.r or beneficiary.r is not engine.r:
         raise ValueError('AP actors must belong to this Engine rule context')
+    if beneficiary is not payer:
+        import world_entities as WORLD
+        index=WORLD.require_actors(engine,payer,beneficiary)
+        if WORLD.identity_field(engine,beneficiary,'owner_id',index=index)!=WORLD.actor_id(payer):
+            raise ValueError("trainer AP may boost only that trainer's own current Pokemon")
     if payer.fainted or payer.hp<=0 or payer.dead or not payer.on_field or payer.captured:
         raise ValueError('AP payer cannot perform a Free action')
     if beneficiary.fainted or beneficiary.dead:

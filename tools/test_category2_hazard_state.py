@@ -7,7 +7,7 @@ import unittest
 
 
 STAGE = Path(__file__).resolve().parents[1]
-ROOT = Path(r"D:\trpg-rulebook-structuring\ptk-structure-experiment")
+ROOT = STAGE
 sys.path[:0] = [str(STAGE / "engine"), str(ROOT / "engine"), str(ROOT / "tools")]
 
 import hazard_state as HAZARDS
@@ -114,7 +114,7 @@ class HazardStateTests(unittest.TestCase):
         cell = CELLS8[0]
         before = t.hp
         EXT.on_enter_cell(e, t, cell)
-        self.assertEqual(before - t.hp, t.max_hp // 10)
+        self.assertEqual(before - t.hp, t.base_max_hp // 10)
         self.assertIn("둔화", t.conditions)
         WORLD.register_object(e,"hazard-test/boots",kind="item_instance",item_rule_id="item/통굽부츠",
                               owner_id=t.entity_id,location={"kind":"unknown"},reason="Hazard direct fixture")

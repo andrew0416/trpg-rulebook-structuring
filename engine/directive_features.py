@@ -84,7 +84,7 @@ def register_owned(engine, actor, name):
 
 
 def _effect(rank, adjustment):
-    if type(rank) is not int or rank not in (1, 2, 3, 4, 5, 6, 8):
+    if type(rank) is not int or rank < 1:
         raise ValueError("actual effective Charm rank required")
     if type(adjustment) is not str or adjustment not in ("increase", "decrease"):
         raise ValueError("explicit increase or decrease adjustment required")
@@ -95,7 +95,7 @@ def _effect(rank, adjustment):
 import cheerleader as CHEER
 
 @CHEER.order_activation('C2CSV/input/db/feats.csv:R91:main')
-def activate(engine, actor, target, *, adjustment):
+def activate(engine, actor, target, *, adjustment, communication=None):
     import world_entities as W
     import state_grants as G
     W.require_actors(engine, actor, target)
@@ -115,19 +115,22 @@ def activate(engine, actor, target, *, adjustment):
             raise ValueError("target next-turn lifetime requires an active encounter")
         if not FREQ.activation_allowed(user, SOURCE, {"kind": "at_will"}, engine=e):
             raise ValueError("Decisive Director frequency unavailable")
-        if not TURN.spend(e, user, "standard", NAME):
-            raise ValueError("Decisive Director Standard action unavailable")
         import order_actions as ORDERS
-        order_payment=ORDERS.payment(e,user,NAME)
+        delivery=ORDERS.delivery(e,user,recipient,FEATURE,communication=communication)
+        paid=ORDERS.spend(e,user,FEATURE,subject=recipient.entity_id,communication=delivery)
+        order_payment=ORDERS.payment(e,user,FEATURE)
+        priority=paid if paid.get("kind")=="priority_limited" else None
         plan = {"source_id": SOURCE, "feature_id": FEATURE, "class_id": CLASS,
                 "actor_id": user.entity_id, "target_id": recipient.entity_id,
                 "charm_rank": rank, "adjustment": adjustment,
                 "round": e.round_no, "at": e.elapsed_seconds,
                 "actor_turn": user.custom_conditions.get("combat_turn_serial", 0),
                 "target_turn": recipient.custom_conditions.get("combat_turn_serial", 0),
-                "action": "free" if order_payment else "standard", "history_index": len(user._action_history) - 1,
+                "action": "priority_limited" if priority else "free" if order_payment else "standard",
+                 "history_index": None if priority else len(user._action_history) - 1,
                 "acquired": [FEATURE, CLASS]}
         if order_payment:plan['free_order_payment']=order_payment
+        if priority:plan['priority_receipt_id']=priority['id']
         # This unconditional feature applies no accuracy roll and accepts no hit
         # input. True is only the existing nonattack dispatcher application context.
         result = FX.run_effects(e, user, recipient, [effect],
@@ -166,6 +169,7 @@ def validate_world(engine, index):
                   "charm_rank", "adjustment", "round", "at", "actor_turn",
                   "target_turn", "action", "history_index", "acquired"}
         if 'free_order_payment' in plan:fields.add('free_order_payment')
+        if 'priority_receipt_id' in plan:fields.add('priority_receipt_id')
         if type(plan) is not dict or set(plan) != fields or meta["integrity"] != _digest(plan):
             raise ValueError("CSV91 historical activation changed")
         actor, target = row.get("actor"), row.get("target")
@@ -174,14 +178,21 @@ def validate_world(engine, index):
                 target.kind != "pokemon" or plan["actor_id"] != actor.entity_id or
                 plan["target_id"] != target.entity_id):
             raise ValueError("CSV91 activation actor/recipient identity changed")
+        priority='priority_receipt_id' in plan
         if (plan["source_id"], plan["feature_id"], plan["class_id"], plan["action"],
-                plan["acquired"]) != (SOURCE, FEATURE, CLASS, "free" if 'free_order_payment' in plan else "standard", [FEATURE, CLASS]):
+                plan["acquired"]) != (SOURCE, FEATURE, CLASS, "priority_limited" if priority else "free" if 'free_order_payment' in plan else "standard", [FEATURE, CLASS]):
             raise ValueError("CSV91 acquisition/source/action proof changed")
         if 'free_order_payment' in plan:
             import order_actions as ORDERS
             ORDERS.validate(engine,actor,target,FEATURE,plan['free_order_payment'])
-        for key in ("round", "at", "actor_turn", "target_turn", "history_index"):
-            if type(plan[key]) is not int or plan[key] < (1 if key in ("round", "actor_turn") else 0):
+        if priority:
+            import priority_limited as PRIORITY
+            paid=[p for p in PRIORITY.records(actor) if p["id"]==plan["priority_receipt_id"]]
+            if (len(paid)!=1 or paid[0]["source"]!=FEATURE or paid[0]["subject_id"]!=target.entity_id
+                    or paid[0]["payment"]["funded"]!={"standard":1} or plan["history_index"] is not None):
+                raise ValueError("CSV91 native Standard reservation changed")
+        for key in ("round", "at", "actor_turn", "target_turn") + (() if priority else ("history_index",)):
+            if type(plan[key]) is not int or plan[key] < (1 if key=="round" or key=="actor_turn" and not priority else 0):
                 raise ValueError("CSV91 actual action boundary required")
         if (plan["round"] > engine.round_no or plan["at"] > engine.elapsed_seconds or
                 plan["actor_turn"] > actor.custom_conditions.get("combat_turn_serial", 0) or
@@ -202,17 +213,18 @@ def validate_world(engine, index):
                 life["started_turns"] != expected_turns):
             raise ValueError("CSV91 lifetime differs from its paid target-turn declaration")
         current_turn = actor.custom_conditions.get("combat_turn_serial", 0)
-        if current_turn == plan["actor_turn"] and engine.round_no == plan["round"]:
+        if not priority and current_turn == plan["actor_turn"] and engine.round_no == plan["round"]:
             history = getattr(actor, "_action_history", [])
             at = plan["history_index"]
             if at >= len(history) or history[at] != plan['action']:
                 raise ValueError("CSV91 native Standard payment history changed")
-        live = [record for record in TIME.records(target) if record.get("effect_receipt") is token]
-        ended = [record for record in target.custom_conditions.get("effect_lifetime_history", [])
+        live = [record for holder in index.values() for record in TIME.records(holder) if record.get("effect_receipt") is token]
+        ended = [record for holder in index.values() for record in holder.custom_conditions.get("effect_lifetime_history", [])
                  if record.get("receipt") is token]
         if len(live) + len(ended) != 1:
             raise ValueError("CSV91 effect occurrence lost or duplicated its lifetime")
-        actual = live[0]["lifetime_policy"] if live else ended[0]["policy"]
+        import native_order_transfer as TRANSFER
+        actual = TRANSFER.original_policy(live[0] if live else ended[0])
         if actual != life:
             raise ValueError("CSV91 lifetime record differs from its original producer")
     return True

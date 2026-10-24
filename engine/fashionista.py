@@ -636,13 +636,13 @@ def swap(engine,pokemon,slot_id):
    import world_entities as W
    W._set_object_location(o,{'kind':'unknown'})
    out=_stored_entry(e,o,slot_id,'swapped out of the active held slot',e.elapsed_seconds);out['instance_id']=active['instance_id']
+  st['slots'][slot_id]=out
   if stored is not None:
    o=e._physical_objects[stored['instance_id']];o.pop(WARDROBE_HOLDER,None);o.pop('wardrobe_slot',None)
    resolved={'can receive 억압':not e.immune_to(q,'억압')} if choice_item else None
    I.register_item(e,q,stored['item_id'],source_instance_id=stored['instance_id'],as_held=True,resolved_conditions=resolved)
    if not any(x.get('instance_id')==stored['instance_id'] for x in HELD.entries(q)):raise ValueError('swapped item did not acquire the actual held slot')
    if choice_item:_suppress(e,q,stored)
-  st['slots'][slot_id]=out
   st['swaps'].append({'slot_id':slot_id,'in':stored['instance_id'] if stored else None,'out':out['instance_id'] if out else None,'round':e.round_no,'at':e.elapsed_seconds})
   e.log('  '+q.name+': 옷장 교환 '+slot_id+' (활성 ← '+str(stored['item_id'] if stored else None)+', 보관 ← '+str(out['item_id'] if out else None)+')',WARDROBE)
   return deepcopy(st['swaps'][-1])
@@ -681,7 +681,7 @@ def dress_record(pokemon):
  return next((r for r in T.records(pokemon) if r.get('source')==DRESS),None)
 
 
-def dress_to_impress(engine,trainer,pokemon):
+def dress_to_impress(engine,trainer,pokemon,*,communication=None):
  """Scene x2 Standard action: the own Chic Pokemon gains every stored item's effects for one round, once per Scene per Pokemon."""
  import action_lifecycle as A
  require(engine,trainer,DRESS);_owned_pokemon(engine,trainer,pokemon)
@@ -689,15 +689,19 @@ def dress_to_impress(engine,trainer,pokemon):
  if row is None:raise ValueError('Dress to Impress targets your actual Chic Pokemon')
  stored=[entry for entry in row['slots'].values() if entry is not None]
  if not stored:raise ValueError('the Chic Pokemon has no stored wardrobe items')
- if not engine.encounter_active or engine._active_turn_actor is not trainer:raise ValueError('Dress to Impress is a Standard action on the Trainer own turn')
+ if not engine.encounter_active:raise ValueError('Dress to Impress requires an active encounter')
  if dress_record(pokemon) is not None:raise ValueError('Dress to Impress is already active for this Pokemon')
  d=DEFINITIONS[DRESS]
+ import cheerleader as CHEER
+ @CHEER.order_activation(DRESS)
  def apply(e,t,q):
   import frequency as F,turn as TURN,combat_timing as T,items as I
   if not F.activation_allowed(t,DRESS,d['frequency'],engine=e):raise ValueError('Dress to Impress Scene frequency exhausted')
   if not F.activation_allowed(t,DRESS+':'+q.entity_id,d['per_pokemon'],engine=e):raise ValueError('Dress to Impress may target a Pokemon only once per Scene')
   count=T.current(e)
-  if not TURN.spend(e,t,d['action'],DRESS):raise ValueError('Dress to Impress Standard action unavailable')
+  import order_actions as ORDERS
+  delivery=ORDERS.delivery(e,t,q,DRESS,communication=communication)
+  ORDERS.spend(e,t,DRESS,action=d['action'],subject=q.entity_id,communication=delivery)
   F.consume_activation(t,DRESS,d['frequency'],engine=e);F.consume_activation(t,DRESS+':'+q.entity_id,d['per_pokemon'],engine=e)
   keys=[];installed=[]
   for entry in stored:
@@ -817,7 +821,7 @@ def validate(engine):
    dress=dress_record(actor)
    if dress is not None:
     facts=dress.get('fashionista_dress')
-    if type(facts) is not dict or facts.get('owner_id') not in index or st is None:raise ValueError('invalid Dress to Impress record')
+    if type(facts) is not dict or facts.get('owner_id') not in index or chic(__import__('native_order_transfer').origin(engine,actor,dress)) is None:raise ValueError('invalid Dress to Impress record')
     if any(key not in getattr(actor,'_item_reg',{}) for key in facts.get('registration_keys',[])):raise ValueError('Dress to Impress projection missing')
  for identity,obj in objects.items():
   holder_id=obj.get(WARDROBE_HOLDER) if isinstance(obj,dict) else None

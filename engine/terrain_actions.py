@@ -51,7 +51,7 @@ def shape(engine,actor,changes,*,reason):
   if e.r._selected_rule(SOURCE)!=SOURCE:raise ValueError('selected Groundshaper requires its own policy')
   ace=__import__('type_ace').terrain_scope(e,c)
   names={str(x).removeprefix('capability/') for x in G.effective_capabilities(c)}
-  if ace is None and not names.intersection(('지형변화','Groundshaper')):raise ValueError('actual Groundshaper capability required')
+  if not names.intersection(('지형변화','Groundshaper')):raise ValueError('actual Groundshaper capability required')
   body=BODY.cells(c,require_complete=True);rows=[]
   for change in changes:
    if not isinstance(change,dict) or set(change)!={'cell','terrain'}:raise ValueError('select cell and terrain only')

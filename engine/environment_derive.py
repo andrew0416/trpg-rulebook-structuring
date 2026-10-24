@@ -93,11 +93,11 @@ def bind(e,c,value,*,region_id=None,reason):
 def bound(e,c):return c.entity_id in _state(e)['actors']
 
 
-def region(e,c):
+def region(e,c,*,required=True,position=None):
     """Current spatial region, independent of a numeric/home-gravity policy."""
     W.require_actors(e,c);state=_state(e)
     if e.grid is not None:
-        body=set(BODY.cells(c))
+        body=set(BODY.cells(c) if position is None else BODY.at_position(c,position))
         candidates=[row for row in state['regions'].values() if row['cells'] is None or body<=set(map(tuple,row['cells']))]
     else:
         binding=state['actors'].get(c.entity_id)
@@ -106,14 +106,30 @@ def region(e,c):
             uid=binding['region_id']
         else:
             import mapless_space as MAPLESS
-            actual,frame=MAPLESS._context(e,c);mapping=actual.get('environment')
-            if mapping is None:raise ValueError('current mapless place needs an observed environment region')
+            if not required:
+                if not MAPLESS.active(e):return None
+                actual=getattr(e,MAPLESS.FIELD);frame=MAPLESS._frame(e,actual)
+                if c.entity_id not in frame['positions']:return None
+            else:actual,frame=MAPLESS._context(e,c)
+            mapping=actual.get('environment')
+            if mapping is None:
+                if not required:return None
+                raise ValueError('current mapless place needs an observed environment region')
             MAPLESS._verify(mapping);MAPLESS._environment_regions(e,actual['places'],mapping['places'])
             uid=mapping['places'].get(frame['positions'][c.entity_id]['place_id'])
         candidates=[state['regions'][uid]] if uid in state['regions'] else []
+    if not candidates and not required:return None
     if len(candidates)!=1:raise ValueError('one observed region covering the actual full body required')
     row=candidates[0];_verify(row);Q._selected(e,row['source'])
     return deepcopy(row)
+
+
+def zero_gravity(e,c,*,position=None):
+    current=region(e,c,required=False,position=position)
+    if current is None:return False
+    import environment_change as EC
+    gravity=EC.effective(e,current)['gravity']
+    return gravity is not None and _number(gravity)==0
 
 
 def context(e,c):
@@ -164,8 +180,12 @@ def derive(e,c,target,selector,base):
 
 
 def movement(e,c,values):
-    if not bound(e,c):return values
-    return {key:max(0,derive(e,c,'movement',key,value)['value']) if type(value) is int else value for key,value in values.items()}
+    result={key:max(0,derive(e,c,'movement',key,value)['value']) if type(value) is int else value for key,value in values.items()} if bound(e,c) else dict(values)
+    if result.get('free_float',0)>0:
+        result['free_float']=result['free_float'] if zero_gravity(e,c) else 0
+        # Free Floating keeps its source identity and uses Sky's existing traversal.
+        if result['free_float']>0:result['sky']=max(result.get('sky',0),result['free_float'])
+    return result
 
 
 def skill(e,c,skill):

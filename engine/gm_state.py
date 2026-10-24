@@ -23,6 +23,7 @@ ENGINE_FIELDS.extend(("_initiative_schedule", "_initiative_interrupts"))
 ENGINE_FIELDS.append("_campaign_injury_policy")
 ENGINE_FIELDS.append('_ground_flight_option')
 ENGINE_FIELDS.append('_hp_loss_policy')
+ENGINE_FIELDS.append('_session_move_policy')
 ENGINE_FIELDS.extend(('_clock_invocations','_active_clock_invocation'))
 ENGINE_FIELDS.extend(('_native_action_stack','_native_action_resolutions','_native_action_sequence'))
 ENGINE_FIELDS.append('_breather_attempts')
@@ -44,11 +45,13 @@ ENGINE_FIELDS.append("_scene_lighting")
 ENGINE_FIELDS.append("_mapless_space")
 ENGINE_FIELDS.append("_enemy_accuracy_sheet")
 ENGINE_FIELDS.append("_local_grass_occurrences")
+ENGINE_FIELDS.append("_independent_field_effects")
 ENGINE_FIELDS.append("_environment_changes")
 ENGINE_FIELDS.append("_grapple_state")
 ENGINE_FIELDS.append("_pass_moves")
 ENGINE_FIELDS.append('_taskmaster_gambit')
 ENGINE_FIELDS.append('_free_order_scope')
+ENGINE_FIELDS.extend(('_smoke_regions','_smoke_region_sequence'))
 COMBATANT_FIELDS.extend(("_mounted_riders","_mount_movement"))
 COMBATANT_FIELDS.append('_equipment_transport_body')
 STAT_KO = {"공격": "atk", "방어": "def", "특공": "spa", "특수공격": "spa", "특방": "spd", "특수방어": "spd", "스피드": "spe", "명중": "acc", "회피": "eva",
@@ -146,6 +149,11 @@ class GMState:
         import smoke_balls as SMOKE
         return SMOKE.observe_use(self.e, actor, center, **observation)
 
+    def observe_smoke_region(self, cells, *, reason):
+        """Observe actual surviving legacy smoke membership, without old history."""
+        import smoke_regions as SMOKE
+        return SMOKE.observe_region(self.e,cells,reason=reason)
+
     def observe_cleanse_burn(self, c, instance_id, **options):
         return self.e.burn_cleanse_tag(c, instance_id, **options)
 
@@ -233,6 +241,14 @@ class GMState:
     def observe_melee_reach(self, c, value, **options):
         import body_state as BODY
         return BODY.observe_melee_reach(self.e, c, value, **options)
+
+    def observe_melee_reach_source(self, c, choice=None):
+        import body_state as BODY
+        return BODY.observe_melee_reach_source(self.e, c, choice)
+
+    def observe_elemental_connection_source(self, c, choice):
+        import elemental_connection as ELEMENTAL
+        return ELEMENTAL.observe_source(self.e, c, choice)
 
     def observe_trainer_weight(self, c, value, **options):
         import body_state as BODY
@@ -692,17 +708,10 @@ class GMState:
         self._rec("퇴장(볼 복귀)", before, False, reason, c)
 
     def send_out(self, c, pos=None, reason=""):
-        import csv_item_form_contracts as CSV_FORMS
-        CSV_FORMS.require_independent(self.e,c)
-        before = c.on_field
-        if self.e.encounter_active:
-            import combat_state_lifecycle as COMBAT_STATE
-            COMBAT_STATE.join(self.e,[c])
-        c.on_field = True
-        if not before:c.turns_taken=0
-        if pos is not None:
-            c.pos = tuple(pos)
-        self._rec("등장", before, True, reason, c)
+        import combat_state_lifecycle as COMBAT_STATE,state_grants as GRANTS
+        before=c.on_field
+        GRANTS.transition(self.e,c,lambda staged,actual:COMBAT_STATE.send_out(staged,actual,pos=pos),include_grid=self.e.grid is not None)
+        self._rec("등장",before,True,reason,c)
 
     def add_combatant(self, c, pos=None, side=None, reason=""):
         import world_entities as WORLD
@@ -753,7 +762,14 @@ class GMState:
 
     def set_field(self, name, rounds=5, reason=""):
         before = (self.e.field or {}).get("name")
-        self.e.field = {"name": name, "rounds": rounds, "effect": "GM"} if name else None
+        import field_effects as FIELD
+        if name:
+            FIELD.validate(self.e)
+            FIELD._store(self.e, {"name": name, "rounds": rounds, "effect": "GM"})
+            import items as ITEMS
+            ITEMS.synchronize_field_suppression(self.e)
+        else:
+            FIELD.clear(self.e)
         self._rec("필드", before, name, reason)
 
     def place_hazard(self, cell, name, effects=None, reason=""):

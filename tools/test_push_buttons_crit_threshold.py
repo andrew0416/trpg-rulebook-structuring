@@ -45,7 +45,7 @@ class PushThresholdTests(ProvocateurScene,unittest.TestCase):
   # Existing native imported-ownership path validates this Feature and its skill prerequisites.
   self.skills(명령=2);self.a.spec['feats'].append(TRAINING.BRUTAL);items.register_feats(self.e,self.a)
   self.e.start_round(self.e.everyone)
-  receipt=self.e.manual_feat(self.a,TRAINING.BRUTAL,self.a)
+  receipt=self.e.manual_feat(self.a,TRAINING.CSV_CLAUSES[TRAINING.BRUTAL],self.a)
   self.assertEqual(receipt['communication']['mode'],'self_target_exception')
   self.assertEqual(self.a.pending_action_loss,{'standard':1})
   self.assertEqual(TRAINING.bonus(self.a,'critical'),1)

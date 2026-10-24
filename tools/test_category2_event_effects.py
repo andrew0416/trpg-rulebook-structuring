@@ -20,6 +20,9 @@ class EventEffectTests(unittest.TestCase):
   _fixture_test_category2_container_contents.ContainerContentsTests.setUp(self)
   self.e.gm.observe_loyalty(self.p,6,reason='observed native Move obedience')
   self.other.pos=(1,0)
+  pending=N.laser_focus_source_choices(self.r)
+  for actor in (self.a,self.p):
+   N.choose_laser_focus_source(self.e,actor,{'value':'english_next_successful_attack','reason':'explicit English Laser Focus contract for these retained successful-hit scenarios','scope':pending['decision_scope']})
  def known(self,actor,*moves):
   for name in moves:self.e.gm.set_move(actor,'move/'+name,reason='observed known Move before native use')
  def begin(self,actor):self.e.start_round([actor,self.other]);self.e.start_of_turn(actor,initiative_count=20)

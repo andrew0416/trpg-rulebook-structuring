@@ -288,11 +288,13 @@ class DuelistMomentumTests(unittest.TestCase):
         self.reject(lambda:self.e.manual_feat(self.a,D.MANUAL,self.p,adjustment={'mode':3}));self.valid()
 
     def test_seize_round_end_actual_overflow_miss_smite_and_no_future_turn_debt(self):
+        import attack_damage_history as HISTORY
         for move in ('move/몸통박치기','move/파괴광선'):
             with self.subTest(move=move):
                 self.setup();self.rounds(7,closed=True)
                 pending=self.e.pending_duelist_interrupts(self.a);self.assertEqual(len(pending),1)
                 before=self.t.hp;budget=deepcopy(getattr(self.p,'budget',None))
+                history_before=len(HISTORY.records(self.t))
                 expected=self.e.roll_damage(self.p,self.t,self.rules.move(move),set_damage=True)//2
                 applications=[];take=type(self.e).take_damage
                 def observed(e,actor,amount):
@@ -301,6 +303,11 @@ class DuelistMomentumTests(unittest.TestCase):
                 with patch.object(type(self.e),'d20',new=lambda e:1),patch.object(type(self.e),'take_damage',new=observed):
                     self.e.seize_the_moment(self.a,self.p,event_id=pending[0]['id'],move=move,target=self.t,set_damage=True)
                 self.assertEqual(applications,[expected]);self.assertEqual(self.t.hp,before-expected)
+                rows=HISTORY.records(self.t)[history_before:]
+                self.assertEqual(len(rows),1)
+                self.assertEqual(rows[0]['receipt']['source'],move)
+                self.assertEqual(rows[0]['attacker_id'],self.p.entity_id)
+                self.assertEqual(HISTORY.amount(rows[0]),expected)
                 self.assertEqual(D.momentum(self.p),1);self.assertEqual(getattr(self.p,'budget',None),budget);self.assertIsNone(self.e._active_turn_actor)
                 import initiative_interrupts as INTERRUPTS,exhaust_moves as EXHAUST
                 self.assertFalse(getattr(self.e,INTERRUPTS.KEY)['loans'])

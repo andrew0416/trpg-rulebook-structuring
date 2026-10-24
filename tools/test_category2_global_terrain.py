@@ -7,7 +7,7 @@ import unittest
 
 
 STAGE = Path(__file__).resolve().parents[1]
-ROOT = Path(r"D:\trpg-rulebook-structuring\ptk-structure-experiment")
+ROOT = STAGE
 sys.path[:0] = [str(STAGE / "engine"), str(ROOT / "engine"), str(ROOT / "tools")]
 
 import field_effects as FIELD
@@ -145,10 +145,11 @@ class GlobalTerrainTests(unittest.TestCase):
     def test_grassy_turn_start_heal_uses_current_maximum_and_ground_contact(self):
         self._install("move/그래스필드")
         self.e.end_of_turn(self.a)
-        self.t.hp = self.t.max_hp - 30
+        self.e.gm.set_injuries(self.t, 3, reason="observed injuries before fractional recovery")
+        self.t.hp = 10
         before = self.t.hp
         self.e.start_of_turn(self.t, initiative_count=10)
-        self.assertEqual(self.t.hp - before, self.t.max_hp // 10)
+        self.assertEqual(self.t.hp - before, self.t.base_max_hp // 10)
         self.t.airborne = True
         self.t.hp -= 10
         before = self.t.hp

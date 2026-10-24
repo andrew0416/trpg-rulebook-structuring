@@ -408,7 +408,9 @@ def triggered_free_action(engine,actor,source):
 
 def begin_turn(engine, actor, *, initiative_count=None):
     import party_actions as PARTY_ACTIONS
-    PARTY_ACTIONS.require_turn(engine,actor)
+    import swarm_transitions as SWARM
+    swarm_slot = SWARM.continuation_pending(engine,actor)
+    if not swarm_slot:PARTY_ACTIONS.require_turn(engine,actor)
     import initiative_interrupts as INTERRUPTS
     import initiative_schedule as SCHEDULE
     SCHEDULE.preflight_turn(engine,actor)
@@ -423,13 +425,17 @@ def begin_turn(engine, actor, *, initiative_count=None):
             raise ValueError("an ordinary turn is already active")
         import boss_transitions as BOSS
         boss_slot = BOSS.begin_action_lifecycle(engine,actor,initiative_count)
-        if engine._ordinary_turn_rounds.get(actor) == engine.round_no and not boss_slot:
+        if engine._ordinary_turn_rounds.get(actor) == engine.round_no and not (boss_slot or swarm_slot):
             raise ValueError("ordinary turn already taken this round")
         engine._active_turn_actor = actor
         engine._ordinary_turn_rounds[actor] = engine.round_no
     if not borrowed:
         SCHEDULE.turn_started(engine,actor)
-        PARTY_ACTIONS.record_turn(engine,actor)
+        if not swarm_slot:PARTY_ACTIONS.record_turn(engine,actor)
+    if swarm_slot:
+        SWARM.start_turn(engine,actor,initiative_count)
+        actor._turn_start_decisions_pending = False
+        return
     actor._turn_start_decisions_pending = True
     actor.took_standard = False
     actor._turn_action_limit = None
@@ -441,7 +447,7 @@ def begin_turn(engine, actor, *, initiative_count=None):
         import stage_change_history as STAGE_HISTORY
         STAGE_HISTORY.begin_turn(engine, actor)
 
-def check_end(engine, actor):
+def check_end(engine, actor, *, continuation=False):
     ensure_resolutions_clear(engine)
     import mapless_space as MAPLESS
     MAPLESS.ensure_clear(engine,actor)
@@ -451,6 +457,12 @@ def check_end(engine, actor):
     INTERRUPTS.preflight_native_end(engine,actor)
     if engine.encounter_active and engine._active_turn_actor is not actor:
         raise ValueError("actor does not own an open ordinary turn")
+    if continuation:
+        import maneuver_grants as GRANTS
+        GRANTS.ensure_clear(engine)
+        import effect_contracts as EFFECTS
+        EFFECTS.ensure_clear(engine)
+        return
     import maneuver_grants as GRANTS
     GRANTS.check_end(engine, actor)
     import effect_contracts as EFFECTS
@@ -460,7 +472,21 @@ def check_end(engine, actor):
     import movement_actions as MOVEMENT
     MOVEMENT.finish_turn(engine,actor)
 
+def close_swarm_window(engine, actor):
+    """Yield initiative without closing the same ordinary turn's lifetimes."""
+    import swarm_transitions as SWARM
+    if not SWARM.continuation_pending(engine,actor):
+        raise ValueError('actual pending swarm action required')
+    import action_resources as RESOURCES
+    RESOURCES.close_turn_lock(engine,actor)
+    import initiative_schedule as SCHEDULE
+    SCHEDULE.turn_closed(engine,actor,continuation=True)
+    engine._active_turn_actor = None
+
+
 def close_turn(engine, actor):
+    import swarm_transitions as SWARM
+    SWARM.finish_turn(actor)
     import action_resources as RESOURCES
     RESOURCES.close_turn_lock(engine,actor)
     import maneuver_grants as GRANTS
@@ -537,10 +563,9 @@ def status_permission(engine, actor, kind, *, sleep_cure=False, new_action=True,
         engine.log(f'    {actor.name}: 넘어짐 상태에서는 먼저 이동 행동으로 일어나야 함', 'condition/넘어짐')
         return False
     if type(kind) is ActionCost:
-        # Paralysis failure permits a single selected Standard or Shift. The
-        # extra Swift combination has no resolved permission in that branch.
-        if new_action and getattr(actor, "_turn_action_limit", None):
-            engine.log(f"    {actor.name}: 마비 제한 중 복합 행동 권한 미확정 → 보류", "common/action-lifecycle")
+        limit = getattr(actor, "_turn_action_limit", None)
+        if new_action and limit and len(set(kind.components).intersection(limit.get("choose_one_of", []))) > 1:
+            engine.log(f"    {actor.name}: 마비 실패 후 기본·이동을 함께 사용할 수 없음", "condition/마비")
             return False
         return all(status_permission(engine, actor, component, sleep_cure=sleep_cure,
                                      new_action=new_action) for component in kind.components)
@@ -550,20 +575,21 @@ def status_permission(engine, actor, kind, *, sleep_cure=False, new_action=True,
         engine.log(f"    {actor.name}: 턴 시작 상태 판정과 발동 순서가 아직 미결 → 능동 행동 보류", "common/action-lifecycle")
         return False
     import condition_recovery as RECOVERY
-    if "얼음" in actor.conditions and not RECOVERY.permits_action(engine,actor,kind,_condition_recovery):
+    import swarm_transitions as SWARM
+    replaced = SWARM.incapacitation_replaced(actor,engine=engine)
+    if "얼음" in actor.conditions and not replaced and not RECOVERY.permits_action(engine,actor,kind,_condition_recovery):
         engine.log(f"    {actor.name}: 얼음 상태 행동 불가", "condition/얼음")
         return False
-    if "잠듦" in actor.conditions and not (kind in ("free", "swift") and sleep_cure):
+    if "잠듦" in actor.conditions and not replaced and not (kind in ("free", "swift") and sleep_cure):
         engine.log(f"    {actor.name}: 잠듦 — 수면을 치료하는 자유·신속 행동만 허용", "condition/잠듦")
         return False
     limit = getattr(actor, "_turn_action_limit", None)
     if limit and new_action:
         choices = limit.get("choose_one_of", [])
-        if kind not in choices:
-            # Swift/Free combination semantics are unresolved, not proved illegal.
-            engine.log(f"    {actor.name}: 마비 실패 후 이 행동 조합은 미확정 → 보류", "common/action-lifecycle")
+        if kind not in choices and kind not in ("swift", "free"):
+            engine.log(f"    {actor.name}: 마비 실패 후 기본·이동을 모두 쓰는 행동 불가", "condition/마비")
             return False
-        if getattr(actor, "_restricted_action_taken", False):
+        if kind in choices and getattr(actor, "_restricted_action_taken", False):
             engine.log(f"    {actor.name}: 마비로 허용된 기본·이동 중 하나를 이미 사용", "condition/마비")
             return False
     return True
@@ -571,6 +597,8 @@ def status_permission(engine, actor, kind, *, sleep_cure=False, new_action=True,
 def record_action(engine, actor, kind):
     import initiative_interrupts as INTERRUPTS
     INTERRUPTS.require_recorded_action(engine,actor,kind)
+    import csv_item_physical_contracts as CSV_ITEMS
+    CSV_ITEMS.expire_immediate_reactions(engine)
     history = getattr(actor, "_action_history", None)
     if history is None:
         actor._action_history = history = []
@@ -580,18 +608,23 @@ def record_action(engine, actor, kind):
     if kind == "standard" or (type(kind) is ActionCost and "standard" in kind.components):
         actor.took_standard = True
         actor._standard_action_round = engine.round_no
-    if getattr(actor, "_turn_action_limit", None):
+    limit = getattr(actor, "_turn_action_limit", None)
+    components = kind.components if type(kind) is ActionCost else (kind,)
+    if limit and set(components).intersection(limit.get("choose_one_of", [])):
         actor._restricted_action_taken = True
 
-def unable_standard(actor):
+def unable_standard(actor, *, engine=None):
     # Current unconditional status restriction is enough for this local branch.
     # Voluntary inaction, a successful paralysis save and modern Flinch are not.
-    if actor.conditions & {"잠듦", "얼음"}:return True
+    import swarm_transitions as SWARM
+    if actor.conditions & {"잠듦", "얼음"} and not SWARM.incapacitation_replaced(actor,engine=engine):return True
     # A failed modern Paralysis save still permits choosing Standard. Only an
     # actual Shift selection makes Standard unavailable; voluntary waiting does not.
     return bool(getattr(actor,'_turn_action_limit',None) and
         getattr(actor,'_restricted_action_taken',False) and
-        'shift' in getattr(actor,'_action_history',[]) and not actor.took_standard)
+        any(entry == 'shift' or (type(entry) is dict and entry.get('kind') == 'compound' and
+            'shift' in entry.get('components', [])) for entry in getattr(actor,'_action_history',[])) and
+        not actor.took_standard)
 
 def already_acted_evidence(ctx):
     """Positive common evidence; other meanings of 'acted' remain unresolved."""

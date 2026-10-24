@@ -28,7 +28,52 @@ def policy(e):
     Q._selected(e, SOURCE)
     if hashlib.sha256((Path(e.r.root) / value['source_file']).read_bytes()).hexdigest() != value['source_sha256']:
         raise ValueError('native vehicle source changed')
+    from source_context import verified_source
+    for reference in value['supporting_sources']:
+        verified_source(e.r, reference, source_root='source-audit' if reference['file'].startswith('source-audit/') else 'input')
     return value
+
+
+def _alloy_document(p):
+    return {'schema': 1, 'id': 'native/vehicle-reinforced-alloys', 'variants': [{
+        'rule_id': SOURCE, 'source': {'file': p['source_file'], 'sha256': p['source_sha256']},
+        'values': {'variant': {'$input': 'source_text'}, 'definitions': {
+            'korean_ground': deepcopy(p['upgrades']['reinforced_alloys']),
+            'english_grass': deepcopy(p['reinforced_alloys_english'])}},
+        'inputs': {'source_text': {'type': 'string', 'authority': 'gm', 'decision_kind': 'source_conflict',
+            'choices': ['korean_ground', 'english_grass'],
+            'question': 'Reinforced Alloys resists Ground in Korean and Grass in English. Which complete definition applies?'}}}]}
+
+
+def reinforced_alloys_choices(e):
+    """Prepare the existing scoped source decision before the native purchase."""
+    import source_policy as POLICY
+    return POLICY.resolve(e.r, _alloy_document(policy(e)))
+
+
+def _upgrade_definition(p, receipt):
+    """Read the retained complete definition; legacy purchases retain Korean."""
+    import source_selection as SELECTION
+    import root_resolution as ROOT
+    intent = receipt['intent']; result = receipt['result']; uid = intent['upgrade']
+    choice = intent.get('source_choice'); resolved = result.get('source_policy')
+    if choice is None and resolved is None:
+        return p['upgrades'][uid]
+    if uid != 'reinforced_alloys' or type(choice) is not dict or type(resolved) is not dict:
+        raise ValueError('actual Reinforced Alloys source choice required')
+    Q._fields(choice, ('value', 'reason', 'scope')); Q._text(choice['value']); Q._text(choice['reason'])
+    document = _alloy_document(p)
+    values = SELECTION.policy_values(resolved['source_policy_binding'], document['variants'])
+    selected = choice['value']
+    if (selected not in values['definitions'] or resolved['status'] != 'PolicyValuesReady'
+            or resolved['values'] != {'variant': selected, 'definitions': values['definitions']}
+            or resolved['selected_id'] != SOURCE or resolved['definition_hash'] != ROOT.fingerprint(document)
+            or resolved['decision_scope'] != choice['scope']
+            or resolved['inputs_hash'] != ROOT.fingerprint({'context': {}, 'decisions': {'source_text': choice}, 'state': {}})
+            or resolved['decision_evidence'] != [{'input': 'source_text', 'reason': choice['reason'],
+                'decision_kind': 'source_conflict', 'scope': choice['scope']}]):
+        raise ValueError('retained Reinforced Alloys source decision changed')
+    return values['definitions'][selected]
 
 
 def _sign(value):
@@ -54,9 +99,10 @@ def _derived(p, config):
         raise ValueError('finite sourced vehicle upgrade counts required')
     for uid, number in counts.items():
         C.integer(number, 'actual purchased vehicle upgrade count', 0)
-        limit = p['upgrades'][uid]['rank']
-        if limit is not None and number > limit:
-            raise ValueError('vehicle upgrade purchase exceeds sourced rank')
+        rank = p['upgrades'][uid]['rank']
+        limit = 1 if rank is None else rank
+        if number > limit:
+            raise ValueError('vehicle upgrade purchase exceeds sourced rank or single-purchase limit; over-cap legacy records require explicit reconstruction')
     hp = template['hp'] + counts['structural_integrity'] * p['upgrades']['structural_integrity']['amount'][column]
     defense = template['defense'] + counts['armored_plating'] * p['upgrades']['armored_plating']['amount'][column]
     speed = template['speed'] + counts['vehicle_speed']
@@ -119,7 +165,7 @@ def validate_record(e, row):
             raise ValueError('actual purchased vehicle upgrade identity required')
         purchased[uid] += 1
         if receipt['result']['count'] != purchased[uid]: raise ValueError('actual vehicle upgrade ordinal changed')
-        result = receipt['result']; definition = p['upgrades'][uid]
+        result = receipt['result']; definition = _upgrade_definition(p, receipt)
         if result['vehicle_id'] != row['id'] or result['upgrade'] != uid or result['cost'] != definition['cost'][p['templates'][config['template']]['column']]:
             raise ValueError('actual purchased vehicle upgrade identity or sourced price changed')
         # Older receipts already retain SOURCE plus their exact upgrade key.
@@ -182,10 +228,17 @@ def _save(native, key, intent, result, section='events'):
     native[section][key] = _sign({'intent': deepcopy(intent), 'fingerprint': TX.request_fingerprint(intent), 'result': deepcopy(result)})
 
 
-def acquire_upgrade(e, owner, identity, upgrade, *, request_id, reason):
+def acquire_upgrade(e, owner, identity, upgrade, *, request_id, reason, source_choice=None):
     W.require_actors(e, owner); Q._text(request_id); Q._text(reason); p = policy(e)
     if upgrade not in p['upgrades']: raise ValueError('known sourced vehicle upgrade required')
     intent = {'owner_id': owner.entity_id, 'vehicle_id': identity, 'upgrade': upgrade, 'reason': reason}
+    resolved = None
+    if source_choice is not None:
+        if upgrade != 'reinforced_alloys': raise ValueError('only Reinforced Alloys has a source conflict choice')
+        import source_policy as POLICY
+        resolved = POLICY.resolve(e.r, _alloy_document(p), decisions={'source_text': source_choice})
+        if resolved['status'] != 'PolicyValuesReady': raise ValueError('complete Reinforced Alloys source choice required')
+        intent['source_choice'] = deepcopy(source_choice)
     row = _vehicle(e, identity); replay = _replay(row['native_vehicle'], request_id, intent, 'upgrades')
     if replay is not None: return replay
     def apply(staged, actor):
@@ -200,9 +253,10 @@ def acquire_upgrade(e, owner, identity, upgrade, *, request_id, reason):
         row['native_vehicle']['config'] = config
         row['hp'] += after['max_hp'] - before['max_hp']
         row.update({k: deepcopy(after[k]) for k in ('max_hp', 'stats', 'overland', 'breach_security', 'breach_capacity', 'breach_resistance_armor')})
-        definition = p['upgrades'][upgrade]
+        definition = p['upgrades'][upgrade] if resolved is None else resolved['values']['definitions'][source_choice['value']]
         result = {'vehicle_id': identity, 'upgrade': upgrade, 'count': config['upgrades'][upgrade], 'cost': cost, 'materials': paid,
                   'definition_clause_id': definition['clause_id'], 'definition_excerpt_sha256': definition['excerpt_sha256']}
+        if resolved is not None: result['source_policy'] = deepcopy(resolved)
         _save(row['native_vehicle'], request_id, intent, result, 'upgrades'); validate_record(staged, row)
         return result
     return G.transition(e, owner, apply)
@@ -324,8 +378,10 @@ def hit(e, attacker, identity, *, move_type, after_defense, passenger_after_defe
         row = _vehicle(staged, identity); W.require_usable_object(row); derived = validate_record(staged, row)
         steps = int(move_type in ('불꽃', '전기', '땅'))
         alloys = row['native_vehicle']['config']['upgrades']['reinforced_alloys']
-        if alloys and move_type in p['upgrades']['reinforced_alloys']['resist']: steps -= 1
-        immune = (move_type == '땅' and bool(set(derived['movement']) & {'levitate', 'sky'})) or (alloys and move_type == '독')
+        alloy_definition = next((_upgrade_definition(p, receipt) for receipt in row['native_vehicle']['upgrades'].values()
+                                 if receipt['intent']['upgrade'] == 'reinforced_alloys'), None)
+        if alloys and move_type in alloy_definition['resist']: steps -= 1
+        immune = (move_type == '땅' and bool(set(derived['movement']) & {'levitate', 'sky'})) or (alloys and move_type in alloy_definition['immune'])
         multiplier = 0 if immune else staged.r.mech('combat/type-effectiveness')['multiplier_by_net_steps'][str(steps)]
         amount = DAMAGE.scale(after_defense=after_defense, type_multiplier=multiplier)
         shield = _refresh_shield(staged,row); absorbed = min(amount, shield['temporary_hp']); shield['temporary_hp'] -= absorbed

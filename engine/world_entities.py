@@ -727,7 +727,9 @@ def validate_world(engine):
         issue('environment_changes',None,str(exc))
     try:
         import field_effects as FIELD
+        FIELD.validate(engine)
         FIELD.validate_local(engine,index)
+        FIELD.validate_pending_world(engine,index)
     except (ValueError,KeyError,TypeError) as exc:
         issue('local_grass_field',None,str(exc))
     try:
@@ -837,6 +839,8 @@ def validate_world(engine):
     try:
         import effect_instances as INSTANCES
         INSTANCES.validate_world(engine,index)
+        import native_switch_transfer as SWITCH
+        SWITCH.validate_world(engine,index)
     except ValueError as exc:
         issue('effect_instance',None,str(exc))
     try:

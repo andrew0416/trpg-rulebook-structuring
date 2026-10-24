@@ -42,9 +42,11 @@ class Tests(unittest.TestCase):
   self.begin(self.t);before=deepcopy((self.t.spec,self.t.budget,self.e.rng.getstate()))
   with self.assertRaises(ValueError):self.activate(self.t)
   self.assertEqual((self.t.spec,self.t.budget,self.e.rng.getstate()),before)
-  self.grant(self.t);self.activate(self.t);self.e.end_of_turn(self.t);self.known(self.p,'지진');self.begin(self.p)
-  before=deepcopy((self.p.budget,self.p.move_uses,self.e.rng.getstate()))
-  with self.assertRaisesRegex(ValueError,'Blender area'):self.e.use_move(self.p,self.t,'move/지진')
-  self.assertEqual((self.p.budget,self.p.move_uses,self.e.rng.getstate()),before)
+  self.grant(self.t);self.activate(self.t);self.e.end_of_turn(self.t);self.t.pos=(6,3);self.known(self.p,'지진');self.begin(self.p)
+  self.e.use_move(self.p,self.t,'move/지진')
+  self.assertEqual(self.p.budget['standard'],0)
+  rows=[row for row in self.e._move_completions.values() if row['actor'] is self.p and row['move_id']=='move/지진']
+  self.assertEqual(len(rows),1);self.assertEqual(rows[0]['phase'],'complete')
+  self.assertIn(self.t.entity_id,rows[0]['results'])
 
 if __name__=='__main__':unittest.main()

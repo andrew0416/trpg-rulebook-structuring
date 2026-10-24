@@ -50,7 +50,7 @@ class BreatherTransferTests(unittest.TestCase):
   self.e.burrow_move(self.a,[(2,2),(3,2)],diggable=True,reason_text='actual prior turn tunnel')
   self.e.end_of_turn(self.a);self.e.start_round([self.a,self.b]);self.e.start_of_turn(self.a)
   entries=[];original=EXT.on_enter_cell
-  with patch.object(EXT,'on_enter_cell',side_effect=lambda e,c,p:(entries.append(p),original(e,c,p))[-1]):
+  with patch.object(EXT,'on_enter_cell',side_effect=lambda e,c,p,**kw:(entries.append(p),original(e,c,p,**kw))[-1]):
    result=self.take(path=[(3,2),(4,2),(5,2),(6,2)],movement_mode='burrow',movement_options={'diggable':True,'surface':True})
   self.assertTrue(result['completed']);self.assertEqual(entries,[(6,2)]);self.assertFalse(self.a.spec['_burrow']['underground'])
   self.assertEqual((self.a.temp_hp,len(self.e._burrow_tunnels)),(5,2))
@@ -144,8 +144,8 @@ class BreatherTransferTests(unittest.TestCase):
  def test_changed_actual_curse_origin_altitude_after_surface_entry_cannot_use_planar_cure(self):
   self.movement(burrow=6);self.e.apply_status(self.a,'저주',source='move/저주',applied_by=self.b)
   original=EXT.on_enter_cell
-  def entry(e,c,p):
-   original(e,c,p)
+  def entry(e,c,p,**kw):
+   original(e,c,p,**kw)
    G.transition(e,self.b,lambda s,origin:origin.spec.__setitem__('_movement_altitude',1))
   with patch.object(EXT,'on_enter_cell',side_effect=entry):
    with self.assertRaisesRegex(ValueError,'3D or underground'):

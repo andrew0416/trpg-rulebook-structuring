@@ -218,9 +218,9 @@ class FashionistaWardrobeTests(unittest.TestCase):
         self.v = self.add('second model', 'pokemon', (2, 5), trainer_id=self.t.entity_id, tutor_points=8,
             species='피카츄', types=['전기'], moves=['move/전광석화'], speed=22)
         self.e.gm.observe_loyalty(self.v, 6, reason='actual willing Pokemon')
-        self.rejected(lambda:FA.dress_to_impress(self.e, self.t, self.p), 'Trainer own turn')
+        self.rejected(lambda:FA.dress_to_impress(self.e, self.t, self.p), 'active encounter')
         self.combat(self.p, count=25)
-        self.rejected(lambda:FA.dress_to_impress(self.e, self.t, self.p), 'Trainer own turn')
+        self.rejected(lambda:FA.dress_to_impress(self.e, self.t, self.p), 'between turns')
         self.next_turn(self.t, count=20)
         self.rejected(lambda:FA.dress_to_impress(self.e, self.t, self.q), 'owned Pokemon')
         self.rejected(lambda:FA.dress_to_impress(self.e, self.t, self.v), 'Chic Pokemon')

@@ -132,9 +132,6 @@ class TeamBlessingTests(unittest.TestCase):
   from grid import Grid
   from native_scenario_fixture import prepare_body
   self.e.grid=Grid(8,8)
-  import items as ITEMS
-  self.assertTrue(ITEMS.drop_item(self.e,self.p,selection='berry')['changed'])
-  self.assertEqual(tuple(self.e._physical_objects['berry']['location']['cell']),(0,0))
   for actor,pos in ((self.a,(6,6)),(self.other,(1,1)),(self.p,(2,1))):
    self.e.gm.set_position(actor,pos,reason='observed actual Pass path')
    prepare_body(self.e,actor,size=actor.spec['size'],offsets=[(0,0)],reason='observed complete Pass body')

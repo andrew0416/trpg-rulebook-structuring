@@ -152,12 +152,13 @@ class FistfulActualTypeTests(unittest.TestCase):
 
     def defense(self,e,target):
         from builder import build_trainer
-        reactor=Combatant(e.r,build_trainer(e.r,'Actual ranged interceptor',30,
+        reactor=Combatant(e.r,build_trainer(e.r,'Remaining area recipient',30,
             {'hp':100,'atk':10,'def':12,'spa':10,'spd':12,'spe':18},abilities=[],
             skills={'육상':3,'곡예':3},extra={'movement':{'land':8},'size':'중형'}))
-        e.gm.add_combatant(reactor,pos=(4,5),side='foe',reason='actual same-side defender outside initial area')
+        e.gm.add_combatant(reactor,pos=(6,2),side='foe',reason='actual same-side recipient inside the declared area')
         prepare_body(e,reactor,size='중형',offsets=[(0,0)],reason='observed actual defender body')
-        e.watch_move_defense(target,[{'actor_id':reactor.entity_id,'source':'maneuver/원거리-가로채기'}],reason='actual declared ranged defense')
+        e.gm.set_move(target,'move/판별',reason='actual learned Detect against the ranged area attack')
+        e.watch_move_defense(target,[{'actor_id':target.entity_id,'source':'move/판별'}],reason='actual declared Detect defense')
         return reactor
 
     def test_real_defense_pending_and_remaining_area_recipient_keep_paid_original_choice_after_restore(self):
@@ -174,8 +175,9 @@ class FistfulActualTypeTests(unittest.TestCase):
                 if codec=='gm':e.gm.snapshot('waiting');e.gm.restore('waiting')
                 else:e,trainer,target,other,reactor=self.restored(e,trainer,target,other,reactor)
                 e.enable_execution_trace()
-                options={'path':[(4,5),(4,4),(4,3),(4,2),(4,1)],'skill':'육상','mode':'land','roll_options':{'fixed':[6,6,6]}}
-                e.choose_move_defense(event,reactor,use=True,options=options,reason='actual defender intercepts the first recipient')
+                e.choose_move_defense(event,target,use=True,reason='actual first recipient uses its paid Detect')
+                self.assertEqual(target.move_uses['move/판별'],1)
+                self.assertIsNone(target.shield)
                 self.assertEqual(target.hp,hp[0]);self.assertLess(other.hp,hp[1]);self.assertLess(reactor.hp,hp[2])
                 facts=self.calculations(e)
                 self.assertEqual(len(facts),2)

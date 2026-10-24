@@ -251,7 +251,13 @@ def _eligible_species(trainer, pokemon):
         if family is None:
             raise ValueError("Species Savant target evolution family is unresolved")
         return family == receipt["selection"]["acquisition_snapshot"]["family"]
-    return pokemon.spec.get("evolution_group") == _species_group(trainer)
+    selected = _species_family(trainer, _species_group(trainer))
+    if selected is None:
+        raise ValueError("Species Savant needs one explicit resolved evolution family")
+    family = _species_family(pokemon, pokemon.spec.get("species"))
+    if family is None:
+        raise ValueError("Species Savant target evolution family is unresolved")
+    return family == selected
 
 
 def _species_book_source(rules):
@@ -270,19 +276,24 @@ def _species_book_source(rules):
     excerpt = "\n".join(path.read_text(encoding="utf-8").splitlines()[654:659])
     if hashlib.sha256(excerpt.encode("utf-8")).hexdigest() != row["excerpt_sha256"]:
         raise ValueError("book Species Savant source changed")
-    for relative, digest in row["family_sources"].items():
-        if hashlib.sha256((Path(rules.root) / relative).read_bytes()).hexdigest() != digest:
-            raise ValueError("Species Savant evolution source changed: " + relative)
+    _species_family_sources(rules)
     rules.ruleset.require({"id": "C03-126", "source": {"file": row["file"].removeprefix("input/"), "lines": row["span"]}})
     return {"clause_id": "C03-126", "file": row["file"],
             "sha256": _policy(rules)["source_files"][row["file"]], "version": 1}
+
+
+def _species_family_sources(rules):
+    """Verify shared family facts independently of a Feature acquisition source."""
+    for relative, digest in _policy(rules)["species_savant_book"]["family_sources"].items():
+        if hashlib.sha256((Path(rules.root) / relative).read_bytes()).hexdigest() != digest:
+            raise ValueError("Species Savant evolution source changed: " + relative)
 
 
 def _species_family(actor, species):
     """Reuse the actual connected evolution owner; arbitrary group labels are not facts."""
     import pokemon_activities as ACTIVITIES
     from builder import species_lookup
-    _species_book_source(actor.r)
+    _species_family_sources(actor.r)
     try:
         selected = species_lookup(actor.r, species)
         if selected.get("_source", {}).get("file") != "db/pokemon.csv":
@@ -530,7 +541,7 @@ def _require_stratagem_slot(pokemon):
 import cheerleader as CHEER
 
 @CHEER.order_activation(None)
-def activate(engine, trainer, pokemon, uid):
+def activate(engine, trainer, pokemon, uid, *, communication=None):
     if uid not in STRATAGEMS or acquired_source(trainer, uid) is None:
         raise ValueError("actual acquired Stratagem required")
     if not engine.encounter_active:
@@ -548,8 +559,9 @@ def activate(engine, trainer, pokemon, uid):
         raise ValueError("Stratagem requires two available AP")
     import temporary_ap as TEMP_AP
     TEMP_AP.preflight_binding(trainer,2,"class_passive_combat")
-    if not TURN.spend(engine, trainer, "standard", uid):
-        return (0, 1)
+    import order_actions as ORDERS
+    delivery=ORDERS.delivery(engine,trainer,pokemon,uid,communication=communication)
+    ORDERS.spend(engine,trainer,uid,subject=pokemon.entity_id,communication=delivery)
     state["serial"] += 1
     instance = "class-passive:" + trainer.entity_id + ":" + str(state["serial"])
     while instance in AP.ActionPointAccount(trainer).identified_bindings(allow_missing=True):
@@ -936,13 +948,27 @@ def activate_blessed_resilience(engine, actor, move_type):
     eligible = _patron_resistance_domain(engine,actor,_resilience_patron(engine,actor,choice))
     if choice.get("role") != "contractor" or not isinstance(eligible, list) or move_type not in eligible:
         raise ValueError("Contractor must choose an eligible patron type")
+    import blessing_skill_rules as BLESSINGS
+    import frequency as FREQ
+    cost_source = BLESSINGS.sign_cost_source(actor)
+    frequency_key = "blessing-sign:" + BLESSED_RESILIENCE
+    previous = (_state(actor) or {}).get("contractor")
+    if isinstance(previous, dict) and previous.get("scene") == FREQ.state(actor)["scene"]:
+        raise ValueError("Contractor Sign already used this scene")
+    if not FREQ.activation_allowed(actor, frequency_key, "장면", engine=engine):
+        raise ValueError("Contractor Sign already used this scene")
+    if AP.available(actor) < 1:
+        raise ValueError("Contractor Sign requires one available AP")
     if not TURN.spend(engine, actor, "standard", BLESSED_RESILIENCE):
         return (0, 1)
-    import frequency as FREQ
+    AP.charge(actor, 1, mode="spend")
+    FREQ.consume_activation(actor, frequency_key, "장면", engine=engine)
     _state(actor, create=True)["contractor"] = {
         "type": move_type,
         "scene": FREQ.state(actor)["scene"],
         "clause_id": CLAUSE_BY_RULE[BLESSED_RESILIENCE],
+        "cost_source": cost_source,
+        "ap": 1,
     }
     engine.time_actors([actor])
     return (1, 0)
@@ -967,7 +993,8 @@ def after_move(engine, attacker, target, move, mm, natural, dealt, *, actual_dam
         LIFETIMES.install(engine, attacker, attacker, effect, RECKLESS, None, None)
     if (actual_damage_type or move.get("type")) != "불꽃" or natural is None or _burn_move(mm):
         return
-    if _declaration(engine, attacker, SHINING_FLAME) and natural >= 18:
+    if (_declaration(engine, attacker, SHINING_FLAME)
+            and PRECISION.effect_natural(engine, attacker, move, natural, actual_damage_type=actual_damage_type) >= 18):
         engine.apply_status(target, "화상", source=SHINING_FLAME, applied_by=attacker)
     elif _declaration(engine, attacker, BURNING_BRAND) and natural >= 19:
         engine.apply_status(target, "화상", source=BURNING_BRAND, applied_by=attacker)

@@ -354,6 +354,12 @@ def _validate_static_acquisitions(actor):
 
 def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequisite_source=None, branch=None, rank=None, selection=None):
     """Acquire a reviewed no-choice Feature without manufacturing a selection."""
+    import native_acquisition_adapters as NATIVE
+    if feature_id in NATIVE.DEFINITIONS:
+        if prerequisite_source is not None or branch is not None or rank is not None:
+            raise ValueError('this source uses its exact native acquisition selection')
+        return NATIVE.acquire(engine, actor, feature_id,
+            acquisition_request_id=acquisition_request_id, selection=selection)
     import acquired_features as ACQUIRED,skill_modifiers as SKILLS,state_grants as GRANTS,world_entities as WORLD
     WORLD.require_actors(engine, actor)
     source = _static_source(engine.r, feature_id)
@@ -961,6 +967,8 @@ def _active_rows(actor):
 
 
 def validate_actor(actor):
+    import native_acquisition_adapters as NATIVE
+    NATIVE.validate_actor(actor)
     _validate_static_acquisitions(actor)
     ledger = actor.spec.get(LEDGER_KEY, {})
     projection = actor.spec.get(PROJECTION_KEY, {})
@@ -998,7 +1006,7 @@ def receipts(actor):
     import trainer_retraining as RETRAINING
     retired = RETRAINING.retired_receipts(actor)
     return [dict(deepcopy(ledger[key]), state='withdrawn') if ledger[key]['receipt_id'] in retired
-            else deepcopy(ledger[key]) for key in sorted(ledger)]
+            else deepcopy(ledger[key]) for key in sorted(ledger)] + __import__('native_acquisition_adapters').receipts(actor)
 
 
 def projection(actor, feature_id=None):

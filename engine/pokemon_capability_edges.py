@@ -30,7 +30,7 @@ def validate(rules,spec,*,allow_lost_prerequisite=False):
     seen=set()
     for row in records(spec):
         import poke_edge_variants as VARIANTS
-        VARIANTS.validate_receipt(rules,row)
+        VARIANTS.validate_receipt(rules,row,history=True,minimum_level=20)
         if spec.get('kind')!='pokemon':raise ValueError('capability Poke Edge requires an actual Pokemon')
         source=row['source']
         if rules._selected_rule(source)!=source:raise ValueError('selected capability Poke Edge needs its own source policy')
@@ -53,14 +53,18 @@ def projection(rules,spec,values=None):
     """Use the common composition owner without merging base and investment state."""
     validate(rules,spec)
     grouped={}
+    base={} if values is None else values
     for row in records(spec):
         if row['status']!='active':continue
         choice=row['choice'];source=row['source']
+        # input/ch05-pokemon.md:352-355: Advanced Mobility increases one existing Movement
+        # Capability. A mode whose composite value without this Edge is 0 (e.g. lost by
+        # evolution) stays dormant and is not refunded; Capability Training values may be 0.
+        if values is not None and source==MOBILITY and not base.get(choice,0)>0:continue
         grouped.setdefault(choice,[]).append({
             'id':source+':'+choice,
             'source':row.get('definition_origin',{}).get('rule_id',source),
             'value':RULES[source]['amount']})
-    base={} if values is None else values
     return {choice:LIMITS.add_sources(base.get(choice,0),rows)
             for choice,rows in grouped.items()}
 
@@ -91,11 +95,17 @@ def reconcile_spec(rules,spec,*,reason):
 
 
 def decompose_current(actor,values):
-    """GM current totals include active investments; stored values exclude them."""
+    """GM current totals include active investments; stored values exclude them.
+
+    An observed 0 (or absent) Movement Capability holds no dormant Advanced Mobility
+    contribution; a positive observed mode must exceed it (its own value stays above 0).
+    """
     result=deepcopy(values)
     for key,amount in amounts(actor.r,actor.spec).items():
+        mobility=key in RULES[MOBILITY]['choices']
+        if mobility and not result.get(key,0):continue
         if key not in result:raise ValueError('current capability observation must include its active investment: '+key)
-        F.integer(result[key],key+' observed capability',amount)
+        F.integer(result[key],key+' observed capability',amount+1 if mobility else amount)
         result[key]-=amount
     return result
 

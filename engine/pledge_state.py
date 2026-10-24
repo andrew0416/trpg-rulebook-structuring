@@ -18,7 +18,7 @@ import world_entities as WORLD
 
 KEY = 'pledge_rainbow'
 SOURCES = frozenset(('move/불꽃의맹세', 'move/물의맹세'))
-UNTIL = {'event': 'round_end', 'after': 5}
+UNTIL = {'event': 'initiative_count', 'after': 5}
 
 
 def policy(rules):
@@ -148,6 +148,7 @@ def validate_world(engine, index):
             if plan.get('declaration') != {'until': UNTIL} or plan.get('until') != UNTIL:
                 raise ValueError('Rainbow lifetime differs from its five-round state')
             C.integer(plan.get('started_round'), 'actual Rainbow activation round', 1, engine.round_no)
+            C.integer(plan.get('started_count'), 'actual Rainbow activation count')
         for record in live(owner):
             if POLICY.KEY not in record or record.get('encounter_end') is not True:
                 raise ValueError('Rainbow must use the shared combat lifetime')
@@ -159,8 +160,14 @@ def validate_world(engine, index):
                 raise ValueError('Rainbow team contribution changed or overlaps')
             sides.add(payload['side'])
             started = record[POLICY.KEY]['started_round']
-            if engine.round_no > started + 4:
-                raise ValueError('Rainbow survived its fifth round boundary')
+            count = record[POLICY.KEY]['started_count']
+            if tuple(record.get('count_deadline', ())) != (started + 5, count):
+                raise ValueError('Rainbow lost its original fifth-round count')
+            cursor = getattr(engine, '_initiative_cursor', None)
+            if (engine.round_no > started + 5 or engine.round_no == started + 5
+                    and (engine.round_start_seconds is None or cursor is not None
+                         and cursor.get('round') == engine.round_no and cursor['count'] <= count)):
+                raise ValueError('Rainbow survived its fifth-round original count')
     return True
 
 

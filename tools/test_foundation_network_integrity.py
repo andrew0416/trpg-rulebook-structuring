@@ -104,7 +104,7 @@ class IntegrityTests(unittest.TestCase):
   with self.assertRaisesRegex(ValueError,'only Technology'):self.run_effect(self.policy(1),target='wall')
   self.assertEqual(before,self.snap());snare=self.node('snare','data_snare');value=self.policy();value['effect']['data_outcome']='extracted'
   out=self.run_effect(value,target='snare')
-  self.assertTrue(out['false_core_revealed']);self.assertEqual(snare['data_state'],'not_applicable');self.assertEqual(snare['integrity'],26)
+  self.assertTrue(out['false_core_revealed']);self.assertEqual(snare['data_state'],'not_applicable');self.assertEqual(snare['integrity'],50);self.assertEqual(self.e._physical_objects['avatar']['integrity'],16)
  def test_explicit_physical_hp_redirection_does_not_eject_positive_integrity(self):
   self.t.hp=5;value=self.policy(1);value['effect'].update(damage_kind='physical_hp',multiplier=[1,2]);out=self.run_effect(value);self.assertEqual(out['physical_after'],1);self.assertEqual(self.target['integrity'],40);self.assertEqual(self.target['status'],'connected')
   self.next_turn();value['id']='authored-stronger-physical-packet';value['effect']['amount']['value']=100;out=self.run_effect(value,request='physical-zero');self.assertEqual(out['requested'],44);self.assertEqual(self.t.hp,-43);self.assertTrue(self.t.fainted);self.assertEqual(self.target['integrity'],40);self.assertEqual(self.target['status'],'connected')

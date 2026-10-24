@@ -1019,8 +1019,12 @@ def _validate_contest_state(contest, contestants, native):
                 _fail('invalid contestant flag')
         if c.letter is not None and c.letter not in tuple('ABCDE'):
             _fail('invalid contest letter')
-        if type(c.intro_rank_dice) is not int or not 1<=c.intro_rank_dice<=6:
+        if type(c.intro_rank_dice) is not int or c.intro_rank_dice<1:
             _fail('invalid introduction rank')
+        if '_intro_stat_dice' in vars(c):
+            pool=c._intro_stat_dice
+            if type(pool) is not dict or set(pool)-stats or any(type(n) is not int or n<0 for n in pool.values()):
+                _fail('invalid shared introduction pool')
         if c.intro_stat is not None and c.intro_stat not in stats:
             _fail('invalid introduction stat')
         if type(c.intro_sources) is not set or type(c.trainer_edges) is not set or type(c.intro_bonuses) is not list:
@@ -1052,6 +1056,9 @@ def _validate_contest_state(contest, contestants, native):
         if type(participants) is not tuple or len(participants)!=1 or participants[0] not in known or type(declaration) is not dict:
             _fail('invalid observed contest participant')
         adjacent=declaration.get('adjacent')
+        intro_spend=declaration.get('spend_intro_dice',0)
+        if type(intro_spend) is not int or not 0<=intro_spend<=declaration.get('spend_stat_dice',-1):
+            _fail('invalid observed shared introduction spend')
         if type(adjacent) is not tuple or any(c not in known for c in adjacent) or len(set(adjacent))!=len(adjacent) or participants[0] in adjacent:
             _fail('invalid observed adjacent contestants')
         observation=record.get('observation')

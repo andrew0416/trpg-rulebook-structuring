@@ -37,8 +37,8 @@ def prepare(engine,actor,move,choice=None):
  if choice is None:choice={'capability':previous.get('capability'),'special':previous.get('special')}
  if not isinstance(choice,dict) or set(choice)!={'capability','special'} or type(choice['special']) is not bool:
   raise ValueError('Struggle choice requires capability and boolean special')
- if move.get('id')!='struggle' or actor.kind!='pokemon' or move.get('_weapon_attack'):
-  raise ValueError('elemental capability modifies a Pokemon ordinary Struggle only')
+ if move.get('id')!='struggle' or actor.kind not in ('pokemon','trainer') or move.get('_weapon_attack'):
+  raise ValueError('elemental capability modifies an ordinary unarmed Struggle only')
  name=canonical(choice['capability']);source='capability/'+name
  if name!='독샘' and engine.r._selected_rule(source)!=source:raise ValueError('selected Struggle capability needs its own source policy')
  if not owned(actor,name):raise ValueError('actual Struggle capability required')

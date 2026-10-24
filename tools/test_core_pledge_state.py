@@ -42,6 +42,7 @@ class PledgeStateTests(unittest.TestCase):
             self.e.gm.add_combatant(actor, pos=pos, side=side, reason='actual Rainbow state participant')
         self.e.gm.observe_loyalty(self.p, 6, reason='actual owned native attacker')
         self.e.start_round(self.e.gm.everyone)
+        self.e.at_initiative_count(20)
 
     def observe(self, source='move/불꽃의맹세', request='observed-rainbow'):
         return self.e.gm.observe_pledge_rainbow(self.a, source_id=source,
@@ -83,12 +84,15 @@ class PledgeStateTests(unittest.TestCase):
             self.assertEqual(self.e.round_no, round_no)
             self.assertEqual(PLEDGE.effect_range_bonus(self.e, self.ally, self.r.move('move/전기쇼크')), 3)
             self.e.end_round()
-            if round_no < 5:
-                self.e.start_round(self.e.gm.everyone)
+            self.e.start_round(self.e.gm.everyone)
+        self.e.at_initiative_count(21)
+        self.assertEqual(PLEDGE.effect_range_bonus(self.e, self.ally, self.r.move('move/전기쇼크')), 3)
+        self.e.at_initiative_count(20)
         self.assertFalse(PLEDGE.live(self.a))
         self.assertEqual(PRECISION.effect_natural(self.e, self.ally, self.r.move('move/전기쇼크'), 14), 15)
         history = self.a.custom_conditions['effect_lifetime_history'][-1]
-        self.assertEqual(history['event']['kind'], 'round_end')
+        self.assertEqual(history['event']['kind'], 'expired')
+        self.assertEqual(history['policy']['started_count'], 20)
         before = self.snap(); self.observe('move/물의맹세'); self.assertEqual(before, self.snap())
         self.assertFalse(PLEDGE.live(self.a))
 
@@ -108,6 +112,54 @@ class PledgeStateTests(unittest.TestCase):
         self.e.gm.add_combatant(newcomer, side='party', pos=(0, 1), reason='actual new team membership')
         self.assertEqual(PLEDGE.effect_range_bonus(self.e, newcomer, self.r.move('move/전기쇼크')), 3)
         self.assertTrue(self.e.validate_state()['valid'])
+
+    def test_five_complete_rounds_keep_original_count_and_native_secondary_effect_after_restore(self):
+        self.e.at_initiative_count(10)
+        receipt = self.observe('move/물의맹세')
+        self.assertEqual(PLEDGE.live(self.a)[0]['count_deadline'], (6, 10))
+        import effect_lifetime_policy as POLICY
+        POLICY.boundary(self.e, 'initiative_count')
+        self.assertEqual(PLEDGE.live(self.a)[0]['count_deadline'], (6, 10))
+        self.assertFalse(self.a.custom_conditions.get('effect_lifetime_history'))
+        for _ in range(5):
+            self.e.end_round()
+            self.e.start_round(self.e.everyone)
+        self.e = CODEC.load_engine(Rules(str(self.e.r.root), ruleset='core'),
+                                  json.loads(json.dumps(CODEC.dump_engine(self.e))))
+        index = WORLD.actor_index(self.e)
+        self.a, self.ally, self.target, self.enemy = [index[actor.entity_id]
+            for actor in (self.a, self.ally, self.target, self.enemy)]
+        self.assertEqual(PLEDGE.live(self.a)[0]['effect_occurrence'], receipt['occurrence'])
+        self.attack(self.ally, '전기쇼크', 14)
+        self.assertIn('마비', self.target.conditions)
+        self.assertEqual(PLEDGE.effect_range_bonus(self.e, self.enemy, self.r.move('move/전기쇼크')), 0)
+        self.e.end_of_turn(self.ally)
+        self.e.at_initiative_count(10)
+        self.assertFalse(PLEDGE.live(self.a))
+        history = self.a.custom_conditions['effect_lifetime_history']
+        self.assertEqual(len([row for row in history if row['source'] == 'move/물의맹세']), 1)
+        self.e.end_round()
+        before = self.snap()
+        self.assertEqual(self.observe('move/물의맹세'), receipt)
+        self.assertEqual(self.snap(), before)
+        self.assertEqual(len(self.a.custom_conditions['effect_lifetime_history']), len(history))
+
+    def test_rainbow_activation_without_current_count_rejects_without_observation(self):
+        import native_scenario_fixture as NATIVE
+        self.e.end_round()
+        self.e.start_round(self.e.everyone)
+        NATIVE.assert_rejected_unchanged(self.e, lambda: self.observe(),
+                                        reason_pattern='initiative count')
+
+    def test_restored_rainbow_declaration_cannot_change_the_activation_count_deadline(self):
+        self.observe()
+        self.e = CODEC.load_engine(Rules(str(self.e.r.root), ruleset='core'),
+                                  json.loads(json.dumps(CODEC.dump_engine(self.e))))
+        self.a = WORLD.actor_index(self.e)[self.a.entity_id]
+        record = PLEDGE.live(self.a)[0]
+        record['count_deadline'] = (6, 19)
+        with self.assertRaisesRegex(ValueError, 'count'):
+            CODEC.dump_engine(self.e)
 
     def test_wrong_source_changed_request_and_overlap_refuse_without_mutation(self):
         for source in ('move/풀의맹세', 'gm/fictional-rainbow'):

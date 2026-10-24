@@ -37,13 +37,14 @@ def _requirements(e,a,t,requirements):
 
 
 @SM.resume_entry("a",source_parameter="source")
-def _prepare(e,a,t,source,skills,challenger_skill,defender_skill,fixed_accuracy,challenger_options,defender_options,basis,_grant=None,*,config=None):
+def _prepare(e,a,t,source,skills,challenger_skill,defender_skill,fixed_accuracy,challenger_options,defender_options,basis,_grant=None,*,config=None,observe=False):
     import body_modes as BODY_MODES
     config=__import__('type_ace').threaded_config(e,a,source,config)
-    BODY_MODES.require_targetable(t)
+    BODY_MODES.require_targetable(t,engine=e)
     permission=_permission(e,a,t,source,_grant,config);basis=dict(basis,grant=permission)
     import movement_actions as MOVEMENT,temporary_hp as TEMP
     MOVEMENT.boundary(e,source);Q._selected(e,source);W.require_actors(e,a,t)
+    __import__('type_ace').close_quarters_maneuver_preflight(e,a,source)
     if a is t or a.kind not in ('trainer','pokemon') or t.kind not in ('trainer','pokemon') or a not in e.everyone or t not in e.everyone:raise ValueError('two distinct registered trainer/Pokemon participants required')
     if not e.encounter_active or e.round_start_seconds is None:raise ValueError('actual open combat round required')
     geometry={'range':1,'remote':False,'vertical':False} if config is None else config['geometry']
@@ -62,7 +63,7 @@ def _prepare(e,a,t,source,skills,challenger_skill,defender_skill,fixed_accuracy,
     ao=_options(challenger_options,None if config is None else config.get('challenger_purpose'));do=_options(defender_options,purpose)
     if ao.get('roll_id') is not None and ao.get('roll_id')==do.get('roll_id'):raise ValueError('distinct opposed roll identities required')
     plans=[(a,challenger_skill,ao),(t,defender_skill,do)]
-    return plans,SM.prepare(e,a,t,source,dict(basis,fixed_accuracy=fixed_accuracy),plans)
+    return plans,SM.prepare(e,a,t,source,dict(basis,fixed_accuracy=fixed_accuracy),plans,observe=observe)
 
 
 @SM.resume_entry("a",source_parameter="source",prepared_parameter="prepared")

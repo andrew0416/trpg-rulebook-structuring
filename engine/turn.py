@@ -67,7 +67,8 @@ def _weather_turn_start_one(engine,c,w,*,_boss_round=False):
     if WEATHER_KO.get(w, w) in getattr(c, "weather_immune", ()) or w in getattr(c, "weather_immune", ()):
         engine.log(f"    {c.name}: {WEATHER_KO.get(w, w)} 피해 면역 (도구)", "combat/weather")
         return
-    if any(e.get("type") == "immunity" and ("weather" in str(e.get("to", "")) or WEATHER_KO.get(w, w) in str(e.get("to", "")) or w in str(e.get("to", ""))) for e in c.modifiers + c.registry):
+    if any(e.get("type") == "immunity" and ("weather" in str(e.get("to", "")) or WEATHER_KO.get(w, w) in str(e.get("to", "")) or w in str(e.get("to", "")))
+           and (e.get('_rule_id')!='ability/방진' or __import__('ability_transitions').active(c,'ability/방진')) for e in c.modifiers + c.registry):
         engine.log(f"    {c.name}: {WEATHER_KO.get(w, w)} 피해 면역 (특성)", "combat/weather")
         return
     if c.fainted or not c.on_field:
@@ -189,6 +190,9 @@ def disengage(engine, c, destination, *, movement_mode=None):
     if not BODY.can_place(engine, c, destination, origin=c.pos):
         raise ValueError("Disengage destination body is blocked or outside its movement region")
     distance, mode = engine.move_profile(c, movement_mode=movement_mode)
+    import movement_actions as MOVEMENT
+    if not MOVEMENT.free_float_destination(engine,c,destination,movement_mode or mode):
+        raise ValueError('Free Floating destination requires observed zero gravity')
     if movement_mode == "teleport":
         raise ValueError("Teleport has its own movement conditions")
     if distance <= 0:
@@ -205,13 +209,15 @@ def disengage(engine, c, destination, *, movement_mode=None):
         return False
     import type_ace as TA
     TA.mark_departure(engine,c,destination)
+    import field_effects as FIELD
+    origin=c.pos;origin_altitude=c.spec.get('_movement_altitude',0);origin_contact=FIELD.touches_ground(c)
     c.pos = destination
     import living_weapon as LIVING
     LIVING.sync(engine,c)
     c.airborne = mode == "공중/부유"
     if diagonal:
         c._diagonal_steps = getattr(c, "_diagonal_steps", 0) + 1
-    EXT.on_enter_cell(engine, c, destination)
+    EXT.on_enter_cell(engine, c, destination,previous_position=origin if origin_altitude==c.spec.get('_movement_altitude',0) and origin_contact==FIELD.touches_ground(c) else None)
     engine.log(f"    {c.name}: 이탈 1m → {destination} (기회공격 유발 없음)", "maneuver/이탈")
     return True
 
@@ -237,6 +243,9 @@ def spend(engine, c, kind, what="", *, movement=False, sleep_cure=False, _native
         raise ValueError("movement purpose requires a shift action and a boolean flag")
     if not can_act(engine, c):
         return False
+    if kind == "shift":
+        import grapple_state as GRAPPLE
+        if not GRAPPLE.movement_permission(engine, c):return False
     if movement:
         import vision_impairment as VISION
         if VISION.accuracy_level(engine,c)=='total' and getattr(engine,'_relative_mover',None)!=c.entity_id:
@@ -250,8 +259,7 @@ def spend(engine, c, kind, what="", *, movement=False, sleep_cure=False, _native
     status_allowed=ACTION.status_permission(engine, c, kind, sleep_cure=sleep_cure,
         _standing_up=_standing_up, _condition_recovery=_condition_recovery)
     if not status_allowed:
-        import swarm_transitions as SWARM
-        if not SWARM.minimum_action_permission(c,kind):return False
+        return False
     b = getattr(c, "budget", None)
     import combat_maneuvers as MANEUVERS
     import body_modes as BODY_MODES
@@ -270,9 +278,9 @@ def spend(engine, c, kind, what="", *, movement=False, sleep_cure=False, _native
     if swarm_spend is not None:
         if swarm_spend:ACTION.record_action(engine,c,kind)
         return swarm_spend
-    if kind == "extended" and not engine.encounter_active:
+    if not engine.encounter_active:
         # Ended encounters may leave a budget record; it does not constrain a
-        # later Extended activity once the normal permissions above pass.
+        # later outside action once the normal permissions above pass.
         ACTION.record_action(engine, c, kind)
         return True
     if b is None:          # Outside-encounter component execution only.
@@ -326,6 +334,9 @@ def spend_compound(engine, c, cost, what="", *, movement=False, sleep_cure=False
         raise ValueError("compound movement purpose is not implemented")
     if not can_act(engine, c) or not ACTION.ordinary_permission(engine, c):
         return False
+    if "shift" in cost.components:
+        import grapple_state as GRAPPLE
+        if not GRAPPLE.movement_permission(engine, c):return False
     if not ACTION.status_permission(engine, c, cost, sleep_cure=sleep_cure):
         return False
     import combat_maneuvers as MANEUVERS
@@ -505,7 +516,7 @@ def equip_weapon(engine, c, weapon):
     allowed = 0 if grade == "조잡" or rank < 4 else 2 if grade == "좋음" and rank >= 6 and slot != "반대손" else 1
     framework_limit = FRAMEWORK.move_limit(engine,c,weapon)
     if framework_limit is not None:allowed=framework_limit
-    if c.kind=='pokemon' and not living:allowed=min(allowed,1)
+    if c.kind=='pokemon':allowed=min(allowed,1)
     supplied = weapon.get("moves", [])
     if not isinstance(supplied, list) or any(not isinstance(v,str) for v in supplied):
         raise ValueError("weapon moves must be an explicit list")

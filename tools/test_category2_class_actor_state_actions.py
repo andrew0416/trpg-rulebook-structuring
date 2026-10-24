@@ -161,8 +161,8 @@ class ClassActorStateActionTests(unittest.TestCase):
         import temporary_hp as TEMP_HP
         TEMP_HP.grant(engine, pokemon, 3, provenance={"fixture": "existing sourced temporary HP"})
         result = engine.resolve_class_actor_state_action(trainer, event["id"], use=True)
-        self.assertEqual(result["temporary_hp_granted"], 2 * result["intuition_rank"])
-        self.assertEqual(pokemon.temp_hp, 3 + result["temporary_hp_granted"])
+        self.assertEqual(result["temporary_hp_granted"], 2 * result["intuition_rank"] - 3)
+        self.assertEqual(pokemon.temp_hp, 2 * result["intuition_rank"])
         self.assertEqual(trainer.spec["ap_spent"], 1)
 
     def test_medical_technique_uses_actual_medicine_target_and_nonmedicine_exclusion(self):

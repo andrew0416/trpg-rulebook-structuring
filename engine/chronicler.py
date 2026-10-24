@@ -27,6 +27,8 @@ TRAVEL_ABILITY='chronicler_travel_ability'  # trainer.spec: printed Keen Eye or 
 PLACE='chronicler_place'              # actor.spec: GM observed current place
 PRIORITY='chronicler_priority'        # ally.spec: pending Situational Awareness entitlement
 TRAVEL_PREFIX='chronicler-travel:'
+PERCEPTION_ABILITY='ability/감지'
+PERCEPTION_PLAYTEST='ability/감지-playtest'
 ARCHIVE_OF_KIND={kind:name for name,row in ARCHIVES.items() for kind in row['record_kinds']}
 
 
@@ -74,19 +76,60 @@ def owned_archives(actor,*,exclude=(),active=True):
 
 def _travel_ability(rules,name):
  """Printed Keen Eye/Perception choice resolved against the selected Ability catalog."""
- if name not in ARCHIVES['travel']['abilities']:raise ValueError('choose the printed Keen Eye or Perception Ability for the Travel Archive')
+ # The class's bilingual 통찰 (Perception) is not the CSV's 통찰 (Frisk).
+ perception_names={'통찰','Perception','감지','감지 [Playtest]',PERCEPTION_ABILITY,PERCEPTION_PLAYTEST}
+ if name not in (*ARCHIVES['travel']['abilities'],*perception_names):raise ValueError('choose the printed Keen Eye or Perception Ability for the Travel Archive')
+ requested='감지' if name in ('통찰','Perception') else name
  import move_state as M
- registration=M.ability_registration(rules,name)
+ registration=M.ability_registration(rules,requested)
  if registration is not None:return registration['name']
  from ruleset import UnresolvedRuleSelection,ExcludedRuleSelection
  try:
-  selected=rules.selection.resolve_name(name,('ability/',))
+  selected=rules.selection.resolve(requested) if requested.startswith('ability/') else rules.selection.resolve_name(requested,('ability/',))
   rules.selection.require_supported_version(selected)
  except (UnresolvedRuleSelection,ExcludedRuleSelection,ValueError,KeyError) as error:
   raise ValueError('selected '+name+' Ability variant required in the current ruleset for the Travel Archive: '+str(error)) from error
  title=rules.selection.units[selected].get('title')
  if not isinstance(title,str) or not title.strip():raise ValueError('selected Travel Archive Ability has no catalog title')
+ if name in perception_names:perception_definition(rules,selected)
  return title
+
+
+def validate_core_perception(rules,row):
+ """The bilingual class reference supplies identity; the core excerpt supplies its full effect."""
+ from source_context import verified_source
+ contract={'type':'ally_area_shift','action':'shift','payment':'next','damaging_only':False}
+ if (row.get('id')!=PERCEPTION_ABILITY or row.get('name')!='감지' or row.get('eng')!='Perception'
+     or row.get('frequency')!='임의' or row.get('native_contract')!=contract or row.get('effects')!=[]):
+  raise ValueError('reviewed core Perception definition required')
+ source=row['source'];official=row['official_source']
+ if (source.get('file')!='ch04-trainer-classes.md' or source.get('lines')!=[1945,1947]
+     or source.get('sha256')!=_data['source_sha256']
+     or source.get('additional_snapshots')!={official['extract']:official['sha256']}
+     or official.get('extract')!='source-audit/core-perception.txt'):
+  raise ValueError('core Perception exact bilingual source boundary required')
+ verified_source(rules,{'file':'input/'+source['file'],'sha256':source['sha256']},label='Chronicler Perception reference')
+ text=verified_source(rules,{'file':official['extract'],'sha256':official['sha256']},label='core Perception',source_root='source-audit').decode('utf8')
+ if text!='Ability: Perception\nAt-Will – Shift Action, Interrupt Trigger: An ally uses an area-of-effect attack that would hit you Effect: You may Shift to remove yourself from the areaof-effect.\n':
+  raise ValueError('complete core Perception excerpt required')
+
+
+def perception_definition(rules,source):
+ """Keep the explicit core and Playtest Perception identities and costs separate."""
+ if source not in (PERCEPTION_ABILITY,PERCEPTION_PLAYTEST) or rules._selected_rule(source)!=source:
+  raise ValueError('exact selected Perception Ability source required')
+ if source==PERCEPTION_ABILITY:
+  row=rules.core_abilities[source];validate_core_perception(rules,row)
+  return row['native_contract']
+ from source_context import verified_source
+ verified_source(rules,{'file':'input/db/abilities.csv','sha256':'87efebd17b0a5fe09c9db060a16a8844cf41be53d65eb35716cf62f80a177fae'},label='Playtest Perception')
+ unit=rules.selection.units[source]
+ expected=[{'type':'evasion_mod','value':1,'target':'self'},
+           {'type':'reaction','trigger':"about to be hit by ally's damaging AoE",'effect':'free shift out before resolution'}]
+ if (unit.get('eng')!='Perception' or unit.get('title')!='감지 [Playtest]'
+     or unit['source'].get('record_span')!=[10,10] or rules.ability_effects.get(unit['title'])!=expected):
+  raise ValueError('complete exact Playtest Perception source and effects required')
+ return {'type':'ally_area_shift','action':'free','payment':None,'damaging_only':True}
 
 
 def acquisition_snapshot(engine,actor,feature,rank=None):
@@ -480,17 +523,20 @@ def profiling_record(pokemon):
  return next((r for r in T.records(pokemon) if r.get('source')==PROFILING),None)
 
 
-def profile_order(engine,trainer,pokemon):
+def profile_order(engine,trainer,pokemon,*,communication=None):
  """2 AP Standard Order: the Pokemon's next turn treats archived Profile subjects as Mold Breaker targets with +2 Accuracy."""
  import action_points as AP,turn as TURN,combat_timing as T,cheerleader as CHEER
  require(engine,trainer,PROFILING);_owned_pokemon(engine,trainer,pokemon)
  d=DEFINITIONS[PROFILING]
  @CHEER.order_activation(PROFILING)
  def apply(e,t,q):
-  order_delivery(e,t,q,PROFILING)
+  if not e.encounter_active or not q.on_field or q.fainted or q.captured:raise ValueError('available actual Order recipient required')
+  import order_actions as ORDERS
+  delivery=order_delivery(e,t,q,PROFILING) if communication is None else ORDERS.delivery(e,t,q,PROFILING,communication=communication)
   if profiling_record(q) is not None:raise ValueError('Targeted Profiling is already pending for this Pokemon')
   if AP.available(t)<d['ap']:raise ValueError('Targeted Profiling requires two available AP')
-  if not TURN.spend(e,t,d['action'],PROFILING):raise ValueError('Targeted Profiling Standard action unavailable')
+  import order_actions as ORDERS
+  ORDERS.spend(e,t,PROFILING,action=d['action'],subject=q.entity_id,communication=delivery)
   AP.spend(t,d['ap'])
   serial=q.custom_conditions.get('combat_turn_serial',0)
   if e._active_turn_actor is q:raise ValueError('an Order targets a Pokemon outside its own open turn')
@@ -507,7 +553,7 @@ def _profiling_owner(engine,attacker,target):
  row=profiling_record(attacker)
  if row is None:return None
  facts=row['chronicler_profiling']
- if attacker.custom_conditions.get('combat_turn_serial',0)!=facts['active_serial']:return None
+ if not __import__('native_order_transfer').on_eligible_turn(engine,attacker,row,facts['active_serial']):return None
  import world_entities as W
  owner=W.actor_index(engine).get(facts['owner_id'])
  if owner is None or getattr(target,'entity_id',None) not in archived(owner,'profile'):return None
@@ -518,9 +564,28 @@ def accuracy_bonus(engine,attacker,target,move):
  return DEFINITIONS[PROFILING]['accuracy_bonus'] if _profiling_owner(engine,attacker,target) is not None else 0
 
 
-def defensive_ignored(engine,attacker,target):
- """Mold Breaker projection: the target's Ability-sourced immunity, absorption, resistance and Levitate are ignored."""
- return _profiling_owner(engine,attacker,target) is not None
+def defensive_ignored(engine,attacker,target,move=None):
+ """Shared selected native defensive-Ability bypass, including Targeted Profiling."""
+ if _profiling_owner(engine,attacker,target) is not None:return True
+ if attacker is None or target is None or not attacker.side or not target.side or attacker.side==target.side:return False
+ import ability_transitions as ABILITIES
+ for effect in attacker.registry:
+  if effect.get('type')!='ignore_effects' or effect.get('ignore_abilities') not in ('defensive','defensive (all enemies)'):continue
+  source=effect.get('_rule_id','')
+  if not source.startswith('ability/'):continue
+  if engine.r._selected_rule(source)!=source:continue
+  raw={k:v for k,v in effect.items() if not k.startswith('_')}
+  title=engine.r.selection.units[source]['title']
+  if not ABILITIES.active(attacker,title):continue
+  if raw not in engine.r.ability_effects.get(title,[]):continue
+  restriction=effect.get('moves')
+  if restriction is not None:
+   if move is None:continue
+   import effects_ext as EXT
+   mechanics,_=engine.r.move_mech(move['id'])
+   if EXT.effective_type(engine,attacker,target,move,mechanics,consume=False)!=restriction:continue
+  return True
+ return False
 
 
 # ---------------------------------------------------------------- Cinematic Analysis
@@ -697,7 +762,7 @@ def validate(engine):
   for row in T.records(actor):
    if row.get('source')==PROFILING:
     facts=row.get('chronicler_profiling')
-    if type(facts) is not dict or facts.get('owner_id') not in index or row.get('turn_owner') is not actor or row.get('turn_deadline')!=facts.get('active_serial'):raise ValueError('invalid Targeted Profiling record')
+    if type(facts) is not dict or facts.get('owner_id') not in index or row.get('turn_owner') is not __import__('native_order_transfer').clock_owner(engine,actor,row) or row.get('turn_deadline')!=facts.get('active_serial'):raise ValueError('invalid Targeted Profiling record')
     if acquired(index[facts['owner_id']],PROFILING) is None:raise ValueError('Targeted Profiling lost its Chronicler owner')
    if row.get('source')==CINEMATIC:
     facts=row.get('chronicler_recreation')

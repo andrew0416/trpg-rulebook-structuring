@@ -108,13 +108,21 @@ def cells(engine,actor,move):
     methods={'cone':g.cone,'line':g.line}
     if shape=='close_blast':return g.close_blast(origin,size,(dx,dy))
     if shape not in methods:raise ValueError('selected area shape requires an execution policy')
-    return methods[shape](origin,(dx,dy),size)
+    area=methods[shape](origin,(dx,dy),size)
+    if move.get('id')=='move/날려버리기':
+        import smoke_regions as SMOKE
+        SMOKE.require_bound_line(engine,area)
+    return area
 
 
 def targets(engine,actor,move,candidates):
     import body_state as BODY
     import body_modes as MODES
+    import marsupial_state as MARSUPIAL
+    import setup_move_state as SETUP
     area=cells(engine,actor,move)
     return [c for c in candidates if c is not actor and not c.fainted and not c.captured
-            and c.on_field and MODES.target_visible(engine,actor,c)
+            and MARSUPIAL.target_present(c,engine=engine)
+            and SETUP.targetable(c,engine=engine,attacker=actor,move=move)
+            and MODES.target_visible(engine,actor,c)
             and BODY.cells(c,require_complete=True).intersection(area)]

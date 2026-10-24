@@ -68,14 +68,14 @@ class GrappleTests(unittest.TestCase):
         self.assertEqual(out['winner_id'],self.b.entity_id);self.assertEqual(GR.relation(self.e,self.a)['dominant'],self.b.entity_id)
         self.assertEqual(self.b.budget,dict(standard=0,shift=0,swift=1))
         self.turn_a_next()
-        self.e.grapple_action(self.a,'contest',challenger_skill='전투',defender_skill='육상',challenger_options={'fixed':[1]*4},defender_options={'fixed':[2]*4},winner_choice='end')
+        self.e.grapple_action(self.a,'contest',challenger_skill='전투',defender_skill='육상',challenger_options={'fixed':[1]*4},defender_options={'fixed':[2]*4},winner_choices={self.b.entity_id:'end'})
         self.assertIsNone(GR.relation(self.e,self.a));self.assertIsNone(GR.relation(self.e,self.b))
         self.assertNotIn('취약',self.a.conditions);self.assertNotIn('취약',self.b.conditions)
     def test_secure_bonus_is_next_check_only_and_defender_keeps_tie(self):
         self.enter();self.turn_a_next();self.e.grapple_action(self.a,'secure')
         self.assertEqual(GR.relation(self.e,self.a)['secure'],{self.a.entity_id:3})
         self.e.end_of_turn(self.a);self.e.start_of_turn(self.b,initiative_count=10)
-        out=self.e.grapple_action(self.b,'contest',challenger_skill='전투',defender_skill='전투',challenger_options={'fixed':[3,3,3,2]},defender_options={'fixed':[2]*4},winner_choice='keep')
+        out=self.e.grapple_action(self.b,'contest',challenger_skill='전투',defender_skill='전투',challenger_options={'fixed':[3,3,3,2]},defender_options={'fixed':[2]*4},winner_choices={self.a.entity_id:'keep'})
         self.assertEqual(out['winner_id'],self.a.entity_id);self.assertEqual(GR.relation(self.e,self.a)['secure'],{})
     def test_release_preserves_independent_vulnerability(self):
         self.e.apply_status(self.b,'취약');self.enter();self.turn_a_next()
@@ -170,6 +170,129 @@ class GrappleTests(unittest.TestCase):
         self.assertIsInstance(self.e.grapple_action(self.a,'secure'),C.PendingDecision);self.assertEqual(self.snapshot(),before)
         with self.assertRaises(ValueError):self.e.grapple(self.a,self.b,**self.options())
         self.assertEqual(self.snapshot(),before)
+
+    def test_grapple_blocks_nonmovement_shift_and_standard_substitution_before_cost(self):
+        from action_metadata import ActionCost
+        import action_resources as RESOURCES
+        self.enter();self.turn_b()
+        before=self.e.export_state()
+        self.assertFalse(TURN.spend(self.e,self.b,'shift','nonmovement Shift effect'))
+        self.assertFalse(TURN.spend(self.e,self.b,'shift',GR.SOURCE+'/escape'))
+        self.assertFalse(TURN.spend_compound(self.e,self.b,ActionCost(('shift','swift')),'compound Shift effect'))
+        self.assertFalse(TURN.spend(self.e,self.b,ActionCost(('standard','shift')),'compound Shift effect'))
+        self.assertEqual(self.e.export_state(),before)
+        self.assertTrue(TURN.spend(self.e,self.b,'standard','permitted Standard effect'))
+        self.assertTrue(TURN.spend(self.e,self.b,'swift','permitted Swift effect'))
+        self.setUp();self.enter();RESOURCES.schedule(self.b,{'shift':1});self.turn_b()
+        before=self.e.export_state()
+        self.assertFalse(TURN.spend(self.e,self.b,'shift','would downgrade Standard'))
+        self.assertFalse(TURN.spend_compound(self.e,self.b,ActionCost(('shift','swift')),'would downgrade Standard'))
+        self.assertEqual(self.e.export_state(),before)
+
+    def test_grappled_trainer_ordinary_party_recall_is_rejected_atomically(self):
+        import test_reuse_partial_party as party
+        from native_scenario_fixture import prepare_body,assert_rejected_unchanged
+        party.Tests.setup_world(self)
+        self.b=self.actor('actual grabber','wild',(1,0));self.e.gm.add_combatant(self.b)
+        prepare_body(self.e,self.a,size='Medium',offsets=[(0,0)],reason='actual trainer body')
+        for skill in ('전투','육상'):
+            self.e.gm.set_skill(self.a,skill,4,reason='actual trainer grapple resistance')
+        self.enter()
+        assert_rejected_unchanged(self.e,lambda:self.e.act_on_party(self.a,recall=[self.p],
+            request_id='grabbed-recall',reason='ordinary recall while grabbed'),reason_pattern='cannot pay the party action')
+        self.assertTrue(self.p.on_field);self.assertIsNotNone(GR.relation(self.e,self.a))
+
+    def test_losing_challenger_cannot_end_and_actual_winner_resumes_paid_observed_pair(self):
+        import skill_feature_actions as SF
+        from native_scenario_fixture import assert_rejected_unchanged
+        self.enter();self.turn_b()
+        options=dict(challenger_skill='육상',defender_skill='전투',request_id='paired-winner',
+            challenger_options={'roll_id':'paired-challenger','fixed':[2]*4},
+            defender_options={'roll_id':'paired-defender','fixed':[4]*4},winner_choice='end')
+        pending=self.e.grapple_action(self.b,'contest',**options)
+        self.assertIsInstance(pending,C.PendingDecision);self.assertEqual(pending.basis['winner_id'],self.a.entity_id)
+        self.assertEqual(GR.relation(self.e,self.a)['dominant'],self.a.entity_id)
+        self.assertEqual(self.b.budget,dict(standard=0,shift=0,swift=1));self.assertEqual(self.b._action_history,['full'])
+        rolls=[SF.event(self.e,c,uid).first for c,uid in ((self.b,'paired-challenger'),(self.a,'paired-defender'))]
+        before=self.e.export_state()
+        self.assertIsInstance(self.e.grapple_action(self.b,'contest',**options),C.PendingDecision)
+        self.assertEqual(self.e.export_state(),before)
+        assert_rejected_unchanged(self.e,lambda:self.e.grapple_action(self.b,'contest',
+            **dict(options,winner_choices={self.a.entity_id:'steal'})),reason_pattern='keep or end')
+        assert_rejected_unchanged(self.e,lambda:self.e.grapple_action(self.b,'contest',
+            **dict(options,challenger_options={'roll_id':'paired-challenger','fixed':[6]*4})),reason_pattern='observed maneuver declaration|completed participant declaration')
+        out=self.e.grapple_action(self.b,'contest',**dict(options,winner_choices={self.a.entity_id:'keep'}))
+        self.assertEqual(out['winner_id'],self.a.entity_id);self.assertIsNotNone(GR.relation(self.e,self.b))
+        self.assertEqual(self.b._action_history,['full'])
+        for (c,uid),roll in zip(((self.b,'paired-challenger'),(self.a,'paired-defender')),rolls):
+            self.assertIs(SF.event(self.e,c,uid).first,roll)
+        stable=self.e.export_state()
+        self.assertEqual(self.e.grapple_action(self.b,'contest',**dict(options,winner_choices={self.a.entity_id:'keep'})),out)
+        self.assertEqual(self.e.export_state(),stable)
+
+    def test_default_paired_contest_keeps_defender_tie_and_resumes_its_own_end_choice(self):
+        self.enter();self.turn_b()
+        options=dict(challenger_skill='육상',defender_skill='전투',
+            challenger_options={'fixed':[3]*4},defender_options={'fixed':[3]*4},winner_choice='end')
+        pending=self.e.grapple_action(self.b,'contest',**options)
+        self.assertIsInstance(pending,C.PendingDecision);self.assertEqual(pending.basis['winner_id'],self.a.entity_id)
+        self.assertIsNotNone(GR.relation(self.e,self.a));self.assertEqual(self.b._action_history,['full'])
+        out=self.e.grapple_action(self.b,'contest',**dict(options,winner_choices={self.a.entity_id:'end'}))
+        self.assertEqual(out['winner_id'],self.a.entity_id);self.assertEqual(self.b._action_history,['full'])
+        self.assertIsNone(GR.relation(self.e,self.a));self.assertIsNone(GR.relation(self.e,self.b))
+
+    def test_native_pair_rng_waits_for_actual_winner_then_releases_after_json_restore(self):
+        import skill_feature_actions as SF,state_codec as CODEC
+        self.enter();self.turn_b()
+        options=dict(challenger_skill='전투',defender_skill='육상',request_id='native-pair',
+            challenger_options={'roll_id':'native-pair-b'},defender_options={'roll_id':'native-pair-a'})
+        rng=self.e.rng.getstate()
+        pending=self.e.grapple_action(self.b,'contest',**options)
+        self.assertIsInstance(pending,C.PendingDecision);self.assertNotEqual(self.e.rng.getstate(),rng)
+        observed=self.e.rng.getstate();winner=pending.basis['winner_id']
+        self.assertEqual(set(pending.basis['check_totals']),{self.a.entity_id,self.b.entity_id})
+        for actor,uid in ((self.b,'native-pair-b'),(self.a,'native-pair-a')):
+            self.assertEqual(len(SF.event(self.e,actor,uid).first.faces),4)
+        loaded=CODEC.load_engine(self.r,CODEC.dump_engine(self.e));index={c.entity_id:c for c in loaded.everyone}
+        out=loaded.grapple_action(index[self.b.entity_id],'contest',**dict(options,winner_choices={winner:'end'}))
+        self.assertEqual(out['winner_id'],winner);self.assertEqual(loaded.rng.getstate(),observed)
+        self.assertEqual(index[self.b.entity_id]._action_history,['full'])
+        for actor in loaded.everyone:self.assertIsNone(GR.relation(loaded,actor))
+
+    def test_paired_contest_uses_declared_ordinary_ranks_and_native_dice_counts(self):
+        from copy import copy
+        from rulings import Rulings
+        import skill_feature_actions as SF
+        self.r=copy(type(self).r);self.r.rulings=Rulings()
+        for name,rank,dice in (('초월',7,8),('신화',10,7)):
+            self.r.rulings.set_mech('gameplay/skill-rank-dice','by_rank_name.'+name,
+                {'rank':rank,'dice':str(dice)+'d6','eng':name},reason='actual campaign ordinary rank declaration',scope='campaign',rules=self.r)
+        self.setUp();self.enter();self.turn_b()
+        self.e.gm.set_skill(self.b,'육상',7,reason='actual declared challenger skill')
+        self.e.gm.set_skill(self.a,'전투',10,reason='actual declared defender skill')
+        out=self.e.grapple_action(self.b,'contest',challenger_skill='육상',defender_skill='전투',
+            challenger_options={'roll_id':'rank7-pair','fixed':[4]*8},defender_options={'roll_id':'rank10-pair','fixed':[3]*7},winner_choice='keep')
+        self.assertEqual(out['winner_id'],self.b.entity_id)
+        for actor,uid,rank,dice in ((self.b,'rank7-pair',7,8),(self.a,'rank10-pair',10,7)):
+            roll=SF.event(self.e,actor,uid).first
+            self.assertEqual((roll.rank,roll.dice_count,len(roll.faces)),(rank,dice,dice))
+
+    def test_paired_skill_choice_retry_preserves_observed_rolls_and_full_payment(self):
+        import skill_feature_actions as SF
+        import test_category3_maneuver_features as featured
+        self.enter();self.turn_b()
+        for actor in (self.a,self.b):actor.spec['feats']=[SF.MONKEY]
+        options=dict(challenger_skill='육상',defender_skill='전투',request_id='paired-feature',
+            challenger_options=featured.Tests.opts(self,'paired-feature-b',decline=True),
+            defender_options=featured.Tests.opts(self,'paired-feature-a',bad=True),winner_choices={self.a.entity_id:'keep'})
+        with self.assertRaisesRegex(ValueError,'boolean'):self.e.grapple_action(self.b,'contest',**options)
+        rolls=[SF.event(self.e,c,uid).first for c,uid in ((self.b,'paired-feature-b'),(self.a,'paired-feature-a'))]
+        rng=self.e.rng.getstate();self.assertEqual(self.b._action_history,['full'])
+        options['defender_options']=featured.Tests.opts(self,'paired-feature-a',decline=True)
+        out=self.e.grapple_action(self.b,'contest',**options)
+        self.assertEqual(out['winner_id'],self.a.entity_id);self.assertEqual(self.b._action_history,['full']);self.assertEqual(self.e.rng.getstate(),rng)
+        for (c,uid),roll in zip(((self.b,'paired-feature-b'),(self.a,'paired-feature-a')),rolls):
+            self.assertIs(SF.event(self.e,c,uid).first,roll)
 
 
     def test_late_relation_installation_failure_restores_both_bindings_status_cost_and_rng(self):

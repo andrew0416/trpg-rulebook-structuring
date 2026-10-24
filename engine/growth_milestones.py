@@ -2,6 +2,7 @@
 from copy import deepcopy
 
 KEY='growth_milestone_choices'
+INHERITANCE_SOURCE='ch05-pokemon/포켓몬-교배'
 
 
 def _options(values):
@@ -28,6 +29,10 @@ def validate(spec):
                 raise ValueError('actual ability milestone stage required')
             if stage.get('kind') not in ('creation','level') or identity!=('ability:creation' if stage['kind']=='creation' else 'ability:'+str(level)):
                 raise ValueError('ability milestone identity differs from stage')
+        if identity.startswith('inheritance:'):
+            level=stage.get('level')
+            if offered['source']!=INHERITANCE_SOURCE or stage.get('kind')!='inheritance' or type(level) is not int or level<20 or level%10 or level>spec.get('level',0) or identity!='inheritance:'+str(level):
+                raise ValueError('actual inheritance milestone stage required')
         selection=row['selection']
         if selection is not None:
             if type(selection) is not dict or set(selection)!={'choice','reason','available'}:
@@ -35,6 +40,8 @@ def validate(spec):
             _options(selection['available'])
             if selection['choice'] not in selection['available'] or type(selection['reason']) is not str or not selection['reason'].strip():
                 raise ValueError('milestone selection evidence mismatch')
+            if identity.startswith('inheritance:') and (selection['choice'] not in offered['options'] or any(x not in offered['options'] for x in selection['available'])):
+                raise ValueError('inheritance choice differs from the offered list')
 
 
 def offer(spec,identity,*,source,stage,options):
@@ -107,6 +114,59 @@ def choose_ability(engine,actor,level,ability,*,reason):
         result,fresh=select(c.spec,identity,ability,available=options,reason=reason)
         if fresh:
             G.set_baseline(c,'abilities',list(c.spec['abilities'])+[ability])
+            G.reconcile(e,c)
+        return dict(result,replayed=not fresh)
+    return G.transition(engine,actor,apply)
+
+
+def offer_inheritance(rules,spec):
+    """One retained choice per actually attained tenth level, starting at 20."""
+    level=spec['level'];options=spec.get('inheritance_moves',[])
+    if not options or level<20 or level%10:return
+    if rules._selected_rule(INHERITANCE_SOURCE)!=INHERITANCE_SOURCE:raise ValueError('selected inheritance source required')
+    _options(options)
+    if any(rules.move_id(mid)!=mid for mid in options):raise ValueError('canonical inherited Move list required')
+    identity='inheritance:'+str(level)
+    if identity in spec.get(KEY,{}):return
+    return offer(spec,identity,source=INHERITANCE_SOURCE,
+        stage={'kind':'inheritance','level':level,'species':spec['species']},options=list(options))
+
+
+def inheritance_natural_moves(rules,spec):
+    """Classify only completed inheritance learning, including Tutor-list upgrades."""
+    validate(spec);result=set();seen=set()
+    for row in spec.get('move_learning_log',[]):
+        if not isinstance(row,dict) or 'inheritance_milestone' not in row:continue
+        identity=row['inheritance_milestone']
+        if not isinstance(identity,str) or not identity.startswith('inheritance:') or identity in seen:
+            raise ValueError('one learning receipt per inherited growth choice required')
+        seen.add(identity);right=spec.get(KEY,{}).get(identity)
+        if right is None or right['selection'] is None:
+            raise ValueError('inherited Move requires its completed growth choice')
+        if row.get('method')!='level_up' or row.get('source')!='pokemon/level-up' or row.get('paid_tp')!=0 or row.get('move_id')!=right['selection']['choice'] or type(row.get('learned_at_level')) is not int or row['learned_at_level']<right['offered']['stage']['level']:
+            raise ValueError('inherited Move learning disagrees with its growth choice')
+        if rules._selected_rule(INHERITANCE_SOURCE)!=INHERITANCE_SOURCE:raise ValueError('selected inheritance source required')
+        result.add(row['move_id'])
+    return result
+
+
+def choose_inheritance(engine,actor,level,move,*,reason):
+    import state_grants as G,world_entities as W,learning_grant as L,move_state as M
+    W.require_actors(engine,actor)
+    if actor.kind!='pokemon' or type(level) is not int or level>actor.level:raise ValueError('actual attained Pokemon inheritance milestone required')
+    identity='inheritance:'+str(level)
+    def apply(e,c):
+        validate(c.spec)
+        row=c.spec.get(KEY,{}).get(identity)
+        if row is None:raise ValueError('recorded inheritance milestone right required')
+        if e.r._selected_rule(INHERITANCE_SOURCE)!=INHERITANCE_SOURCE:raise ValueError('selected inheritance source required')
+        mid=e.r.move_id(move)
+        options=[x for x in row['offered']['options'] if x not in M.known(e.r,c.spec) and x not in e.r.excluded_moves]
+        result,fresh=select(c.spec,identity,mid,available=options,reason=reason)
+        if fresh:
+            L.learn_moves(e.r,c.spec,candidates=options,selected=[mid],method='level_up',source='pokemon/level-up',
+                reason=reason,details={'inheritance_milestone':identity})
+            G.set_baseline(c,'moves',list(c.spec['moves']))
             G.reconcile(e,c)
         return dict(result,replayed=not fresh)
     return G.transition(engine,actor,apply)

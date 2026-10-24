@@ -68,7 +68,8 @@ def state(engine):
 
 def effective_state(engine,actor,*,include_virtual=True):
  """Actor-local weather; passive effects exclude Booster, retaining Umbrella."""
- value=deepcopy(state(engine))
+ validate(engine)
+ value=deepcopy(getattr(engine,KEY,{'version':1,'sequence':0,'active':None,'natural':None,'history':[]}))
  if _suppressed(value):value['active']=None;value['layers']=[]
  import field_effects as FIELD
  local=FIELD.local_weather_for(engine,actor)
@@ -176,6 +177,30 @@ def prepare_sample_move(engine,actor,move):
  WORLD.require_actors(engine,actor);GYM._ap_source(engine.r)
  if engine.r._selected_rule(move['id'])!=move['id']:raise ValueError('selected Rudolf Weather Ball source required')
  return dict(move,type=chosen)
+
+
+def prepare_weather_ball(engine,actor,move,selected=None):
+ """Select the sourced weather type before native costs and type overrides."""
+ if move.get('id')!='move/웨더볼':
+  if selected is not None:raise ValueError('weather type choice belongs only to Weather Ball')
+  return move
+ if '_weather_ball_type' in move:
+  if selected not in (None,move['_weather_ball_type']):
+   raise ValueError('prepared Weather Ball type changed')
+  return move
+ from source_context import verified_source
+ verified_source(engine.r,{'file':'input/db/moves.csv','sha256':'ab83f872e5eca67a41db7d126b842f0165437e0fa70bb77ddad832a0b7396c93'},label='Weather Ball')
+ if engine.r._selected_rule(move['id'])!=move['id']:raise ValueError('selected Weather Ball source required')
+ prepared=prepare_sample_move(engine,actor,move)
+ sample=prepared['type'] if prepared is not move else None
+ mapping={'sunny':'불꽃','rain':'물','hail':'얼음','sandstorm':'바위'}
+ choices=[sample] if sample else list(dict.fromkeys(mapping[w] for w in effective_weathers(engine,actor) if w in mapping)) or ['노말']
+ if selected is None:
+  if len(choices)!=1:raise ValueError('multiple weather types require an explicit Weather Ball type before Move cost')
+  selected=choices[0]
+ if selected not in choices:raise ValueError('Weather Ball type must match an actual effective weather')
+ return dict(move,type=selected,_weather_ball_type=selected)
+
 
 def prepare(engine,weather,rounds,source_id,origin,reason='',*,actor=None,policy=None):
  import homebrew_weather as HOME_WEATHER

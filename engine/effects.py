@@ -40,12 +40,13 @@ KNOWN_IF = {
 
 
 def tgt_of(e, attacker, target, ctx=None):
+    import effect_contracts as CONTRACTS
     if ctx is not None:
         import native_area_hit_effects as AREA_HIT
         engine=ctx['engine']
         if AREA_HIT.owns(engine,ctx.get('source_id'),e):
             return AREA_HIT.recipients(engine,attacker,target,e,ctx)
-    import effect_contracts as CONTRACTS
+        return CONTRACTS.hit_recipients(engine,attacker,target,e,ctx.get('source_id'))
     return CONTRACTS.recipients(attacker,target,e)
 
 
@@ -173,11 +174,7 @@ def h_stage_change(engine, a, t, e, ctx):
         return "delta 비정수(보류)"
     if not isinstance(e.get("stat"), str) or e.get("stat") not in {"atk", "def", "spa", "spd", "spe", "acc", "eva", "all"}:
         return "스탯 선택/해석 필요: " + str(e.get("stat"))
-    if (ctx.get('source_id')=='move/천둥차기'
-            and e=={'type':'stage_change','stat':'def','delta':-1,'target':'all_targets'}):
-        targets=(t,)
-    else:
-        targets=tgt_of(e,a,t,ctx)
+    targets=tgt_of(e,a,t,ctx)
     changes = dict.fromkeys(
         ["atk", "def", "spa", "spd", "spe"] if e["stat"] == "all" else [e["stat"]], e["delta"])
     for c in targets:
@@ -458,7 +455,7 @@ def h_create_terrain(engine, a, t, e, ctx):
 
 def h_push(engine, a, t, e, ctx):
     import coat_effects as COATS
-    if COATS.blocks_displacement(engine,t):return None
+    if COATS.blocks_displacement(engine,t) or __import__('type_ace').push_immunity(engine,t):return None
     m = e.get("meters")
     if m == "to outside blast range":m=__import__("native_area_hit_effects").push_outside(engine,a,t,e,ctx)
     if not isinstance(m, int):

@@ -124,10 +124,10 @@ class MovementContactRepairTests(unittest.TestCase):
         path=[{'position': (1, 1), 'altitude': 1, 'gm_distance': 2},
               {'position': (1, 1), 'altitude': 0, 'gm_distance': 1}]
         native=EXT.on_enter_cell; observations=[]
-        def enter(engine, subject, cell):
+        def enter(engine, subject, cell, **kw):
             self.assertEqual(NICOLETTE.state(engine)['broken_ice'], [])
             observations.append((subject.airborne, subject.spec['_movement_altitude']))
-            return native(engine, subject, cell)
+            return native(engine, subject, cell, **kw)
         with patch.object(EXT, 'on_enter_cell', side_effect=enter):
             result=self.paid(e, actor, path, mode='sky', progress=progress)
         self.assertEqual((result['steps'], result['altitude']), (2, 0))
@@ -206,8 +206,8 @@ class MovementContactRepairTests(unittest.TestCase):
                 e, actor=self.river(identity='entry-relocate-'+str(forced))
                 owner=next(other for other in e.everyone if other is not actor)
                 native=EXT.on_enter_cell
-                def relocate(engine, subject, cell):
-                    result=native(engine, subject, cell)
+                def relocate(engine, subject, cell, **kw):
+                    result=native(engine, subject, cell, **kw)
                     subject.pos=(0, 2)
                     return result
                 with patch.object(EXT, 'on_enter_cell', side_effect=relocate):

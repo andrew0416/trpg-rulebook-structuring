@@ -1,4 +1,4 @@
-"""Reviewed native actions for ten CSV Abilities sharing one owned-state path.
+"""Reviewed native actions for eleven CSV Abilities sharing one owned-state path.
 
 Every activation is admitted from an exact CSV row, paid through the native
 action/frequency ledgers, committed in ``state_grants.transition`` and linked
@@ -31,6 +31,7 @@ SUPPORTED_KINDS = {
     'threat',
     'gardener',
     'death_resistance',
+    'leaf_guard',
 }
 COLOR_STATS = ('atk', 'def', 'spa', 'spd', 'spe', 'hp')
 COLOR_NAMES = ('빨강', '주황', '노랑', '초록', '파랑', '보라')
@@ -45,8 +46,8 @@ def policy(rules):
     if data is not None:
         return data
     data = json.loads((Path(rules.root) / POLICY).read_text(encoding='utf-8'))
-    if data.get('schema_version') != 1 or len(data.get('sources', {})) != 10:
-        raise ValueError('reviewed ten-source native Ability policy required')
+    if data.get('schema_version') != 1 or len(data.get('sources', {})) != 11:
+        raise ValueError('reviewed eleven-source native Ability policy required')
     for file, digest in data.get('source_files', {}).items():
         path = Path(rules.root) / file
         if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
@@ -314,7 +315,7 @@ def _learned_moves(target):
     for value in M.owned_list(target.spec, 'moves', target.moves):
         try:
             mid = target.r.move_id(value)
-            if mid is None:
+            if mid is None or mid == 'struggle':
                 continue
             target.r.move(mid)
         except Exception:
@@ -324,7 +325,8 @@ def _learned_moves(target):
     return result
 
 
-def _strongest_move(target, choice=None):
+def _strongest_moves(target, choice=None):
+    """Compare printed numeric DB under the user's 2026-10-23 Forewarn ruling."""
     ranked = []
     for mid in _learned_moves(target):
         move = target.r.move(mid)
@@ -335,13 +337,9 @@ def _strongest_move(target, choice=None):
         raise ValueError('target knows no damaging Move')
     best = max((x[0] for x in ranked))
     ties = sorted((mid for db, mid in ranked if db == best))
-    if choice is None:
-        if len(ties) > 1:
-            raise ValueError('choose one tied strongest Move')
-        choice = ties[0]
-    if choice not in ties:
-        raise ValueError('selected Move is not strongest by damage roll')
-    return (choice, best, ties)
+    if choice is not None and choice not in ties:
+        raise ValueError('selected Move is not strongest by printed damage base')
+    return (ties, best)
 
 
 def _install_owned_row(
@@ -392,7 +390,7 @@ def _install_owned_row(
 def _forewarn(engine, actor, target, source, row, options):
     if set(options) - {'move_id'}:
         raise ValueError('unsupported Forewarn option')
-    move_id, db, ties = _strongest_move(target, options.get('move_id'))
+    move_ids, db = _strongest_moves(target, options.get('move_id'))
     _pay(engine, actor, target, source, row)
     sequence = C.integer(
         actor.spec.get(SEQUENCE, 0),
@@ -408,7 +406,7 @@ def _forewarn(engine, actor, target, source, row, options):
         {
             'type': 'accuracy_mod',
             'value': -2,
-            'moves': move_id,
+            'moves': move_ids,
             'ability_native': source,
         },
         encounter_end=True,
@@ -420,9 +418,10 @@ def _forewarn(engine, actor, target, source, row, options):
         target.entity_id,
         'forewarn',
         {
-            'move_id': move_id,
+            'move_id': move_ids[0] if len(move_ids) == 1 else None,
+            'move_ids': move_ids,
             'damage_base': db,
-            'tied_candidates': ties,
+            'tied_candidates': move_ids,
             'grant_source': sid,
         },
     )
@@ -449,6 +448,7 @@ def _sunset(engine, actor, target, source, row, options):
             raise ValueError('Radiant requires actual sunlight exposure')
         if state.get('radiant') is not None:
             raise ValueError('Radiant is already charged')
+        _pay(engine, actor, target, source, row)
         state['radiant'] = {
             'source': source,
             'weather': 'sunny',
@@ -467,7 +467,9 @@ def _sunset(engine, actor, target, source, row, options):
         raise ValueError('Sunset has no Radiant state to spend')
     if not engine.encounter_active:
         raise ValueError('Sunset combat-stage benefit requires an active encounter')
-    _pay(engine, actor, target, source, row)
+    import turn as TURN
+    if not TURN.spend(engine, actor, 'swift', row['name']):
+        raise ValueError('Ability action unavailable')
     state.pop('radiant')
     sequence = C.integer(
         actor.spec.get(SEQUENCE, 0),
@@ -512,18 +514,32 @@ def _trainer_for(engine, target):
     )
 
 
-def _frighten_path(engine, actor, target, distance):
+def _frighten_can_travel(engine, target, position, mode):
     import body_state as BODY
+    import map_terrain as TERRAIN
+    bases = {TERRAIN.base_at(engine.grid, point) for point in BODY.at_position(target, position)}
+    if mode == 'swim' and bases != {'underwater'}:
+        return False
+    if mode == 'burrow' and (bases != {'earth'} or not target.spec.get('_burrow', {}).get('underground')):
+        return False
+    return TERRAIN.can_travel(engine, target, position, mode)
+
+
+def _frighten_path(engine, actor, target, distance, mode):
+    import body_state as BODY
+    import map_terrain as TERRAIN
+    import movement_actions as MOVEMENT
     import world_entities as W
     from grid import cheb
     origin = tuple(W.grid_cell(target))
     user = tuple(W.grid_cell(actor))
     trainer = _trainer_for(engine, target)
     trainer_cell = None if trainer is None else tuple(W.grid_cell(trainer))
-    paths = [(origin,)]
+    paths = [((origin,), 0, getattr(target, '_diagonal_steps', 0))]
+    choices = list(paths)
     for _ in range(distance):
         expanded = []
-        for path in paths:
+        for path, spent, diagonals in paths:
             x, y = path[-1]
             for dx in (-1, 0, 1):
                 for dy in (-1, 0, 1):
@@ -534,47 +550,74 @@ def _frighten_path(engine, actor, target, distance):
                         q,
                         origin=path[-1],
                     )
-                    if (dx, dy) == (0, 0) or q in path or cannot_place:
+                    if ((dx, dy) == (0, 0) or q in path or cannot_place
+                            or not _frighten_can_travel(engine, target, q, mode)):
                         continue
-                    expanded.append(path + (q,))
+                    step, next_diagonals = MOVEMENT.step_cost(path[-1], q, diagonals)
+                    cost = spent + step * TERRAIN.slow_multiplier(engine, target, q, mode)
+                    if cost <= distance:
+                        expanded.append((path + (q,), cost, next_diagonals))
         if not expanded:
             break
         paths = expanded
-    if not paths or len(paths[0]) == 1:
+        choices.extend(paths)
+    if len(choices) == 1:
         return [origin]
     start = cheb(origin, user)
 
-    def score(path):
+    def score(choice):
+        path, spent, _ = choice
         end = path[-1]
         away = cheb(end, user)
         toward = 0 if trainer_cell is None else -cheb(end, trainer_cell)
         return (
-            away >= start + len(path) - 1,
+            away > start,
             away,
             toward,
             tuple(-v for point in path for v in point),
         )
-    return list(max(paths, key=score))
+    return list(max(choices, key=score)[0])
 
 
 def _frighten(engine, actor, target, source, row, options):
-    if options:
-        raise ValueError('Frighten takes no activation options')
+    if set(options) - {'source_policy'}:
+        raise ValueError('unsupported Frighten activation options')
+    selected = options.get('source_policy', 'kr_csv_r0015_movement')
+    if selected not in ('kr_csv_r0015_movement', 'en_core105_speed_stages'):
+        raise ValueError('unknown Frighten source policy')
     if target is actor:
         raise ValueError('Frighten requires another target')
     _distance(actor, target, 5)
+    if selected == 'en_core105_speed_stages':
+        from source_context import verified_source
+        verified_source(engine.r, {'file': 'source-audit/frighten-core105.txt',
+            'sha256': '516309f168855376068b87d5b2016bca92ba118ceeb64447375c0cf8e4a577cf'},
+            label='Frighten Core1.05', source_root='source-audit')
+        _pay(engine, actor, target, source, row,
+             declaration={'kind': 'scene', 'uses': 1, 'scope': []})
+        import effects as FX
+        note = FX.h_stage_change(engine, actor, target,
+            {'type': 'stage_change', 'stat': 'spe', 'delta': -2, 'target': 'target'},
+            {'engine': engine, 'source_id': source, 'attacker': actor, 'target': target})
+        if note:
+            raise ValueError(str(note))
+        return _receipt(engine, actor, source, target.entity_id, 'frighten',
+            {'source_policy': selected, 'source_reference': 'PTU Core1.05 p318 / Frighten',
+             'stat': 'spe', 'delta': -2})
     import frequency as F
     import movement_actions as MOVEMENT
 
     movement = MOVEMENT.capabilities(engine, target)
+    origin = tuple(target.pos)
     mode, value = max(
         ((key, engine.move_profile(target, movement_mode=key)[0])
-         for key, value in movement.items() if key in MOVEMENT.MODES and value > 0),
+         for key, value in movement.items() if key in MOVEMENT.MODES and value > 0
+         and _frighten_can_travel(engine, target, origin, key)),
         key=lambda item: (item[1], item[0]),
         default=("land", 0),
     )
     requested = min(3, value)
-    path = _frighten_path(engine, actor, target, requested)
+    path = _frighten_path(engine, actor, target, requested, mode)
     global_plan = _frequency(
         engine,
         actor,
@@ -599,6 +642,9 @@ def _frighten(engine, actor, target, source, row, options):
     _consume_frequency(engine, actor, source, row['frequency'], global_plan)
     F.consume_activation(actor, target_key, row['target_frequency'], engine=engine)
     import forced_movement as FORCED
+    import coat_effects as COATS
+    if len(path) > 1 and not any(record['effect']['blocks_push_pull'] for record in COATS.live(target)):
+        MOVEMENT.entry_mode(target, '공중/부유' if mode in ('sky', 'levitate') else mode)
     result = FORCED.along_path(
         engine,
         actor,
@@ -619,6 +665,8 @@ def _frighten(engine, actor, target, source, row, options):
         target.entity_id,
         'frighten',
         {
+            'source_policy': selected,
+            'source_reference': 'C2CSV-ABILITY-R0015',
             'movement_mode': mode,
             'movement_value': value,
             'displacement': result,
@@ -697,8 +745,11 @@ def _lunchbox(engine, actor, target, source, row, options):
         raise ValueError('Lunchbox must follow the actual completed Food Buff consumption')
     if source in food.get('ability_native_claims', []):
         raise ValueError('Food Buff receipt already used by Lunchbox')
-    _pay(engine, actor, target, source, row)
     import temporary_hp as TEMP
+    blocked = TEMP.blocked_reason(actor)
+    if blocked is not None:
+        raise ValueError('Lunchbox temporary HP grant was blocked: ' + blocked)
+    _pay(engine, actor, target, source, row)
     provenance = {
         'source': source,
         'food_receipt': sequence,
@@ -710,9 +761,8 @@ def _lunchbox(engine, actor, target, source, row, options):
         engine.tick(actor),
         stack=True,
         provenance=provenance,
+        contribution_source=TEMP.food_source(actor, 'lunchbox', food),
     )
-    if gained != engine.tick(actor):
-        raise ValueError('Lunchbox temporary HP grant was blocked')
     food.setdefault('ability_native_claims', []).append(source)
     return _receipt(
         engine,
@@ -740,8 +790,10 @@ def _designer(engine, actor, target, source, row, options):
         raise ValueError('Designer requires two distinct types')
     import state_grants as G
     import type_state as TYPES
+    import ability_state_projection as PROJECTION
 
     TYPES.validate_types(engine.r, values, label='Designer leaf clothing types')
+    leafy = PROJECTION.prepare_designer(engine, actor)
     _pay(engine, actor, target, source, row)
     state = _state(actor)[source]
     old = state.get('garment')
@@ -786,8 +838,32 @@ def _designer(engine, actor, target, source, row, options):
         'created_at': engine.elapsed_seconds,
         'sequence': sequence,
     }
+    if leafy is not None:
+        garment['leafy_cloak'] = leafy
     state['garment'] = garment
-    return _receipt(engine, actor, source, actor.entity_id, 'designer', garment)
+    receipt = _receipt(engine, actor, source, actor.entity_id, 'designer', garment)
+    PROJECTION.complete_designer(engine, actor, receipt)
+    return receipt
+
+
+def _leaf_guard(engine, actor, target, source, row, options):
+    if target is not actor or set(options)-{'status'}:
+        raise ValueError('Leaf Guard cures one affliction of its actual user')
+    import status_sets as STATUS
+    import effects as FX
+    afflictions = STATUS.afflictions(actor)
+    status = options.get('status')
+    if status is None and len(afflictions) == 1:
+        status = afflictions[0]
+    if not isinstance(status, str) or STATUS.normalize(status) not in afflictions:
+        raise ValueError('Leaf Guard requires one actual chosen Status Affliction')
+    status = STATUS.normalize(status)
+    sunny = FX.weather_matches(engine, 'sunny', actor)
+    _pay(engine, actor, target, source, row,
+         declaration={'kind': 'at_will', 'uses': 1, 'scope': []} if sunny else row['frequency'])
+    engine.cure_status(actor, status)
+    return _receipt(engine, actor, source, actor.entity_id, 'leaf_guard',
+                    {'status': status, 'ignored_scene_frequency': sunny})
 
 
 def _color_payload(roll):
@@ -954,6 +1030,7 @@ HANDLERS = {
     'air_lock': _air_lock,
     'lunchbox': _lunchbox,
     'designer': _designer,
+    'leaf_guard': _leaf_guard,
     'color_theory': _color_theory,
     'gardener': _gardener,
 }

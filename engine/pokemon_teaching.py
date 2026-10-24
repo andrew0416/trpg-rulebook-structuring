@@ -33,7 +33,9 @@ def _text(value,name):
 def _pokemon(e,actor,target):
  W.require_actors(e,actor,target)
  import pokemon_activities as P
- P._trainer(actor);P._outside(e);P._pokemon(target);P._owner(actor,target)
+ import researcher_fields as RESEARCH
+ if not RESEARCH.pusher_acquiring(e,actor,target):P._trainer(actor);P._outside(e)
+ P._pokemon(target);P._owner(actor,target)
  _text(target.spec.get('id'),'actual Pokemon identity')
  if target.spec.get('frequency_state',{}).get('day',0)!=actor.spec.get('frequency_state',{}).get('day',0):raise ValueError('teaching calendars must agree')
 
@@ -215,6 +217,8 @@ def training_safety(safe):
 
 def edge_training_hour(e,actor,target,source,application,*,safe):
  """Pay the ordinary Poke Edge hour through the common job owner."""
+ import researcher_fields as RESEARCH
+ if RESEARCH.pusher_acquiring(e,actor,target,source):return None
  training_safety(safe)
  import activity_jobs as JOBS
  return JOBS.run_fixed(e,actor,(target,),seconds=3600,source=source,
@@ -264,7 +268,8 @@ def consume_credit(target,application,*,from_training=False):
 def teach_edge(e,actor,*,target,edge,skill=None,stat=None,capability=None,move_id=None,growth=None,lesson=None,ability=None,negative_decision=None,from_grooming=False,from_training=False,safe=None,_pusher_funded=False):
  import researcher_fields as RESEARCH
  if not _pusher_funded and RESEARCH.pusher_funds(e,actor,target,edge) is not None:
-  return RESEARCH.teach_funded(e,actor,target,edge,lambda se,so,st:teach_edge(se,so,target=st,edge=edge,skill=skill,stat=stat,capability=capability,move_id=move_id,growth=growth,lesson=lesson,ability=ability,negative_decision=negative_decision,from_grooming=from_grooming,from_training=from_training,safe=safe,_pusher_funded=True))
+  credit_mode(from_grooming,from_training)
+  return RESEARCH.teach_funded(e,actor,target,edge,lambda se,so,st:teach_edge(se,so,target=st,edge=edge,skill=skill,stat=stat,capability=capability,move_id=move_id,growth=growth,lesson=lesson,ability=ability,negative_decision=negative_decision,safe=safe,_pusher_funded=True))
  import pokemon_move_edges as MOVE_EDGES
  if edge in (MOVE_EDGES.MIXED_POWER,'Mixed Power'):
   if any(x is not None for x in (skill,stat,capability,move_id,growth,lesson,ability,negative_decision)) or from_grooming or from_training:raise ValueError('Mixed Power uses its actual completed teaching hour without choices')
@@ -357,16 +362,15 @@ function never treats unknown edge text as an executable generic setter.
  import acquisition_qualification as Q
  Q.require(EDGE,actor.entity_id,'teaching',[Q.check('distinct_skill','repeat',not any(r.get('source')==EDGE and r.get('skill')==sid for r in learned),'Skill Improvement requires a different skill on each acquisition')])
  import researcher_features as RF
- native=RF.native_plan(e,target,skill);rank=native['rank'];flat=native['modifier']
+ native=RF.native_plan(e,target,skill)
  if native.get('pushed'):raise ValueError('temporary pushed skill must be separated before permanent skill acquisition')
+ rank,flat=EDGES.skill_pool(e.r,target.spec,sid)
  sp=species_lookup(e.r,target.spec['species'])
  values=[v['rank'] for k,v in e.r.species_skills.get(sp['name'],{}).items() if S.skill_id(e.r.skill_policy,k)==sid]
  Q.require(EDGE,actor.entity_id,'teaching',[Q.check('species_rank','prerequisite',len(values)==1 and rank<=values[0],'Skill Improvement requires a skill at or below species default rank')])
  if not (from_grooming or from_training):
   edge_training_hour(e,actor,target,EDGE,application,safe=safe)
- keys=[k for k in target.spec.get('skills',{}) if S.skill_id(e.r.skill_policy,k)==sid]
- for key in keys:target.spec['skills'].pop(key)
- target.spec.setdefault('skills',{})[skill]=str(rank+1)+'d6'+(('+' if flat>=0 else '')+str(flat) if flat else '')
+ EDGES.set_pool(e.r,target.spec,sid,rank+1,flat)
  _debit_points(target.spec,1)
  target.spec.setdefault('learned_poke_edges',[]).append({'source':EDGE,'status':'active','trainer_id':actor.entity_id,'skill':sid,'rank_before':rank,'point_cost':1,'training_source':'edge/미용사' if from_grooming else 'input/ch05-pokemon.md:229' if from_training else 'input/ch05-pokemon.md:274','completed_at':e.elapsed_seconds})
  refunded=EDGES.refund_excess(e.r,target.spec,reason='completed permanent Skill Improvement training')

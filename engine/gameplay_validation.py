@@ -15,6 +15,8 @@ def validate(engine, actors):
     from world_entities import validate_mount_relations, validate_world
     import temporary_hp as TEMP_HP
     TEMP_HP.loss_policy(engine)
+    import frequency as FREQUENCY
+    FREQUENCY.validate_session_policy(engine)
     for actor in actors:
         if actor.kind != actor.spec.get('kind'):
             raise ValueError('actor kind disagrees with base state')

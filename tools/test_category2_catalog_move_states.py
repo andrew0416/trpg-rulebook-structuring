@@ -125,7 +125,7 @@ class CatalogMoveStateTests(unittest.TestCase):
         ground = {"id": "move/fixture-ground", "name": "fixture ground", "type": "땅",
                   "class": "물리", "range": "근접, 대상 1"}
         base, _ = self.engine.type_multiplier("땅", self.target)
-        self.assertEqual(base, 0.0)
+        self.assertEqual(base, 1.0)
         self.assertEqual(EXT.effectiveness_hook(
             self.engine, self.actor, self.target, ground, {"effects_exec": []}, base,
             {"attacker": self.actor, "target": self.target}), 1.0)
@@ -153,7 +153,7 @@ class CatalogMoveStateTests(unittest.TestCase):
         self.assertEqual(EXT.effectiveness_hook(
             self.engine, self.actor, self.target, ordinary, {"effects_exec": []}, base,
             {"attacker": self.actor, "target": self.target}), 0.0)
-        expected, _ = self.engine.type_multiplier("얼음", self.target)
+        expected = 1.0  # User-selected original-game first-hit policy; no Ice substitution.
         self.assertEqual(EXT.effectiveness_hook(
             self.engine, self.actor, self.target, move, mechanics, base,
             {"attacker": self.actor, "target": self.target}), expected)
@@ -164,6 +164,7 @@ class CatalogMoveStateTests(unittest.TestCase):
         self.assertFalse(any(effect.get("type") in {"ignore_ability", "type_effectiveness_override"}
                              for effect in self.actor.registry))
         self.assertTrue(CATALOG.grounded(self.target))
+        base, _ = self.engine.type_multiplier("땅", self.target)
         self.assertEqual(EXT.effectiveness_hook(
             self.engine, self.actor, self.target, ordinary, {"effects_exec": []}, base,
             {"attacker": self.actor, "target": self.target}), 1.0)

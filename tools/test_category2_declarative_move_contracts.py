@@ -120,7 +120,7 @@ class DeclarativeMoveContractTests(unittest.TestCase):
         e.validate_state()
 
     def test_last_resort_gate_reads_only_authenticated_uses_since_switch(self):
-        others = ["move/몸통박치기", "move/할퀴기", "move/물기", "move/박치기", "move/전광석화"]
+        others = ["move/몸통박치기", "move/풀베기", "move/물기", "move/박치기", "move/전광석화"]
         e, user, target = self.battle([*others, "move/비장의무기"], ["move/기충전"])
         self.assertIn("struggle", user.moves)
         before = deepcopy(user.move_uses)
@@ -129,12 +129,12 @@ class DeclarativeMoveContractTests(unittest.TestCase):
         self.assertEqual(user.move_uses, before)
         for index, source in enumerate(others):
             e.d20 = lambda: 1
-            if source == "move/할퀴기":
+            if source == "move/풀베기":
                 from native_scenario_fixture import prepare_body
                 for actor in (user,target):
                     prepare_body(e,actor,size=actor.spec["size"],offsets=[(0,0)],reason="observed complete Pass body")
-                row=e.use_pass_move(user,source,(3,1),event_id="last-resort/scratch",
-                    object_adjudications={},source="gm/observed-pass",reason="actual Scratch path through the target")
+                row=e.use_pass_move(user,source,(3,1),event_id="last-resort/cut",
+                    object_adjudications={},source="gm/observed-pass",reason="actual Cut path through the target")
                 self.assertEqual(row["targets"],[["creature",target.entity_id]])
                 self.assertEqual(row["results"][0]["dealt"],0)
                 self.assertEqual(user.pos,(3,1))

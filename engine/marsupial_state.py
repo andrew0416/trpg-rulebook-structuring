@@ -1,7 +1,7 @@
 """Native Kangaskhan birth and the actual mother/pouch relation (C10-082/083).
 
-This does not select the optional Baby Template, transfer XP, or grant capture
-at maturity. A mother's identity comes only from the actual egg's parent facts.
+The named Baby Template uses the shared growth/Skill/Capability/body owners with
+its printed native five-point reduction. Maternal identity is actual parentage.
 """
 from copy import deepcopy
 import common_checks as C
@@ -13,6 +13,8 @@ SPECIES = 'pokemon/캥카'
 SOURCE_FILE = {'file': 'input/ch10-index-reference.md',
                'sha256': 'c3a1d783b4f649f0f6e25a9443a90ca8079a6e036c42c6f8797e100127157abe'}
 FLOOR_FILE = {'file': 'input/ch05-pokemon.md', 'sha256': 'bdfb5d39fec8fede32cac615a7788301336aaceefc46079c8ed7014ea76d174b'}
+PROTECTION_FILE = {'file': 'source-audit/marsupial-indices-1.05.txt',
+                  'sha256': 'de4089335fb49f2167cb54d80ce8e606ed60b4654f72eb8c2b8d789b776a6442'}
 
 
 def source(rules):
@@ -21,6 +23,7 @@ def source(rules):
         raise ValueError('selected Marsupial requires its own native birth policy')
     verified_source(rules, SOURCE_FILE, label='native Marsupial birth/pouch')
     verified_source(rules, FLOOR_FILE, label='original minimum-one stats')
+    verified_source(rules, PROTECTION_FILE, label='maternal conscious protection', source_root='source-audit')
 
 
 def record(rules, spec):
@@ -51,6 +54,32 @@ def in_pouch(actor):
     return bool(row and row['active'] and row['mother_id'])
 
 
+def protected_from_attacks(actor, *, engine=None):
+    """Custody continues when the actual mother loses consciousness."""
+    if not in_pouch(actor):
+        return False
+    if engine is None:
+        raise ValueError('actual world required for maternal conscious protection')
+    import world_entities as W
+    mother = W.require_actors(engine, actor).get(actor.spec[KEY]['mother_id'])
+    if mother is None:
+        raise ValueError('actual maternal pouch host required')
+    return not mother.fainted
+
+
+def target_present(actor, *, engine=None):
+    """A pouch baby's body stays deployed with its actual mother, not as an actor."""
+    if not in_pouch(actor):
+        return actor.on_field
+    if engine is None:
+        raise ValueError('actual world required for maternal target presence')
+    import world_entities as W
+    mother = W.require_actors(engine, actor).get(actor.spec[KEY]['mother_id'])
+    if mother is None:
+        raise ValueError('actual maternal pouch host required')
+    return mother.on_field and not mother.captured
+
+
 def base_sources(rules, spec, others):
     row = record(rules, spec)
     if row is None or not row['active']:
@@ -59,13 +88,21 @@ def base_sources(rules, spec, others):
     import growth_stats as GS
     baseline = GS.sourced_base(species_lookup(rules, SPECIES)['base_stats'], others,
                               allow_negative=True)
+    import baby_templates as BABY
+    template=BABY.validate(rules,spec)
+    shared=bool(template and template['source']==BABY.NATIVE_SOURCE)
+    remaining=template['stat_penalty_remaining'] if shared else 5
+    if not remaining:return []
     # Source composition precedes Nature/investment. The general original
-    # minimum-one rule bounds this -5; it is not the optional template's choice.
-    values = {s: max(1, baseline[s] - 5) - baseline[s] for s in STATS}
+    # minimum-one rule bounds the initial native reduction before Nature.
+    # Each printed fifth-level +1 restores that actual floor-clamped deficit.
+    # Legacy snapshots keep their historical -5 until an explicit upgrade.
+    values = {s: (max(1,min(baseline[s],max(1,baseline[s]-5)+5-remaining))
+                  if shared else max(1,baseline[s]-5))-baseline[s] for s in STATS}
     return [{'source': STAT_SOURCE, 'signed': True, 'values': values}]
 
 
-def prepare_birth(engine, egg, spec):
+def prepare_birth(engine, egg, spec, *, physical_choice=None):
     if spec.get('species') != SPECIES:
         return
     source(engine.r)
@@ -79,6 +116,8 @@ def prepare_birth(engine, egg, spec):
         'birth_level': spec['level'], 'mother_id': mothers[0] if mothers else None,
         'parentage_sha256': egg.get(E.BINDING, {}).get('sha256'),
         'active': spec['level'] < 25, 'ended_level': None if spec['level'] < 25 else 25}
+    import baby_templates as BABY
+    BABY.prepare_native_birth(engine.r,spec,physical_choice)
     old = spec['initial_allocation']
     plan = GS.allocate(species_lookup(engine.r, SPECIES)['base_stats'], old['points'],
         strategy=spec.get('strategy', 'balanced'), nature=spec.get('nature'), rules=engine.r,
@@ -162,6 +201,13 @@ def on_level(rules, spec, log=None):
     row = record(rules, spec)
     if row is None or not row['active'] or spec['level'] < 25:
         return False
+    import baby_templates as BABY
+    template=BABY.validate(rules,spec)
+    if template and template['source']==BABY.NATIVE_SOURCE:
+        if template['stat_penalty_remaining']:raise ValueError('native Template must withdraw before pouch exit')
+        row.update(active=False,ended_level=25)
+        if log is not None:log.append('  Marsupial: shared Baby Template ends before actual pouch exit')
+        return True
     import growth_stats as GS
     from builder import record_allocation
     current = GS.project(rules, spec)
@@ -179,12 +225,15 @@ def on_level(rules, spec, log=None):
     return True
 
 
-def projection(actor):
+def projection(actor, *, engine=None):
     row = record(actor.r, actor.spec)
     if row is None:
         return None
+    import baby_templates as BABY
+    template=BABY.validate(actor.r,actor.spec)
     return {**deepcopy(row), 'in_pouch': in_pouch(actor), 'can_act': not active(actor),
-            'protected_from_attacks': in_pouch(actor), 'counts_as_pokemon': 1,
+            'template_upgrade_required':template is None or template['source']!=BABY.NATIVE_SOURCE,
+            'protected_from_attacks': protected_from_attacks(actor, engine=engine), 'counts_as_pokemon': 1,
             'same_ball_as_mother': row['mother_id'] if in_pouch(actor) else None}
 
 
@@ -196,8 +245,8 @@ def ball_view(engine, mother):
             'occupant_ids': [] if mother.on_field and not mother.captured else [a.entity_id for a in group(engine, mother)]}
 
 
-def attack_blocked(attacker, target, move):
-    if not in_pouch(target):return False
+def attack_blocked(attacker, target, move, *, engine=None):
+    if not protected_from_attacks(target, engine=engine):return False
     if move.get('class') in ('물리', '특수'):return True
     mm, _ = attacker.r.move_mech(move['id'])
     effects = [effect for effect in mm.get('effects_exec', []) if effect.get('type') != 'targeting_rule']
@@ -232,6 +281,15 @@ def validate_world(engine):
         if entry is None or not entry[1]['hatched'] or entry[1].get('pokemon_id') != baby.entity_id:
             raise ValueError('native Marsupial requires its actual successful birth')
         egg = entry[1]
+        import baby_templates as BABY
+        template=BABY.validate(engine.r,baby.spec)
+        if template and template['source']==BABY.NATIVE_SOURCE:
+            origin=template['native_origin'];birth_choice=egg.get('gm_hatch_details',{}).get('baby_template')
+            if origin['kind']=='birth':
+                if BABY.native_physical_choice(birth_choice)!=origin['physical_choice']:
+                    raise ValueError('native physical choice must match its actual birth receipt')
+            elif birth_choice is not None:
+                raise ValueError('complete native birth cannot be reinterpreted as a legacy upgrade')
         binding = egg.get(E.BINDING, {})
         if row['parentage_sha256'] != binding.get('sha256') or row['birth_level'] != egg['hatch_level']:
             raise ValueError('native Marsupial birth/parentage evidence changed')

@@ -239,16 +239,34 @@ def _manual_skill(engine, owner, rank):
         raise ValueError('Type Study Manual requires Novice/Expert Pokemon Education for its actual rank')
 
 
+def _cannon_projectile(engine, trainer, ball_instance_id):
+    ball = _objects(engine).get(ball_instance_id, {})
+    item_id = ball.get('item_rule_id')
+    _object(engine, trainer, ball_instance_id, item_id)
+    import pester_balls as PESTER
+    if item_id in PESTER.VARIANTS:
+        PESTER.definition(engine.r, item_id)
+        import item_stock as STOCK
+        STOCK.prepare(engine, trainer, item_id, held_selection=ball_instance_id)
+        return 'pester_ball'
+    if not isinstance(item_id, str):raise ValueError('Cannon projectile requires its exact selected item')
+    header = engine.r.item_effects(item_id)[1]
+    if header.get('id') != item_id or header.get('use') != 'ball':
+        raise ValueError('Cannon accepts only an actual selected Poke Ball or manufactured Pester Ball')
+    import missed_ball_body as BALL_BODY
+    BALL_BODY.physical(engine, trainer, ball_instance_id)
+    return 'ball'
+
+
 def load_cannon(engine, trainer, cannon_instance_id, ball_instance_id):
     matches = [entry for entry in _active(engine, trainer, "pokeball_cannon") if entry[2]["instance_id"] == cannon_instance_id]
     if len(matches) != 1:
         raise ValueError("one actual equipped Pokeball Cannon is required")
     entry = matches[0]
-    ball = _objects(engine).get(ball_instance_id)
-    if (not isinstance(ball, dict) or ball.get("kind") != "item_instance" or trainer.entity_id not in
-            (ball.get("owner_id"), ball.get("carrier_id")) or "볼" not in str(ball.get("item_rule_id", ""))):
-        raise ValueError("Pokeball Cannon requires one actual possessed ball instance")
-    _object(engine,trainer,ball_instance_id,ball['item_rule_id'])
+    _cannon_projectile(engine, trainer, ball_instance_id)
+    if any(row.get(OBJECT_STATE, {}).get('loaded_ball_instance_id') == ball_instance_id
+           for row in _objects(engine).values()):
+        raise ValueError('one actual projectile cannot be loaded into two Cannons')
     for attempt in trainer.spec.get('capture_attempts',{}).values():
         if attempt.get('physical_instance_id',attempt.get('cannon',{}).get('ball_instance_id'))==ball_instance_id and attempt.get('status') not in ('recovered_intact','repaired'):
             raise ValueError('Cannon projectile must be actually recovered before reloading')
@@ -264,25 +282,24 @@ def load_cannon(engine, trainer, cannon_instance_id, ball_instance_id):
 
 
 def cannon_profile(engine, trainer, cannon_instance_id, *, projectile):
-    if projectile not in ("ball", "sludge_bomb"):
-        raise ValueError("Pokeball Cannon supports a ball or Sludge Bomb projectile")
+    if projectile not in ('ball', 'pester_ball'):
+        raise ValueError('Pokeball Cannon supports only Poke Ball and Pester Ball items')
     matches = [entry for entry in _active(engine, trainer, "pokeball_cannon") if entry[2]["instance_id"] == cannon_instance_id]
     if len(matches) != 1:
         raise ValueError("one actual equipped Pokeball Cannon is required")
     entry = matches[0]
-    if projectile == "ball" and entry[4]["loaded_ball_instance_id"] is None:
+    if entry[4]["loaded_ball_instance_id"] is None:
         raise ValueError("Pokeball Cannon has no loaded physical ball")
-    if projectile == "ball":
-        ball = _objects(engine).get(entry[4]['loaded_ball_instance_id'], {})
-        _object(engine,trainer,entry[4]['loaded_ball_instance_id'],ball.get('item_rule_id'))
+    if _cannon_projectile(engine, trainer, entry[4]['loaded_ball_instance_id']) != projectile:
+        raise ValueError('Cannon must fire its actual loaded projectile kind')
     result = {"quality": "good", "weapon_class": "ranged", "accuracy_bonus": 1, "range_m": 15,
-              "fixed_damage": "2d6" if projectile == "ball" else None,
+              "fixed_damage": "2d6",
               "ball_instance_id": entry[4].get("loaded_ball_instance_id")}
     return result
 
 
-def fire_cannon(engine, trainer, cannon_instance_id, *, ball_instance_id):
-    profile = cannon_profile(engine, trainer, cannon_instance_id, projectile="ball")
+def fire_cannon(engine, trainer, cannon_instance_id, *, ball_instance_id, projectile='ball'):
+    profile = cannon_profile(engine, trainer, cannon_instance_id, projectile=projectile)
     if profile["ball_instance_id"] != ball_instance_id:
         raise ValueError("Cannon's actual loaded projectile changed")
     entry = next(row for row in _active(engine, trainer, "pokeball_cannon")
@@ -292,6 +309,8 @@ def fire_cannon(engine, trainer, cannon_instance_id, *, ball_instance_id):
     entry[4]["history"].append({"event": "fired", "at": engine.elapsed_seconds,
                                "ball_instance_id": ball_instance_id})
     _sync(entry)
+    # Pester Ball stock is consumed by its native item-use payment owner.
+    if projectile == 'pester_ball':return profile
     # A thrown ball remains an actual recoverable projectile, rather than an
     # inventory counter or a consumed object whose miss could not be recovered.
     ball.pop("carrier_id", None)
@@ -366,7 +385,10 @@ def dynamax_authorized(engine, actor):
 
 
 def ground_immunity(engine, actor, move):
-    return bool(move.get("type") == "땅" and _active(engine, actor, "air_balloon"))
+    import catalog_move_states as CATALOG
+    return bool(move.get("type") == "땅" and not CATALOG.grounded(actor)
+                and not CATALOG.thousand_arrows_ignores_ground_immunity(engine, move)
+                and _active(engine, actor, "air_balloon"))
 
 
 def loaded_dice_hits(engine, actor, *, fixed=None, optional=False):
@@ -447,15 +469,33 @@ def _spend_scene(engine, entry, event, target_id=None):
     _sync(entry)
 
 
+def _reaction_window(engine):
+    active = getattr(engine, "_active_turn_actor", None)
+    return [engine.round_no, engine.elapsed_seconds, engine.encounter_active,
+            getattr(active, "entity_id", None),
+            active.custom_conditions.get("combat_turn_serial", 0) if active is not None else 0]
+
+
+def expire_immediate_reactions(engine):
+    """A newly recorded action closes optional immediate switches only."""
+    for actor in engine.time_actors():
+        pending = actor.spec.get(PENDING, {})
+        pending.pop("eject_button", None)
+        pending.pop("eject_pack", None)
+
+
 def _issue_pending(engine, actor, kind, **event):
     matches = _active(engine, actor, kind)
     if not matches or not _scene_available(engine, matches[0]):
         return None
     pending = actor.spec.setdefault(PENDING, {})
-    if kind in pending:
+    immediate = kind in ("eject_button", "eject_pack")
+    if kind in pending and (not immediate or pending[kind].get("window") == _reaction_window(engine)):
         return deepcopy(pending[kind])
     row = {"kind": kind, "instance_id": matches[0][2]["instance_id"], "at": engine.elapsed_seconds,
            "scene": _scene_key(engine, actor), "event": _json_event(event), "automatic": bool(event.get("automatic"))}
+    if immediate:
+        row["window"] = _reaction_window(engine)
     pending[kind] = row
     return deepcopy(row)
 
@@ -485,14 +525,20 @@ def _resolve_pending(engine, actor, kind, *, accept=True, send=None):
     row = actor.spec.get(PENDING, {}).get(kind)
     if not isinstance(row, dict) or row.get("scene") != _scene_key(engine, actor):
         raise ValueError("actual live remaining-item reaction is required")
+    if kind in ("eject_button", "eject_pack") and row.get("window") != _reaction_window(engine):
+        raise ValueError("immediate held-item reaction window expired")
     if kind == "red_card" and accept is not True:
         raise ValueError("Red Card reaction is automatic")
     if type(accept) is not bool:
         raise ValueError("optional held-item Free action must be accepted or declined")
     matches = _active(engine, actor, kind)
-    if kind != "red_card" and len(matches) != 1:
+    if kind != "red_card" and (len(matches) != 1 or matches[0][2].get("instance_id") != row.get("instance_id")):
         raise ValueError("reaction's actual held item changed")
-    actor.spec[PENDING].pop(kind)
+    if accept and kind in ("eject_button", "eject_pack"):
+        _preflight_switch(engine, actor, send)
+        import action_lifecycle as ACTION
+        ACTION.triggered_free_action(engine, actor, matches[0][1]["item_id"])
+    actor.spec[PENDING].pop(kind, None)
     if not accept:
         return {"accepted": False, "kind": kind}
     if kind == "weakness_policy":
@@ -511,7 +557,8 @@ def _resolve_pending(engine, actor, kind, *, accept=True, send=None):
         reserves = _reserves(engine, attacker)
         if send is not None:
             raise ValueError("Red Card replacement is selected randomly from the actual controller's reserves")
-        if reserves:
+        import condition_recovery as RECOVERY
+        if reserves and RECOVERY.permits_recall(attacker):
             send = engine.rng.choice(reserves)
             _immediate_switch(engine, attacker, send)
         return {"accepted": True, "forced": True, "attacker_id": attacker_id,
@@ -519,7 +566,7 @@ def _resolve_pending(engine, actor, kind, *, accept=True, send=None):
     raise ValueError("unknown remaining-item reaction")
 
 
-def _immediate_switch(engine, outgoing, incoming):
+def _preflight_switch(engine, outgoing, incoming):
     if outgoing.kind != "pokemon" or not outgoing.on_field:
         raise ValueError("switch reaction requires the actual on-field Pokemon")
     if incoming is None:
@@ -528,6 +575,13 @@ def _immediate_switch(engine, outgoing, incoming):
         raise ValueError("switch replacement must be a conscious actual off-field Pokemon")
     if incoming is not None and incoming not in _reserves(engine, outgoing):
         raise ValueError("switch replacement must belong to the actual same controller")
+    import condition_recovery as RECOVERY
+    if not RECOVERY.permits_recall(outgoing):
+        raise ValueError("Trapped prevents ordinary recall")
+
+
+def _immediate_switch(engine, outgoing, incoming):
+    _preflight_switch(engine, outgoing, incoming)
     import combat_state_lifecycle as COMBAT
     COMBAT.recall(engine, outgoing)
     if incoming is not None:
@@ -618,6 +672,15 @@ def validate_actor(actor):
     pending = actor.spec.get(PENDING, {})
     if not isinstance(pending, dict) or any(k not in REACTIONS or not isinstance(v, dict) or v.get("kind") != k for k, v in pending.items()):
         raise ValueError("remaining CSV pending reaction state is invalid")
+    for row in pending.values():
+        if "window" not in row:
+            continue  # Older saves remain readable; unbound immediate choices cannot be accepted.
+        window = row["window"]
+        if (not isinstance(window, list) or len(window) != 5
+                or any(type(window[i]) is not int or window[i] < 0 for i in (0, 1, 4))
+                or type(window[2]) is not bool
+                or window[3] is not None and (not isinstance(window[3], str) or not window[3])):
+            raise ValueError("remaining CSV immediate reaction window is invalid")
     state = actor.spec.get(ACTOR_STATE, {})
     if not isinstance(state, dict):
         raise ValueError("remaining CSV actor state must be a mapping")
@@ -661,9 +724,14 @@ def upgrade_legacy_cannon(engine, index):
 
 def validate_world(engine, index):
     POLICY.policy(engine.r)
+    loaded = set()
     for obj in _objects(engine).values():
         if OBJECT_STATE in obj:
             _validate_object_state(engine, obj)
+            projectile = obj[OBJECT_STATE].get('loaded_ball_instance_id')
+            if projectile is not None:
+                if projectile in loaded:raise ValueError('one actual projectile cannot be loaded into two Cannons')
+                loaded.add(projectile)
     for actor in index.values():
         validate_actor(actor)
         for registration in getattr(actor, "_item_reg", {}).values():
@@ -677,6 +745,8 @@ def validate_world(engine, index):
             if registration.get("csv_item_projection") != _projection(registration, state):
                 raise ValueError("restored remaining CSV projection differs from physical state")
             if row["kind"] == "pokeball_cannon":
+                if state['loaded_ball_instance_id'] is not None:
+                    _cannon_projectile(engine, actor, state['loaded_ball_instance_id'])
                 key = registration.get("cannon_weapon_key")
                 weapon = actor.custom_conditions.get("equipped_weapons", {}).get(key)
                 if (not isinstance(weapon, dict) or weapon.get("item_id") != row["item_id"]

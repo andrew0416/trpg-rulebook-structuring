@@ -155,8 +155,9 @@ def prepare_register(engine, actor, item_id, source_instance_id=None):
         row["retained_base_state"] = deepcopy(base_obj)
     if row["kind"] == "mental_shield":
         row["iron_mind"] = _edge(actor, "edge/강철의-정신", "강철의 정신", "Iron Mind")
-    if row.get("arcane") and not _feature(actor, "feat/아케인-훈련", "아케인 훈련", "Arcane Training"):
-        raise ValueError(row["name"] + " requires Arcane Training")
+    if row.get("arcane"):
+        import optional_weapon_framework as FRAMEWORK
+        FRAMEWORK.arcane_type(engine, actor)
     row["instance_id"] = source_instance_id
     row["object_state"] = deepcopy(obj.get(STATE))
     return row
@@ -203,12 +204,16 @@ def install(engine, actor, source_id, plan):
     if plan["kind"] == "mental_shield" and plan["iron_mind"]:
         GRANTS.grant(actor, "capabilities", "정신봉인", source_id, "item", owner_id=actor.entity_id,
                      lifetime="equipped", rule_id=plan["item_id"])
+    if plan.get("damage_reduction"):
+        armor_source = source_id + ":armor"
+        GRANTS.numeric(actor, "damage_reduction", plan["damage_reduction"], armor_source)
+        effect_sources.append(armor_source)
     weapon_key = None
     if plan.get("weapon_kind"):
         import turn as TURN
         import optional_weapon_framework as FRAMEWORK
         weapon_key = TURN.equip_weapon(engine, actor, FRAMEWORK.crafted_weapon(engine,plan,{
-            "name": plan["name"], "kind": plan["weapon_kind"], "grade": "좋음", "moves": []}))
+            "name": plan["name"], "kind": plan["weapon_kind"], "grade": plan.get("weapon_grade", "좋음"), "moves": []}))
         ledger = actor.custom_conditions["equipped_weapons"][weapon_key]
         grants = []
         for move_id in plan.get("moves", ()):
@@ -308,7 +313,7 @@ def movement(actor, values):
     result = dict(values)
     bonus = max((row.get("free_float", 0) for row in _active(actor, "space_suit")), default=0)
     if bonus:
-        result["levitate"] = max(result.get("levitate", 0), bonus)
+        result["free_float"] = max(result.get("free_float", 0), bonus)
     return result
 
 
@@ -323,23 +328,26 @@ def prepare_weapon_move(engine, actor, move, weapon_id=None):
     if len(candidates) != 1:
         raise ValueError("crafted equipment move requires one explicit physical weapon")
     key, entry = candidates[0]
-    out = deepcopy(move)
-    import turn as TURN
-    spec = TURN.WEAPON_KIND[entry["weapon"]["kind"]]
-    raw = out.get("range", "")
-    origin = "melee" if "근접" in spec["range"] else int(spec["range"].split(",")[0])
-    out["_weapon_attack"] = {
-        "key": key, "range": {"raw": raw, "origin": origin, "targets": 1, "parsed": True},
-        "db_bonus": spec["db"], "accuracy_bonus": 0,
-        "minimum_distance": spec.get("min_range", 0), "source": entry["item_id"],
-    }
+    import weapon_actions as WEAPONS
+    out = WEAPONS.adapt_weapon_move(engine, actor, move, key, entry["weapon"],
+                                    enhanced=move["id"] == entry["struggle_id"])
+    out["_weapon_attack"]["source"] = entry["item_id"]
     out["_optional_crafted_equipment"] = {
         "item_id": entry["item_id"], "instance_id": entry["instance_id"],
         "kind": entry.get("optional_kind", KINDS[entry["item_id"]]), "weapon_key": key,
     }
     if entry.get("optional_kind") == "nine_flames_staff":
-        out["class"] = "특수"
         out["_optional_crafted_equipment"]["arcane"] = True
+    if entry.get("optional_kind") == "spread_needle" and move["id"] == "move/구슬던지기":
+        out["damage_base"] = 2
+        import re
+        import throwing_masteries as THROWING
+        reach = THROWING.extend(actor, 4, "ranged_weapon")
+        out["range"] = re.sub(r"^\s*\d+", str(reach), out["range"], count=1)
+        out["_weapon_attack"]["range"]["origin"] = reach
+        out["range"] = out["range"].replace(", 오단타격", "").replace("오단타격", "")
+        out["keywords"] = [word for word in out.get("keywords", ()) if word not in ("오단타격", "Five Strike")]
+        out["_weapon_attack"]["range"]["raw"] = out["range"]
     if entry.get("optional_kind") == "fairy_fire_sword" and move.get("id") == "move/베어가르기":
         out["type"] = "불꽃"
         out["name"] = "플레임턴지"
@@ -351,6 +359,9 @@ def prepare_weapon_move(engine, actor, move, weapon_id=None):
     if entry.get("optional_kind") == "ruyi_staff":
         out["_weapon_attack"]["range"].update(raw="5, 대상 1", origin=5, targets=1, parsed=True)
         pending = actor.custom_conditions.get("ruyi_smite_pending")
+        if pending is None:
+            pending = next((scope.get("ruyi_smite") for scope in reversed(getattr(engine, "_move_activation_scopes", ()))
+                            if scope["actor"] is actor and scope["move_id"] == move["id"] and scope.get("ruyi_smite")), None)
         if isinstance(pending, dict) and pending.get("instance_id") == entry["instance_id"]:
             shape = pending["mode"]
             out["_weapon_attack"]["range"] = {
@@ -358,7 +369,9 @@ def prepare_weapon_move(engine, actor, move, weapon_id=None):
                 "origin": "melee", "shape": shape, "size": pending["size"],
                 "targets": None, "parsed": True,
             }
+            out["range"] = out["_weapon_attack"]["range"]["raw"]
             out["_optional_crafted_equipment"]["smite"] = True
+            out["keywords"] = list(dict.fromkeys([*out.get("keywords", ()), "강타"]))
     if entry["item_id"] == "crafted_item/엑스칼리버" and move.get("id") == "move/성스러운칼":
         obj = _object(engine, actor, entry["instance_id"], entry["item_id"])
         state = obj.get(STATE)
@@ -382,15 +395,10 @@ def effectiveness(engine, target, move, current):
     if row["kind"] == "fairy_fire_sword" and any(t in ("페어리", "Fairy") for t in target.types):
         return max(1.5, current)
     if row["kind"] == "chaos_dunker" and move.get("type") in ("땅", "Ground"):
-        import type_state as TYPES
-        steps = 0
-        for defender_type in target.types:
-            value = TYPES.matchup(engine.r, move["type"], defender_type)
-            if value == 0:
-                value = 1
-            steps += 1 if value > 1 else -1 if value < 1 else 0
-        table = engine.r.mech("combat/type-effectiveness")["multiplier_by_net_steps"]
-        return table[str(max(-3, min(3, steps)))]
+        # Bypass immunity, never an already selected resistance/weakness chart.
+        if current != 0:
+            return current
+        return engine.type_multiplier(move["type"], target, bypass_type_immunity=True)[0]
     return current
 
 
@@ -553,7 +561,46 @@ def reveal_observation(engine, observer, target, result):
     return out
 
 
-def activate_spread_needle(engine, actor, targets, *, fixed_strikes=None):
+def begin_weapon_attack(engine, actor, target, move):
+    row = marker(move)
+    if row and row.get("smite"):
+        import move_activation as ACTIVATION
+        group = ACTIVATION.current_scope(engine, actor, target, move["id"])
+        if group is None:
+            raise ValueError("Ruyi Smite requires its actual native target group")
+        if "ruyi_smite" not in group:
+            pending = actor.custom_conditions.get("ruyi_smite_pending")
+            if not isinstance(pending, dict) or pending.get("instance_id") != row["instance_id"]:
+                raise ValueError("Ruyi Smite lacks its actual weapon declaration")
+            import frequency as FREQ
+            FREQ.consume_activation(actor, "optional-equipment:ruyi-smite:" + row["instance_id"],
+                                    {"kind": "scene", "uses": 2}, engine=engine)
+            group["ruyi_smite"] = deepcopy(pending)
+    begin_spread_needle(engine, actor, target, move)
+
+
+def begin_spread_needle(engine, actor, target, move):
+    row = marker(move)
+    if not row or row["kind"] != "spread_needle" or move["id"] != "move/구슬던지기":
+        return
+    import move_activation as ACTIVATION
+    import five_strike as FIVE
+    group = ACTIVATION.current_scope(engine, actor, target, move["id"])
+    observation = group.get("spread_needle") if group is not None else None
+    if observation is None:
+        face = POOLS.die(engine.rng, 8)
+        observation = {"face": face, "hits": FIVE.hits(face), "instance_id": row["instance_id"]}
+        if group is not None:
+            group["spread_needle"] = observation
+    if observation["instance_id"] != row["instance_id"]:
+        raise ValueError("Spread Needle activation changed its physical source")
+    if group is not None and len(group["targets"]) > observation["hits"]:
+        raise ValueError("Spread Needle selected more targets than its Five Strike hit count")
+    move["_spread_needle"] = deepcopy(observation)
+    engine.log(f"    스프레드 니들 d8={observation['face']}: 최대 {observation['hits']}명, 각 DB 2", row["item_id"])
+
+
+def activate_spread_needle(engine, actor, targets, *, fixed_strikes=None, set_damage=False):
     row = _equipped(actor, "spread_needle")
     targets = tuple(targets)
     if not targets or len({id(x) for x in targets}) != len(targets):
@@ -562,43 +609,70 @@ def activate_spread_needle(engine, actor, targets, *, fixed_strikes=None):
     WORLD.require_actors(engine, actor, *targets)
     if engine.grid is None:
         raise ValueError("Spread Needle split attack requires a map")
-    from grid import cheb
-    if any(t is actor or t.fainted or t.captured or cheb(actor.pos, t.pos) > 4 for t in targets):
-        raise ValueError("Spread Needle target is not an active target within short range")
+    if type(set_damage) is not bool:
+        raise ValueError("boolean Set Damage declaration required")
+    import weapon_actions as WEAPONS
+    move = WEAPONS.prepare(engine, actor, engine.r.move("move/구슬던지기"), row["instance_id"])
+    for target in targets:
+        if target is actor or target.fainted or target.captured or not getattr(target, "on_field", True):
+            raise ValueError("Spread Needle requires active distinct other targets")
+        WEAPONS.validate_target(engine, actor, target, move)
     if fixed_strikes is not None and (type(fixed_strikes) is not int or not 1 <= fixed_strikes <= 8):
         raise ValueError("Spread Needle fixed 1d8 result must be 1 through 8")
+    pending = []
     def apply(staged, staged_actor, *staged_targets):
+        import five_strike as FIVE
         strikes = fixed_strikes if fixed_strikes is not None else POOLS.die(staged.rng, 8)
-        if len(staged_targets) > strikes:
-            raise ValueError("Spread Needle selected more distinct targets than its 1d8 result")
+        hits = FIVE.hits(strikes)
+        if len(staged_targets) > hits:
+            raise ValueError("Spread Needle selected more distinct targets than its Five Strike hit count")
         import move_activation as ACTIVATION
         import action_lifecycle as ACTION
         total = 0
-        with ACTIVATION.open_scope(staged, staged_actor, "move/구슬던지기", staged_targets,
-                                   shared=False, primary=staged_targets[0]) as (activation, accuracy):
-            for index, staged_target in enumerate(staged_targets):
-                if index == 0:
-                    total += staged.use_move(staged_actor, staged_target, "move/구슬던지기",
-                                             _activation=activation, _shared_accuracy=accuracy,
-                                             weapon_id=row["instance_id"])
-                else:
-                    with ACTION.move_grant(staged, staged_actor, staged_target, "move/구슬던지기",
-                                           source="same_move_activation") as grant:
-                        total += staged.use_move(staged_actor, staged_target, "move/구슬던지기",
-                                                 count_use=False, _activation=activation,
-                                                 _shared_accuracy=accuracy, _action_grant=grant,
-                                                 weapon_id=row["instance_id"])
+        options = {"weapon_id": row["instance_id"], "set_damage": set_damage}
+        try:
+            with ACTIVATION.open_scope(staged, staged_actor, "move/구슬던지기", staged_targets,
+                                       shared=False, primary=staged_targets[0], options=options) as (activation, accuracy):
+                staged._move_activation_scopes[-1]["spread_needle"] = {
+                    "face": strikes, "hits": hits, "instance_id": row["instance_id"]}
+                for index, staged_target in enumerate(staged_targets):
+                    if index == 0:
+                        dealt = staged.use_move(staged_actor, staged_target, "move/구슬던지기",
+                                                _activation=activation, _shared_accuracy=accuracy, **options)
+                    else:
+                        with ACTION.move_grant(staged, staged_actor, staged_target, "move/구슬던지기",
+                                               source="same_move_activation") as grant:
+                            dealt = staged.use_move(staged_actor, staged_target, "move/구슬던지기",
+                                                    count_use=False, _activation=activation,
+                                                    _shared_accuracy=accuracy, _action_grant=grant, **options)
+                    total += dealt
+                    if ACTIVATION.note_result(staged, activation, dealt) or not activation.get("started"):
+                        break
+        except Exception as error:
+            import passive_events as EVENTS, heavy_injury_adapter as HEAVY
+            if type(error) is EVENTS.PassiveEventPending and staged._passive_pending == error.event_id:
+                pending.append((type(error), error.event_id))
+                return None
+            if type(error) is HEAVY.HeavyPending and staged._heavy_pending == error.event_id:
+                pending.append((type(error), error.event_id))
+                return None
+            raise
         return {"activated": bool(activation.get("started")), "rolled_strikes": strikes,
-                "targets": [x.entity_id for x in staged_targets], "damage": total, "damage_base": 2}
+                "hits": hits, "targets": [x.entity_id for x in staged_targets], "damage": total, "damage_base": 2}
     import state_grants as GRANTS
-    return GRANTS.transition(engine, actor, apply,
-                             participants=tuple(x for x in targets if x is not actor), include_grid=True)
+    result = GRANTS.transition(engine, actor, apply,
+                              participants=tuple(x for x in targets if x is not actor), include_grid=True)
+    if pending:
+        error, event_id = pending[0]
+        raise error(event_id)
+    return result
 
 
-def activate_ruyi_smite(engine, actor, primary, move_id, everyone, *, mode, size, aim=None):
+def activate_ruyi_smite(engine, actor, primary, move_id, everyone, *, mode, size, aim=None, set_damage=False):
     row = _equipped(actor, "ruyi_staff")
-    if move_id not in definition(engine.r, row["item_id"])["moves"]:
-        raise ValueError("Ruyi Smite requires one of its physical weapon moves")
+    entry = actor.custom_conditions["equipped_weapons"][row["weapon_key"]]
+    if move_id not in entry["available_moves"]:
+        raise ValueError("Ruyi Smite requires one of its actual physical weapon attacks")
     limits = {"burst": (1, 3), "close_blast": (2, 4)}
     if mode not in limits or type(size) is not int or not limits[mode][0] <= size <= limits[mode][1]:
         raise ValueError("Ruyi Smite requires Burst 1-3 or Close Blast 2-4")
@@ -613,6 +687,7 @@ def activate_ruyi_smite(engine, actor, primary, move_id, everyone, *, mode, size
     if not FREQ.activation_allowed(actor, key, frequency, engine=engine):
         raise ValueError("Ruyi Smite scene frequency spent")
     participants = tuple(x for x in dict.fromkeys((primary, *everyone)) if x is not actor)
+    pending_event = []
     def apply(staged, staged_actor, *staged_participants):
         index = {x.entity_id: x for x in staged_participants}
         staged_primary = index[primary.entity_id]
@@ -622,15 +697,24 @@ def activate_ruyi_smite(engine, actor, primary, move_id, everyone, *, mode, size
             "instance_id": row["instance_id"], "mode": mode, "size": size}
         try:
             damage = staged.use_move_on(staged_actor, staged_primary, move_id, staged_everyone,
-                                        weapon_id=row["instance_id"], aim=aim)
+                                        weapon_id=row["instance_id"], aim=aim, set_damage=set_damage)
+        except Exception as error:
+            import passive_events as EVENTS, heavy_injury_adapter as HEAVY
+            if (type(error) is EVENTS.PassiveEventPending and staged._passive_pending == error.event_id
+                    or type(error) is HEAVY.HeavyPending and staged._heavy_pending == error.event_id):
+                pending_event.append((type(error), error.event_id))
+                return None
+            raise
         finally:
             staged_actor.custom_conditions.pop("ruyi_smite_pending", None)
         activated = staged_actor.move_uses.get(move_id, 0) > before
-        if activated:
-            FREQ.consume_activation(staged_actor, key, frequency, engine=staged)
         return {"activated": activated, "mode": mode, "size": size, "smite": True, "damage": damage}
     import state_grants as GRANTS
-    return GRANTS.transition(engine, actor, apply, participants=participants, include_grid=True)
+    result = GRANTS.transition(engine, actor, apply, participants=participants, include_grid=True)
+    if pending_event:
+        error, event_id = pending_event[0]
+        raise error(event_id)
+    return result
 
 
 def change_excalibur_type(engine, actor, instance_id, chosen_type):
@@ -832,6 +916,7 @@ def validate_world(engine, index):
             if definition_row["kind"] == "space_suit":
                 variant, configuration = _space_suit_configuration(obj, definition_row)
                 if (row.get("space_suit_variant") != variant
+                        or row.get("free_float") != definition_row["free_float"]
                         or any(row.get(key) != configuration[key] for key in ("weight_lb", "additional_cost"))):
                     raise ValueError("Space Suit projection differs from its actual physical variant")
             if definition_row["kind"] == "shadow_walkers":

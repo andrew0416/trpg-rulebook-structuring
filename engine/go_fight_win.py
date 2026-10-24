@@ -43,8 +43,9 @@ def use(engine,actor,*,cheer,stat=None,communication=None):
         if tuple(OPTIONAL._allies(e,owner))!=recipients:raise ValueError('actual complete battlefield ally roster changed')
         if not F.activation_allowed(owner,FEATURE+':'+cheer,QUOTA,engine=e):raise ValueError('this cheer was already performed this Scene')
         if cheer=='evasion':CLOCK.current(e)
-        if e.encounter_active:
-            P.preflight(e,owner,action=COST,source=FEATURE)
+        import order_actions as ORDERS
+        if ORDERS.priority(e,owner,FEATURE):
+            ORDERS.preflight(e,owner,FEATURE,action=COST)
             ACTION.ensure_resolutions_clear(e)
             if (not TURN.can_act(e,owner) or not ACTION.status_permission(e,owner,COST)
                     or any(not BODY.permits(owner,kind) for kind in COST.components) or LIFE.forbids(owner,'priority')):
@@ -55,7 +56,7 @@ def use(engine,actor,*,cheer,stat=None,communication=None):
         for target in recipients:
             request,result=M._communication(e,owner,target,use_id,None if communication is None else communication[target.entity_id],source=FEATURE,label='Go, Fight, Win!')
             deliveries[target.entity_id]={'request_id':request,'result':result}
-        if e.encounter_active:
+        if ORDERS.priority(e,owner,FEATURE):
             priority=P.reserve(e,owner,action=COST,source=FEATURE,subject=use_id,
                 communication={'status':'delivered','recipients':deepcopy(deliveries)})
             payment={'kind':'priority_limited','receipt_id':priority['id']}
@@ -120,9 +121,10 @@ def validate_world(engine,index):
                     raise ValueError('Book cheer actual allied target evidence changed')
                 delivered=row['communication'][target_id]
                 if delivered['result']!=M._delivery(engine,issuer.entity_id,target_id,delivered['request_id'],row['at']):raise ValueError('actual Book cheer delivery changed')
-                effects=[r for r in CH.live(target)+CH.history(target) if r['id']==proof['effect_id']]
+                effects=[(holder,r) for holder in index.values() for r in CH.live(holder)+CH.history(holder) if r['id']==proof['effect_id']]
                 if len(effects)!=1:raise ValueError('Book cheer needs its actual fixed condition instance')
-                effect=effects[0];CH.validate_record(target,effect,terminal=effect[E.KEY]['state']!='active')
+                holder,effect=effects[0];CH.validate_record(holder,effect,terminal=effect[E.KEY]['state']!='active')
+                if __import__('native_order_transfer').origin_id(effect,holder)!=target_id:raise ValueError('Book cheer original recipient changed')
                 if effect['source']!=FEATURE or effect['origin']!={'issuer_id':issuer.entity_id,'use_id':row['id']} or effect['effect']['condition']!=CONDITIONS[cheer] or effect['at']!=row['at'] or effect['id'] in linked:
                     raise ValueError('Book cheer fixed condition and actual producer disagree')
                 linked.add(effect['id'])
@@ -131,10 +133,11 @@ def validate_world(engine,index):
         for effect in CLOCK.records(target):
             if effect.get('source')!=FEATURE and 'go_fight_win_use' not in effect:continue
             key=(effect.get('go_fight_win_owner'),effect.get('go_fight_win_use'))
-            row=issued.get(key);identity=(*key,target.entity_id)
-            if row is None or row['cheer']!='evasion' or target.entity_id not in row['targets'] or identity in timed:
+            original=__import__('native_order_transfer').origin_id(effect,target)
+            row=issued.get(key);identity=(*key,original)
+            if row is None or row['cheer']!='evasion' or original not in row['targets'] or identity in timed:
                 raise ValueError('Book Evasion requires its actual unique producer and recipient')
-            if (effect.get('source')!=FEATURE or effect.get('go_fight_win_target')!=target.entity_id
+            if (effect.get('source')!=FEATURE or effect.get('go_fight_win_target')!=original
                     or effect.get('evasion_modifier')!=2 or tuple(effect.get('count_deadline',()))!=(row['round']+1,row['count'])
                     or effect.get('encounter_end') is not True):
                 raise ValueError('Book Evasion source, recipient, bonus or full-round deadline changed')

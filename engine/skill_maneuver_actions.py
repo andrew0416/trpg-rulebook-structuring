@@ -18,7 +18,7 @@ def resuming(actor,source,options):
 
 def prepare(e,actor,target,source,basis,plans,*,observe=False):
  import body_modes as BODY_MODES
- BODY_MODES.require_targetable(target)
+ BODY_MODES.require_targetable(target,engine=e)
  import skill_targets as TARGETS
  for c,skill,options in plans:
   bound=TARGETS.bind(e,options,target if c is actor else actor)

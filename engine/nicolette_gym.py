@@ -445,7 +445,7 @@ def _pair(row, origin, destination):
 
 
 def climb(engine, actor, destination, *, climb_id, route, reason, skill=None, fixed=None):
-    """Consume one Shift to traverse an observed ladder or 3m cliff."""
+    """Traverse a linked ladder, or choose the check or Wallclimber cliff route."""
     row = state(engine, required=True)
     _text(climb_id, "climb attempt identity")
     _text(reason, "actual climb reason")
@@ -461,6 +461,8 @@ def climb(engine, actor, destination, *, climb_id, route, reason, skill=None, fi
         raise ValueError("actual observed ladder link required")
     if route == "cliff" and rise != 3:
         raise ValueError("direct sample-map cliff attempts are exactly 3m")
+    if route == "cliff" and max(abs(destination[0]-origin[0]), abs(destination[1]-origin[1])) != 1:
+        raise ValueError("direct cliff climb requires adjacent horizontal endpoints")
     attempts = actor.spec.setdefault("_nicolette_climbs", {})
     if climb_id in attempts:
         raise ValueError("climb attempt identity already resolved")
@@ -471,15 +473,17 @@ def climb(engine, actor, destination, *, climb_id, route, reason, skill=None, fi
         raise ValueError("climb destination is blocked or occupied")
     allowance = MOVEMENT.distance_budget(engine, actor, "land")
     wallclimber = "벽타기" in GRANTS.effective_capabilities(actor)
-    if route == "cliff" and not wallclimber and skill not in ("곡예", "육상"):
+    checked = route == "cliff" and (skill is not None or not wallclimber)
+    if checked and skill not in ("곡예", "육상"):
         raise ValueError("direct cliff climb chooses Acrobatics or Athletics")
-    cost = rise if route == "ladder" else rise * 2 if wallclimber else rise
+    cost = rise if route == "ladder" or checked else rise * 2
     if cost > allowance:
         raise ValueError("climb exceeds actual land movement allowance")
-    if not actor.on_field or actor.captured or not TURN.spend(engine, actor, "shift", "Nicolette gym climb", movement=True):
+    action = "standard" if checked else "shift"
+    if not actor.on_field or actor.captured or not TURN.spend(engine, actor, action, "Nicolette gym climb", movement=True):
         return False
     check = None
-    if route == "cliff" and not wallclimber:
+    if checked:
         options = {} if fixed is None else {"fixed": fixed}
         check = C.against_dc(engine.skill_roll(actor, skill, **options), 12)
         if not check.passed:
@@ -508,40 +512,47 @@ def enter_cell(engine, actor, entry_kind):
         import field_effects as FIELD
         if not FIELD.touches_ground(actor):
             return None
-    cell = tuple(actor.pos)
+    import body_state as BODY
     ice = {tuple(value) for value in row["ice_cells"]}
     broken = {tuple(value) for value in row["broken_ice"]}
-    if cell not in ice or cell in broken:
+    contact = sorted(BODY.cells(actor,require_complete=True).intersection(ice)-broken)
+    if not contact:
         return None
     threshold = 5 if entry_kind == "walk" else 3
     if actor.weight_class < threshold:
-        return {"cell": cell, "entry": entry_kind, "broken": False,
+        return {"cell": contact[0], "cells": contact, "entry": entry_kind, "broken": False,
                 "weight_class": actor.weight_class}
-    row["broken_ice"].append(list(cell))
-    engine.grid.base_terrain[_key(cell)] = "underwater"
-    engine.grid.slow.discard(cell)
-    result = {"cell": cell, "entry": entry_kind, "broken": True,
+    for cell in contact:
+        row["broken_ice"].append(list(cell))
+        engine.grid.base_terrain[_key(cell)] = "underwater"
+        engine.grid.slow.discard(cell)
+    result = {"cell": contact[0], "cells": contact, "entry": entry_kind, "broken": True,
               "weight_class": actor.weight_class, "source": SOURCE}
     actor.spec.setdefault("_nicolette_ice_entries", []).append(deepcopy(result))
-    engine.log("  frozen river breaks at " + str(cell), SOURCE)
+    engine.log("  frozen river breaks at " + str(contact), SOURCE)
     return result
 
 
 def end_turn(engine, actor):
     """Apply the cold-water Speed-stage loss through the native stage consumer."""
     row = state(engine)
-    if row is None or tuple(actor.pos) not in {tuple(value) for value in row["broken_ice"]}:
+    if row is None:
         return False
     if actor.kind != "pokemon" or ICE_TYPES.intersection(actor.types):
         return False
     import field_effects as FIELD
     import map_terrain as MAP
-    if not FIELD.touches_ground(actor) or MAP.base_at(engine.grid, actor.pos) != "underwater":
+    if not FIELD.touches_ground(actor):
+        return False
+    import body_state as BODY
+    water = sorted(cell for cell in BODY.cells(actor,require_complete=True).intersection(map(tuple,row["broken_ice"]))
+                   if MAP.base_at(engine.grid,cell)=="underwater")
+    if not water:
         return False
     before = actor.stages["spe"]
     engine.change_stage(actor, "spe", -1)
     actor.spec.setdefault("_nicolette_cold_water_turns", []).append({
         "round": engine.round_no, "before": before, "after": actor.stages["spe"],
-        "cell": tuple(actor.pos), "source": SOURCE})
+        "cell": water[0], "cells": water, "source": SOURCE})
     return True
 

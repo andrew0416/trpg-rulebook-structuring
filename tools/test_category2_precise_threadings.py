@@ -149,7 +149,7 @@ class PreciseThreadingsTests(unittest.TestCase):
   out=self.use(path=[(6,1),(5,1),(4,1)])
   self.assertEqual((self.t.pos,out['movement']['stopped_by']),((5,1),'collision'))
   self.setUp();self.round()
-  def stop(e,c,cell):c.hp=0
+  def stop(e,c,cell,**kw):c.hp=0
   with patch.object(EXT,'on_enter_cell',side_effect=stop) as entered:
    out=self.use(path=[(6,1),(5,1),(4,1)])
   self.assertEqual(entered.call_count,1)

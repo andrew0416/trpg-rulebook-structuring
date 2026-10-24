@@ -31,7 +31,7 @@ class NonlandBreatherTests(unittest.TestCase):
   path=self.air(((2,2),0,None),((3,2),0,None),((3,2),1,None),
                 ((4,2),1,None),((5,2),0,1),((6,2),0,None))
   entered=[];original=EXT.on_enter_cell
-  with patch.object(M,'follow_paid_path',wraps=M.follow_paid_path) as follow,patch.object(EXT,'on_enter_cell',side_effect=lambda e,c,p:(entered.append((p,c.spec.get('_movement_altitude',0),c.temp_hp)),original(e,c,p))[-1]):
+  with patch.object(M,'follow_paid_path',wraps=M.follow_paid_path) as follow,patch.object(EXT,'on_enter_cell',side_effect=lambda e,c,p,**kw:(entered.append((p,c.spec.get('_movement_altitude',0),c.temp_hp)),original(e,c,p,**kw))[-1]):
    result=self.take(path=path,movement_mode='sky')
   self.assertTrue(result['completed']);self.assertEqual(result['movement']['distance'],5)
   self.assertEqual((self.a.pos,self.a.spec['_movement_altitude'],self.a.airborne),((6,2),0,False))

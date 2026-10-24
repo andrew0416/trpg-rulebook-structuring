@@ -47,7 +47,7 @@ def _observation(e,actors):
 
 def _interaction_issues(e,actors):
  issues=[]
- for field in ('weather','field','grid','zones','zone_cells','hazards','hazards_nogrid',
+ for field in ('weather','field','grid','zones','zone_cells','_smoke_regions','hazards','hazards_nogrid',
                'delayed','zone_rules','taunt','condition_params','_action_grants'):
   if getattr(e,field,None):issues.append('unsupported interaction: '+field)
  for field in ('formulas','mech','effects','situational','answers','provider'):

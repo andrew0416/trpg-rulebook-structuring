@@ -40,7 +40,8 @@ def validate(actor, row=None):
     if turn is not None:
         if not isinstance(turn, dict) or set(turn) != {
                 "round", "key", "start_initiative", "current_initiative",
-                "action_index", "minimum_action", "minimum_action_used"}:
+                "action_index", "minimum_action", "minimum_action_used",
+                "window_used", "lifecycle", "next_initiative"}:
             raise ValueError("swarm turn receipt shape changed")
         for key in ("round", "start_initiative", "current_initiative", "action_index"):
             if type(turn[key]) is not int or turn[key] < 0:
@@ -49,6 +50,10 @@ def validate(actor, row=None):
             raise ValueError("swarm turn identity required")
         if type(turn["minimum_action"]) is not bool or type(turn["minimum_action_used"]) is not bool:
             raise ValueError("swarm minimum-action flags must be explicit")
+        if type(turn['window_used']) is not bool or turn['lifecycle'] not in ('open','pending','closed'):
+            raise ValueError('swarm action window must have an actual lifecycle')
+        if turn['next_initiative'] is not None and (type(turn['next_initiative']) is not int or turn['next_initiative'] < 0):
+            raise ValueError('swarm continuation initiative must be nonnegative')
     for key, receipt in row.get("round_trigger_receipts", {}).items():
         if not isinstance(key, str) or not isinstance(receipt, dict):
             raise ValueError("swarm round receipts require identities and state maps")
@@ -78,6 +83,17 @@ def start_turn(engine, actor, initiative_count=None):
     row = state(actor)
     if row is None:
         return None
+    if continuation_pending(engine, actor):
+        turn = _turn(row)
+        if initiative_count != turn['next_initiative']:
+            raise ValueError('swarm additional action requires its next initiative count')
+        turn.update(current_initiative=initiative_count, next_initiative=None,
+                    action_index=turn['action_index']+1, window_used=False, lifecycle='open')
+        validate(actor, row)
+        return deepcopy(turn)
+    previous = row.get('swarm_turn')
+    if isinstance(previous, dict) and previous['round'] == engine.round_no:
+        raise ValueError('swarm turn already granted this round')
     if initiative_count is None:
         observed = engine.initiative_value(actor)
         initiative_count = observed.value
@@ -91,6 +107,7 @@ def start_turn(engine, actor, initiative_count=None):
         "round": engine.round_no, "key": key,
         "start_initiative": initiative_count, "current_initiative": initiative_count,
         "action_index": 0, "minimum_action": False, "minimum_action_used": False,
+        "window_used": False, "lifecycle": "open", "next_initiative": None,
     }
     row["round_trigger_receipts"][key] = {
         "round": engine.round_no, "start_initiative": initiative_count,
@@ -111,19 +128,46 @@ def finish_turn_start(engine, actor):
         row["swarm_points"] -= cost
         turn["minimum_action"] = True
         row["round_trigger_receipts"][turn["key"]]["condition_point_cost"] = cost
-        engine.log(f"    {actor.name}: 행동불능 상태로 스웜 포인트 {cost} 소비; 최소 행동 1회 보존",
+        engine.log(f"    {actor.name}: 행동불능 대신 스웜 포인트 {cost} 소비; 남은 행동 보존",
                    "C11-091/swarm-condition-action")
     validate(actor, row)
     return unable
 
 
-def minimum_action_permission(actor, kind):
+def incapacitation_replaced(actor, *, engine=None):
     row = state(actor)
-    if row is None or kind != "standard":
+    if row is None or engine is None:return False
+    turn=row.get('swarm_turn',{})
+    receipt=row.get('round_trigger_receipts',{}).get(turn.get('key'))
+    return bool(turn.get('minimum_action') and turn.get('lifecycle')=='open'
+        and turn.get('round')==engine.round_no and engine._active_turn_actor is actor
+        and row.get('own_turn_key')==turn.get('key') and isinstance(receipt,dict)
+        and receipt.get('round')==engine.round_no and receipt.get('points_granted',0)>0
+        and receipt.get('condition_point_cost')==1)
+
+
+def continuation_pending(engine, actor):
+    row = state(actor)
+    turn = row.get('swarm_turn', {}) if row else {}
+    return turn.get('round') == engine.round_no and turn.get('lifecycle') == 'pending'
+
+
+def defer_action(engine, actor, *, continue_action=True):
+    row = state(actor)
+    if row is None:
         return False
-    turn = row.get("swarm_turn", {})
-    return bool(turn.get("minimum_action") and not turn.get("minimum_action_used")
-                and not row.get("first_standard_used"))
+    turn = _turn(row)
+    if turn['lifecycle'] != 'open':
+        raise ValueError('swarm action window is not open')
+    if continue_action and turn['window_used'] and row['swarm_points'] > 0:
+        turn.update(lifecycle='pending', next_initiative=max(0, turn['current_initiative']-5))
+        return True
+    return False
+
+
+def finish_turn(actor):
+    row=state(actor)
+    if row is not None:_turn(row).update(lifecycle='closed',next_initiative=None)
 
 
 def _move_kind(engine, actor, move):
@@ -151,6 +195,8 @@ def actor_templates_policy(actor):
 
 def _record_standard(engine, actor, move, cost, frequency_kind):
     row = state(actor); turn = _turn(row)
+    if turn['lifecycle'] != 'open' or turn['window_used']:
+        return False
     first = not row["first_standard_used"]
     if first:
         initiative = turn["current_initiative"]
@@ -163,21 +209,82 @@ def _record_standard(engine, actor, move, cost, frequency_kind):
                        "C11-089/swarm-action-cost")
             return False
         row["swarm_points"] -= cost
-        turn["current_initiative"] = max(0, turn["current_initiative"] - 5)
         initiative = turn["current_initiative"]
-    turn["action_index"] += 1
-    if turn["minimum_action"] and turn["action_index"] == 1:
+    turn['window_used'] = True
+    if turn["minimum_action"] and turn["action_index"] == 0:
         turn["minimum_action_used"] = True
     receipt = {
-        "index": turn["action_index"], "initiative": initiative,
+        "index": turn["action_index"]+1, "initiative": initiative,
         "point_cost": 0 if first else cost, "frequency": frequency_kind,
         "move_id": None if move is None else move["id"], "free_first": first,
     }
     row["round_trigger_receipts"][turn["key"]]["actions"].append(receipt)
-    engine.log(f"    {actor.name}: 스웜 행동 #{turn['action_index']} @ {initiative}, 포인트 {receipt['point_cost']} 소비",
+    engine.log(f"    {actor.name}: 스웜 행동 #{turn['action_index']+1} @ {initiative}, 포인트 {receipt['point_cost']} 소비",
                "C11-087/C11-088/C11-089")
     validate(actor, row)
     return True
+
+
+def schedule_continuation(engine, actor, schedule, slot, phase):
+    if not continuation_pending(engine,actor):
+        return
+    turn=_turn(state(actor)); count=turn['next_initiative']
+    import initiative as INIT
+    at=schedule['cursor']
+    while at < len(schedule['steps']):
+        next_step=schedule['steps'][at]
+        if next_step['phase'] != phase or next_step['kind'] != 'turn':break
+        other=schedule['slots'][next_step['slot']]['actor']
+        pending=state(other)
+        other_count=(pending['swarm_turn']['next_initiative'] if continuation_pending(engine,other)
+                     else INIT.value(engine.r,other,engine=engine).value)
+        if type(other_count) is not int:
+            raise ValueError('swarm continuation needs a resolved actual opposing initiative count')
+        if other_count < count:break
+        if other_count == count:
+            from initiative import InitiativeValue
+            group=[('existing',other,InitiativeValue(count,'native schedule')),
+                   ('swarm',actor,InitiativeValue(count,'C11-088'))]
+            plan=INIT._tie_plan(engine,group,count)
+            if plan is None:raise ValueError('swarm initiative tie requires the native tie decision')
+            order=plan[1] if plan[0]=='order' else INIT._roll_group(engine,group,count,plan[1])
+            if order is None:raise ValueError('swarm initiative tie remains unresolved')
+            if (order[0] == 'swarm' if plan[0]=='order' else order[0][1] is actor):break
+        at+=1
+    record={'after_cursor':schedule['cursor'],'insert_at':at,'slot':slot,'phase':phase,
+            'initiative':count,'origin_initiative':turn['current_initiative'],
+            'action_index':turn['action_index'],'action_key':turn['key']}
+    schedule.setdefault('swarm_continuations',[]).append(record)
+    schedule['steps'].insert(at,{'phase':phase,'slot':slot,'kind':'turn'})
+    schedule['slots'][slot]['turn']='ready'
+
+
+def expanded_schedule(engine, schedule, steps, *, after=0, before=None):
+    """Rebuild queued continuations, also at intervening mounted exchanges."""
+    previous=0
+    for row in schedule.get('swarm_continuations',[]):
+        if before is not None and row['after_cursor']>before:break
+        if row['after_cursor']<=after:
+            previous=row['after_cursor']
+            continue
+        after=row['after_cursor']; at=row['insert_at']; slot=row['slot']
+        if (type(after) is not int or not previous < after <= schedule['cursor']
+                or type(at) is not int or not after <= at <= len(steps)
+                or slot not in schedule['slots']):
+            raise ValueError('swarm continuation must follow its actual closed action')
+        previous=after
+        if steps[after-1] != {'phase':row['phase'],'slot':slot,'kind':'turn'}:
+            raise ValueError('swarm continuation belongs to another schedule step')
+        actor=schedule['slots'][slot]['actor']; swarm=state(actor)
+        receipt=swarm.get('round_trigger_receipts',{}).get(row['action_key']) if swarm else None
+        actions=receipt.get('actions',[]) if receipt else []
+        index=row['action_index']
+        if (type(index) is not int or not 0 <= index < len(actions)
+                or actions[index]['initiative'] != row['origin_initiative']
+                or row['initiative'] != max(0,row['origin_initiative']-5)):
+            raise ValueError('swarm continuation requires its actual Standard Action')
+        steps.insert(at,{'phase':row['phase'],'slot':slot,'kind':'turn'})
+    return steps
 
 
 def spend(engine, actor, kind, move=None):
@@ -204,7 +311,11 @@ def move_allowed(engine, actor, move_id, frequency_kind, cap):
     turn = row.get("swarm_turn")
     if not isinstance(turn, dict) or turn.get("round") != engine.round_no:
         return False, "스웜 기술은 열린 실제 스웜 턴이 필요"
+    if turn['lifecycle'] != 'open':
+        return False, '스웜 추가 행동은 다음 이니셔티브 창을 기다려야 함'
     if action_kind == "standard":
+        if turn['window_used']:
+            return False, '현재 스웜 행동의 기본 행동을 이미 사용'
         cost_key = "eot" if frequency_kind == "every_other_turn" else frequency_kind
         cost = actor_templates_policy(actor)["swarm_standard_costs"].get(cost_key)
         if cost is None:
@@ -214,7 +325,7 @@ def move_allowed(engine, actor, move_id, frequency_kind, cap):
         return False, "스웜 포인트 부족"
     if action_kind in ("swift", "free"):
         ledger = row["frequency_ledger"].get(move_id, {})
-        if frequency_kind == "scene":
+        if frequency_kind in ("scene", "daily"):
             scene = actor.spec.get("frequency_state", {}).get("scene", 0)
             used = ledger.get("used", 0) if ledger.get("scene") == scene else 0
             return (used < row["multiplier"], "" if used < row["multiplier"] else "스웜 장면 신속/자유 사용 횟수 소진")

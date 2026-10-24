@@ -14,6 +14,9 @@ import state_grants as G
 KEY='ability_state_projection'
 PENDING='ability_state_projection_pending'
 PREFIX='ability-state:'
+LEAFY='ability/잎사귀망토'
+DESIGNER='ability/디자이너'
+LEAFY_HISTORY='leafy_cloak_projection_history'
 WEATHER_TYPES={'sunny':'불꽃','rain':'물','hail':'얼음','snow':'얼음','sandstorm':'바위','none':'노말'}
 
 
@@ -32,6 +35,9 @@ def install(rules):
         if not isinstance(row.get('choices'),dict) or not row['choices']:
             raise ValueError('reviewed ability-state choices required')
     targets=set(data['sources'])
+    leafy=_leafy_policy(rules)
+    for row in leafy['definitions'].values():
+        for payload in row['choices'].values():targets.update(payload['abilities'])
     for row in data['sources'].values():
         for payload in row['choices'].values():
             targets.update(payload.get('abilities',[]))
@@ -100,10 +106,131 @@ def choose(engine,actor,source,choice,*,observation=None,reason):
     source=registration(engine.r,source)
     if source is None:raise ValueError('reviewed ability-state source required')
     _text(reason,'ability-state choice reason')
+    if source==LEAFY:
+        request=_leafy_choice(engine,actor,choice,observation,reason)
+        actor.spec.setdefault(PENDING,{})[source]=request
+        return deepcopy(request)
     if choice not in definition(engine.r,source)['choices']:raise ValueError('choice is not declared for this ability')
     request={'source':source,'choice':choice,'observation':deepcopy(observation),'reason':reason}
     actor.spec.setdefault(PENDING,{})[source]=request
     return deepcopy(request)
+
+
+def _leafy_policy(rules):
+    from source_context import verified_source
+    value=json.loads((Path(rules.root)/'data/leafy-cloak-source-policy.json').read_text(encoding='utf-8'))
+    if value.get('schema_version')!=1 or value.get('source')!=LEAFY:
+        raise ValueError('reviewed Leafy Cloak source definitions required')
+    verified_source(rules,value['source_reference'],label='Leafy Cloak')
+    verified_source(rules,value['english_reference'],label='Leafy Cloak Designer timing',source_root='source-audit')
+    return value
+
+
+def _leafy_document(value):
+    return {'schema':1,'id':'native/leafy-cloak-designer','variants':[{
+        'rule_id':LEAFY,'source':value['source_reference'],
+        'values':{'variant':{'$input':'source_text'},'definitions':value['definitions']},
+        'inputs':{'source_text':{'type':'string','authority':'gm','decision_kind':'source_conflict',
+            'choices':list(value['definitions']),
+            'question':'Leafy Cloak: complete English Overcoat, or Korean Soundproof candidates with English Designer timing clarification?'}}}]}
+
+
+def leafy_source_choices(actor):
+    """The two complete executable definitions; the hybrid label is explicit."""
+    import source_policy as POLICY
+    value=_leafy_policy(actor.r)
+    return dict(POLICY.resolve(actor.r,_leafy_document(value)),
+                default=value['default'],definitions=deepcopy(value['definitions']))
+
+
+def _leafy_choice(engine,actor,choice,observation,reason):
+    if actor.kind!='pokemon' or not _owned(actor,LEAFY) or not _owned(actor,DESIGNER):
+        raise ValueError('Leafy Cloak requires its actual active user and Designer')
+    if observation is not None and (not isinstance(observation,dict) or set(observation)!={'source_choice'}):
+        raise ValueError('Leafy Cloak observation accepts only its scoped source choice')
+    source_choice=None if observation is None else observation['source_choice']
+    import source_policy as POLICY
+    value=_leafy_policy(engine.r)
+    result=POLICY.resolve(engine.r,_leafy_document(value),
+        decisions={} if source_choice is None else {'source_text':source_choice})
+    variant=value['default'] if source_choice is None else result['values']['variant']
+    if choice not in value['definitions'][variant]['choices']:
+        raise ValueError('Leafy Cloak pair is outside the selected complete definition')
+    payload=value['definitions'][variant]['choices'][choice];_validate_targets(engine,payload)
+    return {'source':LEAFY,'choice':choice,'observation':deepcopy(observation),'reason':reason,
+        'leafy_source':{'variant':variant,'choice':deepcopy(source_choice),
+            'scope':deepcopy(result['decision_scope']),'binding':deepcopy(result['source_policy_binding'])}}
+
+
+def prepare_designer(engine,actor):
+    """Validate the next real Designer choice before its work/action payment."""
+    if not _owned(actor,LEAFY):return None
+    request=actor.spec.get(PENDING,{}).get(LEAFY)
+    if request is None:raise ValueError('Designer with Leafy Cloak requires a pair choice')
+    _text(request.get('reason'),'Leafy Cloak pair reason')
+    current=_leafy_choice(engine,actor,request['choice'],request['observation'],request['reason'])
+    if current!=request:raise ValueError('Leafy Cloak source choice changed before Designer')
+    return current
+
+
+def complete_designer(engine,actor,receipt):
+    request=receipt['details'].get('leafy_cloak')
+    old=_records(actor).get(LEAFY)
+    if old is not None:
+        actor.spec.setdefault(LEAFY_HISTORY,[]).append({'projection':deepcopy(old),
+            'replaced_by':receipt['id'],'ended_at':engine.elapsed_seconds})
+    if request is None:
+        if old is not None:
+            _remove(engine,actor,LEAFY)
+            G.materialize(actor,'abilities');G.reconcile(engine,actor)
+        return
+    value=_leafy_policy(engine.r)
+    payload=value['definitions'][request['leafy_source']['variant']]['choices'][request['choice']]
+    _apply(engine,actor,LEAFY,request['choice'],payload,None,request['reason'],lifetime='until_reactivated')
+    _records(actor)[LEAFY]['leafy_producer']={'receipt_id':receipt['id'],
+        'garment_source':receipt['details']['grant_source'],'selection':deepcopy(request['leafy_source'])}
+    actor.spec.get(PENDING,{}).pop(LEAFY,None)
+
+
+def _leafy_payload(actor,record,*,current=False):
+    """Legacy projections remain legacy; new projections need their actual producer."""
+    producer=record.get('leafy_producer')
+    if producer is None:
+        payload=definition(actor.r,LEAFY)['choices'].get(record.get('choice'))
+        if payload is None:raise ValueError('unknown historical Leafy Cloak pair')
+        return payload
+    import source_selection as SELECTION
+    import ability_native_actions as NATIVE
+    value=_leafy_policy(actor.r);document=_leafy_document(value);selected=producer['selection']
+    SELECTION.policy_values(selected['binding'],document['variants'])
+    scope=selected['scope'];choice=selected['choice'];variant=selected['variant']
+    if (type(scope)is not dict or scope.get('policy_id')!=document['id']
+            or scope.get('definition_hash')!=SELECTION.fingerprint(document)
+            or scope.get('selected_id')!=LEAFY or scope.get('selected_version') is not None):
+        raise ValueError('Leafy Cloak producing source scope changed')
+    if choice is None:
+        if variant!=value['default']:raise ValueError('Leafy Cloak authored default changed')
+    elif (type(choice)is not dict or set(choice)!={'value','reason','scope'}
+            or choice['value']!=variant or choice['scope']!=scope
+            or not isinstance(choice['reason'],str) or not choice['reason'].strip()):
+        raise ValueError('actual scoped Leafy Cloak source choice required')
+    payload=value['definitions'].get(variant,{}).get('choices',{}).get(record.get('choice'))
+    matches=[r for r in actor.spec.get(NATIVE.HISTORY,[]) if r.get('id')==producer.get('receipt_id')]
+    if len(matches)!=1:raise ValueError('Leafy Cloak lost its actual Designer receipt')
+    receipt=matches[0];details=receipt.get('details',{});request=details.get('leafy_cloak',{})
+    if (receipt.get('source')!=DESIGNER or receipt.get('operation')!='designer'
+            or receipt.get('actor_id')!=actor.entity_id or receipt.get('target_id')!=actor.entity_id
+            or details.get('grant_source')!=producer.get('garment_source')
+            or request.get('leafy_source')!=selected or request.get('choice')!=record.get('choice')
+            or request.get('reason')!=record.get('reason') or receipt.get('at')!=record.get('installed_at')
+            or payload is None):
+        raise ValueError('Leafy Cloak differs from its completed Designer choice')
+    if current:
+        creations=[r for r in actor.spec.get(NATIVE.HISTORY,[]) if r.get('source')==DESIGNER and r.get('operation')=='designer']
+        if (not creations or creations[-1]['id']!=receipt['id']
+                or actor.spec.get(NATIVE.KEY,{}).get(DESIGNER,{}).get('garment')!=details):
+            raise ValueError('Leafy Cloak is not bound to the current Designer garment')
+    return payload
 
 
 def _fact(value,label):
@@ -288,7 +415,8 @@ def _apply(engine,actor,source,choice,payload,observation,reason,*,lifetime,prio
     _require_forms(actor,source,prior_form)
     import form_allocations as FORMS
     if form is not None and FORMS.KEY in actor.spec:_switch_form_direct(engine,actor,form)
-    G._source(actor,sid,'ability_state_projection',owner_id=actor.entity_id,rule_id=source,lifetime=lifetime,tutor_points=0)
+    G._source(actor,sid,'ability_state_projection',owner_id=actor.entity_id,rule_id=source,lifetime=lifetime,tutor_points=0,
+      **({'move_mode':'permission'} if payload.get('moves') else {}))
     def contributions():
         if payload.get('types') is not None:G.type_operation(actor,'set',payload['types'],sid)
         for uid in payload.get('abilities',[]):G.grant(actor,'abilities',uid,sid,'ability_state_projection',owner_id=actor.entity_id,lifetime=lifetime,rule_id=source)
@@ -333,6 +461,7 @@ def activate(engine,actor,source,*,choice=None,observation=None,reason,seconds=N
     if source is None:raise ValueError('reviewed ability-state source required')
     _text(reason,'ability-state activation reason')
     if actor.kind!='pokemon' or not _owned(actor,source):raise ValueError('actual active Pokemon ability required')
+    if source==LEAFY:raise ValueError('Leafy Cloak is chosen only by actual Designer creation')
     row=definition(engine.r,source)
     if row['kind']=='creation_slots':raise ValueError('creation pattern requires one native initialization')
     if choice is None:
@@ -486,9 +615,24 @@ def form_changed(engine,actor):
     source='ability/폴터가이스트-playtest'
     # Most form switches have no relationship to the optional Playtest source.
     # Avoid resolving an excluded variant in rulesets where it cannot be owned.
-    if source not in actor.abilities:return
+    import ability_transitions as A
+    if source not in A.known(actor):return
     if _owned(actor,source) and actor.form in definition(engine.r,source)['choices']:
         activate(engine,actor,source,choice=actor.form,reason='actual Rotom form changed')
+
+
+def level_changed(engine,actor,old_level):
+    source='ability/폴터가이스트-playtest'
+    record=_records(actor).get(source)
+    if record is None or not old_level<40<=actor.level:return False
+    payload,_=_selection(engine,actor,source,record['choice'],record['observation'])
+    _validate_targets(engine,payload)
+    if payload.get('moves'):
+        G._source(actor,record['grant_source'],'ability_state_projection',move_mode='permission')
+        G.grant_moves(actor,payload['moves'],record['grant_source'],'ability_state_projection',
+          owner_id=actor.entity_id,lifetime=record['lifetime'],rule_id=source,mode='permission')
+    record['payload']=payload
+    return True
 
 
 def end_scene(engine,actors):
@@ -586,15 +730,32 @@ def validate_world(engine,index):
     for actor in index.values():
         rows=_records(actor)
         if len(rows)!=len(set(rows)):raise ValueError('duplicate ability-state projection source')
+        for ended in actor.spec.get(LEAFY_HISTORY,[]):
+            previous=ended['projection']
+            if previous.get('source')!=LEAFY or previous.get('payload')!=_leafy_payload(actor,previous):
+                raise ValueError('historical Leafy Cloak projection changed')
+            import ability_native_actions as NATIVE
+            replacement=[r for r in actor.spec.get(NATIVE.HISTORY,[]) if r.get('id')==ended.get('replaced_by')]
+            if (len(replacement)!=1 or replacement[0].get('source')!=DESIGNER
+                    or replacement[0].get('operation')!='designer'
+                    or replacement[0].get('at')!=ended.get('ended_at')
+                    or previous.get('installed_at',0)>ended['ended_at']):
+                raise ValueError('Leafy Cloak replacement lost its actual Designer boundary')
+            prior=previous.get('leafy_producer')
+            if prior is not None:
+                before=next(r for r in actor.spec[NATIVE.HISTORY] if r['id']==prior['receipt_id'])
+                if before['sequence']>=replacement[0]['sequence']:
+                    raise ValueError('Leafy Cloak replacement must follow its producing Designer')
         for source,record in rows.items():
             row=definition(engine.r,source)
             if source not in A.known(actor):raise ValueError('ability-state projection outlived its source ability')
-            if row is None or record.get('source')!=source or record.get('row_id')!=row['row_id'] or record.get('choice') not in row['choices']:
+            if row is None or record.get('source')!=source or record.get('row_id')!=row['row_id'] or (source!=LEAFY and record.get('choice') not in row['choices']):
                 raise ValueError('ability-state projection differs from reviewed source')
             if record.get('grant_source')!=_sid(source) or record.get('lifetime')!=row['lifetime']:
                 raise ValueError('ability-state projection ownership/lifetime changed')
             payload=record.get('payload');_validate_targets(engine,payload)
-            expected,_=_selection(engine,actor,source,record['choice'],record.get('observation'))
+            if source==LEAFY:expected=_leafy_payload(actor,record,current=True)
+            else:expected,_=_selection(engine,actor,source,record['choice'],record.get('observation'))
             if payload!=expected:raise ValueError('ability-state payload differs from the reviewed projection')
             owner=actor.spec.get(G.KEY,{}).get('sources',{}).get(record['grant_source'])
             if owner is None or owner.get('rule_id')!=source or owner.get('lifetime')!=row['lifetime']:

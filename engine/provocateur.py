@@ -16,7 +16,7 @@ DEFINITIONS={uid:{'span':list(span),'catalog_span':[2530,2530] if uid==CLASS els
  'stat_tag':'spe','parent':None if uid==CLASS else POWER if uid==FIDDLE else QUICK if uid==GAZE else CLASS,
  'skills':SKILLS,'minimum_rank':5 if uid in (FIDDLE,GAZE) else 4 if uid in (QUICK,MIXED,POWER) else 0,
  'skill_count':2 if uid in (MIXED,POWER,GAZE) else 1 if uid in (QUICK,FIDDLE) else 0,
- 'selection':{'optional':True,'original':DEMO,'duplicate_replacement':'qualified_edge'} if uid==PUSH else None}
+ 'selection':{'original':DEMO,'original_required_if_absent':True,'duplicate_replacement':'optional_qualified_edge'} if uid==PUSH else None}
  for uid,span in FEATURES.items()}
 QUOTA={'kind':'scene','uses':3}
 POWER_EFFECTS=({'no_critical':True},{'no_effect_range':True},{'statuses':['둔화']},{'evasion_modifier':-3},{'accuracy_modifier':-3},{'ally_damage_penalty':-10},{'save_modifier':-3})
@@ -49,10 +49,12 @@ def acquisition_snapshot(engine,actor,feature,selection=None):
   if selection is not None:raise ValueError('this Provocateur Feature has no acquisition selection')
   return result
  if type(selection) is not dict or set(selection)-{'edge','requirements','edge_choices'} or 'edge' not in selection:
-  raise ValueError('Push Buttons requires explicit optional edge selection (edge None declines)')
+  raise ValueError('Push Buttons requires explicit Edge selection (None only if Demoralize is already owned)')
  edge=selection['edge'];already=_owned(actor,DEMO)
  result.update(selection=deepcopy(selection),demoralize_already_owned=already,edge_qualification=None)
- if edge is None:return result
+ if edge is None:
+  if not already:raise ValueError('Push Buttons must grant Demoralize when it is absent')
+  return result
  if type(edge) is not str or not edge.startswith('edge/') or edge not in engine.r.selection.units:
   raise ValueError('choose an actual selected Edge')
  if _owned(actor,edge):raise ValueError('selected replacement Edge is already owned')
@@ -72,7 +74,7 @@ def qualification(actor,feature,snapshot,prerequisite_source):
  expected={'skills','parents','edges'}|({'selection','demoralize_already_owned','edge_qualification'} if feature==PUSH else set())
  if prerequisite_source is not None or type(snapshot) is not dict or set(snapshot)!=expected:raise ValueError('exact Provocateur acquisition observations required')
  if set(snapshot['skills'])!=set(SKILLS):raise ValueError('three printed Provocateur skills required')
- for value in snapshot['skills'].values():C.integer(value,'Provocateur skill rank',1,6)
+ for value in snapshot['skills'].values():C.integer(value,'Provocateur skill rank',1)
  checks=[Q.check('trainer','prerequisite',actor.kind=='trainer','actual Trainer required')]
  if feature==CLASS:
   checks.append(Q.check('edge','prerequisite',bool(snapshot['edges']) and set(snapshot['edges'])<=set(EDGES),'one printed social Edge required'))
@@ -87,16 +89,70 @@ def qualification(actor,feature,snapshot,prerequisite_source):
  return Q.require(feature,'native','acquire',checks)
 
 
+def _grant_edge(actor,source_id,choice):
+ edge=choice['edge']
+ if edge is None:return
+ row=G.state(actor)['sources'][source_id];edge_source='feature:'+actor.entity_id+':'+edge
+ if row.get('provocateur_edge') is not None or _owned(actor,edge) or edge_source in G.state(actor)['sources']:
+  raise ValueError('Push Buttons Edge grant requires an unowned Edge and unused current source')
+ actor.spec.setdefault('edges',[]).append(edge);row['provocateur_edge']=edge
+ G._source(actor,edge_source,'feature',owner_id=actor.entity_id,rule_id=edge,lifetime='while_owned',tutor_points=0)
+ row.setdefault('effect_sources',[]).append(edge_source)
+ if choice.get('edge_choices'):actor.spec.setdefault('edge_choices',{})[edge]=deepcopy(choice['edge_choices'])
+
+
+def _current_demoralize(actor):
+ import trainer_feature_acquisition as T,acquired_features as A
+ state=actor.spec.get(G.KEY,{})
+ source_id='feature:'+actor.entity_id+':'+PUSH;row=state.get('sources',{}).get(source_id,{})
+ receipt=row.get('provocateur_demoralize_adoption')
+ if receipt is None:return None
+ if type(receipt) is not dict:raise ValueError('actual current Demoralize adoption receipt required')
+ T._text(receipt.get('request_id'),'current Demoralize adoption request')
+ payload={'request_id':receipt['request_id'],'actor_id':actor.entity_id,'feature_id':PUSH,'edge':DEMO,
+  'source_id':source_id,'source':T._static_source(actor.r,PUSH),
+  'parent_acquisition_request':row.get('static_acquisition',{}).get('request_id')}
+ if receipt!=dict(payload,integrity=T._digest('provocateur/current-demoralize-grant/v1',payload)):
+  raise ValueError('current Demoralize adoption provenance changed')
+ child_id='feature:'+actor.entity_id+':'+DEMO;child=state.get('sources',{}).get(child_id,{})
+ if (actor.kind!='trainer' or A.owned_rule_count(actor,PUSH)!=1 or A.owned_rule_count(actor,DEMO)!=1 or row.get('kind')!='feature' or
+  row.get('owner_id')!=actor.entity_id or row.get('rule_id')!=PUSH or row.get('lifetime')!='while_owned' or
+  row.get('provocateur_edge')!=DEMO or row.get('effect_sources',[]).count(child_id)!=1 or
+  child.get('kind')!='feature' or child.get('owner_id')!=actor.entity_id or child.get('rule_id')!=DEMO or child.get('lifetime')!='while_owned'):
+  raise ValueError('current Demoralize adoption requires its actual connected owned sources')
+ return receipt
+
+
+def adopt_demoralize(engine,actor,*,adoption_request_id):
+ """Grant the mandatory Edge now, without inventing historical acquisition."""
+ import trainer_feature_acquisition as T,trainer_retraining as RETRAINING,world_entities as WORLD,acquired_features as A
+ WORLD.require_actors(engine,actor);source=T._static_source(engine.r,PUSH);T.validate_actor(actor)
+ T._text(adoption_request_id,'current Demoralize adoption request')
+ if actor.kind!='trainer' or A.owned_rule_count(actor,PUSH)!=1:raise ValueError('actual current Push Buttons owner required')
+ source_id='feature:'+actor.entity_id+':'+PUSH;state=actor.spec.get(G.KEY,{})
+ if source_id not in state.get('sources',{}) and any(entry['source_id']==source_id for entry in state.get('ended_sources',[])):
+  raise ValueError('ended Push Buttons source cannot adopt a current grant')
+ existing=_current_demoralize(actor)
+ if existing is not None:
+  if existing['request_id']!=adoption_request_id:raise ValueError('current Demoralize adoption replay cannot change request')
+  return deepcopy(existing)
+ if _owned(actor,DEMO):raise ValueError('independent Demoralize is already owned; no current grant to adopt')
+ def apply(staged,trainer):
+  parent=RETRAINING.owned_source(staged,trainer,PUSH);row=G.state(trainer)['sources'][parent]
+  payload={'request_id':adoption_request_id,'actor_id':trainer.entity_id,'feature_id':PUSH,'edge':DEMO,
+   'source_id':parent,'source':source,'parent_acquisition_request':row.get('static_acquisition',{}).get('request_id')}
+  receipt=dict(payload,integrity=T._digest('provocateur/current-demoralize-grant/v1',payload))
+  _grant_edge(trainer,parent,{'edge':DEMO})
+  G._source(trainer,parent,'feature',provocateur_demoralize_adoption=receipt)
+  T.validate_actor(trainer);_current_demoralize(trainer)
+  return deepcopy(receipt)
+ return G.transition(engine,actor,apply)
+
+
 def after_acquire(engine,actor,feature,source_id):
  if feature!=MIXED:G.stat(actor,'spe',1,source_id,operation_id='acquisition_stat_tag')
  if feature==PUSH:
-  row=G.state(actor)['sources'][source_id];choice=row['static_acquisition']['snapshot']['selection'];edge=choice['edge']
-  if edge is not None:
-   actor.spec.setdefault('edges',[]).append(edge);row['provocateur_edge']=edge
-   edge_source='feature:'+actor.entity_id+':'+edge
-   G._source(actor,edge_source,'feature',owner_id=actor.entity_id,rule_id=edge,lifetime='while_owned',tutor_points=0)
-   row.setdefault('effect_sources',[]).append(edge_source)
-   if choice.get('edge_choices'):actor.spec.setdefault('edge_choices',{})[edge]=deepcopy(choice['edge_choices'])
+  _grant_edge(actor,source_id,G.state(actor)['sources'][source_id]['static_acquisition']['snapshot']['selection'])
  if feature==CLASS:
   import class_move_grants as MOVES_OWNER
   MOVES_OWNER.register_all(engine,actor)
@@ -109,7 +165,7 @@ def after_acquire(engine,actor,feature,source_id):
 
 def waive_demoralize(actor):
  row=acquired(actor,PUSH)
- return bool(row and row['snapshot']['selection']['edge']==DEMO)
+ return bool((row and row['snapshot']['selection']['edge']==DEMO) or _current_demoralize(actor))
 
 
 def before_revoke(actor,row):

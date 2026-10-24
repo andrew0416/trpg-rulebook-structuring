@@ -58,10 +58,11 @@ def eligibility(e,actor,skill):
  if sid not in SOCIAL|EDUCATION:return True
  _source(e)
  policy=getattr(e,'_pokemon_intelligence_policy',None)
- if policy is None:return None # No declaration is not a chosen animal/human campaign.
+ source_exception=_source_exception(e,actor,sid)
+ if policy is None:return True if source_exception else None # A source-given pool is independent of campaign portrayal.
  if policy.get('source')!=SOURCE or policy.get('skill_source')!=SKILLS:raise ValueError('campaign intelligence policy source changed')
  if type(policy.get('social')) is not bool or type(policy.get('education')) is not bool:raise ValueError('invalid campaign intelligence policy')
- if _source_exception(e,actor,sid):return True
+ if source_exception:return True
  individual=policy.get('exceptions',{}).get(actor.spec.get('id'),{})
  return sid in individual.get('skills',[]) or policy['social' if sid in SOCIAL else 'education']
 
@@ -73,6 +74,7 @@ def require_skill(e,actor,skill):
  if allowed is False:raise ValueError('campaign Pokemon policy does not authorize this social or education skill')
  values=[v for k,v in actor.spec.get('skills',{}).items() if S.skill_id(e.r.skill_policy,k)==sid]
  if not values:raise ValueError('actual Pokemon social or education skill pool is unassigned; no default 2d6')
+ if allowed is None:raise ValueError('explicit current campaign Pokemon skill policy required before using optional social or education pools')
  # Native skill preparation performs the ordinary alias/pool validation after this gate.
 
 def assign(e,actor,*,target,skills,reason):

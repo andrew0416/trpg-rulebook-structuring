@@ -19,7 +19,7 @@ def reason(value):
 
 def capabilities(e,c,*,environment=True):
  result=dict(c.spec.get('movement') or {});result['land']=c.movement
- for key in MODES:
+ for key in MODES+('free_float',):
   if key in result:C.integer(result[key],key+' movement',0)
  basis=c.spec.get('movement_basis','current')
  if basis not in ('base','current','trainer_base'):raise ValueError('movement basis must be base, current, or trainer_base')
@@ -35,10 +35,10 @@ def capabilities(e,c,*,environment=True):
   result=TRAINER.jump_bonuses(c,result)
  if basis in ('base','trainer_base'):
   import move_capabilities as MOVE_CAPABILITIES
-  result=MOVE_CAPABILITIES.numeric_values(c,result,MODES+('high_jump','long_jump'))
+  result=MOVE_CAPABILITIES.numeric_values(c,result,MODES+('free_float','high_jump','long_jump'))
  else:
   import move_capabilities as MOVE_CAPABILITIES
-  result=MOVE_CAPABILITIES.current_values(c,result,MODES+('high_jump','long_jump'))
+  result=MOVE_CAPABILITIES.current_values(c,result,MODES+('free_float','high_jump','long_jump'))
  if basis=='base' and c.kind=='pokemon':
   if '부유' in c.abilities or 'Levitate' in c.abilities:
    if c.abilities_suppressed:raise ValueError('suppressed Levitate capability duration needs an explicit current sheet ruling')
@@ -54,17 +54,18 @@ def capabilities(e,c,*,environment=True):
  result=OPTIONAL_EQUIPMENT.movement(c,result)
  import stat_ace as STAT
  bonus=STAT.stratagem_bonus(e,c,'movement')
- for key in MODES:
+ for key in MODES+('free_float',):
   if result.get(key,0)>0:result[key]+=bonus
  import csv_item_form_contracts as CSV_FORMS
  result=CSV_FORMS.movement_projection(e,c,result)
  if c.kind=='pokemon':
   import baby_templates as BABY
-  result=BABY.capability_values(c,result,MODES+('high_jump','long_jump'))
+  result=BABY.capability_values(c,result,MODES+('free_float','high_jump','long_jump'))
  import combat_timing as TIMING
- for mode in TIMING.blocked_movement_modes(c):result[mode]=0
  import environment_derive as ED
- return ED.movement(e,c,result) if environment else result
+ result=ED.movement(e,c,result) if environment else result
+ for mode in TIMING.blocked_movement_modes(c):result[mode]=0
+ return result
 
 def set_capabilities(e,c,values,*,basis,reason_text):
  reason(reason_text)
@@ -73,7 +74,7 @@ def set_capabilities(e,c,values,*,basis,reason_text):
   import pokemon_capability_edges as CAP_EDGES
   values=CAP_EDGES.decompose_current(c,values)
  # Validate raw input before arithmetic can coerce booleans into integers.
- for key in MODES:
+ for key in MODES+('free_float',):
   if key in values:C.integer(values[key],key+' movement',0)
  probe=copy(c);probe.spec=dict(c.spec,movement=deepcopy(values),movement_basis=basis)
  probe.__dict__.pop('movement',None)
@@ -256,11 +257,24 @@ def _travel_geometry(e,c,destination,altitude,gm_distance,*,require_los=True,ign
   raise ValueError('destination body is blocked, outside map or occupied at this altitude')
  return destination,distance
 
-def _aerial_height(e,c,mode,altitude):
+def free_float_destination(e,c,destination,mode,*,origin=None):
+ if mode not in ('sky','공중/부유'):return True
+ ordinary=capabilities(e,c,environment=False)
+ if ordinary.pop('free_float',0)<=0:return True
+ import environment_derive as ED
+ ordinary=ED.movement(e,c,ordinary)
+ if ordinary.get('sky',0)>0 or (mode=='공중/부유' and ordinary.get('levitate',0)>0 and c.spec.get('_movement_altitude',0)<=ordinary['levitate']/2):return True
+ return ED.zero_gravity(e,c,position=origin) and ED.zero_gravity(e,c,position=destination)
+
+
+def _aerial_height(e,c,mode,altitude,*,destination=None,capability_actor=None):
  if mode not in ('sky','levitate'):raise ValueError('Sky or Levitate mode required')
  if c.spec.get('_burrow',{}).get('underground'):raise ValueError('must establish a surface exit before ordinary aerial movement')
- cap=capabilities(e,c)
+ actual=c if capability_actor is None else capability_actor
+ cap=capabilities(e,actual)
  if cap.get(mode,0)<=0:raise ValueError('selected movement capability is not possessed')
+ if destination is not None and not free_float_destination(e,actual,destination,mode,origin=c.pos):
+  raise ValueError('Free Floating destination requires observed zero gravity')
  from physical_limits import number
  number(altitude,'destination altitude',minimum=0)
  import field_effects as FIELD
@@ -272,7 +286,7 @@ def aerial_move(e,c,destination,*,mode,altitude,reason_text,gm_distance=None):
  import environment_change as EC
  if EC.managed(e,c):return EC.run(e,c,lambda s,a:aerial_move(s,a,destination,mode=mode,altitude=altitude,reason_text=reason_text,gm_distance=gm_distance))
  boundary(e,'aerial_move');reason(reason_text)
- _aerial_height(e,c,mode,altitude)
+ _aerial_height(e,c,mode,altitude,destination=destination)
  destination,distance=_travel_geometry(e,c,destination,altitude,gm_distance)
  allowance=distance_budget(e,c,mode)
  if distance>allowance:raise ValueError('aerial destination exceeds movement allowance')
@@ -348,9 +362,10 @@ def _paid_receipts(e,progress):
   progress['phase']='ready'
 
 
-def _paid_departure(e,c,q,height,progress,*,pass_scope=None,chain_scope=None):
+def _paid_departure(e,c,q,height,progress,*,pass_scope=None,chain_scope=None,disengage_scope=None):
  origin=c.pos;altitude=c.spec.get('_movement_altitude',0)
- permitted=observe_paid_departure(e,c,progress,lambda:departure(e,c,q,height,pass_scope=pass_scope,chain_scope=chain_scope))
+ permitted=observe_paid_departure(e,c,progress,lambda:departure(e,c,q,height,pass_scope=pass_scope,chain_scope=chain_scope,
+  **({'disengage_scope':disengage_scope} if disengage_scope is not None else {})))
  return permitted and c.pos==origin and c.spec.get('_movement_altitude',0)==altitude
 
 
@@ -379,7 +394,7 @@ def observe_paid_departure(e,c,progress,resolve):
  return True
 
 
-def _paid_entry(e,c,progress,*,surface,reconcile=False):
+def _paid_entry(e,c,progress,*,surface,reconcile=False,previous_position=None):
  position=c.pos;altitude=c.spec.get('_movement_altitude',0)
  import survivalist_features as SURVIVAL
  SURVIVAL.position_changed(e,c,event='native movement entry')
@@ -393,7 +408,7 @@ def _paid_entry(e,c,progress,*,surface,reconcile=False):
   LIFETIMES.reconcile(e)
  if surface and c.pos==position and c.spec.get('_movement_altitude',0)==altitude:
   import effects_ext as EXT
-  EXT.on_enter_cell(e,c,c.pos)
+  EXT.on_enter_cell(e,c,c.pos,previous_position=previous_position)
  observed=[key for key in getattr(e,'_effect_dispatch_receipts',{}) if key not in receipts]
  if progress is not None:
   progress['effects'].extend(observed);progress['phase']='ready'
@@ -405,6 +420,8 @@ def _paid_entry(e,c,progress,*,surface,reconcile=False):
 
 def follow_paid_transfer(e,c,plan,*,progress=None):
  """Actual native tunnel/Teleport transfer, after its real producer paid."""
+ import field_effects as FIELD
+ import living_weapon as LIVING
  cursor={} if progress is None else progress
  _paid_receipts(e,cursor);_paid_progress(c,plan['path'],cursor)
  steps=len(plan['path'])-1
@@ -423,12 +440,16 @@ def follow_paid_transfer(e,c,plan,*,progress=None):
   raise ValueError('actual Burrow or Teleport plan required')
  actual=validate()
  if isinstance(actual,C.PendingDecision):raise ValueError(str(actual))
+ if not LIVING.can_shift(e,c,actual['distance'],movement_mode=mode):
+  return {'distance':0,'steps':0,'position':c.pos,'mode':mode}
  height=parameters.get('altitude',0);destination=plan['path'][-1]
  if not _paid_departure(e,c,destination,height,cursor):
   return {'distance':0,'steps':0,'position':c.pos,'mode':mode}
  actual=validate()
  if isinstance(actual,C.PendingDecision):raise ValueError(str(actual))
- c.pos=destination
+ if not LIVING.can_shift(e,c,actual['distance'],movement_mode=mode):
+  return {'distance':0,'steps':0,'position':c.pos,'mode':mode}
+ origin=c.pos;origin_altitude=c.spec.get('_movement_altitude',0);origin_contact=FIELD.touches_ground(c);c.pos=destination
  if mode=='burrow':
   c._diagonal_steps=actual['diagonals'];c.airborne=False;consume_sprint(c)
   size=c.spec['size'];surface=parameters['surface'];path=actual['path']
@@ -446,11 +467,10 @@ def follow_paid_transfer(e,c,plan,*,progress=None):
   e.log('  '+c.name+': 순간이동 '+str(actual['distance'])+'m'+location,'capability/teleporter')
   result={'distance':actual['distance'],'position':c.pos,'altitude':height,'surface_contact':surface}
  result.update(steps=steps,mode=mode)
- import living_weapon as LIVING
- LIVING.sync(e,c)
+ LIVING.shifted(e,c,actual['distance'])
  cursor.update(next=steps,distance=actual['distance'],position=c.pos,altitude=c.spec.get('_movement_altitude',0),
                diagonals=getattr(c,'_diagonal_steps',0),phase='entering',result=result)
- if _paid_entry(e,c,cursor,surface=surface,reconcile=mode=='teleport'):cursor['phase']='complete'
+ if _paid_entry(e,c,cursor,surface=surface,reconcile=mode=='teleport',previous_position=origin if origin_altitude==height and origin_contact==FIELD.touches_ground(c) else None):cursor['phase']='complete'
  return result
 
 
@@ -466,14 +486,16 @@ def entry_mode(c,mode,*,altitude=None):
   c.airborne=altitude>0 and mode!='shadow_surface'
 
 
-def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress=None,pass_scope=None,chain_scope=None):
+def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress=None,pass_scope=None,chain_scope=None,movement_mode=None,disengage_scope=None):
  """Shared physical movement after a producer has paid its actual action."""
- import body_state as BODY,effects_ext as EXT,control_mount as MOUNT,action_lifecycle as ACTION
+ import body_state as BODY,effects_ext as EXT,control_mount as MOUNT,action_lifecycle as ACTION,field_effects as FIELD
+ import living_weapon as LIVING
  action_owner=c if action_owner is None else action_owner
  C.integer(maximum_distance,'actual movement allowance',0)
  import type_ace as TA
  maximum_distance=TA.movement_allowance(c,mode,maximum_distance)
  aerial=mode in ('sky','levitate','shadow_surface')
+ shared_mode=movement_mode or (mode if mode in MODES else 'land' if mode in ('육상','shadow_surface') else None)
  if mode=='shadow_surface':
   import body_modes as BODY_MODES
   if not BODY_MODES.flat(c):raise ValueError('surface path requires actual Shadow Meld')
@@ -499,7 +521,7 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
    q=_point(node[:2]);step,diagonals=step_cost(c.pos,q,getattr(c,'_diagonal_steps',0))
    return q,c.spec.get('_movement_altitude',0),step+slow_terrain_penalty(e,c,q,mode,step=step),diagonals
   q=node['position'];height=node['altitude']
-  if mode!='shadow_surface':_aerial_height(e,c,mode,height)
+  if mode!='shadow_surface':_aerial_height(e,c,mode,height,destination=q)
   diagonals=getattr(c,'_diagonal_steps',0)
   dx,dy=abs(q[0]-c.pos[0]),abs(q[1]-c.pos[1])
   measured=node.get('gm_distance')
@@ -516,17 +538,20 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
   origin=c.pos;altitude=c.spec.get('_movement_altitude',0)
   import map_terrain as TERRAIN
   if mode=='shadow_surface' and not BODY_MODES.shadow_contact(e,c,node):break
-  if not TERRAIN.can_travel(e,c,q,mode,altitude=height) or not BODY.can_place(e,c,q,origin=c.pos,ignore_actors=ignored,**({'altitude':height} if aerial else {})):break
+  if not TERRAIN.can_travel(e,c,q,mode,altitude=height,movement_mode=movement_mode) or not BODY.can_place(e,c,q,origin=c.pos,ignore_actors=ignored,**({'altitude':height} if aerial else {})):break
   q,height,cost,diagonals=geometry(node)
   if spent+cost>maximum_distance:break
-  if not _paid_departure(e,c,q,height,progress,pass_scope=pass_scope,chain_scope=chain_scope):break
+  if not LIVING.can_shift(e,c,cost,movement_mode=shared_mode):break
+  if not _paid_departure(e,c,q,height,progress,pass_scope=pass_scope,chain_scope=chain_scope,disengage_scope=disengage_scope):break
   # Reactions can move the actor or change the destination body/terrain.
   if c.pos!=origin or c.spec.get('_movement_altitude',0)!=altitude:break
   if mode=='shadow_surface' and not BODY_MODES.shadow_contact(e,c,node):break
-  if not TERRAIN.can_travel(e,c,q,mode,altitude=height) or not BODY.can_place(e,c,q,origin=origin,ignore_actors=ignored,**({'altitude':height} if aerial else {})):break
+  if not TERRAIN.can_travel(e,c,q,mode,altitude=height,movement_mode=movement_mode) or not BODY.can_place(e,c,q,origin=origin,ignore_actors=ignored,**({'altitude':height} if aerial else {})):break
   q,height,cost,diagonals=geometry(node)
   if spent+cost>maximum_distance:break
+  if not LIVING.can_shift(e,c,cost,movement_mode=shared_mode):break
   if action_owner is not c and action_owner.spec.get('mount_id')!=c.entity_id:break
+  origin_contact=FIELD.touches_ground(c)
   c._diagonal_steps=diagonals;c.pos=q
   import burrow_tunnels as TUNNELS
   TUNNELS.enter(e,c,mode)
@@ -534,26 +559,27 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
   if aerial:
    consume_sprint(c)
   MOUNT.sync(e,c)
-  import living_weapon as LIVING
-  LIVING.sync(e,c)
+  LIVING.shifted(e,c,cost)
   spent+=cost;moved+=1
   TA.moved(c,cost)
   if progress is not None:
    progress.update(next=moved,distance=spent,position=c.pos,altitude=c.spec.get('_movement_altitude',0),
                    diagonals=c._diagonal_steps,phase='entering')
-  if not _paid_entry(e,c,progress,surface=not aerial or height==0 or mode=='shadow_surface',reconcile=aerial):break
+  if not _paid_entry(e,c,progress,surface=not aerial or height==0 or mode=='shadow_surface',reconcile=aerial,previous_position=origin if altitude==height and origin_contact==FIELD.touches_ground(c) else None):break
  if progress is not None and moved==len(path) and progress['phase']=='ready':progress['phase']='complete'
  result={'distance':spent,'steps':moved,'position':c.pos,'mode':mode}
  if aerial:result['altitude']=c.spec.get('_movement_altitude',0)
  return result
 
-def departure(e,c,destination,altitude,*,pass_scope=None,chain_scope=None):
+def departure(e,c,destination,altitude,*,pass_scope=None,chain_scope=None,disengage_scope=None):
  # Native opportunity attacks resolve while the mover is still in its old cell.
  # A Shift is not automatically the separate one-metre Disengage maneuver.
  import body_state as BODY
  old_altitude=c.spec.get('_movement_altitude',0)
  enemies=[other for other in TURN.adjacent_enemies(e,c) if abs(other.spec.get('_movement_altitude',0)-old_altitude)<=1 and (not BODY.adjacent(other,c,right_position=destination) or abs(other.spec.get('_movement_altitude',0)-altitude)>1)]
- if getattr(e,'_type_ace_disengage',None) is c:
+ if disengage_scope is not None:
+  __import__('move_defense_reactions').perception_disengage_authority(e,c,disengage_scope,destination,altitude)
+ elif getattr(e,'_type_ace_disengage',None) is c:
   __import__('type_ace').mark_departure(e,c,destination)
  elif pass_scope is not None:
   import pass_moves as PASS

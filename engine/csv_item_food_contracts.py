@@ -331,7 +331,8 @@ def _legacy_plan(engine, actor, buff_id):
     old=matches[0]
     choice=source_choice(engine.r,old['item_id'],old['clause_id'])
     C.integer(old.get('created_at'),'observed legacy food creation time',0,engine.elapsed_seconds)
-    if FOOD.slots(actor)>FOOD.buff_capacity(engine,actor):
+    limit=FOOD.buff_capacity(engine,actor)
+    if limit is not None and FOOD.slots(actor)>limit:
         raise ValueError('legacy food exceeds the actual current slot capacity; GM must reconcile the conflicting observations')
     events=[r for r in state['receipts'] if r.get('event')=='consumed_item' and r.get('buff_id')==buff_id]
     if (len(events)!=1 or events[0].get('item_id')!=old['item_id']

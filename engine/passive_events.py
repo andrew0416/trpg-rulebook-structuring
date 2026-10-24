@@ -342,7 +342,7 @@ def begin(e,actor,target,move,*,ordinary_single,move_mechanics=None,completion_i
     import gleeful_interference as GLEEFUL
     import style_expert as STYLE
     import roughneck as ROUGHNECK,endure as ENDURE
-    if not ROUGHNECK.owns(actor,ROUGHNECK.CLASS) and ENDURE.known(e,target) is None and not GLEEFUL.interested(e,actor,move) and not ICE_LAKE.interested(e) and not ABILITY_REACTIONS.interested(e) and not interested(e,actor) and not ABILITY_INTERRUPTS.interested(e) and not DEFENSE.watch_interested(target,move) and not warning_interested and not STYLE.reaction_interested(e,target):
+    if not __import__('type_ace').close_quarters_interested(e,actor,move) and not ROUGHNECK.owns(actor,ROUGHNECK.CLASS) and ENDURE.known(e,target) is None and not GLEEFUL.interested(e,actor,move) and not ICE_LAKE.interested(e) and not ABILITY_REACTIONS.interested(e) and not interested(e,actor) and not ABILITY_INTERRUPTS.interested(e) and not DEFENSE.watch_interested(target,move) and not warning_interested and not STYLE.reaction_interested(e,target):
         return None
     e._passive_sequence+=1
     uid="passive-move-"+str(e._passive_sequence)

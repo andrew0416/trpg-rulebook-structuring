@@ -110,7 +110,8 @@ def natural_moves(rules,spec):
  current=current_natural_evidence(rules,spec)
  validate_history(rules,spec)
  import underdog_lessons as LESSONS
- return set(current)|set(spec.get(HISTORY,{}))|mentor_natural_moves(rules,spec)|LESSONS.natural_moves(rules,spec)
+ import growth_milestones as MILESTONES
+ return set(current)|set(spec.get(HISTORY,{}))|mentor_natural_moves(rules,spec)|LESSONS.natural_moves(rules,spec)|MILESTONES.inheritance_natural_moves(rules,spec)
 
 
 def _opportunity_candidates(rules,spec):
@@ -151,7 +152,8 @@ def record_natural_opportunities(rules,spec,*,reason):
    event=dict(row,at_level=spec['level'],reason=reason,observation_provenance=deepcopy(provenance))
    events.append(event);added.append({'move_id':mid,**event})
  import underdog_lessons as LESSONS
- natural=set(current)|set(history)|mentor_natural_moves(rules,spec)|LESSONS.natural_moves(rules,spec)
+ import growth_milestones as MILESTONES
+ natural=set(current)|set(history)|mentor_natural_moves(rules,spec)|LESSONS.natural_moves(rules,spec)|MILESTONES.inheritance_natural_moves(rules,spec)
  learning=spec.get('move_learning',{})
  if not isinstance(learning,dict):raise ValueError('move learning provenance must be a mapping')
  updates=[]
@@ -287,7 +289,7 @@ def capacities(rules,spec,*,abilities=None):
  _source(rules);total=6;taught=3;exempt={};sources=[];seen=set()
  import special_entities as SPECIAL
  snapshot=spec.get(SPECIAL.PRIME_KEY)
- if snapshot:
+ if snapshot and SPECIAL.prime_definition(rules,snapshot)['hidden_powers']=='all_additional':
   current=set(effective_list(spec,'moves'))
   for mid in SPECIAL.prime_moves(rules,snapshot):
    if mid in current:exempt[mid]=SPECIAL.PRIME_PREFIX+snapshot['id']
@@ -425,6 +427,8 @@ def describe(rules,spec,*,moves=None,abilities=None,require_routes=False):
 
 
 def validate_spec(rules,spec,*,moves=None,abilities=None,require_routes=False):
+ import advanced_connection as CONNECTION
+ CONNECTION.validate_protection(rules,spec)
  import example_species as EXAMPLES
  EXAMPLES.validate_spec(rules,spec,moves=owned_list(spec,'moves',moves))
  import special_entities as SPECIAL
@@ -464,6 +468,9 @@ def validate_actor(actor):
 
 
 def preflight_baseline(actor,field,values):
+ if field=='moves':
+  import advanced_connection as CONNECTION
+  CONNECTION.forbid_forgetting(actor,values)
  import csv_item_capability_contracts as CSV_CAP
  if field=='moves' and 'csv_essence_projection' in actor.spec:
   added=[mid for mid in values if mid not in actor.spec.get('moves',[])]
@@ -507,11 +514,15 @@ def preflight_grant(actor,field,value,source_id,*,tutor_points=0):
 
 
 def preflight_revoke(actor,source_ids):
- if actor.kind!='pokemon':return
  spec=deepcopy(actor.spec);st=spec.get('state_grants',{})
  for source in source_ids:
   st.get('sources',{}).pop(source,None);st.get('overlays',{}).pop(source,None)
- validate_spec(actor.r,spec)
+ import advanced_connection as CONNECTION
+ remaining=set(known(actor.r,{'moves':owned_list(spec,'moves')}))
+ if set(CONNECTION.bound_moves(actor.r,actor.spec))-remaining:
+  raise ValueError('a Connection Move cannot be forgotten through source revocation')
+ CONNECTION.validate_protection(actor.r,spec)
+ if actor.kind=='pokemon':validate_spec(actor.r,spec)
 
 
 def _feature_id(owner,name):

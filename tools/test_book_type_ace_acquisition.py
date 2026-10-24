@@ -74,8 +74,13 @@ class TypeAceAcquisitionTests(unittest.TestCase):
         feature = TA.CLASS if feature is None else TA.uid(feature)
         options = {'branch':branch} if feature in (TA.CLASS, TA.REFRESH, TA.SYNC) else {}
         actor = self.t if actor is None else actor
-        return ACQUIRE.acquire_static(self.e, actor, feature,
+        result = ACQUIRE.acquire_static(self.e, actor, feature,
             acquisition_request_id='type-ace/' + actor.entity_id + '/' + feature + '/' + branch, **options)
+        if feature == TA.uid('Close Quarters Mastery'):
+            scope = TA.close_quarters_source_choices(self.e.r)['decision_scope']
+            TA.choose_close_quarters_source(self.e, actor, dict(value='english_one_marker_per_foe',
+                reason='this existing native fixture explicitly uses the English incoming cap', scope=scope))
+        return result
 
     def rejected(self, operation, pattern):
         return assert_rejected_unchanged(self.e, operation, reason_pattern=pattern)

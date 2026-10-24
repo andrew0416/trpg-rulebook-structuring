@@ -125,6 +125,25 @@ class AbilityTransitionTests(unittest.TestCase):
     self.setUp();G.replace_baseline(self.e,self.t,'abilities',['멀티타입']);self.use(source)
     self.assertEqual(self.t.abilities,['멀티타입']);self.assertEqual(self.a.abilities,[])
     self.assertEqual(self.live(self.a)+self.live(self.t),[])
+
+ def test_native_suppression_moves_keep_multitype_usable_after_hit_and_restore(self):
+  for source in ('move/위액','move/코어퍼니셔'):
+   with self.subTest(source=source):
+    self.setUp();G.replace_baseline(self.e,self.t,'abilities',['멀티타입',SHIELD])
+    self.select(source,'멀티타입');self.e.rng.seed(0)
+    if source=='move/코어퍼니셔':self.e.use_move_on(self.a,self.t,source,self.e.everyone)
+    else:self.use(source)
+    self.assertFalse(self.t.abilities_suppressed);self.assertEqual(self.live(self.t),[])
+    self.assertTrue(A.active(self.t,'ability/멀티타입'));self.assertIn(SHIELD,self.t.abilities)
+    self.assertEqual(self.a.move_uses[source],1)
+    self.e.end_of_turn(self.a);self.e.start_of_turn(self.t,initiative_count=19)
+    self.e.activate_ability_state(self.t,'ability/멀티타입',choice='불꽃',reason='protected ability after native hit')
+    self.assertEqual(self.t.types,['불꽃'])
+    self.e.gm.snapshot('protected Multitype');self.e.gm.restore('protected Multitype',reason='restore protected projection')
+    restored=Engine.import_state(self.r,json.loads(json.dumps(self.e.export_state(),ensure_ascii=False)))
+    target=next(c for c in restored.everyone if c.entity_id==self.t.entity_id)
+    restored.activate_ability_state(target,'ability/멀티타입',choice='전기',reason='protected ability after restore')
+    self.assertEqual(target.types,['전기']);self.assertTrue(restored.validate_state()['valid'])
  def test_snapshot_and_fresh_engine_restore_preserve_origins_then_end_natively(self):
   self.select('move/심플빔',SHIELD);self.use('move/심플빔');self.e.gm.snapshot('temporary ability')
   self.e.end_encounter(self.e.everyone);self.e.gm.restore('temporary ability')

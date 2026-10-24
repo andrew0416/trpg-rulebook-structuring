@@ -123,12 +123,20 @@ def preflight_advance(e,c,seconds):
 
 
 def _add_injuries(e,c,amount):
-    if not amount:return
+    if not amount:return 0
+    import actor_templates as TEMPLATES
+    if TEMPLATES.injuries_immune(c):
+        e.log(f"  {c.name}: 질식 부상 {amount} 면역",SUFFOCATION)
+        return 0
+    state=c.spec["_respiration"]
+    state["applied_injuries"]+=amount
+    state["protected_injuries"]+=amount
     c.injuries+=amount
     import precise_actions as PRECISE
     PRECISE.injury(e,c,amount,SUFFOCATION)
     e.log(f"  {c.name}: 질식 부상 +{amount} (호흡 외 치유 불가)",SUFFOCATION)
     e.check_fainted(c)
+    return amount
 
 
 def advance(e,c):
@@ -137,10 +145,9 @@ def advance(e,c):
     state=c.spec.get("_respiration")
     if not state or state["breathing"]:return
     total=_target_count(state,e.elapsed_seconds)
-    gained=total-state["applied_injuries"]
-    state["applied_injuries"]=total
-    state["protected_injuries"]+=gained
-    _add_injuries(e,c,gained)
+    gained=total-state["applied_injuries"]-state.get("prevented_injuries",0)
+    applied=_add_injuries(e,c,gained)
+    state["prevented_injuries"]=state.get("prevented_injuries",0)+gained-applied
 
 
 def observe_breathing(e,c,*,air_available,medium,reason,timing_policy=None,round_offset_seconds=None):
@@ -160,7 +167,7 @@ def observe_breathing(e,c,*,air_available,medium,reason,timing_policy=None,round
         protected_injuries(c)
         if not old["breathing"] and len(e.unresolved_time_intervals)>old["unknown_interval_index"]:
             return C.PendingDecision("GM unknown deprivation interval; exact elapsed time must be reconciled before breathing recovery")
-        if timing_policy is not None and old["applied_injuries"] and timing_policy!=old["timing_policy"]:
+        if timing_policy is not None and old["applied_injuries"]+old.get("prevented_injuries",0) and timing_policy!=old["timing_policy"]:
             raise ValueError("cannot change suffocation timing after injuries have been applied")
     import trainer_capabilities as TRAINER
     grace=TRAINER.breath_grace(c,medium,engine=e)
@@ -183,7 +190,7 @@ def observe_breathing(e,c,*,air_available,medium,reason,timing_policy=None,round
     continuous=bool(old and not old["breathing"] and not effective)
     state=deepcopy(old) if continuous else {
         "source":SUFFOCATION,"deprivation_started_at":None if effective else e.elapsed_seconds,
-        "protected_injuries":0,"applied_injuries":0,"timing_policy":timing_policy,
+        "protected_injuries":0,"applied_injuries":0,"prevented_injuries":0,"timing_policy":timing_policy,
         "unknown_interval_index":len(e.unresolved_time_intervals)}
     if effective and old and old["protected_injuries"]:
         recovered=old["protected_injuries"]
@@ -394,6 +401,9 @@ def fall(e,c,*,action_id,meters,intentional,reason,acrobatics=False,acrobatics_o
     before=c.injuries
     e.take_damage(c,result["damage"])
     result["damage_injuries"]=c.injuries-before
+    import actor_templates as TEMPLATES
+    result["height_injuries_prevented"]=result["height_injuries"] if TEMPLATES.injuries_immune(c) else 0
+    result["height_injuries"]-=result["height_injuries_prevented"]
     c.injuries+=result["height_injuries"]
     import precise_actions as PRECISE
     PRECISE.injury(e,c,result["height_injuries"],FALL)
@@ -417,11 +427,12 @@ def validate_respiration(c):
     if row.get('timing_policy') not in (None,*TIMINGS):raise ValueError('unknown suffocation phase')
     for key in ('protected_injuries','applied_injuries','unknown_interval_index','observed_at'):
         C.integer(row.get(key),'respiration '+key,0)
+    C.integer(row.get('prevented_injuries',0),'respiration prevented_injuries',0)
     C.integer(row.get('grace_seconds'),'respiration grace',60)
     if row.get('grace_source') not in (SUFFOCATION,'edge/수영-선수'):raise ValueError('unknown breath-holding source')
     if not isinstance(row.get('reason'),str) or not row['reason'].strip():raise ValueError('actual breathing observation reason required')
     if row['breathing']:
-        if row.get('deprivation_started_at') is not None or row['protected_injuries'] or row['applied_injuries']:
+        if row.get('deprivation_started_at') is not None or row['protected_injuries'] or row['applied_injuries'] or row.get('prevented_injuries',0):
             raise ValueError('breathing state cannot retain deprivation injury debt')
     else:
         C.integer(row.get('deprivation_started_at'),'deprivation start',0)

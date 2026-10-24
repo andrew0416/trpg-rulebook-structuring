@@ -12,6 +12,9 @@ GLITCH_SOURCE = "supp-polygon/버그-타입"
 GLITCH = "에러"  # input/db/nature-type.csv:77 explicitly associates this name with 글리치.
 GLASS = "유리"
 EXAMPLE_SOURCE = "ch11-running-the-game/이로치-포켓몬/이로치-포켓몬의-예시"
+STELLAR = "스텔라"  # Ordinary defense requires the explicit personal setting.
+STELLAR_SOURCE = "hb-terastal/테라스탈하는-방법"
+import personal_type_settings as PERSONAL
 
 
 def _selected(rules, source):
@@ -33,6 +36,11 @@ def source_defense_steps(rules, attack, defenses):
     A defense-only source does not invent attacking Moves or unseen mixtures.
     Glass/Ground is explicitly a final table, including its Flying exception.
     """
+    if attack in (STELLAR, PERSONAL.TYPELESS):
+        return None
+    # Personal Stellar defense is neutral; it does not change another type's chart.
+    if PERSONAL.enabled(rules, 'ordinary_stellar'):
+        defenses = [value for value in defenses if value != STELLAR]
     rows = _defenders(rules)
     names = set(defenses) & set(rows)
     if not names:
@@ -58,6 +66,12 @@ def source_stab_types(rules, ordinary):
 
 
 def validate_attack(rules, attack):
+    if attack == PERSONAL.TYPELESS and PERSONAL.enabled(rules, 'typeless_tera'):
+        return
+    if attack == STELLAR:
+        if not PERSONAL.enabled(rules, 'ordinary_stellar') and not _selected(rules, STELLAR_SOURCE):
+            raise ValueError("Stellar attacks require the selected Terastal source")
+        return
     validate_types(rules, [attack], label="attacking type")
     if attack in _defenders(rules):
         raise ValueError("source defines defensive Glass typing and Rock STAB, not Glass attacks")
@@ -106,12 +120,14 @@ def _extensions(rules):
 
 
 def allowed_types(rules):
-    return CORE_TYPES + tuple(_extensions(rules)) + tuple(_defenders(rules))
+    personal = (STELLAR,) if PERSONAL.enabled(rules, 'ordinary_stellar') else ()
+    return CORE_TYPES + tuple(_extensions(rules)) + tuple(_defenders(rules)) + personal
 
 
 def attack_types(rules):
-    """Selected attacking identities; source-only defensive types stay separate."""
-    return CORE_TYPES + tuple(_extensions(rules))
+    """Ordinary selectable attacks; Tera-only Stellar is not a chart choice."""
+    personal = (STELLAR,) if PERSONAL.enabled(rules, 'ordinary_stellar') else ()
+    return CORE_TYPES + tuple(_extensions(rules)) + personal
 
 
 def validate_types(rules, values, *, label="types"):
@@ -121,6 +137,8 @@ def validate_types(rules, values, *, label="types"):
         raise ValueError(label + " contains duplicate identities")
     # The common case has no optional lookup or whole-profile traversal.
     unknown = set(values) - set(CORE_TYPES)
+    if STELLAR in unknown and PERSONAL.enabled(rules, 'ordinary_stellar'):
+        unknown.remove(STELLAR)
     if unknown and not unknown <= set(_extensions(rules)) | set(_defenders(rules)):
         raise ValueError(label + " contains an unknown or unselected type: " + ", ".join(sorted(unknown)))
     return list(values)
@@ -160,6 +178,8 @@ def validate_actor(actor):
 def matchup(rules, attack, defense):
     validate_attack(rules, attack)
     validate_types(rules, [defense], label="defending type")
+    if attack in (STELLAR, PERSONAL.TYPELESS) or defense == STELLAR:
+        return 1.0
     defenders = _defenders(rules)
     if defense in defenders:
         row = source_defense_steps(rules, attack, [defense])

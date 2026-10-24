@@ -93,7 +93,7 @@ def _condition_defaults(engine,actor):
             CS.add_base(actor,key,stat,delta,source='condition/'+condition,ends=key)
 
 
-def reset_actor(engine,actor):
+def reset_actor(engine,actor,*,recall=False):
     preflight(actor)
     if not CS.end_encounter(actor):
         actor.stages.update(dict.fromkeys(CS.STATS,0))
@@ -101,16 +101,31 @@ def reset_actor(engine,actor):
             for stat,delta in registration.get('stages',{}).items():
                 if stat not in CS.STATS:raise ValueError('legacy item stage names must be non-HP')
                 actor.stages[stat]=max(-6,min(6,actor.stages[stat]+delta))
+    import boss_transitions as BOSS
+    boss=BOSS.state(actor)
+    if boss is not None:
+        # Defaults replace combat history, preserving independent base sources.
+        state=CS.validate(actor)
+        if state is None:actor.stages.update(boss['baseline_stages'])
+        else:
+            state['combat']=dict(boss['baseline_stages'])
+            CS.write(actor,state)
     _condition_defaults(engine,actor)
     import state_grants as G
     for field in ('accuracy_stage','evasion_mod'):
         if not G.reset_numeric(actor,field):setattr(actor,field,0)
+    __import__('martial_artist').reset_evasion(engine,actor)
+    __import__('optional_state_effect_contracts').reset_stages(actor)
     # Timed ordinary stages are also removed at a stage-reset boundary.
     # Independent physical-source/condition roll penalties are not stages.
     import combat_timing as TIMING
     for record in list(TIMING.records(actor)):
-        if record.get('effect_contract') and not record.get('manual_end') and 'lifetime_policy' not in record and any(k in record for k in ('accuracy_modifier','evasion_modifier')):
+        # Debilitate's independent Accuracy roll penalty keeps its printed lifetime.
+        record.pop('ace_evasion',None)
+        if 'chef_evasion_damaging' in record or (record.get('effect_contract') and not record.get('manual_end') and 'lifetime_policy' not in record and any(k in record for k in ('accuracy_modifier','evasion_modifier'))):
+            if recall and __import__('native_switch_transfer').preserve_order_on_recall(engine,actor,record):continue
             TIMING.expire(engine,actor,record)
+    if not recall:__import__('native_switch_transfer').clear_pending_stages(engine,actor)
 
 
 def cure_volatile(engine,actor,*,encounter_end=False):
@@ -129,10 +144,18 @@ def recall(engine,actor,*,ignore_trapped=False):
     import csv_item_form_contracts as CSV_FORMS
     CSV_FORMS.require_independent(engine,actor)
     preflight(actor)
+    before_stages=dict(actor.stages)
+    was_on_field=actor.on_field
     import condition_recovery as RECOVERY
     if type(ignore_trapped) is not bool:raise ValueError('explicit recall bypass flag required')
     if not ignore_trapped and not RECOVERY.permits_recall(actor):
         raise ValueError('Trapped prevents ordinary recall')
+    import setup_move_state as SETUP_MOVE
+    SETUP_MOVE.cancel(engine,actor,'recall')
+    if was_on_field:
+        import native_switch_transfer as SWITCH
+        SWITCH.observe_recall(engine,actor,before_stages)
+        SWITCH.begin_recall(engine,actor)
     import duelist as DUELIST
     DUELIST.clear(engine,actor,'recall')
     import csv_item_physical_contracts as CSV_ITEMS
@@ -144,17 +167,41 @@ def recall(engine,actor,*,ignore_trapped=False):
     import stat_exchange_state as STAT_EXCHANGE
     STAT_EXCHANGE.end_event(engine,actor,'switch')
     cure_volatile(engine,actor)
+    import linked_move_conditions as LINKED
+    LINKED.boundary(engine,actor,'recall')
     import healing_blocks as HEALING_BLOCKS
     HEALING_BLOCKS.boundary(engine,(actor,),'replacement')
     import condition_recovery as RECOVERY
     RECOVERY.switch_out(engine,actor)
     import ability_transitions as ABILITY_TRANSITIONS
     ABILITY_TRANSITIONS.end(engine,actor,"recall")
-    reset_actor(engine,actor)
+    reset_actor(engine,actor,recall=True)
     import temporary_hp as TEMP
     TEMP.clear(engine,actor,'몬스터볼 복귀')
     import hazard_state as HAZARDS
     HAZARDS.on_recall(actor)
     actor.on_field=False
+    if was_on_field and actor.spec.get('native_recall_history'):
+        import root_resolution as ROOT
+        record=actor.spec['native_recall_history'][-1]
+        record['fact']['action_boundary']=SWITCH.action_boundary(engine)
+        record['integrity']=ROOT.fingerprint(record['fact'])
     import marsupial_state as MARSUPIAL
     MARSUPIAL.sync(engine)
+
+
+def send_out(engine,actor,*,pos=None):
+    """One actual send boundary shared by paid party actions and GM placement."""
+    import csv_item_form_contracts as CSV_FORMS
+    CSV_FORMS.require_independent(engine,actor)
+    before=actor.on_field
+    if not before:
+        import native_switch_transfer as SWITCH
+        SWITCH.before_send(engine,actor)
+    if engine.encounter_active:join(engine,[actor])
+    actor.on_field=True
+    if not before:actor.turns_taken=0
+    if pos is not None:actor.pos=tuple(pos)
+    # Placement loads shallow lake ice without passing through unrelated Hazards.
+    import ice_lake as ICE_LAKE
+    ICE_LAKE.enter(engine,actor)

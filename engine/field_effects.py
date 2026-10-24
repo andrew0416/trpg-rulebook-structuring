@@ -1,8 +1,8 @@
 """Reviewed global field producer, state, consumers, and finite lifetime.
 
 The generic ``field_effect`` opcode used to retain an anonymous dictionary.
-This module gives reviewed Terrain, Room, and Gravity moves one shared,
-source-bound occurrence contract while leaving unrelated legacy fields alone.
+Terrain replaces Terrain; reviewed Rooms and Gravity retain independent
+source-bound occurrences while unrelated legacy fields keep their format.
 """
 from copy import deepcopy
 import json
@@ -10,6 +10,10 @@ import os
 
 
 KIND = "global_terrain"
+INDEPENDENT_KEY = "_independent_field_effects"
+INDEPENDENT_SOURCES = frozenset((
+    "move/중력", "move/매직룸", "move/트릭룸", "move/원더룸", "move/거다이천도",
+))
 DEFERRED = "_misty_deferred_statuses"
 LOCAL_KEY = '_local_grass_occurrences'
 LOCAL_SOURCE = 'ability/곰팡이군주'
@@ -347,6 +351,7 @@ def _semantic(effect):
 
 def prepare(engine, effect, source_id):
     """Validate the complete selected producer before action/frequency spend."""
+    validate(engine)
     if not isinstance(effect, dict) or effect.get("type") != "field_effect":
         raise ValueError("field effect producer requires one typed effect")
     rounds = effect.get("rounds", 5)
@@ -372,14 +377,15 @@ def prepare(engine, effect, source_id):
 def install(engine, actor, effect, source_id):
     plan = prepare(engine, effect, source_id)
     if not plan["reviewed"]:
-        engine.field = {
+        state = {
             "name": effect["field"], "rounds": effect.get("rounds", 5),
             "effect": deepcopy(effect["effect"]),
         }
+        _store(engine, state)
         import items as ITEMS
         ITEMS.synchronize_field_suppression(engine)
         engine.log(f"    전장 효과: {effect['field']} ({effect.get('rounds', 5)}라운드)")
-        return engine.field
+        return state
     row = plan["row"]
     actor_id = getattr(actor, "entity_id", None)
     if not isinstance(actor_id, str) or not actor_id:
@@ -408,19 +414,24 @@ def install(engine, actor, effect, source_id):
         state["creator_side"] = actor.side
     if duration_source is not None:state["duration_source"]=duration_source
     validate(engine, state)
-    engine.field = state
+    _store(engine, state)
     import items as ITEMS
     ITEMS.synchronize_field_suppression(engine)
     engine.log(f"    전장 효과: {row['field']} ({row['rounds']}라운드)", source_id)
     return state
 
 
-def validate(engine, state=None):
-    state = engine.field if state is None else state
-    if state is None or state.get("kind") != KIND:
+def _validate_state(engine, state):
+    if state is None:
+        return None
+    if not isinstance(state, dict):
+        raise ValueError("global field state must be a dictionary")
+    if state.get("kind") != KIND:
         return None
     required = {"kind", "name", "source_id", "clause_id", "source_row_sha256", "creator_id",
                 "rounds", "installed_round", "last_tick_round", "activation_round", "effect"}
+    if not isinstance(state.get("source_id"), str):
+        raise ValueError("global Terrain source identity changed")
     row = policy(engine.r)["moves"].get(state["source_id"])
     if row is None:
         raise ValueError("global Terrain source is not reviewed")
@@ -459,42 +470,90 @@ def validate(engine, state=None):
     return state
 
 
+def _states(engine):
+    primary = _validate_state(engine, engine.field)
+    independent = getattr(engine, INDEPENDENT_KEY, {})
+    if not isinstance(independent, dict):
+        raise ValueError("independent fields must be a source mapping")
+    rows = [] if primary is None else [primary]
+    for source_id, state in independent.items():
+        if (source_id not in INDEPENDENT_SOURCES or not isinstance(state, dict)
+                or state.get("source_id") != source_id or state.get("kind") != KIND):
+            raise ValueError("independent field slot differs from its reviewed source")
+        if primary is not None and primary["source_id"] == source_id:
+            raise ValueError("duplicate independent field source")
+        rows.append(_validate_state(engine, state))
+    return rows
+
+
+def validate(engine, state=None):
+    if state is not None:
+        return _validate_state(engine, state)
+    _states(engine)
+    return _validate_state(engine, engine.field)
+
+
+def _store(engine, state):
+    # Historical saves kept a Room/Gravity in the terrain slot; retain it.
+    previous = _validate_state(engine, engine.field)
+    independent = getattr(engine, INDEPENDENT_KEY, {})
+    if previous is not None and previous["source_id"] in INDEPENDENT_SOURCES:
+        independent[previous["source_id"]] = previous
+        engine.field = None
+    if state.get("source_id") in INDEPENDENT_SOURCES:
+        independent[state["source_id"]] = state
+    else:
+        engine.field = state
+    if independent or hasattr(engine, INDEPENDENT_KEY):
+        setattr(engine, INDEPENDENT_KEY, independent)
+
+
+def clear(engine, *, terrain_only=False):
+    validate(engine)
+    primary = _validate_state(engine, engine.field)
+    if not terrain_only or primary is None or primary["source_id"] not in INDEPENDENT_SOURCES:
+        engine.field = None
+    if not terrain_only and hasattr(engine, INDEPENDENT_KEY):
+        setattr(engine, INDEPENDENT_KEY, {})
+    import items as ITEMS
+    ITEMS.synchronize_field_suppression(engine)
+
+
+def active_fields(engine, name=None):
+    return [state for state in _states(engine)
+            if engine.round_no >= state["activation_round"]
+            and (name is None or state["name"] == name)]
+
+
 def active(engine, name=None):
-    state = validate(engine)
-    if (state is None or engine.round_no < state["activation_round"]
-            or name is not None and state["name"] != name):
-        return None
-    return state
+    rows = active_fields(engine, name)
+    if name is None:
+        return next((state for state in rows if state is engine.field), None)
+    return next(iter(rows), None)
 
 
 def round_started(engine):
-    state = validate(engine)
-    if state is None or state["last_tick_round"] == engine.round_no:
-        import items as ITEMS
-        ITEMS.synchronize_field_suppression(engine)
-        return None
-    if engine.round_no < state["activation_round"]:
-        return state
-    if state["last_tick_round"] > engine.round_no:
-        raise ValueError("global Terrain cannot tick backwards")
-    state["last_tick_round"] = engine.round_no
-    # A delayed Room receives five complete active rounds.  Its activation
-    # boundary establishes the first round and is not itself a decrement.
-    if engine.round_no == state["activation_round"] and state["activation_round"] > state["installed_round"]:
-        return state
-    state["rounds"] -= 1
-    if state["rounds"] <= 0:
-        engine.log(f"  전장 효과 {state['name']} 종료", state["source_id"])
-        engine.field = None
-        import items as ITEMS
-        ITEMS.synchronize_field_suppression(engine)
-        return None
-    return state
+    for state in _states(engine):
+        if state["last_tick_round"] == engine.round_no or engine.round_no < state["activation_round"]:
+            continue
+        state["last_tick_round"] = engine.round_no
+        # Delayed Trick Room starts with five complete active rounds.
+        if engine.round_no == state["activation_round"] and state["activation_round"] > state["installed_round"]:
+            continue
+        state["rounds"] -= 1
+        if state["rounds"] <= 0:
+            engine.log(f"  전장 효과 {state['name']} 종료", state["source_id"])
+            if state is engine.field:
+                engine.field = None
+            else:
+                getattr(engine, INDEPENDENT_KEY).pop(state["source_id"])
+    import items as ITEMS
+    ITEMS.synchronize_field_suppression(engine)
+    return validate(engine)
 
 
 def accuracy_modifier(engine, actor):
-    state = active(engine, "왜곡")
-    return 0 if state is None else state["effect"]["accuracy_roll_bonus"]
+    return sum(state["effect"]["accuracy_roll_bonus"] for state in active_fields(engine, "왜곡"))
 
 
 def defense_stat(engine, actor, stat):
@@ -513,34 +572,30 @@ def evasion_class(engine, actor, move_class):
 
 
 def initiative_ascending(engine, round_no=None):
-    state = validate(engine)
     at = engine.round_no if round_no is None else round_no
-    return bool(state is not None and state["name"] == "트릭룸"
-                and at >= state["activation_round"]
-                and state["effect"].get("initiative_order") == "ascending")
+    return any(state["name"] == "트릭룸" and at >= state["activation_round"]
+               and state["effect"].get("initiative_order") == "ascending"
+               for state in _states(engine))
 
 
 def validate_aerial_height(engine, actor, altitude):
-    state = active(engine, "왜곡")
-    if (state is not None and actor.kind == "pokemon"
-            and altitude > state["effect"]["max_sky_or_levitate_end_height"]):
+    if (actor.kind == "pokemon" and any(
+            altitude > state["effect"]["max_sky_or_levitate_end_height"]
+            for state in active_fields(engine, "왜곡"))):
         raise ValueError("Gravity prevents Pokemon from ending above 1 metre")
 
 
 def preflight_end_turn(engine, actor):
-    state = active(engine, "왜곡")
-    if state is None or actor.kind != "pokemon":
+    if not active_fields(engine, "왜곡") or actor.kind != "pokemon":
         return
     altitude = actor.spec.get("_movement_altitude", 0)
     if type(altitude) not in (int, float):
         raise ValueError("movement altitude must be numeric")
-    if altitude > state["effect"]["max_sky_or_levitate_end_height"]:
-        raise ValueError("Gravity prevents Pokemon from ending above 1 metre")
+    validate_aerial_height(engine, actor, altitude)
 
 
 def suppresses_ground_immunity(engine, target, source=None):
-    state = active(engine, "왜곡")
-    if state is None or target.kind != "pokemon":
+    if not active_fields(engine, "왜곡") or target.kind != "pokemon":
         return False
     if "비행" in target.types or "Flying" in target.types:
         return True
@@ -629,7 +684,7 @@ def defer_status(engine, actor, condition, *, source=None, parameters=None, appl
 def _validate_pending(engine, actor, row):
     required = {"condition", "source", "parameters", "applied_by_id", "created_round",
                 "activate_after_turn", "terrain_source_id", "terrain_source_row_sha256"}
-    if not isinstance(row, dict) or set(row) != required:
+    if not isinstance(row, dict) or set(row) not in (required, required | {'dream_mist'}):
         raise ValueError("Misty deferred status receipt changed")
     policy_row = policy(engine.r)["moves"].get(row["terrain_source_id"])
     if policy_row is None or policy_row["field"] != "미스트" or policy_row["source_row_sha256"] != row["terrain_source_row_sha256"]:
@@ -640,7 +695,28 @@ def _validate_pending(engine, actor, row):
         raise ValueError("Misty deferred status clock changed")
     if row["activate_after_turn"] < 1 or row["activate_after_turn"] > actor.turns_taken + 1:
         raise ValueError("Misty deferred status turn receipt changed")
+    import dream_state as DREAM
+    DREAM.validate_deferred(engine, actor, row)
     return row
+
+
+def validate_pending_world(engine, index):
+    import consumption_execution as EXECUTION
+    originals = set()
+    for actor in index.values():
+        for row in _pending(actor):
+            if not isinstance(row,dict) or 'dream_mist' not in row:continue
+            _validate_pending(engine, actor, row)
+            proof = row.get('dream_mist')
+            if proof is not None:
+                key = (proof['payer_id'], proof['stock_receipt_id'])
+                if key in originals:raise ValueError('Dream Mist payment cannot own two deferred statuses')
+                originals.add(key)
+    for actor in index.values():
+        for receipt in EXECUTION.validate(actor).values():
+            if receipt['outcome']=='deferred' and any(r.get('kind')=='dream_deferred_sleep' for r in receipt['results']):
+                if (actor.entity_id,receipt['receipt_id']) not in originals:
+                    raise ValueError('deferred Dream Mist payment lost its native field status')
 
 
 def end_turn(engine, actor):
@@ -656,16 +732,21 @@ def end_turn(engine, actor):
             remaining.append(row)
         else:
             due.append(row)
-    if remaining:
-        actor.custom_conditions[DEFERRED] = remaining
+    # Keep paid delayed applications addressable through nested status transactions.
+    retained = remaining + [row for row in due if 'dream_mist' in row]
+    if retained:
+        actor.custom_conditions[DEFERRED] = retained
     else:
         actor.custom_conditions.pop(DEFERRED, None)
     for row in due:
         applier = None if row["applied_by_id"] is None else index.get(row["applied_by_id"])
         if row["applied_by_id"] is not None and applier is None:
             raise ValueError("Misty deferred status applying actor is missing")
+        import dream_state as DREAM
+        serial_before = actor.spec.get(DREAM.KEY, {}).get('serial', 0)
         result = engine.apply_status(actor, row["condition"], source=row["source"],
             parameters=row["parameters"], applied_by=applier, _field_deferred=True)
+        DREAM.finish_deferred(engine, actor, row, applied=bool(result), serial_before=serial_before)
         import eldritch_magic as ELDRITCH
         ELDRITCH.resume_deferred(engine, actor, row)
         activated.append({"condition": row["condition"], "applied": bool(result)})
@@ -679,7 +760,10 @@ def cancel_deferred_status(engine, actor, condition):
         return False
     import eldritch_magic as ELDRITCH
     for row in rows:
-        if row.get("condition") == condition:ELDRITCH.cancel_deferred(engine, actor, row)
+        if row.get("condition") == condition:
+            ELDRITCH.cancel_deferred(engine, actor, row)
+            import dream_state as DREAM
+            DREAM.finish_deferred(engine, actor, row)
     if kept:
         actor.custom_conditions[DEFERRED] = kept
     else:
@@ -692,7 +776,7 @@ def turn_start(engine, actor):
     state = terrain_for(engine, actor, "그래스", include_virtual=False)
     if state is None or not touches_ground(actor) or getattr(actor, "hp", 0) <= 0:
         return 0
-    amount = max(0, actor.max_hp // 10)
+    amount = max(0, actor.base_max_hp // 10)
     if amount:
         engine.heal(actor, amount, source_kind="move")
         engine.log(f"    {actor.name}: 그래스필드 회복 {amount}", state["source_id"])
@@ -722,18 +806,26 @@ def damage_roll_modifier(engine, attacker, target, move, actual_type):
     return modifier
 
 
+def airborne_move_fields(engine, actor=None):
+    """Side limits apply to airborne Move bans, not height or Ground immunity."""
+    rows = []
+    for gravity in active_fields(engine, "왜곡"):
+        if gravity["effect"].get("airborne_move_scope") == "enemies":
+            if actor is None:
+                raise ValueError("enemy-only field Move check requires its actual actor")
+            if actor.side == gravity["creator_side"]:
+                continue
+        rows.append(gravity)
+    return rows
+
+
 def native_move_block_reason(engine, move_id, actor=None):
     """Return a global field source that rejects this Move before activation."""
     if actor is not None:
         terrain_for(engine,actor,include_virtual=False)
-    gravity = active(engine, "왜곡")
-    if gravity is not None and gravity["effect"].get("airborne_move_scope") == "enemies":
-        if actor is None:
-            raise ValueError("enemy-only field Move check requires its actual actor")
-        if actor.side == gravity["creator_side"]:
-            return None
-    if gravity is not None and move_id in gravity["effect"].get("blocked_airborne_moves", ()):
-        return gravity["source_id"]
+    for gravity in airborne_move_fields(engine, actor):
+        if move_id in gravity["effect"].get("blocked_airborne_moves", ()):
+            return gravity["source_id"]
     return None
 
 

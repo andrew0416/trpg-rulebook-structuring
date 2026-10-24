@@ -137,12 +137,13 @@ class ProgressionStateTests(unittest.TestCase):
   self.a.spec['fossils']={'f1':{'species':'pokemon/암나이트','status':'fossil'}}
   self.e.pokemon_activity(self.a,'fossil',phase='restore',fossil_id='f1')
   egg=self.a.spec['eggs'][0]
-  args=dict(egg_id=egg['id'],name='hatched',ready=True,reason='GM confirmed readiness',details=dict(gender='female',nature='노력',abilities=[],moves=[],special_appearance=False,inheritance_moves=[]))
+  args=dict(egg_id=egg['id'],name='hatched',ready=True,reason='GM confirmed readiness',details=dict(gender='female',nature='노력',abilities=['조가비갑옷'],moves=[],special_appearance=False,inheritance_moves=[]))
   c=self.e.pokemon_activity(self.a,'hatch_fossil',**args)['pokemon']
-  self.assertEqual((c.level,c.spec['tutor_points'],c.spec[P.LEVEL_STATE]['initial_level']),(10,1,10))
+  self.assertEqual((c.level,c.spec['tutor_points'],c.spec[P.LEVEL_STATE]['initial_level']),(10,3,10))
+  self.assertEqual(c.abilities,['조가비갑옷'])
   before=self.snap()
   with self.assertRaises(ValueError):self.e.pokemon_activity(self.a,'hatch_fossil',**args)
   self.assertEqual(self.snap(),before)
-  loaded=self.restored();self.assertEqual(next(x for x in loaded.gm.everyone if x.entity_id==c.entity_id).spec['tutor_points'],1)
+  loaded=self.restored();self.assertEqual(next(x for x in loaded.gm.everyone if x.entity_id==c.entity_id).spec['tutor_points'],3)
 
 if __name__=='__main__':unittest.main()

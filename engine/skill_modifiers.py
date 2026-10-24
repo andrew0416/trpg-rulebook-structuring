@@ -230,6 +230,8 @@ def modifiers(rules, actor, skill, additional, *, skill_context=None):
     import equipment_variant_contracts as EQUIPMENT_VARIANTS
     sources.extend(EQUIPMENT_VARIANTS.skill_modifiers(rules,actor,target,skill_context))
     sources.extend(glitch_modifier(rules,actor,skill_context))
+    import capability_parameter_edges as PARAMETERS
+    sources.extend(PARAMETERS.tracker_modifiers(rules,actor,target,skill_context))
     import body_modes as BODY_MODES
     shadow_bonus=BODY_MODES.stealth(actor,target)
     if shadow_bonus:sources.append((BODY_MODES.DEFINITIONS['shadow']['source'],shadow_bonus,'active Shadow Meld'))

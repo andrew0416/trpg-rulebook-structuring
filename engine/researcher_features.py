@@ -52,10 +52,13 @@ def research_fields(actor):
  if selected is None:raise ValueError('actual acquired Researcher fields required')
  return tuple(selected)
 
-def researcher(e,actor,field):
+def researcher(e,actor,field,*,static=False):
  import acquired_features as ACQUIRED
  ACQUIRED.validate_class_slots(actor)
- FEATURES.conscious_trainer(actor);source(e)
+ if static:
+  if actor.kind!='trainer':raise ValueError('actual Researcher trainer required')
+ else:FEATURES.conscious_trainer(actor)
+ source(e)
  if not FEATURES.owned(actor,RESEARCHER) and 'Researcher' not in list(actor.spec.get('classes',[]))+list(actor.spec.get('feats',[])):
   raise ValueError('actual acquired Researcher class required')
  if e.r._selected_rule(RESEARCHER)!=RESEARCHER:raise ValueError('selected Researcher class needs its own sourced adapter')
@@ -64,8 +67,8 @@ def researcher(e,actor,field):
  if max(S.rank(e.r,actor,skill)[2] for skill in sorted(S.EDUCATION_SKILLS))<3:raise ValueError('Researcher requires a Novice Education skill')
  return selected
 
-def require(e,actor,uid,field):
- researcher(e,actor,field)
+def require(e,actor,uid,field,*,static=False):
+ researcher(e,actor,field,static=static)
  if not FEATURES.owned(actor,uid):raise ValueError('actual acquired Researcher feature required: '+uid)
 
 def prepare_training(e,actor,targets,choices):
@@ -101,21 +104,15 @@ def native_plan(e,actor,skill):
  if actor.kind!='pokemon':return None
  if e.r._selected_rule(POKEMON_SKILLS)!=POKEMON_SKILLS:raise ValueError('selected Pokemon skill version needs a native pool adapter')
  canonical=S.skill_id(e.r.skill_policy,skill)
+ n=S.rank(e.r,actor,skill)[2]
  values=[value for key,value in actor.spec.get('skills',{}).items() if S.skill_id(e.r.skill_policy,key)==canonical]
- parsed=[]
+ bonus=0
  for value in values:
   match=re.fullmatch(r'\s*([1-9][0-9]*)d6\s*([+-]\s*[0-9]+)?\s*',value) if isinstance(value,str) else None
-  if match:parsed.append((int(match[1]),int((match[2] or '0').replace(' ',''))))
-  else:parsed.append((S.rank(e.r,actor,skill)[2],0))
- if len(set(parsed))>1:raise ValueError('conflicting Pokemon skill pool aliases')
+  if match:bonus=int((match[2] or '0').replace(' ',''))
  import csv_item_form_contracts as CSV_FORMS
  projected=CSV_FORMS.skill_pool_projection(actor,canonical)
- if projected is not None:parsed=[projected]
- if parsed:
-  n,bonus=parsed[0]
-  import baby_templates as BABY
-  n=max(1,n-BABY.skill_rank_penalty(actor))
- else:n,bonus=S.rank(e.r,actor,skill)[2],0
+ if projected is not None:bonus=projected[1]
  name='포켓몬 스킬';count=n
  pushed=actor.spec.get('pushed_skill')
  if pushed is not None:
@@ -199,33 +196,46 @@ def craft_relic_crown(e,actor,pokemon,*,minutes,tie_stat=None,tie_reason=None):
  return craft_relic(e,actor,pokemon,relic='hp',minutes=minutes,tie_stat=tie_stat,tie_reason=tie_reason)
 
 def relic_effects(e,pokemon,name):
- import researcher_fields as FIELDS
+ import researcher_fields as FIELDS,pokemon_entities as EGGS,world_entities as WORLD
  found=FIELDS.relic_definition(name)
  if found is None:return None
  stat,definition=found
  source(e)
- record=pokemon.spec.get('relic_sources',{}).get(name)
- header={'id':name,'category':'지니는 도구','desc':'복원한 개별 포켓몬 전용 '+RELIC_NAMES[stat]}
- if not record or pokemon.kind!='pokemon' or record.get('pokemon_id')!=pokemon.spec.get('id') or (record.get('egg_entity_id')!=pokemon.spec.get('fossil_egg_entity_id') if record.get('egg_entity_id') is not None else record.get('egg_id')!=pokemon.spec.get('fossil_egg_id')):
-  return [],header
- if record.get('source')!=SOURCE or record.get('feature')!=PREHISTORIC_BOND or record.get('selected_stat')!=stat:raise ValueError('unresolved relic provenance')
+ header={'id':name,'category':'지니는 도구','desc':'화석에서 부활한 포켓몬 전용 '+RELIC_NAMES[stat]}
+ index=WORLD.actor_index(e)
+ if pokemon.kind!='pokemon' or index.get(pokemon.entity_id) is not pokemon:return [],header
+ entry=EGGS.egg_index(e).get(pokemon.spec.get('fossil_egg_entity_id'))
+ if entry is None or not entry[1].get('hatched') or entry[1].get('pokemon_id')!=pokemon.entity_id:return [],header
+ fossil=EGGS.egg_fossil(e,entry[1])
+ if fossil.get('status')!='hatched' or fossil.get('pokemon_id')!=pokemon.entity_id:return [],header
+ # The source individual determines the item; any genuinely fossil-revived Pokemon may hold it.
+ records=[row for actor in index.values() for key in ('relic_items','relic_sources')
+  if (row:=actor.spec.get(key,{}).get(name)) is not None]
+ if not records:return [],header
+ record=records[0]
+ if any(row!=record for row in records):raise ValueError('conflicting relic provenance')
+ if record.get('id')!=name or record.get('source')!=SOURCE or record.get('feature')!=PREHISTORIC_BOND or record.get('selected_stat')!=stat:raise ValueError('unresolved relic provenance')
  return deepcopy(FIELDS.relic_effects(stat)),header
 
 def equip_relic(e,actor,pokemon,identity):
- import items as ITEMS
+ import items as ITEMS,world_entities as WORLD,state_grants as GRANTS
+ WORLD.require_actors(e,actor,pokemon)
  FEATURES.owner(actor,pokemon)
  record=actor.spec.get('relic_items',{}).get(identity)
- if not record or record.get('pokemon_id')!=pokemon.spec.get('id'):raise ValueError('this relic is bound to another restored individual')
+ if not record:raise ValueError('owned crafted relic provenance required')
  if actor.spec.get('items',{}).get(identity,0)!=1:raise ValueError('owned unspent relic instance required')
  import held_equipment as HELD
  if HELD.any_held(pokemon) or getattr(pokemon,'_item_reg',{}):raise ValueError('Pokemon held-item slot must be empty')
  effect=relic_effects(e,pokemon,identity)
- if effect is None or not effect[0]:raise ValueError('relic has no effect on this Pokemon')
- ITEMS.register_item(e,pokemon,identity)
- if identity not in getattr(pokemon,'_item_reg',{}):raise ValueError('relic registration failed')
- pokemon.item=identity;pokemon.spec['item']=identity
- actor.spec['items'][identity]-=1
- return identity
+ if effect is None or not effect[0]:raise ValueError('relic requires an actual Pokemon revived from a fossil')
+ def apply(engine,trainer,holder):
+  ITEMS.register_item(engine,holder,identity)
+  if identity not in getattr(holder,'_item_reg',{}):raise ValueError('relic registration failed')
+  holder.spec.setdefault('relic_sources',{})[identity]=deepcopy(record)
+  holder.item=identity;holder.spec['item']=identity
+  trainer.spec['items'][identity]-=1
+  return identity
+ return GRANTS.transition(e,actor,apply,participants=(pokemon,),include_rulings=True)
 
 def equip_relic_crown(e,actor,pokemon,identity):
  return equip_relic(e,actor,pokemon,identity)

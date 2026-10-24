@@ -543,7 +543,22 @@ def filter_move_effects(ctx, effects):
     # post-damage snapshot before independent after-hit reactions run.
     target.evasion_mod=block["evasion_mod"]
     delattr(target,COVERT_BLOCK)
-    return [effect for effect in effects if isinstance(effect, dict) and effect.get("type") == "hp_loss"]
+    import effect_contracts as CONTRACTS
+    import move_completion as COMPLETE
+    kept = []
+    for effect in effects:
+        if not isinstance(effect, dict) or effect.get("type") == "hp_loss" or COMPLETE.field_effect(effect):
+            kept.append(effect)
+            continue
+        recipients = CONTRACTS.hit_recipients(engine, ctx["attacker"], target, effect, move.get("id"))
+        if target not in recipients:
+            kept.append(effect)
+        elif any(recipient is not target for recipient in recipients):
+            remaining = dict(effect, target="self")
+            if "on" in remaining:
+                remaining["on"] = "self"
+            kept.append(remaining)
+    return kept
 
 
 def _begin_covert_hit(engine,attacker,target,move):

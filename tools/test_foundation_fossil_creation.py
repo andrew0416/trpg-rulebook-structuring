@@ -7,6 +7,8 @@ ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(RO
 import test_foundation_policy_training as fixtures
 from builder import build_trainer
 from state_codec import dump_engine,load_engine
+from native_scenario_fixture import assert_rejected_unchanged
+import growth_milestones as MILESTONES
 import creation_fossil as F,crafting_recipes as Q,pokemon_entities as P,pokemon_party as PARTY,pokemon_progression as PROGRESSION,world_entities as W
 
 
@@ -22,7 +24,7 @@ class FossilTests(unittest.TestCase):
  def restore(self,value=None,**options):
   return self.e.restore_declared_fossil(self.a,self.fossil['entity_id'],self.policy() if value is None else value,
     **dict({'request_id':'restore','inputs':{'matrix':{'option':0,'scrap_value':100}},'reason':'actual owned fossil and machine'},**options))
- def details(self):return {'gender':'female','nature':'노력','abilities':[],'moves':[],'special_appearance':False,'inheritance_moves':[]}
+ def details(self):return {'gender':'female','nature':'노력','abilities':self.r.learnsets[self.fossil['species'].removeprefix('pokemon/')]['abilities']['기본 특성'][:1],'moves':[],'special_appearance':False,'inheritance_moves':[]}
  def hatch(self,row,**options):return self.e.hatch_restored_fossil(self.a,row['entity_id'],**dict({'name':'restored child','ready':True,'reason':'actual observed birth','details':self.details()},**options))
  def snap(self):return dump_engine(self.e)
  def default(self,**options):return self.restore(self.policy(0),inputs=None,**options)
@@ -61,7 +63,7 @@ class FossilTests(unittest.TestCase):
   for choice in (None,False,1):
    with self.assertRaisesRegex(ValueError,'GM-approved'):self.default(gm_species_approved=choice)
    self.assertEqual(before,self.snap())
-  egg=self.default(gm_species_approved=True)['egg'];child=self.hatch(egg)['pokemon']
+  egg=self.default(gm_species_approved=True)['egg'];child=self.hatch(egg,details=dict(self.details(),abilities=['심록']))['pokemon']
   self.assertEqual(child.spec['species'],'pokemon/이상해씨');self.assertEqual(child.level,10);self.assertTrue(self.e.validate_state()['valid'])
  def test_native_machine_family_preserves_portable_access_and_rejects_damage(self):
   self.a.spec['items']['복원기']=0;self.a.spec['accessible_equipment']=['휴대용 복원기'];before=self.snap()
@@ -124,6 +126,34 @@ class FossilTests(unittest.TestCase):
   before=self.snap();self.assertTrue(self.default()['replayed']);self.assertEqual(before,self.snap());self.hatch(row)
   fossil=P.fossil_index(self.e)[self.fossil['entity_id']][1];fossil.pop(F.CONTRACT)
   self.assertFalse(self.e.validate_state()['valid'])
+ def test_plain_fossil_birth_requires_one_species_basic_at_every_initial_level(self):
+  for level in (1,10,20,40):
+   for ability in ('조가비갑옷','깨어진갑옷'):
+    with self.subTest(level=level,ability=ability):
+     self.setUp();value=self.policy(0);value['hatch']['level']=level
+     egg=self.restore(value,inputs=None)['egg']
+     for abilities in ([],['조가비갑옷','깨어진갑옷'],['조가비갑옷','조가비갑옷'],['조가비갑옷','쓱쓱'],['쓱쓱'],['정전기']):
+      assert_rejected_unchanged(self.e,lambda:self.hatch(egg,details=dict(self.details(),abilities=abilities)),reason_pattern='one species Basic|outside.*species Basic')
+     child=self.hatch(egg,details=dict(self.details(),abilities=[ability]))['pokemon']
+     self.assertEqual((child.level,child.abilities),(level,[ability]))
+     for milestone in (20,40):
+      self.assertNotIn('ability:'+str(milestone),child.spec.get(MILESTONES.KEY,{}))
+      if level>=milestone:
+       assert_rejected_unchanged(self.e,lambda:self.e.choose_growth_ability(child,milestone,'쓱쓱',reason='birth is not a level-up'),reason_pattern='recorded ability milestone right')
+     self.assertTrue(self.e.validate_state()['valid'])
+ def test_plain_fossil_birth_domain_survives_owner_transfer_gm_and_json_restore(self):
+  egg=self.default()['egg'];other=self.add(build_trainer(self.r,'recipient',20,dict.fromkeys(('hp','atk','def','spa','spd','spe'),10),extra={'edges':[]}))
+  self.e.gm.transfer_egg(self.a,other,egg['entity_id'],reason='actual gift',request_id='domain-gift')
+  snapshot=self.e.gm.snapshot();self.e.gm.restore(snapshot)
+  loaded=load_engine(self.r,json.loads(json.dumps(self.snap(),ensure_ascii=False)));owner=W.actor_index(loaded)[other.entity_id]
+  for abilities in ([],['조가비갑옷','깨어진갑옷'],['쓱쓱'],['정전기']):
+   assert_rejected_unchanged(loaded,lambda:loaded.hatch_restored_fossil(owner,egg['entity_id'],name='gift offspring',ready=True,reason='GM readiness',details=dict(self.details(),abilities=abilities)),reason_pattern='one species Basic|outside.*species Basic')
+  child=loaded.hatch_restored_fossil(owner,egg['entity_id'],name='gift offspring',ready=True,reason='GM readiness',details=dict(self.details(),abilities=['깨어진갑옷']))['pokemon']
+  self.assertEqual((child.abilities,child.spec['trainer_id']),(['깨어진갑옷'],other.entity_id))
+  fossil=P.fossil_index(loaded)[self.fossil['entity_id']][1]
+  self.assertEqual((fossil['restored_by'],fossil['pokemon_id']),(self.a.entity_id,child.entity_id))
+  again=load_engine(self.r,json.loads(json.dumps(dump_engine(loaded),ensure_ascii=False)))
+  self.assertEqual(W.actor_index(again)[child.entity_id].abilities,['깨어진갑옷']);self.assertTrue(again.validate_state()['valid'])
 
 
 if __name__=='__main__':unittest.main()

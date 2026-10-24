@@ -92,7 +92,9 @@ def _stat_plan(actor,source):
         if (type(qualification)is not dict or set(qualification)!={'skill','minimum','rank_at_acquisition'}
                 or qualification['skill']!='athletics' or type(qualification['minimum'])is not int
                 or qualification['minimum']!=4 or type(qualification['rank_at_acquisition'])is not int
-                or not 4<=qualification['rank_at_acquisition']<=6):
+                or qualification['rank_at_acquisition']<4
+                or qualification['rank_at_acquisition'] not in {
+                    row['rank'] for row in SKILL._declared_ranks(actor.r)[0].values()}):
             raise ValueError('Defender acquisition qualification receipt changed')
     expected['qualification']=qualification
     if old is not None and old!=expected:
@@ -162,7 +164,9 @@ def validate_profile(engine,actor,value,*,historical=True):
             or receipt['mode'] not in ('apply','included')
             or type(prereq)is not dict or set(prereq)!={'skill','minimum','rank_at_acquisition'}
             or prereq['skill']!='athletics' or type(prereq['minimum'])is not int or prereq['minimum']!=4
-            or type(prereq['rank_at_acquisition'])is not int or not 4<=prereq['rank_at_acquisition']<=6):
+            or type(prereq['rank_at_acquisition'])is not int or prereq['rank_at_acquisition']<4
+            or prereq['rank_at_acquisition'] not in {
+                row['rank'] for row in SKILL._declared_ranks(engine.r)[0].values()}):
         raise ValueError('Defender profile acquisition or prerequisite evidence changed')
     if actor.custom_conditions.get(RECEIPTS,{}).get(source)!=receipt:
         raise ValueError('Defender profile has no matching persisted acquisition receipt')

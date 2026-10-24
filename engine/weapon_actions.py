@@ -21,7 +21,7 @@ def rules_policy(rules, *, validate=True):
 def validate_grant(engine, actor, weapon, move_id):
     rules=policy(engine); row=rules["moves"].get(move_id)
     if row is None:raise ValueError("selected move is not a sourced ordinary weapon grant")
-    if actor.kind=='pokemon' and not weapon.get('living_actor') and row['rank']>4:raise ValueError('Wielder cannot gain weapon moves above Adept')
+    if actor.kind=='pokemon' and row['rank']>4:raise ValueError('Wielder cannot gain weapon moves above Adept')
     if engine.r._selected_rule(move_id)!=move_id:raise ValueError("selected weapon move variant requires its own policy")
     import optional_weapon_framework as FRAMEWORK
     if FRAMEWORK.skill_rank(engine,actor,weapon)<row["rank"]:raise ValueError("weapon move rank prerequisite not met")
@@ -37,18 +37,6 @@ def prepare(engine, actor, move, weapon_id=None):
     if borrowed is not None:return borrowed
     borrowed=LIVING.prepare_borrowed(engine,actor,move,weapon_id)
     if borrowed is not None:return borrowed
-    if move.get('_weapon_attack',{}).get('source')=='item/몬스터볼-캐논':
-        weapon_id=move['_weapon_attack']['key']
-    if weapon_id is not None and move.get('id') == engine.r.move_id('오물폭탄'):
-        import csv_item_physical_contracts as CSV_ITEMS
-        obj = getattr(engine, '_physical_objects', {}).get(weapon_id, {})
-        if obj.get('item_rule_id') == 'item/몬스터볼-캐논':
-            profile = CSV_ITEMS.cannon_profile(engine,actor,weapon_id,projectile='sludge_bomb')
-            out = copy.deepcopy(move)
-            out['range'] = '15, 대상 1'
-            out['_weapon_attack'] = {'key':weapon_id,'range':{'origin':15,'targets':1,'parsed':True,'raw':out['range']},
-                'db_bonus':0,'accuracy_bonus':profile['accuracy_bonus'],'minimum_distance':0,'source':'item/몬스터볼-캐논'}
-            return out
     if "_weapon_attack" in move:
         if move['_weapon_attack'].get('intrinsic'):
             import csv_item_capability_contracts as CSV_CAPABILITIES

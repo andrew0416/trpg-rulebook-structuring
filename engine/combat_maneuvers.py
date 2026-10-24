@@ -119,7 +119,7 @@ def flirt_existing(engine,actor,target):
 
 @ACTION.continued_maneuver(MANIPULATE)
 def manipulate(engine,actor,target,kind,*,defender_skill,fixed_accuracy=None,challenger_options=None,defender_options=None,_provocateur_quick=False):
-    from grid import cheb
+    import body_state as BODY
     import skill_modifiers as SKILL
     import skill_maneuver_actions as SM
     if _provocateur_quick:__import__('provocateur')._live(engine,actor,__import__('provocateur').QUICK)
@@ -129,7 +129,7 @@ def manipulate(engine,actor,target,kind,*,defender_skill,fixed_accuracy=None,cha
     if actor.kind!='trainer' or actor is target or target.kind not in ('trainer','pokemon'):
         raise ValueError('Manipulate requires a trainer and distinct trainer/Pokemon target')
     if not engine.encounter_active or engine.round_start_seconds is None:raise ValueError('Manipulate requires an active combat round')
-    if engine.grid is None or not 1<=cheb(actor.pos,target.pos)<=6 or engine.grid.blocked(actor.pos,target.pos) or not actor.on_field or not target.on_field or target.captured:
+    if engine.grid is None or not actor.on_field or not target.on_field or target.captured or not BODY.in_range(engine,actor,target,6):
         raise ValueError('Manipulate requires one visible on-field target within six metres')
     if not _provocateur_quick and (actor.injuries>=5 and not __import__('taskmaster').ignores_acting_loss(actor)):raise ValueError('heavy Standard Manipulate needs its event ordering adapter')
     if not SM.resuming(actor,MANIPULATE,challenger_options or {}) and any(k==kind and victim is target for k,victim in actor.custom_conditions.get('manipulate_uses',[])):

@@ -41,6 +41,9 @@ def _source(engine):
         raise ValueError('selected Pokedex source needs its own device policy')
     from source_context import verified_source
     verified_source(engine.r, {'file': 'input/ch09-equipment.md', 'sha256': SOURCE_FILE_SHA256}, label='Pokedex')
+    verified_source(engine.r, {'file': 'source-audit/pokedex-core-1.05.txt',
+                    'sha256': '99f27ab4b4587d4f986aafb8072b94fd34d76ea5a8b93277d91d621e6042ad70'},
+                    label='Pokedex Level Up clarification', source_root='source-audit')
 
 
 def _trainer(engine, actor):
@@ -214,13 +217,19 @@ def scan(engine, actor, target, selection, *, recognized=None, readout=None, rea
         try:
             species = species_lookup(engine.r, target.spec.get('species'))
         except KeyError:
-            return C.PendingDecision('GM sourced learnable moves for this uncatalogued species')
+            return C.PendingDecision('GM sourced species Level Up moves for this uncatalogued species')
         catalog = engine.r.learnset_links.get(species['name'])
         if type(catalog) is not dict or type(catalog.get('moves')) is not list:
-            return C.PendingDecision('GM sourced species learnset; no known-move-slot fallback')
-        disclosed['learnable_moves'] = list(dict.fromkeys(row['to'] for row in catalog['moves'] if row.get('to')))
+            return C.PendingDecision('GM sourced species Level Up learnset; no known-move-slot fallback')
+        # The EN source clarifies the KR's unspecified learnset scope. Include
+        # the whole species Level Up list, independent of this subject's level.
+        disclosed['learnable_moves'] = list(dict.fromkeys(
+            row['to'] for row in catalog['moves']
+            if row.get('source') == 'level_up' and row.get('to')))
         disclosed['learnset_source'] = 'output/entities/learnset_links.json#' + species['name']
     else:
+        # For an uncatalogued/custom species the explicit GM source supplies
+        # its Level Up list; scanning never reads the subject's known slots.
         disclosed['learnset_source'] = disclosed['source']
     disclosed = _readout(disclosed)
     if disclosed['species'] != target.spec.get('species'):

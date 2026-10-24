@@ -15,6 +15,7 @@ _data=json.loads((Path(__file__).resolve().parents[1]/'data/martial-artist-defin
 DEFINITIONS=_data['features']; FEATURES=set(DEFINITIONS)
 CLASS='class/무술가';TRAINING='feat/무술-훈련';KUNG='feat/내-쿵푸는-강해';ACHIEVEMENT='feat/무공';SECOND='feat/추가-공격'
 ROCK='move/바위깨기';FOCUS='move/기충전';ARMED='martial_artist_armed';TAG='martial_artist_tag';WRESTLE='martial_artist_wrestlemania'
+EVASION_RESETS=TAG+'_evasion_resets';EVASION_GAIN=TAG+'_evasion_gain'
 MANEUVERS={'maneuver/붙잡기','maneuver/밀기','maneuver/걸기','maneuver/무장해제'}
 
 
@@ -181,6 +182,7 @@ def after_move(e,row):
   if not _punch(e,a,move):continue
   if tag and t.entity_id==tag['target_id']:
    rank=S.effective_rank(e.r,a,'전투')
+   _gain_evasion(row,tag,rank)
    amount=max(tag['bonus'],min(rank,tag['bonus']+1))
    # The rank caps this gain; a withdrawn rank provider does not end an earned bonus.
    if amount!=tag['bonus'] or not {'earned_rank','legacy_validation'}.intersection(tag):
@@ -193,9 +195,33 @@ def after_move(e,row):
   _seal_tag(tag);a.spec[TAG]=tag;a.spec[ARMED].pop('pummeling_momentum',None);choice=None
 
 
-def bonus(a,t):
+def bonus(a,t,*,evasion=False):
  row=a.spec.get(TAG)
- return row['bonus'] if row and t is not None and row['target_id']==t.entity_id and style(a)=='pummeling_momentum' else 0
+ if not row or t is None or row['target_id']!=t.entity_id or style(a)!='pummeling_momentum':return 0
+ return row.get('evasion',{}).get('value',row['bonus']) if evasion else row['bonus']
+
+
+def reset_evasion(e,a):
+ tag=a.spec.get(TAG)
+ if tag is None:return
+ before=tag.get('evasion',{}).get('value',tag['bonus'])
+ if not before:return
+ completed=e._move_completions[tag['completion_id']]
+ resets=completed.setdefault(EVASION_RESETS,[])
+ resets.append({'target_id':tag['target_id'],'acquisition':tag['acquisition'],'bonus':tag['bonus'],
+  'before':before,'turn':a.custom_conditions.get('combat_turn_serial',0)})
+ tag['evasion']={'value':0,'reset':{'completion_id':completed['id'],'index':len(resets)-1},'gain_completion_id':None}
+ _seal_tag(tag)
+
+
+def _gain_evasion(completed,tag,rank):
+ state=tag.get('evasion')
+ if state is None:return
+ value=max(state['value'],min(rank,state['value']+1))
+ if value==state['value']:return
+ state.update(value=value,gain_completion_id=completed['id'])
+ completed[EVASION_GAIN]={'target_id':tag['target_id'],'acquisition':tag['acquisition'],
+  'reset':deepcopy(state['reset']),'value':value,'earned_rank':rank}
 
 
 def end_turn(e,a):
@@ -365,12 +391,12 @@ def validate(e):
   if tag is not None:
    require(e,a,achievement='pummeling_momentum')
    fields={'target_id','bonus','hit_turn','completion_id','acquisition','fingerprint'}
-   if set(tag) not in (fields,fields|{'earned_rank'},fields|{'legacy_validation'}) or tag['target_id'] not in index or tag['acquisition']!=acquired(a,ACHIEVEMENT)['request_id']:raise ValueError('Pummeling Momentum provenance changed')
+   if set(tag)-{'evasion'} not in (fields,fields|{'earned_rank'},fields|{'legacy_validation'}) or tag['target_id'] not in index or tag['acquisition']!=acquired(a,ACHIEVEMENT)['request_id']:raise ValueError('Pummeling Momentum provenance changed')
    import root_resolution as R
    if tag['fingerprint']!=R.fingerprint({k:v for k,v in tag.items() if k!='fingerprint'}):raise ValueError('Pummeling Momentum observation changed')
    if 'legacy_validation' in tag:
     legacy=tag['legacy_validation']
-    if type(legacy) is not dict or set(legacy)!={'tag','rank_at_load'} or type(legacy['tag']) is not dict or set(legacy['tag'])!=fields:raise ValueError('Pummeling legacy validation changed')
+    if type(legacy) is not dict or set(legacy)!={'tag','rank_at_load'} or type(legacy['tag']) is not dict or set(legacy['tag'])-{'evasion'}!=fields:raise ValueError('Pummeling legacy validation changed')
     original=legacy['tag'];cap=C.integer(original['bonus'],'Pummeling accepted legacy bonus',1)
     C.integer(legacy['rank_at_load'],'Pummeling legacy rank at load',cap)
     if original['fingerprint']!=R.fingerprint({k:v for k,v in original.items() if k!='fingerprint'}):raise ValueError('Pummeling legacy fingerprint changed')
@@ -385,7 +411,12 @@ def validate(e):
    if 'earned_rank' in tag:
     observation=completed.get(TAG)
     expected={k:tag[k] for k in ('target_id','bonus','completion_id','acquisition','earned_rank')}
+    if observation and 'evasion_reset' in observation:
+     reset=tag.get('evasion',{}).get('reset',{})
+     if reset!=observation['evasion_reset'] and reset.get('completion_id')!=completed['id']:raise ValueError('Pummeling evasion reset history changed')
+     expected['evasion_reset']=observation['evasion_reset']
     if observation!=expected:raise ValueError('Pummeling Momentum earned-rank observation changed')
+   _validate_evasion(e,a,tag,completed)
   if WRESTLE in a.spec:
    require(e,a,achievement='wrestlemania');C.integer(a.spec[WRESTLE],'Wrestlemania actual turn',1)
 
@@ -395,12 +426,46 @@ def _seal_tag(row):
  row['fingerprint']=R.fingerprint({k:v for k,v in row.items() if k!='fingerprint'})
 
 
+def _validate_evasion(e,a,tag,completed):
+ state=tag.get('evasion')
+ if 'evasion' not in tag:
+  if completed.get(EVASION_RESETS) or completed.get(TAG,{}).get('evasion_reset'):
+   raise ValueError('Pummeling evasion reset observation missing')
+  return
+ if type(state) is not dict or set(state)!={'value','reset','gain_completion_id'}:raise ValueError('Pummeling evasion state changed')
+ C.integer(state['value'],'Pummeling evasion bonus',0,tag['bonus'])
+ reset=state['reset']
+ if type(reset) is not dict or set(reset)!={'completion_id','index'}:raise ValueError('Pummeling evasion reset reference changed')
+ original=getattr(e,'_move_completions',{}).get(reset['completion_id'])
+ if original is None or original['actor'] is not a or original['phase']!='complete':raise ValueError('Pummeling evasion reset lacks its original hit')
+ resets=original.get(EVASION_RESETS,[])
+ C.integer(reset['index'],'Pummeling evasion reset index',0,len(resets)-1)
+ receipt=resets[reset['index']]
+ if (type(receipt) is not dict or set(receipt)!={'target_id','acquisition','bonus','before','turn'} or receipt['target_id']!=tag['target_id']
+     or receipt['acquisition']!=tag['acquisition'] or reset['index']!=len(resets)-1):raise ValueError('Pummeling evasion reset observation changed')
+ C.integer(receipt['bonus'],'Pummeling reset accuracy bonus',1,tag['bonus'])
+ C.integer(receipt['before'],'Pummeling reset prior evasion',1,receipt['bonus'])
+ C.integer(receipt['turn'],'Pummeling evasion reset turn',0,a.custom_conditions.get('combat_turn_serial',0))
+ if state['value']==0:
+  if state['gain_completion_id'] is not None:raise ValueError('Pummeling cleared evasion cannot name a gain')
+  return
+ gain=getattr(e,'_move_completions',{}).get(state['gain_completion_id'])
+ if gain is None or gain['actor'] is not a or gain['phase']!='complete':raise ValueError('Pummeling evasion gain lacks its actual completion')
+ observation=gain.get(EVASION_GAIN)
+ if type(observation) is not dict or set(observation)!={'target_id','acquisition','reset','value','earned_rank'}:raise ValueError('Pummeling evasion gain observation missing')
+ expected={'target_id':tag['target_id'],'acquisition':tag['acquisition'],'reset':reset,'value':state['value'],'earned_rank':observation['earned_rank']}
+ if observation!=expected:raise ValueError('Pummeling evasion gain observation changed')
+ C.integer(observation['earned_rank'],'Pummeling evasion earned rank',1)
+ C.integer(state['value'],'Pummeling earned evasion',1,observation['earned_rank'])
+
+
 def _observe_gain(completed,tag,amount,rank):
  # Keep the native producer's observation after rank providers are changed or withdrawn.
  C.integer(amount,'Pummeling Momentum bonus',1,rank)
  tag.pop('legacy_validation',None)
  tag.update(bonus=amount,earned_rank=rank,completion_id=completed['id'])
  completed[TAG]={k:tag[k] for k in ('target_id','bonus','completion_id','acquisition','earned_rank')}
+ if 'evasion' in tag:completed[TAG]['evasion_reset']=deepcopy(tag['evasion']['reset'])
 
 
 def upgrade_legacy(e):

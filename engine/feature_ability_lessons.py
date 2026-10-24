@@ -57,6 +57,9 @@ def _policy(rules):
                     or "input/" + unit.get("source", {}).get("file", "") != choice["source_file"]
                     or unit.get("source", {}).get("sha256") != data["source_files"][choice["source_file"]]):
                 raise ValueError("Ability lesson choice binding changed: " + uid)
+            if choice['id'] == 'ability/먹보':
+                if uid != 'feat/요리-음미':raise ValueError('core Gluttony belongs to its actual Culinary Appreciation lesson')
+                __import__('capacity_abilities').validate_core_gluttony(rules,rules.core_abilities[choice['id']])
     rules._feature_ability_lessons = data["rules"]
     return data["rules"]
 
@@ -126,6 +129,8 @@ def teach(engine, teacher, *, target, feature, ability, seconds, reason):
             "teacher_id": owner.entity_id, "ability_id": selected,
             "job_id": job_id, "seconds": seconds, "completed_at": e.elapsed_seconds,
         }
+        if selected == 'ability/먹보':
+            __import__('food_effects').core_lesson_boundary(e,pupil,source_id)
         import trainer_retraining as RETRAINING
         RETRAINING.irreversible(e, owner, uid, event_id=job_id,
                                reason="completed permanent Ability lesson to " + pupil.entity_id + ": " + selected)

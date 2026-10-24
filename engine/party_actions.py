@@ -281,10 +281,12 @@ def _pay(engine,trainer,kind,*,full_switch):
     funded={k:before[k]-after[k] for k in RESOURCES.KINDS if before[k]!=after[k]}
     return {'kind':kind,'budget_before':before,'budget_after':after,'funded':funded,'phase':phase}
 
-def act(engine,trainer,*,recall=(),send=(),request_id,reason):
+def act(engine,trainer,*,recall=(),send=(),request_id,reason,tag_in=False):
     """send is an ordered list of (actual Pokemon, explicit map position) pairs."""
     if trainer.kind!='trainer':raise ValueError('actual trainer required')
     recall=tuple(recall);send=tuple((p,tuple(pos)) for p,pos in send)
+    if type(tag_in)is not bool or tag_in and (len(recall)!=1 or len(send)!=1):
+        raise ValueError('Tag In selection requires one actual paired switch')
     subjects=[*recall,*(p for p,_ in send)]
     W.require_actors(engine,trainer,*subjects)
     if type(reason) is not str or not reason.strip():raise ValueError('actual party action reason required')
@@ -292,6 +294,7 @@ def act(engine,trainer,*,recall=(),send=(),request_id,reason):
     if policy is None:raise ValueError('explicit party combat policy required')
     intent={'actor_id':trainer.entity_id,'recall':[p.entity_id for p in recall],
             'send':[[p.entity_id,list(pos)] for p,pos in send],'reason':reason,'policy':deepcopy(policy)}
+    if tag_in:intent['tag_in']=True
     prior=TX.replay_result(trainer.spec.get(KEY,{}),request_id,intent)
     if prior is not None:return prior['result']
     require_gym_participants(engine,(trainer,*subjects))
@@ -328,6 +331,10 @@ def act(engine,trainer,*,recall=(),send=(),request_id,reason):
         cells=BODY.at_position(p,pos)
         if any(cells&other for other in placements):raise ValueError('sent Pokemon bodies cannot overlap')
         placements.append(cells)
+    if tag_in:
+        import native_switch_transfer as SWITCH
+        SWITCH._feature(engine,trainer,SWITCH.TAG_IN)
+        SWITCH.preflight_handoff(engine,recall[0],send[0][0],source=SWITCH.TAG_IN,recalled=True)
     cost='shift' if not(recall and send) or recall[0].fainted else 'standard'
     if len(subjects)==2 and not(recall and send):cost='standard'
     prior_recall=[x for row in history for x in row['recall_events']]
@@ -338,11 +345,14 @@ def act(engine,trainer,*,recall=(),send=(),request_id,reason):
     import state_grants as G
     def apply(e,a,*participants):
         from_index={p.entity_id:p for p in participants}
+        if tag_in:
+            import native_switch_transfer as SWITCH
+            SWITCH.select_tag_in(e,a,from_index[recall[0].entity_id],reason=reason)
         payment=_pay(e,a,cost,full_switch=bool(recall and send))
         import combat_state_lifecycle as COMBAT
         for uid in recalled:COMBAT.recall(e,from_index[uid])
         for original,pos in send:
-            p=from_index[original.entity_id];COMBAT.join(e,[p]);p.on_field=True;p.pos=pos
+            p=from_index[original.entity_id];COMBAT.send_out(e,p,pos=pos)
         import marsupial_state as MARSUPIAL
         MARSUPIAL.sync(e)
         result={'request_id':request_id,'actor_id':a.entity_id,'scope':list(scope(e)),
@@ -352,7 +362,7 @@ def act(engine,trainer,*,recall=(),send=(),request_id,reason):
         e.log('  '+a.name+': '+cost+' 포켓몬 복귀/방출 '+str(result['recalled'])+' → '+str(result['sent']),SOURCE)
         validate_world(e,W.actor_index(e))
         return deepcopy(result)
-    return G.transition(engine,trainer,apply,participants=subjects)
+    return G.transition(engine,trainer,apply,participants=subjects,include_grid=engine.grid is not None)
 
 def validate_world(engine,index):
     for actor in index.values():

@@ -18,7 +18,7 @@ def validate(rules,spec,*,allow_lost_prerequisite=False):
     active=set()
     for row in records(spec):
         import poke_edge_variants as VARIANTS
-        VARIANTS.validate_receipt(rules,row)
+        VARIANTS.validate_receipt(rules,row,history=True,minimum_level=20)
         if spec.get('kind')!='pokemon':raise ValueError('Accuracy Training requires an actual Pokemon')
         if rules._selected_rule(ACCURACY)!=ACCURACY:raise ValueError('selected Accuracy Training needs its own source policy')
         mid=row.get('move_id')

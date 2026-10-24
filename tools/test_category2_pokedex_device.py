@@ -114,8 +114,20 @@ class PokedexTests(unittest.TestCase):
         self.assertEqual(self.a.budget['standard'], 0)
         self.assertTrue(self.a.took_standard)
         readout = result['readout']
-        expected = list(dict.fromkeys(row['to'] for row in self.r.learnset_links['이상해씨']['moves'] if row.get('to')))
+        catalog = self.r.learnset_links['이상해씨']['moves']
+        expected = list(dict.fromkeys(row['to'] for row in catalog
+                                     if row.get('source') == 'level_up' and row.get('to')))
         self.assertEqual(readout['learnable_moves'], expected)
+        # Actual non-Level-Up species entries must not leak into this readout.
+        for source in ('tm', 'egg', 'tutor'):
+            excluded = {row['to'] for row in catalog
+                        if row.get('source') == source and row.get('to')} - set(expected)
+            self.assertTrue(excluded, source)
+            self.assertTrue(excluded.isdisjoint(readout['learnable_moves']), source)
+        future = {row['to'] for row in catalog if row.get('source') == 'level_up'
+                  and row.get('level', 0) > self.p.level and row.get('to')}
+        self.assertTrue(future)
+        self.assertTrue(future.issubset(readout['learnable_moves']))
         self.assertGreater(len(expected), len(self.p.moves))
         self.assertEqual(readout['learnset_source'], 'output/entities/learnset_links.json#이상해씨')
         self.assertEqual((readout['average']['height_m'], readout['individual']['height_m']), (0.7, 0.8))
@@ -264,11 +276,13 @@ class PokedexTests(unittest.TestCase):
     def test_source_freshness_and_new_state_trust_boundaries_fail_before_device_mutation(self):
         before = self.e.export_state()
         original = Path.read_bytes
-        def changed(path):
-            content = original(path)
-            return content + b' changed' if path.name == 'ch09-equipment.md' else content
-        with patch.object(Path, 'read_bytes', changed):
-            with self.assertRaisesRegex(ValueError, 'source changed'): self.scan()
+        for filename in ('ch09-equipment.md', 'pokedex-core-1.05.txt'):
+            def changed(path):
+                content = original(path)
+                return content + b' changed' if path.name == filename else content
+            with self.subTest(source=filename), patch.object(Path, 'read_bytes', changed):
+                with self.assertRaisesRegex(ValueError, 'source changed'): self.scan()
+            self.assertEqual(self.e.export_state(), before)
         invalid = dict(source='gm/no-service', available=False, content='invented result')
         with self.assertRaises(ValueError): self.function('internet', observation=invalid)
         with self.assertRaises(ValueError):

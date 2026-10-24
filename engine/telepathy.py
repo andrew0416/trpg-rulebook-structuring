@@ -4,6 +4,7 @@ from pathlib import Path
 import json
 import crafting_recipes as Q,common_checks as C,skill_modifiers as S
 import perception_observe as O,perception_communicate as M
+import resolution_transaction as TX
 from source_context import verified_source
 
 SOURCE='capability/텔레파시'
@@ -19,6 +20,28 @@ def policy(rules):
     declaration=M.declaration(value['declaration'])
     if declaration['source']!=SOURCE:raise ValueError('native Telepathy declaration identity required')
     return value
+
+
+def _previous_policy(rules):
+    value=policy(rules);body=M._body(value['declaration'])
+    if body['retry']['penalty'].get('stacking')!='cumulative':return None
+    body['retry']['penalty'].pop('stacking')
+    correction=value.get('source_correction',{})
+    if TX.request_fingerprint(body)==correction.get('previous_declaration_sha256'):return body
+    return None
+
+
+def accepts_stored_policy(rules,body):
+    # Only the exact pre-correction declaration is historical, never a new option.
+    return body==M._body(policy(rules)['declaration']) or body==_previous_policy(rules)
+
+
+def replay_intent(engine,intent,receipt,field):
+    if receipt is None or receipt['intent']==TX.request_fingerprint(intent):return intent
+    previous=_previous_policy(engine.r)
+    if previous is None or intent[field]!=M._body(policy(engine.r)['declaration']):return intent
+    legacy=dict(intent,**{field:previous})
+    return legacy if receipt['intent']==TX.request_fingerprint(legacy) else intent
 
 
 def owns(actor):return bool({S.key(x) for x in CAPABILITIES}&{S.key(x) for x in M._current(actor,'capabilities')})
@@ -71,8 +94,9 @@ def attempt(engine,owner,other,operation,unwilling):
 
 
 def validate_result(engine,result):
-    C.integer(result.get('retry_modifier'),'Telepathy retry modifier',-3,0)
-    if result['retry_modifier'] not in (-3,0):raise ValueError('source-defined Telepathy retry modifier required')
+    modifier=C.integer(result.get('retry_modifier'),'Telepathy retry modifier',maximum=0)
+    penalty=policy(engine.r)['declaration']['retry']['penalty']
+    if modifier%penalty['modifier'] or penalty.get('stacking','single')=='single' and modifier not in (penalty['modifier'],0):raise ValueError('source-defined Telepathy retry modifier required')
     operation=result.get('operation')
     if operation not in ('read','send','offer'):raise ValueError('actual Telepathy operation receipt required')
     event=result.get('event')

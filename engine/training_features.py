@@ -38,9 +38,65 @@ CSV_CLAUSES = {
     FOCUSED: 'C2CSV/input/db/feats.csv:R16:main',
     INSPIRED: 'C2CSV/input/db/feats.csv:R17:main',
 }
+BOOK_LINES = {AGILITY: [696, 700], BRUTAL: [702, 706], FOCUSED: [708, 712], INSPIRED: [714, 718]}
+BOOK_SOURCE = {'file': 'input/ch03-skills-edges-feats.md', 'sha256': 'b94e43349794836391501f9aac10009d20746bf946ea0c4b5ff3adf85e982d23'}
+CSV_SOURCE = {'file': 'input/db/feats.csv', 'sha256': '4435ff1c462a211564c85d2c1c9a2ac6e7c790c7545e1ad7056d32888b2367bd'}
+
+
+def order_definitions(uid):
+    """Whole reviewed book/CSV definitions; neither supplies fields to the other."""
+    return [{'rule_id': CSV_CLAUSES[uid] if csv else uid,
+             'source': deepcopy(CSV_SOURCE if csv else BOOK_SOURCE),
+             'locator': {'record': 14 + list(RULES).index(uid)} if csv else {'lines': BOOK_LINES[uid][:]},
+             'values': {'training_feature': uid, 'source_clause_id': CSV_CLAUSES[uid] if csv else
+                        'input/ch03-skills-edges-feats.md:' + '-'.join(map(str, BOOK_LINES[uid])),
+                        'self_target': csv, 'target': 'one_owned_pokemon_or_self' if csv else 'one_owned_pokemon',
+                        'communication': 'required_except_self' if csv else 'required',
+                        'action': 'standard', 'priority': 'limited', 'frequency': 'at_will',
+                        'lifetime': 'start_of_issuer_next_actual_turn', 'stacks_with_training': True,
+                        'skills': deepcopy(RULES[uid]['skills']), 'bonuses': deepcopy(RULES[uid]['bonuses'])}}
+            for csv in (False, True)]
+
+
+def selected_order(rules, name):
+    uid = identity(name)
+    if uid is None: raise ValueError('known training feature required')
+    requested = name if name in CSV_CLAUSES.values() else uid
+    return rules.bind_source_policy(requested, order_definitions(uid))
+
+
+def order_values(uid, binding, clause):
+    import source_selection as SELECTION
+    if uid not in RULES: raise ValueError('known Training Order feature required')
+    if binding is None:
+        # Old producers retained their actual CSV clause, but never a selection binding.
+        if clause != CSV_CLAUSES.get(uid): raise ValueError('legacy Training Order requires its actual CSV source clause')
+        return deepcopy(order_definitions(uid)[1]['values'])
+    values = SELECTION.policy_values(binding, order_definitions(uid))
+    if values['training_feature'] != uid or values['source_clause_id'] != clause:
+        raise ValueError('Training Order source policy and clause changed')
+    return values
+
+
+def validate_order_history(owner):
+    import trainer_feature_acquisition as ACQUISITION
+    uses = owner.spec.get('training_order_uses', [])
+    if type(uses) is not list: raise ValueError('actual Training Order use history required')
+    for use in uses:
+        if (type(use) is not dict or set(use) != {'result', 'integrity'} or type(use['result']) is not dict
+                or use['integrity'] != ACQUISITION._digest('training-order/use/v1', use['result'])):
+            raise ValueError('Training Order use receipt changed')
+        result = use['result']; uid = result.get('rule_id')
+        if uid not in RULES or result.get('trainer_id') != owner.entity_id:
+            raise ValueError('Training Order use owner or feature changed')
+        values = order_values(uid, result.get('source_policy_binding'), result.get('source_clause_id'))
+        if result.get('target_id') == owner.entity_id and not values['self_target']:
+            raise ValueError('book Training Order cannot target its issuer')
+    return uses
 
 def identity(name):
     if not isinstance(name, str): return None
+    if name in CSV_CLAUSES.values(): return next(uid for uid, clause in CSV_CLAUSES.items() if clause == name)
     return next((uid for uid, policy in RULES.items() if SKILL.key(name) in {SKILL.key(x) for x in (uid, *policy['aliases'])}), None)
 
 def _count(actor, names):
@@ -58,11 +114,11 @@ def elite(actor):
         raise ValueError('Elite Trainer requires acquired Ace Trainer with Novice Command')
     return True
 
-def owns(actor, uid):
+def owns(actor, uid, *, order_binding=None):
     count = _count(actor, (uid, *RULES[uid]['aliases']))
     if not count: return False
     if count != 1 or actor.kind != 'trainer': raise ValueError('one actual trainer feature acquisition required')
-    if actor.r._selected_rule(uid) != uid: raise ValueError('selected training variant needs its own policy')
+    if order_binding is None and actor.r._selected_rule(uid) != uid: raise ValueError('selected training variant needs its own policy')
     if uid == INSPIRED:
         import trainer_feature_acquisition as TFA
         if any(active and row['static_acquisition']['feature_id'] == uid for _,row,active in TFA._static_records(actor)):
@@ -100,26 +156,52 @@ def active(actor):
             REWARDS.bonus_definition(definition)
             if definition['source']!=uid:raise ValueError('declared training bonus source changed')
         elif uid not in RULES:raise ValueError('known training regime required')
-        if actor.r._selected_rule(uid) != uid: raise ValueError('training source selection changed')
+        if row.get('mode') != 'orders' and actor.r._selected_rule(uid) != uid: raise ValueError('training source selection changed')
         owner = row.get('owner')
         if owner is None or owner.entity_id != receipt.get('owner_id'): raise ValueError('training owner receipt mismatch')
-        if actor.spec.get('trainer_id', owner.entity_id) != owner.entity_id or actor.spec.get('trainer', owner.name) != owner.name:
+        if actor is not owner and (actor.spec.get('trainer_id', owner.entity_id) != owner.entity_id or actor.spec.get('trainer', owner.name) != owner.name):
             raise ValueError('training ownership changed without source cleanup')
         mode=row.get('mode')
         if mode not in ('training','orders'): raise ValueError('unsupported Training/Orders source mode')
         if mode=='orders':
-            if uid not in CSV_CLAUSES or row.get('source_clause_id')!=CSV_CLAUSES[uid]:
-                raise ValueError('Training Order requires its exact CSV source clause')
+            binding=row.get('source_policy_binding')
+            values=order_values(uid,binding,row.get('source_clause_id'))
+            origin=__import__('native_order_transfer').origin_id(row,actor)
+            if origin==owner.entity_id and not values['self_target']:
+                raise ValueError('book Training Order cannot target its issuer')
+            if binding is not None and (receipt.get('source_policy_binding')!=binding
+                    or receipt.get('source_clause_id')!=row['source_clause_id']):
+                raise ValueError('Training Order grant source policy changed')
+            if binding is None and ('source_policy_binding' in receipt or 'source_clause_id' in receipt):
+                raise ValueError('Training Order lost its producing source policy')
+            uses=validate_order_history(owner)
+            producing=[use['result'] for use in uses if use['result'].get('source')==source]
+            if binding is not None and (len(producing)!=1
+                    or producing[0].get('source_policy_binding')!=binding
+                    or producing[0].get('source_clause_id')!=row['source_clause_id']
+                    or producing[0].get('target_id')!=origin):
+                raise ValueError('Training Order lost its actual producing source receipt')
             import combat_timing as TIMING
             import priority_limited as PRIORITY
             PRIORITY.validate(owner)
             if row.get('free_order_payment') is not None:
                 if receipt.get('free_order_payment')!=row['free_order_payment']:
                     raise ValueError('Training Order Free payment source changed')
+            elif row.get('ordinary_order_payment') is not None:
+                paid=row['ordinary_order_payment']
+                if (receipt.get('ordinary_order_payment')!=paid or set(paid)!={'kind','action','turn','history_index'}
+                        or paid['kind']!='ordinary' or paid['action']!='standard'
+                        or type(paid['turn']) is not int or not 1<=paid['turn']<=owner.custom_conditions.get('combat_turn_serial',0)
+                        or type(paid['history_index']) is not int or paid['history_index']<0):
+                    raise ValueError('Training Order ordinary Standard payment changed')
+                if paid['turn']==owner.custom_conditions.get('combat_turn_serial',0):
+                    history=owner._action_history
+                    if paid['history_index']>=len(history) or history[paid['history_index']]!='standard':
+                        raise ValueError('Training Order lost its actual Standard action')
             else:
                 payments=[payment for payment in PRIORITY.records(owner)
                           if payment['id']==row.get('order_id') and payment['source']==uid
-                          and payment['subject_id']==actor.entity_id]
+                          and payment['subject_id']==__import__('native_order_transfer').origin_id(row,actor)]
                 if len(payments)!=1:raise ValueError('Training Order requires its exact Priority Limited payment')
             lifetime=[effect for effect in TIMING.records(actor) if effect.get('grant_source')==source]
             if len(lifetime)!=1 or lifetime[0].get('turn_owner') is not owner:
@@ -133,8 +215,45 @@ def active(actor):
         raise ValueError('multiple simultaneous Training Orders need an explicit stacking rule')
     return result
 
+
+def preflight_transfer(engine,actor,replacement):
+    """Only the four live Training Orders, not an extended Training regime."""
+    import combat_timing as TIMING
+    rows=[row for row in active(actor) if row['mode']=='orders']
+    if rows and any(row['mode']=='orders' for row in active(replacement)):
+        raise ValueError('replacement already has a live Training Order')
+    for row in rows:
+        source=row[GRANTS.TAG];state=actor.spec[GRANTS.KEY]
+        if state['effects'][source]!={'rows':['registry'],'listeners':[]}:
+            raise ValueError('Training Order transfer requires its exact source-owned projection')
+        if source in replacement.spec.get(GRANTS.KEY,{}).get('sources',{}):
+            raise ValueError('Training Order source identity collision')
+        lifetime=[effect for effect in TIMING.records(actor) if effect.get('grant_source')==source]
+        if len(lifetime)!=1 or lifetime[0]['turn_owner'] is not row['owner']:
+            raise ValueError('Training Order issuer deadline must remain authoritative')
+    return rows
+
+
+def transfer(engine,actor,replacement,*,source,recall_id):
+    import combat_timing as TIMING
+    rows=preflight_transfer(engine,actor,replacement)
+    for row in rows:
+        key=row[GRANTS.TAG];old=actor.spec[GRANTS.KEY];new=GRANTS.state(replacement)
+        __import__('native_order_transfer').observe(engine,actor,replacement,row,source,recall_id)
+        new['sources'][key]=old['sources'].pop(key)
+        new['effects'][key]=old['effects'].pop(key)
+        actor.registry.remove(row);replacement.registry.append(row)
+        timed=next(effect for effect in TIMING.records(actor) if effect.get('grant_source')==key)
+        TIMING.records(actor).remove(timed)
+        replacement.custom_conditions.setdefault(TIMING.KEY,[]).append(timed)
+        engine.time_actors([replacement,row['owner']])
+    active(actor);active(replacement)
+    return [row[GRANTS.TAG] for row in rows]
+
 def bonuses(row):
     """Read one validated native or declared training source contribution."""
+    if row.get('mode')=='orders':
+        return order_values(row['rule_id'],row.get('source_policy_binding'),row.get('source_clause_id'))['bonuses']
     return (row['training_reward_definition'] if 'training_reward_definition' in row else RULES[row['rule_id']])['bonuses']
 
 
@@ -200,6 +319,8 @@ def stat_records(actor):
 
 def validate_trained(actor, actors=None):
     import combat_stage_sources as CS
+    validate_order_history(actor)
+    active(actor)
     rows=stat_records(actor)
     if len(rows)>1:raise ValueError('one trained non-HP stat per Pokemon required')
     sources=actor.spec.get(GRANTS.KEY,{}).get('sources',{})
@@ -339,7 +460,7 @@ def extended_rest(engine, trainer):
             if row.get('owner') is trainer and row.get('mode')=='training':
                 GRANTS.revoke(target, row[GRANTS.TAG], engine=engine)
 
-def orders(engine, trainer, name, target):
+def orders(engine, trainer, name, target, *, communication=None):
     """Issue one owned Training feature as a Standard Priority (Limited) order."""
     import world_entities as WORLD
     import pokemon_activities as ACTIVITIES
@@ -347,20 +468,31 @@ def orders(engine, trainer, name, target):
     import perception_communicate as COMM
     import combat_timing as TIMING
     import order_actions as ORDERS
+    communication_request=communication
     uid=identity(name)
     if uid is None: raise ValueError('known training feature required')
+    binding=selected_order(engine.r,name)
+    values=binding['definition']['values']
     WORLD.require_actors(engine,trainer,target)
-    ACTIVITIES._trainer(trainer);owns(trainer,uid)
+    ACTIVITIES._trainer(trainer)
+    if not owns(trainer,uid,order_binding=binding):raise ValueError('trainer does not own selected training feature')
+    if target is trainer and not values['self_target']:
+        raise ValueError('book Training Order cannot target its issuer')
     if target is not trainer:
         ACTIVITIES._pokemon(target);ACTIVITIES._owner(trainer,target)
         if target.dead or target.fainted:raise ValueError('conscious order recipient required')
-    if ORDERS.current(engine,trainer,uid) is None:PRIORITY.preflight(engine,trainer,action='standard',source=uid)
+    if not engine.encounter_active and ORDERS.current(engine,trainer,uid) is None:
+        PRIORITY.preflight(engine,trainer,action='standard',source=uid)
+    ORDERS.preflight(engine,trainer,uid)
     if any(row.get('mode')=='orders' for row in records(target)):
         raise ValueError('target already has a live Training Order')
     def apply(e,owner,recipient):
         if recipient is owner:
-            communication={'status':'delivered','mode':'self_target_exception','source_clause_id':CSV_CLAUSES[uid],
+            if communication_request is not None:raise ValueError('self-target Order has no external communication request')
+            communication={'status':'delivered','mode':'self_target_exception','source_clause_id':values['source_clause_id'],
                            'sender_id':owner.entity_id,'recipient_id':recipient.entity_id}
+        elif communication_request is not None:
+            communication=ORDERS.delivery(e,owner,recipient,uid,communication=communication_request)
         else:
             policy={'id':'training-order:'+uid,'source':uid,'capabilities':[],'requirements':[],
                     'mode':'auditory','range':None,'path':'auditory','medium':[],
@@ -371,6 +503,7 @@ def orders(engine, trainer, name, target):
             communication=COMM.send(e,owner,recipient,policy,'Training Order: '+uid,request_id=request)
             if communication['status']!='delivered':
                 raise ValueError('Training Order communication was not delivered: '+str(communication.get('reason')))
+        ordinary=None
         if ORDERS.current(e,owner,uid) is not None:
             import turn as TURN
             if not TURN.spend(e,owner,'standard',uid):raise ValueError('Free Training Order permission required')
@@ -378,27 +511,38 @@ def orders(engine, trainer, name, target):
             receipt={'id':'free-order:'+free['parent'],'payment':free}
         else:
             free=None
-            receipt=PRIORITY.reserve(e,owner,action='standard',source=uid,subject=recipient.entity_id,
-                                     communication=communication)
+            receipt=ORDERS.spend(e,owner,uid,subject=recipient.entity_id,communication=communication)
+            if receipt.get('kind')=='ordinary':
+                ordinary=receipt
+                receipt={'id':'training-order:'+owner.entity_id+':'+str(owner.custom_conditions.get('_training_order_serial',0)+1),'payment':ordinary}
         serial=C.integer(owner.custom_conditions.get('_training_order_serial',0),'Training Order serial',0)+1
         owner.custom_conditions['_training_order_serial']=serial
         source='training-order:'+owner.entity_id+':'+str(serial)+':'+recipient.entity_id+':'+uid
         GRANTS._source(recipient,source,'training_order',owner_id=owner.entity_id,
-                       lifetime='start_of_issuer_next_turn',rule_id=uid,tutor_points=0)
+                       lifetime='start_of_issuer_next_turn',rule_id=uid,tutor_points=0,
+                       source_clause_id=values['source_clause_id'],source_policy_binding=binding)
         if free is not None:GRANTS.state(recipient)['sources'][source]['free_order_payment']=deepcopy(free)
-        row={'type':TYPE,'rule_id':uid,'source_clause_id':CSV_CLAUSES[uid],'mode':'orders','owner':owner,
+        row={'type':TYPE,'rule_id':uid,'source_clause_id':values['source_clause_id'],
+             'source_policy_binding':deepcopy(binding),'mode':'orders','owner':owner,
              'order_id':receipt['id'],'elite_authority':False,'started_at':e.elapsed_seconds,
              'started_round':e.round_no}
         if free is not None:row['free_order_payment']=free
+        if ordinary is not None:
+            row['ordinary_order_payment']=deepcopy(ordinary)
+            GRANTS.state(recipient)['sources'][source]['ordinary_order_payment']=deepcopy(ordinary)
         GRANTS.apply_owned(e,recipient,source,lambda row=row,recipient=recipient:recipient.registry.append(row))
         deadline=C.integer(owner.custom_conditions.get('combat_turn_serial',0),'actual owner turn serial',0)+1
         TIMING.install(e,recipient,{'source':uid,'effect_contract':True,'grant_source':source,
                                     'turn_owner':owner,'turn_start_deadline':deadline})
-        result={'status':'applied','rule_id':uid,'source_clause_id':CSV_CLAUSES[uid],
+        result={'status':'applied','rule_id':uid,'source_clause_id':values['source_clause_id'],
+                'source_policy_binding':deepcopy(binding),
                 'source':source,'trainer_id':owner.entity_id,'target_id':recipient.entity_id,
                 'priority_receipt':deepcopy(receipt),'expires_at_owner_turn':deadline,
                 'communication':deepcopy(communication)}
-        e.gm._rec('Training Order',None,result,'actual delivered Priority (Limited) order',owner)
+        import trainer_feature_acquisition as ACQUISITION
+        owner.spec.setdefault('training_order_uses',[]).append({
+            'result':deepcopy(result),'integrity':ACQUISITION._digest('training-order/use/v1',result)})
+        e.gm._rec('Training Order',None,result,'actual delivered Order',owner)
         import cheerleader as CHEER
         CHEER.after_training(e,owner,recipient,result)
         import duelist as DUELIST

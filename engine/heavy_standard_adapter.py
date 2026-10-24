@@ -56,7 +56,8 @@ def finish_equipment(engine,actor,before,outcome,pre_context):
  engine._heavy_events[identity]=packet
  if proposal.status=='ready' and not failures:
   final=proposal.snapshot.state
-  actor.hp,actor.temp_hp=final.hp,final.temporary_hp
+  TEMP.absorb(engine,actor,actor.temp_hp-final.temporary_hp)
+  actor.hp=final.hp
   import bandages as BANDAGES
   BANDAGES.on_hp_change(engine,actor,after['hp'],actor.hp)
   packet.update(status='applied',heavy_consequence=dict(kind='hp_loss',amount=proposal.loss,
@@ -299,7 +300,8 @@ def finish(engine,token,*,hit,dealt):
  proposal=K.evaluate(K.Snapshot(event.after),event)
  if proposal.status!='ready':hold(engine,token,packet,proposal.reason)
  engine._heavy_standard_receipts.pop(token)
- a.hp,a.temp_hp=proposal.snapshot.state.hp,proposal.snapshot.state.temporary_hp
+ TEMP_HP.absorb(engine,a,a.temp_hp-proposal.snapshot.state.temporary_hp)
+ a.hp=proposal.snapshot.state.hp
  import bandages as BANDAGES
  BANDAGES.on_hp_change(engine,a,after["hp"],a.hp)
  packet['status']='applied';packet['unexecuted_remainder']=None

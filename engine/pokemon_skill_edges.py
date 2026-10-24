@@ -41,7 +41,7 @@ def validate(rules,spec):
     for row in rows:
         if row.get('source')!=SOURCE:continue
         import poke_edge_variants as VARIANTS
-        VARIANTS.validate_receipt(rules,row)
+        VARIANTS.validate_receipt(rules,row,history=True)
         if spec.get('kind')!='pokemon':raise ValueError('Skill Improvement investment requires an actual Pokemon')
         if rules._selected_rule(SOURCE)!=SOURCE:raise ValueError('selected Skill Improvement source needs its own policy')
         sid=S.skill_id(rules.skill_policy,row.get('skill'),required=True)

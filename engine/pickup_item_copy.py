@@ -16,6 +16,10 @@ NAME = "픽업"
 ACTIVE = "pickup_item_copies"
 HISTORY = "pickup_item_copy_history"
 SEQUENCE = "pickup_item_copy_sequence"
+CHOICE = "pickup_item_copy_choice"
+CHOICE_SEQUENCE = "pickup_item_choice_sequence"
+EXPIRY_SOURCE = {"file": "input/db/abilities.csv", "sha256": "87efebd17b0a5fe09c9db060a16a8844cf41be53d65eb35716cf62f80a177fae"}
+EXPIRY_INTERPRETATIONS = ("copy_unconsumed", "original_unconsumed")
 COPY_EFFECT = {
     "type": "copy_item",
     "target": "target",
@@ -86,16 +90,19 @@ def _ability_owned(actor):
     return any(registration(actor.r, value) is not None for value in actor.abilities)
 
 
-def _prepare(engine, actor, target, held_selection, destination_slot):
+def _common(engine, actor, target):
     import held_equipment as HELD
-    import items as ITEMS
+    import csv_item_form_contracts as CSV_FORMS
     import partial_entities as PARTIAL
     import world_entities as WORLD
 
-    reg = registration(engine.r, SOURCE)
+    registration(engine.r, SOURCE)
     PARTIAL.require_complete(actor, "Pickup source")
     PARTIAL.require_complete(target, "Pickup target")
     index = WORLD.require_actors(engine, actor, target)
+    CSV_FORMS.require_independent(engine, actor)
+    if target is not actor:
+        CSV_FORMS.require_independent(engine, target)
     if not engine.encounter_active:
         raise ValueError("Pickup requires an active encounter")
     if not _ability_owned(actor):
@@ -108,6 +115,15 @@ def _prepare(engine, actor, target, held_selection, destination_slot):
     HELD.require_resolved(actor)
     if target is not actor:
         HELD.require_resolved(target)
+    return index
+
+
+def _prepare(engine, actor, target, held_selection, destination_slot):
+    import held_equipment as HELD
+    import items as ITEMS
+    import world_entities as WORLD
+
+    index = _common(engine, actor, target)
     selected = ITEMS.selected_equipment(target, held_selection, ("held",))
     original_id = selected.get("instance_id")
     original = getattr(engine, "_physical_objects", {}).get(original_id)
@@ -131,7 +147,7 @@ def _prepare(engine, actor, target, held_selection, destination_slot):
     # new physical copy from being folded into a legacy same-name row.
     HELD.prepare(actor, selected["name"], item_id, copy_id, slot)
     return {
-        "source": reg["source_id"],
+        "source": SOURCE,
         "sequence": sequence,
         "copy_instance_id": copy_id,
         "original_instance_id": original_id,
@@ -145,11 +161,160 @@ def _prepare(engine, actor, target, held_selection, destination_slot):
     }
 
 
+def _expiry_basis(plan):
+    return {key: deepcopy(plan[key]) for key in (
+        "source", "sequence", "user_id", "target_id", "original_instance_id",
+        "copy_instance_id", "item_id", "destination_slot")}
+
+
+def _expiry_document(basis):
+    return {"schema": 1, "id": "native/pickup-copy-expiry", "variants": [{
+        "rule_id": SOURCE, "source": EXPIRY_SOURCE,
+        "values": {"interpretation": {"$input": "interpretation"}, "basis": deepcopy(basis)},
+        "inputs": {"interpretation": {"type": "string", "authority": "gm",
+            "decision_kind": "source_conflict", "choices": list(EXPIRY_INTERPRETATIONS),
+            "question": "Choose the unstated consumption subject in the same Korean R455 text: copy or original. These are GM interpretations, not different English editions."}}}]}
+
+
+def _expiry_resolution(engine, basis, choice=None):
+    from source_context import verified_source
+    import source_policy as POLICY
+
+    verified_source(engine.r, EXPIRY_SOURCE, label="Pickup actual R455 expiry interpretation")
+    return POLICY.resolve(engine.r, _expiry_document(basis), decisions={} if choice is None else {"interpretation": choice})
+
+
+def source_choices(engine, actor, target, *, held_selection=None, destination_slot=None):
+    """Pure scoped query; choosing an expiry reading never authorizes a held selection."""
+    plan = _prepare(engine, actor, target, held_selection, destination_slot)
+    return _expiry_resolution(engine, _expiry_basis(plan))
+
+
+def _expiry_decision(engine, plan, choice):
+    basis = _expiry_basis(plan)
+    if choice is None:
+        return {"interpretation": "copy_unconsumed", "authority": "authored_default",
+                "source": deepcopy(EXPIRY_SOURCE), "basis": basis}
+    resolved = _expiry_resolution(engine, basis, choice)
+    if resolved["status"] != "PolicyValuesReady":
+        raise ValueError("complete scoped Pickup expiry decision required")
+    return {"interpretation": resolved["values"]["interpretation"], "authority": "gm",
+            "source": deepcopy(EXPIRY_SOURCE), "basis": basis,
+            "choice": deepcopy(choice), "policy": resolved}
+
+
+def _expiry_name(engine, record):
+    # An unmarked record is an actual old producer receipt, not a new GM choice.
+    if "expiry_decision" not in record:
+        return "copy_unconsumed"
+    decision = record["expiry_decision"]
+    if (not isinstance(decision, dict) or decision.get("source") != EXPIRY_SOURCE
+            or decision.get("basis") != _expiry_basis(record)):
+        raise ValueError("Pickup expiry decision needs its actual producing identities")
+    if decision.get("authority") == "authored_default":
+        if set(decision) != {"interpretation", "authority", "source", "basis"} or decision["interpretation"] != "copy_unconsumed":
+            raise ValueError("Pickup authored expiry default changed")
+    elif decision.get("authority") == "gm":
+        if set(decision) != {"interpretation", "authority", "source", "basis", "choice", "policy"}:
+            raise ValueError("Pickup GM expiry decision changed")
+        from source_context import verified_source
+        import root_resolution as RESOLUTION
+        verified_source(engine.r, EXPIRY_SOURCE, label="Pickup original R455 expiry interpretation")
+        document = _expiry_document(decision["basis"])
+        fixed = {"policy_id": document["id"], "selected_id": SOURCE, "selected_version": None,
+                 "definition_hash": RESOLUTION.fingerprint(document)}
+        choice, policy = decision["choice"], decision["policy"]
+        if (type(choice) is not dict or set(choice) != {"value", "reason", "scope"}
+                or choice["value"] not in EXPIRY_INTERPRETATIONS
+                or choice["value"] != decision["interpretation"]
+                or type(choice["scope"]) is not dict or set(choice["scope"]) != set(fixed) | {"profile_hash"}
+                or any(choice["scope"][key] != value for key, value in fixed.items())
+                or any(not isinstance(text, str) or not text.strip()
+                       for text in (choice["reason"], choice["scope"]["profile_hash"]))):
+            raise ValueError("Pickup original scoped expiry decision required")
+        # This is a producing receipt, not authority to make another copy under today's profile.
+        if (type(policy) is not dict or any(policy.get(key) != value for key, value in fixed.items())
+                or policy.get("status") != "PolicyValuesReady" or policy.get("source") != EXPIRY_SOURCE
+                or policy.get("profile_hash") != choice["scope"]["profile_hash"]
+                or policy.get("decision_scope") != choice["scope"]
+                or policy.get("values") != {"interpretation": choice["value"], "basis": decision["basis"]}
+                or policy.get("input_values") != {"interpretation": choice["value"]}
+                or policy.get("decision_evidence") != [{"input": "interpretation", "reason": choice["reason"],
+                    "decision_kind": "source_conflict", "scope": choice["scope"]}]
+                or policy.get("obligations") != []
+                or policy.get("inputs_hash") != RESOLUTION.fingerprint({"context": {}, "decisions": {"interpretation": choice}, "state": {}})):
+            raise ValueError("Pickup producing expiry source scope changed")
+    else:
+        raise ValueError("Pickup expiry authority required")
+    return decision["interpretation"]
+
+
+def _choice_basis(engine, actor, target, destination_slot):
+    import held_equipment as HELD
+    _common(engine, actor, target)
+    return {"source": deepcopy(EXPIRY_SOURCE), "user_id": actor.entity_id,
+        "target_id": target.entity_id, "user_held": deepcopy(HELD.entries(actor)),
+        "target_held": deepcopy(HELD.entries(target)),
+        "user_capacity": HELD.capacity(actor), "target_capacity": HELD.capacity(target),
+        "sequence": actor.spec.get(SEQUENCE, 0), "destination_slot": destination_slot,
+        "round": engine.round_no, "elapsed_seconds": engine.elapsed_seconds,
+        "owner_turn": actor.custom_conditions.get("combat_turn_serial", 0),
+        "active_turn_actor": getattr(getattr(engine, "_active_turn_actor", None), "entity_id", None)}
+
+
+def _pending(row):
+    return C.PendingDecision("The actual held-item owner chooses which item Pickup copies before any payment",
+        basis={"choice_id": row["id"], "source": SOURCE, "chooser_id": row["target_id"],
+               "options": deepcopy(row["basis"]["target_held"])})
+
+
+def pending(engine):
+    import world_entities as WORLD
+    return [_pending(row) for actor in WORLD.actor_index(engine).values()
+            if isinstance((row := actor.spec.get(CHOICE)), dict) and row.get("status") == "awaiting_input"]
+
+
+def cancel_choice(engine, actor, choice_id):
+    """The activator may withdraw their own still-unpaid request, including a stale one."""
+    import state_grants as GRANTS
+    import world_entities as WORLD
+    WORLD.require_actors(engine, actor)
+    def cancel(staged, actual):
+        row = actual.spec.get(CHOICE)
+        if not isinstance(row, dict) or row.get("id") != choice_id or row.get("status") != "awaiting_input":
+            raise ValueError("actual unpaid Pickup request required")
+        row["status"] = "cancelled"
+        return deepcopy(row)
+    return GRANTS.transition(engine, actor, cancel)
+
+
+def resolve_choice(engine, chooser, choice_id, *, selection, expiry_choice=None):
+    import world_entities as WORLD
+    index = WORLD.require_actors(engine, chooser)
+    matches = [(actor, actor.spec[CHOICE]) for actor in index.values()
+               if isinstance(actor.spec.get(CHOICE), dict) and actor.spec[CHOICE].get("id") == choice_id]
+    if len(matches) != 1:
+        raise ValueError("actual Pickup held-item request required")
+    actor, row = matches[0]
+    target = index.get(row["target_id"])
+    if chooser is not target:
+        raise ValueError("actual Pickup held-item owner must choose")
+    choice = row["expiry_choice"] if expiry_choice is None else expiry_choice
+    if row["status"] == "completed":
+        if selection != row["selection"] or choice != row["settled_expiry_choice"]:
+            raise ValueError("completed Pickup decision cannot change")
+        return deepcopy(row["result"])
+    if row["status"] != "awaiting_input" or row["basis"] != _choice_basis(engine, actor, target, row["destination_slot"]):
+        raise ValueError("Pickup held-item request is stale; withdraw it before a new activation")
+    return _settle(engine, actor, target, selection, row["destination_slot"], choice, request_id=choice_id)
+
+
 def apply_effect(engine, actor, target, effect, ctx):
     """The registered ``copy_item`` handler's sole executable path."""
     if _semantic(effect) != COPY_EFFECT or ctx.get("source_id") != SOURCE or not ctx.get("pickup_item_copy_commit"):
         raise ValueError("copy_item requires the reviewed Pickup physical-instance adapter")
     plan = _prepare(engine, actor, target, ctx.get("held_selection"), ctx.get("destination_slot"))
+    expiry = _expiry_decision(engine, plan, ctx.get("pickup_expiry_choice"))
     import items as ITEMS
     import world_entities as WORLD
 
@@ -174,6 +339,7 @@ def apply_effect(engine, actor, target, effect, ctx):
         "consumable": plan["consumable"],
         "expires": "encounter_end",
         "status": "active",
+        "expiry_decision": expiry,
     }
     obj["pickup_copy"] = deepcopy(link)
     ITEMS.register_item(
@@ -204,20 +370,67 @@ def apply_effect(engine, actor, target, effect, ctx):
     return deepcopy(record)
 
 
-def activate(engine, actor, ability, target, *, held_selection=None, destination_slot=None):
+def activate(engine, actor, ability, target, *, held_selection=None, destination_slot=None, expiry_choice=None):
     """Pay Pickup once, then create and equip one linked physical copy."""
     reg = registration(engine.r, ability)
     if reg is None:
         raise ValueError("reviewed Pickup source required")
     # Pure preflight catches source/identity/slot failures before staging or cost.
     validate_world(engine)
-    _prepare(engine, actor, target, held_selection, destination_slot)
+    _common(engine, actor, target)
+    import held_equipment as HELD
+    if len(HELD.entries(target)) > 1:
+        if held_selection is not None:
+            _prepare(engine, actor, target, held_selection, destination_slot)
+        destination_slot = _next_slot(actor, destination_slot)
+        if HELD.capacity(actor)["count"] >= HELD.capacity(actor)["maximum"]:
+            raise ValueError("Pickup user has no available actual held-item slot")
+        basis = _choice_basis(engine, actor, target, destination_slot)
+        old = actor.spec.get(CHOICE)
+        if isinstance(old, dict) and old.get("status") == "awaiting_input":
+            if old["basis"] != basis or old["expiry_choice"] != expiry_choice:
+                raise ValueError("resolve or withdraw the existing unpaid Pickup request")
+            return _pending(old)
+        import state_grants as GRANTS
+        def request(staged, user, holder):
+            actual = _choice_basis(staged, user, holder, destination_slot)
+            if actual != basis:
+                raise ValueError("Pickup held-item request changed before issue")
+            sequence = C.integer(user.spec.get(CHOICE_SEQUENCE, 0), "Pickup held request sequence", 0) + 1
+            row = {"id": "pickup-held-choice:" + user.entity_id + ":" + str(sequence),
+                "request_sequence": sequence,
+                "user_id": user.entity_id, "target_id": holder.entity_id,
+                "basis": actual, "destination_slot": destination_slot,
+                "expiry_choice": deepcopy(expiry_choice), "status": "awaiting_input"}
+            user.spec[CHOICE] = row
+            user.spec[CHOICE_SEQUENCE] = sequence
+            return _pending(row)
+        if target is actor:
+            return GRANTS.transition(engine, actor, lambda staged, user: request(staged, user, user))
+        return GRANTS.transition(engine, actor, request, participants=(target,))
+    if isinstance(actor.spec.get(CHOICE), dict) and actor.spec[CHOICE].get("status") == "awaiting_input":
+        raise ValueError("withdraw the existing unpaid Pickup request before a new activation")
+    return _settle(engine, actor, target, held_selection, destination_slot, expiry_choice)
+
+
+def _settle(engine, actor, target, held_selection, destination_slot, expiry_choice, *, request_id=None):
+    import held_equipment as HELD
+    plan = _prepare(engine, actor, target, held_selection, destination_slot)
+    _expiry_decision(engine, plan, expiry_choice)
 
     import frequency as FREQ
     import state_grants as GRANTS
     import turn as TURN
 
     def commit(staged, user, holder):
+        if request_id is not None:
+            row = user.spec.get(CHOICE)
+            if (not isinstance(row, dict) or row.get("id") != request_id
+                    or row.get("status") != "awaiting_input"
+                    or row["basis"] != _choice_basis(staged, user, holder, destination_slot)):
+                raise ValueError("Pickup actual holder decision changed before settlement")
+        elif len(HELD.entries(holder)) > 1:
+            raise ValueError("Pickup needs the actual holder's pending selection")
         key = "ability:" + NAME
         frequency = staged.r.ability_freq.get(NAME)
         if not FREQ.activation_allowed(user, key, frequency, engine=staged):
@@ -232,7 +445,11 @@ def activate(engine, actor, ability, target, *, held_selection=None, destination
             "pickup_item_copy_commit": True,
             "held_selection": held_selection,
             "destination_slot": destination_slot,
+            "pickup_expiry_choice": expiry_choice,
         })
+        if request_id is not None:
+            row.update(status="completed", selection=held_selection,
+                       settled_expiry_choice=deepcopy(expiry_choice), result=deepcopy(result))
         validate_world(staged)
         return result
 
@@ -308,6 +525,7 @@ def _destroy_present(engine, index, instance_id, *, source, fallback_holder_id):
 def end_encounter(engine, actors=None):
     """Expire every live copy and apply the unconsumed-consumable exception."""
     import world_entities as WORLD
+    import equipment_protection as PROTECTION
 
     index = WORLD.actor_index(engine, () if actors is None else actors)
     validate_world(engine, index)
@@ -318,13 +536,20 @@ def end_encounter(engine, actors=None):
             copy_lifecycle = WORLD.physical_lifecycle(copy)
             original = engine._physical_objects[record["original_instance_id"]]
             original_lifecycle = WORLD.physical_lifecycle(original)
+            original_protection = None
             if not copy_lifecycle["consumed"] and not copy_lifecycle["destroyed"]:
                 _preflight_terminal(engine, index, copy["id"], record["user_id"])
-            if (record["consumable"] and not copy_lifecycle["consumed"]
+            original_due = record["consumable"] and (
+                _expiry_name(engine, record) == "original_unconsumed" or not copy_lifecycle["consumed"])
+            if (original_due
                     and not original_lifecycle["consumed"] and not original_lifecycle["destroyed"]):
-                _preflight_terminal(engine, index, original["id"], record["target_id"])
-            plans.append((user, record, copy_lifecycle))
-    for user, record, copy_lifecycle in plans:
+                holder, equipment = _registered_holder(index, original["id"])
+                if equipment is not None:
+                    original_protection = PROTECTION.status(engine, holder, equipment, 'destroy')
+                if original_protection is None or original_protection['status']=='allowed':
+                    _preflight_terminal(engine, index, original["id"], record["target_id"])
+            plans.append((user, record, copy_lifecycle, original_protection, original_due))
+    for user, record, copy_lifecycle, original_protection, original_due in plans:
         copy_status = _destroy_present(
             engine,
             index,
@@ -333,7 +558,9 @@ def end_encounter(engine, actors=None):
             fallback_holder_id=record["user_id"],
         )
         original_status = "retained"
-        if record["consumable"] and not copy_lifecycle["consumed"]:
+        if original_protection is not None and original_protection['status']!='allowed':
+            original_status = "retained_protected"
+        elif original_due:
             original_status = _destroy_present(
                 engine,
                 index,
@@ -353,8 +580,11 @@ def end_encounter(engine, actors=None):
     for user in index.values():
         if ACTIVE in user.spec:
             user.spec[ACTIVE] = []
+        choice = user.spec.get(CHOICE)
+        if isinstance(choice, dict) and choice.get("status") == "awaiting_input":
+            choice.update(status="cancelled", cancellation="encounter_end_before_activation")
     validate_world(engine, index)
-    return [deepcopy(record) for _, record, _ in plans]
+    return [deepcopy(record) for _, record, _, _, _ in plans]
 
 
 def _validate_record(engine, index, user, record, *, active):
@@ -393,6 +623,10 @@ def _validate_record(engine, index, user, record, *, active):
     }
     if not isinstance(link, dict) or any(link.get(key) != value for key, value in expected.items()):
         raise ValueError("Pickup physical copy has a broken original-instance link")
+    if (("expiry_decision" in link) != ("expiry_decision" in record)
+            or link.get("expiry_decision") != record.get("expiry_decision")):
+        raise ValueError("Pickup physical copy lost its producing expiry decision")
+    _expiry_name(engine, record)
     if record["consumable"] != _is_consumable(engine.r, record["item_id"]):
         raise ValueError("Pickup consumable classification changed")
     WORLD.physical_lifecycle(copy)
@@ -415,6 +649,23 @@ def validate_world(engine, index=None):
     index = WORLD.actor_index(engine) if index is None else index
     copy_ids = set()
     for user in index.values():
+        choice = user.spec.get(CHOICE)
+        if choice is not None:
+            if (not isinstance(choice, dict) or choice.get("user_id") != user.entity_id
+                    or choice.get("target_id") not in index
+                    or choice.get("status") not in ("awaiting_input", "completed", "cancelled")
+                    or not isinstance(choice.get("basis"), dict)
+                    or choice["basis"].get("source") != EXPIRY_SOURCE
+                    or choice["basis"].get("user_id") != user.entity_id
+                    or choice["basis"].get("target_id") != choice["target_id"]
+                    or choice.get("request_sequence") != C.integer(user.spec.get(CHOICE_SEQUENCE), "Pickup held request sequence", 1)
+                    or choice.get("id") != "pickup-held-choice:" + user.entity_id + ":" + str(choice["request_sequence"])):
+                raise ValueError("Pickup unpaid request needs its actual owner/source/held basis")
+            if choice["status"] == "completed" and (
+                    not isinstance(choice.get("result"), dict)
+                    or choice["result"].get("copy_instance_id") != "pickup-copy:" + user.entity_id + ":"
+                       + str(C.integer(choice["basis"].get("sequence"), "Pickup request copy sequence", 0) + 1)):
+                raise ValueError("Pickup completed holder decision needs its actual issued copy")
         active = _records(user, ACTIVE)
         history = _records(user, HISTORY)
         sequence = C.integer(user.spec.get(SEQUENCE, 0), "Pickup copy sequence", 0)

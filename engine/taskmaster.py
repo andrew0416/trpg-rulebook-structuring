@@ -323,7 +323,7 @@ def press(engine,owner,target,*,stats,obedience=False,whip=None):
             for stat in stats:e.change_stage(pupil,stat,1)
             if obedience:
                 TIMING.install(e,trainer,{'source':PRESS_ACTION,'press_target':pupil.entity_id,
-                    'press_obedience':S.rank(e.r,trainer,'협박')[2]//2,'round_end_deadline':e.round_no})
+                    'press_obedience':S.effective_rank(e.r,trainer,'협박')//2,'round_end_deadline':e.round_no})
             if whip is not None and whip.get('order') is not None:
                 order=whip['order'];feature=order if isinstance(order,str) else order['feature']
                 if feature not in e.r.selection.units:feature=e.r.selection.resolve_name(feature,('feat/',))
@@ -369,11 +369,14 @@ def cruelty_definition(rules):
         'lifetime':{'boundary':'explicit_healing_block_end','ends_on':['replacement','breather','encounter_end']}}
 
 
+def _side(actor):return getattr(actor,'side',None)
+
+
 def prepare_gambit(engine,attacker,target,move):
     """Native selected target occurrence, before its accuracy is resolved."""
     if getattr(engine,'_taskmaster_gambit',None) is not None:return
     import weapon_actions as WEAPONS,world_entities as W,frequency as F,action_lifecycle as ACTION
-    if target.kind!='pokemon' or target.fainted or attacker.side==target.side or move['class'] not in ('물리','특수'):
+    if target.kind!='pokemon' or target.fainted or _side(attacker) is None or _side(target) is None or _side(attacker)==_side(target) or move['class'] not in ('물리','특수'):
         return
     if WEAPONS.range_spec(engine,move,attacker).get('origin')!='melee':return
     owner=W.actor_index(engine).get(target.spec.get('trainer_id'))
@@ -508,7 +511,7 @@ def defer_faint(engine,actor):
 
 def after_attack(engine,attacker,target,move,*,critical,damage):
     """Actual damaging hit only. Choices spend virtual injury budget, never injuries."""
-    if move.get('class') not in ('물리','특수') or attacker.side==target.side:return
+    if move.get('class') not in ('물리','특수') or _side(attacker) is None or _side(target) is None or _side(attacker)==_side(target):return
     import frequency as F,world_entities as W,action_lifecycle as ACTION,turn as TURN
     import ability_transitions as ABILITIES
     owner=W.actor_index(engine).get(attacker.spec.get('trainer_id'))

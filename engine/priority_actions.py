@@ -136,6 +136,8 @@ def _prepare(engine, actor, target, move_id, trainer, stat_trainer=None, chronic
     WORLD.require_actors(engine, trainer)
     if trainer.kind != 'trainer':
         raise ValueError('Shocking Speed requires its actual trainer feature owner')
+    if WORLD.identity_field(engine, actor, 'owner_id') != trainer.entity_id:
+        raise ValueError('Shocking Speed requires the feature owner\'s actual owned Pokemon')
     _feature(trainer, SHOCKING, ('쇼킹 스피드', 'Shocking Speed'))
     _feature(trainer, 'feat/락다운', ('락다운', 'Lockdown'))
     import class_passive_combat as CLASSES

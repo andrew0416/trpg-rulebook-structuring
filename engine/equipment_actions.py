@@ -269,6 +269,7 @@ def offer_reaction(e,actor,event,target,source):
     if not isinstance(move,dict) or move.get("id") not in e.r.moves:return None
     if source=="ability/나쁜손버릇" and "근접" not in str(move.get("range","")):return None
     if source=="ability/매지션":
+        if target is actor or getattr(actor,"side",None) is None or getattr(target,"side",None) is None or actor.side==target.side:return None
         actual=move.get("_actual_targets")
         if actual is None or len(actual)!=1 or actual[0] is not target or move.get("class") not in ("물리","특수"):return None
         # A one-victim area move is still not a single-target attack.

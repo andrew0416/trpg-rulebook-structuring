@@ -16,6 +16,10 @@ MEDICINE='ch09-equipment/모험-도구/약'
 FOOD='ch09-equipment/모험-도구/음식'
 DRINK_SOURCE='ch09-equipment/모험-도구/음료수'
 GLUTTONY='ability/먹보-playtest'
+CORE_GLUTTONY='ability/먹보'
+CORE_BOUNDARY='core_gluttony_outside_boundary'
+CORE_OBSERVATION='core_gluttony_quota_observation'
+ENCOUNTER_RECEIPT='food_encounter'
 DRINKS={'item/맛있는물':20,'item/나무열매쥬스':30,'item/미네랄사이다':30,'item/후르츠밀크':50,'item/튼튼밀크':80}
 SNACKS={'item/초코바':{'kind':'heal','amount':5},'item/꿀':{'kind':'heal','amount':5},'item/먹다남은음식':{'kind':'turn_heal','denominator':16},'item/검은오물':{'kind':'turn_heal','denominator':8}}
 CHEF_SNACK_IDS=frozenset({'item/짠맛-서프라이즈','item/매운맛-랩','item/신맛-캔디','item/떫은맛-웨이퍼','item/쓴맛-트리트','item/단맛-과자'})
@@ -32,6 +36,61 @@ import resolution_transaction as _FINGERPRINTS
 
 def selected(e,uid):
  if e.r._selected_rule(uid)!=uid:raise ValueError('selected food source needs its own policy')
+
+
+def _refreshment_definitions():
+ common={'action':'extended','outside_combat':True,'limit':1,'gluttony_override':{'limit':2,'seconds':1800}}
+ return {
+  'korean_hour':dict(deepcopy(common),seconds=3600,reference='ch09:218-220',
+   source={'file':'input/ch09-equipment.md','sha256':'b5aeb6b82af4b05fe0b369368f8b0181ed3b1d22079e8a86a1c4248e6cbf92d2'}),
+  'english_half_hour':dict(deepcopy(common),seconds=1800,reference='core-1.05 LF8330-8334',
+   source={'file':'source-audit/core-refreshments.txt','sha256':'15f3771817e6be667c720f43f95d2f581f65c34af3a7e69f2c54c99963126ccf'})}
+
+
+def _refreshment_document(user,target,uid):
+ definitions=_refreshment_definitions()
+ return {'schema':1,'id':'native/ordinary-refreshment-intake','variants':[{
+  'rule_id':DRINK_SOURCE,'source':definitions['korean_hour']['source'],
+  'values':{'variant':{'$input':'source_text'},'definitions':definitions,
+            'basis':{'user_id':user.entity_id,'target_id':target.entity_id,'item':uid}},
+  'inputs':{'source_text':{'type':'string','authority':'gm','decision_kind':'source_conflict',
+   'choices':list(definitions),'question':'Choose the complete Korean one-per-hour or English one-per-half-hour refreshment definition. Both retain actual Extended intake outside combat and the selected Gluttony override.'}}}]}
+
+
+def _refreshment_resolution(e,user,target,uid,choice=None):
+ import source_policy as POLICY
+ import world_entities as WORLD
+ from source_context import verified_source
+ WORLD.require_actors(e,user,target)
+ if uid not in DRINKS:raise ValueError('ordinary refreshment source choice requires an actual drink')
+ selected(e,uid);selected(e,DRINK_SOURCE)
+ result=POLICY.resolve(e.r,_refreshment_document(user,target,uid),
+                       decisions={} if choice is None else {'source_text':choice})
+ if result['status']=='PolicyValuesReady' and result['values']['variant']=='english_half_hour':
+  verified_source(e.r,result['values']['definitions']['english_half_hour']['source'],
+                  source_root='source-audit',label='English ordinary refreshments')
+ return result
+
+
+def refreshment_source_choices(e,user,target,uid):
+ """Pure existing-source-policy query; pass its scoped choice as food_policy."""
+ return _refreshment_resolution(e,user,target,uid)
+
+
+def _refreshment_decision(e,user,target,uid,choice):
+ from source_context import verified_source
+ definitions=_refreshment_definitions()
+ verified_source(e.r,definitions['korean_hour']['source'],label='Korean ordinary refreshments')
+ basis={'user_id':user.entity_id,'target_id':target.entity_id,'item':uid}
+ if choice is None:
+  return {'variant':'korean_hour','definition':definitions['korean_hour'],
+          'authority':'authored_default','basis':basis}
+ result=_refreshment_resolution(e,user,target,uid,choice)
+ if result['status']!='PolicyValuesReady':raise ValueError('complete scoped refreshment source decision required')
+ variant=result['values']['variant']
+ return {'variant':variant,'definition':result['values']['definitions'][variant],
+         'authority':'gm','basis':basis,'choice':deepcopy(choice),'policy':result}
+
 
 def herbal_state(actor):
  state=actor.spec.get('herbal_restoratives')
@@ -82,13 +141,16 @@ def validate_herbal(actor):
  return state
 
 
-def temp_hp_allowed(actor):
- import ability_state_projection as PROJECTION
- if PROJECTION.temp_hp_blocked(actor):return False
+def herbal_gains_allowed(actor):
  state=herbal_state(actor)
  if state['count']<2:return True
  if actor.r._selected_rule(MEDICINE)!=MEDICINE:raise ValueError('selected herbal restriction needs its own policy')
  return False
+
+
+def temp_hp_allowed(actor):
+ import ability_state_projection as PROJECTION
+ return not PROJECTION.temp_hp_blocked(actor) and herbal_gains_allowed(actor)
 
 def gluttony(e,actor):
  return food_limits(e,actor) is not None
@@ -97,6 +159,104 @@ def gluttony(e,actor):
 def food_limits(e,actor):
  import capacity_abilities as CAPACITY_ABILITIES
  return CAPACITY_ABILITIES.food_capacity(e,actor)
+
+
+def _food_receipts(actor):
+ receipts=actor.spec.get('food_consumption_receipts',[])
+ if not isinstance(receipts,list) or any(not isinstance(row,dict) for row in receipts):raise ValueError('actual food consumption receipts required')
+ for sequence,row in enumerate(receipts,1):
+  C.integer(row.get('sequence'),'actual food receipt sequence',sequence,sequence)
+ return receipts
+
+
+def _quota_eligible(record):
+ capacity=record.get(INSTANCES.KEY,{}).get('capacity',ordinary_capacity())
+ return not capacity.get('scene_usage_exempt',False) and record.get('csv_food_source',{}).get('kind')!='dynamax_mushroom'
+
+
+def _receipt_prefix(receipts,count):
+ import root_resolution as ROOT
+ C.integer(count,'observed food receipt prefix',0,len(receipts))
+ return ROOT.fingerprint(receipts[:count])
+
+
+def core_lesson_boundary(e,actor,source_id):
+ """A completed outside lesson observes a prefix; it does not assign old encounter membership."""
+ import state_grants as GRANTS
+ source=actor.spec[GRANTS.KEY]['sources'][source_id]
+ lesson=source.get('ability_lesson',{})
+ if e.encounter_active or lesson.get('ability_id')!=CORE_GLUTTONY or lesson.get('completed_at')!=e.elapsed_seconds:
+  raise ValueError('actual completed outside core Gluttony lesson required')
+ receipts=_food_receipts(actor)
+ actor.spec[CORE_BOUNDARY]={'source':CORE_GLUTTONY,'actor_id':actor.entity_id,
+  'encounter_epoch':C.integer(getattr(e,'_party_encounter_epoch',0),'actual outside encounter epoch',0),
+  'through_sequence':len(receipts),'receipts_fingerprint':_receipt_prefix(receipts,len(receipts)),
+  'ability_source_id':source_id,'job_id':lesson['job_id'],'at':e.elapsed_seconds}
+
+
+def _core_usage(e,actor):
+ """Count all actual current exchanges, including those made while this Ability was absent."""
+ epoch=C.integer(getattr(e,'_party_encounter_epoch',0),'actual encounter epoch',1)
+ receipts=_food_receipts(actor);known=[];unknown=[]
+ for index,row in enumerate(receipts,1):
+  stamp=row.get(ENCOUNTER_RECEIPT)
+  if ENCOUNTER_RECEIPT not in row:
+   if _quota_eligible(row):unknown.append(index)
+   continue
+  if (not isinstance(stamp,dict) or set(stamp)!={'actor_id','encounter_epoch','eligible'}
+      or stamp['actor_id']!=actor.entity_id or type(stamp['eligible']) is not bool
+      or stamp['eligible']!=_quota_eligible(row)):
+   raise ValueError('actual typed food encounter receipt required')
+  if stamp['encounter_epoch'] is not None:C.integer(stamp['encounter_epoch'],'food exchange encounter epoch',1,epoch)
+  if stamp['encounter_epoch']==epoch and stamp['eligible']:known.append(index)
+ boundary=actor.spec.get(CORE_BOUNDARY)
+ boundary_epoch=C.integer(boundary.get('encounter_epoch'),'outside lesson encounter boundary',0,epoch) if isinstance(boundary,dict) else epoch
+ if isinstance(boundary,dict) and boundary_epoch<epoch:
+  count=boundary.get('through_sequence')
+  if (boundary.get('source')!=CORE_GLUTTONY or boundary.get('actor_id')!=actor.entity_id
+      or boundary.get('receipts_fingerprint')!=_receipt_prefix(receipts,count)
+      or not all(isinstance(boundary.get(key),str) and boundary[key] for key in ('ability_source_id','job_id'))):
+   raise ValueError('actual outside core lesson receipt prefix changed')
+  unknown=[index for index in unknown if index>count]
+ observation=actor.spec.get(CORE_OBSERVATION)
+ if isinstance(observation,dict):
+  import capacity_abilities as CAPACITY
+  observed_epoch=C.integer(observation.get('encounter_epoch'),'observed actual encounter epoch',1,epoch)
+  count=observation.get('through_sequence');used=C.integer(observation.get('used'),'observed core food exchanges',0,3)
+  if (observation.get('source')!=CORE_GLUTTONY or observation.get('source_reference')!=CAPACITY.CORE_SOURCE
+      or observation.get('actor_id')!=actor.entity_id
+      or observation.get('receipts_fingerprint')!=_receipt_prefix(receipts,count)
+      or not isinstance(observation.get('reason'),str) or not observation['reason'].strip()
+      or used<sum(row.get(ENCOUNTER_RECEIPT,{}).get('encounter_epoch')==observed_epoch
+                  and _quota_eligible(row) for row in receipts[:count])):
+   raise ValueError('actual current core Gluttony quota observation changed')
+  if observed_epoch==epoch:
+   return used+len([index for index in known if index>count]),any(index>count for index in unknown)
+  # The old observation proves only that this prefix predates the later real encounter.
+  unknown=[index for index in unknown if index>count]
+ return len(known),bool(unknown)
+
+
+def observe_core_gluttony_quota(e,actor,*,used,reason):
+ """Record a present GM fact only when old receipts cannot prove current encounter membership."""
+ import world_entities as WORLD,state_grants as GRANTS,capacity_abilities as CAPACITY
+ WORLD.require_actors(e,actor)
+ C.integer(used,'actual current encounter food exchanges',0,3)
+ if not isinstance(reason,str) or not reason.strip():raise ValueError('actual current food quota observation reason required')
+ def apply(staged,a):
+  limits=food_limits(staged,a)
+  if not staged.encounter_active or not limits or 'per_encounter' not in limits:
+   raise ValueError('actual active core Gluttony encounter required')
+  known,uncertain=_core_usage(staged,a)
+  if used<known:raise ValueError('current observation cannot refill proven food exchanges')
+  if not uncertain:raise ValueError('current food quota is already proven by native receipts')
+  receipts=_food_receipts(a)
+  record={'source':CORE_GLUTTONY,'source_reference':deepcopy(CAPACITY.CORE_SOURCE),'actor_id':a.entity_id,
+   'encounter_epoch':staged._party_encounter_epoch,'through_sequence':len(receipts),
+   'receipts_fingerprint':_receipt_prefix(receipts,len(receipts)),'used':used,'reason':reason,'at':staged.elapsed_seconds}
+  a.spec[CORE_OBSERVATION]=record
+  return deepcopy(record)
+ return GRANTS.transition(e,actor,apply)
 
 
 def buff_policy(rules):
@@ -282,7 +442,10 @@ def buff_capacity(e,actor):
 def can_gain_buff(e,actor,*,capacity=None):
  INSTANCES.validate_actor(actor)
  occupied=slots(actor);capacity=capacity or ordinary_capacity()
- return temp_hp_allowed(actor) and (capacity['bucket']=='source_exempt' or occupied<buff_capacity(e,actor))
+ if not herbal_gains_allowed(actor):return False
+ if capacity['bucket']=='source_exempt':return True
+ limit=buff_capacity(e,actor)
+ return limit is None or occupied<limit
 
 
 def honey_source(e,actor,uid):
@@ -316,7 +479,7 @@ def consume(e,user,target,uid,*,minutes=None,reason=None,count=1,accepted=True,p
  import clock_invocations as CLOCK
  import csv_item_food_contracts as CSV
  MOVEMENT.boundary(e,'consume_food')
- csv_choice=CSV.intake_choice(e.r,uid,policy)
+ csv_choice=CSV.intake_choice(e.r,uid,None if uid in DRINKS else policy)
  if csv_choice is None:selected(e,uid)
  import chef_cooking as CHEF
  chef_batch=CHEF.batch_for_intake(e,user,uid,chef_batch_id) if chef_batch_id is not None else None
@@ -343,7 +506,7 @@ def consume(e,user,target,uid,*,minutes=None,reason=None,count=1,accepted=True,p
  # Completed requests above remain historical queries, not new intake.
  selected(e,'combat/action-economy')
  P._outside(e)
- if policy is not None and uid!='item/이유식' and csv_choice is None:raise ValueError('exact food source policy required')
+ if policy is not None and uid!='item/이유식' and contract['kind']!='drink' and csv_choice is None:raise ValueError('exact food source policy required')
  if type(accepted) is not bool:raise ValueError('food acceptance must be boolean')
  if not accepted:return {'status':'refused'}
  C.integer(count,'food servings',1,1)
@@ -355,7 +518,13 @@ def consume(e,user,target,uid,*,minutes=None,reason=None,count=1,accepted=True,p
  key=STOCK.prepare(e,user,uid,held_selection=held_selection,container_selection=container_selection,shell_batch_id=shell_batch_id,source_selection=csv_choice,chef_batch_id=chef_batch_id)
  if contract['kind']=='drink':
   selected(e,DRINK_SOURCE);limits=food_limits(e,target)
-  window,limit=(limits['drink_seconds'],limits['drinks']) if limits else (3600,1)
+  decision=_refreshment_decision(e,user,target,uid,policy)
+  definition=decision['definition']
+  window,limit=(limits['drink_seconds'],limits['drinks']) if limits else (definition['seconds'],definition['limit'])
+  effective={'seconds':window,'limit':limit,'source':DRINK_SOURCE}
+  if limits:
+   import capacity_abilities as CAPACITY_ABILITIES
+   effective['source']=CAPACITY_ABILITIES.registration(e.r,limits['name'])['source_id']
   when=e.elapsed_seconds+minutes*60;gap=len(e.unresolved_time_intervals)
   history=target.spec.get('drink_history',[])
   if not isinstance(history,list):raise ValueError('actual drink intake history required')
@@ -363,7 +532,7 @@ def consume(e,user,target,uid,*,minutes=None,reason=None,count=1,accepted=True,p
   recent=HISTORY.select(history,source=DRINK_SOURCE,when=when,seconds=window,gap_count=gap)
   if recent['uncertain']:return C.PendingDecision('unknown elapsed time prevents exact drink-limit decision')
   if recent['count']>=limit:raise ValueError('drink intake limit has not reset')
-  plan=dict(kind='drink',gap_count=gap)
+  plan=dict(kind='drink',gap_count=gap,refreshment_policy={'ordinary':decision,'effective':effective})
  elif contract['kind']=='snack':
   selected(e,FOOD)
   effect=deepcopy(chef_batch['payload']) if chef_batch is not None else CSV.effect(csv_choice) if csv_choice is not None else {'kind':'heal','amount':DRINKS[uid]} if shell_snack else snack_effect(e.r,uid)
@@ -416,6 +585,9 @@ def _finish_intake(e,user,target,plan,payment):
  if kind=='drink':
   record={'item_stock':stock_receipt,'source':DRINK_SOURCE,'item':uid,'at':e.elapsed_seconds,
           'gap_count':plan['gap_count'],'given_by':user.spec.get('id'),'duration_reason':plan['reason']}
+  # The authenticated native plan pins the producing choice.  Do not resolve
+  # against a later profile, or fabricate a choice for an older pending plan.
+  if 'refreshment_policy' in plan:record['refreshment_policy']=deepcopy(plan['refreshment_policy'])
   target.spec.setdefault('drink_history',[]).append(record)
   healed=e.heal(target,DRINKS[uid],source_kind='ordinary_item')
   EXECUTION.finish(user,stock_receipt,target_id=target.entity_id,outcome='applied',
@@ -468,6 +640,7 @@ def get_buff(actor,buff_id):
 
 def consumption_allowed(e,actor,buff):
  selected(e,buff['source'])
+ if e.encounter_active:C.integer(getattr(e,'_party_encounter_epoch',0),'actual food encounter epoch',1)
  import csv_item_food_contracts as CSV
  csv_choice=CSV.validate_native(actor,buff) if CSV.SELECTION in buff else None
  if csv_choice is None:selected(e,buff['item'])
@@ -481,7 +654,13 @@ def consumption_allowed(e,actor,buff):
  if any(x.get('buff_id')==buff['id'] for x in receipts):raise ValueError('Digestion Buff already consumed')
  exempt=buff.get(INSTANCES.KEY,{}).get('capacity',ordinary_capacity()).get('scene_usage_exempt',False)
  limits=food_limits(e,actor)
- if not protected and not exempt and limits and actor.counters.get('lim:food_buff_consumed',0)>=limits['per_scene']:raise ValueError('Gluttony scene Digestion Buff quota reached')
+ if not protected and not exempt and limits:
+  if 'per_encounter' in limits and e.encounter_active:
+   used,uncertain=_core_usage(e,actor)
+   if used>=limits['per_encounter']:raise ValueError('core Gluttony encounter Digestion Buff quota reached')
+   if uncertain:raise ValueError('actual current core Gluttony quota observation required for legacy food receipts')
+  elif 'per_scene' in limits and actor.counters.get('lim:food_buff_consumed',0)>=limits['per_scene']:
+   raise ValueError('Gluttony scene Digestion Buff quota reached')
 
 def consumed_this_scene(e,actor):
  """Read actual exchanges in the existing frequency scene, never a lifetime flag."""
@@ -529,6 +708,9 @@ def remove_buff(e,actor,buff,*,producer='food_action'):
  metadata=INSTANCES.consumed(buff,actor,e.elapsed_seconds)
  if metadata is not None:
   receipt[INSTANCES.KEY]=metadata;receipt['effect_source']=buff['effect_source']
+ receipt[ENCOUNTER_RECEIPT]={'actor_id':actor.entity_id,
+  'encounter_epoch':C.integer(getattr(e,'_party_encounter_epoch',0),'actual food encounter epoch',1) if e.encounter_active else None,
+  'eligible':_quota_eligible(receipt)}
  actor.buffs.remove(buff)
  actor.counters['food_buff_consumed']=actor.counters.get('food_buff_consumed',0)+1
  if not buff.get(INSTANCES.KEY,{}).get('capacity',ordinary_capacity()).get('scene_usage_exempt',False):actor.counters['lim:food_buff_consumed']=actor.counters.get('lim:food_buff_consumed',0)+1
@@ -734,20 +916,25 @@ def _chef_choice(actor,key,trigger,move):
          'benefit_type':payload['benefit']['type']}
 
 
-def chef_attack_preflight(e,attacker,target,move):
+def chef_attack_preflight(e,attacker,target,move,*,temporary_hp_plans=None):
  """Validate both optional selections before damage RNG; mismatched classes stay armed."""
  outgoing=_chef_choice(attacker,CHEF_ATTACK_CHOICE,'attack',move)
  incoming=_chef_choice(target,CHEF_RECEIVED_CHOICE,'received_attack',move)
+ if temporary_hp_plans is None:temporary_hp_plans={}
  for actor,plan in ((attacker,outgoing),(target,incoming)):
   if plan is None:continue
   buff=get_buff(actor,plan['buff_id']);consumption_allowed(e,actor,buff)
   value,disposition=_chef_value(actor,_chef_payload(buff))
   if plan['benefit_type']=='temporary_hp':
-   import actor_templates as TEMPLATES,healing_blocks as HEALING_BLOCKS,temporary_hp as TEMP_HP
+   import temporary_hp as TEMP_HP
    TEMP_HP.ensure_certain(e,actor)
-   if TEMPLATES.soulless(actor) or HEALING_BLOCKS.blocked(actor) or not temp_hp_allowed(actor) or actor.temp_hp>=value:
-    raise ValueError('selected Chef temporary HP cannot currently be gained')
+   plan['blocked_reason']=TEMP_HP.blocked_reason(actor)
   plan.update(value=value,disposition=disposition)
+  import chef_cooking as CHEF
+  grants=[(value,'food')] if plan['benefit_type']=='temporary_hp' else []
+  pending=CHEF.taste_bonus_preflight(e,actor,buff,temporary_hp_grants=grants,
+   temporary_hp_plan=temporary_hp_plans.setdefault(id(actor),{}))
+  if pending is not None:raise ValueError(str(pending))
  return {'outgoing':outgoing,'incoming':incoming}
 
 
@@ -759,7 +946,11 @@ def _chef_commit_one(e,actor,other,move,plan):
           'move_class':move['class'],'other_actor_id':other.entity_id}
  if plan['benefit_type']=='temporary_hp':
   import temporary_hp as TEMP_HP
-  benefit['gained']=TEMP_HP.grant(e,actor,value)
+  receipt['benefit']=benefit
+  benefit['blocked_reason']=TEMP_HP.blocked_reason(actor)
+  benefit['gained']=TEMP_HP.grant(e,actor,value,
+   contribution_source=TEMP_HP.food_source(actor,'food',receipt),
+   provenance={'source':buff['item'],'receipt_sequence':receipt['sequence'],'buff_id':buff['id']})
  rampage=_chef_apply_dislike(e,actor,buff,disposition);benefit['rampage_applied']=rampage
  receipt['benefit']=benefit
  benefit['composite']=_apply_composite_rest(e,actor,buff,receipt,'Chef attack trade-in')
@@ -1023,12 +1214,37 @@ def snack_effect(rules,uid):
  if uid in BERRY_TYPES:return {'kind':'type_resistance','move_type':BERRY_TYPES[uid],'requires_super_effective':uid!='item/카리열매','berry':True}
  return None
 
-def hit_resistance(e,actor,move_type,multiplier,*,attacker):
+def salty_hit_pending(e,actor,*,attacker):
+ if attacker is actor or getattr(attacker,"side",None) is None or getattr(actor,"side",None) is None or attacker.side==actor.side or not actor.spec.get('food_hit_choice'):return False
+ buff=get_buff(actor,actor.spec['food_hit_choice']['buff_id'])
+ if _consumer_effect(buff)['kind']!='type_resistance':return False
+ import chef_cooking as CHEF
+ bonus=CHEF.bonus_plan(e,actor,buff)
+ return bonus is not None and bonus['kind']=='temporary_hp'
+
+
+def _hit_resistance_buff(actor,move_type,multiplier,*,attacker):
  choice=actor.spec.get('food_hit_choice')
- if not choice:return 0
+ if not choice:return None
  buff=get_buff(actor,choice['buff_id']);effect=_consumer_effect(buff)
  if effect['kind']!='type_resistance':raise ValueError('selected hit-trigger buff changed')
- if attacker is actor or move_type!=effect['move_type'] or (effect['requires_super_effective'] and multiplier<=1):return 0
+ if attacker is actor or getattr(attacker,"side",None) is None or getattr(actor,"side",None) is None or attacker.side==actor.side:return None
+ if move_type!=effect['move_type'] or (effect['requires_super_effective'] and multiplier<=1):return None
+ return buff
+
+
+def hit_resistance_preflight(e,actor,move_type,multiplier,*,attacker,temporary_hp_plan):
+ buff=_hit_resistance_buff(actor,move_type,multiplier,attacker=attacker)
+ if buff is None:return
+ consumption_allowed(e,actor,buff)
+ import chef_cooking as CHEF
+ pending=CHEF.taste_bonus_preflight(e,actor,buff,temporary_hp_grants=[],temporary_hp_plan=temporary_hp_plan)
+ if pending is not None:raise ValueError(str(pending))
+
+
+def hit_resistance(e,actor,move_type,multiplier,*,attacker):
+ buff=_hit_resistance_buff(actor,move_type,multiplier,attacker=attacker)
+ if buff is None:return 0
  consumption_allowed(e,actor,buff)
  receipt=remove_buff(e,actor,buff,producer='actual_hit');receipt['benefit']={'move_type':move_type,'resistance_steps':1}
  receipt['benefit']['composite']=_apply_composite_rest(e,actor,buff,receipt,'type Berry hit')

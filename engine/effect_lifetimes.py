@@ -188,6 +188,8 @@ def end_encounter(engine,actors):
    if record.get('effect_contract') and record.get('encounter_end'):
     TIMING.expire(engine,actor,record,
                   event={'kind':'encounter_end'} if 'stat_exchange' in record else None)
+  import ability_transitions as ABILITIES
+  ABILITIES.end(engine,actor,'encounter')
  import ability_native_actions as NATIVE
  NATIVE.end_encounter(engine,actors)
 

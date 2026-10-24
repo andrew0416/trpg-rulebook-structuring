@@ -25,6 +25,16 @@ def definitions(rules):
     result = {}
     expected = {'type':'conditional_combat_stage','weather':'sunny','stat':'spe','delta':4}
     for row in payload['abilities']:
+        if row.get('id') == 'ability/먹보':
+            __import__('capacity_abilities').validate_core_gluttony(rules,row)
+            if row['id'] in result:raise ValueError('duplicate core ability identity')
+            result[row['id']]=row
+            continue
+        if row.get('id') == 'ability/감지':
+            __import__('chronicler').validate_core_perception(rules,row)
+            if row['id'] in result:raise ValueError('duplicate core ability identity')
+            result[row['id']]=row
+            continue
         import martial_artist_ability_identities as MARTIAL
         if row.get('id') in MARTIAL.DERIVED:
             MARTIAL.validate_core_definition(rules,row)

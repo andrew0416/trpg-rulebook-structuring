@@ -33,7 +33,8 @@ class BossTransitionTests(unittest.TestCase):
             action_basis={"pokemon_turns": count - 1, "combat_trainers": 1,
                           "focused_command_extra": 0},
             base_initiative=20, reason="selected boss encounter",
-            transition_effects=effects, capture_level=capture_level)
+            transition_effects=effects, capture_level=capture_level,
+            capture_choices=None if capture_level is None else {'strategy':'balanced','moves':[],'abilities':[]})
 
     def test_party_basis_derives_slots_bars_and_keeps_selected_baseline(self):
         view = self.configure(count=5)
@@ -93,7 +94,7 @@ class BossTransitionTests(unittest.TestCase):
         self.assertEqual((view["remaining_bars"], self.p.hp, self.p.injuries),
                          (3, first_capacity, 0))
         self.assertEqual(view["bar_transition_receipts"][-1]["discarded_overflow"], 5)
-        self.assertNotIn(locked_move, self.p.move_uses)
+        self.assertEqual(self.p.move_uses[locked_move],0)
         self.assertEqual(self.p.stages["spa"], 1)
         B.start_turn(self.e, self.p, 20)
         self.assertFalse(B.action_permission(self.p))

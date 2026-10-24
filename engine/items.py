@@ -179,10 +179,15 @@ def register_item(engine, c, item_name=None, *, source_instance_id=None, as_held
         if isinstance(effect,dict) and effect.get("type")=="grant_move":GRANTS.move_grants(engine.r,effect)
         if isinstance(effect,dict) and effect.get("type")=="grant_ability":GRANTS.ability_grant(engine.r,effect)
         if isinstance(effect,dict) and effect.get("type")=="grant_capability":GRANTS.capability_values(effect.get("capability"))
-    reg = c.__dict__.setdefault("_item_reg", {})
+    reg = getattr(c, "_item_reg", {})
     is_held=projection is None and (c.kind=="pokemon" or as_held or held_slot is not None or any(x['name']==name for x in HELD.entries(c)))
     held=HELD.prepare(c,name,canonical_id,source_instance_id,held_slot) if is_held else None
     if held and held.get('registration_key') in reg:return 0
+    if held and c.kind == "pokemon" and FASHIONISTA.chic(c) is not None:
+        carried = FASHIONISTA.wardrobe_items(engine, c)
+        if any(entry is held for entry in HELD.entries(c)):
+            carried.remove(held.get('item_id') or engine.r.item_effects(held['name'])[1].get('id'))
+        FASHIONISTA._wardrobe_constraints(engine, c, [*carried, canonical_id])
     duplicate=[r for r in reg.values() if r.get("item_id")==canonical_id]
     if duplicate and not is_held:return 0
     registration_key=projection['registration_key'] if projection is not None else name if name not in reg else "slot:"+held['slot_id']
@@ -207,6 +212,7 @@ def register_item(engine, c, item_name=None, *, source_instance_id=None, as_held
             if slots is None:
                 engine.log(f"  {c.name}: 장비 슬롯이 이미 사용 중 → {name} 등록 거부", "ch09/장비")
                 return 0
+    reg = c.__dict__.setdefault("_item_reg", {})
     if projection is not None:
         source_id = projection["source_id"]
         GRANTS._source(c, source_id, "item", owner_id=projection["owner_id"], lifetime=projection["lifetime"], rule_id=canonical_id, tutor_points=0,
@@ -488,16 +494,16 @@ def passive_effect_allowed(engine, actor, effect):
 
 
 # ---------- 소모 아이템 ----------
-def use_item(engine, user, item_name, target=None, free=False, accepted=True, *, duration_minutes=None, duration_reason=None, count=1, food_policy=None, selected_move=None, selected_stat=None, owner_consent_by=None, held_selection=None, container_selection=None, shell_batch_id=None, fixed_accuracy=None, resumable=False, request_id=None, aim=None):
+def use_item(engine, user, item_name, target=None, free=False, accepted=True, *, duration_minutes=None, duration_reason=None, count=1, food_policy=None, selected_move=None, selected_stat=None, owner_consent_by=None, held_selection=None, container_selection=None, shell_batch_id=None, fixed_accuracy=None, resumable=False, request_id=None, aim=None, medicine_source_choice=None):
     """약·음식·열매·영양제를 대상에게 사용. 기본 행동(free=False 면 행동 예산 소비). 반환 (실행 수, 보류 수) 또는 None(DB 없음)."""
     import consumable_use as USE
     return USE.dispatch(engine,user,item_name,target,free=free,accepted=accepted,
         duration_minutes=duration_minutes,duration_reason=duration_reason,count=count,
-        food_policy=food_policy,selected_move=selected_move,selected_stat=selected_stat,owner_consent_by=owner_consent_by,held_selection=held_selection, container_selection=container_selection, shell_batch_id=shell_batch_id, fixed_accuracy=fixed_accuracy,resumable=resumable,request_id=request_id,aim=aim)
+        food_policy=food_policy,selected_move=selected_move,selected_stat=selected_stat,owner_consent_by=owner_consent_by,held_selection=held_selection, container_selection=container_selection, shell_batch_id=shell_batch_id, fixed_accuracy=fixed_accuracy,resumable=resumable,request_id=request_id,aim=aim,medicine_source_choice=medicine_source_choice)
 
 
 def _use_immediate_item(engine,user,item_name,target,*,free=False,accepted=True,
-                        duration_minutes=None,duration_reason=None,count=1,held_selection=None):
+                        duration_minutes=None,duration_reason=None,count=1,held_selection=None,medicine_source_choice=None):
     """Immediate source adapter; public use/selection belongs to consumable_use."""
     import food_effects as FOOD,turn as TURN
     effs,header=engine.r.item_effects(item_name)
@@ -532,9 +538,9 @@ def _use_immediate_item(engine,user,item_name,target,*,free=False,accepted=True,
     medic = RESTORATIVE.medic(engine,user,target) if (is_x or is_restorative) else False
     import action_lifecycle as ACTION
     import native_rule_policy as POLICY
-    policy = POLICY.evaluate(engine.r,'medicine',dict(self_use=target is user,restorative=is_restorative,medic=medic)) if (is_restorative or is_x) else None
+    policy = POLICY.evaluate(engine.r,'medicine',dict(self_use=target is user,restorative=is_restorative,medic=medic),medicine_source_choice=medicine_source_choice) if (is_restorative or is_x) else None
     import action_resources as RESOURCES
-    recipient_debt = policy['values']['debt'] if policy else None
+    recipient_debt = policy['values']['debt'] if policy and engine.encounter_active else None
     if recipient_debt is not None:RESOURCES.plan_debt(target,recipient_debt)
     kind = "free" if free else policy['values']['action'] if policy else "standard"
     if free and engine.encounter_active:
@@ -548,19 +554,23 @@ def _use_immediate_item(engine,user,item_name,target,*,free=False,accepted=True,
     FX.preflight_effects(engine,user,target,effs,header['id'],consumer='items.use_item')
     def pay(e,c):
         if not TURN.spend(e,c,kind,item_name,sleep_cure=sleep_cure):return False
-        STOCK.debit(e,c,stock)
+        receipt=STOCK.debit(e,c,stock)
+        if policy:
+            receipt['medicine_policy']={'source_variant':policy['source_variant'],'source_policy':deepcopy(policy['source_policy']),
+                'values':deepcopy(policy['values']),'encounter_active':e.encounter_active}
         return True
     # Stage only payment and physical membership, before any healing/cure event.
     # Effects below retain their ordinary observed-event behavior.
     paid = GRANTS.transition(engine,user,pay) if held_selection is not None else pay(engine,user)
     if not paid:return (0,0)
     engine.log(f"  {user.name}이(가) {target.name}에게 {item_name} 사용 ({header.get('category')})", f"item/{item_name}")
-    if policy and not (is_restorative and target is user):
+    if engine.encounter_active and policy and not (is_restorative and target is user):
         if policy['values']['debt'] is None:
             engine.log(f"    메딕 훈련: {target.name}은(는) 행동을 잃지 않음", "edge/메딕-훈련")
         else:
             RESOURCES.schedule(target,recipient_debt)
-            engine.log(f"    {target.name}은(는) 다음 기본 행동과 신속 행동을 잃음 (ch09 아이템 사용)", "ch09/아이템-사용")
+            lost='신속' if 'swift' in recipient_debt else '이동'
+            engine.log(f"    {target.name}은(는) 다음 기본 행동과 {lost} 행동을 잃음 (아이템 사용)", "ch09/아이템-사용")
     if is_x and RESTORATIVE.special_apply(engine,target,header['id']):return (1,0)
     ctx = {"attacker": user, "target": target, "hit": True, "nat": None, "engine": engine, "who": target}
     run = []
@@ -714,6 +724,8 @@ def _static_feature(header, manual, action):
 
 def _generic_feature_reserved(engine, owner, name):
     """Pure routing query; never run acquisition adapters to discover ownership."""
+    import native_switch_transfer as SWITCH
+    if SWITCH.identity(name) is not None:return True
     import directive_features as DIRECTIVES, class_move_grants as CLASS_MOVES
     import acquired_feature_projections as ACQUIRED, feature_ability_grants as ABILITIES
     import scene_feature_ability_grants as SCENE, feature_ability_lessons as LESSONS
@@ -822,6 +834,8 @@ def register_feats(engine, c, pokemon=None):
     pokemon = pokemon or [p for p in (engine.everyone or []) if p is not c and p.kind == "pokemon" and p.spec.get("trainer") == c.name]
     total = acquired_projection_count + feature_ability_count + scene_ability_count + static_modifier_count + static_feature_count
     for name in names:
+        import native_switch_transfer as SWITCH
+        if SWITCH.identity(name) is not None:continue
         if DIRECTIVES.identity(name) is not None:continue
         if (CLASS_MOVES.identity(engine.r,name) is not None
                 or ACQUIRED_PROJECTIONS.identity(engine.r,name) is not None
@@ -905,15 +919,22 @@ def register_feats(engine, c, pokemon=None):
     return total
 
 
-def manual_feat(engine, c, name, target=None, *, adjustment=None):
+def manual_feat(engine, c, name, target=None, *, adjustment=None, communication=None):
     """GM 이 발동조건을 수동으로 인정한 재주를 실행 (발동조건 파서가 못 읽은 것)."""
+    import native_switch_transfer as SWITCH
+    if SWITCH.identity(name) is not None:
+        if adjustment is not None or communication is not None:raise ValueError('switch Feature requires its actual trigger and replacement choice')
+        return SWITCH.activate(engine,c,name,target)
     import mindlock as MINDLOCK
+    import directive_features as DIRECTIVES,combat_precision_features as CPF,training_features as TRAINING
+    if communication is not None and not (DIRECTIVES.identity(name) is not None or CPF.identity(name)==CPF.PINPOINT or TRAINING.identity(name) is not None):
+        raise ValueError('established communication requires a supported native Order adapter')
     if name in MINDLOCK.WARNING_NAMES:
         if adjustment is not None:raise ValueError('Warning has no directive adjustment')
         return MINDLOCK.warning(engine,c,target)
     import directive_features as DIRECTIVES
     if DIRECTIVES.identity(name) is not None:
-        return DIRECTIVES.activate(engine, c, target, adjustment=adjustment)
+        return DIRECTIVES.activate(engine, c, target, adjustment=adjustment, communication=communication)
     if adjustment is not None:
         raise ValueError("adjustment belongs only to an explicit directive choice")
     import conquerors_march as MARCH
@@ -925,9 +946,9 @@ def manual_feat(engine, c, name, target=None, *, adjustment=None):
     if ABILITY_LESSONS.identity(engine.r,name) is not None:
         raise ValueError("Ability teaching requires explicit choice, duration and payment through teach_feature_ability")
     import combat_precision_features as CPF
-    if CPF.identity(name)==CPF.PINPOINT:return CPF.activate(engine,c,target,source=name)
+    if CPF.identity(name)==CPF.PINPOINT:return CPF.activate(engine,c,target,source=name,communication=communication)
     import training_features as TRAINING
-    if TRAINING.identity(name) is not None:return TRAINING.orders(engine,c,name,target)
+    if TRAINING.identity(name) is not None:return TRAINING.orders(engine,c,name,target,communication=communication)
     import turn as TURN
     if not TURN.can_act(engine, c):
         return (0, 1)

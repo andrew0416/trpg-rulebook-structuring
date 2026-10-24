@@ -39,14 +39,17 @@ def declaration(value):
     if frequency['kind']=='turn':Q._text(frequency['turn_owner_id'])
     retry=value['retry']
     if retry is not None:
+        if type(retry) is not dict:raise ValueError('explicit communication retry policy required')
         Q._fields(retry,('period','scope','maximum_failures','delay_seconds',*(('failure_reasons',) if 'failure_reasons' in retry else ()),*(('penalty',) if 'penalty' in retry else ())))
         if retry['period'] not in PERIODS or retry['scope'] not in ('pair','sender','recipient'):raise ValueError('explicit retry unit required')
         if retry['maximum_failures'] is not None:C.integer(retry['maximum_failures'],'failure maximum',1)
         C.integer(retry['delay_seconds'],'retry delay',0)
         if 'failure_reasons' in retry:O._names(retry['failure_reasons'])
         if 'penalty' in retry:
-            Q._fields(retry['penalty'],('modifier','seconds'))
+            if type(retry['penalty']) is not dict:raise ValueError('explicit retry penalty policy required')
+            Q._fields(retry['penalty'],('modifier','seconds',*(('stacking',) if 'stacking' in retry['penalty'] else ())))
             C.integer(retry['penalty']['modifier'],'retry check penalty',maximum=-1);C.integer(retry['penalty']['seconds'],'retry penalty window',1)
+            if retry['penalty'].get('stacking','single') not in ('single','cumulative'):raise ValueError('explicit supported retry penalty stacking required')
     if type(value['distance_exceptions']) is not list:raise ValueError('explicit relationship distance exceptions required')
     for relation in value['distance_exceptions']:
         if type(relation) is not dict:raise ValueError('actual distance relationship declaration required')
@@ -252,6 +255,7 @@ def send(engine,sender,recipient,value,thought,*,request_id,roll_options=None,op
     validate_world(engine,W.actor_index(engine));body=_body(value)
     intent={'sender_id':sender.entity_id,'recipient_id':recipient.entity_id,'policy':body,'text':thought,'roll_options':options}
     if native is not None:intent['operation']=operation
+    if native is not None:intent=native.replay_intent(engine,intent,_state(engine)['requests'].get(request_id),'policy')
     prior=TX.replay_result(_state(engine)['requests'],request_id,intent,fingerprint_field='intent')
     if prior is not None:return dict(deepcopy(prior['result']),replayed=True)
     if native is not None:native.prepare(engine,sender,recipient,value,operation,thought)
@@ -260,13 +264,15 @@ def send(engine,sender,recipient,value,thought,*,request_id,roll_options=None,op
     def apply(e,c,other):
         validate_world(e,W.actor_index(e));_qualify(e,c,value);state=_state(e);source=value['source'];policy=state['policies'].get(source)
         signature=TX.request_fingerprint(body)
-        if policy is not None and policy['sha256']!=signature:raise ValueError('communication source policy cannot change with declaration or request identity')
+        if policy is not None and policy['sha256']!=signature and not (native is not None and native.accepts_stored_policy(e.r,policy['declaration'])):raise ValueError('communication source policy cannot change with declaration or request identity')
         state['policies'].setdefault(source,{'declaration':body,'sha256':signature});setattr(e,KEY,state);boundary(e,'reconcile')
         period=None if value['retry'] is None else _period(e,c,other,value['retry'])
         failures=[] if value['retry'] is None else _failures(state,c,other,value,period)
         retry=value['retry'];reason=None;consumed=False;check=None;exemption=None;message=None;event=None;modifier=0
         penalty=None if retry is None else retry.get('penalty')
-        if penalty is not None and any(e.elapsed_seconds<row['at']+penalty['seconds'] for row in failures):modifier=penalty['modifier']
+        if penalty is not None:
+            active=sum(e.elapsed_seconds<row['at']+penalty['seconds'] for row in failures)
+            modifier=penalty['modifier']*(active if penalty.get('stacking','single')=='cumulative' else bool(active))
         if retry is not None and retry['maximum_failures'] is not None and len(failures)>=retry['maximum_failures']:reason='retry_exhausted'
         elif failures and e.elapsed_seconds<failures[-1]['at']+retry['delay_seconds']:reason='retry_wait'
         elif not F.activation_allowed(c,'communication:'+source,value['frequency'],engine=e):reason='frequency_exhausted'
@@ -326,11 +332,12 @@ def send_many(engine,sender,recipients,value,thought,*,request_id,maximum,roll_o
     validate_world(engine,W.actor_index(engine))
     options={} if roll_options is None else deepcopy(roll_options)
     intent={'source':_body(value),'sender_id':sender.entity_id,'recipient_ids':ids,'text':thought,'roll_options':options}
+    native=_native(value)
+    if native is not None:intent=native.replay_intent(engine,intent,_state(engine).get('batches',{}).get(request_id),'source')
     prior=TX.replay_result(_state(engine).get('batches',{}),request_id,intent,fingerprint_field='intent')
     if prior is not None:return dict(deepcopy(prior['result']),replayed=True)
     C.integer(maximum,'actual communication recipient maximum',0)
     if len(ids)>maximum:raise ValueError('actual communication recipient count exceeds the source maximum')
-    native=_native(value)
     if native is not None:
         for other in recipients:native.prepare(engine,sender,other,value,'send',thought)
     def apply(e,c,*others):
@@ -385,7 +392,7 @@ def validate_world(engine,index):
         if value['source']!=source or row['sha256']!=TX.request_fingerprint(row['declaration']):raise ValueError('communication source policy changed')
         Q._selected(engine,source)
         native=_native(value)
-        if native is not None and _body(native.policy(engine.r)['declaration'])!=row['declaration']:raise ValueError('native communication source contract changed')
+        if native is not None and not native.accepts_stored_policy(engine.r,row['declaration']):raise ValueError('native communication source contract changed')
     for field in ('permissions','relations','connections','attempts'):
         rows=state[field].items() if type(state[field]) is dict else enumerate(state[field])
         for key,row in rows:

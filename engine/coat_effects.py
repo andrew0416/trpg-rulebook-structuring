@@ -46,7 +46,9 @@ def _transfer_events(record):
 
 def _validate_transfer_history(record):
  for event in _transfer_events(record):
-  if event.get('source')!=BATON:raise ValueError('Coat ownership can transfer only through Baton Pass')
+  if event.get('source') not in (BATON,'feat/태그-인'):raise ValueError('Coat ownership requires Baton Pass or actual Tag In')
+  if event['source']=='feat/태그-인' and not {'recall_id','trainer_id','from_turn','to_turn'}<=set(event):
+   raise ValueError('Tag In Coat handoff requires complete native recall proof')
 
 
 def live(actor):
@@ -67,7 +69,10 @@ def validate_record(actor,record,*,terminal=False):
   return DAMAGE_COATS.validate_record(actor,record,terminal=terminal)
  E.validate(record,actor=actor,terminal=terminal)
  row=definition(actor.r,record['source'])
- if row is None or not same(record['effect'],row['payload']):raise ValueError('coat payload differs from its selected source')
+ # Pre-repair Ingrain saves retain their payload and observed past healing.
+ legacy=(row is not None and record['source']=='move/뿌리박기' and row['payload'].get('healing_basis')=='base_max_hp'
+         and same(record['effect'],dict(row['payload'],healing_basis='current_max_hp')))
+ if row is None or not (same(record['effect'],row['payload']) or legacy):raise ValueError('coat payload differs from its selected source')
  meta=record[E.KEY]
  if meta['kind']!=KIND or meta['capacity']!={'bucket':'source_coat','source':record['source']}:raise ValueError('coat capacity authority changed')
  if meta['lifetime']!={'boundary':row['lifetime']}:raise ValueError('coat cannot invent a turn or Scene expiry')
@@ -142,24 +147,45 @@ def preflight_transfer(engine,actor,source):
  owner=actor.spec.get('trainer_id')
  if actor.kind!='pokemon' or replacement.kind!='pokemon' or not owner or replacement.spec.get('trainer_id')!=owner or actor.side!=replacement.side:raise ValueError('selected replacement is not the same Trainer owned Pokemon')
  if not actor.on_field or actor.fainted or actor.captured or replacement.on_field or replacement.fainted or replacement.captured or replacement.dead:raise ValueError('selected replacement is no longer available')
+ preflight_handoff(actor,replacement)
+ return replacement
+
+
+def preflight_handoff(actor,replacement):
  if any(not isinstance(r,dict) or E.KEY not in r for r in actor.coats):raise ValueError('legacy Coat cannot transfer without source identity')
  validate_actor(actor);validate_actor(replacement)
  incoming={r['source'] for r in live(actor)};existing={r['source'] for r in live(replacement)}
  if incoming&existing:raise ValueError('Baton Pass would create unresolved same-source Coat composition')
- return replacement
+
+
+def transfer_to(engine,actor,replacement,*,source,recall_id=None):
+ if source not in (BATON,'feat/태그-인'):raise ValueError('source-owned Coat transfer required')
+ if source=='feat/태그-인':E.text(recall_id,'actual Tag In recall')
+ preflight_handoff(actor,replacement)
+ moved=list(live(actor))
+ if source=='feat/태그-인':
+  from native_order_transfer import require_switch_proof
+  event={'source':source,'at':engine.elapsed_seconds,'recall_id':recall_id,
+         'trainer_id':actor.spec['trainer_id'],'from_id':actor.entity_id,'to_id':replacement.entity_id,
+         'from_turn':serial(actor),'to_turn':serial(replacement)}
+  for record in moved:require_switch_proof(engine,event,record['id'],kind='coats')
+ for record in moved:
+  E.transfer(engine,actor,replacement,record,source=source)
+  if recall_id is not None:
+   record[E.KEY]['ownership'][-1].update(recall_id=recall_id,trainer_id=actor.spec['trainer_id'],
+       from_turn=actor.custom_conditions.get('combat_turn_serial',0),
+       to_turn=replacement.custom_conditions.get('combat_turn_serial',0))
+  record['issued_turn']=serial(replacement)
+  actor.coats.remove(record);replacement.coats.append(record)
+ validate_actor(actor);validate_actor(replacement)
+ return [r['id'] for r in moved]
 
 
 def transfer(engine,actor,source):
  replacement=preflight_transfer(engine,actor,source)
- moved=list(live(actor))
- for record in moved:
-  E.transfer(engine,actor,replacement,record,source=source)
-  record['issued_turn']=serial(replacement)
-  actor.coats.remove(record);replacement.coats.append(record)
+ transfer_to(engine,actor,replacement,source=source)
  actor.spec[TRANSFER_CHOICES].pop(BATON,None)
  if not actor.spec[TRANSFER_CHOICES]:actor.spec.pop(TRANSFER_CHOICES,None)
- validate_actor(actor);validate_actor(replacement)
- engine.log('    '+actor.name+' -> '+replacement.name+': '+str(len(moved))+' source-owned Coats transferred',source)
  return replacement
 
 
@@ -208,7 +234,8 @@ def turn_start(engine,actor):
   own=[x['turn'] for x in record['applications'] if x['holder_id']==actor.entity_id]
   last=own[-1] if own else record['issued_turn']
   if turn<=last:continue
-  payload=record['effect'];basis=actor.max_hp if payload['healing_basis']=='current_max_hp' else actor.base_max_hp
+  payload=definition(actor.r,record['source'])['payload']
+  basis=actor.max_hp if payload['healing_basis']=='current_max_hp' else actor.base_max_hp
   amount=M.ratio(basis,payload['denominator']);before=actor.hp
   healed=engine.heal(actor,amount,source_kind='move')
   record['applications'].append({'kind':'holder_turn_healing','holder_id':actor.entity_id,'turn':turn,'at':engine.elapsed_seconds,'basis':basis,'requested':amount,'hp_before':before,'hp_after':actor.hp,'healed':healed})

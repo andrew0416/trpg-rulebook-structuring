@@ -21,6 +21,7 @@ import turn as TURN
 POLICY_PATH = "data/optional-state-effect-contract-policy.json"
 STATE = "_optional_state_effect_contracts"
 VERSION = 1
+COLOSSUS_ROUND_COUNTING = "following_rounds_v1"
 
 GLOBAL = frozenset(("ERRATA-090", "ERRATA-094", "ERRATA-095"))
 ACTIVATED = frozenset(("ERRATA-056", "SB-099", "SB-107", "SB-110", "FAN-104"))
@@ -96,7 +97,42 @@ def _state(actor, create=False):
 def records(actor, rule_id=None):
     state = _state(actor)
     rows = [] if state is None else state["effects"]
+    import combat_timing as CLOCK
+    rows = rows + [record for record in CLOCK.records(actor)
+                   if record.get("optional_clause_id") in ("SB-107", "SB-110")]
     return [row for row in rows if rule_id is None or row["rule_id"] == rule_id]
+
+
+def black_yin_source_options(rules, *, decision=None):
+    """Resolve the explicit Korean/English movement conflict through source policy."""
+    import source_policy as SOURCE_POLICY
+    from source_context import verified_source
+    verified_source(rules, {"file": "source-audit/blessed-and-damned-black-yin.txt",
+        "sha256": "9f4602c800dc49a421a3625b40384df7e404582f3c9a9694306216914ef32e93"},
+        label="English Black Yin movement", source_root="source-audit")
+    document = {"schema": 1, "id": "optional/black-yin-movement", "variants": [{
+        "rule_id": clause(rules, "SB-110")["rule_id"],
+        "source": {"file": "input/supp-blessings.md",
+            "sha256": "de4cdcd5c632b18bb2bbc600693362aa3347b4f66c89c724991b944102aa73b6"},
+        "values": {"variant": {"$input": "source_text"},
+            "english_excerpt_sha256": "9f4602c800dc49a421a3625b40384df7e404582f3c9a9694306216914ef32e93"},
+        "inputs": {"source_text": {"type": "string", "authority": "gm",
+            "decision_kind": "source_conflict", "choices": ["korean_to_one", "english_decrease_one"],
+            "question": "Black Yin: Korean sets movement to 1; English decreases it by 1. Which source applies?"}}}]}
+    return SOURCE_POLICY.resolve(rules, document,
+        decisions=None if decision is None else {"source_text": decision})
+
+
+def _blessing_payload(rules, clause_id, source_choice):
+    payload = deepcopy(clause(rules, clause_id)["effects"])
+    if clause_id == "SB-110" and source_choice is not None:
+        receipt = black_yin_source_options(rules, decision=source_choice["decision"])
+        if receipt != source_choice["receipt"] or receipt["status"] != "PolicyValuesReady":
+            raise ValueError("Black Yin movement needs its original scoped source choice")
+        if receipt["values"]["variant"] == "english_decrease_one":
+            payload.pop("movement_set")
+            payload["movement_add"] = -1
+    return payload
 
 
 def _feature_values(actor):
@@ -191,7 +227,7 @@ def activation_participants(engine, actor, clause_id, *, target=None, targets=()
     raise ValueError("unknown optional activation")
 
 
-def _spend(engine, actor, row, key):
+def _spend(engine, actor, row, key, *, order=None):
     ap = row.get("ap", 0)
     if type(ap) is not int or ap < 0:
         raise ValueError("optional feature AP cost changed")
@@ -202,7 +238,11 @@ def _spend(engine, actor, row, key):
     if kind in ("scene", "daily") and not FREQUENCY.activation_allowed(
             actor, key, {"kind": kind, "uses": cap}, engine=engine):
         raise ValueError("optional feature frequency exhausted")
-    if not TURN.spend(engine, actor, row["action"], row["id"]):
+    if row["id"]=="ERRATA-056":
+        import order_actions as ORDERS
+        ORDERS.spend(engine,actor,row["rule_id"],action=row["action"],
+                     subject=key,communication=order)
+    elif not TURN.spend(engine, actor, row["action"], row["id"]):
         raise ValueError("optional feature action is unavailable")
     if ap:
         AP.charge(actor, ap, mode="spend")
@@ -231,7 +271,7 @@ def _install(target, owner, clause_id, row, payload, *, expires_round=None,
     return record
 
 
-def activate(engine, actor, clause_id, participants=(), *, choice=None):
+def activate(engine, actor, clause_id, participants=(), *, choice=None, communication=None):
     """Activate one reviewed feature inside ``state_grants.transition``."""
     row = clause(engine.r, clause_id)
     source = _require_owner(engine, actor, clause_id)
@@ -244,15 +284,28 @@ def activate(engine, actor, clause_id, participants=(), *, choice=None):
     if tuple(expected) != participants:
         raise ValueError("staged optional feature participants changed")
 
+    if communication is not None and (clause_id!="ERRATA-056" or type(communication) is not dict
+            or set(communication)!={target.entity_id for target in participants}):
+        raise ValueError("exact per-ally established Order communication requests required")
     key = clause_id
     if clause_id == "ERRATA-056":
         if choice not in row["choices"]:
             raise ValueError("Go, Fight, Win! needs one reviewed cheer choice")
         key += ":" + choice
-    if clause_id == "ERRATA-056" and choice == "evasion":
+    if clause_id in ("SB-107", "SB-110") or clause_id == "ERRATA-056" and choice == "evasion":
         import combat_timing as CLOCK
         CLOCK.current(engine)
-    _spend(engine, actor, row, key)
+    source_choice = None
+    if clause_id == "SB-110" and choice is not None:
+        receipt = black_yin_source_options(engine.r, decision=choice)
+        if receipt["status"] != "PolicyValuesReady":
+            raise ValueError("complete scoped Black Yin source choice required")
+        source_choice = {"decision": deepcopy(choice), "receipt": receipt}
+    order=None
+    if clause_id=="ERRATA-056":
+        import order_actions as ORDERS
+        order={"status":"delivered","recipients":{target.entity_id:ORDERS.delivery(engine,actor,target,row["rule_id"],communication=None if communication is None else communication[target.entity_id]) for target in participants}}
+    _spend(engine, actor, row, key, order=order)
 
     if clause_id == "ERRATA-056":
         effect = row["choices"][choice]
@@ -279,12 +332,31 @@ def activate(engine, actor, clause_id, participants=(), *, choice=None):
                               optional_created_round=engine.round_no, optional_created_count=CLOCK.current(engine))
                 CLOCK.install(engine, target, record)
     elif clause_id == "SB-099":
-        _install(participants[0], actor, clause_id, dict(row, created_round=engine.round_no),
-                 row["effects"], expires_round=engine.round_no + row["rounds"] - 1)
+        # Same-source interpretation: the next three rounds finish at R+3 EOR.
+        # An absent basis reconstructs the actual former R+2 producer only;
+        # completed/active legacy records never acquire a new deadline on read.
+        basis = COLOSSUS_ROUND_COUNTING
+        record = _install(participants[0], actor, clause_id, dict(row, created_round=engine.round_no),
+                 row["effects"], expires_round=engine.round_no + row["rounds"] - int(basis is None))
+        if basis is not None:
+            record["round_counting"] = basis
     elif clause_id in ("SB-107", "SB-110"):
+        import effect_lifetimes as LIFETIMES
+        import combat_timing as CLOCK
+        field = "accuracy" if clause_id == "SB-107" else "evasion"
         for target in participants:
-            _install(target, actor, clause_id, dict(row, created_round=engine.round_no),
-                     row["effects"], expires_round=engine.round_no + row["rounds"] - 1)
+            payload = _blessing_payload(engine.r, clause_id, source_choice)
+            record = LIFETIMES.prepare(engine, actor, target,
+                {"type": field + "_mod", "value": payload.pop(field),
+                 "duration": str(row["rounds"]) + "라운드"}, row["rule_id"])
+            record.update(optional_clause_id=clause_id, clause_id=clause_id,
+                          rule_id=row["rule_id"], owner_id=actor.entity_id,
+                          target_id=target.entity_id, created_round=engine.round_no,
+                          created_count=CLOCK.current(engine), payload=payload,
+                          stages_reset=False)
+            if clause_id == "SB-110":
+                record["source_choice"] = deepcopy(source_choice)
+            CLOCK.install(engine, target, record)
     elif clause_id == "FAN-104":
         deadline = actor.custom_conditions.get("combat_turn_serial", 0) + 1
         _install(actor, actor, clause_id, dict(row, created_round=engine.round_no),
@@ -325,28 +397,77 @@ def movement_limit(actor, value):
     return min([value, *replacements]) if replacements else value
 
 
-def _ranged_weapon(move):
+def _ranged_weapon(actor, move):
     attack = move.get("_weapon_attack") if isinstance(move, dict) else None
-    origin = attack.get("range", {}).get("origin") if isinstance(attack, dict) else None
-    return move.get("class") in ("물리", "특수") and type(origin) in (int, float) and origin > 0
+    entry = actor.custom_conditions.get("equipped_weapons", {}).get(attack.get("key")) if isinstance(attack, dict) else None
+    return (move.get("class") in ("물리", "특수") and isinstance(entry, dict)
+            and entry.get("weapon", {}).get("kind") == clause(actor.r, "FAN-104")["weapon_kind"])
 
 
-def attack_modifiers(actor, move, *, consume=False):
+def begin_move(engine, actor, target, move, completion_id):
+    """Consume one pending aim into the actual native Move's existing receipt."""
+    import move_activation as ACTIVATION
+    current = ACTIVATION._require_started_event_use(engine, actor, actor if target is None else target, move["id"],
+        scope_error="aiming needs the actual started native Move")
+    row = getattr(engine, "_move_completions", {}).get(completion_id)
+    if row is None or row["actor"] is not actor or row["move_id"] != move["id"]:
+        raise ValueError("aiming needs its actual Move completion")
+    if target is None:
+        scopes = getattr(engine, "_empty_field_activation_scopes", ())
+        if not scopes:
+            raise ValueError("aiming needs the actual empty area activation")
+        scope = ACTIVATION.require_empty_field_scope(engine, actor, move["id"], scopes[-1]["token"])
+        if (row.get("activation") != "empty_area_field" or row["phase"] != "applying"
+                or not row["sealed"] or row["targets"] or row["started"] or row["results"]
+                or row["post_effects"] != scope["effects"] or row["field_cells"] != scope["cells"]
+                or row["profile"] != scope["profile"]):
+            raise ValueError("aiming needs its actual empty area completion")
+    elif (target not in row["targets"] or target.entity_id not in row["started"]
+            or row["phase"] != "targets"):
+        raise ValueError("aiming needs its actual Move completion")
+    if "optional_aiming" not in row:
+        chosen = [record for record in records(actor)
+                  if record["clause_id"] == "FAN-104" and _ranged_weapon(actor, move)]
+        row["optional_aiming"] = deepcopy(chosen)
+        state = _state(actor)
+        if chosen:
+            state["effects"] = [record for record in state["effects"] if record not in chosen]
+            if not state["effects"]:
+                actor.spec.pop(STATE, None)
+    current["optional_state_completion"] = completion_id
+
+
+def attack_modifiers(actor, move, *, engine=None, target=None):
+    """Preview pending aim, or read this native Move's already consumed aim."""
     accuracy = 0
     critical = 0
-    state = _state(actor)
-    for record in list(records(actor)):
+    selected = [record for record in records(actor)
+                if record["clause_id"] == "FAN-104" and _ranged_weapon(actor, move)]
+    scopes = () if engine is None else getattr(engine, "_event_use_scopes", ())
+    if (scopes and scopes[-1]["actor"] is actor and scopes[-1]["target"] is target
+            and scopes[-1].get("move_id") == move.get("id")):
+        completion_id = scopes[-1].get("optional_state_completion")
+        row = getattr(engine, "_move_completions", {}).get(completion_id)
+        if (row is None or row["actor"] is not actor or row["move_id"] != move["id"]
+                or target not in row["targets"] or target.entity_id not in row["started"]
+                or "optional_aiming" not in row):
+            raise ValueError("aiming accuracy needs its bound native Move completion")
+        selected = row["optional_aiming"]
+    for record in selected:
         payload = record["payload"]
-        if record["clause_id"] == "SB-107":
-            accuracy += payload.get("accuracy", 0)
-        elif record["clause_id"] == "FAN-104" and _ranged_weapon(move):
-            accuracy += payload["accuracy"]
-            critical += payload["critical_range"]
-            if consume:
-                state["effects"].remove(record)
-    if state is not None and not state["effects"]:
-        actor.spec.pop(STATE, None)
+        accuracy += payload["accuracy"]
+        critical += payload["critical_range"]
     return accuracy, critical
+
+
+def reset_stages(actor):
+    """Clear bounded combat components, retaining each movement deadline."""
+    for record in records(actor):
+        if record["clause_id"] in ("SB-107", "SB-110"):
+            record["payload"].pop("combat_stage", None)
+            record.pop("accuracy_modifier", None)
+            record.pop("evasion_modifier", None)
+            record["stages_reset"] = True
 
 
 def start_turn(engine, owner):
@@ -398,10 +519,49 @@ def validate_world(engine):
     import world_entities as WORLD
     index = WORLD.actor_index(engine)
     _policy(engine.r)
+    for completion in getattr(engine, "_move_completions", {}).values():
+        for record in completion.get("optional_aiming", ()):
+            if (record.get("clause_id") != "FAN-104"
+                    or record.get("rule_id") != clause(engine.r, "FAN-104")["rule_id"]
+                    or record.get("owner_id") != completion["actor"].entity_id
+                    or record.get("target_id") != completion["actor"].entity_id
+                    or record.get("payload") != clause(engine.r, "FAN-104")["effects"]):
+                raise ValueError("consumed aiming Move receipt changed")
     for target in index.values():
         import combat_timing as CLOCK
         for record in CLOCK.records(target):
             if "optional_clause_id" not in record:
+                continue
+            if record["optional_clause_id"] in ("SB-107", "SB-110"):
+                clause_id = record["optional_clause_id"]
+                row = clause(engine.r, clause_id)
+                owner = index.get(record.get("owner_id"))
+                born, count = record.get("created_round"), record.get("created_count")
+                if (owner is None or acquired_source(owner, clause_id) != row["rule_id"]
+                        or type(born) is not int or not 1 <= born <= engine.round_no
+                        or type(count) is not int or type(record.get("stages_reset")) is not bool):
+                    raise ValueError("optional three-round source or activation count changed")
+                payload = _blessing_payload(engine.r, clause_id, record.get("source_choice"))
+                field = "accuracy" if clause_id == "SB-107" else "evasion"
+                value = payload.pop(field)
+                if record["stages_reset"]:
+                    payload.pop("combat_stage", None)
+                expected = {"source": row["rule_id"], "effect_contract": True,
+                    "timing_text": str(row["rounds"]) + "라운드",
+                    "count_deadline": (born + row["rounds"], count), "encounter_end": True,
+                    "optional_clause_id": clause_id, "clause_id": clause_id,
+                    "rule_id": row["rule_id"], "owner_id": owner.entity_id,
+                    "target_id": target.entity_id, "created_round": born, "created_count": count,
+                    "payload": payload, "stages_reset": record["stages_reset"],
+                    "owned_statuses": set(), "installing": False}
+                if clause_id == "SB-110":
+                    expected["source_choice"] = record.get("source_choice")
+                if not record["stages_reset"]:
+                    expected[field + "_modifier"] = value
+                if (set(record) != set(expected)
+                        or any((tuple(record[k]) if k == "count_deadline" else record[k]) != v
+                               for k, v in expected.items())):
+                    raise ValueError("optional three-round component or original deadline changed")
                 continue
             if record.get("optional_clause_id") != "ERRATA-056":
                 raise ValueError("unknown optional common-clock source")
@@ -416,7 +576,7 @@ def validate_world(engine):
                         "owned_statuses": set(), "installing": False}
             if (owner is None or acquired_source(owner,"ERRATA-056") != row["rule_id"]
                     or type(born) is not int or not 0 <= born <= engine.round_no or type(count) is not int
-                    or set(record) != set(expected)
+                    or set(record) != (set(expected)|({'native_order_handoff'} if 'native_order_handoff' in record else set()))
                     or any((tuple(record[k]) if k == "count_deadline" else record[k]) != v for k,v in expected.items())):
                 raise ValueError("optional one-round source, value or original count changed")
         for record in records(target):
@@ -426,6 +586,17 @@ def validate_world(engine):
             row = clause(engine.r, record["clause_id"])
             if record["clause_id"] == "ERRATA-056":
                 raise ValueError("one-round cheer requires the shared exact-count clock")
+            if record["clause_id"] in ("SB-107", "SB-110") and "optional_clause_id" not in record:
+                raise ValueError("three-round blessings require the shared exact-count clock")
             if row["rule_id"] != record["rule_id"]:
                 raise ValueError("optional state-effect policy identity changed")
+            if record["clause_id"] == "SB-099":
+                born = record["created_round"]
+                current = "round_counting" in record
+                if (current and record["round_counting"] != "following_rounds_v1"
+                        or type(born) is not int or not 0 <= born <= engine.round_no
+                        or type(record.get("expires_round")) is not int
+                        or record["expires_round"] != born + row["rounds"] - int(not current)
+                        or record["payload"] != row["effects"]):
+                    raise ValueError("Colossus March original round-counting basis changed")
     return True

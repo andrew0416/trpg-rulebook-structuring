@@ -28,6 +28,15 @@ SUITES = {
     "rank_revisions": ".ci/suites/rank_revisions.json",
     "retraining": ".ci/suites/retraining.json",
     "next_revisions": ".ci/suites/next_revisions.json",
+    "final_revisions_01": ".ci/suites/final_revisions_01.json",
+    "final_revisions_02": ".ci/suites/final_revisions_02.json",
+    "final_revisions_03": ".ci/suites/final_revisions_03.json",
+    "final_revisions_04": ".ci/suites/final_revisions_04.json",
+    "final_revisions_05": ".ci/suites/final_revisions_05.json",
+    "final_revisions_06": ".ci/suites/final_revisions_06.json",
+    "final_revisions_07": ".ci/suites/final_revisions_07.json",
+    "final_revisions_08": ".ci/suites/final_revisions_08.json",
+    "final_revisions_09": ".ci/suites/final_revisions_09.json",
 }
 NATIVE_TIMEOUT_SECONDS = 5400
 STAGE_PARENT = Path("D:/trpg-rulebook-structuring/ci")

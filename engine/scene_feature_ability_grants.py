@@ -274,8 +274,9 @@ def plan(engine, trainer, pokemon, source, branch, ability):
     printed, ability_id, ability_name = _ability(engine.r, declaration, ability)
     if AP.available(trainer) < feature["ap"]:
         raise ValueError("scene ability grant requires 1 available AP")
+    import order_actions as ORDERS
     if feature["priority_limited"]:
-        PRIORITY.preflight(engine, trainer, action=feature["action"], source=source_id)
+        ORDERS.preflight(engine, trainer, source_id, action=feature["action"])
     key = _source_key(trainer, pokemon, feature["family"])
     current = _managed(pokemon).get(key)
     if current is not None:
@@ -291,23 +292,6 @@ def plan(engine, trainer, pokemon, source, branch, ability):
     }
 
 
-def _communicate(engine, owner, target, value):
-    import perception_communicate as COMM
-    policy = {
-        "id": "scene-feature-ability:" + value["source_id"], "source": value["source_id"],
-        "capabilities": [], "requirements": [], "mode": "auditory", "range": None,
-        "path": "auditory", "medium": [], "consent": {"kind": "none"}, "blockers": [],
-        "connection": None, "frequency": {"kind": "at_will", "uses": 1}, "retry": None,
-        "distance_exceptions": [],
-    }
-    state = getattr(engine, COMM.KEY, {"attempts": []})
-    request = value["source"] + ":" + str(len(state.get("attempts", [])) + 1)
-    result = COMM.send(engine, owner, target, policy, value["source_id"], request_id=request)
-    if result.get("status") != "delivered":
-        raise ValueError("Priority Limited scene ability communication was not delivered")
-    return result
-
-
 def activate(engine, trainer, pokemon, source, branch, ability):
     """Pay and replace one family-owned grant as one staged transaction."""
     value = plan(engine, trainer, pokemon, source, branch, ability)
@@ -321,8 +305,8 @@ def activate(engine, trainer, pokemon, source, branch, ability):
             raise ValueError("scene ability source policy changed before commit")
         _selected_evidence(staged.r, current["definition"])
         communication = None
-        if value["priority_limited"]:
-            communication = _communicate(staged, owner, target, value)
+        import order_actions as ORDERS
+        if value["priority_limited"] and ORDERS.priority(staged, owner, value["source_id"]):
             priority = PRIORITY.reserve(
                 staged, owner, action=value["action"], source=value["source_id"],
                 subject=target.entity_id, communication=communication,

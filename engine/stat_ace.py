@@ -194,19 +194,21 @@ def stratagem_bonus(engine,pokemon,kind,move=None,condition=None):
     return 0
 
 
-def activate(engine,trainer,pokemon,branch):
+def activate(engine,trainer,pokemon,branch,*,communication=None):
     """Use the existing single-Stratagem, typed Bound-AP and Order owner."""
     import class_passive_combat as P,cheerleader as CHEER,turn as TURN,action_points as AP
     import world_entities as W,temporary_ap as TEMP
     W.require_actors(engine,trainer,pokemon)
     if owner(engine,pokemon,STRATAGEM,branch) is not trainer:raise ValueError('actual acquired owned Stat Stratagem branch required')
-    @CHEER.order_activation(None)
+    @CHEER.order_activation(STRATAGEM)
     def apply(e,a,p):
         if not e.encounter_active or not p.on_field or p.fainted or p.captured:raise ValueError('available encounter Stratagem target required')
         P._require_stratagem_slot(p)
         if AP.available(a)<2:raise ValueError('Stat Stratagem requires two available AP')
         TEMP.preflight_binding(a,2,'class_passive_combat')
-        if not TURN.spend(e,a,'standard',STRATAGEM):return (0,1)
+        import order_actions as ORDERS
+        delivery=ORDERS.delivery(e,a,p,STRATAGEM,communication=communication)
+        ORDERS.spend(e,a,STRATAGEM,subject=p.entity_id,communication=delivery)
         state=P._state(p,create=True);state['serial']+=1
         instance='class-passive:'+a.entity_id+':'+str(state['serial'])
         while instance in a.ap_account.identified_bindings(allow_missing=True):

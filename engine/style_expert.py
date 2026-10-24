@@ -111,12 +111,13 @@ def require(engine,trainer,pokemon,feature,stat=None):
   if feature not in (CLASS,FLOURISH,ENTRAINMENT):CF.style_training(engine,trainer,stat)
 
 
-def _pay(engine,trainer,feature,pokemon,*,ap=0,per_pokemon=False):
+def _pay(engine,trainer,feature,pokemon,*,ap=0,per_pokemon=False,branch=None):
  import action_points as AP,frequency as F
  import combat_timing as TIME
  if per_pokemon and feature in IMPROVE.values() and any(row.get('style_used')==feature for row in TIME.records(pokemon)):
   raise ValueError('Style effect already affected this Pokemon this Scene')
- key=feature+(':'+pokemon.entity_id if per_pokemon else '')
+ if feature==FLOURISH and branch not in STATS:raise ValueError('Style Flourish requires its acquired branch')
+ key=feature+(':'+branch if feature==FLOURISH else '')+(':'+pokemon.entity_id if per_pokemon else '')
  if not F.activation_allowed(trainer,key,{'kind':'scene','uses':1},engine=engine):raise ValueError('Style effect already used this Scene')
  CF.trigger_free_action(engine,trainer,feature)
  if AP.available(trainer)<ap:raise ValueError('Style requires available AP')
@@ -194,9 +195,9 @@ def after_move(engine,row):
  import move_completion as COMPLETE,combat_timing as TIME
  pokemon=row['actor'];trainer=value['trainer'];feature=value['effect']
  if value['flourish']:
-  if any(row.get('style_flourish') for row in TIME.records(pokemon)):raise ValueError('Style Flourish already affected this target this Scene')
+  if any(row.get('style_flourish') in (True,value['stat']) for row in TIME.records(pokemon)):raise ValueError('Style Flourish already affected this target this Scene')
   engine.change_stage(pokemon,CORRESPONDENCE[value['stat']],1)
-  TIME.install(engine,pokemon,{'source':FLOURISH,'style_flourish':True,'scene_end':True})
+  TIME.install(engine,pokemon,{'source':FLOURISH,'style_flourish':value['stat'],'scene_end':True})
  if feature==IMPROVE['귀여움'] and value['destination'] is not None:
   import movement_actions as MOVE,arithmetic_policy as M
   speed=MOVE.capabilities(engine,pokemon).get(value['mode'],0)
@@ -207,7 +208,7 @@ def after_move(engine,row):
    hit=COMPLETE.recipient_result(row,target)
    if hit and hit['hit'] and not hit.get('cancelled'):
     dx=(target.pos[0]>pokemon.pos[0])-(target.pos[0]<pokemon.pos[0]);dy=(target.pos[1]>pokemon.pos[1])-(target.pos[1]<pokemon.pos[1])
-    if dx or dy:FORCED.displace(engine,pokemon,target,direction=(dx,dy),distance=3,source=feature,allow_fainted=True)
+    if (dx or dy) and not __import__('type_ace').push_immunity(engine,target):FORCED.displace(engine,pokemon,target,direction=(dx,dy),distance=3,source=feature,allow_fainted=True)
  elif feature==IMPROVE['슬기로움'] and value['choice']=='allies':
   for target in row['targets']:
    TIME.install(engine,target,{'source':feature,'style_assault':True,'turn_owner':pokemon,
@@ -236,7 +237,7 @@ def use_move(engine,trainer,pokemon,target,move,*,ranked=None,effect=None,flouri
  if flourish:
   CF.flourish(engine,trainer,pokemon,stat)
   import combat_timing as TIME
-  if any(row.get('style_flourish') for row in TIME.records(pokemon)):raise ValueError('Style Flourish already affected this target this Scene')
+  if any(row.get('style_flourish') in (True,stat) for row in TIME.records(pokemon)):raise ValueError('Style Flourish already affected this target this Scene')
  if effect==IMPROVE['슬기로움'] and choice not in ('focus','allies'):raise ValueError('Calculated Assault chooses focus or allies')
  if effect!=IMPROVE['슬기로움'] and choice is not None:raise ValueError('unexpected Style choice')
  if effect!=IMPROVE['귀여움'] and destination is not None:raise ValueError('unexpected Style movement')
@@ -252,7 +253,7 @@ def use_move(engine,trainer,pokemon,target,move,*,ranked=None,effect=None,flouri
    G.grant_moves(p,[mid],sid,'feature',owner_id=a.entity_id,lifetime='scene',rule_id=ranked,mode='permission')
    value['permission']=sid
   if effect:_pay(e,a,effect,p,per_pokemon=True)
-  if flourish:_pay(e,a,FLOURISH,p,ap=1,per_pokemon=True)
+  if flourish:_pay(e,a,FLOURISH,p,ap=1,per_pokemon=True,branch=stat)
   e._style_move_scope=value
   before=p.move_uses.get(mid,0)
   try:
@@ -284,9 +285,9 @@ def special_scope(engine,trainer,pokemon,mid,*,effect=None,flourish=False):
   require(engine,trainer,pokemon,effect,'강인함')
  if flourish:
   CF.flourish(engine,trainer,pokemon,'강인함')
-  if any(row.get('style_flourish') for row in TIME.records(pokemon)):raise ValueError('Style Flourish already affected this target this Scene')
+  if any(row.get('style_flourish') in (True,'강인함') for row in TIME.records(pokemon)):raise ValueError('Style Flourish already affected this target this Scene')
  if effect:_pay(engine,trainer,effect,pokemon,per_pokemon=True)
- if flourish:_pay(engine,trainer,FLOURISH,pokemon,ap=1,per_pokemon=True)
+ if flourish:_pay(engine,trainer,FLOURISH,pokemon,ap=1,per_pokemon=True,branch='강인함')
  return {'trainer':trainer,'pokemon':pokemon,'move_id':mid,'stat':'강인함','effect':effect,'flourish':flourish,
   'choice':None,'destination':None,'mode':'land','target_ids':[],'applied':False}
 

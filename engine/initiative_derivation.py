@@ -200,6 +200,16 @@ def collect(rules, actor, *, engine=None):
         for index, effect in enumerate(getattr(actor, field, ())):
             if effect.get('type') not in ('initiative','initiative_multiplier'):
                 continue
+            if (effect.get('_rule_id')=='ability/엽록소-playtest'
+                    and effect.get('type')=='initiative_multiplier'
+                    and effect.get('value')==2 and effect.get('if')=='sunny or hp < half'):
+                import ability_transitions as ABILITIES
+                if not ABILITIES.active(actor,'ability/엽록소-playtest'):continue
+                if actor.hp*2>=actor.base_max_hp:
+                    if engine is None:raise InitiativePending('Playtest Chlorophyll needs actual weather')
+                    import effects as FX
+                    if not FX.weather_matches(engine,'sunny',actor):continue
+                effect={key:value for key,value in effect.items() if key!='if'}
             unknown = {k for k in effect if not k.startswith('_')}-{'type','delta','multiplier','set_to','value','priority','source'}
             if unknown:
                 raise InitiativePending('registered initiative extension has unresolved qualifiers')

@@ -28,7 +28,7 @@ def reasons(engine,actor,registration_key,record):
     import items as ITEMS,field_effects as FIELD
     result=[]
     if ITEMS._passive_registration(engine,actor,record) and FIELD.passive_equipment_suppressed(engine,actor,record):
-        result.append({'kind':'field','source':engine.field['source_id'],
+        result.append({'kind':'field','source':FIELD.active(engine,'신비')['source_id'],
                        'holder_id':actor.entity_id,'registration_key':registration_key})
     # Consuming stock is a separate producer. Suppress continuing held benefits,
     # including their active registration eligibility, without banning item use.

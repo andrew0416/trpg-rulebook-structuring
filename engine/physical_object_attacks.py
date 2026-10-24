@@ -188,8 +188,9 @@ def _apply_damage(e,c,target,move,policy,kind,event_id,intent,*,pass_event=None,
         import physical_tool_attacks as TOOLS
         material=TOOLS.material_policy(e,target,tool_attack)
     else:material=MATERIALS.damage_policy(e,target,move,policy)
-    calculation=_calculation(profile,intent['hit'],intent['damage_before_dr'],material,effects=policy['mechanics'].get('effects_exec',[]))
-    amount=calculation['after_defense'] if calculation else 0;after=max(0,before-amount)
+    effects=policy['mechanics'].get('effects_exec',[])
+    calculation=_calculation(profile,intent['hit'],intent['damage_before_dr'],material,effects=effects)
+    after=_hp_after(before,calculation,effects)
     row=dict(event_id=event_id,intent=deepcopy(intent),move_id=move['id'],move_type=move['type'],
              damage_class=move['class'],action_kind=kind,at=e.elapsed_seconds,
              profile_hash=state['profile_hash'],definition_hash=_hash(policy),
@@ -219,6 +220,16 @@ def _calculation(profile, hit, damage, material=None, *, effects=()):
     reduction=material['reduction'] if material is not None else profile['reduction']
     return DAMAGE.defend(dice=damage,attack=0,modifiers=0,defense=0,
         reduction=EXT.reduction_after_ignore(reduction,list(effects)),minimum=profile['minimum_damage'])
+
+
+def _hp_after(before, calculation, effects):
+    """Apply the selected floor after DR without healing an already lower HP."""
+    amount=calculation['after_defense'] if calculation else 0
+    for effect in effects:
+        if effect.get('type')=='damage_floor':
+            minimum=_integer(effect.get('min_target_hp_after'),'minimum target HP after damage',1)
+            amount=min(amount,max(0,before-minimum))
+    return max(0,before-amount)
 
 
 def validate_world(engine, index=None):
@@ -287,8 +298,7 @@ def validate_world(engine, index=None):
                     producer='tool' if tool_policy is not None else 'physical',event_id=event)
             effects=reviewed['mechanics'].get('effects_exec',[]) if reviewed else []
             calculation=_calculation(profile,intent['hit'],intent['damage_before_dr'],expected_material,effects=effects)
-            amount=calculation['after_defense'] if calculation else 0
-            if row['calculation']!=calculation or row['hp_after']!=max(0,hp-amount):
+            if row['calculation']!=calculation or row['hp_after']!=_hp_after(hp,calculation,effects):
                 raise ValueError('physical attack damage calculation mismatch')
             _integer(row['hp_after'],'physical HP');_integer(row['applied_damage'],'physical damage')
             if hp<=0 or row['hp_before']!=hp or row['hp_after']!=hp-row['applied_damage']:

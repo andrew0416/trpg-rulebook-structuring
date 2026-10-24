@@ -68,7 +68,8 @@ class ExhaustActionDebtTests(unittest.TestCase):
         row = user.spec[EXHAUST.KEY]
         self.assertEqual(row, {"source": EXHAUST.SOURCE, "actor_id": user.entity_id,
             "move_id": "move/파괴광선", "issued_turn": 1, "due_turn": 2,
-            "phase": "pending"})
+            "phase": "pending", "policy_variant": "korean_standard_swift",
+            "source_choice": None, "debt": {"standard": 1, "swift": 1}})
         self.assertEqual(user.pending_action_loss, {"standard": 1, "swift": 1})
         self.assertEqual(user.move_uses["move/파괴광선"], 1)
 

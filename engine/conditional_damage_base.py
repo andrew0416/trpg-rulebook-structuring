@@ -185,6 +185,8 @@ def override_base(engine, attacker, target, move, base):
                      else _streak(attacker, move).get("successes", 0))
         return min(row["cap"], row["base"] + row["increment"] * successes)
     if contract == "scene_once_afflicted_target":
+        if row.get("optional"):
+            return base
         if not attacker.counters.get(_scene_key(move), 0) and _afflicted(target):
             return row["replacement"]
         return base
@@ -230,7 +232,7 @@ def prepare(engine, attacker, target, move):
         contract = row.get("contract")
         if contract in {"same_target_damage_streak", "forced_move_damage_streak"}:
             applied.append({"contract": contract})
-        elif contract == "scene_once_afflicted_target" and target is not None:
+        elif contract == "scene_once_afflicted_target" and target is not None and not row.get("optional"):
             if not attacker.counters.get(_scene_key(move), 0) and _afflicted(target):
                 applied.append({"contract": contract})
         elif contract == "external_stage_loss_since_turn_end_per_target_scene" and target is not None:

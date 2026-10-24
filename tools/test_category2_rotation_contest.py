@@ -6,7 +6,7 @@ import sys
 import unittest
 
 STAGE = Path(__file__).resolve().parents[1]
-ROOT = Path(r"D:\trpg-rulebook-structuring\ptk-structure-experiment")
+ROOT = STAGE
 sys.path.insert(0, str(STAGE / "engine"))
 sys.path.insert(1, str(ROOT / "engine"))
 
@@ -165,6 +165,91 @@ class Tests(unittest.TestCase):
         rotation["spent"][reps[0]] += 1
         with self.assertRaises(StateCodecError):
             dump_contest(restored, participants)
+
+    def test_introduction_is_one_shared_pool_for_nonrepresentative_and_survives_restore(self):
+        before = {member: deepcopy(member.stat_dice) for member in self.flat()}
+        for member in self.flat():
+            member.stat_dice["귀여움"] = 0
+            member.moves.append("move/유턴")
+        for representative in self.representatives:
+            representative.intro_rank_dice = 6
+        calls = []
+        def choose(actor, round_number, adjacent, center):
+            if calls:
+                raise Pause()
+            calls.append(actor)
+            self.assertNotIn(actor, self.representatives)
+            self.assertGreaterEqual(actor._intro_stat_dice["귀여움"], 1)
+            return "move/유턴", 1, {"spend_intro_dice": 1}
+        with self.assertRaises(Pause):
+            self.run_choice(chooser=choose, contest_id="rotation:shared-intro")
+        rotation = self.engine._standard_run["rotation"]
+        for rep, team in zip(self.representatives, self.teams):
+            self.assertTrue(all(member._intro_stat_dice is rotation["intro_dice"][rep] for member in team))
+            self.assertTrue(all(member.stat_dice["귀여움"] == 0 for member in team))
+            self.assertEqual(rep.stat_dice["근사함"], before[rep]["근사함"])
+        payload = json.loads(json.dumps(dump_contest(self.engine, self.flat())))
+        restored, participants = load_contest(self.rules, payload)
+        saved = restored._standard_run["rotation"]
+        rep = saved["representatives"][0]
+        self.assertTrue(all(member._intro_stat_dice is saved["intro_dice"][rep] for member in saved["teams"][0]))
+        remaining = {rep.entity_id: dict(pool) for rep, pool in saved["intro_dice"].items()}
+        restored.run_rotation(saved["teams"], "근사함", lambda actor, rnd, adj, center: (MOVES[rnd - 1], 0),
+                              representatives=saved["representatives"],
+                              performer_selector=lambda rep, rnd, available: available[0],
+                              contest_id="rotation:shared-intro")
+        self.assertEqual({rep.entity_id: dict(pool) for rep, pool in saved["intro_dice"].items()}, remaining)
+        saved["teams"][0][0]._intro_stat_dice = dict(saved["intro_dice"][rep])
+        with self.assertRaises(StateCodecError):
+            dump_contest(restored, participants)
+
+    def test_native_observed_reroll_preserves_shared_spend_once_across_json_resume(self):
+        from builder import build_pokemon, build_trainer
+        from engine import Combatant, Engine, Rules
+        rules = Rules(str(ROOT), ruleset="core")
+        native = Engine(rules, seed=8188)
+        contest = ContestEngine(ContestRules(str(ROOT), ruleset="core"), seed=8189)
+        trainers, pokemon_teams = [], []
+        stats = {"hp": 12, "atk": 12, "def": 10, "spa": 10, "spd": 10, "spe": 10}
+        moves = [*MOVES, "move/유턴"]
+        for team in range(3):
+            trainer = Combatant(rules, build_trainer(rules, "same trainer name", 30, stats,
+                skills={"매력": 5}, extra={"classes": ["class/코디네이터"], "edges": ["edge/우아함"]}))
+            trainers.append(trainer)
+            pokemon = []
+            for member in range(3):
+                actor = Combatant(rules, build_pokemon(rules, "이상해씨", 30, "same Pokemon name", abilities=[], moves=moves))
+                actor.spec["trainer_id"] = trainer.entity_id
+                pokemon.append(actor)
+            pokemon_teams.append(tuple(pokemon))
+        native.everyone = native.gm.everyone = [*trainers, *(actor for team in pokemon_teams for actor in team)]
+        teams = tuple(tuple(contest.contestant_from_combatants(native, actor, trainer, "매력",
+                            smart_stat_policy="ptu-original-special-defense") for actor in team)
+                      for trainer, team in zip(trainers, pokemon_teams))
+        representatives = tuple(team[1] for team in teams)
+        def pause_after_roll(first):
+            raise Pause()
+        with self.assertRaises(Pause):
+            contest.run_rotation(teams, "근사함", lambda *args:
+                ("move/유턴", 1, {"spend_intro_dice": 1, "reroll_decision": pause_after_roll}),
+                representatives=representatives,
+                performer_selector=lambda rep, rnd, available: available[0], contest_id="rotation:observed-intro")
+        rotation = contest._standard_run["rotation"]
+        self.assertEqual(sum(rotation["spent"].values()), 1)
+        remaining = {rep.entity_id: dict(pool) for rep, pool in rotation["intro_dice"].items()}
+        restored, participants = load_contest(contest.r,
+            json.loads(json.dumps(dump_contest(contest, [actor for team in teams for actor in team]))))
+        saved = restored._standard_run["rotation"]
+        def resume(actor, rnd, adjacent, center):
+            if restored._standard_run["pending"] is not None:
+                return "move/유턴", 1, {"spend_intro_dice": 1, "reroll_decision": lambda first: False}
+            return MOVES[rnd - 1], 0
+        restored.run_rotation(saved["teams"], "근사함", resume,
+            representatives=saved["representatives"],
+            performer_selector=lambda rep, rnd, available: available[0], contest_id="rotation:observed-intro")
+        self.assertEqual(sum(saved["spent"].values()), 1)
+        self.assertEqual({rep.entity_id: dict(pool) for rep, pool in saved["intro_dice"].items()}, remaining)
+        self.assertEqual(len({actor.entity_id for actor in participants}), 9)
 
 
 if __name__ == "__main__":

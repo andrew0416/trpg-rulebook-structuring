@@ -82,7 +82,7 @@ def prepare(e,r):
     if direct:
         if r.aim['reachable'] is not True:raise ValueError('actual reachable direct spray target required')
         import body_modes as BODY,confusion_attacks as CONFUSION
-        BODY.require_targetable(r.target)
+        BODY.require_targetable(r.target,engine=e)
         if e.encounter_active and (r.user.injuries>=5 and not __import__('taskmaster').ignores_acting_loss(r.user)):raise ValueError('heavy-injury Repel attack needs native action composition')
         CONFUSION.preflight(e,r.user,attack(r))
         import invisibility_state as INV,blender_state as BLEND,effects_ext as EXT
