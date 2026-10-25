@@ -706,14 +706,7 @@ def atomic_move(fn):
             try:
                 return fn(e, a, *copied_args, **copied_kwargs)
             except Exception as error:
-                import passive_events as EVENTS, heavy_injury_adapter as HEAVY
-                if (type(error) is EVENTS.PassiveEventPending and
-                        e._passive_pending == error.event_id and error.event_id in e._passive_events):
-                    pending.append((EVENTS.PassiveEventPending, error.event_id))
-                    return None
-                if (type(error) is HEAVY.HeavyPending and
-                        e._heavy_pending == error.event_id and error.event_id in e._heavy_events):
-                    pending.append((HEAVY.HeavyPending, error.event_id))
+                if G.record_native_pending(e, error, pending):
                     return None
                 raise
             finally:

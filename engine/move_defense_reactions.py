@@ -894,7 +894,7 @@ def _finish(e, args):
         import optional_weapon_framework as FRAMEWORK
         FRAMEWORK.observe_hit(e,completion,args['attacker'],recipient)
         REACTIVE.resolved_hit(e,args['attacker'],recipient,args['move'],args['completion_id'],
-                              hit_prevented=result['hit_prevented'])
+                              hit_prevented=result['hit_prevented'],contact=result.get('melee_contact'))
         PASSIVE.complete(e,child['id'],hit=recipient_plan['hit'],natural=args['nat'],critical=args['crit'],
                          dealt=result['dealt'],held=result['held'])
     # Re-entry after a child listener wait cannot apply damage or effects twice.

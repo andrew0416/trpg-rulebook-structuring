@@ -16,6 +16,8 @@ CLASS='class/타입-에이스';REFRESH='feat/타입-리프레쉬';SYNC='feat/기
 STRATAGEMS=frozenset(u for u,d in DEFINITIONS.items() if d.get('bound_ap'))
 ENGLISH={d['english']:u for u,d in DEFINITIONS.items()}
 KEY='type_ace_history'
+CSV_VARIANTS={'feat/이상한-황홀감':246,'feat/사막의-심장':270,'feat/생명의-샘':299}
+CSV_SHA256='4435ff1c462a211564c85d2c1c9a2ac6e7c790c7545e1ad7056d32888b2367bd'
 MINDBREAK_CONDITIONS=frozenset(('악몽','혼란','저주','사슬묶기','풀죽음','헤롱헤롱','난동','억압'))
 CQM_CHOICE='close_quarters_source'
 CQM_CHOICES='close_quarters_mark_choices'
@@ -107,8 +109,7 @@ def uid(name):
 
 def records(actor,feature=None,active=False):
  import trainer_feature_acquisition as T
- return [r['static_acquisition'] for _,r,live in T._static_records(actor)
-  if r['static_acquisition']['feature_id'] in FEATURES and (feature is None or r['static_acquisition']['feature_id']==feature) and (not active or live)]
+ return [record for _, record in T.static_family_acquisitions(actor, FEATURES, feature, active=active)]
 
 
 def acquired(actor,feature,branch=None):
@@ -117,7 +118,25 @@ def acquired(actor,feature,branch=None):
  return rows[0] if rows else None
 
 
-def acquisition_snapshot(engine,actor,feature,branch):
+def csv_source(rules,feature):
+ from source_context import verified_source
+ if feature not in CSV_VARIANTS:raise ValueError('select a reviewed Type Ace CSV difference')
+ number=CSV_VARIANTS[feature];key='C2CSV/input/db/feats.csv:R'+str(number)+':main'
+ rules.ruleset.require({'id':key,'source':{'file':'db/feats.csv','record_span':[number,number]}})
+ source={'file':'input/db/feats.csv','sha256':CSV_SHA256}
+ verified_source(rules,source,label='Type Ace CSV')
+ return dict(source,edition='local_csv',record=number,clause_id=key)
+
+
+def local_csv(actor,feature,branch=None):
+ row=acquired(actor,feature,branch)
+ if row is None or row['snapshot'].get('selection') is None:return False
+ if row['snapshot']['selection']!={'edition':'local_csv'} or row['snapshot'].get('source')!=csv_source(actor.r,feature):
+  raise ValueError('immutable actual Type Ace CSV source required')
+ return True
+
+
+def acquisition_snapshot(engine,actor,feature,branch,selection=None):
  import skill_modifiers as S,world_entities as W,elemental_connection as E
  d=DEFINITIONS[feature]
  if d.get('branch') is True:
@@ -134,17 +153,25 @@ def acquisition_snapshot(engine,actor,feature,branch):
   result.update(pokemon=[{'id':p.entity_id,'types':list(p.types)} for p in W.actor_index(engine).values()
    if p.kind=='pokemon' and p.spec.get('trainer_id')==actor.entity_id],elemental=branch in E.choices(engine,actor))
  if feature==SYNC:result['features']=[r['request_id'] for r in records(actor,active=True)]
+ if selection is not None:
+  if selection!={'edition':'local_csv'}:raise ValueError('exact Type Ace CSV edition selection required')
+  result.update(selection=deepcopy(selection),source=csv_source(engine.r,feature))
  return result
 
 
 def qualification(actor,feature,snapshot,prerequisite_source):
  import acquisition_qualification as Q
+ if type(snapshot) is not dict:raise ValueError('exact Type Ace acquisition observations required')
  fields={'branch','skill','rank','parents'}|({'pokemon','elemental'} if feature==CLASS else set())|({'features'} if feature==SYNC else set())
+ if snapshot.get('selection') is not None:
+  fields|={'selection','source'}
+  if snapshot['selection']!={'edition':'local_csv'} or snapshot.get('source')!=csv_source(actor.r,feature):raise ValueError('immutable actual Type Ace CSV source required')
  if prerequisite_source is not None or type(snapshot) is not dict or set(snapshot)!=fields:raise ValueError('exact Type Ace acquisition observations required')
  d=DEFINITIONS[feature];branch=snapshot['branch']
  if branch not in TYPES or d.get('branch') not in (True,branch):raise ValueError('matching Type Ace branch required')
  if snapshot['skill'] not in SKILLS[branch]:raise ValueError('reviewed Type Link skill required')
- C.integer(snapshot['rank'],'Type-linked skill rank',d.get('rank',0))
+ minimum={'feat/사막의-심장':5,'feat/생명의-샘':6}.get(feature,d.get('rank',0)) if snapshot.get('selection') is not None else d.get('rank',0)
+ C.integer(snapshot['rank'],'Type-linked skill rank',minimum)
  if feature==CLASS:
   roster=snapshot['pokemon']
   if type(roster) is not list or len({r['id'] for r in roster})!=len(roster):raise ValueError('distinct owned Pokemon required')
@@ -174,6 +201,7 @@ def require(engine,a,p,feature,branch=None):
  import world_entities as W
  W.require_actors(engine,a,p)
  if owner(engine,p,feature,branch) is not a:raise ValueError('actual owned Pokemon and acquired Type Ace Feature required')
+ local_csv(a,feature,branch)
  return acquired(a,feature,branch)
 
 
@@ -212,7 +240,8 @@ def activate(engine,a,p,feature,*,communication=None):
   P._require_stratagem_slot(q)
   if AP.available(t)<2:raise ValueError('Stratagem requires two available AP')
   TEMP.preflight_binding(t,2,P.KIND)
-  if d['action']=='free':__import__('action_lifecycle').triggered_free_action(e,t,feature)
+  action='standard' if feature in (uid('Fey Trance'),uid('Desert Heart')) and local_csv(t,feature) else d['action']
+  if action=='free':__import__('action_lifecycle').triggered_free_action(e,t,feature)
   else:ORDERS.spend(e,t,feature,subject=q.entity_id,communication=delivery)
   state=P._state(q,create=True);state['serial']+=1;instance='class-passive:'+t.entity_id+':'+str(state['serial'])
   while instance in t.ap_account.identified_bindings(allow_missing=True):state['serial']+=1;instance='class-passive:'+t.entity_id+':'+str(state['serial'])
@@ -654,7 +683,8 @@ def scope(engine,p,move):
 
 def prepare(engine,p,move):
  s=scope(engine,p,move)
- if not s and not(move['type']=='고스트' and _buff(p,'ace_boo')):
+ ground_area=move['type']=='땅' and '_area_aim' in move and owner(engine,p,uid('Mold the Earth')) is not None
+ if not s and not ground_area and not(move['type']=='고스트' and _buff(p,'ace_boo')):
   if move['type']=='격투':_close_quarters_move_preflight(engine,p,move)
   return move
  s=s or {};out=dict(move)
@@ -664,6 +694,9 @@ def prepare(engine,p,move):
  if s.get('feature')==uid('New Normal'):out['_type_ace_new_normal']=True
  if move['type']=='고스트' and _buff(p,'ace_boo'):
   out['_type_ace_boo']=True;out['keywords']=list(dict.fromkeys(list(out.get('keywords') or [])+['강타']))
+ if ground_area and __import__('weapon_actions').range_spec(engine,out,p).get('shape') in ('burst','blast','line','cone'):
+  # Freeze the native aimed footprint before movement or later reactions.
+  out['_effect_area_cells']=[list(cell) for cell in sorted(__import__('area_targets').cells(engine,p,out))]
  if out['type']=='격투':_close_quarters_move_preflight(engine,p,out)
  return out
 
@@ -1427,6 +1460,7 @@ def setup_skip(engine,p,move):
 def mold(engine,a,p,row,*,changes,geometry,reason):
  """The actual Ground Move supplies the extra Groundshaper footprint."""
  feature=uid('Mold the Earth');require(engine,a,p,feature)
+ if not _cap(p,'지형변화','Groundshaper'):raise ValueError('actual Groundshaper capability required')
  if row['move']['type']!='땅':raise ValueError('actual completed Ground Move required')
  if not _cap(p,'지형변화','Groundshaper'):raise ValueError('actual Groundshaper capability required')
  import terrain_actions as T,hazard_state as H,world_entities as W,body_state as B
@@ -1702,7 +1736,16 @@ def threaded_maneuver(engine,a,p,target,maneuver,**options):
   e._type_ace_threaded={'trainer':t,'pokemon':q}
   try:
    if maneuver=='disarm':return __import__('turn').disarm(e,q,b,**options)
-   if maneuver=='grapple':return __import__('grapple_state').initiate(e,q,b,**options)
+   if maneuver=='grapple':
+    import grapple_state as GRAPPLE,threaded as THREADED
+    declaration=GRAPPLE.native_policy()
+    declaration['id']='type-ace-threaded-grapple'
+    declaration['initiation']=threaded_config(e,q,declaration['source'],declaration['initiation'])
+    declaration['initiation']['ac']=THREADED.parameters(q)['accuracy']
+    declaration['initiation']['requirements']=[{'id':'actual-threaded','who':'actor',
+      'condition':{'kind':'capability','names':['실 날리기','실날리기','Threaded','capability/실-날리기']},
+      'reason':'Insectoid Utility uses the actual Threaded capability for this native maneuver'}]
+    return GRAPPLE.initiate(e,q,b,declaration=declaration,**options)
    return getattr(__import__('physics_maneuvers'),maneuver)(e,q,b,**options)
   finally:del e._type_ace_threaded
  return G.transition(engine,a,apply,participants=(p,target),include_grid=True,include_rulings=True)
@@ -1873,6 +1916,7 @@ def validate(engine):
         facts['actor_id']==facts['target_id'] or facts['actor_side'] is None or facts['target_side'] is None or facts['actor_side']==facts['target_side']):
      raise ValueError('Close Quarters mark differs from actual foe hit')
   __import__('pokemon_move_edges').mixed_power(p)
+  __import__('pokemon_move_edges').official_mixed_power(p)
   for r in p.spec.get(KEY,[]):
    if not isinstance(r,dict) or r.get('source') not in FEATURES:raise ValueError('actual Type Ace history source required')
    if r.get('ability'):

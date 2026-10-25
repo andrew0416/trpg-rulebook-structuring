@@ -236,7 +236,7 @@ def _spend(engine, actor, row, key, *, order=None):
     frequency = row.get("frequency", {"kind": "at_will"})
     kind, cap = FREQUENCY.parse({"kind": frequency.get("kind"), "uses": frequency.get("cap", 1)})
     if kind in ("scene", "daily") and not FREQUENCY.activation_allowed(
-            actor, key, {"kind": kind, "uses": cap}, engine=engine):
+            actor, key, {"kind": kind, "uses": cap}, engine=engine, action_actor=actor):
         raise ValueError("optional feature frequency exhausted")
     if row["id"]=="ERRATA-056":
         import order_actions as ORDERS
@@ -247,7 +247,7 @@ def _spend(engine, actor, row, key, *, order=None):
     if ap:
         AP.charge(actor, ap, mode="spend")
     if kind in ("scene", "daily"):
-        FREQUENCY.consume_activation(actor, key, {"kind": kind, "uses": cap}, engine=engine)
+        FREQUENCY.consume_activation(actor, key, {"kind": kind, "uses": cap}, engine=engine, action_actor=actor)
 
 
 def _install(target, owner, clause_id, row, payload, *, expires_round=None,

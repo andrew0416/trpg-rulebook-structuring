@@ -214,7 +214,7 @@ def appraise(engine, actor, *, instance_id, fixed=None, **check_options):
         return False
     # The native observed roll stays observed, even when it fails identification.
     roll = engine.skill_roll(actor, '생존', fixed=fixed, **check_options)
-    check = C.against_dc(roll, 20)
+    check = __import__('skill_feature_actions').resolve_check(engine,actor,'생존',20,roll,check_options)
     if check.passed:
         plan = _ensure_plan(engine, obj)
     obj.setdefault(APPRAISALS, []).append(dict(actor_id=actor.entity_id, source=SOURCE,

@@ -24,6 +24,8 @@ from ci_physical import safe_id
 
 SUITES = {
     "frequency_equivalence": ".ci/suites/frequency_equivalence.json",
+    "metadata_revisions": ".ci/suites/metadata_revisions.json",
+    "procedural_22": ".ci/suites/procedural_22.json",
     "common_checks": "tools/test_common_checks.py",
     "move_revisions": ".ci/suites/move_revisions.json",
     "rank_revisions": ".ci/suites/rank_revisions.json",
@@ -260,8 +262,8 @@ def encrypt_evidence(root, output, key, temp_root):
     files += list((output / "verifier").glob("tests-*.json"))
     files += list((output / "verifier").glob("tests-*.log"))
     files += [path for path in (output / "physical").glob("*") if path.is_file()]
-    # The typed collector requires exact nested generated/additional raw bytes.
-    for directory in ("procedural-generated", "procedural-additional"):
+    # Generated first-read evidence must survive the existing encrypted archive.
+    for directory in ("procedural-generated", "procedural-additional", "ordinary-generated"):
         files += [path for path in (output / "physical" / directory).rglob("*") if path.is_file()]
     if (output / "input-read-errors.json").exists():
         files.append(output / "input-read-errors.json")

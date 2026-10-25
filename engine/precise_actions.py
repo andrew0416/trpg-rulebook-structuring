@@ -121,12 +121,19 @@ def perform(e,actor,skill,dc,options,adjudication):
     def resolve(staged,rolls=None):
         ordinary=rolls[0] if rolls is not None else staged.skill_roll(actor,skill,**task)
         concentration=(rolls[1] if rolls is not None else staged.skill_roll(actor,"집중",**focus)) if observed["attacked"] else None
+        if concentration is not None:
+            import skill_feature_actions as SF
+            identity=SF._observed(staged,actor,concentration,focus)[0] if actor.entity_id in getattr(staged,'_let_me_help_offers',{}) else focus.get('roll_id')
+            __import__('skill_feature_actions').resolve_check(staged,actor,'집중',16,concentration,focus)
+            if identity is not None:
+                completed=__import__('skill_feature_actions').event(staged,actor,identity)
+                if completed is not None and completed.final is not None:concentration=completed.final
         failure=0 if concentration is None or concentration.total>=16 else -(1+M.ratio(16-concentration.total,4))
         hit_penalty=-2 if observed["damaging_hit"] else 0
         injury_penalty=-2*observed["injuries"]
         penalty=failure+hit_penalty+injury_penalty
         adjusted=replace(ordinary,modifier=ordinary.modifier+penalty)
-        check=C.against_dc(adjusted,dc)
+        check=__import__('skill_feature_actions').resolve_check(staged,actor,skill,dc,adjusted,task,observed_roll=ordinary)
         import skill_feature_actions as SF
         SF.finish(staged,actor,task.get("roll_id"))
         if concentration is not None:SF.finish(staged,actor,focus.get("roll_id"))
@@ -141,4 +148,4 @@ def perform(e,actor,skill,dc,options,adjudication):
         plans=[(actor,skill,task)]+([(actor,"집중",focus)] if observed["attacked"] else [])
         basis={"source":SOURCE,"context":deepcopy(context),"dc":dc,"evidence":observed}
         return SF.sequence(e,"precise:"+task["roll_id"],basis,plans,lambda rolls:resolve(e,rolls))
-    return COMMON._staged_rolls(e,resolve)
+    return COMMON._staged_rolls(e,resolve,actors=(actor,))

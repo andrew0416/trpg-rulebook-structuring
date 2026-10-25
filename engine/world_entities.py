@@ -766,6 +766,7 @@ def validate_world(engine):
         ACTIVATION.validate_continuations(engine,index)
         __import__('training_features').validate_core_payments(engine,index)
         __import__('commander').validate_world(engine,index)
+        __import__('focused_command').validate_world(engine,index)
         __import__('commander_orders').validate_world(engine,index)
     except ValueError as exc:
         issue('timed_type_contract',None,str(exc))
@@ -1061,7 +1062,7 @@ def validate_world(engine):
     try:
         __import__('jump_move_actions').validate_world(engine,index)
     except (TypeError,ValueError,KeyError,AttributeError) as exc:issue('jump_move_actions',None,str(exc))
-    for module_name,code in (('weather_state','weather_state'),('weather_templates','weather_template_state'),('type_ace','type_ace_state'),('chronicler','chronicler_state'),('fashionista','fashionista_state'),('researcher_fields','researcher_fields_state'),('dancer','dancer_state'),('musician','musician_state'),('athlete','athlete_state'),('hunter','hunter_state'),('martial_artist','martial_artist_state'),('multi_strike','multi_strike_state'),('combat_move_reactions','combat_move_reaction_state')):
+    for module_name,code in (('weather_state','weather_state'),('weather_templates','weather_template_state'),('type_ace','type_ace_state'),('chronicler','chronicler_state'),('fashionista','fashionista_state'),('researcher_fields','researcher_fields_state'),('dancer','dancer_state'),('musician','musician_state'),('athlete','athlete_state'),('hunter','hunter_state'),('martial_artist','martial_artist_state'),('multi_strike','multi_strike_state'),('combat_move_reactions','combat_move_reaction_state'),('walk_it_off','walk_it_off_state')):
         try:
             import importlib
             importlib.import_module(module_name).validate(engine)
@@ -1096,6 +1097,10 @@ def validate_world(engine):
         __import__('provocateur').validate(engine,index)
     except (TypeError,ValueError,KeyError,AttributeError) as exc:
         issue('provocateur_state',None,str(exc))
+    try:
+        __import__('type_sync').validate(engine)
+    except (TypeError,ValueError,KeyError,AttributeError) as exc:
+        issue('type_sync_feature_state',None,str(exc))
     return {'valid':not issues, 'actors':len(roster), 'objects':len(objects), 'issues':issues,
             'scope':'Current identity/location/relation integrity only; not category-2 or creation legality certification.'}
 

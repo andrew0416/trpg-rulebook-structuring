@@ -54,8 +54,7 @@ def install(rules):
 
 def receipts(actor, feature, *, active=False):
     import trainer_feature_acquisition as T
-    return [row['static_acquisition'] for _, row, live in T._static_records(actor)
-            if row['static_acquisition']['feature_id'] == feature and (live or not active)]
+    return [record for _, record in T.static_acquisitions(actor, feature, active=active)]
 
 
 def acquired(actor, feature=CLASS):
@@ -375,6 +374,7 @@ def training_payment(engine, actor, target, feature, communication, *, edition='
     import priority_limited as P
     row=scope(engine,actor,feature,target)
     if row is None:return None
+    if row.get('voice') and edition=='local_csv':return voice_payment(engine,actor,feature)
     if edition=='core':
         payments=row.setdefault('standard_receipts',{})
         if feature not in payments:
@@ -397,6 +397,8 @@ def training_authority_id(owner, target_id, feature, payment_id):
     import priority_limited as P
     for row in owner.spec.get(ACTIVATIONS,[]):
         if row.get('integrity')!=_seal(row):raise ValueError('Commander training activation changed')
+        if row.get('voice') and row['id']==payment_id:
+            return {'target_id':target.entity_id,'feature':feature} in row['orders']
         if any(p['id']==payment_id and p['commander_activation']==row['id'] and p['feature']==feature
                and p['target_id']==next(e['target_id'] for e in row['orders'] if e['feature']==feature) for p in __import__('training_features').core_payments(owner)):
             return {'target_id':target_id,'feature':feature} in row['orders']
@@ -410,6 +412,12 @@ def training_authority_id(owner, target_id, feature, payment_id):
 def _native_order(engine, actor, target, feature, options):
     import class_passive_combat as P, combat_precision_features as C, moment_of_action as M
     import commander_orders as O
+    import focused_command as FOCUSED
+    if feature==FOCUSED.FEATURE:
+        import world_entities as W
+        actual=dict(options);ids=actual.pop('pokemon_ids')
+        pair=[W.actor_index(engine)[uid] for uid in ids]
+        return FOCUSED.use(engine,actor,pair,target=target,**actual)
     if feature == MOBILIZE:
         return mobilize(engine, actor, target, **options)
     if feature in O.FEATURES:
@@ -588,7 +596,7 @@ def continue_orders(engine):
             else:
                 row['executing']=True
                 try:
-                    O.deliver(engine,owner,choice['target'],choice['feature'])
+                    if choice['target'] is not None:O.deliver(engine,owner,choice['target'],choice['feature'])
                     result=_native_order(engine,owner,choice['target'],choice['feature'],choice['options'])
                 finally:row['executing']=False
             if result is None or isinstance(result,tuple) and result!=(1,0):
@@ -597,7 +605,8 @@ def continue_orders(engine):
         if not row['paid']:raise ValueError('native Order did not pay its original action')
         activation['priority_payment']=(row.get('priority_receipt') or {}).get('id')
         activation['phase']='complete';activation['integrity']=_seal(activation)
-        targets=[c['target'] for c in row['assignments']]
+        targets=[c['target'] for c in row['assignments'] if not row.get('voice')
+            or c['feature']==activation['feature']]
         engine._commander_order_scope=None
         CHEER.complete_native_order(engine,owner,targets,activation['feature'],origin={
             'kind':'commander_order','source':activation['feature'],'activation_id':activation['id']})
@@ -609,6 +618,72 @@ def continue_orders(engine):
     except Exception:
         engine._commander_order_scope=None
         raise
+
+
+def voice_payment(engine, actor, feature):
+    """An actual native child consumes the already paid compound Voice action."""
+    row=scope(engine,actor,feature)
+    if row is None or not row.get('voice') or not row['paid']:
+        raise ValueError('actual source-proved Focused Command plus Voice payment required')
+    return {'id':row['activation']['id'],'kind':'focused_command_voice',
+            'payment':{'declared':['standard','swift'],'phase':'paid'},
+            'source':__import__('focused_command').VOICE}
+
+
+def voice_authority(owner, target, feature, payment_id):
+    rows=[r for r in owner.spec.get(ACTIVATIONS,[]) if r['id']==payment_id and r.get('voice')]
+    return (len(rows)==1 and rows[0]['integrity']==_seal(rows[0])
+        and {'target_id':target.entity_id,'feature':feature} in rows[0]['orders'])
+
+
+def focused_voice(engine, actor, pokemon, feature, *, options=None, target=None, edition='core', action='standard'):
+    """Use the printed targetless Order plus one native targeted Order."""
+    import focused_command as F,acquired_features as A,world_entities as W
+    if action!='standard':raise ValueError('Commander Voice cannot use Focused Command as a Swift Action')
+    voice=F.acquired(actor,F.VOICE)
+    if voice is None:raise ValueError('actual acquired Commander Voice required')
+    if F.acquired(actor) is None:raise ValueError('actual acquired Focused Command required')
+    if scope(engine,actor) is not None:raise ValueError('nested Commander Order activation is not a new trigger')
+    if feature not in engine.r.selection.units:feature=engine.r.selection.resolve_name(feature,('feat/',))
+    if not _targeted_identity(engine.r,feature) or not A.owned_rule_count(actor,feature):
+        raise ValueError('actually known other targeted [Orders] Feature required')
+    pair=F.pokemon_pair(engine,actor,pokemon)
+    if type(options or {})is not dict:raise ValueError('native Order options must be a mapping')
+    F.source(engine.r,edition=edition);selected_source=F.source(engine.r,F.VOICE)
+    if edition=='core' and target is not None:raise ValueError('Core Focused Command has no targets')
+    if edition=='local_csv':
+        if target is None:raise ValueError('retained CSV Focused Command requires an explicit actual target')
+        W.require_actors(engine,target)
+    if not engine.encounter_active or engine.round_start_seconds is None:
+        raise ValueError('Focused Command requires an actual open combat round')
+    turn=actor.custom_conditions.get('combat_turn_serial',0)
+    if any(row.get('voice',{}).get('scope')==F._scope(engine) and row['voice']['turn']==turn
+           for row in actor.spec.get(ACTIVATIONS,[])):
+        raise ValueError('Commander Voice has already been used this actual turn')
+    def apply(e,owner,*subjects):
+        import turn as TURN
+        from action_metadata import ActionCost
+        if not TURN.spend_compound(e,owner,ActionCost(('standard','swift')),F.VOICE):
+            raise ValueError('Focused Command plus Voice requires Standard and Swift actions')
+        partners=subjects[:2];focused_target=None if target is None else subjects[2]
+        native=[{'feature':F.FEATURE,'target':focused_target,
+                 'options':{'pokemon_ids':[p.entity_id for p in partners],'edition':edition}},
+                *[{'feature':feature,'target':p,'options':G._stage_transition_payload(engine,e,deepcopy(options or {}))}
+                  for p in partners]]
+        activation={'id':'commander:'+owner.entity_id+':'+str(len(owner.spec.get(ACTIVATIONS,[]))+1),
+            'feature':feature,'modifier':None,'complex_orders':False,'issuer_id':owner.entity_id,
+            'encounter':e._party_encounter_epoch,'priority_payment':None,'at':e.elapsed_seconds,'phase':'applying',
+            'orders':[{'target_id':None if c['target'] is None else c['target'].entity_id,'feature':c['feature']} for c in native],
+            'source_requests':{F.VOICE:voice['request_id']},
+            'voice':{'source':selected_source,'scope':F._scope(e),'turn':owner.custom_conditions.get('combat_turn_serial',0),
+                     'action':['standard','swift']}}
+        activation['integrity']=_seal(activation);owner.spec.setdefault(ACTIVATIONS,[]).append(activation)
+        e._commander_order_scope={'issuer':owner,'assignments':native,'activation':activation,
+            'changed_targets':[],'paid':True,'frequencies':[],'completed':[],'cursor':0,'results':[],
+            'waiting_use':None,'executing':False,'base_action':'free','priority_actions':[],'voice':True}
+        return continue_orders(e)
+    import state_grants as G
+    return transition_native(engine,actor,apply,participants=(*pair,*((target,) if target is not None else ())))
 
 
 def no_opportunity(engine, mover):
@@ -698,8 +773,9 @@ def validate_world(engine, index):
         for uid in owner.spec.get('commander_gifts', {}):
             gifted(owner, uid)
         for row in owner.spec.get(ACTIVATIONS, []):
-            if (type(row) is not dict or set(row) != {'id', 'feature', 'modifier', 'complex_orders', 'issuer_id',
-                    'encounter', 'orders', 'source_requests', 'priority_payment', 'at', 'phase','integrity'} or row['issuer_id'] != owner.entity_id
+            fields={'id', 'feature', 'modifier', 'complex_orders', 'issuer_id',
+                    'encounter', 'orders', 'source_requests', 'priority_payment', 'at', 'phase','integrity'}
+            if (type(row) is not dict or set(row) not in (fields,fields|{'voice'}) or row['issuer_id'] != owner.entity_id
                     or row['integrity'] != _seal(row)):
                 raise ValueError('Commander actual activation evidence changed')
             C.integer(row['encounter'],'Commander activation encounter',1)
@@ -713,20 +789,34 @@ def validate_world(engine, index):
                         raise ValueError('pending Commander native choices or continuation changed')
                     if (current['cursor']!=len(current['results']) or not 0<=current['cursor']<len(row['orders'])
                             or current['waiting_use'] is None or not current['paid']
-                            or [{'target_id':c['target'].entity_id,'feature':c['feature']} for c in current['assignments']]!=row['orders']):
+                            or [{'target_id':None if c['target'] is None else c['target'].entity_id,'feature':c['feature']} for c in current['assignments']]!=row['orders']):
                         raise ValueError('pending Commander actual child or recipient sequence changed')
             if (row['modifier'] not in (None,BATTLE,TIP,SCHEME) or type(row['complex_orders'])is not bool
                     or type(row['orders'])is not list or not row['orders'] or not _targeted_identity(engine.r,row['feature'])
-                    or len({entry.get('target_id') for entry in row['orders']})!=len(row['orders'])
+                    or not row.get('voice') and len({entry.get('target_id') for entry in row['orders']})!=len(row['orders'])
                     or any(type(entry)is not dict or set(entry)!={'target_id','feature'}
-                           or entry['target_id'] not in index or not _targeted_identity(engine.r,entry['feature']) for entry in row['orders'])):
+                           or not (row.get('voice') and entry['feature']==__import__('focused_command').FEATURE)
+                           and (entry['target_id'] not in index or not _targeted_identity(engine.r,entry['feature'])) for entry in row['orders'])):
                 raise ValueError('Commander actual native activation target or Order changed')
+            if row.get('voice'):
+                import focused_command as F
+                voice=row['voice'];entries=row['orders'];ids=[c['target_id'] for c in entries[1:]]
+                if (type(voice)is not dict or set(voice)!={'source','scope','turn','action'}
+                        or voice['source']!=F.source(engine.r,F.VOICE) or voice['action']!=['standard','swift']
+                        or len(entries)!=3 or entries[0]['feature']!=F.FEATURE or len(set(ids))!=2
+                        or any(uid not in index or index[uid].kind!='pokemon' for uid in ids)
+                        or any(c['feature']!=row['feature'] for c in entries[1:])
+                        or row['modifier'] is not None or row['complex_orders'] or row['priority_payment'] is not None
+                        or not any(f['scope']==voice['scope'] and f['pokemon_ids']==ids
+                                   and f['target_id']==entries[0]['target_id'] for f in owner.spec.get(F.KEY,[]))):
+                    raise ValueError('Focused Command Voice must retain its actual two Pokemon and compound payment')
+                C.integer(voice['turn'],'Voice actual Trainer turn',1,owner.custom_conditions.get('combat_turn_serial',0))
             if row['priority_payment'] is not None:
                 payments=[p for p in __import__('priority_limited').records(owner) if p['id']==row['priority_payment']]
                 if (len(payments)!=1 or not any(e['feature']==payments[0]['source'] for e in row['orders'])
                         or payments[0]['payment']['funded']!=priority_funded(owner,row['feature'],row['priority_payment'])):
                     raise ValueError('Commander native Priority payment lost its actual action costs')
-            expected=([row['modifier']] if row['modifier'] else [])+([COMPLEX] if row['complex_orders'] else [])
+            expected=([row['modifier']] if row['modifier'] else [])+([COMPLEX] if row['complex_orders'] else [])+([__import__('focused_command').VOICE] if row.get('voice') else [])
             if set(row['source_requests'])!=set(expected):raise ValueError('Commander actual modifier source set changed')
             for feature, request in row['source_requests'].items():
                 if not any(r['request_id'] == request for r in receipts(owner, feature)):

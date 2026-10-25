@@ -72,8 +72,6 @@ def require_candidates(e,actor,move,candidates,primary):
 
 def recipients(e,actor,target,effect,ctx):
     mid=ctx.get('source_id');preflight(e,actor,target,effect,mid)
-    import pass_moves as PASS
-    if PASS.is_pass(e.r.move(mid)):PASS.require_native_target(e,actor,target,mid)
     if mid=='move/소란피기' and effect.get('_activation_scope')=='field':
         import move_completion as COMPLETE,body_state as BODY,world_entities as W
         if not COMPLETE.authorized_field(e,ctx,effect):raise ValueError('actual Uproar completion required')
@@ -87,6 +85,8 @@ def recipients(e,actor,target,effect,ctx):
     import effect_contracts as CONTRACTS
     CONTRACTS.validate_receipt(e,ctx.get('effect_receipt'),mid,
         ctx.get('effect_occurrence'),actor,target,effect)
+    import pass_moves as PASS
+    if PASS.is_pass(e.r.move(mid)):PASS.require_native_target(e,actor,target,mid)
     # The activation dispatches the effect once for each hit member. Returning
     # the full group here would apply every effect N times to every member.
     return (target,)

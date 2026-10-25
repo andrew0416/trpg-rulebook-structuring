@@ -433,11 +433,11 @@ def _settle(engine, actor, target, held_selection, destination_slot, expiry_choi
             raise ValueError("Pickup needs the actual holder's pending selection")
         key = "ability:" + NAME
         frequency = staged.r.ability_freq.get(NAME)
-        if not FREQ.activation_allowed(user, key, frequency, engine=staged):
+        if not FREQ.activation_allowed(user, key, frequency, engine=staged, action_actor=user):
             raise ValueError("Pickup Scene frequency exhausted")
         if not TURN.spend(staged, user, "swift", NAME):
             raise ValueError("Pickup Swift action unavailable")
-        FREQ.consume_activation(user, key, frequency, engine=staged)
+        FREQ.consume_activation(user, key, frequency, engine=staged, action_actor=user)
         # Route the authored copy_item payload through its registered handler.
         import effects_ext as EXT
         result = EXT.h_copy_item(staged, user, holder, COPY_EFFECT, {

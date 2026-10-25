@@ -1,899 +1,861 @@
 {
   "schema_version": 1,
   "id": "final_revisions_13",
-  "purpose": "Ordinary phase12144 of full13173-method and21-procedural-runner revision; frequency1029 and procedural21 remain separately mandatory and are not executed or credited by this phase.",
+  "purpose": "Stable F77 phase1: all485 latest failures plus identified change impact/unexecuted/new obligations; full13484 and original4115 retained, phase2 metadata65 and audit1 mandatory, unaffected PASS23 reused.",
   "completion_credit": 0,
-  "required_unique_count": 677,
+  "required_unique_count": 625,
   "completed": {
-    "tools.test_book_gleeful_interference.GleefulInterferenceTests": {
+    "tools.test_audit_growth_permanent.RangedWhitelistTests": {
       "tests": [
-        "tools.test_book_gleeful_interference.GleefulInterferenceTests.test_ability_swap_after_hit_preserves_friend_guard_snapshot_and_ownership_is_not_side",
-        "tools.test_book_gleeful_interference.GleefulInterferenceTests.test_absorbed_zero_damage_hit_triggers_but_cannot_hit_does_not",
-        "tools.test_book_gleeful_interference.GleefulInterferenceTests.test_acquisition_requires_real_brigade_and_adept_charm_then_retains_historical_rank",
-        "tools.test_book_gleeful_interference.GleefulInterferenceTests.test_actual_interceptor_receives_penalty_original_target_does_not",
-        "tools.test_book_gleeful_interference.GleefulInterferenceTests.test_area_targets_and_distinct_attacks_apply_once_per_actual_foe_hit",
-        "tools.test_book_gleeful_interference.GleefulInterferenceTests.test_decline_invalid_choice_and_failed_payment_preserve_native_transaction",
-        "tools.test_book_gleeful_interference.GleefulInterferenceTests.test_full_round_survives_source_withdrawal_restore_and_expires_at_original_count",
-        "tools.test_book_gleeful_interference.GleefulInterferenceTests.test_grapple_actual_automatic_struggle_uses_same_penalty_and_request_replay_is_inert",
-        "tools.test_book_gleeful_interference.GleefulInterferenceTests.test_miss_status_ally_unowned_suppressed_and_missing_ability_never_trigger",
-        "tools.test_book_gleeful_interference.GleefulInterferenceTests.test_native_damaging_hit_spends_one_ap_off_turn_free_and_changes_actual_accuracy",
-        "tools.test_book_gleeful_interference.GleefulInterferenceTests.test_restore_rejects_changed_actual_recipient_and_penalty",
-        "tools.test_book_gleeful_interference.GleefulInterferenceTests.test_wonder_guard_selected_attack_universe_keeps_custom_weakness_and_defense_only_types_separate"
+        "tools.test_audit_growth_permanent.RangedWhitelistTests.test_changed_saved_receipt_cannot_enable_unlisted_capability",
+        "tools.test_audit_growth_permanent.RangedWhitelistTests.test_poison_glands_remains_melee_and_cannot_buy_native_or_csv_range"
       ]
     },
-    "tools.test_book_go_fight_win.GoFightWinTests": {
+    "tools.test_battle_contest_cancelled.BattleContestCancellationTests": {
       "tests": [
-        "tools.test_book_go_fight_win.GoFightWinTests.test_acquisition_requires_actual_moment_and_expert_charm_then_retains_historical_rank",
-        "tools.test_book_go_fight_win.GoFightWinTests.test_all_ally_communication_is_required_before_any_cost_or_fixed_grant",
-        "tools.test_book_go_fight_win.GoFightWinTests.test_book_source_does_not_adopt_the_errata_standard_two_ap_contract",
-        "tools.test_book_go_fight_win.GoFightWinTests.test_complete_actual_battlefield_allies_include_other_trainers_and_pokemon_only",
-        "tools.test_book_go_fight_win.GoFightWinTests.test_compound_priority_reserves_and_settles_both_costs_and_forbids_ordinary_timing",
-        "tools.test_book_go_fight_win.GoFightWinTests.test_each_scene_cheer_has_one_quota_and_defense_choice_cannot_bypass_it",
-        "tools.test_book_go_fight_win.GoFightWinTests.test_independent_class_free_choice_pays_zero_or_one_ap_in_addition_to_fixed_condition",
-        "tools.test_book_go_fight_win.GoFightWinTests.test_new_book_producer_and_fixed_condition_restore_and_consume_through_existing_owner",
-        "tools.test_book_go_fight_win.GoFightWinTests.test_second_target_and_independent_class_failures_roll_back_all_new_producer_state",
-        "tools.test_book_go_fight_win.GoFightWinTests.test_three_real_outcomes_grant_fixed_book_conditions_without_intrinsic_ap_or_class_choice",
-        "tools.test_book_go_fight_win.GoFightWinTests.test_virtuoso_charm_restores_effective_eight_without_changing_six_dice"
+        "tools.test_battle_contest_cancelled.BattleContestCancellationTests.test_paid_attacker_faint_cancellation_settles_once_restores_and_allows_next_performer"
       ]
     },
-    "tools.test_book_stat_ace_full.StatAceTests": {
+    "tools.test_blessing_friendship_region.FriendshipRegionTests": {
       "tests": [
-        "tools.test_book_stat_ace_full.StatAceTests.test_actual_acquisition_template_prerequisites_branch_slots_and_historical_observation",
-        "tools.test_book_stat_ace_full.StatAceTests.test_all_five_class_modifiers_follow_actual_level_without_duplicate_projection",
-        "tools.test_book_stat_ace_full.StatAceTests.test_alternative_ace_or_matching_style_initial_source_and_one_actual_fifteen_pokemon",
-        "tools.test_book_stat_ace_full.StatAceTests.test_attack_mastery_native_disarm_and_dirty_trick_each_lose_one_tick",
-        "tools.test_book_stat_ace_full.StatAceTests.test_attack_mastery_successful_push_real_tick_and_failed_opposed_no_tick",
-        "tools.test_book_stat_ace_full.StatAceTests.test_chosen_investment_native_levelup_forms_and_retained_nature_without_permanent_waiver",
-        "tools.test_book_stat_ace_full.StatAceTests.test_class_qualification_counts_distinct_owned_pokemon_and_rejects_wrong_branch",
-        "tools.test_book_stat_ace_full.StatAceTests.test_defense_mastery_native_shift_decision_dr_and_full_round_initiative_expiry",
-        "tools.test_book_stat_ace_full.StatAceTests.test_defensive_maneuvers_actual_hits_only_use_six_stages_once_and_preserve_current_stages",
-        "tools.test_book_stat_ace_full.StatAceTests.test_embodiment_acquired_four_features_two_branches_existing_scene_owner_ap_and_restore",
-        "tools.test_book_stat_ace_full.StatAceTests.test_link_actual_end_turn_optional_ap_and_real_nonzero_base_combat_stage",
-        "tools.test_book_stat_ace_full.StatAceTests.test_link_invalid_choice_rolls_back_native_turn_and_cost",
-        "tools.test_book_stat_ace_full.StatAceTests.test_maneuver_attack_invalid_selection_and_late_move_error_leave_no_paid_receipt",
-        "tools.test_book_stat_ace_full.StatAceTests.test_maneuver_attack_pass_actual_movement_target_and_native_receipt_restore",
-        "tools.test_book_stat_ace_full.StatAceTests.test_maneuver_attack_three_actual_recipients_pay_one_move_and_one_branch_frequency",
-        "tools.test_book_stat_ace_full.StatAceTests.test_maneuver_special_attack_all_four_real_geometries_and_no_persistent_range_mutation",
-        "tools.test_book_stat_ace_full.StatAceTests.test_maneuver_three_targets_actual_passive_wait_restore_keeps_paid_geometry_and_remaining_recipients",
-        "tools.test_book_stat_ace_full.StatAceTests.test_single_branch_retraining_releases_live_binding_and_retires_real_branch_receipt",
-        "tools.test_book_stat_ace_full.StatAceTests.test_special_attack_mastery_native_origin_bonus_once_keeps_area_size",
-        "tools.test_book_stat_ace_full.StatAceTests.test_special_defense_mastery_explicit_one_two_ticks_minimum_percent_and_healing_distinction",
-        "tools.test_book_stat_ace_full.StatAceTests.test_speed_maneuver_native_priority_and_advanced_priority_whole_turn_payment",
-        "tools.test_book_stat_ace_full.StatAceTests.test_speed_mastery_actual_swift_disengage_preserves_shift_and_avoids_aoo",
-        "tools.test_book_stat_ace_full.StatAceTests.test_stratagem_attack_actual_order_bound_ap_current_critical_cap_and_release",
-        "tools.test_book_stat_ace_full.StatAceTests.test_stratagem_both_defensive_save_families_reach_actual_saving_check",
-        "tools.test_book_stat_ace_full.StatAceTests.test_stratagem_single_occupancy_late_failure_and_branch_provenance_tamper",
-        "tools.test_book_stat_ace_full.StatAceTests.test_stratagem_special_attack_effect_range_dynamic_distinct_from_natural_or_range",
-        "tools.test_book_stat_ace_full.StatAceTests.test_stratagem_speed_existing_positive_modes_only_and_encounter_lifetime",
-        "tools.test_book_stat_ace_full.StatAceTests.test_training_all_five_branches_two_moves_tp_actual_activity_and_existing_learning_ledger",
-        "tools.test_book_stat_ace_full.StatAceTests.test_training_wrong_owner_wrong_move_and_late_native_failure_are_atomic"
+        "tools.test_blessing_friendship_region.FriendshipRegionTests.test_malformed_regions_and_unknown_purpose_reject_without_state_or_rng_changes",
+        "tools.test_blessing_friendship_region.FriendshipRegionTests.test_permitted_purpose_and_region_coexist_on_public_friends_path",
+        "tools.test_blessing_friendship_region.FriendshipRegionTests.test_r104_does_not_add_three_to_charm_or_transfer_from_trainer_to_performer",
+        "tools.test_blessing_friendship_region.FriendshipRegionTests.test_region_only_keeps_granted_poffin_pool_and_real_friendship_result"
       ]
     },
-    "tools.test_book_telekinetic_full.TelekineticTests": {
+    "tools.test_body_locality_source_revision.HazardBodyTests": {
       "tests": [
-        "tools.test_book_telekinetic_full.TelekineticTests.test_barrier_four_real_segments_individual_twenty_hp_fifteen_dr_and_restore",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_barrier_normal_contiguity_touch_and_overload_six_nonadjacent_within_six",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_barrier_real_physical_damage_destroyed_segment_removes_only_its_wall",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_burst_actual_swift_one_ap_trip_and_push_no_standard_doublepay",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_burst_real_disarm_and_opposed_failure_miss_no_effect",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_burst_unowned_range_follow_and_late_failure_rollback",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_interference_core_standard_atwill_next_personal_turn_and_playtest_scene_swift_round",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_kinesis_actual_interrupt_original_accuracy_minus_four_can_miss",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_kinesis_offturn_overload_and_manual_untriggered_cast_are_atomic_refusals",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_kinesis_overload_completed_real_reaction_own_ordinary_swift_original_attacker",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_kinesis_rechecks_actual_six_metre_range_before_consuming_choice",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_kinesis_self_without_side_or_distance_and_live_ally_observation_boundaries",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_late_native_move_failure_rolls_back_placement_actions_ap_rng",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_native_acquisition_retraining_dependency_pk_binding_and_owned_spa_cleanup",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_overload_lifted_actual_target_end_turn_one_tick_not_round_or_caster",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_pk_combat_actual_bind_standard_exact_release_and_remote_membership",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_pk_combat_combined_focus_weight_range_and_unbound_refusal",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_pk_combat_focus_qualification_and_normal_two_hands_limit",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_pk_combat_melee_eight_metres_optional_spa_still_physical",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_pk_combat_preserves_long_ranged_twelve_and_refuses_melee_nine",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_pk_combat_real_remote_item_stock_target_eight_and_consumption",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_power_exact_one_immutable_ability_choice_and_three_actual_identities",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_power_trainer_levitate_actual_ground_immunity_four_and_existing_plus_two",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_prerequisites_edges_parents_exact_rank_and_no_ranked_acquisition",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_psychic_actual_named_hit_direction_spdef_and_full_round_vulnerable",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_psychic_miss_no_overload_ap_or_vulnerability_and_other_move_no_trigger",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_seven_independent_acquisitions_spa_no_auto_siblings_and_restore",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_telekinesis_both_adjudication_consumers_lifted_movement_levitate_and_restore",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_telekinesis_printed_user_caster_default_native_use_and_optional_scoped_override",
-        "tools.test_book_telekinetic_full.TelekineticTests.test_telekinesis_shift_escape_sixteen_and_preserves_independent_owned_state"
+        "tools.test_body_locality_source_revision.HazardBodyTests.test_actual_altitude_zero_air_to_land_hits_the_single_retained_body_hazard_once",
+        "tools.test_body_locality_source_revision.HazardBodyTests.test_body_edge_proximity_uses_one_rock_and_preserves_native_reentry_immunity",
+        "tools.test_body_locality_source_revision.HazardBodyTests.test_gm_send_loads_shallow_ice_without_traversing_spike_hazards",
+        "tools.test_body_locality_source_revision.HazardBodyTests.test_paid_and_forced_entries_apply_each_new_physical_instance_once_and_skip_retained_cells",
+        "tools.test_body_locality_source_revision.HazardBodyTests.test_two_actual_toxic_installations_overlapping_one_entered_square_are_deadly",
+        "tools.test_body_locality_source_revision.HazardBodyTests.test_two_body_contacts_with_one_toxic_installation_are_not_two_layers"
       ]
     },
-    "tools.test_category2_actor_templates.Tests": {
+    "tools.test_body_locality_source_revision.ManipulateBodyTests": {
       "tests": [
-        "tools.test_category2_actor_templates.Tests.test_actual_multipart_parts_keep_species_stats_moves_abilities_and_native_initiative",
-        "tools.test_category2_actor_templates.Tests.test_all_swarm_bars_can_be_exhausted",
-        "tools.test_category2_actor_templates.Tests.test_boss_bar_count_and_actions_are_independent",
-        "tools.test_category2_actor_templates.Tests.test_multipart_real_parts_share_parent_not_hp_or_location",
-        "tools.test_category2_actor_templates.Tests.test_native_capture_immunity_and_supported_boss_transitions",
-        "tools.test_category2_actor_templates.Tests.test_slot_binding_validation_and_roundtrip",
-        "tools.test_category2_actor_templates.Tests.test_swarm_single_identity_and_all_five_source_size_bands_survive_restore",
-        "tools.test_category2_actor_templates.Tests.test_swarm_size_and_current_multiplier_not_synonyms",
-        "tools.test_category2_actor_templates.Tests.test_template_and_multipart_late_publication_failures_preserve_graph_and_rng"
+        "tools.test_body_locality_source_revision.ManipulateBodyTests.test_native_manipulate_uses_nearest_body_square_and_an_unblocked_body_line"
       ]
     },
-    "tools.test_category2_athletics_consumers.AthleticsConsumersTests": {
+    "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests": {
       "tests": [
-        "tools.test_category2_athletics_consumers.AthleticsConsumersTests.test_athletics_rank_changes_actual_derived_land_shift_at_rounding_boundary",
-        "tools.test_category2_athletics_consumers.AthleticsConsumersTests.test_baseline_athletics_throw_limit_controls_real_inventory_action_and_refusal",
-        "tools.test_category2_athletics_consumers.AthleticsConsumersTests.test_grapple_explicit_athletics_for_both_sides_resolves_win_and_defended_tie"
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_catch_combo_native_owned_pokemon_ko_free_ball_hp1_rate_failure_retains_faint",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_collector_actual_three_earned_stacks_bonus_or_complete_reroll",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_core_capture_p214_examples_and_exclusive_hp_bands",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_core_die_trainer_crit_ball_modifier_automatic100_and_zero_hp_admission",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_core_snare_actual_bait_encounter_is_excluded_from_csv_predicate",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_csv_momentum_exact_fixed_two_on_next_real_capture_only_once",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_csv_tools_actual_bait_lure_and_reel_consume_native_checks",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_curve_knockout_uses_explicit_false_strike_before_pending_ball_function",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_curve_optional_hit_miss_damage_before_capture_and_physical_identity",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_curve_source_static_vs_csv_standard_gate_and_release_damage_before_send",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_devitalizing_missing_stale_success_miss_and_choice_reject_before_cost",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_devitalizing_three_alternatives_actual_escape_payment_and_once",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_false_strike_native_ko_replacement_and_isolated_damage_no_trigger",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_fast_pitch_actual_between_turn_advanced_borrow_and_future_settlement",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_fast_pitch_current_turn_one_standard_one_ap_one_ball",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_gotta_core_daily_swift_d100_and_one_does_not_become100",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_gotta_csv_inversion_always_three_scene_free_face_one",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_lasso_actual_accuracy_uses_tools_and_explicit_gm_procedure",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_late_relentless_attack_rejection_keeps_actual_shift_and_two_ap",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_may_tools_loaded_cap_cannon_uses_same_real_projectile",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_momentum_core_original_and_csv_procedure_rejection_are_atomic",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_next_save_overlap_requires_explicit_composition_and_native_restore",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_official_collector_actual_acquisition_current_family_and_stack_choice",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_pursuit_requires_owned_on_field_and_actual_flee_event",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_relentless_actual_flee_shift_struggle_trip_before_departure",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_relentless_native_miss_or_blocked_shift_does_not_trip_or_charge_twice",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_source_choices_replay_tamper_and_actual_receipts",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_suppression_case_single_electric_damage_and_shared_csv_turn_quota",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_tools_actual_hand_net_weighted_net_glue_and_lasso_source_paths",
+        "tools.test_book_capture_specialist_full.CaptureSpecialistFullTests.test_tools_reach_empty_hands_missing_source_and_snare_conversion_boundaries"
       ]
     },
-    "tools.test_category2_blessing_grants.BlessingGrantTests": {
+    "tools.test_book_cheerleader_bundle.CheerleaderBundleTests": {
       "tests": [
-        "tools.test_category2_blessing_grants.BlessingGrantTests.test_absent_gift_never_invents_its_source",
-        "tools.test_category2_blessing_grants.BlessingGrantTests.test_all_gifts_snapshot_restore_and_independent_baseline_survives_revoke",
-        "tools.test_category2_blessing_grants.BlessingGrantTests.test_all_whole_named_gifts_register_once_and_survive_native_codec",
-        "tools.test_category2_blessing_grants.BlessingGrantTests.test_independent_gifts_of_same_ability_only_cleanup_after_last_source",
-        "tools.test_category2_blessing_grants.BlessingGrantTests.test_native_immunity_consumers_follow_gift_source_and_cleanup"
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_all_four_training_orders_use_same_actual_ally_producer_self_is_excluded",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_authored_triggered_ability_held_suffix_only_cheers_after_actual_completion_once",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_cheered_decline_and_invalid_multiple_selection_preserve_instances",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_cheered_stacks_but_one_actual_save_rolls_exactly_twice_and_uses_best",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_codec_preserves_independent_instances_and_rejects_changed_producer_or_consumption",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_excited_enemy_attack_preserves_actual_passive_pending_prefix_and_consumption",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_excited_only_actual_damaging_hit_adds_five_dr_once_and_miss_preserves",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_five_stratagems_pinpoint_and_director_reach_actual_successful_completion",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_invalid_choice_and_second_grant_failure_roll_back_native_order_and_decision",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_lifetime_survives_round_scene_faint_and_original_source_withdrawal",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_moment_zero_one_two_real_allies_one_condition_and_triggered_free_cost",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_motivated_restores_toward_real_ace_base_and_requires_own_free_action",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_native_reactive_ability_grant_uses_its_actual_recipient",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_perish_body_actual_pair_rejects_enemy_mix_and_cheers_allied_attack_pair",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_support_actual_parent_acquisition_is_historical_and_friend_guard_owner_is_current",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_support_battery_manual_ability_and_enemy_or_missing_friend_guard_controls",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_support_child_acquisition_requires_actual_parent_and_adept_charm",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_support_mixed_actual_area_targets_disqualify_whole_activation",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_support_self_coat_and_team_blessing_apply_to_actual_trainer_allies_once",
+        "tools.test_book_cheerleader_bundle.CheerleaderBundleTests.test_tera_shell_actual_interrupt_self_activation_triggers_support_once"
       ]
     },
-    "tools.test_category2_blessing_observation_batch.Tests": {
+    "tools.test_book_oracle_full.OracleTests": {
       "tests": [
-        "tools.test_category2_blessing_observation_batch.Tests.test_active_target_knowledge_preserves_role_redaction_actions_ap_and_scene_quota",
-        "tools.test_category2_blessing_observation_batch.Tests.test_dream_serpent_and_network_share_atomic_lifecycle_contract",
-        "tools.test_category2_blessing_observation_batch.Tests.test_failures_are_atomic_and_signed_state_round_trips",
-        "tools.test_category2_blessing_observation_batch.Tests.test_four_passive_native_providers_reveal_only_finite_information",
-        "tools.test_category2_blessing_observation_batch.Tests.test_policy_exactly_pins_eleven_incomplete_source_rows",
-        "tools.test_category2_blessing_observation_batch.Tests.test_recorded_world_and_corpse_facts_keep_signature_window_and_ownership",
-        "tools.test_category2_blessing_observation_batch.Tests.test_world_serpent_native_extended_action_scene_quota_and_authority_are_atomic"
+        "tools.test_book_oracle_full.OracleTests.test_augury_gm_past_present_future_clarity_and_forgotten",
+        "tools.test_book_oracle_full.OracleTests.test_divination_combat_and_tampered_fact_refuse_without_invented_results",
+        "tools.test_book_oracle_full.OracleTests.test_divination_unknown_and_shared_daily_three_actual_extended_clock",
+        "tools.test_book_oracle_full.OracleTests.test_illusion_dismiss_and_actual_pokeball_release_free_boundary",
+        "tools.test_book_oracle_full.OracleTests.test_illusion_focus_rank_mark_limit_forfeit_and_physical_disguise_preserved",
+        "tools.test_book_oracle_full.OracleTests.test_illusion_real_standard_marks_focus_limit_exact_appearance_types_moves_unchanged",
+        "tools.test_book_oracle_full.OracleTests.test_illusion_vague_audio_truth_for_oracle_and_actual_damaging_hit_ends",
+        "tools.test_book_oracle_full.OracleTests.test_instinct_independent_permanent_source_survives_preview_withdrawal",
+        "tools.test_book_oracle_full.OracleTests.test_mark_actual_bound_ap_distinct_trainers_half_perception_and_self_allowed",
+        "tools.test_book_oracle_full.OracleTests.test_mark_blindsense_keeps_native_immunity_and_target_eyes_do_not_close",
+        "tools.test_book_oracle_full.OracleTests.test_mark_floor_odd_rank_target_type_consent_and_clock",
+        "tools.test_book_oracle_full.OracleTests.test_mark_one_closed_eye_focus_actual_target_senses_and_context",
+        "tools.test_book_oracle_full.OracleTests.test_mark_retraining_releases_actual_ap_and_only_owned_stat_source",
+        "tools.test_book_oracle_full.OracleTests.test_mark_temporary_denial_retains_ap_and_permanent_target_end_releases_once",
+        "tools.test_book_oracle_full.OracleTests.test_mark_unlimited_distance_rounds_and_rough_direction_independent_of_focus",
+        "tools.test_book_oracle_full.OracleTests.test_mystic_perception_not_intuition_and_actual_parent_prerequisites",
+        "tools.test_book_oracle_full.OracleTests.test_pickup_complete_table_none_short_unknown_item_and_rollback",
+        "tools.test_book_oracle_full.OracleTests.test_pickup_core_daily_five_minutes_actual_rng_and_physical_item",
+        "tools.test_book_oracle_full.OracleTests.test_prescience_actual_hit_becomes_miss_no_damage_secondary_scene_free",
+        "tools.test_book_oracle_full.OracleTests.test_prescience_actual_miss_never_prompts_or_pays_and_direct_fake_hit_refused",
+        "tools.test_book_oracle_full.OracleTests.test_prescience_area_only_owner_misses_other_actual_recipient_still_hit_once",
+        "tools.test_book_oracle_full.OracleTests.test_prescience_decline_then_restore_pending_accept_exact_once",
+        "tools.test_book_oracle_full.OracleTests.test_prescience_routed_actual_interceptor_not_original_accuracy_target",
+        "tools.test_book_oracle_full.OracleTests.test_prescience_sonic_bypasses_substitute_actual_holder_can_react",
+        "tools.test_book_oracle_full.OracleTests.test_prescience_substitute_gets_hit_no_holder_choice_or_scene_payment",
+        "tools.test_book_oracle_full.OracleTests.test_preview_actual_instinct_default_evasion_suppression_and_retraining",
+        "tools.test_book_oracle_full.OracleTests.test_preview_three_distinct_actual_features_master_prescience_and_no_replay",
+        "tools.test_book_oracle_full.OracleTests.test_prophecy_actual_swift_ap_rng_pre_modifier_accuracy_once",
+        "tools.test_book_oracle_full.OracleTests.test_prophecy_can_replace_actual_new_prophecy_die_and_multiple_storage",
+        "tools.test_book_oracle_full.OracleTests.test_prophecy_expiry_next_owner_turn_end_not_other_turn_or_round",
+        "tools.test_book_oracle_full.OracleTests.test_prophecy_non_d20_skill_pool_does_not_consume_selected_single_die",
+        "tools.test_book_oracle_full.OracleTests.test_prophecy_restore_preserves_actual_face_pending_choice_and_one_consumption",
+        "tools.test_book_oracle_full.OracleTests.test_prophecy_willing_ally_save_and_unwilling_enemy_atomic",
+        "tools.test_book_oracle_full.OracleTests.test_scrying_actual_current_location_last24hours_not_future",
+        "tools.test_book_oracle_full.OracleTests.test_scrying_item_requires_actual_current_contact_and_no_arbitrary_actor",
+        "tools.test_book_oracle_full.OracleTests.test_seven_actual_receipts_special_defense_idempotence_and_restore",
+        "tools.test_book_oracle_full.OracleTests.test_unveiled_actual_genjutsu_and_illusionist_are_fake_and_burst_four",
+        "tools.test_book_oracle_full.OracleTests.test_unveiled_actual_illusion_keyword_move_immunity_no_secondary",
+        "tools.test_book_oracle_full.OracleTests.test_unveiled_actual_illusionist_capability_projection_and_dismissal",
+        "tools.test_book_oracle_full.OracleTests.test_unveiled_burst_ends_real_illusion_ability_substitute_and_double_team_only_in_range",
+        "tools.test_book_oracle_full.OracleTests.test_unveiled_substitute_bypass_and_double_team_not_activated_against_owner"
       ]
     },
-    "tools.test_category2_combat_state_batch.CombatStateBatchTests": {
+    "tools.test_book_survivalist_geography.AdaptiveGeographyTests": {
       "tests": [
-        "tools.test_category2_combat_state_batch.CombatStateBatchTests.test_actual_shift_and_speed_state_survive_both_restore_paths",
-        "tools.test_category2_combat_state_batch.CombatStateBatchTests.test_actual_swords_dance_uses_shared_stage_path_for_both_actor_kinds",
-        "tools.test_category2_combat_state_batch.CombatStateBatchTests.test_component_reset_uses_same_actor_state_boundary",
-        "tools.test_category2_combat_state_batch.CombatStateBatchTests.test_cure_at_stage_limit_removes_only_the_actual_condition_contribution",
-        "tools.test_category2_combat_state_batch.CombatStateBatchTests.test_encounter_membership_and_sources_survive_both_restore_paths",
-        "tools.test_category2_combat_state_batch.CombatStateBatchTests.test_end_encounter_keeps_persistent_conditions_for_both_actor_kinds",
-        "tools.test_category2_combat_state_batch.CombatStateBatchTests.test_end_encounter_resets_all_members_even_if_current_roster_is_subset",
-        "tools.test_category2_combat_state_batch.CombatStateBatchTests.test_evasion_total_ceiling_and_negative_floor_reach_actual_accuracy_check",
-        "tools.test_category2_combat_state_batch.CombatStateBatchTests.test_invalid_membership_never_partially_starts_or_serializes_encounter",
-        "tools.test_category2_combat_state_batch.CombatStateBatchTests.test_low_final_stats_keep_one_without_changing_raw_stats_stages_or_hp",
-        "tools.test_category2_combat_state_batch.CombatStateBatchTests.test_new_participant_and_generator_registration_join_same_scope",
-        "tools.test_category2_combat_state_batch.CombatStateBatchTests.test_recall_preserves_afflicted_sources_but_removes_ordinary_stage_history",
-        "tools.test_category2_combat_state_batch.CombatStateBatchTests.test_same_five_stage_domain_and_original_stat_formula_for_both_actor_kinds",
-        "tools.test_category2_combat_state_batch.CombatStateBatchTests.test_speed_does_not_create_absent_mode_and_slowed_is_applied_after_stage",
-        "tools.test_category2_combat_state_batch.CombatStateBatchTests.test_speed_stage_applies_to_each_existing_movement_mode_for_both_kinds"
+        "tools.test_book_survivalist_geography.AdaptiveGeographyTests.test_as_if_terrain_reaches_the_survivalist_bonus_naturewalk_and_environ_moves_without_changing_the_world",
+        "tools.test_book_survivalist_geography.AdaptiveGeographyTests.test_json_and_gm_restores_keep_the_turn_record_and_tampering_is_rejected",
+        "tools.test_book_survivalist_geography.AdaptiveGeographyTests.test_trigger_is_the_turn_start_free_action_scene_twice_for_you_or_your_own_pokemon_on_an_adjacent_terrain"
       ]
     },
-    "tools.test_category2_contest_lifecycle.Tests": {
+    "tools.test_category2_body_modes.Tests": {
       "tests": [
-        "tools.test_category2_contest_lifecycle.Tests.test_center_commits_after_success_and_survives_every_position_table",
-        "tools.test_category2_contest_lifecycle.Tests.test_checkpoint_restores_center_cursor_and_remaining_pool_together",
-        "tools.test_category2_contest_lifecycle.Tests.test_codec_rejects_forged_center_and_expired_flags",
-        "tools.test_category2_contest_lifecycle.Tests.test_grace_expires_at_final_round_and_next_round_boost_at_contest_end",
-        "tools.test_category2_contest_lifecycle.Tests.test_next_round_boost_survives_save_and_is_consumed_once",
-        "tools.test_category2_contest_lifecycle.Tests.test_rejected_center_declaration_does_not_advance_or_mark_visit"
+        "tools.test_category2_body_modes.Tests.test_both_entity_kinds_scale_preserve_weight_and_return_with_source_cost",
+        "tools.test_category2_body_modes.Tests.test_capability_loss_does_not_trap_active_body_and_corruption_rejects",
+        "tools.test_category2_body_modes.Tests.test_footprint_projection_restoration_and_encounter_end_keep_mode",
+        "tools.test_category2_body_modes.Tests.test_inflated_body_blocks_direct_and_area_targeting_and_moves_with_actor",
+        "tools.test_category2_body_modes.Tests.test_invalid_ratio_missing_capability_and_occupied_return_are_atomic",
+        "tools.test_category2_body_modes.Tests.test_reference_only_move_grants_use_learning_not_active_move_effects",
+        "tools.test_category2_body_modes.Tests.test_shrink_blocks_standard_full_compound_and_downgrade_but_can_return",
+        "tools.test_category2_body_modes.Tests.test_shrunk_actor_cannot_use_native_standard_move_or_spend_frequency"
       ]
     },
-    "tools.test_category2_held_item_reactions.HeldItemReactionTests": {
+    "tools.test_category2_breather_joint_movement.JointMovementTests": {
       "tests": [
-        "tools.test_category2_held_item_reactions.HeldItemReactionTests.test_blunder_policy_actual_miss_once_scene_persists_unequip_restore_then_expires",
-        "tools.test_category2_held_item_reactions.HeldItemReactionTests.test_exact_source_provenance",
-        "tools.test_category2_held_item_reactions.HeldItemReactionTests.test_rocky_helmet_positive_damage_melee_only_and_restore"
+        "tools.test_category2_breather_joint_movement.JointMovementTests.test_actual_late_approach_cost_cannot_create_extra_helper_retreat",
+        "tools.test_category2_breather_joint_movement.JointMovementTests.test_aerial_approach_changes_actual_height_before_each_different_flying_retreat",
+        "tools.test_category2_breather_joint_movement.JointMovementTests.test_borrowed_full_payment_keeps_actual_underground_upkeep_provenance",
+        "tools.test_category2_breather_joint_movement.JointMovementTests.test_changed_command_world_cannot_replace_the_actual_observed_contact",
+        "tools.test_category2_breather_joint_movement.JointMovementTests.test_cross_altitude_contact_needs_actual_measurement_and_surface_can_pass_below_flyer",
+        "tools.test_category2_breather_joint_movement.JointMovementTests.test_other_participant_same_plane_collision_rejects_but_burrow_plane_does_not_block_surface",
+        "tools.test_category2_breather_joint_movement.JointMovementTests.test_pokemon_teleport_and_trainer_walking_share_actual_lower_limit",
+        "tools.test_category2_breather_joint_movement.JointMovementTests.test_saved_assisted_air_prefix_resumes_only_helper_without_command_or_other_legs",
+        "tools.test_category2_breather_joint_movement.JointMovementTests.test_swimming_shared_lower_allowance_keeps_two_fulls_and_target_only_recovery",
+        "tools.test_category2_breather_joint_movement.JointMovementTests.test_unsourced_standard_loss_cannot_pose_as_an_actual_paid_full"
       ]
     },
-    "tools.test_category2_herbal_state.HerbalStateTests": {
+    "tools.test_category2_csv_move_state_contracts.CsvMoveStateContractTests": {
       "tests": [
-        "tools.test_category2_herbal_state.HerbalStateTests.test_actual_counts_are_recipient_scoped_and_all_herbs_share_one_history",
-        "tools.test_category2_herbal_state.HerbalStateTests.test_all_five_random_branches_rerolls_and_unbounded_repeated_herbs_reach_base_state",
-        "tools.test_category2_herbal_state.HerbalStateTests.test_bad_count_faces_source_or_base_penalty_fail_before_stock_rng_time_or_export",
-        "tools.test_category2_herbal_state.HerbalStateTests.test_first_buff_changes_actual_save_once_for_both_kinds_after_restore",
-        "tools.test_category2_herbal_state.HerbalStateTests.test_malformed_saved_history_is_rejected_on_actual_durable_load",
-        "tools.test_category2_herbal_state.HerbalStateTests.test_only_actual_extended_rest_resets_that_recipient_and_resumes_after_save",
-        "tools.test_category2_herbal_state.HerbalStateTests.test_rest_removes_exact_penalty_at_clamp_without_erasing_independent_stage",
-        "tools.test_category2_herbal_state.HerbalStateTests.test_second_use_blocks_native_new_gains_but_preserves_old_resources_and_normal_potions"
+        "tools.test_category2_csv_move_state_contracts.CsvMoveStateContractTests.test_bitter_malice_uses_the_shared_scene_db_and_target_turn_status_lifetime",
+        "tools.test_category2_csv_move_state_contracts.CsvMoveStateContractTests.test_hex_and_mould_share_affliction_predicate_but_keep_scene_limits_separate",
+        "tools.test_category2_csv_move_state_contracts.CsvMoveStateContractTests.test_report_collect_adds_exactly_five_denominator_completions",
+        "tools.test_category2_csv_move_state_contracts.CsvMoveStateContractTests.test_same_target_damage_streak_is_shared_by_fury_cutter_and_butterfly_knife",
+        "tools.test_category2_csv_move_state_contracts.CsvMoveStateContractTests.test_streak_resets_on_miss_no_damage_target_change_and_different_move",
+        "tools.test_category2_csv_move_state_contracts.CsvMoveStateContractTests.test_unafflicted_target_does_not_spend_scene_replacement_and_scene_end_restores_it"
       ]
     },
-    "tools.test_category2_homebrew_weather.Tests": {
+    "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests": {
       "tests": [
-        "tools.test_category2_homebrew_weather.Tests.test_actual_source_admission_and_exclusion_do_not_depend_on_profile_name",
-        "tools.test_category2_homebrew_weather.Tests.test_core_and_core_errata_keep_finite_weather_and_ambient_effects",
-        "tools.test_category2_homebrew_weather.Tests.test_different_weather_does_not_apply_same_weather_ruling",
-        "tools.test_category2_homebrew_weather.Tests.test_existing_explicit_gm_effect_override_is_applied_after_policy_overlay",
-        "tools.test_category2_homebrew_weather.Tests.test_four_native_moves_and_both_actor_kinds_keep_metadata_and_real_costs",
-        "tools.test_category2_homebrew_weather.Tests.test_four_same_weather_native_recasts_use_recorded_gm_replace_and_real_costs",
-        "tools.test_category2_homebrew_weather.Tests.test_intrinsic_damage_tick_and_save_removed_but_actual_solarbeam_condition_retained",
-        "tools.test_category2_homebrew_weather.Tests.test_missing_encounter_and_unregistered_actor_reject_before_native_cost",
-        "tools.test_category2_homebrew_weather.Tests.test_native_daily_two_limit_uses_actual_activations",
-        "tools.test_category2_homebrew_weather.Tests.test_reapplication_receipt_cannot_be_removed_or_relinked_on_restore",
-        "tools.test_category2_homebrew_weather.Tests.test_replacement_gm_clear_and_independent_finite_weather_have_distinct_lifetimes",
-        "tools.test_category2_homebrew_weather.Tests.test_same_weather_invalid_rulings_preserve_all_native_resources",
-        "tools.test_category2_homebrew_weather.Tests.test_same_weather_no_ruling_rejects_before_cost_or_rng",
-        "tools.test_category2_homebrew_weather.Tests.test_snapshot_codec_wrong_profile_and_tampering_reject_atomically",
-        "tools.test_category2_homebrew_weather.Tests.test_source_and_declarative_policy_drift_are_rejected_without_rule_cache_mutation",
-        "tools.test_category2_homebrew_weather.Tests.test_unmarked_native_policy_mismatch_rejects_before_replacing_existing_weather",
-        "tools.test_category2_homebrew_weather.Tests.test_weather_survives_more_than_five_rounds_then_actual_encounter_end"
+        "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests.test_actual_hit_adds_type_changes_native_matchup_and_expires_on_fifth_target_turn",
+        "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests.test_all_four_rows_share_one_reviewed_five_target_turn_contract",
+        "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests.test_independent_type_source_expiry_preserves_later_baseline_change",
+        "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests.test_miss_does_not_install_a_type_source_or_timing_record",
+        "tools.test_category2_csv_timed_type_additions.CsvTimedTypeAdditionTests.test_report_collect_adds_exactly_four_denominator_completions"
       ]
     },
-    "tools.test_category2_learn_from_mistakes.LearnFromMistakesTests": {
+    "tools.test_category2_dream_state.Tests": {
       "tests": [
-        "tools.test_category2_learn_from_mistakes.LearnFromMistakesTests.test_actual_failed_check_opens_choice_and_reroll_consumes_once",
-        "tools.test_category2_learn_from_mistakes.LearnFromMistakesTests.test_daily_three_counts_rerolls_and_explicit_day_refreshes",
-        "tools.test_category2_learn_from_mistakes.LearnFromMistakesTests.test_exact_source_and_reviewed_category3_contract_are_bound",
-        "tools.test_category2_learn_from_mistakes.LearnFromMistakesTests.test_gm_snapshot_restores_pending_observation_with_live_participants",
-        "tools.test_category2_learn_from_mistakes.LearnFromMistakesTests.test_json_roundtrip_restores_pending_identity_then_consumes_once",
-        "tools.test_category2_learn_from_mistakes.LearnFromMistakesTests.test_observed_choice_error_resumes_same_first_and_completed_id_cannot_repeat",
-        "tools.test_category2_learn_from_mistakes.LearnFromMistakesTests.test_original_pool_ap_helper_modifier_and_penalty_are_applied_once",
-        "tools.test_category2_learn_from_mistakes.LearnFromMistakesTests.test_preflight_and_late_failures_preserve_the_correct_atomic_boundary",
-        "tools.test_category2_learn_from_mistakes.LearnFromMistakesTests.test_success_and_decline_never_consume_frequency_or_triggered_action"
+        "tools.test_category2_dream_state.Tests.test_actual_sleep_source_reapplication_cure_and_next_episode",
+        "tools.test_category2_dream_state.Tests.test_both_restores_and_corrupt_awake_episode_rejection",
+        "tools.test_category2_dream_state.Tests.test_mindlock_current_capability_and_unknown_sleep_never_grant_sharing"
       ]
     },
-    "tools.test_category2_melee_reach.Tests": {
+    "tools.test_category2_egg_inheritance_candidates.EggInheritanceCandidateTests": {
       "tests": [
-        "tools.test_category2_melee_reach.Tests.test_actual_equipped_weapon_attacks_at_extended_reach_after_restore",
-        "tools.test_category2_melee_reach.Tests.test_exceptional_anatomy_observation_source_loss_and_both_restores",
-        "tools.test_category2_melee_reach.Tests.test_invalid_observations_unknown_size_and_foreign_actor_are_atomic",
-        "tools.test_category2_melee_reach.Tests.test_live_size_matrix_and_independent_grant_lifetimes",
-        "tools.test_category2_melee_reach.Tests.test_native_attack_and_automatic_approach_use_live_reach",
-        "tools.test_category2_melee_reach.Tests.test_native_unarmed_struggle_has_the_same_melee_boundary",
-        "tools.test_category2_melee_reach.Tests.test_observed_exception_changes_targeting_without_increasing_ranged_or_area"
+        "tools.test_category2_egg_inheritance_candidates.EggInheritanceCandidateTests.test_actual_parent_sexes_species_candidates_and_source_partitions_are_bound",
+        "tools.test_category2_egg_inheritance_candidates.EggInheritanceCandidateTests.test_complete_inheritance_list_survives_egg_transfer_hatch_and_lineage_restore",
+        "tools.test_category2_egg_inheritance_candidates.EggInheritanceCandidateTests.test_omitted_unlearned_tm_and_reordered_list_reject_without_state_or_time_change",
+        "tools.test_category2_egg_inheritance_candidates.EggInheritanceCandidateTests.test_parent_knowledge_is_snapshotted_and_later_forgetting_does_not_rewrite_the_egg"
       ]
     },
-    "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests": {
+    "tools.test_category2_entry_moves.EntryMoveTests": {
       "tests": [
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_area_push_keeps_ally_inside_and_hits_interceptor_once_with_later_alias",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_area_push_outside_saved_cone_routes_damage_and_stage_effect_to_interceptor",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_cold_area_wait_retains_target_order_and_resumes_duplicate_recipient_alias",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_decline_has_no_reaction_cost_movement_or_second_accuracy",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_dodge_actual_hit_becomes_miss_without_intercept_cost",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_immobilized_interceptor_rejects_before_cost_movement_or_rng",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_interceptor_knockout_reaches_actual_recipient_moxie_listener",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_interceptor_owns_received_reactive_ability_trigger",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_invalid_path_is_atomic_and_can_be_declined",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_listed_conditions_prohibit_intercept_without_spending_or_rolling",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_melee_failure_moves_real_partial_distance_but_ally_takes_hit",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_melee_success_hits_interceptor_and_preserves_original_accuracy",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_miss_keeps_watch_and_never_creates_reaction",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_never_miss_move_prohibits_intercept_attempt_before_cost",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_pending_cold_restore_continues_without_repaying_or_rerolling",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_pokemon_loyalty_below_three_prohibits_own_trainer_intercept",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_pokemon_loyalty_six_permits_pokemon_ally_intercept",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_pokemon_loyalty_three_permits_actual_own_trainer_only",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_pokemon_loyalty_three_rejects_another_trainers_ally",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_priority_intercept_requires_strictly_greater_actual_speed",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_priority_intercept_succeeds_for_faster_actual_reactor",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_ranged_endpoint_outside_attack_segment_rejects_before_roll_or_payment",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_ranged_failure_still_moves_roll_divided_by_two",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_ranged_intercept_rejects_actual_area_attack_before_roll_or_cost",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_ranged_success_uses_between_cell_and_preserves_original_target",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_recipient_leaf_rejects_missing_or_forged_native_token",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_request_order_rejects_another_reactor_without_consuming_offer"
+        "tools.test_category2_entry_moves.EntryMoveTests.test_actual_first_turn_preserves_two_sources_priority_cost_hit_and_flinch",
+        "tools.test_category2_entry_moves.EntryMoveTests.test_actual_recall_and_release_rearm_entry_without_resetting_move_frequency",
+        "tools.test_category2_entry_moves.EntryMoveTests.test_duplicate_send_out_and_unrelated_stage_reset_do_not_rearm_entry",
+        "tools.test_category2_entry_moves.EntryMoveTests.test_encounter_end_resets_members_and_next_encounter_has_a_fresh_first_turn",
+        "tools.test_category2_entry_moves.EntryMoveTests.test_json_restore_preserves_late_turn_then_actual_reentry_qualifies",
+        "tools.test_category2_entry_moves.EntryMoveTests.test_later_turn_rejects_before_direct_or_approach_action_and_rng",
+        "tools.test_category2_entry_moves.EntryMoveTests.test_miss_keeps_first_turn_counter_and_does_not_invent_a_consumed_entry_quota",
+        "tools.test_category2_entry_moves.EntryMoveTests.test_no_encounter_off_field_and_invalid_counter_reject_before_payment"
       ]
     },
-    "tools.test_category2_native_cave_senses.NativeCaveSenseTests": {
+    "tools.test_category2_equipment_variant_contracts.EquipmentVariantContractTests": {
       "tests": [
-        "tools.test_category2_native_cave_senses.NativeCaveSenseTests.test_native_darkvision_and_ordinary_species_keep_actual_shift_permissions_after_json",
-        "tools.test_category2_native_cave_senses.NativeCaveSenseTests.test_native_species_senses_distinguish_darkness_from_external_blindness"
+        "tools.test_category2_equipment_variant_contracts.EquipmentVariantContractTests.test_ablative_armor_native_hit_depletes_clock_repairs_and_unequip_revokes_base_stage",
+        "tools.test_category2_equipment_variant_contracts.EquipmentVariantContractTests.test_both_cannons_require_power_and_spend_physical_one_shot_permission",
+        "tools.test_category2_equipment_variant_contracts.EquipmentVariantContractTests.test_both_slipstream_variants_use_one_atomic_swift_escape_per_encounter",
+        "tools.test_category2_equipment_variant_contracts.EquipmentVariantContractTests.test_covert_cloak_optional_scene_immunity_blocks_direct_secondary_and_caps_stealth",
+        "tools.test_category2_equipment_variant_contracts.EquipmentVariantContractTests.test_policy_anchors_exact_ten_rows_and_source_column_classifier",
+        "tools.test_category2_equipment_variant_contracts.EquipmentVariantContractTests.test_punching_glove_uses_source_classifier_and_suppresses_melee_hit_reaction",
+        "tools.test_category2_equipment_variant_contracts.EquipmentVariantContractTests.test_restore_rejects_tampered_physical_state_projection",
+        "tools.test_category2_equipment_variant_contracts.EquipmentVariantContractTests.test_trenchcoat_variants_supply_scoped_dr_skill_and_actual_weapon_concealment",
+        "tools.test_category2_equipment_variant_contracts.EquipmentVariantContractTests.test_type_armor_purchase_choice_is_immutable_persistent_and_typed"
       ]
     },
-    "tools.test_category2_one_time_frequency.OneTimeFrequencyTests": {
+    "tools.test_category2_example_species.ExampleSpeciesTests": {
       "tests": [
-        "tools.test_category2_one_time_frequency.OneTimeFrequencyTests.test_actual_manual_activation_runs_once_and_repeated_registration_does_not_refill",
-        "tools.test_category2_one_time_frequency.OneTimeFrequencyTests.test_frequency_policy_change_cannot_overwrite_once_ever_receipt",
-        "tools.test_category2_one_time_frequency.OneTimeFrequencyTests.test_gm_rewind_and_durable_load_preserve_each_observed_lifetime",
-        "tools.test_category2_one_time_frequency.OneTimeFrequencyTests.test_native_triggered_activation_uses_same_once_ever_source_counter",
-        "tools.test_category2_one_time_frequency.OneTimeFrequencyTests.test_scene_day_rest_and_session_never_restore_one_time_activation",
-        "tools.test_category2_one_time_frequency.OneTimeFrequencyTests.test_source_spelling_and_metadata_keep_once_ever_not_legacy_atwill"
+        "tools.test_category2_example_species.ExampleSpeciesTests.test_all_fighting_tms_use_existing_machine_consumer_without_natural_expansion",
+        "tools.test_category2_example_species.ExampleSpeciesTests.test_all_templates_reuse_level_growth_with_derived_base_and_preserve_moves",
+        "tools.test_category2_example_species.ExampleSpeciesTests.test_cache_load_order_and_partial_cultivation_do_not_change_fingerprint",
+        "tools.test_category2_example_species.ExampleSpeciesTests.test_common_templates_preserve_stock_and_independent_instances",
+        "tools.test_category2_example_species.ExampleSpeciesTests.test_excluded_optional_machine_does_not_break_profile_initialization",
+        "tools.test_category2_example_species.ExampleSpeciesTests.test_fresh_policy_fingerprint_still_rejects_actual_policy_mutation",
+        "tools.test_category2_example_species.ExampleSpeciesTests.test_giant_size_six_birth_moves_and_native_evolution_prohibition",
+        "tools.test_category2_example_species.ExampleSpeciesTests.test_provenance_and_disabled_source_cannot_silently_create_or_save_examples",
+        "tools.test_category2_example_species.ExampleSpeciesTests.test_raikou_natural_move_is_acquired_by_actual_level_up",
+        "tools.test_category2_example_species.ExampleSpeciesTests.test_raikou_union_covers_both_natural_lists_and_ability_pools_only",
+        "tools.test_category2_example_species.ExampleSpeciesTests.test_snapshot_and_fresh_rules_durable_restore_keep_all_three_then_grow",
+        "tools.test_category2_example_species.ExampleSpeciesTests.test_unresolved_machine_is_not_treated_as_an_excluded_alternative"
       ]
     },
-    "tools.test_category2_poke_edge_receipt_mobility.AdvancedConnectionReceiptHistoryTests": {
+    "tools.test_category2_optional_move_modes.OptionalMoveModeTests": {
       "tests": [
-        "tools.test_category2_poke_edge_receipt_mobility.AdvancedConnectionReceiptHistoryTests.test_forged_book_and_csv_connection_receipts_reject_and_actual_receipt_restores"
+        "tools.test_category2_optional_move_modes.OptionalMoveModeTests.test_all_five_normal_modes_preserve_damage_and_secondary_effects",
+        "tools.test_category2_optional_move_modes.OptionalMoveModeTests.test_area_selection_and_on_hit_receipts_require_native_producers",
+        "tools.test_category2_optional_move_modes.OptionalMoveModeTests.test_dark_void_friendly_burst_uses_one_roll_and_one_scene_receipt",
+        "tools.test_category2_optional_move_modes.OptionalMoveModeTests.test_eerie_spell_disables_actual_last_move_and_normal_attack_does_not",
+        "tools.test_category2_optional_move_modes.OptionalMoveModeTests.test_exact_source_policy_and_changed_definition_refusal",
+        "tools.test_category2_optional_move_modes.OptionalMoveModeTests.test_infernal_parade_cannot_use_its_own_future_burn_as_prerequisite",
+        "tools.test_category2_optional_move_modes.OptionalMoveModeTests.test_infernal_parade_freezes_afflicted_target_and_db_for_whole_activation",
+        "tools.test_category2_optional_move_modes.OptionalMoveModeTests.test_invalid_choice_and_ineligible_healing_leave_cost_and_choice_unchanged",
+        "tools.test_category2_optional_move_modes.OptionalMoveModeTests.test_pending_used_and_expired_modes_round_trip_and_reject_tampering",
+        "tools.test_category2_optional_move_modes.OptionalMoveModeTests.test_pollen_puff_heals_current_maximum_and_has_healing_keyword",
+        "tools.test_category2_optional_move_modes.OptionalMoveModeTests.test_stone_axe_miss_keeps_choice_then_hit_owns_vortex_lifetime",
+        "tools.test_category2_optional_move_modes.OptionalMoveModeTests.test_trainer_who_knows_move_uses_the_same_choice_and_restore_contract"
       ]
     },
-    "tools.test_category2_post_return_move.PostReturnMoveTests": {
+    "tools.test_category2_optional_physical_equipment.OptionalPhysicalEquipmentTests": {
       "tests": [
-        "tools.test_category2_post_return_move.PostReturnMoveTests.test_actual_intercept_child_only_authenticates_actual_hit_recipient",
-        "tools.test_category2_post_return_move.PostReturnMoveTests.test_native_single_return_and_initiative_join_are_read_only",
-        "tools.test_category2_post_return_move.PostReturnMoveTests.test_real_pending_strength_effect_blocks_return_even_after_target",
-        "tools.test_category2_post_return_move.PostReturnMoveTests.test_single_return_cold_restore_retains_native_join_without_replay",
-        "tools.test_category2_post_return_move.PostReturnMoveTests.test_unsealed_area_target_return_cannot_open_move_reaction"
+        "tools.test_category2_optional_physical_equipment.OptionalPhysicalEquipmentTests.test_conditional_save_consumers_and_space_suit_movement_revoke_cleanly",
+        "tools.test_category2_optional_physical_equipment.OptionalPhysicalEquipmentTests.test_crafted_weapons_add_recipe_moves_to_native_weapon_moves_and_revoke",
+        "tools.test_category2_optional_physical_equipment.OptionalPhysicalEquipmentTests.test_excalibur_swift_type_choice_is_physical_persistent_and_failure_atomic",
+        "tools.test_category2_optional_physical_equipment.OptionalPhysicalEquipmentTests.test_heartwarming_flute_scene_action_cures_radius_and_scoped_dr_expires",
+        "tools.test_category2_optional_physical_equipment.OptionalPhysicalEquipmentTests.test_mental_shield_is_either_focus_bonus_or_mindlock_and_opposed_consumer_reads_it",
+        "tools.test_category2_optional_physical_equipment.OptionalPhysicalEquipmentTests.test_policy_and_existing_weapon_choice_cover_exact_ten_clause_batch",
+        "tools.test_category2_optional_physical_equipment.OptionalPhysicalEquipmentTests.test_restore_and_world_validation_keep_physical_owner_and_projection_linked",
+        "tools.test_category2_optional_physical_equipment.OptionalPhysicalEquipmentTests.test_virtuoso_flute_accepts_eight_allies_and_rejects_nine_before_payment",
+        "tools.test_category2_optional_physical_equipment.OptionalPhysicalEquipmentTests.test_weapon_slot_failure_is_atomic_before_physical_registration"
       ]
     },
-    "tools.test_category2_reopened_consumers.ReopenedConsumerTests": {
+    "tools.test_category2_partial_innate_components.PartialInnateComponentTests": {
       "tests": [
-        "tools.test_category2_reopened_consumers.ReopenedConsumerTests.test_after_use_declaration_cannot_replace_actual_completion_producer",
-        "tools.test_category2_reopened_consumers.ReopenedConsumerTests.test_native_area_type_removal_follows_all_damage_and_exact_owner_boundary",
-        "tools.test_category2_reopened_consumers.ReopenedConsumerTests.test_native_sports_reach_each_real_burst_target_and_consume_independently",
-        "tools.test_category2_reopened_consumers.ReopenedConsumerTests.test_native_stockpile_cap_zero_and_other_stage_sources_survive_json",
-        "tools.test_category2_reopened_consumers.ReopenedConsumerTests.test_native_tar_shot_consumes_on_matching_hit_even_if_final_damage_is_zero",
-        "tools.test_category2_reopened_consumers.ReopenedConsumerTests.test_native_trump_card_reads_previous_count_and_increments_after_actual_damage",
-        "tools.test_category2_reopened_consumers.ReopenedConsumerTests.test_native_type_loss_is_after_use_including_all_misses",
-        "tools.test_category2_reopened_consumers.ReopenedConsumerTests.test_non_electric_user_has_no_electric_removal_source",
-        "tools.test_category2_reopened_consumers.ReopenedConsumerTests.test_resistance_coats_require_positive_actual_damage_and_preserve_misses",
-        "tools.test_category2_reopened_consumers.ReopenedConsumerTests.test_salt_cure_native_holder_turn_current_types_and_actual_recall",
-        "tools.test_category2_reopened_consumers.ReopenedConsumerTests.test_tar_shot_native_cone_keeps_speed_loss_after_its_coat_is_consumed",
-        "tools.test_category2_reopened_consumers.ReopenedConsumerTests.test_water_sport_learning_grant_exists_without_casting_and_ends_on_forgetting"
+        "tools.test_category2_partial_innate_components.PartialInnateComponentTests.test_actual_copy_transfers_only_non_innate_component_and_survives_restore",
+        "tools.test_category2_partial_innate_components.PartialInnateComponentTests.test_actual_skill_swap_retains_each_innate_side_and_restores_independently",
+        "tools.test_category2_partial_innate_components.PartialInnateComponentTests.test_actual_suppression_removes_only_transferable_component_then_restores",
+        "tools.test_category2_partial_innate_components.PartialInnateComponentTests.test_component_provenance_tamper_rejects_snapshot_and_durable_save",
+        "tools.test_category2_partial_innate_components.PartialInnateComponentTests.test_invalid_component_definition_rejects_before_cost_frequency_or_rng",
+        "tools.test_category2_partial_innate_components.PartialInnateComponentTests.test_replacement_preserves_innate_component_but_adds_reviewed_replacement",
+        "tools.test_category2_partial_innate_components.PartialInnateComponentTests.test_source_clause_digests_and_reviewed_component_contract"
       ]
     },
-    "tools.test_category2_soulless_default.Tests": {
+    "tools.test_category2_polished_shine.PolishedShineTests": {
       "tests": [
-        "tools.test_category2_soulless_default.Tests.test_both_restores_preserve_default_and_distinct_live_projection",
-        "tools.test_category2_soulless_default.Tests.test_native_default_hp_and_invalid_creation_import_are_rejected",
-        "tools.test_category2_soulless_default.Tests.test_permanent_removal_atomic_temporary_overlay_does_not_rewrite_default",
-        "tools.test_category2_soulless_default.Tests.test_selected_soulless_variant_is_not_assumed_equivalent"
+        "tools.test_category2_polished_shine.PolishedShineTests.test_actual_miss_accuracy_and_critical_use_the_original_face",
+        "tools.test_category2_polished_shine.PolishedShineTests.test_actual_self_stage_branch_and_other_type_keep_distinct_thresholds",
+        "tools.test_category2_polished_shine.PolishedShineTests.test_actual_target_condition_uses_expanded_threshold_only_for_owned_pokemon",
+        "tools.test_category2_polished_shine.PolishedShineTests.test_both_restores_and_source_withdrawal_keep_independent_contribution",
+        "tools.test_category2_polished_shine.PolishedShineTests.test_default_registration_is_owned_once_and_scoped_to_steel_moves",
+        "tools.test_category2_polished_shine.PolishedShineTests.test_legacy_unsupported_effect_record_does_not_modify_actual_attacks_after_restore",
+        "tools.test_category2_polished_shine.PolishedShineTests.test_ownership_loss_retracts_only_the_old_trainer_contribution",
+        "tools.test_category2_polished_shine.PolishedShineTests.test_unreviewed_move_filters_remain_pending_and_do_not_become_global_effect_ranges"
       ]
     },
-    "tools.test_category2_spatial_state.SpatialStateTests": {
+    "tools.test_category2_priority_independent.UnavailableScheduleTests": {
       "tests": [
-        "tools.test_category2_spatial_state.SpatialStateTests.test_actual_accuracy_uses_flanking_once_and_zero_evasion_stays_zero",
-        "tools.test_category2_spatial_state.SpatialStateTests.test_all_default_sizes_and_explicit_body_shapes_share_occupancy",
-        "tools.test_category2_spatial_state.SpatialStateTests.test_all_five_original_flanking_diagrams",
-        "tools.test_category2_spatial_state.SpatialStateTests.test_all_selected_foes_must_be_pairwise_nonadjacent_and_sizes_change_threshold",
-        "tools.test_category2_spatial_state.SpatialStateTests.test_departure_from_large_body_is_based_on_actual_contact",
-        "tools.test_category2_spatial_state.SpatialStateTests.test_derived_state_updates_after_movement_capture_and_shape_change",
-        "tools.test_category2_spatial_state.SpatialStateTests.test_gm_and_durable_restore_recompute_same_source_owned_geometry",
-        "tools.test_category2_spatial_state.SpatialStateTests.test_large_mover_cannot_pass_a_gap_that_only_fits_its_anchor",
-        "tools.test_category2_spatial_state.SpatialStateTests.test_native_contact_includes_large_body_edge_diagonal_but_not_cardinal",
-        "tools.test_category2_spatial_state.SpatialStateTests.test_native_range_and_approach_use_edge_not_anchor",
-        "tools.test_category2_spatial_state.SpatialStateTests.test_overlapping_foes_cannot_count_as_two_nonadjacent_bodies",
-        "tools.test_category2_spatial_state.SpatialStateTests.test_single_large_body_duplicate_reference_and_allied_body_cannot_supply_two_foes",
-        "tools.test_category2_spatial_state.SpatialStateTests.test_unknown_geometry_stays_pending_and_accuracy_does_not_roll"
+        "tools.test_category2_priority_independent.UnavailableScheduleTests.test_actual_borrowed_slot_cannot_be_erased_by_unavailable_skip",
+        "tools.test_category2_priority_independent.UnavailableScheduleTests.test_native_unavailable_step_has_no_owner_turn_and_restores",
+        "tools.test_category2_priority_independent.UnavailableScheduleTests.test_saved_skip_requires_its_unavailable_observation_and_actual_actor",
+        "tools.test_category2_priority_independent.UnavailableScheduleTests.test_skipped_declaration_does_not_create_intent_or_skip_later_turn"
       ]
     },
-    "tools.test_category3_skill_stunts.Tests": {
+    "tools.test_category2_reactive_ability_boundaries.ReactiveAbilityBoundaryTests": {
       "tests": [
-        "tools.test_category3_skill_stunts.Tests.test_actual_jump_boost_uses_replaced_pool_without_changing_capability_rank",
-        "tools.test_category3_skill_stunts.Tests.test_actual_native_check_uses_replacement_for_dc_and_equality",
-        "tools.test_category3_skill_stunts.Tests.test_actual_trip_opposed_stunt_winner_commits_real_tripped_status",
-        "tools.test_category3_skill_stunts.Tests.test_approval_refusal_and_invalid_prerequisites_do_not_assign_choice",
-        "tools.test_category3_skill_stunts.Tests.test_dowsing_source_exception_remains_plus_one_die_not_plus_six",
-        "tools.test_category3_skill_stunts.Tests.test_extended_attempt_limit_uses_base_rank_not_reduced_pool",
-        "tools.test_category3_skill_stunts.Tests.test_fixed_snapshot_source_hashes_unchanged",
-        "tools.test_category3_skill_stunts.Tests.test_legacy_choice_is_normalized_without_inventing_second_acquisition",
-        "tools.test_category3_skill_stunts.Tests.test_multiple_acquisitions_bind_distinct_approved_situations",
-        "tools.test_category3_skill_stunts.Tests.test_native_assistance_penalties_and_other_modifiers_remain_once",
-        "tools.test_category3_skill_stunts.Tests.test_native_team_and_opposed_consume_actual_modified_roll",
-        "tools.test_category3_skill_stunts.Tests.test_observed_stunt_choice_cannot_change_during_reroll_retry",
-        "tools.test_category3_skill_stunts.Tests.test_optional_replacement_rolls_one_fewer_d6_plus_six_with_rank_preserved",
-        "tools.test_category3_skill_stunts.Tests.test_player_declines_without_matching_situation_and_no_bonus",
-        "tools.test_category3_skill_stunts.Tests.test_repeated_approved_dowsing_choices_do_not_multiply_exception",
-        "tools.test_category3_skill_stunts.Tests.test_same_situation_repeat_uses_one_choice_and_mismatch_rejects_before_rng",
-        "tools.test_category3_skill_stunts.Tests.test_skill_monkey_rerolls_reduced_pool_and_keeps_six_once",
-        "tools.test_category3_skill_stunts.Tests.test_unapproved_imported_or_unowned_choice_cannot_grant_stunt",
-        "tools.test_category3_skill_stunts.Tests.test_wrong_replacement_faces_fail_before_rng_or_observation"
+        "tools.test_category2_reactive_ability_boundaries.ReactiveAbilityBoundaryTests.test_cold_warm_policy_cache_normalization_retains_mutation_detection",
+        "tools.test_category2_reactive_ability_boundaries.ReactiveAbilityBoundaryTests.test_completed_hit_replay_cannot_spend_or_change_state_again",
+        "tools.test_category2_reactive_ability_boundaries.ReactiveAbilityBoundaryTests.test_empty_area_actual_use_spends_swift_and_projects_type",
+        "tools.test_category2_reactive_ability_boundaries.ReactiveAbilityBoundaryTests.test_forged_matching_lifetime_records_still_fail_source_policy_validation",
+        "tools.test_category2_reactive_ability_boundaries.ReactiveAbilityBoundaryTests.test_late_recipient_failure_rolls_back_hit_rng_action_and_frequency",
+        "tools.test_category2_reactive_ability_boundaries.ReactiveAbilityBoundaryTests.test_owned_type_removal_preserves_independent_added_type",
+        "tools.test_category2_reactive_ability_boundaries.ReactiveAbilityBoundaryTests.test_swap_recall_restores_only_recalled_participant",
+        "tools.test_category2_reactive_ability_boundaries.ReactiveAbilityBoundaryTests.test_unresolved_entrainment_is_not_admitted_as_a_reactive_source"
       ]
     },
-    "tools.test_completed_boss_obligations.SwarmPublicObligationTests": {
+    "tools.test_category2_recovery_family.RecoveryFamilyTests": {
       "tests": [
-        "tools.test_completed_boss_obligations.SwarmPublicObligationTests.test_all_standard_costs_are_consumed_by_public_use_move",
-        "tools.test_completed_boss_obligations.SwarmPublicObligationTests.test_sleep_and_ice_at_multiplier_one_preserve_minimum_action_and_next_turn_points",
-        "tools.test_completed_boss_obligations.SwarmPublicObligationTests.test_swift_and_free_scene_eot_and_at_will_consume_separate_quotas"
+        "tools.test_category2_recovery_family.RecoveryFamilyTests.test_durable_and_gm_restore_preserve_opportunity_timer_and_receipt",
+        "tools.test_category2_recovery_family.RecoveryFamilyTests.test_failed_timed_recovery_rolls_back_clock_action_and_affliction",
+        "tools.test_category2_recovery_family.RecoveryFamilyTests.test_frozen_needs_actual_combat_end_and_known_duration_not_just_a_scene",
+        "tools.test_category2_recovery_family.RecoveryFamilyTests.test_frozen_permission_is_specific_and_cannot_ignore_other_incapacity",
+        "tools.test_category2_recovery_family.RecoveryFamilyTests.test_native_item_and_move_recovery_preserve_source_and_cleanup",
+        "tools.test_category2_recovery_family.RecoveryFamilyTests.test_natural_sleep_is_passive_known_time_and_cascades_bad_sleep",
+        "tools.test_category2_recovery_family.RecoveryFamilyTests.test_persistent_recall_item_center_and_extended_rest_boundaries",
+        "tools.test_category2_recovery_family.RecoveryFamilyTests.test_repeated_healing_does_not_lose_an_explicit_round_timestamp",
+        "tools.test_category2_recovery_family.RecoveryFamilyTests.test_repeated_healing_preserves_clock_and_reinjury_starts_a_fresh_interval"
       ]
     },
-    "tools.test_completed_csv_obligations.CompletedFashionBranchTests": {
+    "tools.test_category2_reopened_core.ReopenedCoreTests": {
       "tests": [
-        "tools.test_completed_csv_obligations.CompletedFashionBranchTests.test_beauty_reacts_to_enemy_stage_loss_once_but_not_ally_or_second_effect",
-        "tools.test_completed_csv_obligations.CompletedFashionBranchTests.test_contest_pokemon_matching_stat_rerolls_ones_once_and_restores_receipt",
-        "tools.test_completed_csv_obligations.CompletedFashionBranchTests.test_cool_next_save_plus_four_consumes_once_after_restore",
-        "tools.test_completed_csv_obligations.CompletedFashionBranchTests.test_cute_one_round_evasion_is_scene_once_and_survives_unequip_restore",
-        "tools.test_completed_csv_obligations.CompletedFashionBranchTests.test_five_equipped_sources_gate_their_own_stat_and_contest_receipt",
-        "tools.test_completed_csv_obligations.CompletedFashionBranchTests.test_nonmaker_current_owner_cannot_use_battle_branch_but_pokemon_keeps_contest_branch",
-        "tools.test_completed_csv_obligations.CompletedFashionBranchTests.test_pokemon_held_capacity_prevents_duplicate_fashion_occurrences",
-        "tools.test_completed_csv_obligations.CompletedFashionBranchTests.test_policy_pins_exact_five_csv_rows",
-        "tools.test_completed_csv_obligations.CompletedFashionBranchTests.test_smart_actual_opportunity_trigger_is_prevented_once",
-        "tools.test_completed_csv_obligations.CompletedFashionBranchTests.test_tough_targets_observed_enemy_within_five_and_penalizes_native_skill_roll"
+        "tools.test_category2_reopened_core.ReopenedCoreTests.test_body_base_and_naturewalk_overlays_remain_independent_after_restore",
+        "tools.test_category2_reopened_core.ReopenedCoreTests.test_retraining_spends_only_bank_and_retains_earned_level_entitlements",
+        "tools.test_category2_reopened_core.ReopenedCoreTests.test_separate_party_actions_combine_after_restore_and_expire_next_round",
+        "tools.test_category2_reopened_core.ReopenedCoreTests.test_two_recalls_share_one_standard_and_keep_individual_source_history"
       ]
     },
-    "tools.test_condition_native_child.ConditionNativeChildTests": {
+    "tools.test_category2_temporary_hp_state.TemporaryHPStateTests": {
       "tests": [
-        "tools.test_condition_native_child.ConditionNativeChildTests.test_actual_child_owner_source_boundary_and_revocation_remain_independent",
-        "tools.test_condition_native_child.ConditionNativeChildTests.test_condition_head_native_child_waits_then_closes_original_turn_once",
-        "tools.test_condition_native_child.ConditionNativeChildTests.test_false_head_emits_no_child_and_finishes_original_suffix",
-        "tools.test_condition_native_child.ConditionNativeChildTests.test_false_native_child_finishes_only_its_suffix",
-        "tools.test_condition_native_child.ConditionNativeChildTests.test_final_condition_without_suffix_keeps_its_native_child",
-        "tools.test_condition_native_child.ConditionNativeChildTests.test_json_and_gm_restore_before_and_after_condition_child_issuance",
-        "tools.test_condition_native_child.ConditionNativeChildTests.test_late_native_close_fault_rolls_back_child_observation_and_retry"
+        "tools.test_category2_temporary_hp_state.TemporaryHPStateTests.test_actual_blaze_damage_uses_actual_one_hp_despite_large_barrier",
+        "tools.test_category2_temporary_hp_state.TemporaryHPStateTests.test_combat_paused_timer_survives_restore_then_expires_outside_combat",
+        "tools.test_category2_temporary_hp_state.TemporaryHPStateTests.test_damage_and_ordinary_loss_share_absorption_and_clear_spent_lifetime",
+        "tools.test_category2_temporary_hp_state.TemporaryHPStateTests.test_explicit_gm_zero_removes_lifetime_without_affecting_actual_hp",
+        "tools.test_category2_temporary_hp_state.TemporaryHPStateTests.test_gm_and_durable_restore_replay_native_grant_and_consumption",
+        "tools.test_category2_temporary_hp_state.TemporaryHPStateTests.test_grants_max_merge_and_never_heal_or_lower_actual_hp",
+        "tools.test_category2_temporary_hp_state.TemporaryHPStateTests.test_invalid_damage_or_loss_cannot_turn_into_bonus_hp",
+        "tools.test_category2_temporary_hp_state.TemporaryHPStateTests.test_malformed_lifetime_rejected_before_consumption_and_persistence",
+        "tools.test_category2_temporary_hp_state.TemporaryHPStateTests.test_native_attack_consumes_barrier_before_actual_hp_for_both_targets",
+        "tools.test_category2_temporary_hp_state.TemporaryHPStateTests.test_native_honey_gather_grants_above_full_actual_hp_for_both_kinds",
+        "tools.test_category2_temporary_hp_state.TemporaryHPStateTests.test_temporary_hp_does_not_revive_actual_zero_hp",
+        "tools.test_category2_temporary_hp_state.TemporaryHPStateTests.test_tick_capture_and_maximum_ignore_temporary_hp"
       ]
     },
-    "tools.test_connection_keyword.ConnectionKeywordTests": {
+    "tools.test_category2_total_blindness_consumers.TotalBlindnessConsumersTests": {
       "tests": [
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_actual_growth_milestone_learns_and_replay_does_not_reacquire",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_actual_trainer_gain_learns_without_pokemon_slot_limit",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_already_owned_or_non_connection_gain_learns_nothing",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_common_permanent_ability_list_gain_learns_too",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_connected_move_cannot_be_forgotten_by_any_permanent_list_path",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_current_source_owned_connection_move_cannot_be_revoked_as_forgetting",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_full_list_forget_choice_replaces_only_the_named_move",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_full_list_without_explicit_choice_rejects_atomically",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_gaining_connection_learns_linked_move",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_imported_ability_missing_move_registration_and_restores_are_not_new_gain",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_imported_fixed_trainer_feature_projection_does_not_fabricate_acquisition",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_invalid_choices_reject_atomically",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_late_learning_failure_rolls_back_ability_moves_points_clock_and_rng",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_loss_and_both_restores_retain_protection_without_inventing_import_learning",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_native_ability_mastery_full_list_choice_cost_and_atomic_rejection",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_native_ability_mastery_missing_move_cost_owner_and_loss_reacquisition",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_role_play_and_skill_swap_learn_and_keep_move_after_actual_recall",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_source_owned_known_move_becomes_independent_connection_learning",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_tampered_connection_protection_cannot_save",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_trace_immediate_edge_full_slots_native_restore_and_expiry_refund",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_transform_cleanup_keeps_connection_learned_from_another_temporary_source",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_transform_learns_in_form_then_restores_exact_previous_list",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_transform_native_faint_and_encounter_end_restore_only_form_moves",
-        "tools.test_connection_keyword.ConnectionKeywordTests.test_tutor_point_takes_immediate_advanced_connection_and_restores"
+        "tools.test_category2_total_blindness_consumers.TotalBlindnessConsumersTests.test_actual_priority_control_is_available_normally_and_with_blindsense_in_darkness",
+        "tools.test_category2_total_blindness_consumers.TotalBlindnessConsumersTests.test_blindsense_excludes_explicit_and_environmental_total_blindness",
+        "tools.test_category2_total_blindness_consumers.TotalBlindnessConsumersTests.test_blindsense_permits_actual_intercept_in_complete_darkness",
+        "tools.test_category2_total_blindness_consumers.TotalBlindnessConsumersTests.test_complete_dark_cave_and_building_block_visual_position_and_absolute_approach",
+        "tools.test_category2_total_blindness_consumers.TotalBlindnessConsumersTests.test_explicit_total_blindness_remains_total_in_normal_light",
+        "tools.test_category2_total_blindness_consumers.TotalBlindnessConsumersTests.test_total_blindness_refuses_actual_intercept_before_roll_cost_or_movement",
+        "tools.test_category2_total_blindness_consumers.TotalBlindnessConsumersTests.test_total_blindness_refuses_native_priority_before_budget_frequency_or_rng"
       ]
     },
-    "tools.test_core_hydreigon_multipart.HydreigonMultipartTests": {
+    "tools.test_category2_training_clauses_exact.TrainingClauseExactTests": {
       "tests": [
-        "tools.test_core_hydreigon_multipart.HydreigonMultipartTests.test_actual_adoption_uses_three_existing_bodies_and_keeps_native_actor_state",
-        "tools.test_core_hydreigon_multipart.HydreigonMultipartTests.test_invalid_source_admission_is_atomic_and_ordinary_multipart_has_no_region",
-        "tools.test_core_hydreigon_multipart.HydreigonMultipartTests.test_late_whole_relocation_publication_failure_preserves_original_graph_and_rng",
-        "tools.test_core_hydreigon_multipart.HydreigonMultipartTests.test_native_approach_pays_each_turn_and_cannot_refill_seven_metre_region",
-        "tools.test_core_hydreigon_multipart.HydreigonMultipartTests.test_native_disengage_checks_nonanchor_body_clearance_for_ordinary_actor",
-        "tools.test_core_hydreigon_multipart.HydreigonMultipartTests.test_native_disengage_rejects_outside_region_before_cost_and_accepts_inside",
-        "tools.test_core_hydreigon_multipart.HydreigonMultipartTests.test_native_transfer_and_forced_movement_consume_the_same_head_region",
-        "tools.test_core_hydreigon_multipart.HydreigonMultipartTests.test_new_origins_survive_gm_and_json_restore_and_reject_invalid_saved_profile",
-        "tools.test_core_hydreigon_multipart.HydreigonMultipartTests.test_partial_foreign_overlapping_or_blocked_whole_relocation_is_atomic",
-        "tools.test_core_hydreigon_multipart.HydreigonMultipartTests.test_region_uses_original_grid_anchor_and_body_owner_preserves_shape_constraints",
-        "tools.test_core_hydreigon_multipart.HydreigonMultipartTests.test_whole_relocation_updates_all_native_locations_and_only_the_starting_origins"
+        "tools.test_category2_training_clauses_exact.TrainingClauseExactTests.test_exact_source_hashes_anchors_and_feature_policy_match",
+        "tools.test_category2_training_clauses_exact.TrainingClauseExactTests.test_shadow_progress_is_atomic_for_all_seven_frozen_rows",
+        "tools.test_category2_training_clauses_exact.TrainingClauseExactTests.test_training_and_order_share_consumers_but_keep_independent_lifetimes"
       ]
     },
-    "tools.test_core_ice_lake.IceLakeTests": {
+    "tools.test_category3_carry_features.Tests": {
       "tests": [
-        "tools.test_core_ice_lake.IceLakeTests.test_actual_fall_and_entry_into_existing_hole_share_native_water",
-        "tools.test_core_ice_lake.IceLakeTests.test_actual_full_body_contacts_break_only_shallow_cells",
-        "tools.test_core_ice_lake.IceLakeTests.test_actual_injury_contact_survives_subsequent_native_push_off_ice",
-        "tools.test_core_ice_lake.IceLakeTests.test_adoption_and_native_check_proof_tampering_reject_on_save",
-        "tools.test_core_ice_lake.IceLakeTests.test_adoption_missing_policy_invalid_identity_and_source_reject_before_mutation",
-        "tools.test_core_ice_lake.IceLakeTests.test_empty_selected_area_pays_one_native_activation_without_accuracy_or_damage",
-        "tools.test_core_ice_lake.IceLakeTests.test_existing_hole_allows_first_surface_fall_without_granting_swimming",
-        "tools.test_core_ice_lake.IceLakeTests.test_explicit_native_move_injury_effect_uses_actual_recipient_completion",
-        "tools.test_core_ice_lake.IceLakeTests.test_gm_snapshot_and_fresh_json_restore_preserve_water_and_completed_check",
-        "tools.test_core_ice_lake.IceLakeTests.test_ground_move_breaks_frozen_actual_effect_area_once_including_empty_cells",
-        "tools.test_core_ice_lake.IceLakeTests.test_injury_attack_uses_explicit_gm_dc_and_native_check_pass_fail",
-        "tools.test_core_ice_lake.IceLakeTests.test_late_native_slip_failure_rolls_back_damage_action_roll_and_terrain",
-        "tools.test_core_ice_lake.IceLakeTests.test_miss_noninjuring_attack_passive_loss_and_unadopted_check_are_excluded",
-        "tools.test_core_ice_lake.IceLakeTests.test_missed_actual_area_still_breaks_ice_without_an_injury_check",
-        "tools.test_core_ice_lake.IceLakeTests.test_multi_target_injury_checks_resolve_once_before_the_same_area_breaks",
-        "tools.test_core_ice_lake.IceLakeTests.test_optional_slow_terrain_uses_actual_paid_movement_cost",
-        "tools.test_core_ice_lake.IceLakeTests.test_other_gm_selected_move_breaks_its_actual_target_cell_only",
-        "tools.test_core_ice_lake.IceLakeTests.test_thick_ice_airborne_and_ordinary_map_do_not_break",
-        "tools.test_core_ice_lake.IceLakeTests.test_unadopted_empty_scope_and_fabricated_completion_cannot_break_ice",
-        "tools.test_core_ice_lake.IceLakeTests.test_weight_four_five_six_and_actual_pokemon_only"
+        "tools.test_category3_carry_features.Tests.test_combat_carry_uses_free_trigger_without_granting_standard",
+        "tools.test_category3_carry_features.Tests.test_decline_keeps_failed_original_and_spends_no_feature",
+        "tools.test_category3_carry_features.Tests.test_failed_reroll_preserves_load_and_waits_for_gm_without_drop",
+        "tools.test_category3_carry_features.Tests.test_native_carry_final_reroll_reaches_exact_dc_and_closes_round",
+        "tools.test_category3_carry_features.Tests.test_observed_error_requires_same_identity_then_resumes_same_first_roll",
+        "tools.test_category3_carry_features.Tests.test_plain_identified_carry_result_is_final_and_cannot_later_reroll",
+        "tools.test_category3_carry_features.Tests.test_preflight_failure_never_creates_inflight_or_consumes_rng"
       ]
     },
-    "tools.test_core_prime_unown.CorePrimeUnownTests": {
+    "tools.test_category3_food_effects.FoodTests": {
       "tests": [
-        "tools.test_core_prime_unown.CorePrimeUnownTests.test_absorbed_actual_identity_is_blocked_on_turn_move_command_movement_ball_and_party_actions",
-        "tools.test_core_prime_unown.CorePrimeUnownTests.test_all_four_additions_use_sourced_base_and_preserve_actual_investment_hp_and_identity",
-        "tools.test_core_prime_unown.CorePrimeUnownTests.test_fifth_join_rewrite_split_duplicate_recombination_and_glyph_conflicts_are_atomic",
-        "tools.test_core_prime_unown.CorePrimeUnownTests.test_generic_prior_type_must_be_observed_and_does_not_become_normal_by_default",
-        "tools.test_core_prime_unown.CorePrimeUnownTests.test_gm_snapshot_json_restore_and_forged_instance_projection_are_validated",
-        "tools.test_core_prime_unown.CorePrimeUnownTests.test_managed_party_counts_combined_members_once_and_cannot_send_or_place_them",
-        "tools.test_core_prime_unown.CorePrimeUnownTests.test_multiple_prior_hidden_powers_and_full_original_host_list_survive_outside_slots",
-        "tools.test_core_prime_unown.CorePrimeUnownTests.test_same_base_hidden_powers_are_distinct_native_physical_special_type_and_frequency",
-        "tools.test_core_prime_unown.CorePrimeUnownTests.test_underdog_loss_is_consumed_and_preserves_independent_capabilities_and_member_sources"
+        "tools.test_category3_food_effects.FoodTests.test_actual_stuff_cheeks_applies_same_buff_benefit_and_single_scene_receipt",
+        "tools.test_category3_food_effects.FoodTests.test_actual_stuff_cheeks_without_buff_has_no_defense_reward_and_no_invented_refund",
+        "tools.test_category3_food_effects.FoodTests.test_all_five_drinks_heal_actual_recipient_by_source_amount_after_extended_time",
+        "tools.test_category3_food_effects.FoodTests.test_baby_food_requires_pokemon_and_explicit_supported_source_policy_before_cost",
+        "tools.test_category3_food_effects.FoodTests.test_berry_half_hp_boundary_uses_true_maximum_and_requires_actual_buff",
+        "tools.test_category3_food_effects.FoodTests.test_black_sludge_requires_poison_pokemon_and_never_heals_on_possession",
+        "tools.test_category3_food_effects.FoodTests.test_book_baby_food_actual_training_and_day_expiry_survive_gm_and_json_restore",
+        "tools.test_category3_food_effects.FoodTests.test_book_baby_food_adds_twenty_percent_exact_floor_to_actual_xp_at_level15",
+        "tools.test_category3_food_effects.FoodTests.test_book_baby_food_does_not_amplify_direct_next_level_grants",
+        "tools.test_category3_food_effects.FoodTests.test_book_baby_food_level16_and_new_day_do_not_grant_xp_bonus",
+        "tools.test_category3_food_effects.FoodTests.test_clamped_herbal_penalty_does_not_erase_preexisting_combat_stage_on_rest",
+        "tools.test_category3_food_effects.FoodTests.test_common_consumption_receipt_preserves_turn_heal_until_actual_encounter_end",
+        "tools.test_category3_food_effects.FoodTests.test_completed_consumption_receipt_rejects_reinserted_buff_before_new_move_or_action_cost",
+        "tools.test_category3_food_effects.FoodTests.test_conflicting_baby_food_stays_held_before_cost",
+        "tools.test_category3_food_effects.FoodTests.test_declined_herb_never_counts_or_rolls_or_consumes",
+        "tools.test_category3_food_effects.FoodTests.test_drinks_cannot_be_consumed_in_combat_or_by_unconscious_sleeping_consumer",
+        "tools.test_category3_food_effects.FoodTests.test_extended_snack_in_combat_is_timing_pending_not_a_drink_prohibition",
+        "tools.test_category3_food_effects.FoodTests.test_first_herb_heals_and_grants_optional_save_buff_with_no_extra_action",
+        "tools.test_category3_food_effects.FoodTests.test_gluttony_three_buff_capacity_and_three_consumptions_per_scene",
+        "tools.test_category3_food_effects.FoodTests.test_herbal_base_penalty_survives_encounter_and_short_rest_then_real_extended_rest_resets",
+        "tools.test_category3_food_effects.FoodTests.test_herbal_revive_and_cure_use_native_effects_then_same_consumption_counter",
+        "tools.test_category3_food_effects.FoodTests.test_leftovers_uses_base_max_hp_at_turn_start_only_and_ends_with_encounter",
+        "tools.test_category3_food_effects.FoodTests.test_missing_duration_declined_and_missing_inventory_never_heal_or_spend",
+        "tools.test_category3_food_effects.FoodTests.test_normal_type_berry_has_no_super_effective_requirement_and_suppression_does_not_disable_food",
+        "tools.test_category3_food_effects.FoodTests.test_one_per_hour_exact_completed_intake_boundary_and_no_day_reset_bypass",
+        "tools.test_category3_food_effects.FoodTests.test_prepared_herbal_buff_is_only_spent_on_the_selected_actual_save",
+        "tools.test_category3_food_effects.FoodTests.test_raw_baby_food_actual_training_adds_one_level_at_feed_level20_only",
+        "tools.test_category3_food_effects.FoodTests.test_raw_baby_food_is_not_an_xp_percentage_or_daily_repeating_level_bonus",
+        "tools.test_category3_food_effects.FoodTests.test_raw_baby_food_pending_intake_and_consumed_training_survive_gm_and_json_restore",
+        "tools.test_category3_food_effects.FoodTests.test_replaced_food_source_and_multiple_serving_request_reject_before_cost",
+        "tools.test_category3_food_effects.FoodTests.test_second_herb_blocks_new_food_and_temp_hp_but_keeps_existing_buff_and_temp_hp",
+        "tools.test_category3_food_effects.FoodTests.test_selected_playtest_gluttony_allows_two_drinks_per_thirty_minutes",
+        "tools.test_category3_food_effects.FoodTests.test_sleep_berry_explicit_self_cure_swift_is_permitted_but_unrelated_food_is_not",
+        "tools.test_category3_food_effects.FoodTests.test_snack_capacity_is_recipient_scoped_and_consumption_frees_it",
+        "tools.test_category3_food_effects.FoodTests.test_snack_eating_grants_actual_buff_without_healing_then_explicit_action_consumes_once",
+        "tools.test_category3_food_effects.FoodTests.test_status_berry_can_cure_its_actual_status_above_half_hp",
+        "tools.test_category3_food_effects.FoodTests.test_stuff_cheeks_cannot_bypass_gluttony_scene_cap_or_replay_consumed_buff",
+        "tools.test_category3_food_effects.FoodTests.test_stuff_cheeks_multiple_buffs_require_actual_choice_before_move_cost",
+        "tools.test_category3_food_effects.FoodTests.test_stuff_cheeks_unresolved_save_benefit_and_stale_stage_hold_before_move_cost",
+        "tools.test_category3_food_effects.FoodTests.test_stuff_cheeks_waives_berry_trigger_only_not_buff_ownership_or_effect",
+        "tools.test_category3_food_effects.FoodTests.test_suppressed_gluttony_uses_ordinary_limit_and_unselected_version_cannot_grant_exception",
+        "tools.test_category3_food_effects.FoodTests.test_third_and_later_herbs_roll_actual_d6_with_six_reroll_and_cumulative_base_penalty",
+        "tools.test_category3_food_effects.FoodTests.test_type_berry_actual_use_move_commits_reduced_hp_damage_and_miss_preserves_buff",
+        "tools.test_category3_food_effects.FoodTests.test_type_berry_changes_actual_damage_one_resistance_step_only_once",
+        "tools.test_category3_food_effects.FoodTests.test_type_berry_waits_for_matching_super_effective_type_and_does_not_consume_on_miss",
+        "tools.test_category3_food_effects.FoodTests.test_unknown_elapsed_does_not_assert_hour_limit_reset",
+        "tools.test_category3_food_effects.FoodTests.test_unsupported_berry_never_uses_legacy_immediate_effect_without_digestion",
+        "tools.test_category3_food_effects.FoodTests.test_untracked_stage_writer_is_held_before_new_herb_or_rest_cost",
+        "tools.test_category3_food_effects.FoodTests.test_wonder_guard_preview_does_not_consume_berry_or_retroactively_block_weakness_hit"
       ]
     },
-    "tools.test_core_salon_expiry.SalonExpiryTests": {
+    "tools.test_completed_optional_boundaries_deep.StateBoundaryTests": {
       "tests": [
-        "tools.test_core_salon_expiry.SalonExpiryTests.test_both_actual_selected_services_pay_and_change_native_recipient_evasion",
-        "tools.test_core_salon_expiry.SalonExpiryTests.test_interrupted_bouts_and_new_service_never_borrow_old_rest_credit",
-        "tools.test_core_salon_expiry.SalonExpiryTests.test_json_restore_keeps_real_effect_owner_and_preserves_other_source_contributions",
-        "tools.test_core_salon_expiry.SalonExpiryTests.test_late_paid_service_failure_rolls_back_effects_money_receipt_and_rest",
-        "tools.test_core_salon_expiry.SalonExpiryTests.test_late_rest_failure_rolls_back_clock_expiry_and_existing_rest_benefits",
-        "tools.test_core_salon_expiry.SalonExpiryTests.test_missing_effect_authority_aliases_lifetimes_and_funds_refuse_without_payment",
-        "tools.test_core_salon_expiry.SalonExpiryTests.test_only_recipient_actual_four_hour_milestone_ends_the_service",
-        "tools.test_core_salon_expiry.SalonExpiryTests.test_pending_gm_choice_source_changes_and_duplicate_event_keep_payment_atomic"
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_aiming_down_sights_consumes_only_next_ranged_weapon_attack_or_next_turn",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_black_yin_both_source_choices_keep_their_movement_after_stage_reset",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_black_yin_extra_evasion_uses_shared_six_and_final_nine_caps",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_black_yin_projects_three_round_movement_replacement_and_evasion",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_black_yin_stale_source_scope_refuses_before_action_or_effect",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_colossus_actual_legacy_and_new_producers_keep_deadlines_through_gm_and_fresh_rules",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_colossus_march_halves_actual_stats_then_third_round_commits_two_stages",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_colossus_march_low_stats_keep_one_after_its_actual_halving",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_colossus_next_three_actual_rounds_end_after_the_third_upcoming_round",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_errata_global_conditions_use_native_initiative_action_frequency_and_evasion_contracts",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_evasion_cheer_uses_exact_full_round_count_not_changed_owner_initiative",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_go_fight_win_all_three_choices_and_failed_activation_are_atomic",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_one_round_common_clock_rejects_changed_source_value_and_deadline_on_restore",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_policy_exact_eight_source_hashes_and_zero_credit_exclusions",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_public_validation_without_optional_state_remains_read_only",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_state_validation_rejects_owner_or_policy_tampering",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_three_round_blessings_keep_activation_count_when_owner_turn_changes",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_three_round_gifts_reach_native_round_end_and_survive_restore",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_virtuoso_errata_charm_restores_effective_eight_without_changing_six_dice",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_white_yang_native_accuracy_and_stages_obey_shared_caps",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_white_yang_projects_three_round_movement_stages_accuracy_and_daily_quota",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_yang_yin_breather_clears_combat_components_but_keeps_movement_clock",
+        "tools.test_completed_optional_boundaries_deep.StateBoundaryTests.test_yang_yin_recall_resets_combat_components_without_ending_movement"
       ]
     },
-    "tools.test_csv_blessings32.PurposeTests": {
+    "tools.test_completed_optional_local_snow.LocalSnowTests": {
       "tests": [
-        "tools.test_csv_blessings32.PurposeTests.test_all_csv_gifts_only_apply_to_named_skill_and_purpose",
-        "tools.test_csv_blessings32.PurposeTests.test_approval_and_context_fail_before_rng_and_state_mutation",
-        "tools.test_csv_blessings32.PurposeTests.test_duplicate_compassion_representation_cannot_stack",
-        "tools.test_csv_blessings32.PurposeTests.test_native_codec_and_snapshot_preserve_then_removal_stops_bonus",
-        "tools.test_csv_blessings32.PurposeTests.test_source_exclusion_cannot_reuse_another_version"
+        "tools.test_completed_optional_local_snow.LocalSnowTests.test_actual_ice_jet_effect_emission_is_local_hail_not_slow_terrain",
+        "tools.test_completed_optional_local_snow.LocalSnowTests.test_actual_registration_inside_live_snow_and_failed_add_preserve_identity_and_atomicity",
+        "tools.test_completed_optional_local_snow.LocalSnowTests.test_all_recipe_grants_are_source_owned_and_revoke",
+        "tools.test_completed_optional_local_snow.LocalSnowTests.test_blood_scythe_bonus_pending_heal_and_scene_quota",
+        "tools.test_completed_optional_local_snow.LocalSnowTests.test_candy_daily_heal_svalinn_fire_protection_and_release",
+        "tools.test_completed_optional_local_snow.LocalSnowTests.test_chilly_reception_raw_snow_and_explicit_natural_weather_keep_original_five_round_source",
+        "tools.test_completed_optional_local_snow.LocalSnowTests.test_inactive_optional_catalog_does_not_break_other_rulesets",
+        "tools.test_completed_optional_local_snow.LocalSnowTests.test_kaladanda_no_awakening_persists_and_expires_at_24_hours",
+        "tools.test_completed_optional_local_snow.LocalSnowTests.test_live_optional_equipment_still_requires_its_source",
+        "tools.test_completed_optional_local_snow.LocalSnowTests.test_local_snow_exact_source_geometry_deadline_and_effect_receipt_reject_forgery",
+        "tools.test_completed_optional_local_snow.LocalSnowTests.test_local_snow_refreshes_actual_forecast_traits_capture_and_environment_on_movement_and_end",
+        "tools.test_completed_optional_local_snow.LocalSnowTests.test_policy_exact_sources_and_excluded_mismap",
+        "tools.test_completed_optional_local_snow.LocalSnowTests.test_shadow_walkers_retain_one_actual_base_and_remove_both",
+        "tools.test_completed_optional_local_snow.LocalSnowTests.test_spread_needle_shared_activation_and_failed_selection_are_atomic",
+        "tools.test_completed_optional_local_snow.LocalSnowTests.test_weapon_profiles_cover_arcane_fire_candy_ruyi_and_chaos",
+        "tools.test_completed_optional_local_snow.LocalSnowTests.test_yata_reflection_truth_daily_and_ruyi_scene_bounds"
       ]
     },
-    "tools.test_fantasy_q30_source_variants.FantasyQ30SourceVariantTests": {
+    "tools.test_core_caltrops_items.Tests": {
       "tests": [
-        "tools.test_fantasy_q30_source_variants.FantasyQ30SourceVariantTests.test_complete_korean_any_range_and_unmarked_actual_history_survive_new_choice_until_round_boundary",
-        "tools.test_fantasy_q30_source_variants.FantasyQ30SourceVariantTests.test_fiery_complete_grants_reconcile_native_struggle_warmth_immunity_stat_and_restore",
-        "tools.test_fantasy_q30_source_variants.FantasyQ30SourceVariantTests.test_fiery_source_scope_and_real_actor_reject_atomically_preserving_independent_baseline",
-        "tools.test_fantasy_q30_source_variants.FantasyQ30SourceVariantTests.test_incoming_default_requires_effective_melee_and_ticks_actual_ordinary_weapon_once"
+        "tools.test_core_caltrops_items.Tests.test_both_actor_kinds_and_tools_use_native_move_frequency_without_learning",
+        "tools.test_core_caltrops_items.Tests.test_exact_physical_stock_and_hazard_state_survive_both_restore_paths",
+        "tools.test_core_caltrops_items.Tests.test_invalid_options_geometry_stock_and_source_reject_before_any_cost_or_rng",
+        "tools.test_core_caltrops_items.Tests.test_item_installation_is_consumed_by_actual_movement_and_native_toxic_layers",
+        "tools.test_core_caltrops_items.Tests.test_native_disabled_and_suppression_keep_tool_action_and_field_unspent",
+        "tools.test_core_caltrops_items.Tests.test_native_heavy_pending_keeps_actual_activation_and_consumed_tool",
+        "tools.test_core_caltrops_items.Tests.test_payment_and_post_install_failure_roll_back_standard_stock_body_and_field"
       ]
     },
-    "tools.test_foundation_composition.CompositionTests": {
+    "tools.test_core_glow.CoreGlowTests": {
       "tests": [
-        "tools.test_foundation_composition.CompositionTests.test_additive_percent_default_and_explicit_product_differ",
-        "tools.test_foundation_composition.CompositionTests.test_bad_or_repeated_contributions_reject",
-        "tools.test_foundation_composition.CompositionTests.test_conditions_and_exact_rounding",
-        "tools.test_foundation_composition.CompositionTests.test_maximum_minimum_and_detached_preview",
-        "tools.test_foundation_composition.CompositionTests.test_native_timed_consumer_preserves_sources_without_consumption",
-        "tools.test_foundation_composition.CompositionTests.test_nonstacking_priority_and_conflict",
-        "tools.test_foundation_composition.CompositionTests.test_ordered_replacement_is_not_addition"
+        "tools.test_core_glow.CoreGlowTests.test_live_light_qualification_species_and_pair_observation_gate_new_responses",
+        "tools.test_core_glow.CoreGlowTests.test_repel_uses_native_terrain_action_availability_and_paid_departure_interrupt",
+        "tools.test_core_glow.CoreGlowTests.test_saved_gm_species_facts_restore_with_source_identity_and_end_with_scene",
+        "tools.test_core_glow.CoreGlowTests.test_species_attract_and_repel_consume_targets_ordinary_shifts_without_relationship_or_source_cost",
+        "tools.test_core_glow.CoreGlowTests.test_unknown_species_none_decline_and_exposure_never_invent_action_or_reaction",
+        "tools.test_core_glow.CoreGlowTests.test_wrong_target_light_species_or_movement_authority_reject_before_action"
       ]
     },
-    "tools.test_foundation_growth_import.GrowthImportTests": {
+    "tools.test_core_marsupial.MarsupialTests": {
       "tests": [
-        "tools.test_foundation_growth_import.GrowthImportTests.test_bad_budget_mismatch_and_existing_evidence_are_atomic",
-        "tools.test_foundation_growth_import.GrowthImportTests.test_existing_observed_growth_is_not_counted_twice",
-        "tools.test_foundation_growth_import.GrowthImportTests.test_import_preserves_stats_sources_and_grows_after_restore",
-        "tools.test_foundation_growth_import.GrowthImportTests.test_untracked_runtime_source_and_late_failure_leave_no_import"
+        "tools.test_core_marsupial.MarsupialTests.test_actual_birth_signed_floor_before_nature_and_real_parent_identity",
+        "tools.test_core_marsupial.MarsupialTests.test_actual_level25_exit_withdraws_only_native_source",
+        "tools.test_core_marsupial.MarsupialTests.test_actual_non_neutral_birth_growth_and_native_maturity_keep_investment",
+        "tools.test_core_marsupial.MarsupialTests.test_actual_recall_send_share_one_ball_without_prime_party_discount",
+        "tools.test_core_marsupial.MarsupialTests.test_actual_unowned_maternal_birth_and_one_ball_capture_keep_two_ids",
+        "tools.test_core_marsupial.MarsupialTests.test_external_healing_move_reaches_baby_and_attack_block_keeps_native_source",
+        "tools.test_core_marsupial.MarsupialTests.test_native_baby_actions_and_actual_attacks_refuse_before_cost",
+        "tools.test_core_marsupial.MarsupialTests.test_native_birth_restore_and_source_maternal_tamper_boundaries",
+        "tools.test_core_marsupial.MarsupialTests.test_two_party_places_paired_storage_transfer_and_individual_refusal",
+        "tools.test_core_marsupial.MarsupialTests.test_unknown_mother_is_not_inferred_and_cross_owner_birth_keeps_pouch_and_owners"
       ]
     },
-    "tools.test_foundation_initiative_schedule.InitiativeScheduleTests": {
+    "tools.test_core_unown_imbuement.UnownImbuementTests": {
       "tests": [
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_actual_scheduled_turn_boundaries_are_atomic_after_late_failure",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_already_closed_borrower_owes_next_round_and_cannot_drop_slot",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_borrowed_turn_uses_actual_target_deadline_and_rolls_back_late_end_failure",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_borrowed_unstarted_turn_uses_native_clock_and_future_slot_once",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_changed_reaction_policy_or_forged_future_receipt_cannot_save",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_core_action_order_free_repetition_and_spent_budget_survive_codec",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_core_full_contact_keeps_trainers_in_mixed_order_and_as_attack_targets",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_core_incapacitated_partner_does_not_remove_other_role_turn",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_count_deadline_keeps_its_count_when_next_order_changes",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_current_cost_uses_actual_prior_budget_and_cannot_pay_twice",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_declared_roles_reverse_declaration_then_forward_resolution",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_distinct_future_action_costs_do_not_silently_coalesce_and_may_decline",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_existing_league_driver_uses_common_reverse_declaration_and_forward_steps",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_explicit_future_cost_conjunction_and_window_replay_are_idempotent",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_explicit_tie_policy_controls_native_order_without_automatic_randomness",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_forged_completed_slot_or_missing_native_closure_cannot_save",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_forged_future_closure_and_settlement_are_rejected",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_future_loan_remains_with_replaced_slot_in_same_round",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_invalid_layout_fails_before_random_or_round",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_late_borrow_start_failure_rolls_back_owner_budget_and_future_debt",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_league_explicit_ties_reuse_common_decision_without_cross_role_tie",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_malformed_schedule_or_reaction_is_a_codec_error",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_native_encounter_end_closes_future_slot_domain_without_extra_turn",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_nested_reactions_restore_each_actual_parent_without_refresh",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_open_reaction_json_and_gm_restore_do_not_repeat_payment",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_owner_and_target_deadlines_survive_reordered_turns_and_reaction",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_owner_clock_settlement_permits_only_zero_actions",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_priority_and_simultaneous_decision_own_actual_execution",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_reaction_resumes_paid_parent_and_next_loss_settles_once",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_real_move_event_reaction_and_resume_preserve_single_native_payment",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_real_order_denies_wrong_owner_without_clock_or_budget_progress",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_replacement_after_consumption_never_creates_second_turn",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_replacement_before_turn_keeps_slot_and_prior_initiative_position",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_schedule_roundtrip_and_gm_restore_keep_actual_continuation",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_tie_remains_pending_without_rng_round_or_schedule",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_unknown_loan_clock_and_forged_trigger_are_inert",
-        "tools.test_foundation_initiative_schedule.InitiativeScheduleTests.test_unknown_reaction_precedence_is_pending_without_payment_or_rng"
+        "tools.test_core_unown_imbuement.UnownImbuementTests.test_action_denial_and_late_native_failure_roll_back_whole_combined_use",
+        "tools.test_core_unown_imbuement.UnownImbuementTests.test_actual_hit_detect_spends_free_native_move_and_prevents_damage_and_effects",
+        "tools.test_core_unown_imbuement.UnownImbuementTests.test_detect_cold_pending_restore_and_redelivery_keep_actual_owner",
+        "tools.test_core_unown_imbuement.UnownImbuementTests.test_detect_does_not_spend_on_miss_natural_one_or_immunity",
+        "tools.test_core_unown_imbuement.UnownImbuementTests.test_detect_status_source_and_legacy_shield_changed_boundary",
+        "tools.test_core_unown_imbuement.UnownImbuementTests.test_detect_suppression_frequency_and_bypass_policy_do_not_invent_use",
+        "tools.test_core_unown_imbuement.UnownImbuementTests.test_explicit_trainer_and_pokemon_adoption_boundaries",
+        "tools.test_core_unown_imbuement.UnownImbuementTests.test_external_json_programs_bind_actual_sample_owners_through_existing_registry",
+        "tools.test_core_unown_imbuement.UnownImbuementTests.test_hidden_power_miss_consumes_before_accuracy_and_request_replay_once",
+        "tools.test_core_unown_imbuement.UnownImbuementTests.test_hidden_power_per_use_choices_preserve_native_frequency_and_permanent_type",
+        "tools.test_core_unown_imbuement.UnownImbuementTests.test_hidden_power_uses_actual_burst_class_type_and_swift_once",
+        "tools.test_core_unown_imbuement.UnownImbuementTests.test_passive_contributions_reach_native_accuracy_and_evasion",
+        "tools.test_core_unown_imbuement.UnownImbuementTests.test_scene_only_refresh_keeps_burn_history_and_disabled_source_cannot_refund",
+        "tools.test_core_unown_imbuement.UnownImbuementTests.test_source_actor_and_receipt_tamper_rejected_by_world_codec",
+        "tools.test_core_unown_imbuement.UnownImbuementTests.test_two_cluster_boost_binds_one_native_accuracy_group_and_no_later_attack"
       ]
     },
-    "tools.test_foundation_perception_observe.ObserveTests": {
+    "tools.test_csv_vest_lifecycle_repair.VestLifecycleRepair": {
       "tests": [
-        "tools.test_foundation_perception_observe.ObserveTests.test_actual_capability_and_selected_source_cannot_be_forged_by_copy_or_values",
-        "tools.test_foundation_perception_observe.ObserveTests.test_actual_distance_unknown_coordinates_and_changed_metric_are_explicit",
-        "tools.test_foundation_perception_observe.ObserveTests.test_actual_registered_object_is_not_relabelled_as_a_pokemon",
-        "tools.test_foundation_perception_observe.ObserveTests.test_changed_information_values_drive_the_same_actual_entity_consumer",
-        "tools.test_foundation_perception_observe.ObserveTests.test_environment_json_gm_restore_and_corrupt_evidence_keep_exact_rights",
-        "tools.test_foundation_perception_observe.ObserveTests.test_invalid_environment_and_unknown_declaration_inputs_are_atomic",
-        "tools.test_foundation_perception_observe.ObserveTests.test_late_information_failure_rolls_back_actual_native_roll_and_rng",
-        "tools.test_foundation_perception_observe.ObserveTests.test_live_blindsense_does_not_gain_color_or_reading_from_a_declaration",
-        "tools.test_foundation_perception_observe.ObserveTests.test_native_aura_information_remains_observed_and_surface_thought_pair_specific",
-        "tools.test_foundation_perception_observe.ObserveTests.test_native_darkvision_uses_real_light_and_external_blindness_still_blocks",
-        "tools.test_foundation_perception_observe.ObserveTests.test_presence_only_never_discloses_identity_position_type_or_thought",
-        "tools.test_foundation_perception_observe.ObserveTests.test_scoped_native_checks_reveal_only_on_success_and_failure_does_not_mean_absence",
-        "tools.test_foundation_perception_observe.ObserveTests.test_unknown_blocked_medium_and_absence_are_distinct_and_reveal_no_detail",
-        "tools.test_foundation_perception_observe.ObserveTests.test_world_movement_invalidates_old_path_until_actual_reobservation"
+        "tools.test_csv_vest_lifecycle_repair.VestLifecycleRepair.test_actual_end",
+        "tools.test_csv_vest_lifecycle_repair.VestLifecycleRepair.test_generic_reset_without_round_clock_does_not_invent_encounter_end",
+        "tools.test_csv_vest_lifecycle_repair.VestLifecycleRepair.test_ordinary_cure_rejection_does_not_mutate_condition_receipts",
+        "tools.test_csv_vest_lifecycle_repair.VestLifecycleRepair.test_recall_preserves_only_the_locked_condition_then_actual_end_cures_it",
+        "tools.test_csv_vest_lifecycle_repair.VestLifecycleRepair.test_unlocked_rampage_and_other_volatile_still_clear_on_recall"
       ]
     },
-    "tools.test_foundation_policy_grant_payments.PolicyGrantTests": {
+    "tools.test_foundation_adjudication_scope.AdjudicationScopeTests": {
       "tests": [
-        "tools.test_foundation_policy_grant_payments.PolicyGrantTests.test_acquisition_registers_persistent_withdrawal_data_and_replays_after_removal",
-        "tools.test_foundation_policy_grant_payments.PolicyGrantTests.test_actual_participants_required_and_effect_entry_cannot_execute_grants",
-        "tools.test_foundation_policy_grant_payments.PolicyGrantTests.test_bad_package_operations_never_publish_a_partial_package",
-        "tools.test_foundation_policy_grant_payments.PolicyGrantTests.test_definition_input_checks_candidate_before_actual_payment_and_replay",
-        "tools.test_foundation_policy_grant_payments.PolicyGrantTests.test_invalid_withdrawal_bindings_never_debit_or_publish",
-        "tools.test_foundation_policy_grant_payments.PolicyGrantTests.test_json_acquire_refund_replay_and_saved_evidence",
-        "tools.test_foundation_policy_grant_payments.PolicyGrantTests.test_json_skill_modifier_admission_execution_and_withdrawal",
-        "tools.test_foundation_policy_grant_payments.PolicyGrantTests.test_json_stat_investment_uses_typed_delta_and_native_refund",
-        "tools.test_foundation_policy_grant_payments.PolicyGrantTests.test_late_native_failure_rolls_back_all_state_and_policy_evidence",
-        "tools.test_foundation_policy_grant_payments.PolicyGrantTests.test_pending_and_not_applicable_have_no_payments_or_evidence",
-        "tools.test_foundation_policy_grant_payments.PolicyGrantTests.test_stale_source_and_profile_cannot_replay_a_payment",
-        "tools.test_foundation_policy_grant_payments.PolicyGrantTests.test_unknown_allocation_cannot_be_invented_by_json_adapter"
+        "tools.test_foundation_adjudication_scope.AdjudicationScopeTests.test_changed_definition_and_effective_profile_require_a_new_review",
+        "tools.test_foundation_adjudication_scope.AdjudicationScopeTests.test_conflict_contract_requires_typed_distinct_alternatives",
+        "tools.test_foundation_adjudication_scope.AdjudicationScopeTests.test_context_range_and_one_sided_bounds_use_the_same_contract",
+        "tools.test_foundation_adjudication_scope.AdjudicationScopeTests.test_declared_integer_range_rejects_before_state_or_costs",
+        "tools.test_foundation_adjudication_scope.AdjudicationScopeTests.test_invalid_ranges_are_rejected_when_loading_external_declarations",
+        "tools.test_foundation_adjudication_scope.AdjudicationScopeTests.test_missing_facts_delegation_and_conflict_remain_distinct",
+        "tools.test_foundation_adjudication_scope.AdjudicationScopeTests.test_missing_or_foreign_scope_and_unsupported_choice_reject_before_effects",
+        "tools.test_foundation_adjudication_scope.AdjudicationScopeTests.test_native_formula_and_mech_require_reason_and_supported_scope_before_mutation",
+        "tools.test_foundation_adjudication_scope.AdjudicationScopeTests.test_package_and_execution_evidence_survive_restore",
+        "tools.test_foundation_adjudication_scope.AdjudicationScopeTests.test_stale_interpretation_does_not_spend_action_or_ap"
       ]
     },
-    "tools.test_foundation_selection_payments.PreservedRiderGrantTests": {
+    "tools.test_foundation_combat_hit.HitTests": {
       "tests": [
-        "tools.test_foundation_selection_payments.PreservedRiderGrantTests.test_errata_preserved_run_up_keeps_paid_provider_and_restore",
-        "tools.test_foundation_selection_payments.PreservedRiderGrantTests.test_missing_provider_low_tp_or_changed_source_cannot_grant"
+        "tools.test_foundation_combat_hit.HitTests.test_direct_ranged_attack_rejects_before_die_and_cost",
+        "tools.test_foundation_combat_hit.HitTests.test_invalid_declaration",
+        "tools.test_foundation_combat_hit.HitTests.test_native_automatic_and_cannot_hit_use_common_comparator",
+        "tools.test_foundation_combat_hit.HitTests.test_native_target_defenses_are_not_shared",
+        "tools.test_foundation_combat_hit.HitTests.test_precedence_and_boundary",
+        "tools.test_foundation_combat_hit.HitTests.test_two_roll_move_observes_two_distinct_faces"
       ]
     },
-    "tools.test_foundation_training_hour.TrainingHourTests": {
+    "tools.test_foundation_control_mount.MountTests": {
       "tests": [
-        "tools.test_foundation_training_hour.TrainingHourTests.test_hour_funds_three_consumers_and_survives_save",
-        "tools.test_foundation_training_hour.TrainingHourTests.test_later_invalid_credit_rolls_back_group_awards",
-        "tools.test_foundation_training_hour.TrainingHourTests.test_mutually_exclusive_credit_sources_reject",
-        "tools.test_foundation_training_hour.TrainingHourTests.test_policy_hour_then_policy_xp",
-        "tools.test_foundation_training_hour.TrainingHourTests.test_typed_receipt_and_late_consumption_failure",
-        "tools.test_foundation_training_hour.TrainingHourTests.test_unsafe_and_missing_hour_reject_without_changes"
+        "tools.test_foundation_control_mount.MountTests.test_actual_damage_threshold_triggers_retention_for_rider_or_mount",
+        "tools.test_foundation_control_mount.MountTests.test_actual_forced_displacement_syncs_rider_and_creates_retention",
+        "tools.test_foundation_control_mount.MountTests.test_confusion_actual_self_hit_uses_loss_and_retention_even_below_damage_threshold",
+        "tools.test_foundation_control_mount.MountTests.test_damage_and_forced_retention_late_failure_roll_back_entire_native_event",
+        "tools.test_foundation_control_mount.MountTests.test_dangling_managed_reference_and_tampered_policy_cannot_be_saved",
+        "tools.test_foundation_control_mount.MountTests.test_data_boarding_uses_actual_weight_native_action_and_body_relation",
+        "tools.test_foundation_control_mount.MountTests.test_declared_seat_capacity_uses_actual_other_riders",
+        "tools.test_foundation_control_mount.MountTests.test_dismount_keeps_current_actual_positions_and_drops_only_rider_load",
+        "tools.test_foundation_control_mount.MountTests.test_json_and_gm_restore_keep_actual_rider_aliases_load_and_spent_pool",
+        "tools.test_foundation_control_mount.MountTests.test_known_average_rider_exception_is_removed_by_heavier_mass_or_ordinary_load",
+        "tools.test_foundation_control_mount.MountTests.test_large_low_power_mount_cannot_carry_a_known_heavy_rider",
+        "tools.test_foundation_control_mount.MountTests.test_late_boarding_or_movement_failure_rolls_back_aliases_rng_and_actions",
+        "tools.test_foundation_control_mount.MountTests.test_live_capability_loss_cannot_keep_average_weight_exemption",
+        "tools.test_foundation_control_mount.MountTests.test_native_automatic_boarding_still_rolls_retention_and_failure_releases_load",
+        "tools.test_foundation_control_mount.MountTests.test_native_gm_admission_does_not_require_mountable_and_denial_is_atomic",
+        "tools.test_foundation_control_mount.MountTests.test_native_mount_suitability_uses_observed_individual_not_a_species_or_level_ban",
+        "tools.test_foundation_control_mount.MountTests.test_native_mountable_two_carries_real_riders_and_restores_shared_movement",
+        "tools.test_foundation_control_mount.MountTests.test_new_actual_round_refreshes_pool_and_dismount_cannot_refund_used_distance",
+        "tools.test_foundation_control_mount.MountTests.test_partial_rider_path_leaves_remaining_for_mount_and_preserves_diagonal_clock",
+        "tools.test_foundation_control_mount.MountTests.test_physical_rider_weight_cannot_use_remote_telekinetic_load_table",
+        "tools.test_foundation_control_mount.MountTests.test_rider_moves_mount_then_commands_a_different_actual_pokemon_in_same_round",
+        "tools.test_foundation_control_mount.MountTests.test_rider_then_mount_share_actual_remaining_movement_without_reset_on_turn",
+        "tools.test_foundation_control_mount.MountTests.test_saved_used_movement_cannot_be_reset_to_zero",
+        "tools.test_foundation_control_mount.MountTests.test_unmet_ownership_skill_adjacency_mass_and_foreign_inputs_do_not_consume"
       ]
     },
-    "tools.test_gm_rule_policies.HPLossPolicyTests": {
+    "tools.test_foundation_control_remote.RemoteTests": {
       "tests": [
-        "tools.test_gm_rule_policies.HPLossPolicyTests.test_actual_gmax_residual_uses_same_default_and_persistent_override",
-        "tools.test_gm_rule_policies.HPLossPolicyTests.test_default_and_gm_override_keep_cap_bypass_and_ordinary_allocation",
-        "tools.test_gm_rule_policies.HPLossPolicyTests.test_invalid_gm_policy_is_atomic_and_returned_dictionary_is_defensive",
-        "tools.test_gm_rule_policies.HPLossPolicyTests.test_nondefault_snapshot_json_restore_and_forged_values",
-        "tools.test_gm_rule_policies.HPLossPolicyTests.test_selected_curse_declaration_and_native_pain_split_share_policy"
+        "tools.test_foundation_control_remote.RemoteTests.test_actual_communication_connection_expiry_closes_only_dependent_control",
+        "tools.test_foundation_control_remote.RemoteTests.test_actual_installed_route_moves_distant_machine_with_existing_action_budget",
+        "tools.test_foundation_control_remote.RemoteTests.test_actual_interface_identity_and_machine_authority_are_separate",
+        "tools.test_foundation_control_remote.RemoteTests.test_actual_wired_core_connects_native_projection_and_component_loss_revokes",
+        "tools.test_foundation_control_remote.RemoteTests.test_changed_route_evidence_rejects_world_json_and_gm_snapshot",
+        "tools.test_foundation_control_remote.RemoteTests.test_commands_are_finite_and_route_id_cannot_switch_machine",
+        "tools.test_foundation_control_remote.RemoteTests.test_communication_metadata_without_live_connection_does_not_authorize_control",
+        "tools.test_foundation_control_remote.RemoteTests.test_corrupt_gm_remote_candidate_cannot_change_live_machine_or_routes",
+        "tools.test_foundation_control_remote.RemoteTests.test_device_disabled_and_capability_source_loss_stop_actual_commands",
+        "tools.test_foundation_control_remote.RemoteTests.test_digital_actual_avatar_and_node_route_execute_and_ejection_stops_it",
+        "tools.test_foundation_control_remote.RemoteTests.test_hardware_removal_revokes_route_but_other_source_route_executes",
+        "tools.test_foundation_control_remote.RemoteTests.test_inoperable_bot_observation_returns_current_wired_permission_and_closes_route",
+        "tools.test_foundation_control_remote.RemoteTests.test_json_gm_restore_replay_keep_actual_machine_route_and_spent_budget",
+        "tools.test_foundation_control_remote.RemoteTests.test_late_remote_move_or_connection_error_restores_whole_native_event",
+        "tools.test_foundation_control_remote.RemoteTests.test_machine_path_cannot_cross_remote_range_mid_command",
+        "tools.test_foundation_control_remote.RemoteTests.test_missing_device_wrong_host_or_false_connection_never_grants_command",
+        "tools.test_foundation_control_remote.RemoteTests.test_native_wired_one_vehicle_exempts_training_body_and_controls_installed_weapon",
+        "tools.test_foundation_control_remote.RemoteTests.test_native_wired_requires_actual_pokemon_and_current_interface",
+        "tools.test_foundation_control_remote.RemoteTests.test_network_route_cannot_bind_foreign_avatar_or_other_bot_node",
+        "tools.test_foundation_control_remote.RemoteTests.test_new_names_cannot_change_source_route_limit_or_reopen_closed_connection",
+        "tools.test_foundation_control_remote.RemoteTests.test_range_loss_closes_only_dependent_route_and_command_cost_is_zero",
+        "tools.test_foundation_control_remote.RemoteTests.test_remote_body_and_pilot_qualifications_are_not_implicitly_waived"
       ]
     },
-    "tools.test_item_source_identity_revision.PickupSourceCategoryTests": {
+    "tools.test_foundation_effect_recovery.EffectRecoveryTests": {
       "tests": [
-        "tools.test_item_source_identity_revision.PickupSourceCategoryTests.test_all_printed_d20_ranges_record_category_without_inventing_item",
-        "tools.test_item_source_identity_revision.PickupSourceCategoryTests.test_gm_selects_real_eligible_items_for_each_nonempty_category",
-        "tools.test_item_source_identity_revision.PickupSourceCategoryTests.test_legacy_reward_restores_stock_unchanged_and_requires_reconciliation",
-        "tools.test_item_source_identity_revision.PickupSourceCategoryTests.test_none_wrong_category_non_tm_and_missing_gm_reason_reject_unchanged",
-        "tools.test_item_source_identity_revision.PickupSourceCategoryTests.test_pending_category_restores_then_gm_awards_once_without_reroll"
+        "tools.test_foundation_effect_recovery.EffectRecoveryTests.test_actual_integrity_repair_caps_without_changing_real_hp_or_location",
+        "tools.test_foundation_effect_recovery.EffectRecoveryTests.test_actual_node_repairs_its_integrity_without_changing_data_or_connection",
+        "tools.test_foundation_effect_recovery.EffectRecoveryTests.test_data_operations_keep_resource_caps_and_allowance_distinct",
+        "tools.test_foundation_effect_recovery.EffectRecoveryTests.test_declared_ineligibility_does_not_change_resource",
+        "tools.test_foundation_effect_recovery.EffectRecoveryTests.test_general_removal_save_preserves_modifiers_without_inventing_a_condition",
+        "tools.test_foundation_effect_recovery.EffectRecoveryTests.test_invalid_healing_does_not_register_actor_in_shared_clock",
+        "tools.test_foundation_effect_recovery.EffectRecoveryTests.test_invalid_recovery_values_and_changed_source_reject_before_resource_change",
+        "tools.test_foundation_effect_recovery.EffectRecoveryTests.test_late_native_integrity_validation_failure_rolls_back_resource",
+        "tools.test_foundation_effect_recovery.EffectRecoveryTests.test_native_hp_temp_hp_and_injury_consumers_preserve_their_policies",
+        "tools.test_foundation_effect_recovery.EffectRecoveryTests.test_positive_integrity_does_not_reconnect_ejected_entity",
+        "tools.test_foundation_effect_recovery.EffectRecoveryTests.test_repaired_integrity_roundtrip_keeps_separate_resource_identity"
       ]
     },
-    "tools.test_juicer_session_gap_followup.JuicerSessionGapTests": {
+    "tools.test_foundation_event_subscriptions.Subscriptions": {
       "tests": [
-        "tools.test_juicer_session_gap_followup.JuicerSessionGapTests.test_core_elapsed_juice_still_rejects_gap_before_snack_or_bottling",
-        "tools.test_juicer_session_gap_followup.JuicerSessionGapTests.test_csv_known_session_bottles_and_drinks_despite_actual_elapsed_gap",
-        "tools.test_juicer_session_gap_followup.JuicerSessionGapTests.test_csv_known_session_shell_snack_succeeds_despite_actual_elapsed_gap"
+        "tools.test_foundation_event_subscriptions.Subscriptions.test_accuracy_listener_cannot_read_future_damage_observation",
+        "tools.test_foundation_event_subscriptions.Subscriptions.test_accuracy_wait_save_resume_does_not_repeat_cost_roll_or_damage",
+        "tools.test_foundation_event_subscriptions.Subscriptions.test_actual_stage_order_and_damage_request_precedes_resource_change",
+        "tools.test_foundation_event_subscriptions.Subscriptions.test_changed_continuation_is_rejected_and_time_cannot_advance_while_waiting",
+        "tools.test_foundation_event_subscriptions.Subscriptions.test_explicit_choice_resumes_same_event_without_repeating_completed_listener",
+        "tools.test_foundation_event_subscriptions.Subscriptions.test_faint_during_wait_cancels_remaining_attack_without_refunding_or_repaying",
+        "tools.test_foundation_event_subscriptions.Subscriptions.test_miss_and_nonmove_hp_loss_cannot_assert_hit",
+        "tools.test_foundation_event_subscriptions.Subscriptions.test_miss_has_no_damage_stages_and_changed_history_is_rejected",
+        "tools.test_foundation_event_subscriptions.Subscriptions.test_native_hit_delivery_and_save_redelivery_are_exactly_once",
+        "tools.test_foundation_event_subscriptions.Subscriptions.test_no_arbitrary_producer_or_context_field_and_no_redefinition",
+        "tools.test_foundation_event_subscriptions.Subscriptions.test_nonordinary_intermediate_scope_rejects_before_cost",
+        "tools.test_foundation_event_subscriptions.Subscriptions.test_pending_listener_preserves_completed_prefix_and_rechecks_eligibility"
       ]
     },
-    "tools.test_living_weapon_caps_shield_source_revision.LivingWeaponCapsShieldSourceRevisionTests": {
+    "tools.test_foundation_reconciliation.ReconciliationTests": {
       "tests": [
-        "tools.test_living_weapon_caps_shield_source_revision.LivingWeaponCapsShieldSourceRevisionTests.test_complete_borrowing_variants_restore_and_feed_actual_other_weapon_attacks",
-        "tools.test_living_weapon_caps_shield_source_revision.LivingWeaponCapsShieldSourceRevisionTests.test_core_and_adopted_errata_shield_replace_only_their_contribution_through_restore_and_detach",
-        "tools.test_living_weapon_caps_shield_source_revision.LivingWeaponCapsShieldSourceRevisionTests.test_pokemon_holder_cap_survives_ordinary_high_ranks_and_rejects_native_master_use",
-        "tools.test_living_weapon_caps_shield_source_revision.LivingWeaponCapsShieldSourceRevisionTests.test_same_move_other_source_cannot_bypass_english_choice_and_rank_permissions_remain_live",
-        "tools.test_living_weapon_caps_shield_source_revision.LivingWeaponCapsShieldSourceRevisionTests.test_source_scope_and_stale_core_shield_reject_without_silent_conversion",
-        "tools.test_living_weapon_caps_shield_source_revision.LivingWeaponCapsShieldSourceRevisionTests.test_trainer_master_and_weapon_borrowing_remain_legal_at_six_seven_and_ten"
+        "tools.test_foundation_reconciliation.ReconciliationTests.test_dependency_conflict_rolls_back_parent_mutation_and_all_refunds",
+        "tools.test_foundation_reconciliation.ReconciliationTests.test_missing_actual_relation_is_pending_and_parent_change_is_rolled_back",
+        "tools.test_foundation_reconciliation.ReconciliationTests.test_native_transition_refunds_only_lost_source_and_keeps_independent_grant",
+        "tools.test_foundation_reconciliation.ReconciliationTests.test_provider_removal_revisits_previously_checked_recipient",
+        "tools.test_foundation_reconciliation.ReconciliationTests.test_retention_contract_survives_restore",
+        "tools.test_foundation_reconciliation.ReconciliationTests.test_retention_loss_preserves_all_form_bases_and_independent_stat_source",
+        "tools.test_foundation_reconciliation.ReconciliationTests.test_slot_loss_waits_without_partial_removal_then_accepts_explicit_choice",
+        "tools.test_foundation_reconciliation.ReconciliationTests.test_species_binding_reads_actual_identity_and_rolls_back_unknown",
+        "tools.test_foundation_reconciliation.ReconciliationTests.test_unchanged_inputs_skip_predicate_but_never_skip_source_validation",
+        "tools.test_foundation_reconciliation.ReconciliationTests.test_weather_change_retracts_bound_source_in_world_only_transition"
       ]
     },
-    "tools.test_native_rule_policy.Tests": {
+    "tools.test_gmax_pending_native_admission.GMaxPendingNativeAdmissionTests": {
       "tests": [
-        "tools.test_native_rule_policy.Tests.test_applicable_variant_requires_new_policy_but_inapplicable_source_is_not_read",
-        "tools.test_native_rule_policy.Tests.test_changed_source_does_not_reuse_previous_interpretation",
-        "tools.test_native_rule_policy.Tests.test_dowsing_specific_override_does_not_merge_dice_or_add_six",
-        "tools.test_native_rule_policy.Tests.test_gm_source_override_cannot_silently_reuse_the_original_policy",
-        "tools.test_native_rule_policy.Tests.test_medicine_scope_matrix_cost_and_debt_are_separate_aspects",
-        "tools.test_native_rule_policy.Tests.test_projection_preserves_duration_scope_condition_and_duplicate_effects",
-        "tools.test_native_rule_policy.Tests.test_receipt_has_contributors_scope_and_profile_without_claiming_engine_certification",
-        "tools.test_native_rule_policy.Tests.test_unknown_and_truthy_strings_cannot_authorize_a_native_effect"
+        "tools.test_gmax_pending_native_admission.GMaxPendingNativeAdmissionTests.test_no_accuracy_core_drown_out_ruling_remains_pending_without_completion_or_payload"
       ]
     },
-    "tools.test_passive_ability_source_consumers.PassiveAbilitySourceConsumerTests": {
+    "tools.test_hazard_stage_provenance.HazardStageProvenanceTests": {
       "tests": [
-        "tools.test_passive_ability_source_consumers.PassiveAbilitySourceConsumerTests.test_exact_id_and_display_name_protection_use_actual_target_owner_and_native_suppression"
+        "tools.test_hazard_stage_provenance.HazardStageProvenanceTests.test_beauty_current_side_and_armed_reaction_survive_fresh_json_restore",
+        "tools.test_hazard_stage_provenance.HazardStageProvenanceTests.test_beauty_uses_current_trap_side_and_consumes_one_free_action_and_scene",
+        "tools.test_hazard_stage_provenance.HazardStageProvenanceTests.test_clear_amulet_native_origin_survives_fresh_json_restore",
+        "tools.test_hazard_stage_provenance.HazardStageProvenanceTests.test_clear_amulet_protects_original_trainer_creator_after_side_exchange",
+        "tools.test_hazard_stage_provenance.HazardStageProvenanceTests.test_clear_amulet_uses_native_move_origin_and_keeps_tracking_actor_and_slow",
+        "tools.test_hazard_stage_provenance.HazardStageProvenanceTests.test_forged_context_source_instance_and_creator_reject_before_stage_or_reaction",
+        "tools.test_hazard_stage_provenance.HazardStageProvenanceTests.test_overlap_court_change_and_original_creator_entry_keep_only_stage_protection",
+        "tools.test_hazard_stage_provenance.HazardStageProvenanceTests.test_swapped_original_creator_can_react_to_its_now_hostile_trap"
       ]
     },
-    "tools.test_precedence_semantics.PrecedenceTests": {
+    "tools.test_manual_equipment.Tests": {
       "tests": [
-        "tools.test_precedence_semantics.PrecedenceTests.test_all_1600_finite_cases_match_independent_path_oracle",
-        "tools.test_precedence_semantics.PrecedenceTests.test_boolean_not_interchangeable_with_integer_selection",
-        "tools.test_precedence_semantics.PrecedenceTests.test_complete_audit_never_certifies_rulebook",
-        "tools.test_precedence_semantics.PrecedenceTests.test_composition_never_mixes_aspects",
-        "tools.test_precedence_semantics.PrecedenceTests.test_cross_aspect_override_rejected",
-        "tools.test_precedence_semantics.PrecedenceTests.test_cycles_are_rejected",
-        "tools.test_precedence_semantics.PrecedenceTests.test_declared_additive_effects_coexist",
-        "tools.test_precedence_semantics.PrecedenceTests.test_duplicate_ids_do_not_silently_overwrite",
-        "tools.test_precedence_semantics.PrecedenceTests.test_empty_active_set_is_not_success_or_failure",
-        "tools.test_precedence_semantics.PrecedenceTests.test_equal_body_different_trigger_is_not_duplicate_rule",
-        "tools.test_precedence_semantics.PrecedenceTests.test_every_rule_and_edge_permutation_preserves_result",
-        "tools.test_precedence_semantics.PrecedenceTests.test_exception_is_local_to_scope",
-        "tools.test_precedence_semantics.PrecedenceTests.test_exception_outside_parent_scope_rejected",
-        "tools.test_precedence_semantics.PrecedenceTests.test_finite_checker_detects_input_order_winner_mutant",
-        "tools.test_precedence_semantics.PrecedenceTests.test_identical_assignments_coexist_with_provenance",
-        "tools.test_precedence_semantics.PrecedenceTests.test_incomparable_conflicting_maxima_remain_unresolved",
-        "tools.test_precedence_semantics.PrecedenceTests.test_narrow_scope_alone_cannot_manufacture_override",
-        "tools.test_precedence_semantics.PrecedenceTests.test_no_source_override_mapping_is_rejected",
-        "tools.test_precedence_semantics.PrecedenceTests.test_override_only_replaces_corresponding_aspect",
-        "tools.test_precedence_semantics.PrecedenceTests.test_reflexive_edges_are_rejected",
-        "tools.test_precedence_semantics.PrecedenceTests.test_source_anchors_current_and_mutations_detected",
-        "tools.test_precedence_semantics.PrecedenceTests.test_transitive_specialization_survives_inactive_intermediate",
-        "tools.test_precedence_semantics.PrecedenceTests.test_unknown_context_and_algebra_rejected",
-        "tools.test_precedence_semantics.PrecedenceTests.test_unknown_edge_endpoint_rejected",
-        "tools.test_precedence_semantics.PrecedenceTests.test_unknown_selection_cannot_be_silently_false",
-        "tools.test_precedence_semantics.PrecedenceTests.test_unselected_exception_preserves_general"
+        "tools.test_manual_equipment.Tests.test_actual_heavy_standard_equipment_uses_existing_local_consequence",
+        "tools.test_manual_equipment.Tests.test_failed_cost_and_recipient_capacity_roll_back_effects_carriers_and_rng",
+        "tools.test_manual_equipment.Tests.test_free_drop_requires_own_turn_records_free_and_places_same_instance",
+        "tools.test_manual_equipment.Tests.test_give_only_transfers_possession_then_recipient_pays_separate_standard",
+        "tools.test_manual_equipment.Tests.test_handoff_survives_both_restores_without_automatically_equipping",
+        "tools.test_manual_equipment.Tests.test_own_turn_and_actual_possession_not_legal_owner_are_required",
+        "tools.test_manual_equipment.Tests.test_paid_native_equip_reuses_head_body_feet_accessory_slot_owners",
+        "tools.test_manual_equipment.Tests.test_replacement_keeps_old_item_carried_and_swaps_one_paid_slot",
+        "tools.test_manual_equipment.Tests.test_sleep_and_spent_standard_block_equip_before_registering_effects",
+        "tools.test_manual_equipment.Tests.test_sleep_blocks_free_drop_without_removing_equipment"
       ]
     },
-    "tools.test_remaining_researcher_rules.RemainingResearcherRulesTests": {
+    "tools.test_marsupial_baby_template_source_revision.MarsupialBabyTemplateSourceTests": {
       "tests": [
-        "tools.test_remaining_researcher_rules.RemainingResearcherRulesTests.test_another_fossil_holding_a_sash_gets_two_evasion_on_the_native_status_move",
-        "tools.test_remaining_researcher_rules.RemainingResearcherRulesTests.test_another_fossil_holding_razors_uses_the_native_melee_hit_reaction",
-        "tools.test_remaining_researcher_rules.RemainingResearcherRulesTests.test_chemical_warfare_native_blast_includes_the_thrower_when_in_the_square",
-        "tools.test_remaining_researcher_rules.RemainingResearcherRulesTests.test_chemical_warfare_native_throw_uses_only_the_two_by_two_blast",
-        "tools.test_remaining_researcher_rules.RemainingResearcherRulesTests.test_enemy_native_move_consumes_the_paid_declaration_after_pending_restore",
-        "tools.test_remaining_researcher_rules.RemainingResearcherRulesTests.test_reactivation_replaces_the_selected_layer_and_ends_only_its_extreme_effect",
-        "tools.test_remaining_researcher_rules.RemainingResearcherRulesTests.test_reactivation_replaces_the_selected_primary_and_keeps_the_layers_original_deadline",
-        "tools.test_remaining_researcher_rules.RemainingResearcherRulesTests.test_relic_crown_equips_another_native_fossil_and_rolls_back_late_registration_before_payment",
-        "tools.test_remaining_researcher_rules.RemainingResearcherRulesTests.test_relic_crown_native_equipment_transfer_to_another_fossil_keeps_the_bonus_after_restore",
-        "tools.test_remaining_researcher_rules.RemainingResearcherRulesTests.test_third_native_weather_without_reactivation_replaces_both_occurrences"
+        "tools.test_marsupial_baby_template_source_revision.MarsupialBabyTemplateSourceTests.test_actual_birth_uses_shared_skill_capability_body_and_single_floor_source",
+        "tools.test_marsupial_baby_template_source_revision.MarsupialBabyTemplateSourceTests.test_all_five_boundaries_restore_native_source_before_real_pouch_exit",
+        "tools.test_marsupial_baby_template_source_revision.MarsupialBabyTemplateSourceTests.test_birth_requires_explicit_physical_choice_and_shared_mass_boundary",
+        "tools.test_marsupial_baby_template_source_revision.MarsupialBabyTemplateSourceTests.test_declared_seventh_skill_rank_survives_native_penalty_recovery_and_human_consumer",
+        "tools.test_marsupial_baby_template_source_revision.MarsupialBabyTemplateSourceTests.test_explicit_zero_physical_reductions_and_duplicate_optional_template_are_distinct",
+        "tools.test_marsupial_baby_template_source_revision.MarsupialBabyTemplateSourceTests.test_fifth_level_physical_growth_is_explicit_and_cold_restore_keeps_receipts",
+        "tools.test_marsupial_baby_template_source_revision.MarsupialBabyTemplateSourceTests.test_legacy_import_requires_explicit_upgrade_and_never_backfills_history",
+        "tools.test_marsupial_baby_template_source_revision.MarsupialBabyTemplateSourceTests.test_native_source_permanence_and_actual_birth_physical_receipt_tamper_reject"
       ]
     },
-    "tools.test_reporter_fixture_evidence.ReporterFixtureEvidenceTests": {
+    "tools.test_master_of_weapons_source_revision.MasterOfWeaponsSourceRevisionTests": {
       "tests": [
-        "tools.test_reporter_fixture_evidence.ReporterFixtureEvidenceTests.test_actual_herb_original_failure_retains_exactly_four_named_passes",
-        "tools.test_reporter_fixture_evidence.ReporterFixtureEvidenceTests.test_existing_case_scoped_proof_regressions",
-        "tools.test_reporter_fixture_evidence.ReporterFixtureEvidenceTests.test_fixture_cannot_hide_a_noncontiguous_repeated_subtest_parent",
-        "tools.test_reporter_fixture_evidence.ReporterFixtureEvidenceTests.test_real_class_and_module_fixture_errors_count_without_becoming_test_calls"
+        "tools.test_master_of_weapons_source_revision.MasterOfWeaponsSourceRevisionTests.test_actual_unwilling_holder_loses_ties_then_is_disarmed_on_paid_success_without_copy",
+        "tools.test_master_of_weapons_source_revision.MasterOfWeaponsSourceRevisionTests.test_call_feat_feature_and_capability_strings_do_not_establish_master_grant_authority",
+        "tools.test_master_of_weapons_source_revision.MasterOfWeaponsSourceRevisionTests.test_extended_bond_replacement_material_range_and_receiver_failures_keep_native_state",
+        "tools.test_master_of_weapons_source_revision.MasterOfWeaponsSourceRevisionTests.test_real_registered_master_grants_both_capabilities_and_restored_native_bond_recall",
+        "tools.test_master_of_weapons_source_revision.MasterOfWeaponsSourceRevisionTests.test_selected_master_and_current_ownership_remain_required_despite_retained_grants",
+        "tools.test_master_of_weapons_source_revision.MasterOfWeaponsSourceRevisionTests.test_withdrawn_master_source_does_not_borrow_other_owner_or_independent_capability_authority"
       ]
     },
-    "tools.test_root_children_independent.Independent": {
+    "tools.test_mentor_csv_independent.MentorIndependentTests": {
       "tests": [
-        "tools.test_root_children_independent.Independent.test_01_required_child_then_parent_reads_result",
-        "tools.test_root_children_independent.Independent.test_02_required_child_input_pending_propagates",
-        "tools.test_root_children_independent.Independent.test_03_required_child_blocked_propagates",
-        "tools.test_root_children_independent.Independent.test_04_grandchild_wait_and_completion",
-        "tools.test_root_children_independent.Independent.test_05_grandchild_blocked_stays_transitive",
-        "tools.test_root_children_independent.Independent.test_06_independent_lifetime_parent_completes_responsibility_remains",
-        "tools.test_root_children_independent.Independent.test_07_owner_and_scope_required",
-        "tools.test_root_children_independent.Independent.test_08_unknown_barrier_preserves_prefix_not_complete",
-        "tools.test_root_children_independent.Independent.test_09_unknown_timing_preserved",
-        "tools.test_root_children_independent.Independent.test_10_causal_parent_not_completion_dependency",
-        "tools.test_root_children_independent.Independent.test_11_exact_parent_replay_no_reemission",
-        "tools.test_root_children_independent.Independent.test_12_child_replay_no_effect_repeat",
-        "tools.test_root_children_independent.Independent.test_13_duplicate_child_key_rejected_before_patch",
-        "tools.test_root_children_independent.Independent.test_14_changed_child_payload_and_parent_rejected",
-        "tools.test_root_children_independent.Independent.test_15_dynamic_false_no_children",
-        "tools.test_root_children_independent.Independent.test_16_false_dynamic_required_consumer_is_unresolved",
-        "tools.test_root_children_independent.Independent.test_17_child_prefix_resumes_once",
-        "tools.test_root_children_independent.Independent.test_18_independent_siblings_all_settle",
-        "tools.test_root_children_independent.Independent.test_19_explicit_sibling_dependency_positive_and_reverse_wait",
-        "tools.test_root_children_independent.Independent.test_20_unordered_siblings_cannot_invent_submit_order",
-        "tools.test_root_children_independent.Independent.test_21_independent_sibling_can_run_while_other_waits",
-        "tools.test_root_children_independent.Independent.test_22_sibling_cycle_rejected_before_prefix",
-        "tools.test_root_children_independent.Independent.test_23_source_false_child_not_successful_settlement",
-        "tools.test_root_children_independent.Independent.test_24_childless_backward_compatible",
-        "tools.test_root_children_independent.Independent.test_25_new_parent_occurrence_generates_distinct_child",
-        "tools.test_root_children_independent.Independent.test_26_external_machine_change_blocks_resume",
-        "tools.test_root_children_independent.Independent.test_27_unknown_parent_node_order_stays_unresolved",
-        "tools.test_root_children_independent.Independent.test_28_after_parent_timing_cannot_execute_early",
-        "tools.test_root_children_independent.Independent.test_29_emission_payload_immutable",
-        "tools.test_root_children_independent.Independent.test_30_independent_unplanned_lifetime_blocks_unproven_future_event",
-        "tools.test_root_children_independent.Independent.test_31_existing_waiter_cannot_resume_across_unknown_child",
-        "tools.test_root_children_independent.Independent.test_32_parent_resume_observes_new_unplanned_child_frontier",
-        "tools.test_root_children_independent.Independent.test_33_parent_resume_cannot_overlap_pending_independent_child",
-        "tools.test_root_children_independent.Independent.test_34_terminal_parent_ignores_only_past_write_overlap",
-        "tools.test_root_children_independent.Independent.test_35_waiter_resumes_after_unknown_frontier_settles",
-        "tools.test_root_children_independent.Independent.test_36_continuation_preserves_declared_context_reads"
+        "tools.test_mentor_csv_independent.MentorIndependentTests.test_actual_evolution_retains_original_learning_and_rejects_mirrored_proof_in_both_restores",
+        "tools.test_mentor_csv_independent.MentorIndependentTests.test_mixed_free_paid_daily_pool_survives_both_restores_and_both_entries"
       ]
     },
-    "tools.test_root_common_checks_independent.Independent": {
+    "tools.test_native_action_fixtures.RejectionFixtureTests": {
       "tests": [
-        "tools.test_root_common_checks_independent.Independent.test_01_no_roll_positive_has_no_randomness",
-        "tools.test_root_common_checks_independent.Independent.test_02_player_cannot_choose_GM_branch",
-        "tools.test_root_common_checks_independent.Independent.test_03_dc_equal_and_below",
-        "tools.test_root_common_checks_independent.Independent.test_04_base_ranks_exact_ordered_count",
-        "tools.test_root_common_checks_independent.Independent.test_05_default2_only_complete_catalog_missing",
-        "tools.test_root_common_checks_independent.Independent.test_06_unknown_rank_and_invalid_base_not_default",
-        "tools.test_root_common_checks_independent.Independent.test_07_dice_bad_faces_count_type_no_fallback",
-        "tools.test_root_common_checks_independent.Independent.test_08_penalty_separate_more_than_pool_negative",
-        "tools.test_root_common_checks_independent.Independent.test_09_zero_penalty_no_extra_dice",
-        "tools.test_root_common_checks_independent.Independent.test_10_opposed_tie_and_both_orders",
-        "tools.test_root_common_checks_independent.Independent.test_11_opponent_roll_requires_own_principal",
-        "tools.test_root_common_checks_independent.Independent.test_12_team_required_count_and_equality",
-        "tools.test_root_common_checks_independent.Independent.test_13_team_scope_guards_required",
-        "tools.test_root_common_checks_independent.Independent.test_14_helper_novice_floor_single_primary",
-        "tools.test_root_common_checks_independent.Independent.test_15_helper_below_novice_or_unknown_no_roll",
-        "tools.test_root_common_checks_independent.Independent.test_16_high_margin_no_auto_benefit",
-        "tools.test_root_common_checks_independent.Independent.test_17_raw_fail_preserved_after_success_with_cost",
-        "tools.test_root_common_checks_independent.Independent.test_18_missing_cost_or_margin_acceptance_pending",
-        "tools.test_root_common_checks_independent.Independent.test_19_extended_last_equality_success",
-        "tools.test_root_common_checks_independent.Independent.test_20_extended_exhausted_and_terminal_extra_roll",
-        "tools.test_root_common_checks_independent.Independent.test_21_extended_rank1_zero_limit_no_dice",
-        "tools.test_root_common_checks_independent.Independent.test_22_unlimited_negative_not_guaranteed_convergence",
-        "tools.test_root_common_checks_independent.Independent.test_23_duplicate_interval_new_event_no_reconsume",
-        "tools.test_root_common_checks_independent.Independent.test_24_task_changed_parameters_pending",
-        "tools.test_root_common_checks_independent.Independent.test_25_extended_in_combat_no_roll",
-        "tools.test_root_common_checks_independent.Independent.test_26_clock_and_world_not_falsely_applied",
-        "tools.test_root_common_checks_independent.Independent.test_27_input_replay_idempotent_conflict_rejected",
-        "tools.test_root_common_checks_independent.Independent.test_28_stale_snapshot_rejects_authenticated_input",
-        "tools.test_root_common_checks_independent.Independent.test_29_payload_cannot_spoof_DC_or_actor",
-        "tools.test_root_common_checks_independent.Independent.test_30_synthetic_never_source_ready",
-        "tools.test_root_common_checks_independent.Independent.test_31_unresolved_context_not_GM_yes",
-        "tools.test_root_common_checks_independent.Independent.test_32_status_or_modifier_scope_held",
-        "tools.test_root_common_checks_independent.Independent.test_33_finite_domain_unknown_choice_rejected",
-        "tools.test_root_common_checks_independent.Independent.test_34_new_occurrence_same_request_is_distinct",
-        "tools.test_root_common_checks_independent.Independent.test_35_same_occurrence_begin_replays_without_new_roll",
-        "tools.test_root_common_checks_independent.Independent.test_36_exhausted_task_cannot_be_unconditional_success",
-        "tools.test_root_common_checks_independent.Independent.test_37_losing_challenger_cannot_be_unconditional_success",
-        "tools.test_root_common_checks_independent.Independent.test_38_opposed_different_skills_and_ranks",
-        "tools.test_root_common_checks_independent.Independent.test_39_opposed_skill_map_exact_actor_keys_and_catalog",
-        "tools.test_root_common_checks_independent.Independent.test_40_opposed_skill_shorthand_cannot_conflict"
+        "tools.test_native_action_fixtures.RejectionFixtureTests.test_batch_checks_every_action_with_one_baseline",
+        "tools.test_native_action_fixtures.RejectionFixtureTests.test_batch_keeps_each_rejection_reason_and_validates_before_snapshot",
+        "tools.test_native_action_fixtures.RejectionFixtureTests.test_batch_stops_at_first_mutation_even_if_later_action_would_restore"
       ]
     },
-    "tools.test_root_mixed_decomposition.MixedTests": {
+    "tools.test_native_blessing_admission.NativeBlessingAdmissionTests": {
       "tests": [
-        "tools.test_root_mixed_decomposition.MixedTests.test_atom_ref_and_reuse_ref_must_agree",
-        "tools.test_root_mixed_decomposition.MixedTests.test_base_optional_guard_removed",
-        "tools.test_root_mixed_decomposition.MixedTests.test_candidate_current_conditions_mutation",
-        "tools.test_root_mixed_decomposition.MixedTests.test_candidate_exact_but_unrelated_excerpt",
-        "tools.test_root_mixed_decomposition.MixedTests.test_candidate_wrong_review_hash",
-        "tools.test_root_mixed_decomposition.MixedTests.test_candidate_wrong_source_hash",
-        "tools.test_root_mixed_decomposition.MixedTests.test_claimed_coverage_percent",
-        "tools.test_root_mixed_decomposition.MixedTests.test_component_duplicate",
-        "tools.test_root_mixed_decomposition.MixedTests.test_component_exact_but_unrelated_excerpt",
-        "tools.test_root_mixed_decomposition.MixedTests.test_component_missing_from_parent",
-        "tools.test_root_mixed_decomposition.MixedTests.test_component_orphan",
-        "tools.test_root_mixed_decomposition.MixedTests.test_context_exception_cannot_move_to_arbitrary_line",
-        "tools.test_root_mixed_decomposition.MixedTests.test_core_optional_guard_removed_but_other_condition_retained",
-        "tools.test_root_mixed_decomposition.MixedTests.test_current_review_change",
-        "tools.test_root_mixed_decomposition.MixedTests.test_deleted_component",
-        "tools.test_root_mixed_decomposition.MixedTests.test_draft_paraphrase_is_not_frozen_as_semantic_oracle",
-        "tools.test_root_mixed_decomposition.MixedTests.test_duplicate_candidate",
-        "tools.test_root_mixed_decomposition.MixedTests.test_false_completion_accounting",
-        "tools.test_root_mixed_decomposition.MixedTests.test_false_completion_component",
-        "tools.test_root_mixed_decomposition.MixedTests.test_false_completion_top",
-        "tools.test_root_mixed_decomposition.MixedTests.test_false_runtime_claim",
-        "tools.test_root_mixed_decomposition.MixedTests.test_internal_inference_as_clause_substring",
-        "tools.test_root_mixed_decomposition.MixedTests.test_internal_inference_as_source_quote",
-        "tools.test_root_mixed_decomposition.MixedTests.test_invalid_modality",
-        "tools.test_root_mixed_decomposition.MixedTests.test_invalid_read_range",
-        "tools.test_root_mixed_decomposition.MixedTests.test_isolated_copy",
-        "tools.test_root_mixed_decomposition.MixedTests.test_legal_modality_edit_is_not_misrepresented_as_proof",
-        "tools.test_root_mixed_decomposition.MixedTests.test_line_accounting_foreign_component",
-        "tools.test_root_mixed_decomposition.MixedTests.test_line_accounting_omission",
-        "tools.test_root_mixed_decomposition.MixedTests.test_missing_boundary_case",
-        "tools.test_root_mixed_decomposition.MixedTests.test_missing_candidate",
-        "tools.test_root_mixed_decomposition.MixedTests.test_missing_clause_span",
-        "tools.test_root_mixed_decomposition.MixedTests.test_missing_interpretation_limit",
-        "tools.test_root_mixed_decomposition.MixedTests.test_missing_report",
-        "tools.test_root_mixed_decomposition.MixedTests.test_non_draft_status",
-        "tools.test_root_mixed_decomposition.MixedTests.test_nonmixed_candidate_laundering",
-        "tools.test_root_mixed_decomposition.MixedTests.test_path_escape_rejected",
-        "tools.test_root_mixed_decomposition.MixedTests.test_pdf_quote_forgery_even_with_matching_quote_hash",
-        "tools.test_root_mixed_decomposition.MixedTests.test_real_data",
-        "tools.test_root_mixed_decomposition.MixedTests.test_residual_quote_tampering",
-        "tools.test_root_mixed_decomposition.MixedTests.test_root_without_reuse_atom",
-        "tools.test_root_mixed_decomposition.MixedTests.test_scope_denominator_change",
-        "tools.test_root_mixed_decomposition.MixedTests.test_self_context_cycle",
-        "tools.test_root_mixed_decomposition.MixedTests.test_source_file_change_without_new_snapshot",
-        "tools.test_root_mixed_decomposition.MixedTests.test_source_span_hash_changed",
-        "tools.test_root_mixed_decomposition.MixedTests.test_source_span_offset_changed",
-        "tools.test_root_mixed_decomposition.MixedTests.test_structural_label_cannot_hide_prose_line",
-        "tools.test_root_mixed_decomposition.MixedTests.test_supplement_guard_case_unbound",
-        "tools.test_root_mixed_decomposition.MixedTests.test_supplement_optional_guard_removed_and_case_consistent",
-        "tools.test_root_mixed_decomposition.MixedTests.test_unknown_atom",
-        "tools.test_root_mixed_decomposition.MixedTests.test_unknown_candidate_ref",
-        "tools.test_root_mixed_decomposition.MixedTests.test_unknown_context_component",
-        "tools.test_root_mixed_decomposition.MixedTests.test_unknown_ref_type",
-        "tools.test_root_mixed_decomposition.MixedTests.test_unknown_symbol",
-        "tools.test_root_mixed_decomposition.MixedTests.test_unrelated_clause_cannot_be_laundered_with_unused_parent_anchor"
+        "tools.test_native_blessing_admission.NativeBlessingAdmissionTests.test_both_role_routes_for_both_gifts_reject_rank_two_and_accept_rank_three",
+        "tools.test_native_blessing_admission.NativeBlessingAdmissionTests.test_confirmation_remains_existing_owned_migration_and_does_not_create_native_slot",
+        "tools.test_native_blessing_admission.NativeBlessingAdmissionTests.test_dual_role_requires_actual_choice_and_role_configuration_cannot_disagree",
+        "tools.test_native_blessing_admission.NativeBlessingAdmissionTests.test_exalted_requires_actual_mewtwo_and_generic_reason_cannot_waive_prerequisites",
+        "tools.test_native_blessing_admission.NativeBlessingAdmissionTests.test_exalted_zero_to_one_accepts_and_one_to_two_rejects_including_alias_ownership",
+        "tools.test_native_blessing_admission.NativeBlessingAdmissionTests.test_explicit_prerequisite_permission_waiver_is_source_bound_and_retained",
+        "tools.test_native_blessing_admission.NativeBlessingAdmissionTests.test_grant_rank_and_role_slot_boundaries_are_not_waived_by_gm_permission",
+        "tools.test_native_blessing_admission.NativeBlessingAdmissionTests.test_independent_prerequisite_permission_is_not_supplied_by_generic_new_gm_reason",
+        "tools.test_native_blessing_admission.NativeBlessingAdmissionTests.test_later_route_and_added_prerequisite_loss_do_not_cancel_valid_native_history",
+        "tools.test_native_blessing_admission.NativeBlessingAdmissionTests.test_native_insight_role_mutation_is_rejected_before_observation_or_payment",
+        "tools.test_native_blessing_admission.NativeBlessingAdmissionTests.test_native_rank3_slots_are_independent_and_legacy_slot_history_is_not_inferred",
+        "tools.test_native_blessing_admission.NativeBlessingAdmissionTests.test_native_receipt_corruption_is_rejected_without_current_rank_guessing",
+        "tools.test_native_blessing_admission.NativeBlessingAdmissionTests.test_native_resilience_configuration_remains_fixed_and_real_patron_domain_is_required",
+        "tools.test_native_blessing_admission.NativeBlessingAdmissionTests.test_psystrike_grant_preserves_independent_move_after_final_native_source_removal"
       ]
     },
-    "tools.test_rule_selection.CustomSpeciesSelectionRetentionTests": {
+    "tools.test_offer_frequency_revision.TypeAceOfferFrequencyTests": {
       "tests": [
-        "tools.test_rule_selection.CustomSpeciesSelectionRetentionTests.test_custom_load_preserves_complete_catalog_dependencies_and_external_selections_repeatedly",
-        "tools.test_rule_selection.CustomSpeciesSelectionRetentionTests.test_rebuilt_catalog_rechecks_excluded_derived_parents_and_authored_sources",
-        "tools.test_rule_selection.CustomSpeciesSelectionRetentionTests.test_repeated_custom_load_and_fresh_equivalent_rules_keep_codec_and_full_choice_catalog"
+        "tools.test_offer_frequency_revision.TypeAceOfferFrequencyTests.test_chitin_exhausted_target_does_not_abort_other_status_move_and_other_target_remains_eligible",
+        "tools.test_offer_frequency_revision.TypeAceOfferFrequencyTests.test_clever_ruse_joins_extra_evasion_cap_and_native_haze_clears_only_its_evasion",
+        "tools.test_offer_frequency_revision.TypeAceOfferFrequencyTests.test_debilitate_native_haze_clears_evasion_but_preserves_accuracy_roll_penalty",
+        "tools.test_offer_frequency_revision.TypeAceOfferFrequencyTests.test_gale_exhaustion_rejects_before_dice_action_or_possible_free_result",
+        "tools.test_offer_frequency_revision.TypeAceOfferFrequencyTests.test_simple_improvements_exhausted_target_starts_turn_and_distinct_target_can_accept"
       ]
     },
-    "tools.test_signature_move_independent.IndependentSignatureTests": {
+    "tools.test_physical_tool_binding.ToolBindingTests": {
       "tests": [
-        "tools.test_signature_move_independent.IndependentSignatureTests.test_actual_class_source_withdrawal_preserves_historical_selection_after_restore",
-        "tools.test_signature_move_independent.IndependentSignatureTests.test_native_used_pool_and_original_qualification_cannot_be_rewritten_on_read"
+        "tools.test_physical_tool_binding.ToolBindingTests.test_actual_access_and_tool_lifecycle_are_required_without_copying_state",
+        "tools.test_physical_tool_binding.ToolBindingTests.test_failed_tool_blocks_all_native_costs_effects_and_execution_until_scene",
+        "tools.test_physical_tool_binding.ToolBindingTests.test_noncombat_elapsed_recovery_gates_second_distinct_native_program",
+        "tools.test_physical_tool_binding.ToolBindingTests.test_replay_binds_exact_instance_and_survives_both_restores_even_after_failure",
+        "tools.test_physical_tool_binding.ToolBindingTests.test_tool_failure_between_steps_rolls_back_prior_action_and_effects",
+        "tools.test_physical_tool_binding.ToolBindingTests.test_two_shielded_instances_use_actual_three_round_recovery_for_programs"
       ]
     },
-    "tools.test_snare_freefloat_source_revision.SnareReflectionTests": {
+    "tools.test_poison_eligibility_scope_followup.PoisonEligibilityScopeTests": {
       "tests": [
-        "tools.test_snare_freefloat_source_revision.SnareReflectionTests.test_extraction_and_modification_return_the_roll_once_to_the_attacker",
-        "tools.test_snare_freefloat_source_revision.SnareReflectionTests.test_late_reflection_ejection_rolls_back_cost_rng_damage_and_recognition",
-        "tools.test_snare_freefloat_source_revision.SnareReflectionTests.test_legacy_paid_snare_damage_history_loads_unchanged_and_new_intrusions_reflect",
-        "tools.test_snare_freefloat_source_revision.SnareReflectionTests.test_nonintrusion_technology_damages_snare_and_saved_reflection_target_is_checked",
-        "tools.test_snare_freefloat_source_revision.SnareReflectionTests.test_reflection_consumes_actual_net_shield_before_integrity_and_restores_recognition",
-        "tools.test_snare_freefloat_source_revision.SnareReflectionTests.test_reflection_uses_the_attacking_avatars_actual_defensive_hacking",
-        "tools.test_snare_freefloat_source_revision.SnareReflectionTests.test_zero_reflection_ejects_attacker_and_reuses_actual_recovery_clock"
+        "tools.test_poison_eligibility_scope_followup.PoisonEligibilityScopeTests.test_nonpoison_move_does_not_enter_selected_poison_parser",
+        "tools.test_poison_eligibility_scope_followup.PoisonEligibilityScopeTests.test_unselected_homebrew_does_not_parse_nonprinted_poison_move"
       ]
     },
-    "tools.test_survivalist_traps_source_revision.SurvivalistTrapsSourceRevisionTests": {
+    "tools.test_recovery_semantics.RecoveryTests": {
       "tests": [
-        "tools.test_survivalist_traps_source_revision.SurvivalistTrapsSourceRevisionTests.test_associated_terrain_immunity_survives_json_and_gm_restore_with_the_creation_identity",
-        "tools.test_survivalist_traps_source_revision.SurvivalistTrapsSourceRevisionTests.test_default_item_use_needs_no_ruling_and_pays_one_standard",
-        "tools.test_survivalist_traps_source_revision.SurvivalistTrapsSourceRevisionTests.test_deployment_under_a_foe_waits_for_actual_entry_before_consuming_a_metre",
-        "tools.test_survivalist_traps_source_revision.SurvivalistTrapsSourceRevisionTests.test_each_hazard_kind_accepts_naturewalk_for_its_other_associated_terrains",
-        "tools.test_survivalist_traps_source_revision.SurvivalistTrapsSourceRevisionTests.test_historical_ruling_receipts_roundtrip_unchanged_without_repayment_or_reuse",
-        "tools.test_survivalist_traps_source_revision.SurvivalistTrapsSourceRevisionTests.test_no_standard_action_rejects_without_consuming_tool_hazards_or_rng",
-        "tools.test_survivalist_traps_source_revision.SurvivalistTrapsSourceRevisionTests.test_old_swift_and_free_rulings_cannot_reduce_a_new_deployment_cost",
-        "tools.test_survivalist_traps_source_revision.SurvivalistTrapsSourceRevisionTests.test_unrelated_naturewalk_still_receives_the_creation_terrain_effect",
-        "tools.test_survivalist_traps_source_revision.SurvivalistTrapsSourceRevisionTests.test_unruled_new_receipts_cannot_claim_a_swift_or_free_payment"
+        "tools.test_recovery_semantics.RecoveryTests.test_false_certification_and_changed_excerpt_rejected",
+        "tools.test_recovery_semantics.RecoveryTests.test_full_restore_uses_same_ledger_and_hp_per_injury_requires_actual_healing",
+        "tools.test_recovery_semantics.RecoveryTests.test_generic_recovery_after_center_cannot_exceed_shared_allowance",
+        "tools.test_recovery_semantics.RecoveryTests.test_nonexistent_test_and_empty_remaining_rejected",
+        "tools.test_recovery_semantics.RecoveryTests.test_rejected_count_does_not_consume_allowance",
+        "tools.test_recovery_semantics.RecoveryTests.test_snapshot_rewinds_daily_allowance_and_healing_history",
+        "tools.test_recovery_semantics.RecoveryTests.test_source_and_test_links_integrity"
+      ]
+    },
+    "tools.test_root_inputs_independent.Independent": {
+      "tests": [
+        "tools.test_root_inputs_independent.Independent.test_01_choice_positive_receipt",
+        "tools.test_root_inputs_independent.Independent.test_02_exact_numeric_finite_domain_boundaries",
+        "tools.test_root_inputs_independent.Independent.test_03_bool_is_not_integer_choice",
+        "tools.test_root_inputs_independent.Independent.test_04_nested_exact_json_types",
+        "tools.test_root_inputs_independent.Independent.test_05_object_key_order_and_array_order",
+        "tools.test_root_inputs_independent.Independent.test_06_object_extra_key_rejected",
+        "tools.test_root_inputs_independent.Independent.test_07_null_false_zero_are_valid_distinct_choices",
+        "tools.test_root_inputs_independent.Independent.test_08_wrong_scoped_principal",
+        "tools.test_root_inputs_independent.Independent.test_09_same_name_uninstalled_principal_rejected",
+        "tools.test_root_inputs_independent.Independent.test_10_unpinned_request_and_label_do_not_admit",
+        "tools.test_root_inputs_independent.Independent.test_11_mode_mismatch_rejected",
+        "tools.test_root_inputs_independent.Independent.test_12_uninstalled_request_actor_pending",
+        "tools.test_root_inputs_independent.Independent.test_13_changed_request_purpose_domain_authority_not_pinned",
+        "tools.test_root_inputs_independent.Independent.test_14_each_context_field_binding",
+        "tools.test_root_inputs_independent.Independent.test_15_revision_exact_type",
+        "tools.test_root_inputs_independent.Independent.test_16_same_replay_identity_no_new_receipt",
+        "tools.test_root_inputs_independent.Independent.test_17_conflicting_replay_preserves_accepted",
+        "tools.test_root_inputs_independent.Independent.test_18_new_request_same_value_allowed",
+        "tools.test_root_inputs_independent.Independent.test_19_invalid_then_valid_not_consumed",
+        "tools.test_root_inputs_independent.Independent.test_20_roll_positive_count_faces_and_order",
+        "tools.test_root_inputs_independent.Independent.test_21_wrong_face_count_no_padding",
+        "tools.test_root_inputs_independent.Independent.test_22_faces_exact_integer_no_coercion",
+        "tools.test_root_inputs_independent.Independent.test_23_face_range_no_clamping",
+        "tools.test_root_inputs_independent.Independent.test_24_unknown_distribution_and_missing_purpose_no_default",
+        "tools.test_root_inputs_independent.Independent.test_25_roll_fingerprint_binds_distribution_purpose_count_sides",
+        "tools.test_root_inputs_independent.Independent.test_26_roll_replay_no_reroll",
+        "tools.test_root_inputs_independent.Independent.test_27_receipt_exact_issued_identity_and_handle",
+        "tools.test_root_inputs_independent.Independent.test_28_cross_broker_receipt_and_request_not_portable",
+        "tools.test_root_inputs_independent.Independent.test_29_receipt_stale_after_acceptance",
+        "tools.test_root_inputs_independent.Independent.test_30_source_mode_pin_is_not_certificate",
+        "tools.test_root_inputs_independent.Independent.test_31_json_values_detached_from_caller_and_immutable",
+        "tools.test_root_inputs_independent.Independent.test_32_unsupported_json_no_fallback",
+        "tools.test_root_inputs_independent.Independent.test_33_empty_or_ambiguous_domain_no_default",
+        "tools.test_root_inputs_independent.Independent.test_34_scoped_two_choosers_conflicting_delivery",
+        "tools.test_root_inputs_independent.Independent.test_35_shared_kernel_json_subset"
+      ]
+    },
+    "tools.test_soulless_environment_source_revision.SoullessEnvironmentSourceRevisionTests": {
+      "tests": [
+        "tools.test_soulless_environment_source_revision.SoullessEnvironmentSourceRevisionTests.test_actual_swarm_deactivation_does_not_replay_prevented_suffocation",
+        "tools.test_soulless_environment_source_revision.SoullessEnvironmentSourceRevisionTests.test_due_vacuum_checks_record_actual_protection_and_consume_real_check_once",
+        "tools.test_soulless_environment_source_revision.SoullessEnvironmentSourceRevisionTests.test_prevented_ticks_survive_both_restores_and_legacy_absent_counter_is_zero",
+        "tools.test_soulless_environment_source_revision.SoullessEnvironmentSourceRevisionTests.test_real_falls_keep_damage_and_record_applied_or_prevented_height_injuries",
+        "tools.test_soulless_environment_source_revision.SoullessEnvironmentSourceRevisionTests.test_soulless_suffocation_consumes_both_selected_phases_without_fake_recovery"
+      ]
+    },
+    "tools.test_timed_native_child.TimedNativeChildTests": {
+      "tests": [
+        "tools.test_timed_native_child.TimedNativeChildTests.test_actual_child_owner_source_boundary_and_revocation_remain_independent",
+        "tools.test_timed_native_child.TimedNativeChildTests.test_condition_head_native_child_waits_then_closes_original_turn_once",
+        "tools.test_timed_native_child.TimedNativeChildTests.test_existing_batch_result_preserves_directed_children_and_continuations",
+        "tools.test_timed_native_child.TimedNativeChildTests.test_false_head_emits_no_child_and_finishes_original_suffix",
+        "tools.test_timed_native_child.TimedNativeChildTests.test_false_native_child_finishes_only_its_suffix",
+        "tools.test_timed_native_child.TimedNativeChildTests.test_final_condition_without_suffix_keeps_its_native_child",
+        "tools.test_timed_native_child.TimedNativeChildTests.test_json_and_gm_restore_before_and_after_condition_child_issuance",
+        "tools.test_timed_native_child.TimedNativeChildTests.test_late_native_close_fault_rolls_back_child_observation_and_retry",
+        "tools.test_timed_native_child.TimedNativeChildTests.test_suffix_born_timed_child_waits_then_closes_once",
+        "tools.test_timed_native_child.TimedNativeChildTests.test_suffix_timed_child_json_and_gm_restore",
+        "tools.test_timed_native_child.TimedNativeChildTests.test_suffix_timed_child_late_close_fault_and_retry",
+        "tools.test_timed_native_child.TimedNativeChildTests.test_timed_status_expires_at_its_original_count_after_child_completion"
       ]
     },
     "tools.test_training_source_binding_revision.TrainingSourceBindingRevisionTests": {
@@ -909,13 +871,11 @@
         "tools.test_training_source_binding_revision.TrainingSourceBindingRevisionTests.test_wrong_selected_definition_and_changed_source_reject_without_state_or_rng_change"
       ]
     },
-    "tools.test_weapon_union_crowned_source_revision.WeaponUnionCrownedSourceRevisionTests": {
+    "tools.test_tumbler_audit_integration.TumblerAuditIntegrationTests": {
       "tests": [
-        "tools.test_weapon_union_crowned_source_revision.WeaponUnionCrownedSourceRevisionTests.test_active_union_survives_gm_and_json_restore_then_actual_faint_releases_without_action",
-        "tools.test_weapon_union_crowned_source_revision.WeaponUnionCrownedSourceRevisionTests.test_actual_both_species_and_hero_aliases_gain_stats_types_signature_and_manual_exit",
-        "tools.test_weapon_union_crowned_source_revision.WeaponUnionCrownedSourceRevisionTests.test_nature_vitamin_and_independent_stat_sources_survive_every_real_switch",
-        "tools.test_weapon_union_crowned_source_revision.WeaponUnionCrownedSourceRevisionTests.test_real_declaration_guards_reject_before_partial_form_time_or_action_payment",
-        "tools.test_weapon_union_crowned_source_revision.WeaponUnionCrownedSourceRevisionTests.test_stock_capabilities_and_power_project_without_erasing_other_or_future_grants"
+        "tools.test_tumbler_audit_integration.TumblerAuditIntegrationTests.test_declared_rank_and_virtuoso_splash_use_effect_rank_not_dice_or_acquisition_rank",
+        "tools.test_tumbler_audit_integration.TumblerAuditIntegrationTests.test_declared_seven_and_ten_acquire_complete_family_and_restore_actual_seven_dice",
+        "tools.test_tumbler_audit_integration.TumblerAuditIntegrationTests.test_native_virtuoso_retraining_cleans_live_choice_preserves_tumbler_receipts_and_restores"
       ]
     }
   }

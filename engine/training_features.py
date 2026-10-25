@@ -618,7 +618,7 @@ def orders(engine, trainer, name, target, *, edition='local_csv', communication=
             ACTIVITIES._pokemon(target);ACTIVITIES._owner(trainer,target)
         if target.dead or target.fainted:raise ValueError('conscious order recipient required')
     commander_scope=__import__('commander').scope(engine,trainer,uid,target)
-    if edition=='local_csv' and ORDERS.current(engine,trainer,uid) is None and not (commander_scope or {}).get('priority_receipt'):
+    if edition=='local_csv' and ORDERS.current(engine,trainer,uid) is None and not (commander_scope or {}).get('priority_receipt') and not (commander_scope or {}).get('voice'):
         if not engine.encounter_active:PRIORITY.preflight(engine,trainer,action='standard',source=uid)
         ORDERS.preflight(engine,trainer,uid,action=__import__('commander').priority_action(engine,trainer,uid))
     if any(row.get('mode')=='orders' for row in records(target)):

@@ -139,6 +139,7 @@ def turn_start(engine, actor, record, *, _boss_round=False):
     closed = next((r for r in actor.spec.get('effect_instance_history', []) if r['id'] == record['id']), None)
     (closed['applications'][-1] if closed is not None else event)['lost'] = lost
     if lost: engine.heal(caster, lost, source_kind='move')
+    __import__('trickster').loss(engine,actor,before,record['source'],condition=record['effect']['condition'])
 
 
 def check_move(engine, actor, move_id):

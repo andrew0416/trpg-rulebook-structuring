@@ -1195,18 +1195,45 @@ def _stage_transition_payload(engine,staged_engine,payload):
         if any(staged[key]!=event[key] for key in ('id','round','kind','source')):
             raise ValueError('native precision observation identity changed during staging')
         memo[id(event)]=staged
+    issued_aliases=None
     for original, staged, aliases in reversed(_TRANSITION_MOVE_ALIASES.get()):
         if original is engine and staged is staged_engine:
-            memo.update(aliases)
+            issued_aliases=aliases
             break
-    if engine is staged_engine:
-        # Reusing the same native transaction must retain its issued live group.
-        # Unissued/look-alike payloads and ordinary snapshots still get copied.
-        for scope in getattr(engine,'_move_activation_scopes',()):
+    if issued_aliases is not None:
+        # These aliases came from the actual validated deepcopy graph.
+        memo.update(issued_aliases)
+    else:
+        # Join issued groups to their existing staged counterparts, including a
+        # resumed recipient that starts a new atomic move transaction. Look-alike
+        # caller dictionaries are not keys in this memo and still get copied.
+        source_scopes=getattr(engine,'_move_activation_scopes',())
+        staged_scopes=getattr(staged_engine,'_move_activation_scopes',())
+        if len(source_scopes)!=len(staged_scopes):raise ValueError('staged native group stack changed')
+        for scope,staged in zip(source_scopes,staged_scopes):
+            if (staged['actor'] is not staged_actors[scope['actor'].entity_id] or
+                    any(scope.get(key)!=staged.get(key) for key in ('move_id','index','completion_id','profile')) or
+                    tuple(staged['targets'])!=tuple(staged_actors[a.entity_id] for a in scope['targets'])):
+                raise ValueError('staged native group identity changed')
             for field in ('activation','accuracy'):
                 value=scope.get(field)
-                if value is not None:memo[id(value)]=value
+                if value is not None:memo[id(value)]=staged[field]
     return deepcopy(payload,memo)
+
+
+def record_native_pending(engine, error, pending):
+    """Keep only exact, registered native waits across a committed transition."""
+    import passive_events as PASSIVE
+    import heavy_injury_adapter as HEAVY
+    if (type(error) is PASSIVE.PassiveEventPending and
+            engine._passive_pending == error.event_id and error.event_id in engine._passive_events):
+        pending.append((PASSIVE.PassiveEventPending, error.event_id))
+        return True
+    if (type(error) is HEAVY.HeavyPending and
+            engine._heavy_pending == error.event_id and error.event_id in engine._heavy_events):
+        pending.append((HEAVY.HeavyPending, error.event_id))
+        return True
+    return False
 
 
 def transition(engine,c,apply,*,participants=(),include_rulings=False,include_grid=False,completion=None):
@@ -1238,12 +1265,9 @@ def _transition(engine,c,apply,*,participants=(),include_rulings=False,include_g
         raise ValueError('native state transition requires actual combatant subjects')
     WORLD.entity_index(engine, extra=subjects)
     fields=set(gm_state.ENGINE_FIELDS)|{"log_lines","gm_prompts"}
-    # A caller-owned live target group must receive its staged index/roll/cost
-    # changes back. This is in-process reconciliation, not a save/load field.
-    if getattr(engine,"_move_activation_scopes",()):
-        fields.add("_move_activation_scopes")
-    if getattr(engine,"_setup_move_scopes",()):
-        fields.add("_setup_move_scopes")
+    # Preserve an existing move stack even when it becomes empty during delivery.
+    if hasattr(engine,'_move_activation_scopes'):fields.add('_move_activation_scopes')
+    if getattr(engine,'_setup_move_scopes',()):fields.add('_setup_move_scopes')
     # Keep original container identities before staging. These include spec,
     # runtime registries and aliases reached through different actor/engine paths.
     originals={}

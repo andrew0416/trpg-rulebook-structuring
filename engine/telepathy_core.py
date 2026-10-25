@@ -32,7 +32,10 @@ def read_block(e,t,operation):return T.read_block(e,t,operation)
 def deliver(e,a,t,thought,operation):return dict(T.deliver(e,a,t,thought,operation),source=SOURCE)
 def attempt(e,a,t,operation,unwilling):
  row=M._state(e)['permissions'].get(M._pair(SOURCE,a.entity_id,t.entity_id))
- return dict(T.attempt(e,a,t,operation,not (row is not None and row['allowed'])),source=SOURCE)
+ actual_unwilling=not (row is not None and row['allowed'])
+ result=dict(T.attempt(e,a,t,operation,actual_unwilling),source=SOURCE)
+ if actual_unwilling:__import__('telepath').residue(e,a,t,SOURCE,operation)
+ return result
 def validate_result(e,result):return T.validate_result(e,result,source=SOURCE,cumulative=True)
 def retry_modifier(e,failures,penalty):return penalty['modifier']*sum(e.elapsed_seconds<r['at']+penalty['seconds'] for r in failures)
 def read(e,a,t,*,request_id,roll_options=None):return M.send(e,a,t,policy(e.r)['declaration'],None,request_id=request_id,roll_options=roll_options,operation='read')

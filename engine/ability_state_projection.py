@@ -451,8 +451,8 @@ def _cost(engine,actor,source,row,seconds,*,triggered=False):
     if frequency in ('Scene','Daily'):
         import frequency as F
         quota={'kind':frequency.lower(),'uses':1}
-        if not F.activation_allowed(actor,source,quota,engine=engine):raise ValueError('ability-state frequency exhausted')
-        F.consume_activation(actor,source,quota,engine=engine)
+        if not F.activation_allowed(actor,source,quota,engine=engine,action_actor=actor if action is not None else None):raise ValueError('ability-state frequency exhausted')
+        F.consume_activation(actor,source,quota,engine=engine,action_actor=actor if action is not None else None)
     if action=='extended':engine.advance_time(seconds,[actor])
 
 

@@ -168,11 +168,11 @@ def carry_check(engine,actor,*,fixed=None,round_id=None,**roll_options):
     if use_feature:
         basis={'round':key,'load':deepcopy(state['objects']),'dc':dc}
         state['skill_inflight']={'round':key,'roll_id':options.get('roll_id')}
-        check=SF.sequence(engine,'carry:'+options['roll_id'],basis,[(actor,skill,options)],lambda rolls:C.against_dc(rolls[0],basis['dc']))
+        check=SF.sequence(engine,'carry:'+options['roll_id'],basis,[(actor,skill,options)],lambda rolls:SF.resolve_check(engine,actor,skill,basis['dc'],rolls[0],options))
         state=actor.spec['_carried_load']
         state.pop('skill_inflight',None)
     else:
-        check=C.against_dc(engine.skill_roll(actor,skill,**options),dc)
+        check=SF.resolve_check(engine,actor,skill,dc,engine.skill_roll(actor,skill,**options),options)
         SF.finish(engine,actor,options.get('roll_id'))
     state['checked_round']=key;state['failure_pending']=not check.passed
     engine.log(f'    {actor.name}: 비틀거리는 무게 운반 {check.total} vs DC{dc}','capability/staggering')

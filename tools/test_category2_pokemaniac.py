@@ -32,7 +32,7 @@ class PokemaniacTests(unittest.TestCase):
   self.e.gm.everyone=[self.trainer,self.target]
   self.trainer.spec['feats'].append(FEATURE)
   self.trainer.spec['skills']['포켓몬학']='숙련'
-  self.trainer.budget={'standard':1,'shift':1,'swift':1}
+  self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.trainer,initiative_count=20)
 
  def actor(self,name,kind):
   return Combatant(self.rules,{'id':kind+'/'+name,'name':name,'kind':kind,'level':20,'pos':(0,0),

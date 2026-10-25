@@ -263,6 +263,17 @@ def _work(engine,row,*,interval_id,seconds,context=None,roller=None,contribution
 
 def _finish_work(engine,row,clock,interval_id,seconds,observed,start_at,roll=None,contribution=None):
     import clock_invocations as CLOCK
+    policy=row['definition']
+    if (roll is not None and contribution is not None and policy['target'] is not None
+            and policy['attempt_limit'] is not None and row['attempts']+1>=policy['attempt_limit']
+            and row['total']+roll.total<policy['target']):
+        actor=W.actor_index(engine)[contribution['actor_id']]
+        if actor.entity_id in getattr(engine,'_let_me_help_offers',{}):
+            import skill_feature_actions as SF
+            identity,_=SF._observed(engine,actor,roll)
+            SF.resolve_check(engine,actor,contribution['skill'],policy['target']-row['total'],roll,{'roll_id':identity})
+            completed=SF.event(engine,actor,identity)
+            if completed.final is not None:roll=completed.final
     clock_id='activity-job:'+TX.request_fingerprint({'job_id':row['id'],'interval_id':interval_id})
     facts=_native_roll(roll) if roll is not None else None
     row['events'].append({'kind':'work','id':interval_id,'start':start_at,'end':clock['end'],

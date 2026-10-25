@@ -5,6 +5,7 @@ table adjudications, not invented rule constants. Mapped retreat uses an observe
 route: its maximality is a GM world observation, not an attack flag.
 """
 from copy import copy,deepcopy
+from contextlib import contextmanager
 import common_checks as C
 import action_lifecycle as ACTION
 import movement_actions as MOVEMENT
@@ -15,6 +16,34 @@ import world_entities as W
 SOURCE='ch07-combat/전투의-다른-행동/숨돌리기'
 SOURCE_REF={'file':'input/ch07-combat.md','sha256':'57abb79c4f70c64246cd7927bffe2377e951bdc32dfa4c9a5c14b4ad97618c18'}
 FIELD='_breather_attempts'
+STAYING='feat/지구력'
+
+def staying_owner(engine,actor,choice):
+    if type(choice)is not dict or set(choice)!={'trainer_id','reset_stages'} or type(choice['reset_stages'])is not bool:
+        raise ValueError('Staying Power needs actual owner and explicit combat-stage reset choice')
+    owner=W.actor_index(engine).get(choice['trainer_id'])
+    if actor.kind!='pokemon' or owner is None or actor.spec.get('trainer_id')!=owner.entity_id:
+        raise ValueError('Staying Power affects only the actual owner Pokemon taking a Breather')
+    import trainer_feature_acquisition as T
+    rows=[record for _,record in T.static_acquisitions(owner,STAYING,active=True)]
+    if len(rows)!=1:raise ValueError('actual acquired Staying Power receipt required')
+    T.validate_actor(owner)
+    return owner
+
+def staying_permission(engine,actor,kind):
+    scope=getattr(engine,'_breather_staying_scope',None)
+    return bool(kind=='full' and scope is not None and scope['actor'] is actor and staying_owner(engine,actor,scope['choice']))
+
+@contextmanager
+def _staying_scope(engine,actor,choice):
+    old=getattr(engine,'_breather_staying_scope',None)
+    if choice is not None:
+        staying_owner(engine,actor,choice)
+        engine._breather_staying_scope={'actor':actor,'choice':deepcopy(choice)}
+    try:yield
+    finally:
+        if old is None:vars(engine).pop('_breather_staying_scope',None)
+        else:engine._breather_staying_scope=old
 
 def selected(rules):
     from source_context import verified_source
@@ -66,7 +95,7 @@ def _finish(engine,actor,request_id,origin,*,helper=None,movement=None):
         raise ValueError('actual retreat effects must resolve before Breather recovery')
     def recover(staged,target,*assistants):
         staged_origin=None if origin is None else W.actor_index(staged)[origin.entity_id]
-        _recover(staged,target,staged_origin)
+        _recover(staged,target,staged_origin,staying_power=observed.get('staying_power'))
         if assistants:_disadvantage(staged,assistants[0],assisting=True)
         import stamina as STAMINA
         STAMINA.observe(staged,target,'take_a_breather',request_id=request_id,
@@ -81,8 +110,8 @@ def _finish(engine,actor,request_id,origin,*,helper=None,movement=None):
 
 def _continue(engine,actor,request_id,record):
     validate_continuation(engine,actor,SOURCE,'breather',record)
-    MOVEMENT.boundary(engine,'take_breather_continuation')
     with ACTION.resolution(engine,actor,SOURCE,kind='breather',_breather_attempt=record):
+        MOVEMENT.boundary(engine,'take_breather_continuation')
         observed=record['observation']
         movement=_move(engine,actor,observed['retreat'],observed['progress'],observed['retreat']['reason'])
         record=getattr(engine,FIELD)[request_id][OBS.KEY]
@@ -199,7 +228,7 @@ def _curse(engine,actor,origin,reason):
     if origin.spec.get('_movement_altitude',0)!=0:return C.PendingDecision('Breather Curse distance requires actual 3D measurement')
     return origin
 
-def _recover(engine,actor,origin):
+def _recover(engine,actor,origin,*,staying_power=None):
     import status_sets as STATUSES,combat_state_lifecycle as STATE,temporary_hp as TEMP
     import body_state as BODY
     from grid import cheb
@@ -218,20 +247,27 @@ def _recover(engine,actor,origin):
     import linked_move_conditions as LINKED
     LINKED.boundary(engine,actor,'breather')
     for condition in ('둔화','구속'):engine.cure_status(actor,condition)
-    STATE.reset_actor(engine,actor)
+    if staying_power is None or staying_power['reset_stages']:STATE.reset_actor(engine,actor)
     TEMP.clear(engine,actor,'숨돌리기')
-    _disadvantage(engine,actor)
+    _disadvantage(engine,actor,staying_power=staying_power)
 
-def _disadvantage(engine,actor,*,assisting=False):
+def _disadvantage(engine,actor,*,assisting=False,staying_power=None):
     import effect_lifetimes as LIFETIMES,combat_timing as TIMING
     record=LIFETIMES.prepare(engine,actor,actor,
         {'type':'apply_status','status':'넘어짐','until':"end of user's next turn"},SOURCE)
     record['statuses']=['넘어짐'] if assisting else ['넘어짐','취약']
+    if staying_power is not None:
+        staying_owner(engine,actor,staying_power)
+        record['statuses']=['취약']
     if assisting:record['evasion_zero']=True
     TIMING.install(engine,actor,record)
 
-def take(engine,actor,*,request_id,path=None,retreat_reason=None,save_dc=None,save_reason=None,
-         save_cost=None,fixed_save=None,curse_origin=None,curse_reason=None,helper=None,assistance=None,movement_mode=None,movement_options=None):
+def take(engine,actor,*,staying_power=None,**options):
+    with _staying_scope(engine,actor,staying_power):
+        return _take(engine,actor,staying_power=staying_power,**options)
+
+def _take(engine,actor,*,request_id,path=None,retreat_reason=None,save_dc=None,save_reason=None,
+         save_cost=None,fixed_save=None,curse_origin=None,curse_reason=None,helper=None,assistance=None,movement_mode=None,movement_options=None,staying_power=None):
     """Ordinary voluntary producer. Unsupported assisted/movement branches hold.
 
     save_cost is an explicit table decision: full on any attempt, or only after
@@ -240,6 +276,7 @@ def take(engine,actor,*,request_id,path=None,retreat_reason=None,save_dc=None,sa
     W.require_actors(engine,actor);selected(engine.r)
     _text(request_id,'Breather request identity')
     if helper is not None:
+        if staying_power is not None:raise ValueError('Staying Power does not grant the assisting Trainer its benefits')
         if movement_mode is not None or movement_options is not None:return C.PendingDecision('assisted Breather distinct participant movement modes and reach')
         if assistance is not None and any(x is not None for x in (save_dc,save_reason,save_cost,fixed_save)):
             raise ValueError('assisted Breather uses actual Command DC12, not a voluntary saving check')
@@ -252,6 +289,7 @@ def take(engine,actor,*,request_id,path=None,retreat_reason=None,save_dc=None,sa
         'curse_origin':curse_origin,'curse_reason':curse_reason,'helper':helper}
     if movement_mode is not None:declaration['movement_mode']=movement_mode
     if movement_options is not None:declaration['movement_options']=deepcopy(movement_options)
+    if staying_power is not None:declaration['staying_power']=deepcopy(staying_power)
     records=getattr(engine,FIELD,{})
     if request_id in records:
         old=records[request_id][OBS.KEY];OBS.verify(old,declaration)
@@ -262,26 +300,38 @@ def take(engine,actor,*,request_id,path=None,retreat_reason=None,save_dc=None,sa
     if not engine.encounter_active:return C.PendingDecision('actual combat and next owner-turn boundary required')
     if not TURN.can_act(engine,actor) or not ACTION.ordinary_permission(engine,actor) or not ACTION.status_permission(engine,actor,'full'):return False
     import combat_maneuvers as MANEUVERS
-    if MANEUVERS.force_attack(actor):return C.PendingDecision('Enraged actor requires an actual assisting Trainer')
+    if MANEUVERS.force_attack(actor) and staying_power is None:return C.PendingDecision('Enraged actor requires an actual assisting Trainer')
     if not isinstance(actor.budget,dict) or min(actor.budget.get('standard',0),actor.budget.get('shift',0))<=0:return False
     if save_cost not in ('full','success_only') or not isinstance(save_reason,str) or not save_reason.strip():
         return C.PendingDecision('GM Breather permission-save DC and failed-save cost adjudication; prose prints no universal values')
     condition='혼란' if '혼란' in actor.conditions else None
     if save_dc is None and condition:
-        save_dc=next(e['dc'] for e in engine.r.condition_effects(condition) if e.get('type')=='save')
+        effects=engine.r.condition_effects(condition)
+        save_dc=next((e['dc'] for e in effects if e.get('type')=='save'),None)
+        if save_dc is None and __import__('confusion_attacks').core(engine):
+            save_dc=next(e['cure_min'] for e in effects if e.get('type')=='core_confusion_start_turn')
     if save_dc is None:return C.PendingDecision('explicit GM general Breather saving DC; no universal DC is printed')
     C.integer(save_dc,'Breather saving DC',1)
     if fixed_save is not None:C.integer(fixed_save,'Breather observed saving d20',1,20)
     import condition_recovery as RECOVERY,combat_state_lifecycle as STATE,temporary_hp as TEMP
     RECOVERY.save_preflight(engine,actor,condition)
     STATE.preflight(actor);TEMP.ensure_certain(engine,actor)
-    plan=_retreat(engine,actor,path,retreat_reason,movement_mode=movement_mode,movement_options=movement_options)
+    if staying_power is not None:
+        if any(x is not None for x in (path,retreat_reason,movement_mode,movement_options)):raise ValueError('Staying Power does not perform the ordinary mandatory retreat')
+        plan={'path':[actor.pos],'distance':0,'budget':0,'reason':'actual Staying Power Breather','mode':'육상','origin_altitude':actor.spec.get('_movement_altitude',0),'origin_underground':bool(actor.spec.get('_burrow',{}).get('underground'))}
+    else:plan=_retreat(engine,actor,path,retreat_reason,movement_mode=movement_mode,movement_options=movement_options)
     if isinstance(plan,C.PendingDecision):return plan
     origin=_curse(engine,actor,curse_origin,curse_reason)
     if isinstance(origin,C.PendingDecision):return origin
     origin=_curse_retreat(actor,origin,plan)
     if isinstance(origin,C.PendingDecision):return origin
     with ACTION.resolution(engine,actor,SOURCE,kind='breather'):
+        if staying_power is not None:
+            import frequency as F
+            owner=staying_owner(engine,actor,staying_power);quota={'kind':'scene','uses':1}
+            if not F.activation_allowed(owner,STAYING,quota,engine=engine):raise ValueError('Staying Power Scene use exhausted')
+            ACTION.triggered_free_action(engine,owner,STAYING)
+            F.consume_activation(owner,STAYING,quota,engine=engine)
         if not hasattr(engine,FIELD):setattr(engine,FIELD,{})
         records=getattr(engine,FIELD)
         if save_cost=='full' and not TURN.spend(engine,actor,'full','숨돌리기'):return False
@@ -290,12 +340,13 @@ def take(engine,actor,*,request_id,path=None,retreat_reason=None,save_dc=None,sa
         check=RECOVERY.saving_check(engine,actor,condition,save_dc,fixed=fixed_save)
         observation['observation'].update(check=check,retreat=plan,table_save_adjudication=save_reason,
                                           origin=origin,progress={},turn=_turn(engine,actor))
+        if staying_power is not None:observation['observation']['staying_power']=deepcopy(staying_power)
         if not check['passed']:
             return OBS.complete(observation,{'completed':False,'save':check,'reason':'save_failed'})
         if save_cost=='success_only' and not TURN.spend(engine,actor,'full','숨돌리기'):
             return OBS.complete(observation,{'completed':False,'save':check,'reason':'full_action_unavailable'})
         observation['observation']['phase']='retreat'
-        movement=_move(engine,actor,plan,observation['observation']['progress'],retreat_reason)
+        movement={'steps':0,'staying_power':True} if staying_power is not None else _move(engine,actor,plan,observation['observation']['progress'],retreat_reason)
         observation=getattr(engine,FIELD)[request_id][OBS.KEY]
         if movement['steps']:actor._regular_shift_movement_used=True
         if not TURN.can_act(engine,actor):

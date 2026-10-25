@@ -7,6 +7,7 @@ import unittest
 from engine import Engine, Rules
 import class_actor_state_reactions as REACTIONS
 import frequency as FREQ
+import heavy_injury_adapter as HEAVY
 import native_scenario_fixture as NATIVE
 import pokemon_entities as ENTITIES
 import state_codec as CODEC
@@ -29,6 +30,7 @@ class ThisWillNotStandAdoptedSourceRevisionTests(unittest.TestCase):
             if not owner:stats['atk']=attack
             extra={'id':'adopted-'+key,'feats':[] if receipted or not owner else [PARENT,FEATURE],
                 'classes':[] if receipted or not owner else [TA.CLASS],
+                'feature_choices':{TA.CLASS:['드래곤']} if owner and not receipted else {},
                 'exp_bank':100,'type_link_skills':{'드래곤':'협박'} if owner else {},
                 'movement':{'land':6,'power':3},'movement_basis':'current','power_basis':'current'}
             return {'key':key,'kind':'trainer','sheet':{'name':key,'level':30,'stats':stats,
@@ -104,7 +106,15 @@ class ThisWillNotStandAdoptedSourceRevisionTests(unittest.TestCase):
                 self.assertEqual(self.used(),0);self.assertNotIn('난동',self.p.conditions)
                 self.world(receipted=receipted,attack=1000)
                 self.e.gm.set_hp(self.p,value=self.p.base_max_hp//2,reason='already at or below half before actual massive hit')
-                self.attack()
+                before=self.p.hp
+                with self.assertRaises(HEAVY.HeavyPending) as pending:self.attack()
+                event_id=self.e._heavy_pending;event=self.e._heavy_events[event_id]
+                self.assertEqual(pending.exception.event_id,event_id)
+                self.assertEqual((event['kind'],event['status']),('attack_damage','pending'))
+                self.assertIs(event['attacker'],self.foe);self.assertIs(event['target'],self.p)
+                self.assertEqual(event['move']['id'],TACKLE)
+                self.assertEqual((event['before']['hp'],event['observed_after']['hp']),(before,self.p.hp))
+                self.assertGreater(event['amount'],0);self.assertLess(self.p.hp,before)
                 self.assertFalse(self.e.pending_class_actor_state_reactions(self.t))
                 self.assertEqual(self.used(),0);self.assertEqual(getattr(self.t,'_action_history',[]),[])
 

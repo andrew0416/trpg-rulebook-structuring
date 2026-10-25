@@ -182,9 +182,9 @@ class ChroniclerAcquisitionTests(unittest.TestCase):
         self.acquire(CH.TRAINING, 1)
         self.assertEqual(set(CH.owned_archives(self.t)), {'profile', 'technique'})
         self.assertEqual(self.t.spec['feat_ranks'][CH.TRAINING], 1)
-        # The bilingual class reference means Perception, not the CSV's Frisk.
+        # Both Perception Ability variants are excluded by this Korean core selection.
         self.t.spec['chronicler_travel_ability'] = '통찰'
-        self.assertEqual(CH._travel_ability(self.e.r, '통찰'), '감지')
+        self.rejected(lambda:self.acquire(CH.TRAINING, 2), 'selected 통찰 Ability variant')
         self.t.spec['chronicler_travel_ability'] = '위협'
         self.rejected(lambda:self.acquire(CH.TRAINING, 2), 'Keen Eye or Perception')
         self.t.spec['chronicler_travel_ability'] = '날카로운눈'

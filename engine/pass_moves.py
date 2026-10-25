@@ -58,14 +58,16 @@ def range_spec(e,actor,move):
     scope=converted_scope(e,actor,move['id'])
     if scope is None:return None
     require_scope(e,actor,scope)
-    return {'raw':'근접, 통과','origin':'melee','targets':1,'parsed':True}
+    raw='근접, 대시, 통과' if scope['conversion'].get('edition')==__import__('conquerors_march').CSV else '근접, 통과'
+    return {'raw':raw,'origin':'melee','targets':1,'parsed':True}
 
 
 def bind(e,actor,move):
     scope=converted_scope(e,actor,move['id'])
     if scope is None:return move
     require_scope(e,actor,scope)
-    return dict(move,_tumbler_no_critical=scope['conversion'].get('source')=='feat/열광',range='근접, 통과',keywords=[k for k in move.get('keywords',[]) if k!='대시']+['통과'],
+    dash=scope['conversion'].get('edition')==__import__('conquerors_march').CSV
+    return dict(move,_tumbler_no_critical=scope['conversion'].get('source')=='feat/열광',range='근접, 대시, 통과' if dash else '근접, 통과',keywords=[k for k in move.get('keywords',[]) if k not in ('대시','통과')]+(['대시','통과'] if dash else ['통과']),
                 _effect_area_cells=set().union(*(BODY.at_position(actor,q) for q in scope['path'])))
 
 
@@ -81,6 +83,7 @@ def converted_policy(e,mid,conversion=None):
             raise ValueError('Stat Maneuver Pass needs Physical Melee 1-Target')
     elif not MARCH.eligible(move):raise ValueError('converted Pass lost its selected eligible Move')
     return {'definition':move,'mechanics':mm,'sharp':'베기' in move.get('keywords',[]),
+            **({'edition':conversion['edition']} if conversion and 'edition' in conversion else {}),
             'source':conversion.get('source',MARCH.FEATURE) if conversion else MARCH.FEATURE,'object_scope':'GM observed hit and pre-DR damage; native creature effects remain native'}
 
 
@@ -112,7 +115,8 @@ def _selected(e,c,move_id,range_source):
         if scope is None or scope['proof']['branch']!='atk':raise ValueError('actual paid Stat Maneuver Pass scope required')
         proof=scope['proof'];policy=converted_policy(e,mid,proof)
     else:
-        policy=converted_policy(e,mid);proof=MARCH.conversion(e,c,policy['definition'])
+        converted_policy(e,mid)
+        proof=MARCH.conversion(e,c,e.r.move(mid));policy=converted_policy(e,mid,proof)
     return requested,policy['definition'],policy['mechanics'],policy,proof
 
 
@@ -296,12 +300,13 @@ def use(e,c,move_id,destination,*,event_id,object_adjudications,source,reason,ra
             actor._diagonal_steps=context['diagonals']
         origin=actor.pos;before_diagonals=getattr(actor,'_diagonal_steps',0)
         with _scope(staged,actor,move['id'],event_id,plan,conversion) as scope:
+            selected_move=bind(staged,actor,move) if conversion is not None else move
             physical=[uid for step in plan['steps'] for target_kind,uid in step if target_kind=='object']
             if physical:
-                kind=OBJECTS._permission(staged,actor,OBJECTS._object(staged,physical[0]),move,mm,pass_scope=scope)
+                kind=OBJECTS._permission(staged,actor,OBJECTS._object(staged,physical[0]),selected_move,mm,pass_scope=scope)
             else:
                 target=plan['creatures'][0] if plan['creatures'] else None
-                kind=ACTIVATION.paid_move_permission(staged,actor,target,move,mm)
+                kind=ACTIVATION.paid_move_permission(staged,actor,target,selected_move,mm)
             if not TURN.movement_permission(staged,actor):raise ValueError('Pass movement unavailable')
             if not TURN.spend(staged,actor,kind,move['name'],_native_move=move):raise ValueError('Pass Move action unavailable')
             if not TURN.spend(staged,actor,'shift','통과 이동',movement=True):raise ValueError('Pass movement action unavailable')

@@ -314,6 +314,7 @@ class ContestEngine:
         owner = trainer.spec.get("id")
         if not owner or pokemon.spec.get("trainer_id") != owner:
             raise ValueError("Contest Pokemon ownership must be established")
+        skill = __import__('hobbyist').direct_skill(trainer,'edge/우아함',skill)
         n = rank(engine.r, trainer, skill)[2]
         edges = set()
         import poffin_state as POFFINS
@@ -387,7 +388,9 @@ class ContestEngine:
             if c.intro_skill not in rule["skill_to_stat"]:
                 raise ValueError("Introduction requires one of the five contest skills")
             if type(c.intro_rank_dice) is not int or c.intro_rank_dice < 1:
-                raise ValueError("Introduction requires a positive skill rank")
+                raise ValueError("Introduction requires an explicitly declared positive skill rank")
+            if c.intro_rank_dice > 6 and c not in self._native_intro_bindings:
+                raise ValueError("Seven-plus introduction rank needs its actual declared native skill source")
             stat = c.intro_stat or rule["skill_to_stat"][c.intro_skill]
             if stat not in stats:
                 raise ValueError("Unknown introduction stat")

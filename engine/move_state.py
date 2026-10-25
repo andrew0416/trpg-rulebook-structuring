@@ -72,6 +72,10 @@ def current_natural_evidence(rules,spec):
 
 
 def validate_history(rules,spec):
+ from builder import species_lookup
+ def species_identity(raw):
+  try:return species_lookup(rules,raw)['id']
+  except (KeyError,TypeError):raise ValueError('natural opportunity requires an actual historical species') from None
  history=spec.get(HISTORY,{})
  if not isinstance(history,dict):raise ValueError('natural opportunity history must be a mapping')
  for mid,events in history.items():
@@ -90,10 +94,10 @@ def validate_history(rules,spec):
     continue
    evidence=({mid:TYPE_SYNC.historical_evidence(rules,spec,event.get('type_sync_id'),mid,level)}
              if event['source']==TYPE_SYNC.SOURCE else current_natural_evidence(rules,{'species':species,'level':level}))
-   key=(species,kind,event.get('required_level'),event['source'],event.get('type_sync_id'))
+   key=(species_identity(species),kind,event.get('required_level'),event['source'],event.get('type_sync_id'))
    if key in seen:raise ValueError('duplicate natural opportunity event')
    seen.add(key)
-   if not any(row['kind']==kind and row['required_level']==event.get('required_level') and row['species_id']==species and row.get('type_sync_id')==event.get('type_sync_id') for row in evidence.get(mid,[])):
+   if not any(row['kind']==kind and row['required_level']==event.get('required_level') and species_identity(row['species_id'])==species_identity(species) and row.get('type_sync_id')==event.get('type_sync_id') for row in evidence.get(mid,[])):
     raise ValueError('natural opportunity does not match its historical species and level')
  return True
 
@@ -156,6 +160,9 @@ def record_natural_opportunities(rules,spec,*,reason):
  """Persist only evidenced opportunities for moves already present in the sheet."""
  if spec.get('kind','pokemon')!='pokemon':return []
  if not isinstance(reason,str) or not reason.strip():raise ValueError('natural opportunity observation reason required')
+ learning=spec.get('move_learning',{})
+ if not isinstance(learning,dict):raise ValueError('move learning provenance must be a mapping')
+ if any(not isinstance(record,dict) for record in learning.values()):raise ValueError('move learning provenance must be a record')
  validate_history(rules,spec)
  current=current_natural_evidence(rules,spec);history=deepcopy(spec.get(HISTORY,{}));added=[]
  for mid,provenance in _opportunity_candidates(rules,spec).items():
@@ -167,11 +174,8 @@ def record_natural_opportunities(rules,spec,*,reason):
  import underdog_lessons as LESSONS
  import growth_milestones as MILESTONES
  natural=set(current)|set(history)|mentor_natural_moves(rules,spec)|LESSONS.natural_moves(rules,spec)|MILESTONES.inheritance_natural_moves(rules,spec)
- learning=spec.get('move_learning',{})
- if not isinstance(learning,dict):raise ValueError('move learning provenance must be a mapping')
  updates=[]
  for mid,record in learning.items():
-  if not isinstance(record,dict):raise ValueError('move learning provenance must be a record')
   updates.append((record,mid in natural))
  # Every input has passed before mutation; preserve existing record identities.
  if history:spec[HISTORY]=history
@@ -385,16 +389,18 @@ def vitamin_state(rules,spec):
  import vitamin_moves as VITAMINS
  VITAMINS._history_ids(rules,spec)
  vms=vm_moves(rules,spec)
+ personals=__import__('personal_tutoring').current_moves(rules,spec)
  import vitamin_capacity as CAPACITY
  state=CAPACITY.current(rules,spec)
  historical=CAPACITY.historical_limit(rules,spec)
  import learning_slots as SLOTS
  occupancy=SLOTS.occupancy({'vitamin':max(state['capacity'],historical)},
   [{'id':str(i),'source':VITAMIN_SOURCE,'weights':{'vitamin':1}} for i in range(len(history))]+[{'id':'researcher:'+str(i),'source':__import__('researcher_fields').SOURCE,'weights':{'vitamin':1}} for i in range(__import__('researcher_fields').vitamin_equivalents(spec))],
-  reservations=[{'id':mid,'source':VM_SOURCE,'weights':{'vitamin':1}} for mid in vms])
+  reservations=[{'id':mid,'source':VM_SOURCE,'weights':{'vitamin':1}} for mid in vms]+
+   [{'id':mid,'source':__import__('personal_tutoring').CSV_SOURCE,'weights':{'vitamin':1}} for mid in personals])
  occupied=occupancy['used']['vitamin']
  if occupied>max(state['capacity'],historical):raise ValueError('Vitamin use exceeds its actual current or historical source capacity')
- return {**state,'historical_capacity':historical,'consumed':len(history),'reserved':len(vms),'occupied':occupied,'source':VITAMIN_SOURCE,'vm_moves':vms}
+ return {**state,'historical_capacity':historical,'consumed':len(history),'reserved':len(vms)+len(personals),'occupied':occupied,'source':VITAMIN_SOURCE,'vm_moves':vms,'personal_tutor_moves':personals}
 
 
 def classifications(rules,spec,*,require_routes=True):
@@ -438,20 +444,21 @@ def describe(rules,spec,*,moves=None,abilities=None,require_routes=False):
  for mid in caps['exempt']:
   if mid not in selected:raise ValueError('selected slot exemption must name a currently known move')
  vms=vm_moves(rules,spec)
+ personals=__import__('personal_tutoring').current_moves(rules,spec)
  counted=[mid for mid in selected if mid not in caps['exempt']]
  # A selected move that does not count toward the total list has zero total
  # weight, even if VM ordinarily weighs two. Taught/Vitamin channels stay intact.
  import learning_slots as SLOTS
  occupancy=SLOTS.occupancy({'total':caps['total'],'taught':caps['taught']},
-  [{'id':mid,'source':'observed move ownership','weights':{'total':2 if mid in vms else 1,
-    'taught':2 if classes[mid]=='vm' else 0 if __import__('researcher_fields').pool_exempt(spec,mid) else 1 if classes[mid]=='taught' else 0}} for mid in selected],
+  [{'id':mid,'source':'observed move ownership','weights':{'total':2 if mid in vms or mid in personals else 1,
+    'taught':2 if classes[mid]=='vm' else 0 if (__import__('researcher_fields').pool_exempt(spec,mid) or __import__('chronicler').tutor_pool_exempt(rules,spec,mid)) else 1 if classes[mid]=='taught' else 0}} for mid in selected],
   exemptions={'total':caps['exempt']})
  slot_count=occupancy['used']['total']
- vitamins=vitamin_state(rules,spec) if vms else None
+ vitamins=vitamin_state(rules,spec) if vms or personals else None
  if vitamins and vitamins['occupied']>max(vitamins['capacity'],vitamins['historical_capacity']):raise ValueError('VM requires an available Vitamin slot')
  unknown=[mid for mid,value in classes.items() if value=='unknown']
  if require_routes and unknown:raise ValueError('known non-natural move needs actual learning provenance: '+unknown[0])
- return {**caps,'known':selected,'effective_moves':known(rules,{'moves':current}),'effective_classifications':{mid:classes.get(mid,'permission') for mid in known(rules,{'moves':current})},'counted':counted,'classifications':classes,'slot_count':slot_count,'vm_moves':vms,'vitamin_state':vitamins,'taught_count':occupancy['used']['taught'],'unknown_routes':unknown,'route_complete':not unknown}
+ return {**caps,'known':selected,'effective_moves':known(rules,{'moves':current}),'effective_classifications':{mid:classes.get(mid,'permission') for mid in known(rules,{'moves':current})},'counted':counted,'classifications':classes,'slot_count':slot_count,'vm_moves':vms,'personal_tutor_moves':personals,'vitamin_state':vitamins,'taught_count':occupancy['used']['taught'],'unknown_routes':unknown,'route_complete':not unknown}
 
 
 def validate_spec(rules,spec,*,moves=None,abilities=None,require_routes=False):
@@ -462,6 +469,9 @@ def validate_spec(rules,spec,*,moves=None,abilities=None,require_routes=False):
    admission=record['archive_tutor_admission']
    if record.get('source')!=CH.TUTOR or admission!=T.tutor_admission(rules,mid,record.get('learned_at_level'),policy=admission.get('policy')):
     raise ValueError('Archive Tutor admission differs from actual source and historical level')
+  if isinstance(record,dict) and 'archive_tutor_edition' in record:
+   import chronicler as CH
+   CH.tutor_pool_exempt(rules,spec,mid)
  __import__('coordinator').validate_spec(rules,spec)
  import advanced_connection as CONNECTION
  CONNECTION.validate_protection(rules,spec)

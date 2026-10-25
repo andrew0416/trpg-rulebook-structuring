@@ -75,6 +75,8 @@ class EldritchMagicTests(unittest.TestCase):
         self.assertTrue(result['valid'], result['issues'])
 
     def end_save(self, face, stat='def'):
+        active=getattr(self.e,'_active_turn_actor',None)
+        if active is not None:self.e.end_of_turn(active)
         self.e.start_round(self.e.everyone)
         self.e.start_of_turn(self.b)
         self.assertFalse(TURN.can_aoo(self.e, self.b))
@@ -392,6 +394,8 @@ class EldritchMagicTests(unittest.TestCase):
     def test_sleep_suppresses_the_actual_confusion_end_save_and_added_rider(self):
         self.adopt()
         self.hit()
+        active=getattr(self.e,'_active_turn_actor',None)
+        if active is not None:self.e.end_of_turn(active)
         self.e.start_round(self.e.everyone)
         self.e.start_of_turn(self.b)
         self.assertFalse(TURN.can_aoo(self.e, self.b))
@@ -416,6 +420,8 @@ class EldritchMagicTests(unittest.TestCase):
                 self.setUp()
                 self.adopt()
                 self.hit()
+                active=getattr(self.e,'_active_turn_actor',None)
+                if active is not None:self.e.end_of_turn(active)
                 self.e.start_round(self.e.everyone)
                 if boundary == 'recall':
                     self.e.gm.recall(self.b, reason='actual afflicted Pokemon recall')
@@ -485,6 +491,8 @@ class EldritchMagicTests(unittest.TestCase):
                 self.hit('struggle', actor=f.b, target=f.a, engine=f.e)
                 self.assertIs(f.a.custom_conditions['curse_origin'], f.b)
                 f.e.end_of_turn(f.b)
+                active=getattr(f.e,'_active_turn_actor',None)
+                if active is not None:f.e.end_of_turn(active)
                 f.e.start_round(f.e.everyone)
                 f.e.start_of_turn(f.a)
                 f.e.lose_hp(f.b, f.b.base_max_hp, source='actual Curse source fainting')
@@ -520,6 +528,8 @@ class EldritchMagicTests(unittest.TestCase):
                 EM.withdraw(self.e, self.a, reason='withdraw after actual deferred infliction')
                 loaded = Engine.import_state(self.r, json.loads(json.dumps(self.e.export_state())))
                 target = W.actor_index(loaded)[self.b.entity_id]
+                active=getattr(loaded,'_active_turn_actor',None)
+                if active is not None:loaded.end_of_turn(active)
                 loaded.start_round(loaded.everyone)
                 loaded.start_of_turn(target)
                 self.assertIsNone(EM.active(target))
@@ -546,6 +556,8 @@ class EldritchMagicTests(unittest.TestCase):
                     self.assertEqual(event['outcome'], 'deferred_cured')
                 else:
                     self.e.gm.set_ability(self.b, '마이페이스', reason='native immunity before delayed activation')
+                active=getattr(self.e,'_active_turn_actor',None)
+                if active is not None:self.e.end_of_turn(active)
                 self.e.start_round(self.e.everyone)
                 self.e.start_of_turn(self.b)
                 self.e.end_of_turn(self.b)
@@ -634,6 +646,8 @@ class EldritchMagicTests(unittest.TestCase):
                     self.assertNotIn('save_band_version', first)
                     self.assertEqual(target.stages['spa'], -1)
                     self.assertIs(world._effect_dispatch_receipts[first['stage_receipt']]['target'], target)
+                    active=getattr(world,'_active_turn_actor',None)
+                    if active is not None:world.end_of_turn(active)
                     world.start_round(world.everyone)
                     world.start_of_turn(target)
                     with patch.object(Engine, 'd20', return_value=face), patch.object(
@@ -796,6 +810,8 @@ class EldritchMagicTests(unittest.TestCase):
                     target = W.actor_index(world)[self.b.entity_id]
                     self.assertEqual(EM.active(target)['adoption']['save_band_basis'], basis)
                     self.assertEqual(target.stages['spa'], -1 if basis == 'natural_save' else 0)
+                    active=getattr(world,'_active_turn_actor',None)
+                    if active is not None:world.end_of_turn(active)
                     world.start_round(world.everyone)
                     world.start_of_turn(target)
                     with patch.object(Engine, 'd20', return_value=9), patch.object(type(world.rng), 'choice', return_value='spd'):
@@ -824,6 +840,8 @@ class EldritchMagicTests(unittest.TestCase):
         self.setUp()
         EM.adopt(self.e, self.a, reason='GM interpretation rollback', save_band_basis=basis)
         self.hit()
+        active=getattr(self.e,'_active_turn_actor',None)
+        if active is not None:self.e.end_of_turn(active)
         self.e.start_round(self.e.everyone)
         self.e.start_of_turn(self.b)
         self.e.rng.seed(1)

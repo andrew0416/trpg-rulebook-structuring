@@ -76,30 +76,47 @@ def choice_value(rules,row,value):
 TRAINING_SOURCES=('input/ch05-pokemon.md:274','input/ch05-pokemon.md:229','edge/미용사')
 
 
-def validate_history(receipt,*,minimum_level=None):
+def validate_history(receipt,*,minimum_level=None,rules=None):
     """Acquisition history written by every native Poke Edge teaching producer.
 
     input/ch05-pokemon.md:274: a Pokemon spends Tutor Points on an Edge only after an
-    hour of training (or a completed training-session/Groomer hour). Active and refunded
+    hour of training (or a completed training-session/Groomer hour). Mentor's printed
+    prerequisite waiver and the Connection keyword's immediate acquisition retain their
+    exact native producer validators instead of pretending to be ordinary hours. Active and refunded
     receipts therefore keep the actual teacher, completion time and training source; the
     current Tutor Point balance never proves a past payment. Producers that record the
     acquisition level pass their level prerequisite as minimum_level.
     """
     import state_fields as F
-    if type(receipt.get('trainer_id')) is not str or not receipt['trainer_id'].strip():raise ValueError('actual historical Poke Edge trainer required')
+    training_source=receipt.get('training_source')
+    lesson=training_source=='feat/수업'
+    connection=training_source=='keyword/연결'
+    # Immediate Connection is an Ability-gain opportunity, not a training hour.
+    if not connection or receipt.get('trainer_id') is not None:
+        if type(receipt.get('trainer_id')) is not str or not receipt['trainer_id'].strip():raise ValueError('actual historical Poke Edge trainer required')
     F.integer(receipt.get('completed_at'),'completed Poke Edge training time',0)
-    if receipt.get('training_source') not in TRAINING_SOURCES:
+    if lesson:
+        if rules is None:raise ValueError('actual Mentor source rules required')
+        if receipt.get('source') not in ('poke_edge/스킬-향상','poke_edge/고급-이동','poke_edge/재능-훈련'):
+            raise ValueError('Mentor lesson permits only its three printed Poke Edges')
+        import mentor as MENTOR
+        MENTOR.validate_edge_origin(rules,receipt)
+    elif connection:
+        if rules is None:raise ValueError('actual Connection source rules required')
+        import advanced_connection as CONNECTION
+        CONNECTION.validate_immediate_receipt(rules,receipt)
+    elif training_source not in TRAINING_SOURCES:
         import researcher_fields as RFS
-        if receipt.get('training_source')!=RFS.PUSHER or receipt.get('pusher',{}).get('acquisition')!='automatic':raise ValueError('actual completed Poke Edge training source required')
+        if training_source!=RFS.PUSHER or receipt.get('pusher',{}).get('acquisition')!='automatic':raise ValueError('actual completed Poke Edge training source required')
         RFS.pusher_receipt(rules=None,receipt=receipt)
-    if minimum_level is not None:F.integer(receipt.get('acquired_level'),'historical Poke Edge acquisition level',minimum_level,100)
+    if minimum_level is not None:F.integer(receipt.get('acquired_level'),'historical Poke Edge acquisition level',1 if lesson else minimum_level,100)
 
 
 def validate_receipt(rules,receipt,*,history=False,minimum_level=None):
     if 'pusher' in receipt:
         import researcher_fields as RFS
         RFS.pusher_receipt(rules,receipt)
-    if history:validate_history(receipt,minimum_level=minimum_level)
+    if history:validate_history(receipt,minimum_level=minimum_level,rules=rules)
     origin=receipt.get('definition_origin')
     if origin is None:return  # Earlier native receipts keep their native identity; history is checked above.
     if not isinstance(origin,dict):raise ValueError('typed definition origin required')

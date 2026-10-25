@@ -35,16 +35,23 @@ for stat,(ranked,skill,children) in CF.RANKED.items():
  DEFINITIONS[ranked]={'action':'standard','ap':1,'ranks':2,'skill':skill,'branch':stat,'moves':MOVES[stat]}
  for uid in children:DEFINITIONS[uid]={'action':'free','parent':ranked,'branch':stat}
 FEATURES=SPANS
+CSV_ROWS={CLASS:(203,203),FLOURISH:(204,204),ENTRAINMENT:(205,205),
+ RANKED['아름다움']:(206,207),IMPROVE['아름다움']:(208,208),BEAUTY:(209,209),
+ RANKED['근사함']:(210,211),IMPROVE['근사함']:(212,212),CF.STUNT:(213,213),
+ RANKED['귀여움']:(214,215),IMPROVE['귀여움']:(216,216),CF.FRIENDS:(217,217),
+ RANKED['슬기로움']:(218,219),IMPROVE['슬기로움']:(220,220),CF.MISTAKES:(221,221),
+ RANKED['강인함']:(222,223),IMPROVE['강인함']:(224,224),ENDURANCE:(225,225)}
+CSV_SHA256='4435ff1c462a211564c85d2c1c9a2ac6e7c790c7545e1ad7056d32888b2367bd'
+CSV_QUOTAS={BEAUTY:10,CF.STUNT:10,CF.FRIENDS:5,CF.MISTAKES:5,ENDURANCE:10}
 CATALOG_SPANS={CLASS:(1167,1167),FLOURISH:(1183,1191),ENTRAINMENT:(1193,1208),
+ CF.STUNT:(1253,1257),
  RANKED['아름다움']:(1212,1217),RANKED['근사함']:(1236,1241),RANKED['귀여움']:(1266,1271),
  RANKED['슬기로움']:(1291,1296),RANKED['강인함']:(1316,1321)}
 
 
 def records(actor,feature=None,active=False):
  import trainer_feature_acquisition as T
- return [row['static_acquisition'] for _,row,live in T._static_records(actor)
-  if row['static_acquisition']['feature_id'] in FEATURES and (feature is None or row['static_acquisition']['feature_id']==feature)
-  and (not active or live)]
+ return [record for _, record in T.static_family_acquisitions(actor, FEATURES, feature, active=active)]
 
 
 def acquired(actor,feature,branch=None):
@@ -53,7 +60,36 @@ def acquired(actor,feature,branch=None):
  return max(rows,key=lambda row:row['snapshot'].get('rank_number',1)) if rows else None
 
 
-def acquisition_snapshot(engine,actor,feature,branch,rank_number=None):
+def csv_source(rules,feature,rank_number=1):
+ from source_context import verified_source
+ first,last=CSV_ROWS[feature];number=first+rank_number-1 if first!=last else first
+ uid='C2CSV/input/db/feats.csv:R'+str(number)+':main'
+ rules.ruleset.require({'id':uid,'source':{'file':'db/feats.csv','record_span':[number,number]}})
+ reference={'file':'input/db/feats.csv','sha256':CSV_SHA256}
+ verified_source(rules,reference,label='Style Expert CSV')
+ return dict(reference,edition='local_csv',record=number,clause_id=uid)
+
+
+def local_csv(actor,feature,branch=None):
+ row=acquired(actor,feature,branch)
+ if row is None or row['snapshot'].get('selection') is None:return False
+ if row['snapshot']['source']!=csv_source(actor.r,feature,row['snapshot']['rank_number']):
+  raise ValueError('immutable actual Style CSV source required')
+ return True
+
+
+def frequency(trainer,feature):
+ if feature in CSV_QUOTAS and local_csv(trainer,feature):return {'kind':'daily','uses':CSV_QUOTAS[feature]}
+ return {'kind':'daily','uses':2 if feature==CF.STUNT else 3} if feature in (CF.STUNT,CF.MISTAKES) else {'kind':'scene','uses':1}
+
+
+def ranked_cost(trainer,feature,move):
+ if not local_csv(trainer,feature):return 1
+ stat=DEFINITIONS[feature]['branch']
+ return next(number for number,moves in enumerate(MOVES[stat],1) if move in moves)
+
+
+def acquisition_snapshot(engine,actor,feature,branch,rank_number=None,selection=None):
  import acquired_features as A,skill_modifiers as S,world_entities as W
  definition=DEFINITIONS[feature]
  if feature in (CLASS,FLOURISH,ENTRAINMENT):
@@ -63,10 +99,14 @@ def acquisition_snapshot(engine,actor,feature,branch,rank_number=None):
  parent=definition.get('parent',CLASS)
  parents=[] if feature==CLASS else [row['request_id'] for row in records(actor,parent,True) if row['snapshot'].get('branch',stat)==stat]
  snapshot={'branch':stat,'parents':parents,'rank_number':rank_number or 1}
+ if selection is not None:
+  if type(selection) is not dict or selection!={'edition':'local_csv'}:raise ValueError('exact Style local_csv acquisition selection required')
+  snapshot.update(selection=deepcopy(selection),source=csv_source(engine.r,feature,rank_number or 1))
  if feature==CLASS:
   roster=[p for p in W.actor_index(engine).values() if p.kind=='pokemon' and p.spec.get('trainer_id')==actor.entity_id]
   snapshot.update(pokemon=[{'id':p.entity_id,'poffins':CF.consumed_poffins(p,actor,engine=engine).count(stat)} for p in roster],
    coordinator=A.owned_rule_count(actor,'class/코디네이터')==1)
+  if selection is not None:snapshot['fashionista']=A.owned_rule_count(actor,'class/패셔니스타')==1
  if feature in RANKED.values():
   snapshot['skill_rank']=S.rank(engine.r,actor,definition['skill'])[2]
   snapshot['previous']=(acquired(actor,feature) or {}).get('request_id')
@@ -82,6 +122,9 @@ def qualification(actor,feature,snapshot,prerequisite_source):
  import acquisition_qualification as Q
  d=DEFINITIONS[feature];stat=snapshot.get('branch');rank=snapshot.get('rank_number')
  fields={'branch','parents','rank_number'}|({'pokemon','coordinator'} if feature==CLASS else set())|({'skill_rank','previous'} if feature in RANKED.values() else set())|({'features'} if feature in (FLOURISH,ENTRAINMENT) else set())
+ if snapshot.get('selection') is not None:
+  fields|={'selection','source'}|({'fashionista'} if feature==CLASS else set())
+  if snapshot['selection']!={'edition':'local_csv'} or snapshot.get('source')!=csv_source(actor.r,feature,rank):raise ValueError('immutable actual Style CSV source required')
  if prerequisite_source is not None or type(snapshot) is not dict or set(snapshot)!=fields or stat not in STATS:
   raise ValueError('exact Style acquisition observations required')
  C.integer(rank,'Style rank',1,2 if feature in RANKED.values() else 1)
@@ -89,7 +132,7 @@ def qualification(actor,feature,snapshot,prerequisite_source):
   roster=snapshot['pokemon'];ids=[row['id'] for row in roster]
   if len(ids)!=len(set(ids)):raise ValueError('distinct owned Pokemon required')
   count=sum(C.integer(row['poffins'],'physical Poffin dice',0)>=3 for row in roster)
-  if count<3 and not(snapshot['coordinator'] and count>=1):raise ValueError('Style requires three trained Pokemon or Coordinator and one')
+  if count<3 and not(snapshot['coordinator'] and count>=1) and not(snapshot.get('fashionista') and count>=2):raise ValueError('Style requires three trained Pokemon, Coordinator and one, or CSV Fashionista and two')
  else:
   parent=d.get('parent',CLASS)
   known={row['request_id'] for row in records(actor,parent) if row['snapshot']['branch']==stat}
@@ -106,6 +149,7 @@ def qualification(actor,feature,snapshot,prerequisite_source):
 def require(engine,trainer,pokemon,feature,stat=None):
  import world_entities as W
  W.require_actors(engine,trainer,pokemon);CF.owner(trainer,pokemon);CF.require(engine,trainer,feature)
+ local_csv(trainer,feature,stat if feature in (CLASS,FLOURISH,ENTRAINMENT) else None)
  if stat is not None:
   if stat not in CF.style_expert(engine,trainer):raise ValueError('matching Style branch required')
   if feature not in (CLASS,FLOURISH,ENTRAINMENT):CF.style_training(engine,trainer,stat)
@@ -118,11 +162,12 @@ def _pay(engine,trainer,feature,pokemon,*,ap=0,per_pokemon=False,branch=None):
   raise ValueError('Style effect already affected this Pokemon this Scene')
  if feature==FLOURISH and branch not in STATS:raise ValueError('Style Flourish requires its acquired branch')
  key=feature+(':'+branch if feature==FLOURISH else '')+(':'+pokemon.entity_id if per_pokemon else '')
- if not F.activation_allowed(trainer,key,{'kind':'scene','uses':1},engine=engine):raise ValueError('Style effect already used this Scene')
+ quota=frequency(trainer,feature)
+ if not F.activation_allowed(trainer,key,quota,engine=engine):raise ValueError('Style effect frequency exhausted')
  CF.trigger_free_action(engine,trainer,feature)
  if AP.available(trainer)<ap:raise ValueError('Style requires available AP')
  if ap:AP.spend(trainer,ap)
- F.consume_activation(trainer,key,{'kind':'scene','uses':1},engine=engine)
+ F.consume_activation(trainer,key,quota,engine=engine)
  if per_pokemon and feature in IMPROVE.values():TIME.install(engine,pokemon,{'source':feature,'style_used':feature,'scene_end':True})
 
 
@@ -247,8 +292,9 @@ def use_move(engine,trainer,pokemon,target,move,*,ranked=None,effect=None,flouri
   value={'trainer':a,'pokemon':p,'move_id':mid,'stat':stat,'effect':effect,'flourish':flourish,
    'choice':choice,'destination':destination,'mode':mode,'target_ids':[t.entity_id],'applied':False}
   if ranked:
-   if AP.available(a)<1:raise ValueError('ranked Style Move costs 1 AP')
-   AP.spend(a,1)
+   cost=ranked_cost(a,ranked,mid)
+   if AP.available(a)<cost:raise ValueError('ranked Style Move requires '+str(cost)+' AP')
+   AP.spend(a,cost)
    sid='style-permission:'+p.entity_id+':'+mid
    G.grant_moves(p,[mid],sid,'feature',owner_id=a.entity_id,lifetime='scene',rule_id=ranked,mode='permission')
    value['permission']=sid
@@ -261,11 +307,7 @@ def use_move(engine,trainer,pokemon,target,move,*,ranked=None,effect=None,flouri
    if p.move_uses.get(mid,0)==before:raise ValueError('native Style Move activation refused')
    return result
   except Exception as error:
-   import passive_events as PASSIVE,heavy_injury_adapter as HEAVY
-   if type(error) is PASSIVE.PassiveEventPending and e._passive_pending==error.event_id and error.event_id in e._passive_events:
-    pending.append((PASSIVE.PassiveEventPending,error.event_id));return None
-   if type(error) is HEAVY.HeavyPending and e._heavy_pending==error.event_id and error.event_id in e._heavy_events:
-    pending.append((HEAVY.HeavyPending,error.event_id));return None
+   if G.record_native_pending(e,error,pending):return None
    raise
   finally:
    del e._style_move_scope
@@ -369,7 +411,8 @@ def contest_plan(contest,c,move,ranked,effect,observed=None):
  else:key=None
  # Core264: performances explicitly ignore normal battling frequencies.
  # Native Contest consecutive-Move and feature/AP limits remain authoritative.
- return {'engine':engine,'trainer':trainer,'pokemon':pokemon,'ranked':ranked,'effect':effect,'key':key}
+ return {'engine':engine,'trainer':trainer,'pokemon':pokemon,'ranked':ranked,'effect':effect,'key':key,
+  'ap':ranked_cost(trainer,ranked,contest.r.move(move)['id']) if ranked else 0}
 
 
 def contest_cost(contest,plan,other):
@@ -379,9 +422,9 @@ def contest_cost(contest,plan,other):
  import action_points as AP
  engine,trainer=plan['engine'],plan['trainer']
  source=plan['effect'] or (other[1] if other else None)
- amount=(1 if plan['ranked'] else 0)+(other[0] if other else 0)
+ amount=plan['ap']+(other[0] if other else 0)
  if source is not None:return contest._stage_feature_cost(engine,trainer,amount,source)
  actor=deepcopy(trainer,{id(trainer.r):trainer.r})
- if AP.available(actor)<amount:raise ValueError('ranked Contest Move costs 1 AP')
+ if AP.available(actor)<amount:raise ValueError('ranked Contest Move requires '+str(amount)+' AP')
  AP.spend(actor,amount)
  return actor.spec,list(getattr(trainer,'_action_history',[])),getattr(trainer,'_restricted_action_taken',False),[]

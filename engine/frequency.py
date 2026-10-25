@@ -6,6 +6,8 @@ import re
 from copy import deepcopy
 import action_points as AP
 
+FORFEIT_SOURCES=frozenset(('feat/힘의-전달','feat/싸움꾼의-유능함','feat/융통-명령'))
+
 def parse(raw):
     # ch03:585 grants One Time Use to features. Its lifetime is not a day,
     # scene or session; native moves intentionally keep this kind unsupported.
@@ -84,9 +86,14 @@ def validate(c):
         count(value,'lifetime usage')
         if value>1:raise ValueError('invalid lifetime activation receipt')
     for row in st.get('move_forfeitures',[]):
-        if type(row)is not dict or set(row)!={'source','move_id','kind','period','day','at_seconds','sha256'} or row['source']!='feat/힘의-전달' or row['kind'] not in ('scene','daily'):raise ValueError('reviewed Move-use forfeiture required')
+        if type(row)is not dict or set(row)!={'source','move_id','kind','period','day','at_seconds','sha256'} or row['source'] not in FORFEIT_SOURCES or row['kind'] not in ('scene','daily'):raise ValueError('reviewed Move-use forfeiture required')
         if row['sha256']!=__import__('resolution_transaction').request_fingerprint({k:v for k,v in row.items() if k!='sha256'}):raise ValueError('Move-use forfeiture evidence changed')
         count(row['at_seconds'],'forfeiture time');count(row['day'],'forfeiture day')
+    for mid,row in mapping(st.get('move_forfeiture_refreshes',{}),'Move forfeiture refreshes').items():
+        if type(row)is not dict or set(row)!={'through','sha256'} or row['sha256']!=__import__('resolution_transaction').request_fingerprint({'through':row.get('through')}):
+            raise ValueError('Move forfeiture refresh evidence changed')
+        count(row['through'],'Move forfeiture refresh boundary')
+        if row['through']>len(st.get('move_forfeitures',[])):raise ValueError('Move forfeiture refresh is ahead of its ledger')
     pending=st.get('session_move_refresh_pending',[])
     if not isinstance(pending,list) or any(not isinstance(x,str) or not x.strip() for x in pending) or len(set(pending))!=len(pending):
         raise ValueError('pending move restoration requires distinct source IDs')
@@ -284,9 +291,11 @@ def move_allowed(engine,c,mid,*,outside_combat=None):
     if outside_combat not in (None,True,False):raise ValueError('outside-combat frequency context must be explicit')
     if engine.r.move(mid).get('class')=='항상':
         return False,'상시 기술은 학습 상태이며 직접 발동하는 행동이 아님'
+    kind,cap=move_frequency(engine,mid,c)
+    if not __import__('focused_command').frequency_allowed(engine,c,kind):
+        return False,'Focused Command permits only At-Will actions this round'
     if __import__('type_ace').frequency_exception(engine,c,mid):return True,''
     bind_session(engine,c)
-    kind,cap=move_frequency(engine,mid,c)
     import boss_transitions as BOSS
     boss_decision=BOSS.move_allowed(engine,c,mid,kind,cap)
     if boss_decision is not None:return boss_decision
@@ -338,6 +347,7 @@ def move_allowed(engine,c,mid,*,outside_combat=None):
 
 def consume_move(engine,c,mid,*,outside_combat=None):
     if outside_combat not in (None,True,False):raise ValueError('outside-combat frequency context must be explicit')
+    __import__('focused_command').record_fact(engine,c,mid,move_frequency(engine,mid,c)[0])
     import move_permissions as PERMISSIONS
     c=PERMISSIONS.frequency_owner(engine,c,mid)
     bind_session(engine,c)
@@ -393,7 +403,8 @@ def _declared_period(c,st,kind,frequency,engine):
     return {'owner':owner_id,'turn':owner.spec.get('frequency_state',{}).get('turn',0)}
 
 
-def activation_allowed(c,key,frequency,*,engine=None):
+def activation_allowed(c,key,frequency,*,engine=None,action_actor=None):
+    if engine is not None and action_actor is not None and not __import__('focused_command').frequency_allowed(engine,action_actor,parse(frequency)[0]):return False
     if engine is not None:bind_session(engine,c)
     kind,cap=parse(frequency);st=state(c);old=st['activations'].get(key,{})
     if kind=='one_time':return _lifetime_used(st,key)<1
@@ -403,9 +414,12 @@ def activation_allowed(c,key,frequency,*,engine=None):
     if kind=='daily' and not old:used=max(used,c.spec.get('daily_feat_uses',{}).get(key,0))
     return kind not in ('daily','scene','turn') or used<cap
 
-def consume_activation(c,key,frequency,*,engine=None):
+def consume_activation(c,key,frequency,*,engine=None,action_actor=None):
+    if engine is not None and action_actor is not None and not __import__('focused_command').frequency_allowed(engine,action_actor,parse(frequency)[0]):
+        raise ValueError('Focused Command permits only At-Will actions this round')
     if engine is not None:bind_session(engine,c)
     kind,cap=parse(frequency)
+    if engine is not None and action_actor is not None:__import__('focused_command').record_fact(engine,action_actor,key,kind)
     if kind=='one_time':
         st=state(c);used=_lifetime_used(st,key)
         if used:raise ValueError('One Time Use already consumed for this source')
@@ -537,6 +551,7 @@ def restore_daily_moves(engine,c,center=False,*,request_id=None):
             last=last_spent_move_day(c,mid)
             if eligible(last):
                 c.move_uses.pop(mid,None)
+                _refresh_forfeitures(c,mid)
                 if mid in st.get('session_move_refresh_pending',[]):st['session_move_refresh_pending'].remove(mid)
         c.spec['move_uses']=dict(c.move_uses)
     recovery_policy={'center':center}
@@ -548,6 +563,7 @@ def restore_daily_moves(engine,c,center=False,*,request_id=None):
     if request_id is not None:return receipt
 
 def restore_all_moves(c):
+    for mid in list(c.move_uses):_refresh_forfeitures(c,mid)
     c.move_uses.clear()
     c.spec['move_uses']={}
     st=state(c)
@@ -600,9 +616,18 @@ def declaration_key(engine,actor,target,source,action,declaration):
 
 
 def restore_scene_use(engine,c,mid):
+    return _restore_limited_use(engine,c,mid,'scene')
+
+
+def restore_daily_use(engine,c,mid):
+    """Restore ONE Daily use; the native occurrence archive also clears its lock."""
+    return _restore_limited_use(engine,c,mid,'daily')
+
+
+def _restore_limited_use(engine,c,mid,kind):
     import move_permissions as P
     c=P.frequency_owner(engine,c,mid)
-    if move_frequency(engine,mid,c)[0]!='scene':raise ValueError('Scene Move restoration required')
+    if move_frequency(engine,mid,c)[0]!=kind:raise ValueError(kind.title()+' Move restoration required')
     st=state(c);c.move_uses[mid]=max(0,c.move_uses.get(mid,0)-1);c.spec['move_uses']=dict(c.move_uses)
     if mid in st['moves']:st.setdefault('restored_move_occurrences',{})[mid]=deepcopy(st['moves'][mid])
     st['moves'].pop(mid,None)
@@ -618,12 +643,37 @@ def restore_eot(engine,c,mid):
 
 def forfeited_uses(c,mid):
     st=state(c)
-    return sum(1 for row in st.get('move_forfeitures',[]) if row['move_id']==mid and row['period']==activation_period(st,row['kind']))
+    through=st.get('move_forfeiture_refreshes',{}).get(mid,{}).get('through',0)
+    # Daily Moves do not refresh at midnight; their forfeited capacity remains
+    # spent until an actual rest/Center/all-Move refresh, just like native uses.
+    return sum(1 for row in st.get('move_forfeitures',[])[through:] if row['move_id']==mid
+               and (row['kind']=='daily' or row['period']==activation_period(st,row['kind'])))
+
+
+def _refresh_forfeitures(c,mid):
+    st=c.spec.get('frequency_state',{});rows=st.get('move_forfeitures',[])
+    if any(row['move_id']==mid for row in rows):
+        row={'through':len(rows)};row['sha256']=__import__('resolution_transaction').request_fingerprint(row)
+        st.setdefault('move_forfeiture_refreshes',{})[mid]=row
+
+
+def preflight_restore_move_use(engine,c,mid):
+    """Actual historical use and currently spent capacity are distinct facts."""
+    import move_permissions as P
+    owner=P.frequency_owner(engine,c,mid);validate(owner)
+    kind,_=move_frequency(engine,mid,c)
+    if mid not in c.moves or kind not in ('scene','daily'):raise ValueError('actual known Scene or Daily Move required')
+    st=owner.spec.get('frequency_state',{})
+    actual=[row for row in (st.get('moves',{}).get(mid),st.get('restored_move_occurrences',{}).get(mid)) if row is not None]
+    if kind=='scene':actual=[row for row in actual if row['scene']==st.get('scene',0)]
+    if not actual or owner.move_uses.get(mid,0)<1:
+        raise ValueError('recipient Move must have an already used actual activation and spent capacity')
+    return owner,kind
 
 
 def preflight_forfeit_move(engine,c,mid,*,source):
     import move_permissions as P
-    if source!='feat/힘의-전달' or engine.r._selected_rule(source)!=source:raise ValueError('reviewed Move-use forfeiture source required')
+    if source not in FORFEIT_SOURCES or engine.r._selected_rule(source)!=source:raise ValueError('reviewed Move-use forfeiture source required')
     owner=P.frequency_owner(engine,c,mid);validate(owner)
     kind,cap=move_frequency(engine,mid,c)
     if mid not in c.moves or kind not in ('scene','daily'):raise ValueError('actual known Scene or Daily Move required')

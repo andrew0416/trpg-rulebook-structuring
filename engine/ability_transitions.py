@@ -296,9 +296,9 @@ def activate(engine,actor,name,target):
  def staged(e,a,t):
   import frequency as F,turn as TURN,effects as FX
   usage='ability:'+reg['name'];frequency=row['manual']['frequency']
-  if not F.activation_allowed(a,usage,frequency,engine=e):raise ValueError('copying ability Scene frequency exhausted')
+  if not F.activation_allowed(a,usage,frequency,engine=e,action_actor=a):raise ValueError('copying ability Scene frequency exhausted')
   if not TURN.spend(e,a,row['manual']['action'],reg['name']):raise ValueError('copying ability action unavailable')
-  F.consume_activation(a,usage,frequency,engine=e)
+  F.consume_activation(a,usage,frequency,engine=e,action_actor=a)
   result=FX.run_effects(e,a,t,[effect],{'hit':True,'nat':None},source)
   if result.pending:raise ValueError('copying ability effect did not complete')
   return result

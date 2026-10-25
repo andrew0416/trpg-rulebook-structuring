@@ -19,8 +19,7 @@ STATS=('atk','def','spa','spd','spe')
 
 def records(actor,feature=None,active=False):
  import trainer_feature_acquisition as T
- return [r['static_acquisition'] for _,r,live in T._static_records(actor) if r['static_acquisition']['feature_id'] in FEATURES
-  and (feature is None or r['static_acquisition']['feature_id']==feature) and (not active or live)]
+ return [record for _, record in T.static_family_acquisitions(actor, FEATURES, feature, active=active)]
 
 
 def acquired(actor,feature=CLASS):

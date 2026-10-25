@@ -45,7 +45,7 @@ def grace(pokemon,trainer=None,*,engine=None):
         raise ValueError("Grace variant requires its own Poffin availability contract")
     if count:
         from skill_modifiers import rank
-        if max(rank(pokemon.r,actual,skill)[2] for skill in ("매력","명령","교활","협박","직감"))<3:
+        if not __import__('hobbyist').skill_waived(actual,GRACE) and max(rank(pokemon.r,actual,skill)[2] for skill in ("매력","명령","교활","협박","직감"))<3:
             raise ValueError("Grace requires a Novice eligible social skill")
     return bool(count)
 

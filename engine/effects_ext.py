@@ -1218,11 +1218,13 @@ def crit_hook(engine, a, t, move, hit, crit, *, natural=None, crit_min=20):
     import ability_transitions as ABILITIES,taskmaster as TASK
     if (hit and TASK.gambit_side(engine,a,t,move)!='incoming'
             and ABILITIES.active(t,'ability/조가비갑옷-전투무장')
+            and not __import__('trickster').ignores_defensive(engine,t,'ability/조가비갑옷-전투무장')
             and not __import__('chronicler').defensive_ignored(engine,a,t,move)):
         return False
     import combat_precision_features as CPF
     if hit and move["class"] == "변화" and natural is not None and CPF.status_can_critical(engine, a, t, move):
-        crit = natural >= __import__("provocateur").demoralize_threshold(a,crit_min)
+        threshold = __import__("provocateur").demoralize_threshold(a,crit_min) if CPF.owns(engine,a,CPF.DEMORALIZE) else crit_min
+        crit = natural >= threshold
     import blessing_effects as BLESSINGS
     crit,handled = BLESSINGS.critical(engine,a,t,move,hit,crit)
     if handled:return crit
@@ -1264,6 +1266,8 @@ def prepare_versatile_move(engine, move, selected=None):
 
 
 def grants_stab(engine, a, move):
+    if __import__('type_expertise').grants_stab(engine, a, move):
+        return True
     import stellar_tera_blast as STELLAR_TERA
     if STELLAR_TERA.grants_stab(engine,a,move):
         return True
@@ -1314,7 +1318,7 @@ def keyword_block_reason(engine,a,t,move):
     """Only selected keyword immunity, shared by hit and non-hit field recipients."""
     if '풀' in t.types and keywords_for(a,move).intersection(('가루','Powder')):
         return 'type/풀:Powder immunity'
-    blocked_keywords = set(getattr(t, "keyword_immune", ())) & keywords_for(a, move)
+    blocked_keywords = {k for k in keywords_for(a,move) if __import__('trickster').set_contains(engine,t,'keyword_immune',k)}
     if blocked_keywords:
         return "state/keyword_immunity:" + ",".join(sorted(blocked_keywords))
     if not t.abilities_suppressed:
@@ -1323,6 +1327,7 @@ def keyword_block_reason(engine,a,t,move):
                     and __import__('ability_transitions').effect_active(t,effect)):
                 source=effect.get('_rule_id')
                 if not isinstance(source,str) or engine.r._selected_rule(source)!=source:raise ValueError('selected keyword immunity source required')
+                if __import__('trickster').ignores_defensive(engine,t,source):continue
                 return source
     return None
 
@@ -1351,6 +1356,7 @@ def blocks_hit(engine,a,t,move,mm):
     if move_id=='move/카운터' and engine.type_multiplier('격투',t)[0]==0:return 'move/카운터:Fighting immunity'
     blocked_moves=[]
     for value in getattr(t,"move_immune",()):
+        if not __import__('trickster').set_contains(engine,t,'move_immune',value):continue
         if value==move_id:
             blocked_moves.append(value);continue
         try:resolved=engine.r.move_id(value)

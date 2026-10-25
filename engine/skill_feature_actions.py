@@ -12,6 +12,7 @@ import contest_features as FEATURES
 import frequency as FREQ
 
 MONKEY='feat/팔방미인'
+HELP='feat/내가-도와줄게'
 MONKEY_CSV='C2CSV/input/db/feats.csv:R51:main'
 FREQUENCY={'kind':'daily','uses':3}
 
@@ -57,7 +58,7 @@ def _source(e,actor,feature):
  if actor.r is not e.r:raise ValueError('skill feature actor belongs to another rule context')
  FEATURES.require(e,actor,feature)
  identities={S.skill_id(e.r.skill_policy,s,required=True):s for s in actor.spec.get('skills',{})}
- if sum(S.rank(e.r,actor,s)[2]>=4 for s in identities.values())<3:
+ if not __import__('hobbyist').skill_waived(actor,feature) and sum(S.rank(e.r,actor,s)[2]>=4 for s in identities.values())<3:
   raise ValueError('Skill Monkey requires three distinct Adept skills')
 
 def _feature_options(options,rank,penalty_count):
@@ -123,6 +124,130 @@ def finish(e,actor,roll_id):
  old=event(e,actor,roll_id)
  if old is not None and old.state=='observed':_store(e,roll_id,replace(old,state='final',final=old.first))
 
+
+def offer_help(e,helper,target,*,request_id,decision,payment,reroll_faces=None,reroll_penalties=None):
+ """Arm a choice; only the real failed native Trainer check can activate it."""
+ import world_entities as W,hobbyist as H,source_context as SOURCE
+ W.require_actors(e,helper,target);FEATURES.conscious_trainer(helper);FEATURES.require(e,helper,HELP)
+ if helper is target or target.kind!='trainer' or helper.side!=target.side:raise ValueError('Let Me Help targets another allied Trainer')
+ if payment not in ('current','next') or not callable(decision):raise ValueError('explicit native reaction current/next payment and observed decision required')
+ if type(request_id)is not str or not request_id.strip():raise ValueError('actual help offer identity required')
+ SOURCE.verified_source(e.r,{'file':'input/ch03-skills-edges-feats.md','sha256':H.GENERAL},label='Let Me Help You With That')
+ if e.r.selection.units[HELP]['source']['lines']!=[886,890]:raise ValueError('exact Let Me Help source required')
+ offers=getattr(e,'_let_me_help_offers',{})
+ row={'helper_id':helper.entity_id,'request_id':request_id,'payment':payment,'faces':reroll_faces,'penalties':reroll_penalties}
+ if target.entity_id in offers and {k:v for k,v in offers[target.entity_id].items() if k!='decision'}!=row:raise ValueError('one actual helper offer per target check; no silent simultaneous order')
+ e._let_me_help_offers={**offers,target.entity_id:{**row,'decision':decision}}
+ return {'armed':True,'source':HELP,'request_id':request_id}
+
+
+def check_with_help(e,actor,skill,dc,options,roll):
+ """The original DC and roll are observed before an interrupt or reroll costs."""
+ import world_entities as W,hobbyist as H,initiative_interrupts as I,turn as TURN,state_grants as G
+ offer=getattr(e,'_let_me_help_offers',{}).get(actor.entity_id)
+ if offer is None:return C.against_dc(roll(),dc)
+ roll_id=options.get('roll_id')
+ if roll_id is None:
+  first=roll();roll_id,_=_observed(e,actor,first)
+  roll=lambda:first
+ if type(roll_id)is not str or not roll_id.strip():raise ValueError('Let Me Help needs the actual native target roll ID')
+ stored=e._ap_rolls.get(roll_id,{}).get('help_check')
+ if stored is None:
+  first=roll();stored={'dc':dc,'skill':S.skill_id(e.r.skill_policy,skill,required=True),'request_id':offer['request_id'],'state':'observed','first':first}
+  e._ap_rolls[roll_id]['help_check']=stored
+ else:
+  if (stored['dc'],stored['skill'],stored['request_id'])!=(dc,S.skill_id(e.r.skill_policy,skill,required=True),offer['request_id']) or stored['state']=='complete':raise ValueError('actual helped check cannot change or execute twice')
+  first=stored['first']
+ observed=event(e,actor,roll_id)
+ if observed is None or observed.skill!=S.skill_id(e.r.skill_policy,skill,required=True):raise ValueError('Let Me Help requires the actual observed skill')
+ original=C.against_dc(first,dc)
+ if original.passed:
+  stored['state']='complete';finish(e,actor,roll_id);e._let_me_help_offers.pop(actor.entity_id);return original
+ helper=W.actor_index(e)[offer['helper_id']]
+ FEATURES.conscious_trainer(helper);FEATURES.require(e,helper,HELP)
+ if helper is actor or actor.kind!='trainer' or helper.side!=actor.side:raise ValueError('Let Me Help targets another allied Trainer')
+ helping_skill=H.direct_skill(helper,HELP,skill);rank=S.effective_rank(e.r,helper,helping_skill)
+ if rank<3:raise ValueError('Let Me Help requires Novice in the actual directly named helping skill')
+ if not callable(offer.get('decision')):raise ValueError('saved Let Me Help offer needs its actual decision callback rebound')
+ choice=offer['decision'](first)
+ if type(choice)is not bool:raise ValueError('observed Let Me Help choice must be boolean')
+ if not choice:
+  stored['state']='complete';finish(e,actor,roll_id);e._let_me_help_offers.pop(actor.entity_id);return original
+ if not FREQ.activation_allowed(helper,HELP,FREQUENCY,engine=e):raise ValueError('Let Me Help Daily x3 exhausted')
+ count=getattr(first,'dice_count',first.rank)
+ faces=None if offer['faces'] is None else C.dice(offer['faces'],count)
+ penalties=None if offer['penalties'] is None else C.dice(offer['penalties'],len(first.penalties))
+ owner=e._active_turn_actor
+ if owner is None and e.encounter_active:raise ValueError('actual failed-check interrupt needs the native suspended owner turn')
+ trigger=None if owner is None else {'kind':'turn','actor_id':owner.entity_id,'serial':owner.custom_conditions.get('combat_turn_serial',0),'round':e.round_no}
+ def resolve(staged,h,t):
+  if trigger is not None:
+   queued=I.queue(staged,[{'id':offer['request_id'],'actor_id':h.entity_id,'source':HELP,'priority':0,'mode':'reaction','payment':offer['payment'],'budget':{'standard':1,'shift':1},'clock':'none'}],trigger=trigger)
+   if queued['status'] not in ('queued','already_queued'):raise ValueError('actual failed-check interrupt permission unresolved')
+   I.begin(staged,queued['window_id'],offer['request_id'])
+  if not TURN.spend(staged,h,'full',HELP):raise ValueError('Let Me Help requires its actual Full Action Interrupt')
+  rerolled=replace(first,faces=tuple(POOLS.pool(staged.rng,count,fixed=faces)['faces']),penalties=tuple(POOLS.pool(staged.rng,len(first.penalties),fixed=penalties)['faces']),modifier=first.modifier+rank)
+  FREQ.consume_activation(h,HELP,FREQUENCY,engine=staged)
+  if trigger is not None:I.finish(staged)
+  old=event(staged,t,roll_id);_store(staged,roll_id,replace(old,state='final',feature=HELP,final=rerolled))
+  staged._ap_rolls[roll_id]['help_check']['state']='complete'
+  return C.against_dc(rerolled,dc)
+ result=G.transition(e,helper,resolve,participants=(actor,))
+ e._let_me_help_offers.pop(actor.entity_id)
+ return result
+
+def _observed(e,actor,roll,options=None):
+ roll_id=(options or {}).get('roll_id')
+ if roll_id is None:
+  matches=[uid for uid,row in e._ap_rolls.items() if row.get('skill_event') is not None and row['skill_event'].actor is actor and (row['skill_event'].first is roll or row['skill_event'].final is roll)]
+  if len(matches)!=1:raise ValueError('Let Me Help requires one actual native observed target check')
+  roll_id=matches[0]
+ observed=event(e,actor,roll_id)
+ if observed is None:raise ValueError('Let Me Help requires one actual native observed target check')
+ return roll_id,observed
+
+def resolve_check(e,actor,skill,dc,roll,options=None,*,observed_roll=None):
+ """Resolve an already observed native check through the same helper cost owner."""
+ if (options or {}).get('roll_id') is not None:
+  observed=event(e,actor,options['roll_id'])
+  if observed is not None and observed.feature==HELP and observed.final is not None:roll=observed.final
+ if actor.entity_id not in getattr(e,'_let_me_help_offers',{}):return C.against_dc(roll,dc)
+ roll_id,observed=_observed(e,actor,roll if observed_roll is None else observed_roll,options)
+ if observed.skill!=S.skill_id(e.r.skill_policy,skill,required=True):raise ValueError('Let Me Help requires the actual observed skill')
+ return check_with_help(e,actor,skill,dc,{'roll_id':roll_id},lambda:roll)
+
+def resolve_opposed(e,plans,rolls):
+ """Keep the defender's tie advantage; react only to the actual failed check."""
+ offers=getattr(e,'_let_me_help_offers',{})
+ eligible=[i for i,(actor,_,_) in enumerate(plans) if actor.entity_id in offers]
+ if len(eligible)>1:raise ValueError('multiple Let Me Help reactions need explicit native reaction ordering')
+ rolls=list(rolls)
+ if eligible:
+  index=eligible[0];actor,skill,options=plans[index]
+  roll_id,_=_observed(e,actor,rolls[index],options)
+  dc=rolls[1-index].total+(1 if index==0 else 0)
+  resolve_check(e,actor,skill,dc,rolls[index],options)
+  observed=event(e,actor,roll_id)
+  if observed is not None and observed.final is not None:rolls[index]=observed.final
+ return C.opposed(*rolls),rolls
+
+def resolve_team(e,plans,rolls,dc,required,weights=None):
+ """A failed team check rerolls only the actual offered participant's pool."""
+ offers=getattr(e,'_let_me_help_offers',{});rolls=list(rolls)
+ eligible=[i for i,(actor,_,_) in enumerate(plans) if actor.entity_id in offers]
+ if len(eligible)>1:raise ValueError('multiple Let Me Help reactions need explicit native reaction ordering')
+ multipliers=[1]*len(rolls) if weights is None else weights
+ if eligible:
+  index=eligible[0];actor,skill,options=plans[index]
+  roll_id,_=_observed(e,actor,rolls[index],options)
+  remainder=dc*required-sum(r.total*w for i,(r,w) in enumerate(zip(rolls,multipliers)) if i!=index)
+  threshold=-(-remainder//multipliers[index])
+  resolve_check(e,actor,skill,threshold,rolls[index],options)
+  observed=event(e,actor,roll_id)
+  if observed is not None and observed.final is not None:rolls[index]=observed.final
+ result=C.team(rolls,dc,required) if weights is None else C.weighted_team(rolls,dc,required,weights)
+ return result,rolls
+
 def resume_roll(e,actor,skill,options):
  """Internal compound-check replay: never activate a feature twice."""
  old=event(e,actor,options['roll_id'])
@@ -183,7 +308,7 @@ def prepared_for_sequence(e,actor,skill,options):
 def opposed(e,a,skill_a,b,skill_b,acting,defending):
  plans=[(a,skill_a,acting),(b,skill_b,defending)]
  def resolve(rolls):
-  winner=C.opposed(*rolls)
+  winner,rolls=resolve_opposed(e,plans,rolls)
   e.log(f'  대항 체크: {a.name} {rolls[0].total} vs {b.name} {rolls[1].total} → '+('공격 측 승' if winner=='challenger' else '수비 측 승(동률 포함)'), 'gameplay/skill-check')
   return winner=='challenger'
  roll_id=acting.get('roll_id')

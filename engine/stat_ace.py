@@ -33,10 +33,7 @@ MOVES={'atk':('move/칼춤','move/분노'),'def':('move/철벽','move/리플렉�
 
 def records(actor,feature=None,active=False):
     import trainer_feature_acquisition as T
-    return [row['static_acquisition'] for _,row,live in T._static_records(actor)
-            if row['static_acquisition']['feature_id'] in FEATURES
-            and (feature is None or row['static_acquisition']['feature_id']==feature)
-            and (not active or live)]
+    return [record for _, record in T.static_family_acquisitions(actor, FEATURES, feature, active=active)]
 
 
 def acquired(actor,feature,branch):
@@ -321,11 +318,7 @@ def maneuver(engine,trainer,pokemon,target,move_id,*,branch,option,aim=None,dest
                     reason='actual Stat Maneuver Pass declaration',range_source=MANEUVER)
             return e.use_move_on(p,t,mid,e.everyone,aim=aim,set_damage=set_damage)
         except Exception as error:
-            import passive_events as PASSIVE,heavy_injury_adapter as HEAVY
-            if (type(error) is PASSIVE.PassiveEventPending and e._passive_pending==error.event_id
-                    and error.event_id in e._passive_events):pending.append((PASSIVE.PassiveEventPending,error.event_id));return None
-            if (type(error) is HEAVY.HeavyPending and e._heavy_pending==error.event_id
-                    and error.event_id in e._heavy_events):pending.append((HEAVY.HeavyPending,error.event_id));return None
+            if G.record_native_pending(e,error,pending):return None
             raise
         finally:del e._stat_maneuver_scope
     result=G.transition(engine,trainer,apply,participants=(pokemon,target),include_rulings=True,include_grid=engine.grid is not None)

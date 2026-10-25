@@ -163,7 +163,7 @@ def movement_permission(engine, c, *, equipment_transport=None):
     return True
 
 
-def disengage(engine, c, destination, *, movement_mode=None, _telepathy_source=None):
+def disengage(engine, c, destination, *, movement_mode=None, _telepathy_source=None, _trickster_escape=False):
     """ch07 Disengage: one Shift, one metre, no opportunity attack.
 
     The existing grid and action ledger carry the actual move. This grants no
@@ -207,7 +207,12 @@ def disengage(engine, c, destination, *, movement_mode=None, _telepathy_source=N
     import stat_ace as STAT
     swift=STAT.has(engine,c,STAT.MASTERY,'spe')
     if swift and not movement_permission(engine,c):return False
-    if _telepathy_source is not None:
+    if _trickster_escape:
+        proof=getattr(engine,'_trickster_escape',None)
+        if not proof or proof['pokemon'] is not c or proof['source']!=__import__('trickster').ESCAPE:raise ValueError('actual Escape Artist Free Disengage boundary required')
+        if not movement_permission(engine,c):return False
+        __import__('action_lifecycle').triggered_free_action(engine,c,__import__('trickster').ESCAPE)
+    elif _telepathy_source is not None:
         proof=getattr(engine,'_telepath_disengage_boundary',None)
         if not proof or proof['actor_id']!=c.entity_id or proof['source']!=_telepathy_source or _telepathy_source!=__import__('telepath').FEB or engine._move_completions[proof['completion']]['phase']=='complete':raise ValueError('actual Telepathy Free Disengage boundary required')
         if not movement_permission(engine,c):return False
@@ -305,6 +310,7 @@ def spend(engine, c, kind, what="", *, movement=False, sleep_cure=False, _native
     if kind == "free":
         ACTION.record_action(engine, c, kind)
         return True
+    if __import__('trickster').extra_standard(engine,c,kind,_native_move):return True
     if b.get(kind, 0) > 0:
         b[kind] -= 1
         if movement:c._regular_shift_movement_used = True
@@ -377,6 +383,8 @@ def spend_compound(engine, c, cost, what="", *, movement=False, sleep_cure=False
 
 
 def action_kind_of_move(engine, c, move, mm):
+    if __import__('trickster').impromptu_scope(engine,c,move):return 'free'
+    if __import__('trickster').sleight_scope(engine,c,move):return 'standard'
     if move['id']==__import__('tumbler').SPLASH:return 'shift'
     if __import__('provocateur').quick_scope(engine,c,move):return 'swift'
     """기술의 행동 종류: 레지스트리의 action_type_change / 헤더 키워드 / 기본값 standard."""
@@ -429,6 +437,19 @@ def adjacent_enemies(engine, c):
 
 
 def trigger_aoo(engine, mover, why, enemies=None):
+    import trickster as T,state_grants as G
+    candidates=enemies if enemies is not None else adjacent_enemies(engine,mover)
+    if not getattr(engine,'_trickster_aoo_transaction',False) and any(T.owner(engine,p,tech=T.IMPROMPTU) for p in candidates):
+        def apply(staged,subject,*actual):
+            staged._trickster_aoo_transaction=True
+            try:return _trigger_aoo(staged,subject,why,list(actual))
+            finally:del staged._trickster_aoo_transaction
+        return G.transition(engine,mover,apply,participants=tuple(candidates),include_rulings=True,include_grid=engine.grid is not None)
+    return _trigger_aoo(engine,mover,why,enemies)
+
+
+def _trigger_aoo(engine, mover, why, enemies=None):
+    if __import__('trickster').prevents_aoo(engine,mover):return
     if __import__('commander').no_opportunity(engine, mover):
         return
     """이동/원거리 공격으로 기회 공격 조건이 걸린 (이동 전) 인접 적들이 발버둥으로 방해 공격."""
@@ -449,6 +470,13 @@ def trigger_aoo(engine, mover, why, enemies=None):
         enemy.aoo_used = True
         enemy._round_marker = engine.round_no
         __import__("hunter").note_opportunity(engine, enemy)
+        previous=getattr(engine,'_opportunity_attack',None)
+        engine._opportunity_attack={'attacker_id':enemy.entity_id,'target_id':mover.entity_id,'source':'maneuver/기회-공격'}
+        try:
+            if __import__('trickster').impromptu(engine,enemy,mover,why):continue
+        finally:
+            if previous is None:del engine._opportunity_attack
+            else:engine._opportunity_attack=previous
         engine.log(f"  [기회 공격] {enemy.name} → {mover.name} ({why}): 방해로 발버둥", "maneuver/기회-공격")
         with ACTION.move_grant(engine, enemy, mover, "struggle", source="maneuver/기회-공격", kind="free") as grant:
             # An armed Athlete Coaching answers the Pokemon's actual Attack of Opportunity with an automatic hit.

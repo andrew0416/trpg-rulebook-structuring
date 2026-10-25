@@ -7,6 +7,18 @@ import crafting_recipes as Q,effects as FX
 PUSH='maneuver/밀기'
 TRIP='maneuver/걸기'
 
+def slippery_skill(engine,actor,chosen,source):
+    """Only Slippery's three printed defending checks gain this alternative."""
+    uid='edge/약삭빠름'
+    if source not in (PUSH,TRIP,'maneuver/붙잡기','maneuver/붙잡기/contest'):return None
+    if SKILLS.skill_id(engine.r.skill_policy,chosen,required=True)!='stealth':return None
+    import acquired_features as A,hobbyist as H,source_context as C
+    if A.owned_rule_count(actor,uid)!=1:return None
+    C.verified_source(engine.r,{'file':'input/ch03-skills-edges-feats.md','sha256':H.GENERAL},label='Slippery')
+    if engine.r.selection.units[uid]['source']['lines']!=[466,468]:raise ValueError('actual Slippery source required')
+    if not H.skill_waived(actor,uid) and SKILLS.rank(engine.r,actor,'은신')[2]<3:raise ValueError('Slippery requires Novice Stealth')
+    return H.direct_skill(actor,uid,'은신')
+
 
 def _options(options,purpose):
     result=dict(options or {});context=result.get('skill_context')
@@ -57,13 +69,14 @@ def _prepare(e,a,t,source,skills,challenger_skill,defender_skill,fixed_accuracy,
     if fixed_accuracy is not None:C.integer(fixed_accuracy,'maneuver d20',1,20)
     TEMP.ensure_certain(e,a);TEMP.ensure_certain(e,t)
     if permission['opposed']=='waived':return [],None
-    for chosen,choices in ((challenger_skill,skills if config is None else config['challenger_skills']),(defender_skill,skills if config is None else config['defender_skills'])):
+    slipped=slippery_skill(e,t,defender_skill,source)
+    for chosen,choices in ((challenger_skill,skills if config is None else config['challenger_skills']),(defender_skill,(*((skills if config is None else config['defender_skills'])),*(('은신',) if slipped is not None else ())))):
         allowed={SKILLS.skill_id(e.r.skill_policy,x,required=True) for x in choices}
         if SKILLS.skill_id(e.r.skill_policy,chosen,required=True) not in allowed:raise ValueError('skill is not permitted by this maneuver source')
     purpose=('resist_push' if source==PUSH else 'resist_trip') if config is None else config['resistance_purpose']
     ao=_options(challenger_options,None if config is None else config.get('challenger_purpose'));do=_options(defender_options,purpose)
     if ao.get('roll_id') is not None and ao.get('roll_id')==do.get('roll_id'):raise ValueError('distinct opposed roll identities required')
-    plans=[(a,challenger_skill,ao),(t,defender_skill,do)]
+    plans=[(a,challenger_skill,ao),(t,slipped or defender_skill,do)]
     return plans,SM.prepare(e,a,t,source,dict(basis,fixed_accuracy=fixed_accuracy),plans,observe=observe)
 
 

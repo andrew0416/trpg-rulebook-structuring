@@ -26,6 +26,7 @@ FEATURES={
  'psychologist':('edge/포켓몬-심리학자',('포켓몬 심리학자','PokéPsychologist'),(('포켓몬학',3),('일반 지식',3))),
  'reserves':('edge/예비-훈련',('예비 훈련','Train the Reserves'),(('명령',3),)),
  'maniac':('feat/포켓몬매니아',('포켓몬매니아','PokéManiac'),(('포켓몬학',4),)),
+ 'ball_crafter':('feat/몬스터볼-장인',('몬스터볼 장인','Poké Ball Crafter'),(('기술학',5),)),
 }
 DISPOSITIONS=('매우 적대적','적대적','두려움','중립','우호적','매우 우호적')
 DISPOSITION_DC=(30,15,8,12,15,None)
@@ -62,7 +63,7 @@ def _feature(e,actor,name,required=True):
   if required:raise ValueError('acquired feature required: '+uid)
   return False
  if e.r._selected_rule(uid)!=uid:raise ValueError('selected feature version needs its own activity policy')
- if prerequisites and not any(_rank(e,actor,s)>=r for s,r in prerequisites):raise ValueError('feature prerequisite not established: '+uid)
+ if prerequisites and not __import__('hobbyist').skill_waived(actor,uid) and not any(_rank(e,actor,s)>=r for s,r in prerequisites):raise ValueError('feature prerequisite not established: '+uid)
  if name=='repair' and not (_feature(e,actor,'basic_balls',False) or _feature(e,actor,'apricorn_balls',False)):raise ValueError('Poke Ball Repair requires the acquired Basic Balls or Apricorn Balls crafting edge')
  return True
 
@@ -93,7 +94,7 @@ def _check(e,actor,skill,dc,options,*,action=None,seconds=0,time_actors=None,con
   options=_preflight(e,actor,skill,options)
   if action and not TURN.spend(e,actor,action,'포켓몬 전문활동'):return C.PendingDecision('required action unavailable')
   if seconds:e.advance_time(seconds,time_actors or [actor])
-  return C.against_dc(e.skill_roll(actor,skill,**options),dc)
+  return __import__('skill_feature_actions').resolve_check(e,actor,skill,dc,e.skill_roll(actor,skill,**options),options)
  import skill_feature_actions as SF
  roll_id=options.get('roll_id');_text(roll_id,'identified activity skill roll')
  if context is None:raise ValueError('observed activity feature needs concrete activity context')
@@ -109,7 +110,7 @@ def _check(e,actor,skill,dc,options,*,action=None,seconds=0,time_actors=None,con
   old={'actor':actor,'basis':deepcopy(basis),'closed':False}
   if not hasattr(e,'_pokemon_activity_skill_runs'):e._pokemon_activity_skill_runs={}
   e._pokemon_activity_skill_runs[roll_id]=old
- result=SF.sequence(e,'pokemon-activity:'+roll_id,basis,[(actor,skill,options)],lambda rolls:C.against_dc(rolls[0],dc))
+ result=SF.sequence(e,'pokemon-activity:'+roll_id,basis,[(actor,skill,options)],lambda rolls:SF.resolve_check(e,actor,skill,dc,rolls[0],options))
  old['closed']=True
  return result
 
@@ -152,7 +153,7 @@ def _breed(e,actor,*,pair,task_id,phase,compatible=None,**roll):
  if phase=='check':
   if previous is not None:raise ValueError('breeding task already checked')
   if compatible is not True:raise ValueError('GM-established compatible pair required')
-  check=_check(e,actor,'포켓몬학',12,roll,seconds=4*3600,time_actors=[actor,*pair],context=('breed',task_id,identity))
+  check=_check(e,actor,__import__('hobbyist').direct_skill(actor,'edge/브리더','포켓몬학'),12,roll,seconds=4*3600,time_actors=[actor,*pair],context=('breed',task_id,identity))
   record={'pair':identity,'status':'waiting_four_hours' if check.passed else 'failed','check_total':check.total,'checked_at':e.elapsed_seconds}
   actor.spec.setdefault('breeding_tasks',{})[task_id]=record
   return {'activity':'breed','check':check,'status':record['status'],'egg':None}
@@ -312,7 +313,7 @@ def pokemaniac(e,actor,*,target,**roll):
  if not isinstance(target.types,(list,tuple)) or any(not isinstance(value,str) or not value for value in target.types):raise ValueError('Pokemon types must be identity text')
  if not isinstance(target.abilities,(list,tuple)) or any(not isinstance(value,str) or not value for value in target.abilities):raise ValueError('Pokemon abilities must be identity text')
  info={'level':target.level,'types':list(target.types),'nature':target.spec['nature'],'abilities':list(target.abilities)}
- check=G.transition(e,actor,lambda se,sa,st:_check(se,sa,'포켓몬학',10,roll,action='standard',context=('pokemaniac',st.spec.get('id'))),participants=(target,))
+ check=G.transition(e,actor,lambda se,sa,st:_check(se,sa,__import__('hobbyist').direct_skill(sa,'feat/포켓몬매니아','포켓몬학'),10,roll,action='standard',context=('pokemaniac',st.spec.get('id'))),participants=(target,))
  if isinstance(check,C.PendingDecision):return check
  return {'activity':'pokemaniac','check':check,'information':info if check.passed else None}
 
@@ -469,7 +470,8 @@ def _command_loyalty(e,actor,*,target,use_intimidate=False,dc_override=None,gm_f
   if not isinstance(gm_failure,dict) or gm_failure.get('kind') not in ('idle','action'):raise ValueError('GM failure decision must be idle or an explicit action')
   _text(gm_failure.get('reason'),'GM disobedience reason')
   if gm_failure['kind']=='action':_text(gm_failure.get('action'),'GM action');_text(gm_failure.get('target'),'GM target')
- check=_check(e,actor,'협박' if use_intimidate else '명령',dc,roll,target=target,context=('command_loyalty',target.spec.get('id'),use_intimidate))
+ skill=__import__('hobbyist').direct_skill(actor,'edge/비스트-마스터','협박') if use_intimidate else '명령'
+ check=_check(e,actor,skill,dc,roll,target=target,context=('command_loyalty',target.spec.get('id'),use_intimidate))
  return {'activity':'command_loyalty','obeys':check.passed,'check':check,
          'failure':deepcopy(gm_failure) if not check.passed and gm_failure else C.PendingDecision('GM chooses disobedient action and target') if not check.passed else None}
 
@@ -642,7 +644,8 @@ def _mounting_native(e,actor,*,target,phase,skill='곡예',gm_mountable=None,dc=
   if gm_mountable is not None:raise ValueError('retention does not replace GM mounting admission')
   if actor.spec.get('mount_id')!=target.spec['id']:raise ValueError('actor must be riding this Pokemon')
   options=dict(roll);options['mods']=options.get('mods',0)+(3 if prowess else 0)
-  check=_check(e,actor,skill,dc,options,context=('mounting',phase,target.spec.get('id')));passed=check.passed
+  actual_skill=__import__('hobbyist').direct_skill(actor,'edge/탑승-기량',skill) if prowess else skill
+  check=_check(e,actor,actual_skill,dc,options,context=('mounting',phase,target.spec.get('id')));passed=check.passed
   if not passed:actor.spec.pop('mount_id',None)
  else:raise ValueError('mount phase must be mount or retain')
  return {'activity':'mounting','phase':phase,'check':check,'passed':passed,'automatic':phase=='mount' and prowess,'retention_bonus':3 if phase=='retain' and prowess else 0}
@@ -750,11 +753,7 @@ def command_move(e,actor,*,pokemon,target,move_id,obedience_options=None,control
   def apply(se,sa,sp,st):
    try:return _command_move(se,sa,pokemon=sp,target=st,move_id=move_id,obedience_options=obedience_options,control_application=control_application,**move_options)
    except Exception as error:
-    import passive_events as PASSIVE,heavy_injury_adapter as HEAVY
-    if type(error) is PASSIVE.PassiveEventPending and se._passive_pending==error.event_id and error.event_id in se._passive_events:
-     pending.append((PASSIVE.PassiveEventPending,error.event_id));return None
-    if type(error) is HEAVY.HeavyPending and se._heavy_pending==error.event_id and error.event_id in se._heavy_events:
-     pending.append((HEAVY.HeavyPending,error.event_id));return None
+    if G.record_native_pending(se,error,pending):return None
     raise
   result=G.transition(e,actor,apply,participants=(pokemon,target),include_grid=e.grid is not None,include_rulings=True)
   if pending:

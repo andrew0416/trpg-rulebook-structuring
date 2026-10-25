@@ -133,8 +133,7 @@ def _composite_parts(parts):
 
 def _acquisitions(actor, feature, active=False):
     import trainer_feature_acquisition as T
-    return [row['static_acquisition'] for _, row, live in T._static_records(actor)
-            if row['static_acquisition']['feature_id'] == feature and (live or not active)]
+    return [record for _, record in T.static_acquisitions(actor, feature, active=active)]
 
 
 def _owned(actor, uid):

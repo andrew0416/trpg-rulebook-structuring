@@ -22,7 +22,7 @@ def state(a):return a.spec.setdefault(KEY,{'events':[],'uses':{},'lock_on':[]})
 def records(a,u=None,active=False):
  if a is None:return []
  import trainer_feature_acquisition as T
- return [r['static_acquisition'] for _,r,live in T._static_records(a) if r['static_acquisition']['feature_id'] in FEATURES and (u is None or r['static_acquisition']['feature_id']==u) and (not active or live)]
+ return [record for _, record in T.static_family_acquisitions(a, FEATURES, u, active=active)]
 def acquired(a,u=CLASS):
  rows=records(a,u,True)
  return rows[-1] if rows else None

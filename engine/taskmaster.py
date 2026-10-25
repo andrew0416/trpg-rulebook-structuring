@@ -36,8 +36,7 @@ KIND='taskmaster_hardened'
 
 def acquisitions(actor,feature,active=False):
     import trainer_feature_acquisition as T
-    return [row['static_acquisition'] for _,row,live in T._static_records(actor)
-            if row['static_acquisition']['feature_id']==feature and (live or not active)]
+    return [record for _, record in T.static_acquisitions(actor, feature, active=active)]
 
 
 def acquired(actor,feature=CLASS):
@@ -312,7 +311,7 @@ def press(engine,owner,target,*,stats,obedience=False,whip=None):
     def apply(e,trainer,pupil):
         import action_lifecycle as ACTION
         P._trainer(trainer);P._pokemon(pupil);P._owner(trainer,pupil)
-        if not A.owned_rule_count(trainer,PRESS_ACTION) or S.rank(e.r,trainer,'협박')[2]<4:
+        if not A.owned_rule_count(trainer,PRESS_ACTION) or (not __import__('hobbyist').skill_waived(trainer,PRESS_ACTION) and S.rank(e.r,trainer,'협박')[2]<4):
             raise ValueError('actual Press and Adept Intimidate required')
         if pupil.fainted:raise ValueError('conscious Press target required')
         parent=None
@@ -323,7 +322,7 @@ def press(engine,owner,target,*,stats,obedience=False,whip=None):
             for stat in stats:e.change_stage(pupil,stat,1)
             if obedience:
                 TIMING.install(e,trainer,{'source':PRESS_ACTION,'press_target':pupil.entity_id,
-                    'press_obedience':S.effective_rank(e.r,trainer,'협박')//2,'round_end_deadline':e.round_no})
+                    'press_obedience':__import__('hobbyist').direct_rank(trainer,PRESS_ACTION,'협박',effective=True)//2,'round_end_deadline':e.round_no})
             if whip is not None and whip.get('order') is not None:
                 order=whip['order'];feature=order if isinstance(order,str) else order['feature']
                 if feature not in e.r.selection.units:feature=e.r.selection.resolve_name(feature,('feat/',))

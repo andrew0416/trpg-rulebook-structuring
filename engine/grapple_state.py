@@ -202,25 +202,39 @@ def _multipart_contest(e,actor,row,checks,choices,tie_winner,request_id,intent,*
     actors=_actors(e,row);plans=[]
     for owner in (actor,*(c for c in actors if c is not actor)):
         check=checks[owner.entity_id];Q._fields(check,('skill','options'))
-        if SKILLS.skill_id(e.r.skill_policy,check['skill'],required=True) not in allowed:raise ValueError('Combat or Athletics grapple check required')
+        slipped=OP.slippery_skill(e,owner,check['skill'],SOURCE+'/contest')
+        if SKILLS.skill_id(e.r.skill_policy,check['skill'],required=True) not in allowed and slipped is None:raise ValueError('Combat or Athletics, or actual Slippery defending grapple check required')
+        if slipped is not None and (choices or {}).get(owner.entity_id) not in (None,'end'):raise ValueError('successful Slippery grapple defense may end the grapple, never gain dominance')
         if type(check['options']) is not dict:raise ValueError('actual participant skill options required')
         options=dict(check['options']);_,bind_bonus=_bind_bonuses(e,owner)
         options['mods']=options.get('mods',0)+row['secure'].get(owner.entity_id,0)+bind_bonus
-        plans.append((owner,check['skill'],options))
+        plans.append((owner,slipped or check['skill'],options))
     anchor=next(c for c in actors if c.entity_id==row['dominant'])
     signature=row['sha256'];uid=row['id']
     prepared=SM.prepare(e,actor,anchor,SOURCE+'/contest',dict(relation_id=uid,relation_sha256=signature,request_id=request_id),plans,observe=True)
-    def resolve(rolls):
+    def resolve(rolls,helped=False):
         totals={owner.entity_id:roll.total for (owner,_,_),roll in zip(plans,rolls)}
         highest=max(totals.values());leaders=[identity for identity,total in totals.items() if total==highest]
         # The existing defender keeps a tied highest check (ch06:33-34).
         winner=row['dominant'] if row['dominant'] in leaders else leaders[0] if len(leaders)==1 else None
-        if tie_winner is not None:
+        if tie_winner is not None and (not helped or winner is None):
             if winner is not None or tie_winner['actor_id'] not in leaders:raise ValueError('GM may choose only among unresolved actual highest participants')
             winner=tie_winner['actor_id']
         basis=dict(relation_id=uid,request_id=request_id,check_totals=totals,highest_ids=leaders)
         if winner is None:raise _AwaitContestDecision(C.PendingDecision('GM resolves the observed highest grapple tie',basis=basis))
+        if not helped:
+            import skill_feature_actions as SF
+            offered=[i for i,(member,_,_) in enumerate(plans) if member.entity_id in getattr(e,'_let_me_help_offers',{})]
+            if len(offered)>1:raise ValueError('multiple Let Me Help reactions need explicit native reaction ordering')
+            if offered:
+                index=offered[0];member,skill,options=plans[index]
+                dc=rolls[index].total if member.entity_id==winner else max(r.total for i,r in enumerate(rolls) if i!=index)+int(member.entity_id!=row['dominant'])
+                SF.resolve_check(e,member,skill,dc,rolls[index],options)
+                rolls=list(rolls);rolls[index]=SF.event(e,member,options['roll_id']).final or rolls[index]
+                return resolve(rolls,True)
         choice=(choices or {}).get(winner)
+        winner_check=checks[winner]['skill'];winner_actor=next(c for c in actors if c.entity_id==winner)
+        if OP.slippery_skill(e,winner_actor,winner_check,SOURCE+'/contest') is not None:choice='end'
         if choice is None:raise _AwaitContestDecision(C.PendingDecision('actual grapple winner chooses keep or end',basis=dict(basis,winner_id=winner)))
         return winner,choice,totals
     def outcome(resolved):

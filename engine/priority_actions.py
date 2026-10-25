@@ -109,9 +109,10 @@ def _prepare(engine, actor, target, move_id, trainer, stat_trainer=None, chronic
     policy = definition(engine.r)
     if signature_technique:
         import ace_trainer as ACE
-        if ACE.bloodied_authority(engine,actor,move_id) is None:
+        authority=ACE.bloodied_authority(engine,actor,move_id)
+        if authority is None:
             raise ValueError('actual Bloodied Speed investment required')
-        return move,ACE.SIGNATURE
+        return move,authority['source']
     if chronicler is not None:
         # Situational Awareness: the ally's next action is Priority (Advanced);
         # an acted ally forgoes its next-round turn through the ordinary loan location.
@@ -206,15 +207,7 @@ def use(engine, actor, target, move_id, *, shocking_speed=None, stat_maneuver=No
             finally:
                 if hasattr(e,'_rogue_ambush'):del e._rogue_ambush
         except Exception as error:
-            import passive_events as PASSIVE
-            import heavy_injury_adapter as HEAVY
-            if (type(error) is PASSIVE.PassiveEventPending and
-                    e._passive_pending == error.event_id and error.event_id in e._passive_events):
-                pending.append((PASSIVE.PassiveEventPending, error.event_id))
-                return None
-            if (type(error) is HEAVY.HeavyPending and
-                    e._heavy_pending == error.event_id and error.event_id in e._heavy_events):
-                pending.append((HEAVY.HeavyPending, error.event_id))
+            if GRANTS.record_native_pending(e, error, pending):
                 return None
             raise
         completions = [row for key, row in e._move_completions.items() if key not in before

@@ -46,7 +46,7 @@ def declaration(value):
                 Q._fields(adjustment,('source','parameter'));Q._text(adjustment['source']);Q._text(adjustment['parameter'])
         elif type(maximum) not in (int,float) or not isfinite(maximum) or maximum<0:raise ValueError('explicit finite sensory range in grid cells required')
     import aura_state as A,aura_pulse as P
-    permitted={'entity':ENTITY_FIELDS,'aura':('presence',*A.FIELDS),'surface':('presence','surface_thought')}
+    permitted={'entity':ENTITY_FIELDS,'aura':('presence',*A.FIELDS),'surface':('presence','surface_thought'),'psychic_residue':('presence','traces')}
     if value['provider'] not in permitted or not set(value['information'])<=set(permitted[value['provider']]):raise ValueError('requested sensory information has no supported source provider')
     if value['provider']=='aura' and value['source']!=A.SOURCE or value['provider']=='surface' and value['source']!=P.SOURCE:raise ValueError('native aura information retains its own selected source')
     check=value['check']
@@ -195,11 +195,15 @@ def _result(value,status,reason,values=None):
 
 def route(engine,observer,target,value,*,information=None):
     value=declaration(value);uid=_actual(engine,observer,target);Q._selected(engine,value['source'])
+    if value['provider']=='psychic_residue':__import__('psionic_sight').route(engine,observer,target,value)
     chosen=list(value['information']) if information is None else information;_names(chosen)
     if not set(chosen)<=set(value['information']):raise ValueError('information exceeds this actual sensing declaration')
     if value['mode']=='visual' and observer.spec.get('oracle_focus') is not None:return value,chosen,_result(value,'not_observable','mark_of_vision_eyes_closed')
     current={S.key(name) for name in G.effective_capabilities(observer)}
     if value['capabilities'] and not current.intersection(S.key(name) for name in value['capabilities']):raise ValueError('current declared sensing capability required')
+    if value['mode']=='visual' and type(target) is not dict:
+        blocked=__import__('invisibility_state').visual_block(engine,target,observer=observer)
+        if blocked is not None:return value,chosen,_result(value,'unknown' if blocked=='invisibility_time_unknown' else 'not_observable',blocked)
     import aura_state as A,aura_pulse as P
     if value['provider'] in ('aura','surface'):
         required=('파동 감지','Aura Reader',A.SOURCE) if value['provider']=='aura' else ('파동술','Aura Pulse',P.SOURCE)
@@ -241,6 +245,7 @@ def route(engine,observer,target,value,*,information=None):
 
 
 def _values(engine,observer,target,value,chosen):
+    if value['provider']=='psychic_residue':return _result(value,'observed','permitted_information',__import__('psionic_sight').values(engine,observer,target,chosen))
     disguised=__import__('illusion_state').ability_illusion_sensory(engine,observer,target,value,chosen)
     if disguised is not None:return _result(value,*disguised)
     disguised=__import__('illusion_state').genjutsu_sensory(engine,observer,target,value,chosen)
@@ -283,6 +288,11 @@ def observe(engine,observer,target,value,*,information=None,roll_options=None):
     if blocked is not None:return blocked
     if value['check'] is None:
         if roll_options:raise ValueError('passive sensing has no declared skill roll')
+        if value['provider']=='psychic_residue':
+            def apply(e,c,other):
+                _,_,blocked=route(e,c,other,value,information=chosen)
+                return blocked if blocked is not None else _values(e,c,other,value,chosen)
+            return G.transition(engine,observer,apply,participants=(target,))
         result=_values(engine,observer,target,value,chosen)
         import optional_physical_equipment as OPTIONAL_EQUIPMENT
         return OPTIONAL_EQUIPMENT.reveal_observation(engine,observer,target,result)
@@ -298,7 +308,7 @@ def observe(engine,observer,target,value,*,information=None,roll_options=None):
         if travel_bonus:
             options['mods']=options.get('mods',0)+travel_bonus
             e.log('  스킬 보너스 '+__import__('chronicler').CLASS+': Travel Archive present place +'+str(travel_bonus),__import__('chronicler').CLASS)
-        result=C.against_dc(e.skill_roll(c,check['skill'],skill_target=other,**options),check['dc'])
+        result=__import__('skill_feature_actions').resolve_check(e,c,check['skill'],check['dc'],e.skill_roll(c,check['skill'],skill_target=other,**options),options)
         sensed=_values(e,c,other,value,chosen) if result.passed else _result(value,'not_observable','check_failed')
         import optional_physical_equipment as OPTIONAL_EQUIPMENT
         sensed=OPTIONAL_EQUIPMENT.reveal_observation(e,c,other,sensed)

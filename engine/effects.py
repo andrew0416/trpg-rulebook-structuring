@@ -147,7 +147,7 @@ def apply_stage_changes(engine, source_actor, target, changes, *, source_id, con
         if delta < 0 and STATIC_EQUIPMENT.blocks_stage_loss(engine, target, source_actor, ctx, origin_source_id=origin_source_id, source_side=source_side):
             engine.log(f"    {target.name} {st} 단계 하락 차단 (클리어참)", "item/클리어참")
             continue
-        if delta < 0 and target is not source_actor and (st in target.stage_loss_immune or "all" in target.stage_loss_immune):
+        if delta < 0 and target is not source_actor and any(__import__('trickster').set_contains(engine,target,'stage_loss_immune',key) for key in (st,'all')):
             engine.log(f"    {target.name} {st} 단계 하락 면역 (특성)", "ability/immune_stage_loss")
             continue
         if st in target.stages:
@@ -1036,6 +1036,7 @@ def passive_status_immunity(engine, actor, condition):
             continue
         if not isinstance(source, str) or not source.startswith("ability/"):
             continue
+        if __import__('trickster').ignores_defensive(engine,actor,source):continue
         statuses = effect.get("status")
         if statuses == condition or isinstance(statuses, list) and condition in statuses:
             return source
@@ -1253,7 +1254,7 @@ def fire_event(engine, c, ev, other=None):
         if key in EQUIPMENT.REACTIONS:
             EQUIPMENT.offer_reaction(engine,c,ev,other,key)
             continue
-        if not FREQ.activation_allowed(c, key, freq,engine=engine):
+        if not FREQ.activation_allowed(c, key, freq,engine=engine,action_actor=c if ab.get('_feat') else None):
             continue
         # Trigger admission precedes frequency/AP/action consumption. Unknown
         # source controls cannot consume an activation merely by being logged.
@@ -1291,7 +1292,7 @@ def fire_event(engine, c, ev, other=None):
         if ab.get("_feat"):
             if accepted:
                 AP.spend(c, ap_cost, header, ab.get("cost_effects", ab["effects"]))
-                FREQ.consume_activation(c, key, freq,engine=engine)
+                FREQ.consume_activation(c, key, freq,engine=engine,action_actor=c)
             else:
                 c.budget = budget_before
                 c.took_standard, c._action_history, c._restricted_action_taken, c._standard_action_round = action_before

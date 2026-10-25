@@ -165,6 +165,13 @@ def execute(e,actor,target_id,value,*,request_id,reason,inputs=None,accessible=N
         if check is not None:R.plan(staged,c,check['skill'],purpose='repair:'+value['id'],**options)
         if not TURN.spend(staged,c,value['action'],value['source']):return C.PendingDecision('actual repair action unavailable')
         rolled=None if check is None else staged.skill_roll(c,check['skill'],**options)
+        if rolled is not None and check['dc'] is not None:
+            import skill_feature_actions as SF
+            identity=SF._observed(staged,c,rolled,options)[0] if c.entity_id in getattr(staged,'_let_me_help_offers',{}) else options.get('roll_id')
+            SF.resolve_check(staged,c,check['skill'],check['dc'],rolled,options)
+            if identity is not None:
+                observed=SF.event(staged,c,identity)
+                if observed is not None and observed.final is not None:rolled=observed.final
         job=None
         if value['seconds']:job=JOBS.run_fixed(staged,c,(),seconds=value['seconds'],source=value['source'],context={'target_id':target_id,'repair':value['id'],'reason':reason})['job_id']
         state=_state(staged);target,payment,_,_,event=_preflight(staged,c,target_id,value,inputs,accessible,event_id,started_at=started_at)

@@ -37,6 +37,7 @@ def irreversible(engine,actor,source_id,*,event_id,reason):
 def preflight(actor,removed):
     rows=actor.spec.get('state_grants',{}).get('sources',{})
     removed=set(removed)
+    __import__('hobbyist').preflight_revoke(actor,removed)
     for identity,row in rows.items():
         dependencies=row.get('withdrawal_dependencies',[])
         uses=row.get('irreversible_uses',{})

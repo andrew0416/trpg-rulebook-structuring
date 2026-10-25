@@ -19,8 +19,7 @@ DEFINITIONS={u:{'span':list(span),'catalog_span':[2767,2767] if u==CLASS else li
 
 def records(actor,feature=None,active=False):
  import trainer_feature_acquisition as T
- return [r['static_acquisition'] for _,r,live in T._static_records(actor)
-  if r['static_acquisition']['feature_id'] in FEATURES and (feature is None or r['static_acquisition']['feature_id']==feature) and (not active or live)]
+ return [record for _, record in T.static_family_acquisitions(actor, FEATURES, feature, active=active)]
 
 
 def acquired(actor,feature):
@@ -128,6 +127,7 @@ def blessing(actor):
 def begin_move(e,actor,target,move,completion):
  row=e._move_completions[completion]
  if row['actor'] is not actor or row['move_id']!=move['id']:raise ValueError('actual native Aura Move origin required')
+ __import__('athlete').begin_move(e,actor,move,completion)
  if acquired(actor,SWORD) and 'aura_sword' not in row and move['id'] in (*MOVES[CLASS],*MOVES[MASTERY]) and move['class'] in ('물리','특수') and actor.side!=target.side and e.adjacent(actor,target):
   answer=e.rulings.decide({'type':'sword_of_body_and_soul','unit':SWORD,'actor':actor.name,'target':target.name,'move_id':move['id'],'text':'Spend 2 AP and a Swift Action; choose physical or special damage, or decline.'})
   if answer not in (None,False):
@@ -137,11 +137,13 @@ def begin_move(e,actor,target,move,completion):
   else:row['aura_sword']=None
  if row.get('aura_sword'):
   move['_aura_sword']=completion;row['target_moves'][target.entity_id]['_aura_sword']=completion
- if active_ability(actor,'ability/트위스트파워') and move['class'] in ('물리','특수'):
+ conditional_power=__import__('pokemon_move_edges').official_incandescence_power(e,actor,move)
+ if (active_ability(actor,'ability/트위스트파워') or conditional_power) and move['class'] in ('물리','특수'):
   if 'twisted_power' not in row:
    from source_context import verified_source
    verified_source(e.r,{'file':'input/db/abilities.csv','sha256':'87efebd17b0a5fe09c9db060a16a8844cf41be53d65eb35716cf62f80a177fae'},label='Twisted Power R422')
-   answer=False if row.get('aura_sword') else e.rulings.decide({'type':'twisted_power','unit':'ability/트위스트파워','actor':actor.name,'move_id':move['id'],'text':'Add half the other attack stat to this actual Move damage?'})
+   blocked=row.get('aura_sword') or row.get('athlete_regime',{}).get('enabled') or (__import__('pokemon_move_edges').incandescence_bound(e,actor,move) and not conditional_power)
+   answer=False if blocked else e.rulings.decide({'type':'twisted_power','unit':'ability/트위스트파워','actor':actor.name,'move_id':move['id'],'text':'Add half the other attack stat to this actual Move damage?'})
    if answer is not None and type(answer)is not bool:raise ValueError('explicit Twisted Power choice required')
    row['twisted_power']=answer is True
   move['_twisted_power_completion']=completion;row['target_moves'][target.entity_id]['_twisted_power_completion']=completion
@@ -179,11 +181,15 @@ def damage_move(e,actor,move):
 
 def attack_stat(e,actor,move,current):
  if sword(e,actor,move):return actor.staged('atk')+actor.staged('spa')
+ current+=__import__('athlete').move_bonus(e,actor,move)
  token=move.get('_twisted_power_completion')
  if token is not None:
   row=getattr(e,'_move_completions',{}).get(token)
   if row is None or row['actor'] is not actor or row['move_id']!=move['id']:raise ValueError('actual Twisted Power Move required')
-  if row.get('twisted_power') and active_ability(actor,'ability/트위스트파워'):return current+__import__('arithmetic_policy').ratio(actor.staged('spa' if move['class']=='물리' else 'atk'),2)
+  conditional_power=__import__('pokemon_move_edges').official_incandescence_power(e,actor,move)
+  if row.get('twisted_power') and (active_ability(actor,'ability/트위스트파워') or conditional_power):
+   if conditional_power and __import__('pokemon_move_edges').mixed_power(actor):return current
+   return current+__import__('arithmetic_policy').ratio(actor.staged('spa' if move['class']=='물리' else 'atk'),2)
  return current
 
 
@@ -278,7 +284,7 @@ def native_move(fn):
  def run(engine,attacker,target,*args,**kwargs):
   import partial_entities as P
   P.require_complete(attacker,'Aura native Move attacker');P.require_complete(target,'Aura native Move target')
-  interested=any(acquired(attacker,u) for u in (SWORD,AMBIENT)) or active_ability(attacker,'ability/트위스트파워') or any(blessing(a) for a in __import__('world_entities').actor_index(engine).values())
+  interested=__import__('athlete').regime(attacker,'spa') or any(acquired(attacker,u) for u in (SWORD,AMBIENT)) or active_ability(attacker,'ability/트위스트파워') or __import__('type_ace').sustained(engine,attacker,'feat/작열') or any(blessing(a) for a in __import__('world_entities').actor_index(engine).values())
   if not interested or getattr(engine,'_reactive_move_transaction',False):return fn(engine,attacker,target,*args,**kwargs)
   def staged(e,a,t):
    payload=G._stage_transition_payload(engine,e,{'args':args,'kwargs':kwargs})

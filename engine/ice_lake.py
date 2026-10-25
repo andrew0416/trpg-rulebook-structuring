@@ -317,7 +317,7 @@ def observe_completion(e, completion):
             target = event['target']; gained = _injuries(event)
             if gained <= 0 or not event.get(KEY, {}).get('ice_contact'):
                 continue
-            check = C.against_dc(e.skill_roll(target, '곡예'), row['injury_check']['dc'])
+            check = __import__('skill_feature_actions').resolve_check(e,target,'곡예',row['injury_check']['dc'],e.skill_roll(target,'곡예'))
             if not check.passed:
                 e.apply_status(target, '넘어짐', source=SOURCE)
             evidence['injury_checks'][target.entity_id] = {

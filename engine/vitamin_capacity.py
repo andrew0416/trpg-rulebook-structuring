@@ -40,6 +40,13 @@ def historical_limit(rules,spec):
         elif kind=='vm':
             if not isinstance(identity,str) or not identity or not any(x.get('method')=='vm' and x.get('application_id')==identity and x.get('move_id')==row.get('move_id') for x in spec.get('move_learning_log',[]) if isinstance(x,dict)):
                 raise ValueError('historical eligibility must identify the actual VM application')
+        elif kind=='personal_tutor':
+            import personal_tutoring as PERSONAL
+            if not isinstance(identity,str) or not identity or not any(
+                    x.get(PERSONAL.MARKER)==PERSONAL.CSV_SOURCE and
+                    x.get('personal_tutor_application_id')==identity and x.get('move_id')==row.get('move_id')
+                    for x in spec.get('move_learning_log',[]) if isinstance(x,dict)):
+                raise ValueError('historical eligibility must identify the actual CSV Personal Tutor application')
         else:raise ValueError('unknown Vitamin eligibility application')
         key=(kind,identity)
         if key in seen:raise ValueError('duplicate Vitamin eligibility application')

@@ -30,7 +30,7 @@ def medic(e,user,target):
  if user.kind!='trainer':raise ValueError('Medic Training requires an acquired trainer edge')
  if e.r._selected_rule(MEDIC)!=MEDIC:raise ValueError('selected Medic Training needs its own application policy')
  import skill_modifiers as SKILL
- if SKILL.rank(e.r,user,'의학')[2]<3:raise ValueError('Medic Training requires Novice Medicine')
+ if not __import__('hobbyist').skill_waived(user,MEDIC) and SKILL.rank(e.r,user,'의학')[2]<3:raise ValueError('Medic Training requires Novice Medicine')
  return True
 
 def special_apply(e,target,uid):

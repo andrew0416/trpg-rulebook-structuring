@@ -42,9 +42,13 @@ def validate(engine,index=None):
   if duration is None and (deadline is not None or count is not None):raise ValueError('indefinite weather cannot have a deadline')
   if count is not None and type(count) is not int:raise ValueError('invalid weather initiative count')
   item_extension=record.get('item_extension')
+  extensions=record.get('trickster_extensions',[])
+  if type(extensions) is not list or any(type(x) is not dict or set(x)!={'source','completion','trainer_id','added'} or x['source']!=__import__('trickster').ENCORE or x['added']!=2 or not isinstance(x['completion'],str) or not isinstance(x['trainer_id'],str) for x in extensions) or len({x['completion'] for x in extensions})!=len(extensions):raise ValueError('actual Encore weather extensions required')
+  added=2*len(extensions)
+  if added and (duration is None or duration<=added):raise ValueError('Encore extends only an actual finite Weather occurrence')
   if item_extension is not None:
    import weather_duration_items as DURATION_ITEMS
-   DURATION_ITEMS.validate(item_extension,actor_id=record.get('actor_id'),weather=record['weather'],duration=duration)
+   DURATION_ITEMS.validate(item_extension,actor_id=record.get('actor_id'),weather=record['weather'],duration=duration-added)
   import homebrew_weather as HOME_WEATHER
   HOME_WEATHER.validate_record(engine,record,active=record is active,index=index)
  if len({r['id'] for r in records})!=len(records):raise ValueError('duplicate weather occurrence')
@@ -65,6 +69,20 @@ def state(engine):
  validate(engine)
  if not hasattr(engine,KEY):setattr(engine,KEY,{'version':1,'sequence':0,'active':None,'natural':None,'history':[]})
  return getattr(engine,KEY)
+
+
+def extend_from_completion(engine,actor,completion,turns):
+ import trickster as T
+ if turns!=2 or completion['actor'] is not actor or completion['phase']!='complete':raise ValueError('actual Encore Weather completion required')
+ s=state(engine)
+ rows=[r for r in ([s['active']] if s['active'] else [])+s.get('layers',[]) if r.get('actor_id')==actor.entity_id and r['source_id']==completion['move_id'] and r['started_round']==completion['round']]
+ if len(rows)!=1 or rows[0]['duration'] is None:raise ValueError('Encore requires the actual finite Weather activated by this Move')
+ row=rows[0];trainer=T.owner(engine,actor,T.ENCORE)
+ row.setdefault('trickster_extensions',[]).append({'source':T.ENCORE,'completion':completion['id'],'trainer_id':trainer.entity_id,'added':2})
+ row['duration']+=2;row['deadline_round']+=2
+ if row is s['active'] and engine.weather_rounds is not None:engine.weather_rounds+=2
+ validate(engine)
+ return row['id']
 
 def effective_state(engine,actor,*,include_virtual=True):
  """Actor-local weather; passive effects exclude Booster, retaining Umbrella."""

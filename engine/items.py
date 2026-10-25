@@ -724,6 +724,7 @@ def _static_feature(header, manual, action):
 
 def _generic_feature_reserved(engine, owner, name):
     """Pure routing query; never run acquisition adapters to discover ownership."""
+    if name in __import__('conquerors_march').FEATURES and __import__('conquerors_march').acquired(owner,name):return True
     if name in __import__('warper').FEATURES and __import__('warper').acquired(owner,name):return True
     if name in __import__('telepath').FEATURES and __import__('telepath').acquired(owner,name):return True
     if name in __import__('telekinetic').FEATURES and __import__('telekinetic').acquired(owner,name):return True
@@ -841,7 +842,7 @@ def register_feats(engine, c, pokemon=None):
     pokemon = pokemon or [p for p in (engine.everyone or []) if p is not c and p.kind == "pokemon" and p.spec.get("trainer") == c.name]
     total = acquired_projection_count + feature_ability_count + scene_ability_count + static_modifier_count + static_feature_count
     for name in names:
-        if name in {*__import__('commander').FEATURES,*__import__('commander').BUNDLES,*__import__('commander_orders').FEATURES}:continue
+        if name in {*__import__('commander').FEATURES,*__import__('commander').BUNDLES,*__import__('commander_orders').FEATURES,*__import__('focused_command').FEATURES}:continue
         import oracle as ORACLE
         if name in ORACLE.FEATURES and ORACLE.acquired(c,name):continue
         import native_switch_transfer as SWITCH
@@ -956,11 +957,13 @@ def manual_feat(engine, c, name, target=None, *, adjustment=None, communication=
         options={} if adjustment is None else adjustment
         if type(options)is not dict or set(options)-{'edition'}:raise ValueError('explicit Training Order source selection only')
         return TRAINING.orders(engine,c,name,target,communication=communication,**options)
-    if adjustment is not None:
-        raise ValueError("adjustment belongs only to an explicit directive choice")
     import conquerors_march as MARCH
     if name in (MARCH.FEATURE,'정복자의 행진','Conqueror’s March'):
-        return MARCH.use(engine,c,target,event_id='conquerors-march:'+c.entity_id+':'+str(len(MARCH._uses(c))+1))
+        options={} if adjustment is None else adjustment
+        if type(options) is not dict or set(options)-{'edition'}:raise ValueError('explicit Conqueror source edition only')
+        return MARCH.use(engine,c,target,event_id='conquerors-march:'+c.entity_id+':'+str(len(MARCH._uses(c))+1),**options)
+    if adjustment is not None:
+        raise ValueError("adjustment belongs only to an explicit directive choice")
     if name in (MARCH.RAMMING,'래밍 스피드','Ramming Speed'):
         raise ValueError('Ramming Speed Extended TP lesson requires its separate teaching adapter')
     import feature_ability_lessons as ABILITY_LESSONS
@@ -980,7 +983,7 @@ def manual_feat(engine, c, name, target=None, *, adjustment=None, communication=
                 return (0, 1)
             frequency = e.get("frequency") or {}
             key = e.get("usage_key", name)
-            if not FREQ.activation_allowed(c, key, frequency,engine=engine):
+            if not FREQ.activation_allowed(c, key, frequency,engine=engine,action_actor=c):
                 engine.log(f"  재주 {name}: 사용 횟수 소진 → 실행 거부", f"feat/{name}")
                 return (0, 1)
             cost = AP.check(engine, c, header, e.get("cost_effects", e["effects"]))
@@ -999,7 +1002,7 @@ def manual_feat(engine, c, name, target=None, *, adjustment=None, communication=
             result = FX.run_effects(engine, c, tgt, [dict(x, target=x.get("target", "target")) for x in e["effects"] if x.get("type") != "cost"], {"attacker": c, "target": tgt, "hit": True, "nat": None, "engine": engine}, f"feat/{name}")
             if result[0] > 0:
                 AP.spend(c, cost, header, e.get("cost_effects", e["effects"]))
-                FREQ.consume_activation(c, key, frequency,engine=engine)
+                FREQ.consume_activation(c, key, frequency,engine=engine,action_actor=c)
                 import cheerleader as CHEER
                 CHEER.batch_activation(engine,c,header.get("id",key),result,orders=True)
             else:

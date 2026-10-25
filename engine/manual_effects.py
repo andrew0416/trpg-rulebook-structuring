@@ -140,9 +140,9 @@ def activate(engine,actor,ability,target):
  def apply(e,giver,holder):
   import frequency as F,turn as TURN
   key='ability:'+reg['name']
-  if not F.activation_allowed(giver,key,act['frequency'],engine=e):raise ValueError('manual ability Scene frequency exhausted')
+  if not F.activation_allowed(giver,key,act['frequency'],engine=e,action_actor=giver):raise ValueError('manual ability Scene frequency exhausted')
   if not TURN.spend(e,giver,act['action'],reg['name']):raise ValueError('manual ability action unavailable')
-  F.consume_activation(giver,key,act['frequency'],engine=e)
+  F.consume_activation(giver,key,act['frequency'],engine=e,action_actor=giver)
   state=F.state(giver);sequence=C.integer(giver.spec.get(SEQUENCE,0),'manual ability sequence',0)+1
   receipt={'id':giver.entity_id+':effect-grant:'+str(sequence),'sequence':sequence,'giver_id':giver.entity_id,'holder_id':holder.entity_id,'effect_id':holder.entity_id+':effect:'+str(C.integer(holder.spec.get(E.SEQUENCE,0),'effect sequence',0)+1),'source':source,'at':e.elapsed_seconds,'scene':state['scene'],'used':state['activations'][key]['used'],'action':act['action']}
   giver.spec[SEQUENCE]=sequence;giver.spec.setdefault(HISTORY,[]).append(receipt)

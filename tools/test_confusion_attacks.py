@@ -38,7 +38,8 @@ class ConfusionTests(unittest.TestCase):
     def test_actual_physical_special_and_no_accuracy_status_use_correct_loss_once(self):
         for mid,stat in (('move/분노의앞니','atk'),('move/스피드스타','spa'),('move/칼춤',None)):
             with self.subTest(move=mid):
-                self.setUp();expected=self.a.staged(stat)//2 if stat else 2*self.e.tick(self.a)
+                self.setUp();self.e.start_round(self.e.everyone);self.e.start_of_turn(self.a,initiative_count=20)
+                expected=self.a.staged(stat)//2 if stat else 2*self.e.tick(self.a)
                 TEMP.grant(self.e,self.a,5);hp=self.a.hp
                 self.use(mid,self.a if stat is None else self.b)
                 row=self.latest();self.assertEqual(row['phase'],'complete');self.assertEqual(row['confusion']['face'],1)

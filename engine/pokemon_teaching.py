@@ -275,6 +275,9 @@ def teach_edge(e,actor,*,target,edge,skill=None,stat=None,capability=None,move_i
   credit_mode(from_grooming,from_training)
   return RESEARCH.teach_funded(e,actor,target,edge,lambda se,so,st:teach_edge(se,so,target=st,edge=edge,skill=skill,stat=stat,capability=capability,move_id=move_id,growth=growth,lesson=lesson,ability=ability,negative_decision=negative_decision,safe=safe,_pusher_funded=True))
  import pokemon_move_edges as MOVE_EDGES
+ if edge==MOVE_EDGES.OFFICIAL_MIXED:
+  if any(x is not None for x in (skill,stat,capability,move_id,growth,lesson,ability,negative_decision)) or from_grooming or from_training:raise ValueError('official Mixed Power uses its actual completed teaching hour without choices')
+  return MOVE_EDGES.teach_official_mixed_power(e,actor,target,safe=safe)
  if edge in (MOVE_EDGES.MIXED_POWER,'Mixed Power'):
   if any(x is not None for x in (skill,stat,capability,move_id,growth,lesson,ability,negative_decision)) or from_grooming or from_training:raise ValueError('Mixed Power uses its actual completed teaching hour without choices')
   return MOVE_EDGES.teach_mixed_power(e,actor,target,safe=safe)

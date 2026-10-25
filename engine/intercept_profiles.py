@@ -110,8 +110,20 @@ def preflight_owned(engine,actor):
     source=_acquired(actor)
     if source is None:return None
     _policy(engine.r)
+    native=_native_acquisition(actor)
+    if native is not None:return source,native,False
     receipt,missing=_stat_plan(actor,source)
     return source,receipt,missing
+
+
+def _native_acquisition(actor):
+    import trainer_feature_acquisition as T
+    rows=T.static_acquisitions(actor,DEFENDER,active=True)
+    if not rows:return None
+    if len(rows)!=1:raise ValueError('one actual native Defender acquisition required')
+    sid,record=rows[0]
+    if actor.spec.get('state_grants',{}).get('stat_sources',{}).get('hp',{}).get('sources',{}).get(sid,{}).get('acquisition_stat_tag')!={'delta':1,'minimum':None}:raise ValueError('actual native Defender HP tag source required')
+    return {'kind':'native_feature_acquisition','source_id':sid,'acquisition':deepcopy(record)}
 
 
 def register_owned(engine,actor,name):
@@ -159,6 +171,14 @@ def validate_profile(engine,actor,value,*,historical=True):
             or proof['actor_id']!=actor.entity_id or actor.kind!='trainer'):
         raise ValueError('Defender profile source owner changed')
     receipt=proof['acquisition'];source=proof['source_id']
+    if type(receipt)is dict and receipt.get('kind')=='native_feature_acquisition':
+        import trainer_feature_acquisition as T
+        if set(receipt)!={'kind','source_id','acquisition'}:raise ValueError('exact native Defender acquisition evidence required')
+        record=receipt['acquisition'];sid=receipt['source_id']
+        if not any(s==sid and acquired==record for s,acquired in T.static_acquisitions(actor,DEFENDER,active=not historical)):raise ValueError('actual source-owned Defender acquisition receipt missing')
+        if record['source']!=T._static_source(actor.r,DEFENDER) or record['actor_id']!=actor.entity_id or record['integrity']!=T._digest('trainer-feature/static-acquisition/v1',{k:v for k,v in record.items() if k!='integrity'}) or record['qualification']!=T._static_qualification(actor,DEFENDER,record['snapshot'],record['prerequisite_source']):raise ValueError('native Defender acquisition provenance changed')
+        if not historical and _native_acquisition(actor)!=receipt:raise ValueError('native Defender live source or HP grant changed')
+        return True
     prereq=receipt.get('qualification') if isinstance(receipt,dict) else None
     if (type(receipt)is not dict or set(receipt)!={'source','stat','delta','before','after','mode','qualification'}
             or receipt['source']!=source or receipt['stat']!='hp' or type(receipt['delta'])is not int

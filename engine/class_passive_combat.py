@@ -294,6 +294,7 @@ def _species_family(actor, species):
     import pokemon_activities as ACTIVITIES
     from builder import species_lookup
     _species_family_sources(actor.r)
+    if species is None:return None
     try:
         selected = species_lookup(actor.r, species)
         if selected.get("_source", {}).get("file") != "db/pokemon.csv":
@@ -394,7 +395,8 @@ def acquire_species_savant(engine, trainer, *, acquisition_request_id, selected_
         pokemon = index.get(uid)
         reserve = trainer.spec.get("pokemon_registry", {}).get(uid)
         if pokemon is not None and pokemon.kind == "pokemon" and pokemon.spec.get("trainer_id") == trainer.entity_id:
-            species, basis = pokemon.spec["species"], "actual_actor"
+            species, basis = pokemon.spec.get("species"), "actual_actor"
+            if not isinstance(species,str) or not species:raise ValueError('Species Savant requires an actual known Pokemon species')
         elif (pokemon is None and isinstance(reserve, dict) and reserve.get("sheet_pending") is True and
                 reserve.get("owner_id") == trainer.entity_id and reserve.get("location") in ("storage", "sale_transport")):
             species, basis = reserve["species"], "registered_reserve"
@@ -721,7 +723,7 @@ def preflight_glacial(engine, attacker, target, move, mm):
 
 
 def accuracy_bonus(engine, attacker, target, move, mm):
-    extreme = __import__('researcher_fields').accuracy_modifier(engine, attacker)
+    extreme = __import__('researcher_fields').accuracy_modifier(engine, attacker)+__import__('athlete').maneuver_accuracy(engine,attacker,move)
     if _active(engine, attacker, ADAPTIVE) and move.get("type") == "벌레":
         return extreme + (2 if _effectiveness_preview(engine, attacker, target, move, mm) > 1 else 0)
     return extreme

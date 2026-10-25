@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "execution_kind": "procedural_runner",
+  "unit_id": "script:tools/audit_common_activation_matrix.py",
+  "unit_kind": "procedural_script_runner",
+  "required_runner_ids": [
+    "script:tools/audit_common_activation_matrix.py"
+  ],
+  "completed": {},
+  "original_contract_sha256": "f61cf414d4a37d60ab67031bb7155700b59646aff654a49f4a715de181279fd9",
+  "inventory_sha256": "644d8b97633d5f09fe8bbce02e0e7e132a499757ef4d9509bad25f90f3edf5a8",
+  "runner": {
+    "source_path": "tools/audit_common_activation_matrix.py",
+    "argv": [
+      "python",
+      "-B",
+      "-X",
+      "utf8",
+      "-I",
+      "{stage}/tools/audit_common_activation_matrix.py"
+    ],
+    "cwd": "{stage}",
+    "environment": {
+      "TEMP": "{stage}/.tmp",
+      "TMP": "{stage}/.tmp"
+    },
+    "report": {
+      "path": "output/common-activation-matrix-audit.json",
+      "kind": "json_results_array"
+    },
+    "additional_outputs": [],
+    "mutations": {
+      "temporarily_modified_restored": [],
+      "generated_retained": []
+    },
+    "result_buffer": "results",
+    "entry_function": null,
+    "sort_results_by_id": false,
+    "source_sha256": "d03b8b616b0d89701ec5aa86fe9487bf9f2a5fc327844bf8ca5958cd2e83f5ca"
+  }
+}

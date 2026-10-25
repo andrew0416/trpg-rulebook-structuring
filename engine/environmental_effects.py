@@ -327,7 +327,7 @@ def fall(e,c,*,action_id,meters,intentional,reason,acrobatics=False,acrobatics_o
         checks={}
         for index,(key,dc,opts) in enumerate(plans):
             roll=observed[index] if observed is not None else staged.skill_roll(c,'곡예',**opts)
-            checks[key]=C.against_dc(roll,dc);SF.finish(staged,c,opts.get('roll_id'))
+            checks[key]=SF.resolve_check(staged,c,'곡예',dc,roll,opts);SF.finish(staged,c,opts.get('roll_id'))
         jump=base_jump+int(bool(checks.get("jump_boost") and checks["jump_boost"].passed))
         distance=max(0,meters-__import__('martial_artist').fall_reduction(staged,c)-jump+surface_meters)
         acro=int(bool(checks.get("falling_acrobatics") and checks["falling_acrobatics"].passed))
@@ -376,11 +376,11 @@ def fall(e,c,*,action_id,meters,intentional,reason,acrobatics=False,acrobatics_o
         sequence_key='fall:'+c.spec.get('id',c.name)+':'+action_id
         try:
             result=SF.sequence(e,sequence_key,basis,[(c,'곡예',opts) for _,_,opts in plans],
-                lambda rolls:COMMON._staged_rolls(e,lambda staged:calculate(staged,rolls)))
+                lambda rolls:COMMON._staged_rolls(e,lambda staged:calculate(staged,rolls),actors=(c,)))
         finally:
             if sequence_key not in getattr(e,'_skill_sequences',{}):c.spec.pop('_fall_skill_inflight',None)
         c.spec.pop('_fall_skill_inflight',None)
-    else:result=COMMON._staged_rolls(e,calculate)
+    else:result=COMMON._staged_rolls(e,calculate,actors=(c,))
     # Save the actual outcome before any potential adjudication boundary. A new
     # request cannot reroll this real fall merely because an exception is pending.
     result["status"]="calculated"

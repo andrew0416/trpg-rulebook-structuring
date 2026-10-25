@@ -49,8 +49,7 @@ def _text(value,label):
 # ---------------------------------------------------------------- acquisition
 def records(actor,feature=None,active=False):
  import trainer_feature_acquisition as T
- return [r['static_acquisition'] for _,r,live in T._static_records(actor)
-  if r['static_acquisition']['feature_id'] in FEATURES and (feature is None or r['static_acquisition']['feature_id']==feature) and (not active or live)]
+ return [record for _, record in T.static_family_acquisitions(actor, FEATURES, feature, active=active)]
 
 
 def acquired(actor,feature,*,exclude=()):
@@ -124,7 +123,8 @@ def qualification(actor,feature,snapshot,prerequisite_source):
 def require(engine,actor,feature=CLASS):
  import world_entities as W
  W.require_actors(engine,actor)
- if actor.kind!='trainer' or acquired(actor,CLASS) is None or (feature!=CLASS and acquired(actor,feature) is None):
+ hobbyist=feature==STYLE and __import__('hobbyist').provider(actor,feature) is not None
+ if actor.kind!='trainer' or (acquired(actor,CLASS) is None and not hobbyist) or (feature!=CLASS and acquired(actor,feature) is None):
   raise ValueError('actual acquired Fashionista Feature required: '+feature)
  return acquired(actor,feature)
 
@@ -137,9 +137,10 @@ def _owned_pokemon(engine,trainer,pokemon):
 
 def trainer_of(engine,actor,feature=CLASS,*,exclude=()):
  import world_entities as W
- if actor.kind=='trainer':return actor if acquired(actor,feature,exclude=exclude) and acquired(actor,CLASS,exclude=exclude) else None
+ if actor.kind=='trainer':return actor if acquired(actor,feature,exclude=exclude) and (acquired(actor,CLASS,exclude=exclude) or (feature==STYLE and not exclude and __import__('hobbyist').provider(actor,feature))) else None
  owner=W.actor_index(engine).get(actor.spec.get('trainer_id'))
- if owner is None or owner.kind!='trainer' or acquired(owner,CLASS,exclude=exclude) is None or acquired(owner,feature,exclude=exclude) is None:return None
+ if owner is None or owner.kind!='trainer' or acquired(owner,feature,exclude=exclude) is None:return None
+ if acquired(owner,CLASS,exclude=exclude) is None and not (feature==STYLE and not exclude and __import__('hobbyist').provider(owner,feature)):return None
  return owner
 
 

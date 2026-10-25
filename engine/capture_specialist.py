@@ -56,6 +56,9 @@ def technique_source(rules,name,variant):
  raise ValueError('select an actual printed Capture technique source variant')
 
 def technique(actor,name,*,required=False):
+ if name in ('거짓 타격','캐치 콤보') and __import__('hobbyist').provider(actor,'feat/포획-테크닉') is not None:
+  technique_source(actor.r,name,CORE)
+  return CORE
  CT.validate_actor(actor)
  choices=[p['choice'] for r in CT._rows(actor) for p in r['selection']['proofs'] if p['choice']['technique']==name]
  if not choices:

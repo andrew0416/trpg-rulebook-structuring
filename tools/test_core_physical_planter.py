@@ -10,7 +10,7 @@ import physical_planter as POT,world_entities as W,state_codec as CODEC
 import capability_actions as C,state_grants as GRANTS,campaign_rewards as REWARDS
 import common_checks as CHECKS,downtime as D
 
-ROOT=Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
+ROOT=Path(__file__).resolve().parents[1]
 
 
 class PhysicalPlanterTests(unittest.TestCase):

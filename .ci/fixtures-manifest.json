@@ -513,8 +513,8 @@
     },
     {
       "path": "data/feature-ability-lessons.json",
-      "sha256": "8ef36a2a04e9554be250f1d51df48c2270b0cad1902512aa77522807af459aab",
-      "size": 5359
+      "sha256": "adefc103807e8b73e5d218170acab2e7f215dddb0f93e849a76e7f9c192d5a99",
+      "size": 6078
     },
     {
       "path": "data/field-effect-policy.json",
@@ -530,6 +530,11 @@
       "path": "data/focus-punch-policy.json",
       "sha256": "8aa0c7b59f17f74766927e1aeb3c4155f0d0865166ce781bdd4da69bd851512d",
       "size": 1539
+    },
+    {
+      "path": "data/focused-command-source-contract.json",
+      "sha256": "b82d94adab0532945996e3f9016a5ad92bf3b1cb9ee85771466ad79d5e4e0a06",
+      "size": 3748
     },
     {
       "path": "data/food-buff-policy.json",
@@ -847,6 +852,11 @@
       "size": 1341
     },
     {
+      "path": "data/press-source-contract.json",
+      "sha256": "3be849e893324e8f6908070ea516606356855301e0725704809c2293c45198f8",
+      "size": 4177
+    },
+    {
       "path": "data/priority-actions-policy.json",
       "sha256": "16c6b119cfc5a8d0ad02e8233907f9a8a767abb7c4e3f68df56cbf5c57a21fa9",
       "size": 3842
@@ -1072,6 +1082,11 @@
       "size": 693
     },
     {
+      "path": "data/trickster-source-contract.json",
+      "sha256": "4da3054b6fe1db86646329874465ee8f80bd6f73fb5d4031c76ed6d9510d6612",
+      "size": 2470
+    },
+    {
       "path": "data/type-ace-close-quarters-source.json",
       "sha256": "5532613d31abdf19d7fcfb4ea9ac82ef31af230ce43bd532abb8fcd89ee2726d",
       "size": 1085
@@ -1100,6 +1115,11 @@
       "path": "data/vehicle-native-policy.json",
       "sha256": "95de872330ac591b68ab965755a403b853c85e8733c43bc3de1577fa6470a3bd",
       "size": 3380
+    },
+    {
+      "path": "data/verification/action-cost-semantics.json",
+      "sha256": "9849909b7e490376495f0d8e5b751f5f27d7e1626df99a4ba2993c7466aa9df5",
+      "size": 16100
     },
     {
       "path": "data/verification/audit-egg-fossil-authority-source-review.json",
@@ -1148,13 +1168,23 @@
     },
     {
       "path": "data/verification/category2-class-clause-status.json",
-      "sha256": "7f9bb7ec2dcdba1eec322b1766b5c0d6967199852f14d2410af30247d4683320",
-      "size": 8128008
+      "sha256": "97ce76b8e5165706a083a9cd1fb01866777d5fd2ef18936c66c3627b976d0dd6",
+      "size": 8295851
     },
     {
       "path": "data/verification/category2-class-csv-clause-status.json",
-      "sha256": "31ef0eac146100b942f7fbb2ce019e135b7fa6859362f10444339b7e6e90a817",
-      "size": 4302301
+      "sha256": "3914f2bfff6133f21098b5d1cd21bff4df940a573de70e33216d78aafb2b2717",
+      "size": 4965223
+    },
+    {
+      "path": "data/verification/category2-consumable-family-plan.json",
+      "sha256": "5e3d5a2536819fa053fe54a412517f9229390d234ae7231161013142ff575673",
+      "size": 141888
+    },
+    {
+      "path": "data/verification/category2-consumable-inventory-audit.json",
+      "sha256": "003b0e185c3375ff2d0a2b84d0bf3c0720a1de630e75c9d79f86b815bb26508a",
+      "size": 8740156
     },
     {
       "path": "data/verification/category2-core-block-status.json",
@@ -1172,9 +1202,14 @@
       "size": 4712523
     },
     {
+      "path": "data/verification/category2-cultivation-state-completion.json",
+      "sha256": "1861320efd8a3921e30e27043b78504b50a70aa1f78e72e077293b38c43bbd52",
+      "size": 30889
+    },
+    {
       "path": "data/verification/category2-edge-work-plan.json",
-      "sha256": "1053f45edc97ced8fe328b9d0db910bff2c8a195087b6646f5de77f26fdaaad1",
-      "size": 23253059
+      "sha256": "21d74d12e32cb7ab5910590cc5e60d6ffeb0963b6a5319ef82b5a1a64afeddf4",
+      "size": 25945032
     },
     {
       "path": "data/verification/category2-item-table-status.json",
@@ -1193,8 +1228,8 @@
     },
     {
       "path": "data/verification/category2-progress.json",
-      "sha256": "b02385e51bbcc7ba7c0569a90e4affb1001c31db8b9c9e6313d6e93681479dd5",
-      "size": 68341
+      "sha256": "7c4f3f59cda3b07695f8b33a20780750f3a539233d1778dc1c602bf6751776a4",
+      "size": 68340
     },
     {
       "path": "data/verification/category2-scope-freeze.json",
@@ -1207,9 +1242,14 @@
       "size": 2981219
     },
     {
+      "path": "data/verification/category2-vitamin-family-completion.json",
+      "sha256": "9dd274dc491be80b90aa76dde0eabdf673ccb20885c46826fca26f3fa749db89",
+      "size": 28492
+    },
+    {
       "path": "data/verification/category2-work-checkpoint.json",
-      "sha256": "8db1baaefe8a22c311df0269a0c299cc62416469e6012799b114649990bf3a70",
-      "size": 300283
+      "sha256": "1108cab50a6005c4244406e9240735c2338dc8757b1c012416693ef8f828bf59",
+      "size": 297854
     },
     {
       "path": "data/verification/category3-register.json",
@@ -1217,9 +1257,49 @@
       "size": 2500939
     },
     {
+      "path": "data/verification/common-action-lifecycle-independent-test-plan.json",
+      "sha256": "b0e7cc9f90f1de88aa4ff02bc65711d26352d7ba0eed5fda1c67306894703706",
+      "size": 69292
+    },
+    {
+      "path": "data/verification/common-action-lifecycle-runtime-bindings.json",
+      "sha256": "528f6750165eb4f28b86a4b16dd456a2b20688c6831aa71b7542ba32759bae07",
+      "size": 11195
+    },
+    {
+      "path": "data/verification/common-action-lifecycle-semantics.json",
+      "sha256": "b703dd7e7cbf64378a21220c3524433c106de0fefeca8e7f5cf31dd7541f455c",
+      "size": 262521
+    },
+    {
+      "path": "data/verification/common-action-lifecycle-source-review.json",
+      "sha256": "99fa3950a63819d6347572802606ce19733f332bb3dfed7e1bbf76c64c292cae",
+      "size": 264884
+    },
+    {
+      "path": "data/verification/common-activation-current-requirements.json",
+      "sha256": "f26283b5064f2fe57869c4b556102c902762d67f6765ddd9601110be2ed66da6",
+      "size": 522614
+    },
+    {
+      "path": "data/verification/common-activation-transition-contract.json",
+      "sha256": "b4485e32d333b1424187ddf242a67eb4cadbaa9b6e849eb6a9befcb681b654ac",
+      "size": 374502
+    },
+    {
+      "path": "data/verification/common-bound-ap-release-contract.json",
+      "sha256": "7b4852acc95cfd7229da600458d7a47484b261c82e2fb62331e33e643ad21b3a",
+      "size": 20792
+    },
+    {
       "path": "data/verification/common-check-semantics.json",
       "sha256": "5d4c4ae010d2050271ad3a2785cf87e5d878f9b2e4d938c3ca7cdde9ba5bf8ec",
       "size": 28518
+    },
+    {
+      "path": "data/verification/common-hp-resource-semantics.json",
+      "sha256": "6afdf435b026693500770492d4bd14557bcc0cae42178b1c818ddb1cb4e66e4b",
+      "size": 4391
     },
     {
       "path": "data/verification/common-initiative-semantics.json",
@@ -1227,9 +1307,144 @@
       "size": 23450
     },
     {
+      "path": "data/verification/common-numeric-semantics.json",
+      "sha256": "a073f544768e87fbfc31669ab6ae51e20a0a1323090a05f14899eb25342604a3",
+      "size": 61248
+    },
+    {
+      "path": "data/verification/common-precedence-edges.json",
+      "sha256": "9f1d95396356666f063d00a1d5fd2c3d0ac2964c0fc96f9b7c763b7a8d8e3c32",
+      "size": 60295
+    },
+    {
+      "path": "data/verification/common-probability-corrections.json",
+      "sha256": "470fcfbfc177d744ae50da8d36de17f455d93c47b4fac54a17f8db3e9f2ad7f4",
+      "size": 26423
+    },
+    {
+      "path": "data/verification/common-source-inventory.json",
+      "sha256": "15a17b94d9fcfdbf2659d7438b8fd9deae2d1444aed6a4fe5a02fc435ad23cfc",
+      "size": 2411125
+    },
+    {
+      "path": "data/verification/common-source-reviews/ch00.json",
+      "sha256": "1afb4b98327cb9df8446fd35684a7b730a1ad822d7470384e3f572a117d0a668",
+      "size": 7339
+    },
+    {
+      "path": "data/verification/common-source-reviews/ch01.json",
+      "sha256": "7b2bf3f5ee43ff1f909923173b96bf8f1526efe2c4a8c557196123b8e88128e1",
+      "size": 14632
+    },
+    {
+      "path": "data/verification/common-source-reviews/ch02.json",
+      "sha256": "e094f3aa9e7bbf68612c485bce3ece970798b41c38bef7377ba097fb54cf619b",
+      "size": 220607
+    },
+    {
+      "path": "data/verification/common-source-reviews/ch03.json",
+      "sha256": "34199dd9fa8044bd2f0b516338f2251b360361b86ef113159a1616f9de7f9a15",
+      "size": 261994
+    },
+    {
+      "path": "data/verification/common-source-reviews/ch04.json",
+      "sha256": "a36924df6692c81e90aa143c7f316a9f060b7308538df1286a47a73ae4a9cd74",
+      "size": 605923
+    },
+    {
+      "path": "data/verification/common-source-reviews/ch05.json",
+      "sha256": "ef71d0eb76603ea95fd7bb5114c9eefc4cf10407dc5c771a4ee04b64b844f99c",
+      "size": 211106
+    },
+    {
+      "path": "data/verification/common-source-reviews/ch06.json",
+      "sha256": "dd83c54cab4c47c63a488bb7e088aa4b83094c451e0a02cae67b09afdc2d07d0",
+      "size": 71919
+    },
+    {
+      "path": "data/verification/common-source-reviews/ch07.json",
+      "sha256": "42f0febdee0553a3583c539de7934cb4ce9f0013e3f016c8440589a06137f779",
+      "size": 246438
+    },
+    {
+      "path": "data/verification/common-source-reviews/ch08.json",
+      "sha256": "cc4904bffa05c82df55cf3b9c675108380d4d3e7ab76c37be40f05f5f0db993d",
+      "size": 106523
+    },
+    {
+      "path": "data/verification/common-source-reviews/ch09.json",
+      "sha256": "9c5776a83265a4ba617403f52fe65bd6b3141a2400f87eb49bb5d0f683cb7e99",
+      "size": 199682
+    },
+    {
+      "path": "data/verification/common-source-reviews/ch10.json",
+      "sha256": "1dbeac48b3e66717b4b10fa7c9b1c8ac0847ac373fbb94479884b87d56bd95e1",
+      "size": 317574
+    },
+    {
+      "path": "data/verification/common-source-reviews/ch11.json",
+      "sha256": "dd6afeca75a36e0f7dd8529482726db8c271969857b281424ba9fa662fc21f37",
+      "size": 331353
+    },
+    {
+      "path": "data/verification/common-source-reviews/chHB-FINANCE.json",
+      "sha256": "d11a8b36eab7fafde436bae86c1e9ba17b0f3c98b2e425405a72fc8b985e27e4",
+      "size": 18372
+    },
+    {
+      "path": "data/verification/common-source-reviews/chHB-TERASTAL.json",
+      "sha256": "5c233c2faca7bf086a8ec6dd5be3e120626347728a347e052d649eb7c12963b0",
+      "size": 11346
+    },
+    {
+      "path": "data/verification/common-source-reviews/chHB-WEATHER.json",
+      "sha256": "e701ac81d3b5e2f8d34613fe3f5ec3933ba05fb14bc34789ee5582646e24887b",
+      "size": 20177
+    },
+    {
+      "path": "data/verification/common-source-reviews/chHB-ZMOVES.json",
+      "sha256": "4bfb2f4eb25f75058f383fd21d73f9f88c890438188365b194cf360c82621f20",
+      "size": 4957
+    },
+    {
+      "path": "data/verification/common-source-reviews/supp-blessings.json",
+      "sha256": "d0cb860ee1409231865c2615282c981b9187edf49ff75493133832177f1486b1",
+      "size": 378412
+    },
+    {
+      "path": "data/verification/common-source-reviews/supp-errata.json",
+      "sha256": "b8382740c7d360bd981ee1c2431d6b18c96d6c33ba9df74656cbbd3942ec30e2",
+      "size": 253197
+    },
+    {
+      "path": "data/verification/common-source-reviews/supp-fantasy.json",
+      "sha256": "18f311c85bd1f5be46f8efdce6416f248412eb767c22488824b8bf2a81929c85",
+      "size": 389353
+    },
+    {
+      "path": "data/verification/common-source-reviews/supp-polygon.json",
+      "sha256": "dfeb1c172bb024a0bf33b2b94c6b686d1427de0310ffad54491821531b494bf1",
+      "size": 601228
+    },
+    {
       "path": "data/verification/connection-acquisition-revision-source-review.json",
       "sha256": "c707234555e45289619445d8fbc297e29c1f1eb59ee30390f7229b8c062d4128",
       "size": 209256
+    },
+    {
+      "path": "data/verification/edge-name-search-candidates.json",
+      "sha256": "5f5842b5f9be4c9f6e3d29f09899d1408c341009e4d8d70346ea9d4725c6e041",
+      "size": 275485
+    },
+    {
+      "path": "data/verification/life-state-semantics.json",
+      "sha256": "6aad52e216d57a5c6d22ed81a2558ac9233cde43bb241d316c55f646e220c962",
+      "size": 48135
+    },
+    {
+      "path": "data/verification/logical-models.json",
+      "sha256": "bef26ecc6f699439b58f3c89c33ff66235b807afa45d95e51a7bae350a2e1a85",
+      "size": 3203
     },
     {
       "path": "data/verification/oracle-core-source-excerpts.txt",
@@ -1242,9 +1457,54 @@
       "size": 1323
     },
     {
+      "path": "data/verification/precedence-semantics.json",
+      "sha256": "5f4fc289dc49b369520fe355a92aa0016fe8cc821b04d28641a3f3a745a58941",
+      "size": 9166
+    },
+    {
+      "path": "data/verification/recovery-semantics.json",
+      "sha256": "bc43c0eb2aa8fb7b707c843e26571b48422bd39db4264160bd6240c59d7ee248",
+      "size": 51440
+    },
+    {
       "path": "data/verification/revision-dream-and-unobserved-side-source-review.json",
       "sha256": "67007cdafc309f83ef1d8a1677c9bc40e19b872dd37d115f91ea8a19c523c0c5",
       "size": 7792
+    },
+    {
+      "path": "data/verification/root-authority-atoms.json",
+      "sha256": "53f555806f3b576b9cf2fcfa27df4a435d990eab7c010ebd99cd021512586c16",
+      "size": 619369
+    },
+    {
+      "path": "data/verification/root-authority-scope-core-followup.json",
+      "sha256": "da9c4b9ad3e1cd2b272bb7ab49f9c6791ed28221a86d5945ad785125efb73cd7",
+      "size": 1183780
+    },
+    {
+      "path": "data/verification/root-authority-scope-review.json",
+      "sha256": "c8264786e9beb20804327feeffae974e5d7e3763be425d941efa500c3b23b6ac",
+      "size": 391497
+    },
+    {
+      "path": "data/verification/root-authority-scope-supplement-followup.json",
+      "sha256": "85153a8336e6db235bb50fd520ecc05b80a82387cf1d2a78965137b9fe700160",
+      "size": 859341
+    },
+    {
+      "path": "data/verification/root-mixed-base-decomposition.json",
+      "sha256": "aa6099fc72a3fda566dfbb6b9004519b3724dbfac2f30873b2c1216a9f29e87a",
+      "size": 190595
+    },
+    {
+      "path": "data/verification/root-mixed-core-decomposition.json",
+      "sha256": "59f3f3575b36451d34d01f48949e3ba3bcc04d776ddeed68a32d46d31729766f",
+      "size": 400420
+    },
+    {
+      "path": "data/verification/root-mixed-supplement-decomposition.json",
+      "sha256": "2d81eb570f9034308fb23e7317b72e00bd00a34032c95b819ed0a493c4893e1b",
+      "size": 497786
     },
     {
       "path": "data/verification/root-semantics.json",
@@ -1252,9 +1512,29 @@
       "size": 65065
     },
     {
+      "path": "data/verification/rule-contracts.json",
+      "sha256": "d20e4ec1d04f9f24c4ed142f06b54fc3681c464227c7cb45df97569dd1c1ee20",
+      "size": 403851
+    },
+    {
+      "path": "data/verification/rule-coverage-catalog.jsonl",
+      "sha256": "40ae13c3a264e20ebe8269d824f3c766afb0ae04de19bd1002a011946ac64375",
+      "size": 2237589
+    },
+    {
+      "path": "data/verification/rule-symbol-graph.json",
+      "sha256": "a89ab44439e80d6a36734eeb09646b7d4c825fb1c6c772741296542972050554",
+      "size": 1910094
+    },
+    {
       "path": "data/verification/sage-core-source-excerpts.txt",
       "sha256": "4ec401e89c1ad3b7ba8b054e6e1f33cff65e89b6b9c8f77d0d98a2130a20c1e8",
       "size": 7691
+    },
+    {
+      "path": "data/verification/session-frequency-source-review.json",
+      "sha256": "2d50b88956bf2ccc7fe3f1212b9eb5f5a994a14e6815e37927e082770129f753",
+      "size": 84319
     },
     {
       "path": "data/verification/telekinetic-core-source-excerpts.txt",
@@ -1267,6 +1547,21 @@
       "size": 9754
     },
     {
+      "path": "data/verification/template-reuse-contracts.json",
+      "sha256": "95220261c1aabd22405a3b69f1fbb554abd572d5f6c3573867c6740a01c3fdc6",
+      "size": 1038804
+    },
+    {
+      "path": "data/verification/time-boundary-semantics.json",
+      "sha256": "26e556fe334e02df5e87c47a207c2681b369e838e9e17c9e4d1aeb1052c154a3",
+      "size": 55724
+    },
+    {
+      "path": "data/verification/top-level-milestone.json",
+      "sha256": "585c35f3021c8f80c0bd418e6c3c74bbcdd1449032ce07a16d2d25ce00214c21",
+      "size": 27470
+    },
+    {
       "path": "data/verification/topdown-r04-contract.json",
       "sha256": "9fb7c54b5e0c2840e4b88fb0f3b0ee4cc255beff22a8f9bd390931126ae4641e",
       "size": 29598
@@ -1275,6 +1570,16 @@
       "path": "data/verification/topdown-root-contract.json",
       "sha256": "aa70d2f5ecbbbc9b23e1909f7b84757974b39473fb43bd129d118a9405e1971a",
       "size": 223296
+    },
+    {
+      "path": "data/verification/world-state-semantics.json",
+      "sha256": "c0b9406727f32266d2a6be7edd4ad7634b5bb1cb57b9c3cfb3007aa2cb8f5008",
+      "size": 103909
+    },
+    {
+      "path": "data/walk-it-off-source-contract.json",
+      "sha256": "2681b1bb11bed9995984c655ed618dd986f86f5fa1d5eaf033c3c196ca0cddae",
+      "size": 3300
     },
     {
       "path": "data/wallrunner-policy.json",
@@ -1502,6 +1807,41 @@
       "size": 156669
     },
     {
+      "path": "output/action-point-tests.json",
+      "sha256": "18d7c5a10741b9054b6be14e12c9e8dcc01b13578052939d0092db3dc40421bf",
+      "size": 35315
+    },
+    {
+      "path": "output/activation-local-independent-tests.json",
+      "sha256": "7eb6eacce71023b39ffd9160fd01c846d1d33927311138276cad9f038b92f00d",
+      "size": 15321
+    },
+    {
+      "path": "output/bound-ap-release-independent-tests.json",
+      "sha256": "5dcf1116ff5612594466c9e2172154d4aecbd4f838557baff14a634bf650790b",
+      "size": 31493
+    },
+    {
+      "path": "output/common-action-lifecycle-independent-tests.json",
+      "sha256": "6ddd566fc6912b3d2f6fb5dcc3b36a06a4413a056a0e896fbcb6829725e3ee91",
+      "size": 6142
+    },
+    {
+      "path": "output/common-check-tests.json",
+      "sha256": "63a7e292c787fc7a1c9d9d68d1044434587cd9bb58a27edff9942247e9ea45e0",
+      "size": 4915
+    },
+    {
+      "path": "output/common-numeric-semantics-tests.json",
+      "sha256": "ab7345e3fdc161851853497235a20c3d916d19893daec5deb539c6632d96c910",
+      "size": 5225
+    },
+    {
+      "path": "output/compound-action-independent-tests.json",
+      "sha256": "95a6e735d896d658fb32b41b50e88ef0b654f3701ddb6d9f63ef7f795f33122f",
+      "size": 39787
+    },
+    {
       "path": "output/entities/_noise.json",
       "sha256": "7d9712461449c84af1b4d43ee7b75041f8817f34203812c79eb473fbc8dc6974",
       "size": 63421
@@ -1702,6 +2042,36 @@
       "size": 1239
     },
     {
+      "path": "output/frequency-tests.json",
+      "sha256": "616367d3718ad44b1b40a6752ed3f35cd4707ff79ff1f32ea90a22ff04134b5a",
+      "size": 152356
+    },
+    {
+      "path": "output/heavy-standard-tests.json",
+      "sha256": "d0e34f46dde5eb270a9c581448ef9313dfb6fdd78c7f924199f89645344bbeb5",
+      "size": 16279
+    },
+    {
+      "path": "output/league-runtime-independent-tests.json",
+      "sha256": "983d0203e33504cb9b9de5a0a6d484221c9ef8807207f1051c181b8b2e9a28a8",
+      "size": 14041
+    },
+    {
+      "path": "output/movement-action-budget-independent-tests.json",
+      "sha256": "df0996fdb12f1f9cdc406f5fa3f7afadc6a0a39f15f48102d4aa10d6a858f3cd",
+      "size": 2523
+    },
+    {
+      "path": "output/passive-event-runtime-tests.json",
+      "sha256": "6bc80eb2e1f43ccd7c17e31c8aa3b37e0a98dc269d74952b2dd25295cf25c067",
+      "size": 39527
+    },
+    {
+      "path": "output/rule-selection-tests.json",
+      "sha256": "8361fdd8517f1daaacf5bca0d2ee0efd67e8eaa7392a42d5a7f89df53a4b2544",
+      "size": 8459
+    },
+    {
       "path": "output/ruleunits.core.jsonl",
       "sha256": "96b6b59368fbf5ad61afc9c9ea4ff6d9435e810932a786399d7cf72a58f7702f",
       "size": 16798403
@@ -1710,6 +2080,16 @@
       "path": "output/ruleunits.jsonl",
       "sha256": "d252e932c5d20fcd18938ffc44f35e4b639477f5b5f7d2b9d0283a25548b0994",
       "size": 18915002
+    },
+    {
+      "path": "output/snapshot-time-identity-tests.json",
+      "sha256": "f350288d3b90cb1c8d09a000ae59cd04197bcaff235358e3a01badce0a3540a3",
+      "size": 2593
+    },
+    {
+      "path": "output/source-audit/2026-10-10/mettle-source-pages.txt",
+      "sha256": "bf6deea5c662d143da3991da0828f49388648721b847de089a8022526f321b1e",
+      "size": 13207
     },
     {
       "path": "output/source-audit/2026-10-10/ptu-core-1.05.pdf",
@@ -1967,6 +2347,21 @@
       "size": 899
     },
     {
+      "path": "tools/certificate-child.json",
+      "sha256": "a8198524f58e72b56283ab71ebddada22840f108b46ef7165bb3fca9919c5558",
+      "size": 18
+    },
+    {
+      "path": "tools/certificate-grand.json",
+      "sha256": "a8198524f58e72b56283ab71ebddada22840f108b46ef7165bb3fca9919c5558",
+      "size": 18
+    },
+    {
+      "path": "tools/certificate-parent.json",
+      "sha256": "a8198524f58e72b56283ab71ebddada22840f108b46ef7165bb3fca9919c5558",
+      "size": 18
+    },
+    {
       "path": "tools/common_check_synthetic_evidence.txt",
       "sha256": "27bc5c6e86637e5a1ee75fd6148c28e4a534241a40afa256f4678c68a05d209f",
       "size": 90
@@ -1977,9 +2372,89 @@
       "size": 592
     },
     {
+      "path": "tools/fixtures/native-defense-before-cost-profiles.json",
+      "sha256": "d57b3e804fd3303955f8c53e5af1d96ebc60fedd79bccf40c3554fe86d2ff913",
+      "size": 358387
+    },
+    {
+      "path": "tools/fixtures/native-pending-classifiers.json",
+      "sha256": "50ddf6eeab6a0624302b4a28c40578286cbcc0e20d821ebb19cb4ef50942c7e6",
+      "size": 7867
+    },
+    {
+      "path": "tools/fixtures/static-acquisition-queries.json",
+      "sha256": "c81ed8f94cd19046d36b57f912e99d2d58cd22319dd55f6e02a07bc82c5a3d32",
+      "size": 19779
+    },
+    {
       "path": "tools/frequency_source_connection_contract.json",
       "sha256": "0aec87ebe9b3f10b750aa8a752b7ee4a21e18faa48959912d041f8bfe79ec703",
       "size": 14131
+    },
+    {
+      "path": "tools/native-profile-test-changed.json",
+      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "size": 2
+    },
+    {
+      "path": "tools/native-profile-test-context-answers.json",
+      "sha256": "d2121e0e10806df37d88252237d63579d8fec8ddda312fed2144aeb19c789efa",
+      "size": 301
+    },
+    {
+      "path": "tools/native-profile-test-context-effects.json",
+      "sha256": "d2121e0e10806df37d88252237d63579d8fec8ddda312fed2144aeb19c789efa",
+      "size": 301
+    },
+    {
+      "path": "tools/native-profile-test-context-formulas.json",
+      "sha256": "d2121e0e10806df37d88252237d63579d8fec8ddda312fed2144aeb19c789efa",
+      "size": 301
+    },
+    {
+      "path": "tools/native-profile-test-context-hooks.json",
+      "sha256": "d2121e0e10806df37d88252237d63579d8fec8ddda312fed2144aeb19c789efa",
+      "size": 301
+    },
+    {
+      "path": "tools/native-profile-test-context-mech.json",
+      "sha256": "d2121e0e10806df37d88252237d63579d8fec8ddda312fed2144aeb19c789efa",
+      "size": 301
+    },
+    {
+      "path": "tools/native-profile-test-context-provider.json",
+      "sha256": "d2121e0e10806df37d88252237d63579d8fec8ddda312fed2144aeb19c789efa",
+      "size": 301
+    },
+    {
+      "path": "tools/native-profile-test-context-situational.json",
+      "sha256": "d2121e0e10806df37d88252237d63579d8fec8ddda312fed2144aeb19c789efa",
+      "size": 301
+    },
+    {
+      "path": "tools/native-profile-test-mismatch.json",
+      "sha256": "c4c36d424579c4ec7c5775ffb50a5e235dccab89d1d793eb46ac817e708c226b",
+      "size": 301
+    },
+    {
+      "path": "tools/native-profile-test-missing.json",
+      "sha256": "d2121e0e10806df37d88252237d63579d8fec8ddda312fed2144aeb19c789efa",
+      "size": 301
+    },
+    {
+      "path": "tools/native-profile-test-positive.json",
+      "sha256": "d2121e0e10806df37d88252237d63579d8fec8ddda312fed2144aeb19c789efa",
+      "size": 301
+    },
+    {
+      "path": "tools/native-profile-test-unpinned.json",
+      "sha256": "d2121e0e10806df37d88252237d63579d8fec8ddda312fed2144aeb19c789efa",
+      "size": 301
+    },
+    {
+      "path": "tools/native-profile-test-wrong_role.json",
+      "sha256": "d2121e0e10806df37d88252237d63579d8fec8ddda312fed2144aeb19c789efa",
+      "size": 301
     },
     {
       "path": "tools/root_admission_synthetic_evidence.txt",
@@ -1990,6 +2465,2466 @@
       "path": "tools/root_runtime_io_synthetic_evidence.txt",
       "sha256": "cb152345aa14a099811ece7e9fa55f6876f69f053e209f260eecb8ac1eb7c3f4",
       "size": 137
+    },
+    {
+      "path": "vaults/공통기반/acquisition.qualification.md",
+      "sha256": "da11bf970aaa68ddf99ce4235b06944c2fd8413c80ce0b298434c80fb526e041",
+      "size": 9885
+    },
+    {
+      "path": "vaults/공통기반/acquisition.receipt.md",
+      "sha256": "8f65220c09547163c7481cbbba443026b98918e8c2e5b896b73f994da470f555",
+      "size": 13909
+    },
+    {
+      "path": "vaults/공통기반/acquisition.withdrawal.md",
+      "sha256": "a16ed05d4b79452aa03549f32fe3b9aae9a553091ef288ca48fd4f7d191e2b9f",
+      "size": 12967
+    },
+    {
+      "path": "vaults/공통기반/activity.clock.md",
+      "sha256": "0a253c54c7f9f2c2a039c07ff7817cd89ffdd35c295617bd655eb4d38b6828c2",
+      "size": 10759
+    },
+    {
+      "path": "vaults/공통기반/activity.job.md",
+      "sha256": "63ccf76533ac16fb2ee1bbc52479bc75db4cd1d13c676fa202df0efd60c29669",
+      "size": 10229
+    },
+    {
+      "path": "vaults/공통기반/atomic_transition.commit.md",
+      "sha256": "82c10aa977244b5c510bf4c2780a112b22f9dc571e1fb537791c22713678b1be",
+      "size": 26582
+    },
+    {
+      "path": "vaults/공통기반/atomic_transition.replay.md",
+      "sha256": "65e614b8fd3c981b23611a6aafba7dc101607531713c3496e0e4301816f72bb5",
+      "size": 12452
+    },
+    {
+      "path": "vaults/공통기반/combat.capture.md",
+      "sha256": "4eaadf809ff225e4f8499cb2229b230f9ec0046300a3257e6846b8d11553f885",
+      "size": 7758
+    },
+    {
+      "path": "vaults/공통기반/combat.damage.md",
+      "sha256": "0cadadfe2608069b7cce735953dcf3d6bf88eaf30198e2c4e4b40863218bd6ba",
+      "size": 9881
+    },
+    {
+      "path": "vaults/공통기반/combat.hit.md",
+      "sha256": "1fa428e67d481e4ae261020bbf0b43e2df2c0f31e8ef19a884f54b834e84b6e0",
+      "size": 11023
+    },
+    {
+      "path": "vaults/공통기반/composition.derive.md",
+      "sha256": "de5cd28aeb8862c3a6ae1d69a3698de91c44c263973d581f0f3397452881e620",
+      "size": 16909
+    },
+    {
+      "path": "vaults/공통기반/composition.reconcile.md",
+      "sha256": "37c3a8297c1a83917ca094047c2c62314ecacc10b6ae5f3f9eb1c42a0d26ee06",
+      "size": 8784
+    },
+    {
+      "path": "vaults/공통기반/control.mount.md",
+      "sha256": "63851c3f570faee0b8963521c4354cdff7f73d754ca40c8ffb17ecbd3b95b3d3",
+      "size": 8721
+    },
+    {
+      "path": "vaults/공통기반/control.remote.md",
+      "sha256": "9122a7ae7e42859261391ec9268eebed6d229e5bd1a0ffb2e6fa22ece5f5a07d",
+      "size": 4568
+    },
+    {
+      "path": "vaults/공통기반/control.vehicle.md",
+      "sha256": "c2982a5393f21c5adbe2962a88eec6308e3a6b3edcab962489e90cb133b57a87",
+      "size": 5404
+    },
+    {
+      "path": "vaults/공통기반/crafting.product.md",
+      "sha256": "7e395173b7eb6473734ba6579e33fa48af6103d1e93ddcce21767c8d3609fe88",
+      "size": 5591
+    },
+    {
+      "path": "vaults/공통기반/crafting.recipe.md",
+      "sha256": "945a475e5b645782b25fe262aabfbc876cc521a99e478f9d124875d133f04a5a",
+      "size": 5805
+    },
+    {
+      "path": "vaults/공통기반/creation.egg.md",
+      "sha256": "40d000a37ead1803ed58e7c25b5061e77958a0e9760d6d0b30f4d9f57ed1d0cc",
+      "size": 4800
+    },
+    {
+      "path": "vaults/공통기반/creation.fossil.md",
+      "sha256": "ec414dbb15441c932883909d6ea3861a469470bd7b7435866af75604ddb21aae",
+      "size": 4488
+    },
+    {
+      "path": "vaults/공통기반/cultivation.growth.md",
+      "sha256": "7e4d5b0f1aa5d420ed1b7e3b43d41fc17304a0394d071caf786f4debaa333bb0",
+      "size": 5445
+    },
+    {
+      "path": "vaults/공통기반/cultivation.harvest.md",
+      "sha256": "6b6d54547c1d7ae3fafcab99026eab14bb1b6a40c4d0cbe1fd7851f10149e45b",
+      "size": 5629
+    },
+    {
+      "path": "vaults/공통기반/effects.apply.md",
+      "sha256": "4d6e4939cfb60154d6153623a0dd03d90f3524adfde65e5ea71f207c28609d41",
+      "size": 11607
+    },
+    {
+      "path": "vaults/공통기반/effects.lifetime.md",
+      "sha256": "ed6cc4d5e14b1ad1a5c4912178c1c1b15aeb0fd4e14743cd00c1df744ec5b3b6",
+      "size": 14105
+    },
+    {
+      "path": "vaults/공통기반/effects.recovery.md",
+      "sha256": "893494459e0491eda2ad5758e810c8dfb578871053b011c78aa531c490dd72e2",
+      "size": 10539
+    },
+    {
+      "path": "vaults/공통기반/environment.change.md",
+      "sha256": "ee0b615d9603106aaf345fb60e7f4e29539c9da6847a8033b5c7478ba5cf348b",
+      "size": 5298
+    },
+    {
+      "path": "vaults/공통기반/environment.derive.md",
+      "sha256": "952d30142deefc1824ec721b7f0c7aa634a04e37aa1aca247d02acf85858d8ad",
+      "size": 5635
+    },
+    {
+      "path": "vaults/공통기반/events.dispatch.md",
+      "sha256": "f4f1dc686e3c9677a4055d91edc15a6ca3393053153d1503c3b78481eecb2457",
+      "size": 7497
+    },
+    {
+      "path": "vaults/공통기반/events.trace.md",
+      "sha256": "7625aaead05334da4cfb08259e134e077f5143e02cb76b4d5ef1d71fbbf127d7",
+      "size": 7708
+    },
+    {
+      "path": "vaults/공통기반/growth.milestones.md",
+      "sha256": "edcdc6bbb818a469a41e004c386cd9ac3833c740b6658b5701451e17511a5be4",
+      "size": 8195
+    },
+    {
+      "path": "vaults/공통기반/growth.stats.md",
+      "sha256": "1a5c2eae918962881e2984ab69534134de20036c7aa1a40cf69de7f5f999df1a",
+      "size": 7996
+    },
+    {
+      "path": "vaults/공통기반/initiative.derive.md",
+      "sha256": "fc3d745ef7185740d4ac04a69cb2c81ef46065e90e1422ba8a9bb3a01d7c7e9e",
+      "size": 12741
+    },
+    {
+      "path": "vaults/공통기반/initiative.schedule.md",
+      "sha256": "df2f8e47b3fa5946939e5823c00bfeaf300d6466df319ad24bf7d9825f062e6b",
+      "size": 10252
+    },
+    {
+      "path": "vaults/공통기반/learning.grant.md",
+      "sha256": "c95989a29196705fb5114aae1c4f5ba19e971d8452821f2491e40874c0676c76",
+      "size": 11194
+    },
+    {
+      "path": "vaults/공통기반/learning.slots.md",
+      "sha256": "cfa3180033757990356430a9f6e04b6b7e5b9487f4386eac8a1b5e9f644a8f75",
+      "size": 9314
+    },
+    {
+      "path": "vaults/공통기반/maneuvers.grapple.md",
+      "sha256": "aa056cfbbce05b71717d1ded9304404f54a0ae03e6d9723a9526c0fdbf501317",
+      "size": 5038
+    },
+    {
+      "path": "vaults/공통기반/maneuvers.opposed.md",
+      "sha256": "b99ffb34156690d8acc244efc97e5f714cf462850a1529396935e8a2873f062c",
+      "size": 4759
+    },
+    {
+      "path": "vaults/공통기반/movement.forced.md",
+      "sha256": "f9980455280cfe58ebc852aaab0efc8dfebb73f46d2d4af09d0cff27542a48aa",
+      "size": 6797
+    },
+    {
+      "path": "vaults/공통기반/movement.path.md",
+      "sha256": "81c3128433c92be4281b0e2c93c256af387e618dbb7a49aa84dbf07687ef63e3",
+      "size": 9171
+    },
+    {
+      "path": "vaults/공통기반/movement.permission.md",
+      "sha256": "5405be228ab32275e7000fff5d6bd6c8e13f3c6fbc783cee092b98ef6cb804da",
+      "size": 9940
+    },
+    {
+      "path": "vaults/공통기반/network.connection.md",
+      "sha256": "cf8de4a2aff965f7b6f5f08b37c7b7a2364445967e899ddd907e13ac40afde3c",
+      "size": 5060
+    },
+    {
+      "path": "vaults/공통기반/network.integrity.md",
+      "sha256": "674628811f1dbc33e69eec5ea45b6fec1f1a3790b4da1181e7548531f5d147bd",
+      "size": 4528
+    },
+    {
+      "path": "vaults/공통기반/object_lifecycle.identity.md",
+      "sha256": "3ee7011593c6dccab1ff922b539e4f7cc0936b59e0961833b1243385ff0986cc",
+      "size": 28239
+    },
+    {
+      "path": "vaults/공통기반/object_lifecycle.lifecycle.md",
+      "sha256": "07d69abfe6ac1809171050706cb63d2e912c16ab46f31fb661fa01c90603bbeb",
+      "size": 6761
+    },
+    {
+      "path": "vaults/공통기반/perception.communicate.md",
+      "sha256": "1c1fdb01a306f11faa58febd5ad616f75b80db77354c9416f4a937f1dc3361b0",
+      "size": 6210
+    },
+    {
+      "path": "vaults/공통기반/perception.observe.md",
+      "sha256": "89d15f7f544f9d846cea63d12da64276656455e1b66269ada343877809691533",
+      "size": 6572
+    },
+    {
+      "path": "vaults/공통기반/repair.breach.md",
+      "sha256": "be213a5ab871ea51e810ee147da8e7be9f395d072419875eaea2bb777f212f14",
+      "size": 4122
+    },
+    {
+      "path": "vaults/공통기반/repair.restore.md",
+      "sha256": "1eeeface1a45fee7906bfb1e5ffbcdef2cc722c0beb9d55c0cfc61952ea994d6",
+      "size": 4437
+    },
+    {
+      "path": "vaults/공통기반/resources.actions.md",
+      "sha256": "08fc08e8b9d4acc443161ef9db71d1f2e96644ee95d209cfe571039fab974cb6",
+      "size": 21522
+    },
+    {
+      "path": "vaults/공통기반/resources.frequency.md",
+      "sha256": "973a55dd68da065854824df2fa9c075d9f225226ee6d76762213ae1b1999d71b",
+      "size": 15051
+    },
+    {
+      "path": "vaults/공통기반/roll_context.plan.md",
+      "sha256": "4936659c6fd685116dc1d6b1e423dd123de9c97a999319f031e45fbfbd0ce0a4",
+      "size": 13961
+    },
+    {
+      "path": "vaults/공통기반/roll_context.resolve.md",
+      "sha256": "faf314dbfebaeca57243b2c91af3fb9c22d63958d2cc5726d1ddada05984d389",
+      "size": 13668
+    },
+    {
+      "path": "vaults/공통기반/scripting.execute.md",
+      "sha256": "4a3a982e29730b691021e7a2dd55485015567ac9c21770387543ecbcb10b124d",
+      "size": 4635
+    },
+    {
+      "path": "vaults/공통기반/scripting.load.md",
+      "sha256": "72ac805fe306f675e3db98cdc5f6bf1b4e2561d7dc849f45dbd580a6a3bce3b8",
+      "size": 3612
+    },
+    {
+      "path": "vaults/공통기반/source_policy.adjudication.md",
+      "sha256": "245ac84974a16af4bf6d62492766b3f1cb4feadb0b72f82753520d8f56a79955",
+      "size": 6353
+    },
+    {
+      "path": "vaults/공통기반/source_policy.selection.md",
+      "sha256": "a80c9a09ca375517f5336e13156203f41be42c3279820abe785b37fea25f2318",
+      "size": 28319
+    },
+    {
+      "path": "vaults/공통기반/training.eligibility.md",
+      "sha256": "bba1cec2ce721266113e862f2fc1245265ff5576e9c79572770f5f9445cab02e",
+      "size": 5673
+    },
+    {
+      "path": "vaults/공통기반/training.rewards.md",
+      "sha256": "831d0ed1801d95a45fb86d081ada2c5ade0ebb6085294f8f698a637bcea39c12",
+      "size": 5934
+    },
+    {
+      "path": "vaults/구현찾기.md",
+      "sha256": "c2dcefc01ab09dfa3e3cfdf92819758f8764bcbd1a39423b8fa111055c4e62e3",
+      "size": 37244
+    },
+    {
+      "path": "vaults/재사용/ability_mastery.md",
+      "sha256": "cf2deda269f10cc8cf6dd7971c2db6743587b6a3fd40af7e539bed4ffac88521",
+      "size": 4750
+    },
+    {
+      "path": "vaults/재사용/accuracy.md",
+      "sha256": "a256e24e74815907d6c99d583717422ec7469f48804d5d6e2b5b5c29702e2495",
+      "size": 3054
+    },
+    {
+      "path": "vaults/재사용/acquired_feature_projections.md",
+      "sha256": "78e1b469fd37e71e52fb4e9cb396f8c7536895cd374060adde137bc8295a80fe",
+      "size": 5237
+    },
+    {
+      "path": "vaults/재사용/acquired_rank_stat_tags_1223.md",
+      "sha256": "a36cf7c0c06089188fc18de52dd9c1eadcc44268394e7d01546ba5e7766da945",
+      "size": 6056
+    },
+    {
+      "path": "vaults/재사용/acrobat.md",
+      "sha256": "322a30b2bea56be41f5c0fd2f3f888de2391173a9ea41ed77713e5a0434d82fd",
+      "size": 3084
+    },
+    {
+      "path": "vaults/재사용/actual_pass_move_activation.md",
+      "sha256": "797ef15af25cea38287c7a66aab50350a0ca491a399c2140b950e19bbe52c62d",
+      "size": 5676
+    },
+    {
+      "path": "vaults/재사용/actual_sharp_object_attack.md",
+      "sha256": "5b2f01bc919713d8551f3672ceda3da66dfa3572e9f47cfa724b7d2a6e69dc80",
+      "size": 6276
+    },
+    {
+      "path": "vaults/재사용/advanced_connection.md",
+      "sha256": "6a817952d5cc125dcdd015ce81d98cb63c146812cdce67fcb1b55ebc0b9df096",
+      "size": 4204
+    },
+    {
+      "path": "vaults/재사용/athletic_static_bind_learning_1222.md",
+      "sha256": "72b3d821bffc72699a9452e799d2002425959884b5800b3bb909c1ec8dc04918",
+      "size": 4343
+    },
+    {
+      "path": "vaults/재사용/attack_conflict.md",
+      "sha256": "6273c409eca51c1741c6411f874c8af04db8e0118e8f08f1c4d7cf9f9c6c73e6",
+      "size": 3661
+    },
+    {
+      "path": "vaults/재사용/attack_loss_provenance.md",
+      "sha256": "5ab15139629c6fdd7b192f01134318681636bda3a863ec0f61e6fdd04fafd2c6",
+      "size": 6336
+    },
+    {
+      "path": "vaults/재사용/bad_mood.md",
+      "sha256": "574d29aed884c3a424adb63bf3d177b2dc4c983a02406ac0b25fdee045b01cea",
+      "size": 2372
+    },
+    {
+      "path": "vaults/재사용/ball_repair_csv.md",
+      "sha256": "22d9ba8a437212da6020dfa354629eadd230dc933a6a04c90dba21c72011e20d",
+      "size": 3193
+    },
+    {
+      "path": "vaults/재사용/blindness_vision_projection.md",
+      "sha256": "e2ec8cab3044d9a08e505d4c3f7950daf6ec28a2904b56628d09069817ef363b",
+      "size": 3080
+    },
+    {
+      "path": "vaults/재사용/book_ace_trainer_csv_retained.md",
+      "sha256": "6694c48f68ad6b7264fa6a13617e366a03975eb809c112f4dd7dc5f3c9dbf8ec",
+      "size": 9084
+    },
+    {
+      "path": "vaults/재사용/book_ace_trainer_full.md",
+      "sha256": "c889d6692074db895ec37f05f76950bc90f09500dc42b0e3203d3d30af907fd2",
+      "size": 10688
+    },
+    {
+      "path": "vaults/재사용/book_ace_training.md",
+      "sha256": "f11efeee4d4503740cf11b08eedbb245c55f4687f961b6ca2933ee024e19c528",
+      "size": 3399
+    },
+    {
+      "path": "vaults/재사용/book_athlete_full.md",
+      "sha256": "813cb79b3e03d313a6923c2886dec8b442570e326f4539870bec33782591acf4",
+      "size": 6488
+    },
+    {
+      "path": "vaults/재사용/book_aura_guardian_full.md",
+      "sha256": "281592fc09f24563b6bdcfb22331c1f0e5b254f992c2536f615bc21aeec7285b",
+      "size": 8339
+    },
+    {
+      "path": "vaults/재사용/book_capture_specialist.md",
+      "sha256": "6eb78b831e25bf443e95fb3e2add70827456c7eec366dd04c199016f2f6963a3",
+      "size": 6438
+    },
+    {
+      "path": "vaults/재사용/book_capture_specialist_csv_retained.md",
+      "sha256": "9a39b315ae243845ac5c88511026cbba44bf39f9a2af1c3c9c26bc154520b555",
+      "size": 3310
+    },
+    {
+      "path": "vaults/재사용/book_captured_momentum.md",
+      "sha256": "1ce35dd7c2f64528515a5e8d85d0942ed5d15f4cf910e6e75b8fd62329e30edd",
+      "size": 4741
+    },
+    {
+      "path": "vaults/재사용/book_channeler_full.md",
+      "sha256": "e1a86e998ba42b120f257e92273dcf014257a1227da959f7f1383eaf2efff7a1",
+      "size": 3039
+    },
+    {
+      "path": "vaults/재사용/book_cheerleader_bundle.md",
+      "sha256": "2b753148c7a488631f87d211d79f861a05fd712246a7465103a90720add3c56e",
+      "size": 3364
+    },
+    {
+      "path": "vaults/재사용/book_chef_full.md",
+      "sha256": "9fcd26343a5cc826ff76ae37a8c945f31fab546474073a52cd0f805f7dde7154",
+      "size": 7854
+    },
+    {
+      "path": "vaults/재사용/book_chronicler_full.md",
+      "sha256": "47789011911c4ad54d8d190b5c4d167c883ce41c988d4ab8cd1b0a703e0f2fe0",
+      "size": 14104
+    },
+    {
+      "path": "vaults/재사용/book_commander_csv_retained.md",
+      "sha256": "db9edcae2d337c62767b598018c48efbcfc735bcc7ea8e27b0b8579f43826af7",
+      "size": 3448
+    },
+    {
+      "path": "vaults/재사용/book_commander_full.md",
+      "sha256": "519d25d112b577a36f2162d1095021212ae900b4ca46a188a5a9d3e4d3948f60",
+      "size": 3542
+    },
+    {
+      "path": "vaults/재사용/book_conquerors_march_resume.md",
+      "sha256": "e456c35bc8527b5c01952536effbc1a44ae7e016ff20b01aca517565e07f15c1",
+      "size": 4401
+    },
+    {
+      "path": "vaults/재사용/book_coordinator_csv_retained.md",
+      "sha256": "84c6f5e39ad6d56cf7b4c3b78a768dc4460f152fd54d9a432388409a63f724f9",
+      "size": 2746
+    },
+    {
+      "path": "vaults/재사용/book_coordinator_full.md",
+      "sha256": "e819abaf89a2d2a17798ceda9e2157abe9670dce7220128857dcd2b2f70946d7",
+      "size": 2489
+    },
+    {
+      "path": "vaults/재사용/book_dancer_full.md",
+      "sha256": "ea40fc0b1789a665418392e5381de8260ce5889c2862854c870a5709a4c8fd07",
+      "size": 10252
+    },
+    {
+      "path": "vaults/재사용/book_duelist_momentum.md",
+      "sha256": "4c0433fcd00464704d4ef93c4a69deec9ece263f8e059a9e43781246ed3dd1b2",
+      "size": 7963
+    },
+    {
+      "path": "vaults/재사용/book_enduring_resilience.md",
+      "sha256": "099e3e8c27c151640491adb4921ea9354e64e45e041ac500068076797dc65d3d",
+      "size": 4252
+    },
+    {
+      "path": "vaults/재사용/book_fashionista_full.md",
+      "sha256": "d7d2126b8233c734fafeaa410e7d28c321bfaac260886d388de558d981238bf8",
+      "size": 11910
+    },
+    {
+      "path": "vaults/재사용/book_gleeful_interference.md",
+      "sha256": "4717fa22201370b91427646388fa148ed406e00827db21241c4f1dd651ba2d36",
+      "size": 2539
+    },
+    {
+      "path": "vaults/재사용/book_go_fight_win.md",
+      "sha256": "f2dfea8f174b8c94a73762a4072aa69d770e09877c16b798989fc0cb50b3398b",
+      "size": 3520
+    },
+    {
+      "path": "vaults/재사용/book_heir.md",
+      "sha256": "a89270632989fbf4e9523ace600d315af6e87fec94657265837e556f76d7b4f5",
+      "size": 2834
+    },
+    {
+      "path": "vaults/재사용/book_hex_maniac_full.md",
+      "sha256": "8f41e6fe9c0456358e35c7f222d2632bb46f291a2fbe4d1e89f7ab8287f9effa",
+      "size": 2371
+    },
+    {
+      "path": "vaults/재사용/book_hunter_full.md",
+      "sha256": "bdbd806a65414ebf616d8d5a4030682ba6561dea567515806867da4dcce605ff",
+      "size": 9162
+    },
+    {
+      "path": "vaults/재사용/book_juggler_csv_retained.md",
+      "sha256": "3fa583d3eea2c2ba35ce766000fd746e81ca63e473d13b5c10b739412b0915ec",
+      "size": 2463
+    },
+    {
+      "path": "vaults/재사용/book_juggler_full.md",
+      "sha256": "69118f0e0f6c2b4a7092ece99a10668768b7c564d2e7950c95fed1a102336576",
+      "size": 5679
+    },
+    {
+      "path": "vaults/재사용/book_keep_fighting.md",
+      "sha256": "8fb5ed7251a408c43e4dde5056b6804b7fa5c5e0c0099aae9440084f3a1ba68f",
+      "size": 3953
+    },
+    {
+      "path": "vaults/재사용/book_legendary_trainer.md",
+      "sha256": "5a42d58f8ec12b4a58bec1a09e87826615b2d541cb2768680bda6bf385064897",
+      "size": 4160
+    },
+    {
+      "path": "vaults/재사용/book_martial_artist_full.md",
+      "sha256": "7f49e1fbce0e9565f52fd5b952d040b3bcf36383d47165bbc2a899f615163ca0",
+      "size": 10078
+    },
+    {
+      "path": "vaults/재사용/book_mentor_csv_retained.md",
+      "sha256": "1ece14e8d23f6e6ec93d10f8b13d426e6f1eb648435e24b0708d4a605a85ca27",
+      "size": 4083
+    },
+    {
+      "path": "vaults/재사용/book_mentor_full.md",
+      "sha256": "82dacd80bb8c637cededfd826838e7931e0cd61318adb591af6e5152082a0b54",
+      "size": 3289
+    },
+    {
+      "path": "vaults/재사용/book_moment_of_action.md",
+      "sha256": "72af8491ea24cc30655098d83458c38ddc02abcb5fef36d1a42752764c497ee7",
+      "size": 2152
+    },
+    {
+      "path": "vaults/재사용/book_musician_full.md",
+      "sha256": "3290053ababef0b6fd7888adb096c792a971b929dea6fe8badacc8a95ed99cde",
+      "size": 4208
+    },
+    {
+      "path": "vaults/재사용/book_ninja_full.md",
+      "sha256": "42eab2cb3d2ae31f9350eca02d706b7a4c2adae1597c0e79863596e325a030d8",
+      "size": 2649
+    },
+    {
+      "path": "vaults/재사용/book_oracle_full.md",
+      "sha256": "9fdaaea0d2d409f2ae96ff89e4f0862e8721826265f76269f2ce9ffdae0f9f46",
+      "size": 2859
+    },
+    {
+      "path": "vaults/재사용/book_personal_tutoring.md",
+      "sha256": "eee4c790caf1c99cda6faabffe00e7ca8a90ac8b30272cb2832257a4a5330841",
+      "size": 3911
+    },
+    {
+      "path": "vaults/재사용/book_provocateur_full.md",
+      "sha256": "fba3027dedbcd7671fc0ddffd024705596abe856d3e8adc842a169688b02e94b",
+      "size": 8477
+    },
+    {
+      "path": "vaults/재사용/book_researcher_fields_full.md",
+      "sha256": "78d4be60b2661c13c5ea978af4eb799f30af7b2fcc8a6699e0ef20eef7292c90",
+      "size": 25497
+    },
+    {
+      "path": "vaults/재사용/book_ride_as_one.md",
+      "sha256": "b637e96f9b8d1fd6744500b6915d43d4215f452ae41567e48c53f34fba91fd27",
+      "size": 4903
+    },
+    {
+      "path": "vaults/재사용/book_rogue_full.md",
+      "sha256": "1b9ffa72bfcb606b2ba883c75f20ef746c467804165912ffb86ec4c61b3de0ab",
+      "size": 7019
+    },
+    {
+      "path": "vaults/재사용/book_roughneck_full.md",
+      "sha256": "4f6723c2db8969e83df5077a568c2c335d93a959180e6ffdea1020a7be58a4b8",
+      "size": 6486
+    },
+    {
+      "path": "vaults/재사용/book_sage_full.md",
+      "sha256": "c69e1ff81a4905103fb80bf7429eef96d33ccf4f4faa476ad46ad09980745b91",
+      "size": 1812
+    },
+    {
+      "path": "vaults/재사용/book_species_savant.md",
+      "sha256": "a942ef063a55f50abaf899f2b9ccffc9f3e98183cf69560f9599eaa182f1660b",
+      "size": 2873
+    },
+    {
+      "path": "vaults/재사용/book_stamina_state.md",
+      "sha256": "eef436165a7d30d11a29ed2ab2f3356d599d09d3c9077074b36f00202a7f1786",
+      "size": 2470
+    },
+    {
+      "path": "vaults/재사용/book_stat_ace_full.md",
+      "sha256": "f623bfb6930eff1f9ab562bf20037f89026bdbceaa5d7a278a095347465f76f7",
+      "size": 8105
+    },
+    {
+      "path": "vaults/재사용/book_style_expert_full.md",
+      "sha256": "eca9acb7e6a3467e150f2f9a5986587fd1185d811e50cd7381df3feb59e7aed5",
+      "size": 17866
+    },
+    {
+      "path": "vaults/재사용/book_survivalist_full.md",
+      "sha256": "7ff33840404a71d673b819df08cca35148c2dad8eeb9c7b0cdbbc7fce0146c13",
+      "size": 11470
+    },
+    {
+      "path": "vaults/재사용/book_taskmaster_hardened.md",
+      "sha256": "25884c7e78535dbd462e4dd3a8cf985e37c3419340e866bdf9e762e1c728bdd5",
+      "size": 9386
+    },
+    {
+      "path": "vaults/재사용/book_telekinetic_full.md",
+      "sha256": "6712616e52741caada3d3840f66a0a41f8a3c8f98cd314f46547c656707b4568",
+      "size": 1572
+    },
+    {
+      "path": "vaults/재사용/book_telepath_full.md",
+      "sha256": "9aad3d5bc6247e7a1f0dbc3eb9ad25a941e5d7228e610066748f0336bc67c314",
+      "size": 1786
+    },
+    {
+      "path": "vaults/재사용/book_tumbler_full.md",
+      "sha256": "a178947acca4dee21c5a5452d0e47a184db7ac227fdc7ec5d2822828b4730fc0",
+      "size": 6816
+    },
+    {
+      "path": "vaults/재사용/book_type_ace_full.md",
+      "sha256": "500d1aadfa1091adac974b39e706e0985bcfa9064dbe27f061007a798463443b",
+      "size": 65495
+    },
+    {
+      "path": "vaults/재사용/book_warper_csv_retained.md",
+      "sha256": "14c2c12cf561617b56fba18b58b20e06c3421f7eebedd1cd3327184dc3d08e2f",
+      "size": 2181
+    },
+    {
+      "path": "vaults/재사용/book_warper_full.md",
+      "sha256": "f0d271ad12a22873eb487c37d58c9d6be147019d0e6634e383ab0206647ff7ce",
+      "size": 7461
+    },
+    {
+      "path": "vaults/재사용/campaign_injury_policy_completion.md",
+      "sha256": "d0dce3fdd5a87ea6df46ec3f25a72fb3616397b53ee435536983b2c5ce387bf6",
+      "size": 3519
+    },
+    {
+      "path": "vaults/재사용/chef_recipe_source_permission_1187.md",
+      "sha256": "e60ad00dabda9fe9fda7667d73e0f4cd7ac4bd0bf068944f37cb7160560318c3",
+      "size": 3171
+    },
+    {
+      "path": "vaults/재사용/class_csv_chef_snacks_6.md",
+      "sha256": "076be2e423ec79888b0084a89ad884785f9be1eafa0ebf4f0c6d09b7e37a30d7",
+      "size": 3268
+    },
+    {
+      "path": "vaults/재사용/cleanse_tag_original_roll_binding_1229_sol.md",
+      "sha256": "921832fae2c80e323397a4b80ce3fad56682a4bc8ce093a0c47a7f40a5457098",
+      "size": 3182
+    },
+    {
+      "path": "vaults/재사용/core_ability_definition.md",
+      "sha256": "48b64f97d11a01489f2559627c9c789bcdd720497fb2c996256c74d0e2f6a934",
+      "size": 3508
+    },
+    {
+      "path": "vaults/재사용/core_amorphous_native.md",
+      "sha256": "a89a30892954ad338df0414207be626a9472e5267cf6c63db49147ced2314d3c",
+      "size": 4528
+    },
+    {
+      "path": "vaults/재사용/core_aquatic_campaign_policy.md",
+      "sha256": "5e68ab5409bd33a12cb8be3d4e806fe2e48ccc98bfc7300bf590c751edce463c",
+      "size": 4014
+    },
+    {
+      "path": "vaults/재사용/core_baby_template.md",
+      "sha256": "7e2589366e9efd1d41593dd05e201f3ea6f3e4ef936d31980737dabf52557c0a",
+      "size": 4081
+    },
+    {
+      "path": "vaults/재사용/core_bait_lure_native.md",
+      "sha256": "9b78309e70ebe3ecda1708b2905cfd43f3fbdfbd53066d3394880d903774b062",
+      "size": 367
+    },
+    {
+      "path": "vaults/재사용/core_ball_shop_availability.md",
+      "sha256": "24e35e9a50a67a1e3ab71f7acce7577eef0727d4fab9f4fc35e5bdb4c5f2034c",
+      "size": 332
+    },
+    {
+      "path": "vaults/재사용/core_battle_command_rules.md",
+      "sha256": "c38518b6b72fddf95df2649bb448a253995a0029b1773d92492f642ea4e5a694",
+      "size": 484
+    },
+    {
+      "path": "vaults/재사용/core_battle_contest_occurrence.md",
+      "sha256": "a5c48af2225b50465b611bb976a2938ac22d3ad14b33d94fb70ce2757a1a55ec",
+      "size": 5824
+    },
+    {
+      "path": "vaults/재사용/core_battle_tool_catalog.md",
+      "sha256": "30e4b805798ba228b60432535798670a3de5520eb4bc913a2be2eaa4deedfbe9",
+      "size": 5521
+    },
+    {
+      "path": "vaults/재사용/core_between_encounter_resources.md",
+      "sha256": "431dae55be3520be77408421cf2f442105f3ad22c3b46b0afb4c15404dd2d902",
+      "size": 3789
+    },
+    {
+      "path": "vaults/재사용/core_blender_owner_turn_state.md",
+      "sha256": "bf923d426a1eda6bb5086966332574fb696e2db20811aaebd8a51b0550fc0194",
+      "size": 3449
+    },
+    {
+      "path": "vaults/재사용/core_blessing_shared_state.md",
+      "sha256": "aa0fe85d50bffe5b0ef2ef2876e57dd922a6bc14cab7d01cc552e8a1d37dc3de",
+      "size": 3837
+    },
+    {
+      "path": "vaults/재사용/core_body_part_origin.md",
+      "sha256": "0927a7fd8b8178d9984b9c54d1c73a4dca17f51efbbeea53217051ffbb90a3da",
+      "size": 2000
+    },
+    {
+      "path": "vaults/재사용/core_book_baby_food.md",
+      "sha256": "3f65d70a970442327963a32538c4679f854824d0382221cf9e6e5115eb907e69",
+      "size": 4564
+    },
+    {
+      "path": "vaults/재사용/core_boss_transitions.md",
+      "sha256": "6962c3323c1e23a8dc3b45d0104ce2cc0b290c74a993574980e9d9b7287e4049",
+      "size": 4736
+    },
+    {
+      "path": "vaults/재사용/core_caltrops_native.md",
+      "sha256": "fdccfd97406249c37a707f240a30fc87cb43288793ff3032c9d6447e218865fb",
+      "size": 4821
+    },
+    {
+      "path": "vaults/재사용/core_cleanse_barrier_native.md",
+      "sha256": "07d4b1c7168287489b73808ea4d8dcfdffde506a1843363fd7e1b1355cbf192a",
+      "size": 6850
+    },
+    {
+      "path": "vaults/재사용/core_cleanse_burn_native.md",
+      "sha256": "235f73e1f97b884c7054c61931b30a8e18dad57e7c83025fa708c69004390219",
+      "size": 4210
+    },
+    {
+      "path": "vaults/재사용/core_cleanse_weapon_appendage_native.md",
+      "sha256": "4ad00b8b2ea414c887259dbbb77fb09ab2fecf9eade605880a7c6fd0c0a71809",
+      "size": 2855
+    },
+    {
+      "path": "vaults/재사용/core_coat_baton_transfer.md",
+      "sha256": "d9d9fe8097bdb80ade70a2615dc08b6247c031c57eb0583d4c18bb2a01a11ace",
+      "size": 2646
+    },
+    {
+      "path": "vaults/재사용/core_coat_presence_state.md",
+      "sha256": "e3d57846d71a5211fecb46715477fbfdbbbc4754082242a805d95295aeb1272c",
+      "size": 278
+    },
+    {
+      "path": "vaults/재사용/core_condition_admission.md",
+      "sha256": "89e21c28e98bf2b98b7e5fa4761e84c33ccc3d1ba3b3c9b7b68948a20f15e5a4",
+      "size": 2058
+    },
+    {
+      "path": "vaults/재사용/core_condition_variants.md",
+      "sha256": "fa3415e6fb9e5bf017e79c71146645cd094eaeda5fe359e0f9dfd60c71108183",
+      "size": 230
+    },
+    {
+      "path": "vaults/재사용/core_conditional_ability_presence.md",
+      "sha256": "8727f90dd6a5d9d789436a209f738cdb8fe3db78715b453da1d347398650b4be",
+      "size": 4866
+    },
+    {
+      "path": "vaults/재사용/core_connection_linked_move.md",
+      "sha256": "b767be6ec82a326476166d6c1279b71371565c8fbe53c101bffe18a97291aefb",
+      "size": 3673
+    },
+    {
+      "path": "vaults/재사용/core_contest_hall_rewards.md",
+      "sha256": "51f94f132442d118af98c5ad89442328d7e7f3f69ca262e5c0bdc8219fceee9d",
+      "size": 900
+    },
+    {
+      "path": "vaults/재사용/core_contest_native_types.md",
+      "sha256": "967d80cd78d3d707387f25d6047ae00c497e9121196effca259cc9e783aceb6d",
+      "size": 7010
+    },
+    {
+      "path": "vaults/재사용/core_cooperation_checks.md",
+      "sha256": "4227805d82d1f18c41e9875b16763d089743db319b9c2524f08d971e2f5ddeba",
+      "size": 4417
+    },
+    {
+      "path": "vaults/재사용/core_count_expiry_anchor.md",
+      "sha256": "8beb589f9d74013047e0e7fcf4a6729b7c372f1a50ad2504f090a01e838d2ada",
+      "size": 3357
+    },
+    {
+      "path": "vaults/재사용/core_coup_de_grace.md",
+      "sha256": "257ffb99dd2f3ee711f6d4ef1855ddbeeebebe9a414d3f1d90d195cf765dbcca",
+      "size": 332
+    },
+    {
+      "path": "vaults/재사용/core_crystal_onix.md",
+      "sha256": "8e6d9f8f3a19f73eb2b6ad109fdfecbcb507123487630848d0bb0f2415ab7620",
+      "size": 946
+    },
+    {
+      "path": "vaults/재사용/core_currency_denomination.md",
+      "sha256": "0e880157aed0f7e3a7a0de7f4b42c2304ffa467f1f1dd9b3037fa1ab0c98853d",
+      "size": 1519
+    },
+    {
+      "path": "vaults/재사용/core_declared_ability_status_immunity.md",
+      "sha256": "beac1ee940d268979b99bd636a5eeb31e75455699921123e63de75bfc8f41219",
+      "size": 4232
+    },
+    {
+      "path": "vaults/재사용/core_delta_evolution_native.md",
+      "sha256": "8bed4974500c4d0311c84ab481935c85cebc9125ae6b1f12244ee60219a8b765",
+      "size": 3300
+    },
+    {
+      "path": "vaults/재사용/core_dowsing_quota.md",
+      "sha256": "cce0f7139921ee3b1fa920baacb699ca96a7050f34cfa6e5494065d0dd94df26",
+      "size": 4119
+    },
+    {
+      "path": "vaults/재사용/core_drained_ap_lifetime.md",
+      "sha256": "95671393122f6ef6da08fd9ce3dcd82b26ea915e9a3b2e23ed60e59a48644c38",
+      "size": 3729
+    },
+    {
+      "path": "vaults/재사용/core_egg_inheritance_candidates.md",
+      "sha256": "4c93cf08427bb47ffc35529e4da0723e172326778569c6407accddab16b72d9a",
+      "size": 3330
+    },
+    {
+      "path": "vaults/재사용/core_egg_warmer_native.md",
+      "sha256": "cd6f947ad82ae76c14812b34eeefafd00a2cd0958ba6c29bf15023c0f17dba51",
+      "size": 3484
+    },
+    {
+      "path": "vaults/재사용/core_eldritch_magic.md",
+      "sha256": "8be02d2465818c0d649d25b47b91c888163f611e9e3a7a616eb8cacbaf3b3a74",
+      "size": 3804
+    },
+    {
+      "path": "vaults/재사용/core_encounter_terrain_contracts.md",
+      "sha256": "e8f8a18fac94c71ceee5582da8cabb288753bcb4f3352de5affb4f6fc87131d7",
+      "size": 3631
+    },
+    {
+      "path": "vaults/재사용/core_environ_state_native.md",
+      "sha256": "704cae224adf72745b8b6ec31e18afaed36008f4be7955b4e0cbda46493a3d9a",
+      "size": 1774
+    },
+    {
+      "path": "vaults/재사용/core_equipment_item_contracts.md",
+      "sha256": "b402cd22e580199bb3d7eb5999b42ecf58ed69cdeacb497eb3181576ae4ed74e",
+      "size": 7785
+    },
+    {
+      "path": "vaults/재사용/core_equipped_transport_saddle.md",
+      "sha256": "112dcb469836b68c8d33e1c0d7571b4d575030a441cc8340d6fcff9796bb9fd6",
+      "size": 2365
+    },
+    {
+      "path": "vaults/재사용/core_evolution_tool_source_catalog.md",
+      "sha256": "21b8fc57eef6600b0457619af8c4fb48257c2ce26be9d6bd21b284b592d86468",
+      "size": 3518
+    },
+    {
+      "path": "vaults/재사용/core_fainted_permissions.md",
+      "sha256": "4e8ee0a18fa28a43a37fde1865c3d2b5890bcdbbd9dc36ed8f2cd8a13ef97783",
+      "size": 3214
+    },
+    {
+      "path": "vaults/재사용/core_fast_combat.md",
+      "sha256": "ae074d765ac71a5c67b57a56bb22b665cd51c2a158b36172e6ec701a58ac9aea",
+      "size": 754
+    },
+    {
+      "path": "vaults/재사용/core_feature_ability_choices.md",
+      "sha256": "7192194bf47977eaa2e7eb5b6137a3f3a6ae2d41cf4c63421e20be51af322d5b",
+      "size": 1458
+    },
+    {
+      "path": "vaults/재사용/core_feature_frequency_limits.md",
+      "sha256": "c39bf662201b6c77930b5e58cec0a895bcb682ca5754faaa0130cdf9ec30dc31",
+      "size": 3331
+    },
+    {
+      "path": "vaults/재사용/core_field_range_c10_208.md",
+      "sha256": "68487745451d7575f2281fdf828b55cde92e766c09fcef639b694d77eb14aa49",
+      "size": 3178
+    },
+    {
+      "path": "vaults/재사용/core_first_owned_species.md",
+      "sha256": "bcba7d4e52f1661eb889b683fa7016d8cd33b56bb98885f4772e2d01e48b7aa5",
+      "size": 1756
+    },
+    {
+      "path": "vaults/재사용/core_fishing_candidates.md",
+      "sha256": "885bf4aa4f2f5d4762c2308c38c626a2f46b6622e48e9a2274a009ac3ec29ae3",
+      "size": 4332
+    },
+    {
+      "path": "vaults/재사용/core_fishing_state.md",
+      "sha256": "730a98a6876b56c8a6a66b532564f5f747174b7ea8b67f862ffadedddf00aa8a",
+      "size": 5131
+    },
+    {
+      "path": "vaults/재사용/core_focus_supernatural_range.md",
+      "sha256": "e135c31c86a77b4b863e7402c55948bd5a454add2e2d038fd566f936a9b3067f",
+      "size": 4993
+    },
+    {
+      "path": "vaults/재사용/core_forecast_appearance.md",
+      "sha256": "81fe2e99a17ab72e697d67a7c6166e038ef4b59b6022b0dab3b3d914a771c537",
+      "size": 1579
+    },
+    {
+      "path": "vaults/재사용/core_frequency_names.md",
+      "sha256": "8824d92434aac0b4edbc39be86e8bc35b9f4995b35edff0b779d1e866e32c067",
+      "size": 6327
+    },
+    {
+      "path": "vaults/재사용/core_full_contact_participants.md",
+      "sha256": "95917adbc119f96aa24da4555b63e57b98386cd7f77629015aea4a12f8129a59",
+      "size": 3472
+    },
+    {
+      "path": "vaults/재사용/core_game_day_frequency.md",
+      "sha256": "d46e9f562dca9cb42ab903fa170da8ad45ad00255e96be553813d51682fd2f43",
+      "size": 2632
+    },
+    {
+      "path": "vaults/재사용/core_gather_unown_native.md",
+      "sha256": "f228a2bce9cb0d320014b5131f90325df5ca044d500864791926e8a749ae9597",
+      "size": 4094
+    },
+    {
+      "path": "vaults/재사용/core_general_ap_contract.md",
+      "sha256": "c46b0799d88d72160529926db31137d68a6175df724e54a49f9c58a59e251861",
+      "size": 3284
+    },
+    {
+      "path": "vaults/재사용/core_glow_native.md",
+      "sha256": "5a169c2f56fd8a9e23c3e950be08593c2722e951473bcaf52940f47c5b6afc35",
+      "size": 3707
+    },
+    {
+      "path": "vaults/재사용/core_gm_mount_admission.md",
+      "sha256": "872fc972a07b992d15ce61b70f5b0b5a83a3cc391d443e5db9371a3af2543518",
+      "size": 3339
+    },
+    {
+      "path": "vaults/재사용/core_grapple_multipart.md",
+      "sha256": "f20fef28d4ed616340d58cef0e02e331d0173aaf519889d43447caeb61198ee7",
+      "size": 465
+    },
+    {
+      "path": "vaults/재사용/core_gym_command_profile.md",
+      "sha256": "8a26edd39f4e11bcb7ccf8a60fa218fb9069ec6eaab441612a0fcb777c17ff9d",
+      "size": 3010
+    },
+    {
+      "path": "vaults/재사용/core_herb_mushroom_rules.md",
+      "sha256": "66d7be3e5a7def891e8e667765391432887095c2d6a97d2d60965a3d078968b7",
+      "size": 2279
+    },
+    {
+      "path": "vaults/재사용/core_historical_relation_bounds.md",
+      "sha256": "99da338a3baf755707502bedd089e3644abad131ad4064f919bb72447bcd7c4d",
+      "size": 3603
+    },
+    {
+      "path": "vaults/재사용/core_hp_loss_move_class.md",
+      "sha256": "0fcf00f6ee7b9000da93f148d620fe8dbe809628f9a38d205e8b25ed4cbb83c7",
+      "size": 3250
+    },
+    {
+      "path": "vaults/재사용/core_hydreigon_multipart.md",
+      "sha256": "c708d453bab511186d1c74afc1ab0ac2d348d503d013f242f1d6d91a5410fa35",
+      "size": 2576
+    },
+    {
+      "path": "vaults/재사용/core_ice_lake.md",
+      "sha256": "5f2ca8dad3b597fb0accd823e1815ea83aeb9a40c0e283ffc04ec38db604003e",
+      "size": 1231
+    },
+    {
+      "path": "vaults/재사용/core_illusionist_state.md",
+      "sha256": "1d3c662dd66c780973c3092a32db18b5bf3a13ddc90537ea765cdc633c00d3a9",
+      "size": 2858
+    },
+    {
+      "path": "vaults/재사용/core_improvised_weapons.md",
+      "sha256": "dfe43e7ba7f80f04a81e4a22b10c7a952e29d2f60a4d709090d0600f81e94c7d",
+      "size": 3493
+    },
+    {
+      "path": "vaults/재사용/core_independent_role_turns.md",
+      "sha256": "cc66e923294713f8d8bc063433cbecef8f3509c3c7338aae4f6d9dc4c2e94ad4",
+      "size": 3305
+    },
+    {
+      "path": "vaults/재사용/core_irreversible_retraining.md",
+      "sha256": "3b58ee42a76af675eaf24cf41b0053ca5dba2d6284a56340d7bc5f4bd0ac79dd",
+      "size": 564
+    },
+    {
+      "path": "vaults/재사용/core_levitate_teleport.md",
+      "sha256": "31ce9e34a75047efa87da55becec89dc36170a382e04d4ccb15359af3b68daef",
+      "size": 3829
+    },
+    {
+      "path": "vaults/재사용/core_living_weapon_native.md",
+      "sha256": "50e493effcdef90f3eb9e7d075d215507a28d02d9ab553f4e579b270fe8da6c2",
+      "size": 3708
+    },
+    {
+      "path": "vaults/재사용/core_machine_lifetime.md",
+      "sha256": "8821a44318b66ce496871290433929e7ea096516f3983d68dc4feff30bbd4a71",
+      "size": 3926
+    },
+    {
+      "path": "vaults/재사용/core_machine_payment_slots.md",
+      "sha256": "0127b96dfde0fbba44781fb23bc816d5bd20ccfe2594970098cb45af1c189d29",
+      "size": 3649
+    },
+    {
+      "path": "vaults/재사용/core_magic_flute_native.md",
+      "sha256": "d91ccebcfe6b1251258a6d3693d578170909eec4d6c05f98d639f5d06635d803",
+      "size": 5604
+    },
+    {
+      "path": "vaults/재사용/core_mapless_areas.md",
+      "sha256": "fe635965e27aad54c99776f0767e7b05a5b1e866392efc0bc3ab368070ae314a",
+      "size": 2473
+    },
+    {
+      "path": "vaults/재사용/core_marsupial_native.md",
+      "sha256": "cc67a51c07a99f505bdbb975d3ed07a6c7acbd685e5fa01e4fc53f9067bffdea",
+      "size": 1187
+    },
+    {
+      "path": "vaults/재사용/core_mindlock_native.md",
+      "sha256": "d1a9fa50dcbd54e13e5763a1749ee9c6c6fa1f5eb178f957ba3a2d4671917dd2",
+      "size": 2995
+    },
+    {
+      "path": "vaults/재사용/core_missed_ball_body.md",
+      "sha256": "6a243ab8a76c01ddd4019904d6ba3f52fd4a4b0c18bfa42686c2b74a0d3802bc",
+      "size": 292
+    },
+    {
+      "path": "vaults/재사용/core_mount_suitability_command.md",
+      "sha256": "87aed117d9805c77cc2fafbdeaa6ddaf7967e58625ef4a0e9d902b37d560fd5a",
+      "size": 2910
+    },
+    {
+      "path": "vaults/재사용/core_move_accuracy_threshold.md",
+      "sha256": "181e71ef1cf5400bf3868f343f05bcceaa50bc4b4b5b85f84a6ce3cfd475ea99",
+      "size": 2686
+    },
+    {
+      "path": "vaults/재사용/core_move_classification.md",
+      "sha256": "14b1939599dfda3c28b552dcd48d73bc68d1f2ccc7df7b6a5c50bc02d5af747b",
+      "size": 3294
+    },
+    {
+      "path": "vaults/재사용/core_move_type_sync.md",
+      "sha256": "1af636eb508fcc91b5b23ba109dca7c837da1f1afdae761cb18b944e2afa2035",
+      "size": 3430
+    },
+    {
+      "path": "vaults/재사용/core_native_area_accuracy.md",
+      "sha256": "760e72edd9e7c22b463b566dce3ec3559d475af8a0b484f9e922f91d47903824",
+      "size": 3135
+    },
+    {
+      "path": "vaults/재사용/core_native_cave_senses.md",
+      "sha256": "a794a5d0ece303acef3d5c4b8b71d108c51bf9867732172874e7783d4948ab26",
+      "size": 3986
+    },
+    {
+      "path": "vaults/재사용/core_native_dirty_trick.md",
+      "sha256": "0d82171a1ff21ccf6aaaa53657a982d4178f51bc61180305fa77c732ddc52a7a",
+      "size": 3970
+    },
+    {
+      "path": "vaults/재사용/core_native_fainted_permission.md",
+      "sha256": "31a367410adbd3fc428d7f83a8202b640829de35ee98427df2974a9c362a3120",
+      "size": 3204
+    },
+    {
+      "path": "vaults/재사용/core_native_grapple_relation.md",
+      "sha256": "75c968ce2a35e5ec44b4b1c7a87209fd434606115b474d9e96aad5a5c58f4298",
+      "size": 4515
+    },
+    {
+      "path": "vaults/재사용/core_native_manipulate.md",
+      "sha256": "12dc06a693e4fefe1fc949155a846b33dfa1dd1e1d659eb029ea1d5d0f183915",
+      "size": 3936
+    },
+    {
+      "path": "vaults/재사용/core_native_melee_range.md",
+      "sha256": "7ef00db7ceb4f389ebdcb72d32f6d7d16d49b00567c2a163f0802e7020572a88",
+      "size": 2601
+    },
+    {
+      "path": "vaults/재사용/core_native_mountable_rider_load.md",
+      "sha256": "af7a184e7bb34c4e624a19b740811697556911a95bd640e3bddde58f9031d13f",
+      "size": 3922
+    },
+    {
+      "path": "vaults/재사용/core_native_self_range.md",
+      "sha256": "09012ba95e3b6a29fe2bd666ba25ec4bc28bc545d857298ddb11fc414f582152",
+      "size": 2739
+    },
+    {
+      "path": "vaults/재사용/core_native_setup_state.md",
+      "sha256": "03c67c20de044f575f7c4cc68d0f7b9782b6999a96ecc7770ead0c7eb207fc46",
+      "size": 3907
+    },
+    {
+      "path": "vaults/재사용/core_native_vortex_progress.md",
+      "sha256": "88421875974f0d30d1156a9c2b2902f0a0067027bd31568e2be2a6d6c0c7a983",
+      "size": 4438
+    },
+    {
+      "path": "vaults/재사용/core_next_turn_action_debts.md",
+      "sha256": "09ff424aaf3a8e3eb98052e188123db31c7fc1b6ae68bb5fd23232ccf3d202d1",
+      "size": 4061
+    },
+    {
+      "path": "vaults/재사용/core_nicolette_ap.md",
+      "sha256": "7e3a3ba6ca7847dbad8a7c8085cba87f5e0bfed673d88f92263cc3379cf6b73c",
+      "size": 426
+    },
+    {
+      "path": "vaults/재사용/core_nicolette_weather.md",
+      "sha256": "57cff90555337ade2d6788875d23c757802975b7b7b93c37a90bd48ab6abef96",
+      "size": 1769
+    },
+    {
+      "path": "vaults/재사용/core_noncombat_controller.md",
+      "sha256": "869529b6cf7f98b74aaa27d0a7d7d5b0d7f7ff65c175a06d82aed417c39e2cc6",
+      "size": 2406
+    },
+    {
+      "path": "vaults/재사용/core_nonvitamin_classification.md",
+      "sha256": "08004333325accd7fd172aee7dd9c52937bf864a67dc60b3ce0229530e094816",
+      "size": 483
+    },
+    {
+      "path": "vaults/재사용/core_observed_birth_facts.md",
+      "sha256": "d9762c55b834080ed1904a52c878e38738bb76b83841cd03b3f960d1ead20ff3",
+      "size": 4781
+    },
+    {
+      "path": "vaults/재사용/core_ordinary_action_economy.md",
+      "sha256": "db4057fd037c681f1f4f0f0e2b63393aeb2e15e658105f52206ba50214932b4d",
+      "size": 3809
+    },
+    {
+      "path": "vaults/재사용/core_out_of_combat_eot_c10_195.md",
+      "sha256": "bf09e8790cc2b47bb3e95b9f43ea17a20fee478c5d0204f0b7372bbc7f665ca8",
+      "size": 3115
+    },
+    {
+      "path": "vaults/재사용/core_overland_diagonal.md",
+      "sha256": "c49c6f6c544e5bce0fc513bd493dbac079a201bbd80978306dab4e49d5cf5efa",
+      "size": 3308
+    },
+    {
+      "path": "vaults/재사용/core_owner_transfer_withdrawal.md",
+      "sha256": "5569c572fb05c8d319e1d93ac5c288a45ffd3d3ed8a9acc7f88afd1b1cab05b4",
+      "size": 4035
+    },
+    {
+      "path": "vaults/재사용/core_pacifist_chimecho.md",
+      "sha256": "10d88a29b7ba5996bb4f81e9073c8ac97064fd1716f339c18f878eae09fa18f8",
+      "size": 459
+    },
+    {
+      "path": "vaults/재사용/core_pack_mon_native.md",
+      "sha256": "02084fd185fcc1a75daef9ec77862893975f5d230e103f2d11d53cb25e13a029",
+      "size": 2684
+    },
+    {
+      "path": "vaults/재사용/core_paragraph_item_source_catalog.md",
+      "sha256": "d1b98eb222d64542c35ed13e3055212fa8e55795e8769fac7cb32e6eff7cfe93",
+      "size": 3632
+    },
+    {
+      "path": "vaults/재사용/core_paralysis_state.md",
+      "sha256": "7a34c204390172955ae97487f9db51c36c982f0637ce3d06d75481d1d23c11a0",
+      "size": 3893
+    },
+    {
+      "path": "vaults/재사용/core_partial_innate_components.md",
+      "sha256": "99621112a4dc18aa81cf504875122eebdec7838a4ccf1bd3b3ca64b237870aef",
+      "size": 3505
+    },
+    {
+      "path": "vaults/재사용/core_pass_once_state.md",
+      "sha256": "ce935e51ecf182c497c18def9acb19bc96e5f586eb861e4f0fcf43820958048d",
+      "size": 305
+    },
+    {
+      "path": "vaults/재사용/core_pester_balls_native.md",
+      "sha256": "5a0327521bf47934788adb043035e214d8e53ab1a6b37a5c34cc6ed67171f52a",
+      "size": 2108
+    },
+    {
+      "path": "vaults/재사용/core_physical_incubator.md",
+      "sha256": "1e28d63921da2d36a3434c726879a9981548911fbb8e63c7467babc02c3ae47f",
+      "size": 307
+    },
+    {
+      "path": "vaults/재사용/core_physical_planter.md",
+      "sha256": "d183b27b405cb6b55665cf610bc2a6fdb2c2bfc1a476e1028c4014af9b3475c2",
+      "size": 1537
+    },
+    {
+      "path": "vaults/재사용/core_planter_native.md",
+      "sha256": "be302980aff606707ad3970952b6fe14c5fedc7e23d518fa4fb903b2bdf06678",
+      "size": 3092
+    },
+    {
+      "path": "vaults/재사용/core_pledge_rainbow_state.md",
+      "sha256": "c8aebf4b77f7607fa8e63afae6094b5187a5dcf2b18d8b7ce67b196ffa273713",
+      "size": 2054
+    },
+    {
+      "path": "vaults/재사용/core_poke_edge_receipts.md",
+      "sha256": "7d8720e538fcb8439fbb3b9894f2ef4ca73995a50b28ec821b98132fab5e8f59",
+      "size": 4325
+    },
+    {
+      "path": "vaults/재사용/core_pokedex_device.md",
+      "sha256": "0e180851ed141a4df8ecfaf4ecd67c268cfd6adf8e1e579be0c73ef65a63dce2",
+      "size": 269
+    },
+    {
+      "path": "vaults/재사용/core_pokemon_knowledge.md",
+      "sha256": "fa4e573e3dc871ec08f6af811631374820856615cad63f35b5eeffd3c8ac2954",
+      "size": 6149
+    },
+    {
+      "path": "vaults/재사용/core_power_herb_skip.md",
+      "sha256": "bcefbf97cd6904f6df1d6d9e0ae071988f1f3c193412d32685169f6280f7ac0f",
+      "size": 2471
+    },
+    {
+      "path": "vaults/재사용/core_power_load.md",
+      "sha256": "dfa14d70997653fdf78d6b876e20918f8cda1c0f79e7fd635b3f09db90e781ad",
+      "size": 4346
+    },
+    {
+      "path": "vaults/재사용/core_pre_roll_ap_bonus.md",
+      "sha256": "6f2a0f8576c8e73d03b411d84a38cab16fa076fb6d240afd2b2147eb0acfbfaf",
+      "size": 3043
+    },
+    {
+      "path": "vaults/재사용/core_precision_penalties.md",
+      "sha256": "9f949790269f04bbf8177cb7791946c57eea192d1e25e4fff9a54af67b6287f8",
+      "size": 3542
+    },
+    {
+      "path": "vaults/재사용/core_prime_unown_native.md",
+      "sha256": "c85fb9953de48d21de654ec895afe8d119332e180bcd1dfade0c39b7b70fd20f",
+      "size": 2547
+    },
+    {
+      "path": "vaults/재사용/core_quick_npc.md",
+      "sha256": "b50cb86a16489b6968e3b785749371a32abd007a16711a4dc108ef6b849b2e52",
+      "size": 409
+    },
+    {
+      "path": "vaults/재사용/core_ready_class_observations.md",
+      "sha256": "233481f9453aec6d16cc6e861bb4bd0ad7f4edb74e7cc45ea48557145f46ade2",
+      "size": 2335
+    },
+    {
+      "path": "vaults/재사용/core_repel_environment.md",
+      "sha256": "1853fcc4286c08c97ba346143ba58b53d5743e6761a1c389bca198f3957aadb4",
+      "size": 1567
+    },
+    {
+      "path": "vaults/재사용/core_restorative_application.md",
+      "sha256": "b69fa7daeafa123728e213737f2f71f3230aa6c54bd0a7b1f91df734dfeee137",
+      "size": 5063
+    },
+    {
+      "path": "vaults/재사용/core_rotation_contest_state.md",
+      "sha256": "63fdfd1b30e10cf40ef00d0ef1eafa3a9f6e07543c4c3122063fc2f29c8289a2",
+      "size": 6725
+    },
+    {
+      "path": "vaults/재사용/core_salon_expiry.md",
+      "sha256": "028c6e8bc6d5926410371847a09a8112b9d3a8f04b8f97c3df73775b5665dde6",
+      "size": 1949
+    },
+    {
+      "path": "vaults/재사용/core_scene_ap_eligibility.md",
+      "sha256": "f9a5786152c17d4eb6cd54c9e24e8b6784e1fd9f7d2b13742a15ee64fc4dc3c4",
+      "size": 3251
+    },
+    {
+      "path": "vaults/재사용/core_session_frequency.md",
+      "sha256": "18b46498137738297f29523e5f6d2ff23ecda8401457bf58d79e2739ccefaca9",
+      "size": 490
+    },
+    {
+      "path": "vaults/재사용/core_shapeshift_original_volume.md",
+      "sha256": "e66dc9f9033b167043fb5b517ce585b5f885e4f5811a957218e6382e7dec0d4c",
+      "size": 2382
+    },
+    {
+      "path": "vaults/재사용/core_shared_mount_movement.md",
+      "sha256": "dd1a3ca283994598365e00151ff3d07cfa515418437cb349b1f73613a22d488e",
+      "size": 3494
+    },
+    {
+      "path": "vaults/재사용/core_shiny_observation.md",
+      "sha256": "9107fe6d56c5ba05ddba5e995b6c508d3668d62791f52a1fce71bcb8fadeb3d7",
+      "size": 1600
+    },
+    {
+      "path": "vaults/재사용/core_smoke_ball_native.md",
+      "sha256": "9b92fefb30262a8b459addeab2946dd885bedaa658816bc5ecfa1b937fcbb7c3",
+      "size": 4649
+    },
+    {
+      "path": "vaults/재사용/core_species_capability_bases.md",
+      "sha256": "28de1589ec3bd86dde51259d82e3540d5c9553c222aba534435d8f7284c2aad3",
+      "size": 3939
+    },
+    {
+      "path": "vaults/재사용/core_spirit_body_modes_native.md",
+      "sha256": "1b6a264199389f0f2df8037c4fbe461998515e416999637f5dcee857e90e1ab3",
+      "size": 4317
+    },
+    {
+      "path": "vaults/재사용/core_stat_suppressants_native.md",
+      "sha256": "a5f52a2bec48bb1b6f60ece80bfc50109f57126a6d0fc9dde583e8c0ca46c4ae",
+      "size": 532
+    },
+    {
+      "path": "vaults/재사용/core_static_ability_presence.md",
+      "sha256": "5c4caca05d81e295f4427ee6041fc46eecbecc77842c220c5f6ffffd7bc7b3fe",
+      "size": 3991
+    },
+    {
+      "path": "vaults/재사용/core_static_bind_passive_native.md",
+      "sha256": "5c7e1396f9650635b3f8e2e273affcd5009e67d1e3ed377092e5260b301275c0",
+      "size": 1060
+    },
+    {
+      "path": "vaults/재사용/core_stealth_sound_state.md",
+      "sha256": "4ac9c9c2c1ff0000841ae233924abd1a58d44391ccd479ff80225a3b9de15a89",
+      "size": 3473
+    },
+    {
+      "path": "vaults/재사용/core_store_purchase_benefits.md",
+      "sha256": "65954675c84fcabc305068329c17c69d2137e87c5d02df917b21773b9a3ecc89",
+      "size": 4265
+    },
+    {
+      "path": "vaults/재사용/core_swarm_transitions.md",
+      "sha256": "37da754f69890ed622155dea8088158b2ce83555f9e4b88020eb1f828e2c51c9",
+      "size": 2343
+    },
+    {
+      "path": "vaults/재사용/core_telekinetic_remote_load.md",
+      "sha256": "b90166e6337f3193c59a304a07b1b08acf18b831382fac5a939fe58d88df55ba",
+      "size": 5177
+    },
+    {
+      "path": "vaults/재사용/core_telepathy_pair_retry_trace.md",
+      "sha256": "7f6704ab8d3006a90eec912bd5ce6c713c94e87af91ee26ef9319e0b855712e4",
+      "size": 3793
+    },
+    {
+      "path": "vaults/재사용/core_terrain_passage.md",
+      "sha256": "0d85cdc69d67230a0f7cd4ff3b8d1fbef99f4ac6c6e95fb5ddf1bdf8aa1ed8f9",
+      "size": 3305
+    },
+    {
+      "path": "vaults/재사용/core_threaded_actual_pull.md",
+      "sha256": "edbe6898e8e3252f4e983ba5fccbbc02e6c445506027d0ec73e467e7167a704d",
+      "size": 3769
+    },
+    {
+      "path": "vaults/재사용/core_total_blindness_remaining.md",
+      "sha256": "e21b1f895bfa9327b5aec95636c6825a3fdb5c19b528f02e573602614224c583",
+      "size": 265
+    },
+    {
+      "path": "vaults/재사용/core_trainer_growth_bank.md",
+      "sha256": "60f95cdcdc9720531858b52764be244d14a80ed0d8d79922bba033efbe822f0b",
+      "size": 4220
+    },
+    {
+      "path": "vaults/재사용/core_trainer_new_movement.md",
+      "sha256": "5fe40d81de834fa3224beaf7c0f2398419eedff872cf79832fd1ec5571600bd2",
+      "size": 2545
+    },
+    {
+      "path": "vaults/재사용/core_trainer_slots.md",
+      "sha256": "5415aceee0c3b95a9bb2f7894f5fa139c9651c30c8087bedb70e413ea89b1240",
+      "size": 3140
+    },
+    {
+      "path": "vaults/재사용/core_training_seven_exact.md",
+      "sha256": "59983edcc4f09d54517fb596750ad8f6acd81a456a5326f1219ccdcfd201c2af",
+      "size": 2981
+    },
+    {
+      "path": "vaults/재사용/core_tutor_point_storage.md",
+      "sha256": "98e6a30e187eaa03a4fa3d4d58620927e2b2cdad1e09c72e62e79462d4682770",
+      "size": 3476
+    },
+    {
+      "path": "vaults/재사용/core_type_berry_hit.md",
+      "sha256": "93d80aa0016c0188a89c72d4d2511df1165c8031a118b868403db05aab2d2cda",
+      "size": 4361
+    },
+    {
+      "path": "vaults/재사용/core_underdog_eligibility_native.md",
+      "sha256": "69de7b29b78d0d5eb513179a8178aaf75385523abb34725ebf812d23336df39d",
+      "size": 1446
+    },
+    {
+      "path": "vaults/재사용/core_unown_ground.md",
+      "sha256": "0c5fd7dc8b7f5f9476ef732092e6f5e9432dbdb9d2080325f8a58e85f36a41d9",
+      "size": 1444
+    },
+    {
+      "path": "vaults/재사용/core_weapon_choice_range.md",
+      "sha256": "7d037122deb05ae9b78d4cbad37faa82ca96ec4d51dd1869b58b4950b06b70f4",
+      "size": 3314
+    },
+    {
+      "path": "vaults/재사용/core_weapon_kinds_slots.md",
+      "sha256": "46b80d7722059b51ee0eefefba00de89ea571fa7a43a3645d06d074a9b659bf7",
+      "size": 4556
+    },
+    {
+      "path": "vaults/재사용/core_weight_class_reference.md",
+      "sha256": "9836c26b93d5c051241649b38f0a8f144775e26ccd83b39d69d35c3d80d990e4",
+      "size": 5372
+    },
+    {
+      "path": "vaults/재사용/core_wielder_native.md",
+      "sha256": "6a68637e861859de29699db6c081187cf191f5bc47e9640fec526538a8cf8dd4",
+      "size": 3101
+    },
+    {
+      "path": "vaults/재사용/core_wired_native.md",
+      "sha256": "56c36f04be1553308aa09fd69f5bb88581350f375c09d79c7869ec9ea358b039",
+      "size": 5051
+    },
+    {
+      "path": "vaults/재사용/core_xray_vision_material_observation.md",
+      "sha256": "fc0f17e2e04ea59d6d5ab94e7e3b565249ee2533085fc07597504f1ecae0abf3",
+      "size": 2349
+    },
+    {
+      "path": "vaults/재사용/csv_ability_reveals.md",
+      "sha256": "7c7224240d164015e5740ab142ab2ba0f8de2afccfd555855f0e19c67bfb5f79",
+      "size": 2668
+    },
+    {
+      "path": "vaults/재사용/csv_ability_state_projection_fifteen.md",
+      "sha256": "c4eba572ff6c22d07073faa6878c158f0c1e5d58f55c4b9f358d515381a235f8",
+      "size": 8136
+    },
+    {
+      "path": "vaults/재사용/csv_alternate_move_modes.md",
+      "sha256": "8e128f079364c49cbda4040f2f52e91156c804dc269e927db13cc98aee02bbf9",
+      "size": 3831
+    },
+    {
+      "path": "vaults/재사용/csv_awareness.md",
+      "sha256": "fd7fed91969b62046afbe62595509bb1bce4680d15f4d40d2b954bd2a44b44e7",
+      "size": 3745
+    },
+    {
+      "path": "vaults/재사용/csv_baby_food.md",
+      "sha256": "be3918d98bd6ea5ad57dc72a3589f774eb3e0362a93d3820e4932ec2d4872f5a",
+      "size": 4037
+    },
+    {
+      "path": "vaults/재사용/csv_bleed_repeats.md",
+      "sha256": "04c0fd2a9d06b70b95d2f436f25be13cebaceb9f65f48b2c67f75742e0cf6013",
+      "size": 4115
+    },
+    {
+      "path": "vaults/재사용/csv_blessing_context_skill_batch.md",
+      "sha256": "8774f7360462dca2e605ad77c4c03c3e20905ca11a343f57f16a2ff60778c527",
+      "size": 4338
+    },
+    {
+      "path": "vaults/재사용/csv_bug_bite_consumed_food.md",
+      "sha256": "ccc743a4deb51532f0ae6754ead0808d192b2b469933fba5e113d054343a09ac",
+      "size": 4513
+    },
+    {
+      "path": "vaults/재사용/csv_catalog_move_states.md",
+      "sha256": "6561d505532bd7faf5a700a5340d41d2c25b3db23b3018498ca45a8fe5589800",
+      "size": 3414
+    },
+    {
+      "path": "vaults/재사용/csv_class_passive_combat_exact_twelve_1110.md",
+      "sha256": "d8fab15a0a2dac32874684e0d1efe9558f33b3d8d9e4692637250bcd212b5b76",
+      "size": 8331
+    },
+    {
+      "path": "vaults/재사용/csv_class_recovery_resource_actions_exact_four_1142.md",
+      "sha256": "2d5e2b2d5c8ab5f3f2528456becf584b5dce834d61171597d5164e45ac8318c2",
+      "size": 5216
+    },
+    {
+      "path": "vaults/재사용/csv_cluster_mind_slots.md",
+      "sha256": "ab7ee495613f67d9b6165268dfab69a9d182a1696a92e88f11d8c4bee722a094",
+      "size": 4304
+    },
+    {
+      "path": "vaults/재사용/csv_combat_precision.md",
+      "sha256": "488879149adc094ed94bbad345f64b5e1f789965eb3469443e2702ea2ae8c2aa",
+      "size": 3913
+    },
+    {
+      "path": "vaults/재사용/csv_conditional_damage_base_round_setup.md",
+      "sha256": "156668f20487e79c45ce3a746f03756672adaba689b0f06699b7eb1a7c307e4b",
+      "size": 2777
+    },
+    {
+      "path": "vaults/재사용/csv_entry_moves.md",
+      "sha256": "7c49155ad025b05c9578fac6fadd0687fe3ea1ac74bccc7cc0552bb6d039a2c9",
+      "size": 4600
+    },
+    {
+      "path": "vaults/재사용/csv_food_scene_history.md",
+      "sha256": "292b11189766d403c844638edcb781af5853c8eecacc501995ea56046625ecb1",
+      "size": 4010
+    },
+    {
+      "path": "vaults/재사용/csv_forced_repeat_move_chains.md",
+      "sha256": "b85b8d97db579943f095aa76ec4912588f63f8b50e999c4110fa7cd8888abedf",
+      "size": 4142
+    },
+    {
+      "path": "vaults/재사용/csv_form_permissions.md",
+      "sha256": "c94e0bb02f2e3d680c940e334481fbef2d6f1c859deb44edc0da640604003295",
+      "size": 4378
+    },
+    {
+      "path": "vaults/재사용/csv_giver_slots.md",
+      "sha256": "63d0aaa022cb3ecef3136c2ee81b442d6ad72c133aa1cfb9138f60bf77d95221",
+      "size": 4158
+    },
+    {
+      "path": "vaults/재사용/csv_global_terrain.md",
+      "sha256": "b923ac8d0e5e3cb93c9be652477b5342334840053cd5b548439807620bd186b6",
+      "size": 6275
+    },
+    {
+      "path": "vaults/재사용/csv_healing_gain_blocks.md",
+      "sha256": "f8005d7913ebc697890d0cc9f20726bf170ec0ed0154739afc50dc3ce72eb1d5",
+      "size": 3353
+    },
+    {
+      "path": "vaults/재사용/csv_held_item_reactions.md",
+      "sha256": "0b38ca40f55861210c1aa65f2ef11039ca8c7a6996a96bd76738f7c866b94b9b",
+      "size": 3253
+    },
+    {
+      "path": "vaults/재사용/csv_item_environmental_capabilities.md",
+      "sha256": "61a18b557fd12ba9fe8e80b07439d6597848b8125d8d634d8cb3fbaabc7f4e89",
+      "size": 2792
+    },
+    {
+      "path": "vaults/재사용/csv_item_source_variant_reuse.md",
+      "sha256": "7a590600b60324ba5434e3aca3d8987725eb8f69ed6504271e10388c5bb8bc5b",
+      "size": 3118
+    },
+    {
+      "path": "vaults/재사용/csv_item_weather_duration_extensions.md",
+      "sha256": "0a59fbb84c2ed0a2bbf42ea0819f0b3ece60590d292f7f477b08a426306704dc",
+      "size": 4582
+    },
+    {
+      "path": "vaults/재사용/csv_move_damage_state_contracts.md",
+      "sha256": "cb612455fd9f4f3e0c4d95e8a4e796b9f18bf3533f4896bc5756e39b1d4bf3a0",
+      "size": 3786
+    },
+    {
+      "path": "vaults/재사용/csv_move_slot_variants.md",
+      "sha256": "ab85d35f86a3168d96a4d3000b670d83d630963842d6cb53d8c325bc06c2b99e",
+      "size": 4176
+    },
+    {
+      "path": "vaults/재사용/csv_opportunity_limits.md",
+      "sha256": "9367aa35e830d49cede59c08defcfeace3c476c5aaf9eab12f4931d1ffab55c1",
+      "size": 6087
+    },
+    {
+      "path": "vaults/재사용/csv_pickup_item_copy.md",
+      "sha256": "85a50b959f3df488b4de194ccb21a6383451e1d83f74040dbd4b1ddcd267b928",
+      "size": 3435
+    },
+    {
+      "path": "vaults/재사용/csv_planter.md",
+      "sha256": "ed6ce4a6cfdda2751c4120dbce06eddad4c15da61686c65cd1814877f08258f4",
+      "size": 4605
+    },
+    {
+      "path": "vaults/재사용/csv_shared_delayed_attacks.md",
+      "sha256": "2514b4413570d5c071f34872a3c594d75e8ae79b3c041ccb608423fe33f54c78",
+      "size": 2561
+    },
+    {
+      "path": "vaults/재사용/csv_skill_monkey.md",
+      "sha256": "ab18aedd910b7b283bc99f1404ba4d111274d9db977fa5732619ef1d8c9b64b1",
+      "size": 3422
+    },
+    {
+      "path": "vaults/재사용/csv_smoke_regions_completion.md",
+      "sha256": "17c9006960faba3eac95db65447c68a47d17a6821f7f303115b8459c8c97b64f",
+      "size": 4193
+    },
+    {
+      "path": "vaults/재사용/csv_sourced_conditions.md",
+      "sha256": "e74a04ecbef88301a9c61f0f7a7c6a6b4aa0e79f270241a9e9224b19d3a7f44f",
+      "size": 5203
+    },
+    {
+      "path": "vaults/재사용/csv_stage_change_history_moves_three_1122.md",
+      "sha256": "057938aa64dc591fcd4e792d3ae4070e41cf37caddcaef34aa56127cae4e1713",
+      "size": 3606
+    },
+    {
+      "path": "vaults/재사용/csv_stat_exchange_lifetimes.md",
+      "sha256": "26f014762f84e10716c3f52a6d6e187867b41007954539adea46ab641fbabf5e",
+      "size": 2995
+    },
+    {
+      "path": "vaults/재사용/csv_static_trainer_modifiers.md",
+      "sha256": "f1ed85dc655c3bd3625894bd6ed19f42ac7c3fc0c673980d44dafcd24b8591df",
+      "size": 3502
+    },
+    {
+      "path": "vaults/재사용/csv_stellar_tera_blast_four_1138.md",
+      "sha256": "b586290ca5ab42668aefd580e8401e46736dc5b298cee618742fe938311707b0",
+      "size": 5335
+    },
+    {
+      "path": "vaults/재사용/csv_timed_type_additions.md",
+      "sha256": "1c9570a6bca27406b376fb531a7da2a11d6856e3c798524105b4604b46b7a44c",
+      "size": 2253
+    },
+    {
+      "path": "vaults/재사용/csv_training_orders_priority_limited.md",
+      "sha256": "b9574a35773e388487481fb6dc216822432b2c2452841f626584740d05090bfd",
+      "size": 4119
+    },
+    {
+      "path": "vaults/재사용/csv_unnerve_target_limits.md",
+      "sha256": "7a0008b1aa6213bc1f408af1769a7d3d710ece001fca53b02c36986237b29087",
+      "size": 3977
+    },
+    {
+      "path": "vaults/재사용/csv_vortex_parameters.md",
+      "sha256": "1024cc289f88576643c01ae4efcf96d2b96caf66ee83237d5bced29c9c91d6c9",
+      "size": 4311
+    },
+    {
+      "path": "vaults/재사용/defensive_hacking.md",
+      "sha256": "956d684c4d3a0f4a94e0aa795df023c0ebe3606b7834140e4494f50dda186881",
+      "size": 4227
+    },
+    {
+      "path": "vaults/재사용/digital_programs_two_1179.md",
+      "sha256": "d8eb20acfee9c2f74cabb931ae5d9ce2c808815384aa1cafe378474c0b7ded76",
+      "size": 4147
+    },
+    {
+      "path": "vaults/재사용/directive_csv_exact_source_adapter_1232.md",
+      "sha256": "b216ae79a5f3d265c74e01032d8f783dce9fe370dace5798f76add35861d2693",
+      "size": 3082
+    },
+    {
+      "path": "vaults/재사용/dynamism.md",
+      "sha256": "a9a3ab5750873b164bfdaa01127f37004ba266a14f70b9b4675d2be15c2858d8",
+      "size": 4002
+    },
+    {
+      "path": "vaults/재사용/egg_tutor_once.md",
+      "sha256": "c794a2f04887ec265594c7e4de3413c0aaa784cc303be0cd0cbe616b0b8d36d5",
+      "size": 3349
+    },
+    {
+      "path": "vaults/재사용/elemental.md",
+      "sha256": "3f9784a48f3edd6fa9a1d8d50b82d2a6c5550e971d06c914416a326ad2a9dec9",
+      "size": 3043
+    },
+    {
+      "path": "vaults/재사용/elemental_homebrew.md",
+      "sha256": "f644ddf0fae59a218664d6b916a235db2688ee71348f7c3b409d0e86c9507e95",
+      "size": 3554
+    },
+    {
+      "path": "vaults/재사용/environmental_attacks.md",
+      "sha256": "c8b03619615c0f79608348583e429fdd8f62152bcedeb449fb47d8b4c2bee06f",
+      "size": 3885
+    },
+    {
+      "path": "vaults/재사용/environmental_electronics.md",
+      "sha256": "6128a151043e02826b5a9c1f2d3d3d8ee6734b320944e23e55985e31250bc446",
+      "size": 6991
+    },
+    {
+      "path": "vaults/재사용/environmental_electronics_clock.md",
+      "sha256": "d62532320a7234875bfb8cedc3f8989b6942882e09445d9681bccc38463cf426",
+      "size": 1736
+    },
+    {
+      "path": "vaults/재사용/environmental_item_state.md",
+      "sha256": "6e3e25b2b318462c69e2e369afd038b94ce49f532c05081de17be2fc22b5a734",
+      "size": 5088
+    },
+    {
+      "path": "vaults/재사용/environmental_object_attack_outcomes.md",
+      "sha256": "85e8e89566c084cf3d026f2ebb3684e593a7e5cc05fdefd71dc129c51a26772c",
+      "size": 4388
+    },
+    {
+      "path": "vaults/재사용/fantasy_class_branch_source_connections_1190.md",
+      "sha256": "5570596cc895938594d20e4a79c6f61f709a7766e6a1dfe50dd7ec6920ee2345",
+      "size": 3853
+    },
+    {
+      "path": "vaults/재사용/fantasy_ranked_move_tables_1192.md",
+      "sha256": "c2b15f46381e4a03fba6689df89f8dd6153c009ed5adf8e26ed14c56c18bc514",
+      "size": 3725
+    },
+    {
+      "path": "vaults/재사용/fantasy_ranked_speed_repair_1225.md",
+      "sha256": "d494fafcbba0a1604db37bbdabbe7ca353a0def630f204f5fbbb3d8538150280",
+      "size": 3814
+    },
+    {
+      "path": "vaults/재사용/fantasy_static_named_grants.md",
+      "sha256": "7949959ce65f0566ccb1f71a6373aad123c17f9ec3d3da94f4540ee5cb8a8872",
+      "size": 4709
+    },
+    {
+      "path": "vaults/재사용/far_reading_completion.md",
+      "sha256": "59366d7b516fef029d872d29bdb5cdfa4d1d512701cdbde4d27beb1b2d5738c7",
+      "size": 7628
+    },
+    {
+      "path": "vaults/재사용/fashion_item_contracts.md",
+      "sha256": "a922a35079b47ba7b04a644006a6dbe4c1f523f54f3fcc209c4e6a9f26a278b4",
+      "size": 7723
+    },
+    {
+      "path": "vaults/재사용/feature_ability_lessons_1196.md",
+      "sha256": "7e30bce059f65d0f5ca3b7f4eae81bbd7b6017dd87b415c8f3a2332ca5dc767f",
+      "size": 3912
+    },
+    {
+      "path": "vaults/재사용/festival_final_roster.md",
+      "sha256": "e5adaf6a62d00ccc5d554c0317ef06c1e1df819f2e024f68b913f092e5456d59",
+      "size": 2052
+    },
+    {
+      "path": "vaults/재사용/festival_progression.md",
+      "sha256": "4b28290d60690352c42bef29602d718c8781b078c57d6c146cf24ccb57e93683",
+      "size": 5313
+    },
+    {
+      "path": "vaults/재사용/finisher_target_status.md",
+      "sha256": "5a4e4898828260eb223e859d72776c86ab7a52a911f947f946445b53218c5896",
+      "size": 5032
+    },
+    {
+      "path": "vaults/재사용/fluster.md",
+      "sha256": "8e46d26c4da656172ed26aa43112fe271f7ccf6140bc96956d5a4c01f2029424",
+      "size": 2470
+    },
+    {
+      "path": "vaults/재사용/foiling_move_exemption.md",
+      "sha256": "785b693271de3244f789baf6ff8a96d45d197edd29dfe73e6fc2717a98d048af",
+      "size": 3344
+    },
+    {
+      "path": "vaults/재사용/glacial_ice_exact_one_1184.md",
+      "sha256": "1487c7d4e78238afda2ff2a70b04da54b65de663f8784eb39e3f1c8b3b2e7bd4",
+      "size": 3561
+    },
+    {
+      "path": "vaults/재사용/glitch_body_context.md",
+      "sha256": "9cd5470cff491d14a4ef64838c11a45f0657d8f0ac390a62e7fab401a5f78280",
+      "size": 3984
+    },
+    {
+      "path": "vaults/재사용/glitch_context.md",
+      "sha256": "124ef12b09dcfa6e57e1194c9093fd3e94a285d51868d54c46d4f1bddbee1622",
+      "size": 3466
+    },
+    {
+      "path": "vaults/재사용/gm_rule_policies.md",
+      "sha256": "bc527f08f0fdbcc7ac68a6cb126e52c22fba673c7a92ff79d5faa769e71ccb55",
+      "size": 4986
+    },
+    {
+      "path": "vaults/재사용/gmax_derived_moves_9.md",
+      "sha256": "cdbd93369acd55be0152a5b55fb4f1e99f7e6307433fcf41b25fb1d6bfe97288",
+      "size": 5733
+    },
+    {
+      "path": "vaults/재사용/grace.md",
+      "sha256": "081bf3cc2e4ddd25aa2c0cbd033155d20f14d575ec50f4330ebd1f97560969ac",
+      "size": 2944
+    },
+    {
+      "path": "vaults/재사용/groomer.md",
+      "sha256": "d1f8789ea35bda71ead41de1cd7f35d72749c52d9f017a5ca0525a15bd2f91fa",
+      "size": 3187
+    },
+    {
+      "path": "vaults/재사용/hazard_state_shared_batch.md",
+      "sha256": "06319d6ab72ea685905eeb0017884fbcd8a34cce33e548fb407147cfa9687467",
+      "size": 4706
+    },
+    {
+      "path": "vaults/재사용/held_equipment_original.md",
+      "sha256": "ee80bd9a98ed2b59cff511a4a3b1ce2335d3cc3f6f0111f14c926a6232d211b3",
+      "size": 3397
+    },
+    {
+      "path": "vaults/재사용/hp_setting_caps.md",
+      "sha256": "6576e12c3f8579d9cdeeba0607aab83ffd1cf2b021105b2d98a081d090982d2e",
+      "size": 3887
+    },
+    {
+      "path": "vaults/재사용/invisibility.md",
+      "sha256": "a98c422184df6792c6e674ea8a26640bd0172a615425d1e1e1cac0886247b2dc",
+      "size": 2802
+    },
+    {
+      "path": "vaults/재사용/iron_mind_completion.md",
+      "sha256": "9533600fde5b1d90ab8369e72d51f4d1bae0c4645fc45bbad85b03a682fb8b57",
+      "size": 6814
+    },
+    {
+      "path": "vaults/재사용/juggling_show_introduction.md",
+      "sha256": "b1d623891c42dd64653f906954346ca1fa705cd397ae867a494b0564dd5b727a",
+      "size": 4277
+    },
+    {
+      "path": "vaults/재사용/manipulator.md",
+      "sha256": "756653ff5c16a973396ea8283fbba13381f659d0bce7ea95dd8e8ae2cd06c43e",
+      "size": 2565
+    },
+    {
+      "path": "vaults/재사용/manual_equipment_actions.md",
+      "sha256": "2dbb0c14c412a1f3e50c7d6522901c3244ed965f2f4f819cd776b04df34d139c",
+      "size": 1063
+    },
+    {
+      "path": "vaults/재사용/manual_equipment_originals.md",
+      "sha256": "c250890a66aabe422200df54fd9688ed387d3b428a6c137f3e67717454afb823",
+      "size": 4784
+    },
+    {
+      "path": "vaults/재사용/mapless_environment_entry.md",
+      "sha256": "84348c924541ba6f861a0bb87052b45517d228b90f55a86909fce113356f67e7",
+      "size": 4051
+    },
+    {
+      "path": "vaults/재사용/mapless_mounted_travel.md",
+      "sha256": "3f2568023e47957885d2a027c925ca3df3913d6ee2cc42564c1424c11e4b1cd6",
+      "size": 4947
+    },
+    {
+      "path": "vaults/재사용/mapless_paid_departure.md",
+      "sha256": "3bd94ed4223dcf1f9ef32646715958f9a5cf5f7ab230cb34cbd42fd667e98092",
+      "size": 5183
+    },
+    {
+      "path": "vaults/재사용/mapless_spatial_relations.md",
+      "sha256": "9b19370ccf46d85a83a35e668e614724ad9c7a3f65eee32361ba7150575cd478",
+      "size": 7283
+    },
+    {
+      "path": "vaults/재사용/martial_artist_exact_ability_receipts.md",
+      "sha256": "ff0640ed54b3cd640d0863081bbcbce5c26286e308ddfd8a975a24d754c347c0",
+      "size": 2833
+    },
+    {
+      "path": "vaults/재사용/mass-bundle-equipment-reactions-1125.md",
+      "sha256": "a51d751b83733ce7b326069d047936ae1cb2b7558282e15bcdc301c766521430",
+      "size": 10161
+    },
+    {
+      "path": "vaults/재사용/mass-wave-56-1054.md",
+      "sha256": "3f67c5dc29859ba3c6998148429b4726bba1116e32a3fcf77b487c21cd3b50cd",
+      "size": 34392
+    },
+    {
+      "path": "vaults/재사용/mass_parallel_bundle_31.md",
+      "sha256": "c38cc6024f55f1cbba6f9852c462f27b640f944cf90ace7acbe2d3c942d11d2d",
+      "size": 18089
+    },
+    {
+      "path": "vaults/재사용/mentor_csv_exact_source_adapter_1231.md",
+      "sha256": "314e47e67b0952ffa19ba98766f60cf2afa5793b4204640cc115d9180fb37c1f",
+      "size": 3808
+    },
+    {
+      "path": "vaults/재사용/mentor_learning_limits.md",
+      "sha256": "d68690dca43b752575ccddf574c6ce634c046948a45d25faa63ae00413b6ba54",
+      "size": 11837
+    },
+    {
+      "path": "vaults/재사용/mixed_sweeper_completion.md",
+      "sha256": "1ed9facea2ab1cbdfea96146c7d888c5d13e5c413f6463801bbaec89ef82da29",
+      "size": 7672
+    },
+    {
+      "path": "vaults/재사용/mounted.md",
+      "sha256": "591c9af9a0c94db501d53401ad61b741de041a6e899ef029a728a45401478415",
+      "size": 2722
+    },
+    {
+      "path": "vaults/재사용/multipart_entities.md",
+      "sha256": "30996c187b4eb5cca3741430ecb28c3dac665dd87d19f7a69204b45372edaac7",
+      "size": 5085
+    },
+    {
+      "path": "vaults/재사용/mystic.md",
+      "sha256": "e81aa798d4db605e693f2f8ee87dc5def8ece8b3d2dc88439dbb636d0d091445",
+      "size": 2640
+    },
+    {
+      "path": "vaults/재사용/named_static_gift_grants.md",
+      "sha256": "af6d64c65d8f898531bbb72bef14129547e0539adb3ad1d483c5c4a9e0e320d2",
+      "size": 5815
+    },
+    {
+      "path": "vaults/재사용/native_action_confusion.md",
+      "sha256": "e998cb7b2e3e309d32bb1cd1d50b5a1853ff231b5a6c0ad776a4a30c7f687735",
+      "size": 4847
+    },
+    {
+      "path": "vaults/재사용/native_area_hit_effects.md",
+      "sha256": "e7dc14b848cb6441cab76e8c47d756f95887e15849d6cf9eeb032c3e2e1b29bf",
+      "size": 5161
+    },
+    {
+      "path": "vaults/재사용/native_class_passive_three_1181.md",
+      "sha256": "ed475a3c134e6021f5e0572d2b05af3ac21b78d30f04f023e80a1a3d582ae7fd",
+      "size": 5298
+    },
+    {
+      "path": "vaults/재사용/native_class_reactions.md",
+      "sha256": "3418c62ac56a43ea6154d9c6605f14e530573368f8267c2115c9d6d655d5ab6a",
+      "size": 3984
+    },
+    {
+      "path": "vaults/재사용/native_lifecycle_bundle_18.md",
+      "sha256": "9817b8d832ba880702b50b70da4dcd5015afbb2fd96e6305438c68474f8adf62",
+      "size": 8982
+    },
+    {
+      "path": "vaults/재사용/native_move_batches_1204.md",
+      "sha256": "3f1c86a763e33a70e3ee5bbc6d349e0b1970c7bcd7580b426fbbbcd8e78d740d",
+      "size": 4696
+    },
+    {
+      "path": "vaults/재사용/native_move_coins_fields_1211.md",
+      "sha256": "9d41863b42a343ac5c1df68a3e8c75a0d9afb9552351c968584f7d3e6ff658d5",
+      "size": 3299
+    },
+    {
+      "path": "vaults/재사용/native_move_confusion.md",
+      "sha256": "e61297317b6f305b27124d222e895eba5370b2cfe509690052bc961bbad7cb63",
+      "size": 3753
+    },
+    {
+      "path": "vaults/재사용/native_move_defense_1220.md",
+      "sha256": "cfacbc6978c81e9be7ab89158de30fcaf272b0a415eea5fd8e6bedcee900dbd0",
+      "size": 6415
+    },
+    {
+      "path": "vaults/재사용/native_priority_source_consumers_1225_sol.md",
+      "sha256": "1cb1487845487a2e5d13d1b7d99e05a97c601959d43067688200bd46629f5bab",
+      "size": 5343
+    },
+    {
+      "path": "vaults/재사용/native_sleep.md",
+      "sha256": "775bdee734c64da39e8f727de9daa3813d955eb878ae948b680fe88758afb044",
+      "size": 4690
+    },
+    {
+      "path": "vaults/재사용/network_actual_anchor.md",
+      "sha256": "175bb5c33e42182b726d834e5d8bef2065be5c8f47efbdbab1de3942bb0d1dd4",
+      "size": 3990
+    },
+    {
+      "path": "vaults/재사용/optional_crafted_catalog_exact_nine_1146.md",
+      "sha256": "a4be22b7c78383054b66dbece622e359b62bca44b78d481e844bc544b0b2e350",
+      "size": 8331
+    },
+    {
+      "path": "vaults/재사용/optional_move_modes_1199.md",
+      "sha256": "d025ba340b2866798275ab450f492ff1e4ac2ed3dc8f453100fe6b237bcf2b43",
+      "size": 5772
+    },
+    {
+      "path": "vaults/재사용/optional_state_effect_contracts_exact_eight_1155.md",
+      "sha256": "8955c4209b430eacd539de15b401a2df4904be7ecc403db8cf2b915544c40afe",
+      "size": 6619
+    },
+    {
+      "path": "vaults/재사용/optional_weapon_framework_five_1174.md",
+      "sha256": "1b134813ea2fe18b4f110f17e479cc0fc15be78c4936a7dbaee5bc5c7e83129a",
+      "size": 9065
+    },
+    {
+      "path": "vaults/재사용/optional_weather_clause_reconciliation.md",
+      "sha256": "af15328bec82368295b65f27701e10e184ab7affc103000678064358bfc5cc8e",
+      "size": 2142
+    },
+    {
+      "path": "vaults/재사용/ordinary_scene_light_pairwise_1227_sol.md",
+      "sha256": "d666994e8eea90192310f9f552164821d65aa7445459c77c1a1b164ea705941e",
+      "size": 3826
+    },
+    {
+      "path": "vaults/재사용/physical_attack_confusion.md",
+      "sha256": "fc15f46576798f862b2f6cb543a02f61b71f3b978c022d1a9768783e575fe661",
+      "size": 3450
+    },
+    {
+      "path": "vaults/재사용/physical_material_damage.md",
+      "sha256": "06811e845d407886bc560e9df2b91e90da6a80dfe5ba079799a39b6696ada222",
+      "size": 5184
+    },
+    {
+      "path": "vaults/재사용/physical_object_attack.md",
+      "sha256": "e171ac784a690898deb29316ff794d294c334b90c6f1005f6a32212818d62e2a",
+      "size": 6985
+    },
+    {
+      "path": "vaults/재사용/physical_tool_binding.md",
+      "sha256": "f5361797b474e4c4ba9a597dbaa8dd18d5c8aae85a89320c7b4bfbfeea802caf",
+      "size": 3614
+    },
+    {
+      "path": "vaults/재사용/poke_capability.md",
+      "sha256": "7703384efce5b93d4dc9ef4037de7fabd919462e50be50adf5b69af8f351011a",
+      "size": 4362
+    },
+    {
+      "path": "vaults/재사용/poke_skill.md",
+      "sha256": "d15c7454e8be71d77668d3e99697006531478f28fc257644e8df4af84c0b14c0",
+      "size": 4693
+    },
+    {
+      "path": "vaults/재사용/polished_shine_effect_range.md",
+      "sha256": "3e31aaa1d42f17000fdd26edcc5d475466729b3d91ca2953cc11ab0a0914be10",
+      "size": 5143
+    },
+    {
+      "path": "vaults/재사용/post_return_standard_reaction_1222.md",
+      "sha256": "7d669e4bbf46f9e208f5fbf9fbe0cc63fe7fb1e14e7e58a84223ce5e97c62ee8",
+      "size": 4118
+    },
+    {
+      "path": "vaults/재사용/power_boost.md",
+      "sha256": "7e44e3631a15cc9ca7b15378a4beaa3c86ccbffd2ab33be067ad84c4dfca8975",
+      "size": 2756
+    },
+    {
+      "path": "vaults/재사용/precise_threadings_completion.md",
+      "sha256": "a5c22e8f938dfcfb352c0052b6f4286477ed312e515b94eb807965299fc0d5a8",
+      "size": 7161
+    },
+    {
+      "path": "vaults/재사용/ranged.md",
+      "sha256": "faf41d007767ac4f9a8215b3e90a274419be7d3c0d7635435369e765656c6abb",
+      "size": 3412
+    },
+    {
+      "path": "vaults/재사용/reactive_ability_events_1216.md",
+      "sha256": "de0420bf1d3e8bb23c3f53ade8ba807000bcd82713d50a48cbf366243cd882b0",
+      "size": 4396
+    },
+    {
+      "path": "vaults/재사용/realized_potential.md",
+      "sha256": "9b3f69b0a1981d44c3b5b4d51bfc666a4c8ff5acf87b7f5a0398833bf49e40e6",
+      "size": 5416
+    },
+    {
+      "path": "vaults/재사용/relative_defense_shared_1221.md",
+      "sha256": "d90ea503dfc0b19b3494002cd0f6edaed3a84c00e85163dd8651fd6a1901d14c",
+      "size": 2581
+    },
+    {
+      "path": "vaults/재사용/reopened_core_consumers.md",
+      "sha256": "bb60c8417231c76aef52f0d232f0af2f5d9a425e5ceb59f3d8620f4039e5fd07",
+      "size": 5739
+    },
+    {
+      "path": "vaults/재사용/reopened_native_consumers.md",
+      "sha256": "1f911bc41f0e8652a728c25a8c5d8fae19cda50d991fef2c7b62d9868af8a3a4",
+      "size": 6380
+    },
+    {
+      "path": "vaults/재사용/scene_feature_ability_grants.md",
+      "sha256": "dd6fe972765dea82c55697dd907cec3b7ece18aaea12454d04de34da87f1896d",
+      "size": 3046
+    },
+    {
+      "path": "vaults/재사용/seismometer_completion.md",
+      "sha256": "f1575028922958623701ef3fd971e85b61c46d43230de351464d8fef784c4f20",
+      "size": 6792
+    },
+    {
+      "path": "vaults/재사용/signature_book_source_1233.md",
+      "sha256": "c7bec4b9db9a3559cdbd203e123a32b0dd45d665abf9e443b5d232527e8ca38d",
+      "size": 2151
+    },
+    {
+      "path": "vaults/재사용/signature_move_exact_source_adapter_1230.md",
+      "sha256": "b0886eb3664912def14932e67919797e75b029c49c59366d3240c566a2f6a6a1",
+      "size": 2558
+    },
+    {
+      "path": "vaults/재사용/skill_stunt.md",
+      "sha256": "7310ecd68cb6e96aeda56044c64e28d690e1029e241f15420a6caa9599030377",
+      "size": 2856
+    },
+    {
+      "path": "vaults/재사용/smooth.md",
+      "sha256": "b7ff653c2fb4acef5a014889ba54a5031e595691f4d07abf869a89433d56db84",
+      "size": 2713
+    },
+    {
+      "path": "vaults/재사용/source_ability_and_item_native_seventeen.md",
+      "sha256": "de0937d9b69ec9f2a537baece7ed4cd860d308cbb8b241533469a2752e9b1a40",
+      "size": 10698
+    },
+    {
+      "path": "vaults/재사용/survivalist_csv_daily_selection.md",
+      "sha256": "9f0ed8b7f06a1b6c1da3d242f771cd26c7036bc2cadb38086916c68c08ee6be1",
+      "size": 6597
+    },
+    {
+      "path": "vaults/재사용/swarm_identity_bands.md",
+      "sha256": "9fd0561803a0d12af886bf8fa5dedb41857dc34feb1f546fe1c263149bbf0a4c",
+      "size": 3433
+    },
+    {
+      "path": "vaults/재사용/swimmer.md",
+      "sha256": "d83c5459aaaf0fd7e6f91d1c399918f665bd308c250ac8e94620c383d4dac968",
+      "size": 2509
+    },
+    {
+      "path": "vaults/재사용/tera_shell_native_interrupt_1222.md",
+      "sha256": "4e2d5ba931e8eed4fecad6d1d6dc2c78fb9ac9c72baf2f2158264bb6102d3580",
+      "size": 4859
+    },
+    {
+      "path": "vaults/재사용/terrain_talent_choices.md",
+      "sha256": "39a61322c4bb28da051d7bf03e30153bb2fe2994fd7237e2cec5403b1c98a096",
+      "size": 3459
+    },
+    {
+      "path": "vaults/재사용/throwing_masteries_completion.md",
+      "sha256": "a3d74a99aadf6429f777187e114111e1e3c9c40f6b511e1116e686f1bdf51054",
+      "size": 7974
+    },
+    {
+      "path": "vaults/재사용/tk_mastery.md",
+      "sha256": "bebfdc33abe52719c6a77510a38cdf944781cf175643e0beb8195759bc0dd283",
+      "size": 4822
+    },
+    {
+      "path": "vaults/재사용/train_reserves.md",
+      "sha256": "6a8c79815285199667f73ecfaffbec3709f68b597dcacbd5fc5d490312969eb8",
+      "size": 2751
+    },
+    {
+      "path": "vaults/재사용/trainer_skill.md",
+      "sha256": "0ef2a397fb808edbff3b7074166c3f8df589f80f1d98705569095dc106153b83",
+      "size": 4236
+    },
+    {
+      "path": "vaults/재사용/traveler.md",
+      "sha256": "1ab81937fe6718d2dbdfc5cf01e762d8cdbbb283ba23b3c5cdba3eba368c5182",
+      "size": 3450
+    },
+    {
+      "path": "vaults/재사용/trickster.md",
+      "sha256": "a561a651385c29996797e6c8b1ef45753abe944e8d91869f4c836b4564278b38",
+      "size": 2594
+    },
+    {
+      "path": "vaults/재사용/underdog_lessons.md",
+      "sha256": "9e37c459f506a6ea00e7ca2ddbfe55fdc5566adcff7626afdda3a2750d9f8c04",
+      "size": 5152
+    },
+    {
+      "path": "vaults/재사용/underdog_strength.md",
+      "sha256": "44ff5894a31e4b6cb002be1137ed644855674e62c3e7c1b80b9e35c1cb8711c0",
+      "size": 4111
+    },
+    {
+      "path": "vaults/재사용/vehicle_actual_relations.md",
+      "sha256": "0ec4ff3cfa651f87e1d3f5ec635805cc781ff70247c90c97dca1f80f8e2ce48d",
+      "size": 3555
+    },
+    {
+      "path": "vaults/재사용/vehicle_native_five_1163.md",
+      "sha256": "493757f6f7cfd1d56932d183f838c5b0007d3f76d5a97fb19db3acdf4efb0a0c",
+      "size": 5471
+    },
+    {
+      "path": "vaults/재사용/vehicle_upgrade_sources_six_1168.md",
+      "sha256": "b7a761fa3e890ba1f3dbf98857072bb64ac4cbd5952c9379739067456b0aa8f1",
+      "size": 5030
+    },
+    {
+      "path": "vaults/재사용/wallrunner_completion.md",
+      "sha256": "c90600d76311913c3a40c64183941015a6ba044e64dfa3a6d368eba320348058",
+      "size": 8951
+    },
+    {
+      "path": "vaults/재사용/weapon_choice.md",
+      "sha256": "fa31b5b15c5b6dd214d342fd4ff5a9eb72c47a8a921f538173b95b284b4118f6",
+      "size": 3704
+    },
+    {
+      "path": "vaults/재사용요소/T01.md",
+      "sha256": "1750700fbcfa7ebd5a0187a4dcdb810b97807830706765aa287615f525d050a7",
+      "size": 4067
+    },
+    {
+      "path": "vaults/재사용요소/T02.md",
+      "sha256": "ae8525887ca851741cf489b417f5931b132fe065905a71bc4ee5172576140352",
+      "size": 9301
+    },
+    {
+      "path": "vaults/재사용요소/T03.md",
+      "sha256": "249219bf5eaa625f05ead00187b1517bdc3cbe82fbe82a7a66c8762e47075863",
+      "size": 4536
+    },
+    {
+      "path": "vaults/재사용요소/T04.md",
+      "sha256": "1813661c027b2271dc85c5f68406d3252c3d74e659a14400e4440cc6ec6f2712",
+      "size": 10091
+    },
+    {
+      "path": "vaults/재사용요소/T05.md",
+      "sha256": "7bfc25d12de2b8cb55272d19bdac1a2ebcc6a881378a2948fc8d3e78a65ee82c",
+      "size": 9223
+    },
+    {
+      "path": "vaults/재사용요소/T06.md",
+      "sha256": "e057b3000bba7449742382d810bcb5c51042150d9012baaeacc1208ffe026d04",
+      "size": 6221
+    },
+    {
+      "path": "vaults/재사용요소/T07.md",
+      "sha256": "2796023d705d5b1c35e19c0f1c8ba6ece25c1aee2ed94be213aa53bc3a4743d9",
+      "size": 8477
+    },
+    {
+      "path": "vaults/재사용요소/T08.md",
+      "sha256": "7ae7273a1822a57765c30b301cee31b8e3ee905241661dbc8ce0250d05ad64f8",
+      "size": 4606
+    },
+    {
+      "path": "vaults/재사용요소/T09.md",
+      "sha256": "a53e7a6f69ee034eb583da4fc16ae9c8b685aa9c8c907aacc317f3f6a30fc6e3",
+      "size": 7679
+    },
+    {
+      "path": "vaults/재사용요소/T10.md",
+      "sha256": "7adb7f6266dbccdf2b1ea8c6c728512f6e3f2955fa4df4eb8bc13ec59564ee24",
+      "size": 6141
+    },
+    {
+      "path": "vaults/재사용요소/T11.md",
+      "sha256": "35886f4bb93d404b4ddffc6fe75d09f75663f06c0a3b8420cab8d477003fb915",
+      "size": 5111
+    },
+    {
+      "path": "vaults/재사용요소/T12.md",
+      "sha256": "2f07ad57c010f9726938790b4c366e099be4252cb950a4d9381e4a375616b688",
+      "size": 5770
+    },
+    {
+      "path": "vaults/재사용요소/T13.md",
+      "sha256": "f4ce786e6102cc975066993c83bccde677f94667a81d2ce38b754229591f5a58",
+      "size": 4886
+    },
+    {
+      "path": "vaults/재사용요소/T14.md",
+      "sha256": "2d81af423c1c8225cc1673563e8ec29ccf666af8fceb132e5c10b917d3d6fde5",
+      "size": 6842
+    },
+    {
+      "path": "vaults/재사용요소/T15.md",
+      "sha256": "efd2bc4f1d1a066450a4d079f1b281e29620f87eacda8c6c53ad9be1d10c0891",
+      "size": 5259
+    },
+    {
+      "path": "vaults/재사용요소/T16.md",
+      "sha256": "719dfc0b117c9c285fe23842d34d92f5b22b3ef015730e88cc56db73734952d8",
+      "size": 7680
+    },
+    {
+      "path": "vaults/재사용요소/T17.md",
+      "sha256": "8c4c91f6ef1d2a930cd684e84f31301d13a0274a36f08eb73f03dabc4d159a0e",
+      "size": 5173
+    },
+    {
+      "path": "vaults/재사용요소/T18.md",
+      "sha256": "3b71d0b5743ddbd624991dce5a682fc8019ca6b23bf7eb755a542fcdaf089f04",
+      "size": 5550
+    },
+    {
+      "path": "vaults/재사용요소/T19.md",
+      "sha256": "d54841d9c5544e598ac591e44ef59d59cfebaa5752a4f4990660faebe0e6f748",
+      "size": 8909
+    },
+    {
+      "path": "vaults/재사용요소/T20.md",
+      "sha256": "8686e5ffa5bb38d87674b2cbaa33ab28ad220b3387d4347713a70ff582da3edc",
+      "size": 5655
+    },
+    {
+      "path": "vaults/재사용요소/T21.md",
+      "sha256": "eaeac7aca973a570477a5e5452c235a37782a6dbe973269c77f21928479e5aa5",
+      "size": 9014
+    },
+    {
+      "path": "vaults/재사용요소/T22.md",
+      "sha256": "be98c515dc0c2fc3a514c4e57743d45729c952f78114dcbbcbd3d7f6eea1e84f",
+      "size": 9912
+    },
+    {
+      "path": "vaults/재사용요소/T23.md",
+      "sha256": "89c024b8ef828907d456b2c16d58b8533cd858eaf8d7ac15889046d66626334b",
+      "size": 5368
+    },
+    {
+      "path": "vaults/재사용요소/T24.md",
+      "sha256": "399c41c3503085668058476fd72ba89bf029ea83ae6edefbae6ee8d143d99343",
+      "size": 4831
+    },
+    {
+      "path": "vaults/재사용요소/T25.md",
+      "sha256": "5099d37a733c00568f8eb1a747867736161b9859b50b60d08c98a8da323449ee",
+      "size": 7904
+    },
+    {
+      "path": "vaults/재사용요소/T26.md",
+      "sha256": "222f323bba4e98917add4f6182a8b15bb9001e6c87f5c8c6f22c69a39ba9cdb8",
+      "size": 7319
+    },
+    {
+      "path": "vaults/재사용요소/T27.md",
+      "sha256": "6595d5953413dd5726d5628d0369a2943b48814d8f4ccebbd7de2ad020207d15",
+      "size": 9514
+    },
+    {
+      "path": "vaults/재사용요소/T28.md",
+      "sha256": "aaf55cea463ede00d9d4e92fa6dba1756495862f041964cecd67065a55e9e7c1",
+      "size": 5644
+    },
+    {
+      "path": "vaults/재사용요소/T29.md",
+      "sha256": "76ad01609aa35bb1a46c566d7608d6099b506cdb66bd5bfc353965a1d9b76579",
+      "size": 5970
+    },
+    {
+      "path": "vaults/재사용요소/T30.md",
+      "sha256": "a46444193de4094cbd57b9ce41f8bd76e536436f77e5262cbd9033593b66c5bd",
+      "size": 5595
+    },
+    {
+      "path": "vaults/재사용요소/T31.md",
+      "sha256": "0c013b552bc9cc7d66a4e27aef8f6856727ae7f17486aa5b34e322d27405a253",
+      "size": 4781
+    },
+    {
+      "path": "vaults/재사용요소/T32.md",
+      "sha256": "4ab00bdbd6d6d8ad86b70e832f1ac91f68706c8cd2ce68b2062c42e8e82f22b8",
+      "size": 5957
+    },
+    {
+      "path": "vaults/재사용요소/T33.md",
+      "sha256": "6c435dbf6e2b4a202c481f641831eeea5160fdba1860f4bccaa19049722204ab",
+      "size": 4950
+    },
+    {
+      "path": "vaults/재사용요소/T34.md",
+      "sha256": "64b5fb79558b929496528e816faa3f0eee4ff04ec1a3291108ce509b9928493c",
+      "size": 4919
+    },
+    {
+      "path": "vaults/재사용요소/T35.md",
+      "sha256": "c39099e8a40677ee22cc72ffde428f176e14fa2541c0d318dbdc82ba6442a7ab",
+      "size": 5324
+    },
+    {
+      "path": "vaults/재사용요소/T36.md",
+      "sha256": "58bea89049aa1c05e20bed049140255cd24bb08017008ec5e98615e0a5798964",
+      "size": 5081
+    },
+    {
+      "path": "vaults/재사용요소/T37.md",
+      "sha256": "1580383b7df4147ced27f7cb1b47cba1b4638865befbac6cd2d829c2a6ee7f78",
+      "size": 5334
+    },
+    {
+      "path": "vaults/재사용요소/T38.md",
+      "sha256": "6b81ceacb8dbb9b0f8b795bf247a373c14b47b6b1eef40fb1c1b413e6deb0732",
+      "size": 7163
+    },
+    {
+      "path": "vaults/재사용요소/T39.md",
+      "sha256": "495e175110df36b6e9530bdc3a66d84db977d993d8d566d6a4081c60f3d1851f",
+      "size": 5625
+    },
+    {
+      "path": "vaults/재사용요소/T40.md",
+      "sha256": "6f11e87f0ac0116456bd5d1092fe37a92958338553fe427c6e33fcdd9647692f",
+      "size": 7581
     },
     {
       "path": "work/common-owner-integration-1255/baseline/engine/campaign_rewards.py",
@@ -2130,6 +5065,11 @@
       "path": "work/common-owner-integration-1255/fingerprint-sites.json",
       "sha256": "c5fd961c8c5124b04435b040764e3dc628fc795810ed3a0c169eb87b54ad5fac",
       "size": 23300
+    },
+    {
+      "path": "work/reuse-partials/verify_overlay_tests.py",
+      "sha256": "879e8ce68e1f570f472e33aa271b8e7d5a4066730fbba27bc6b2b8c691c6af0a",
+      "size": 51103
     }
   ]
 }

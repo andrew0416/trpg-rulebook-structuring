@@ -21,6 +21,8 @@ RECIPES={'몬스터볼':('basic_balls','몬스터볼',100,'몬스터볼 공구�
  '슈퍼볼':('basic_balls','몬스터볼',175,'몬스터볼 공구함'),
  '초코바':('basic_cooking','음식',50,'요리 세트'),'이유식':('basic_cooking','음식',50,'요리 세트'),
  '벌레회피스프레이':('repel_crafter','스프레이',100,'화학 세트'),'실버스프레이':('repel_crafter','스프레이',150,'화학 세트')}
+ADVANCED_BALLS=('다크볼','다이브볼','힐볼','럭셔리볼','네트볼','네스트볼','퀵볼','리피트볼','타이머볼')
+RECIPES.update({name:('ball_crafter','몬스터볼',700,'몬스터볼 공구함') for name in ADVANCED_BALLS})
 
 def _p():
  import pokemon_activities
@@ -175,6 +177,11 @@ def _recipe(e,actor,item,*,item_id,inventory_key,seconds):
   feature,category,unit,tool=RECIPES[item]
   source,aliases,prerequisites=P.FEATURES[feature]
   requirements.append({'kind':'owned','fields':['edges' if source.startswith('edge/') else 'feats'],'names':[source,*aliases]})
+  if feature=='ball_crafter':
+   import source_context as SOURCE,hobbyist as H
+   SOURCE.verified_source(e.r,{'file':'input/ch03-skills-edges-feats.md','sha256':H.GENERAL},label='printed Poké Ball Crafter recipes')
+   if e.r.selection.units[source]['source']['lines']!=[892,895]:raise ValueError('exact nine Poké Ball Crafter recipes required')
+   requirements.extend({'kind':'owned','fields':['edges'],'names':[parent]} for parent in ('edge/몬스터볼','edge/몬스터볼-수리'))
   if prerequisites:requirements.append({'kind':'any','conditions':[{'kind':'skill','skill':skill,'rank':rank,'effective':False} for skill,rank in prerequisites]})
  elif item in RESTORATIVE_RECIPES:
   _researcher(e,actor,'약사')

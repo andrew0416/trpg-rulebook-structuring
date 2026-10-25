@@ -129,7 +129,7 @@ def resolved_move(fn):
         try:
             import stamina as STAMINA
             actor=values['attacker'];source=values['move_id']
-            if not any(c is not None and STAMINA.interested(c) for c in participants) and source not in (__import__('tumbler').SPLASH,__import__('tumbler').BOUNCE) and not __import__('combat_move_reactions').interested(engine):
+            if not any(c is not None and STAMINA.interested(c) for c in participants) and source not in (__import__('tumbler').SPLASH,__import__('tumbler').BOUNCE) and not __import__('combat_move_reactions').interested(engine) and not __import__('trickster').native_frame_required(engine,actor,source) and not __import__('conquerors_march').interested(engine):
                 result=fn(engine,*args,**kwargs);completed=True;return result
             stack=getattr(engine,'_native_action_stack',[])
             same=bool(stack and stack[-1]['kind']=='move' and stack[-1]['actor'] is actor
@@ -535,6 +535,7 @@ def ordinary_permission(engine, actor):
         return True
     import action_resources as RESOURCES
     if RESOURCES.action_locked(actor):return False
+    if __import__('trickster').impromptu_scope(engine,actor):return True
     state=getattr(engine,INTERRUPTS.KEY,None)
     overflow=bool(state and any(frame['status']=='open' and frame['mode']=='duelist_interrupt'
         and state['windows'][frame['window_id']]['trigger']['kind']=='duelist_overflow'
@@ -598,6 +599,7 @@ def status_permission(engine, actor, kind, *, sleep_cure=False, new_action=True,
         engine.log(f"    {actor.name}: 잠듦 — 수면을 치료하는 자유·신속 행동만 허용", "condition/잠듦")
         return False
     limit = getattr(actor, "_turn_action_limit", None)
+    if limit and limit.get('source')=='condition/혼란' and __import__('breather').staying_permission(engine,actor,kind):return True
     if limit and new_action:
         selected=__import__('ace_trainer').supreme_limit(engine,actor,limit,_native_move)
         if selected and (limit.get('source')!='condition/혼란' or kind=='standard') and not getattr(actor,'_restricted_action_taken',False):
@@ -614,6 +616,7 @@ def status_permission(engine, actor, kind, *, sleep_cure=False, new_action=True,
 def record_action(engine, actor, kind, *, _triggered_source=None):
     import initiative_interrupts as INTERRUPTS
     INTERRUPTS.require_recorded_action(engine,actor,kind,triggered_source=_triggered_source)
+    __import__('trickster').action_recorded(engine,kind,_triggered_source)
     __import__('illusion_state').break_genjutsu(engine,actor,'action')
     import csv_item_physical_contracts as CSV_ITEMS
     CSV_ITEMS.expire_immediate_reactions(engine)
@@ -664,6 +667,7 @@ def move_grant(engine, actor, target, move_id, *, source, kind=None):
     ace=ace or __import__('hex_maniac').move_authority(engine,actor,target,move_id,source)
     ace=ace or __import__('warper').move_authority(engine,actor,target,move_id,source)
     ace=ace or __import__('capture_specialist').move_authority(engine,actor,target,move_id,source)
+    ace=ace or __import__('conquerors_march').reprisal_authority(engine,actor,target,move_id,source)
     commander=__import__('commander_orders').strike_authority(engine,actor,target,move_id,source)
     if not (ace or signature or commander) and source not in ("maneuver/기회-공격", "same_move_activation", "feat/치명적인-장기말", "move/원한", "move/버티기", "move/버티기-홈브류"):
         raise ValueError("unreviewed move grant producer")
@@ -698,6 +702,7 @@ def consume_move_grant(engine, token, actor, target, move_id, *, count_use=None,
             warper=__import__('warper').move_authority(engine,actor,target,move_id,entry[5])
             signature=__import__('ace_trainer').move_authority(engine,actor,target,move_id,entry[5])
             capture=__import__('capture_specialist').move_authority(engine,actor,target,move_id,entry[5])
+            capture=capture or __import__('conquerors_march').reprisal_authority(engine,actor,target,move_id,entry[5])
             ace=ace or martial or focus or hex_maniac or warper or capture
             commander=__import__('commander_orders').strike_authority(engine,actor,target,move_id,entry[5])
             if not (ace or signature or commander) and entry[5] not in ("maneuver/기회-공격", "same_move_activation", "feat/치명적인-장기말", "move/원한", "move/버티기", "move/버티기-홈브류"):

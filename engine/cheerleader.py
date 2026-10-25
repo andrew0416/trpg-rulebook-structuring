@@ -352,11 +352,7 @@ def native_action(fn):
             token=_TRANSACTION.set(True)
             try:return fn(e,user,*copied_args,**copied_kwargs)
             except Exception as error:
-                import passive_events as PASSIVE,heavy_injury_adapter as HEAVY
-                if type(error) is PASSIVE.PassiveEventPending and e._passive_pending==error.event_id and error.event_id in e._passive_events:
-                    pending.append((PASSIVE.PassiveEventPending,error.event_id));return None
-                if type(error) is HEAVY.HeavyPending and e._heavy_pending==error.event_id and error.event_id in e._heavy_events:
-                    pending.append((HEAVY.HeavyPending,error.event_id));return None
+                if G.record_native_pending(e,error,pending):return None
                 raise
             finally:_TRANSACTION.reset(token)
         try:result=G.transition(engine,actor,apply,include_rulings=True,include_grid=engine.grid is not None)

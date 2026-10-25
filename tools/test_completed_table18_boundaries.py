@@ -1,4 +1,5 @@
 """Source-specific consumers absent from the historical clause-to-case mapping."""
+from pathlib import Path
 import unittest
 from engine import Rules,Engine,Combatant
 import survivalist_features as SURVIVALIST
@@ -9,7 +10,7 @@ import items as ITEMS
 class Table18Boundaries(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.r=Rules('D:/trpg-rulebook-structuring/ptk-structure-experiment',ruleset='all')
+        cls.r=Rules(Path(__file__).resolve().parents[1],ruleset='all')
         PASSIVE.ClassPassiveCombatBulkTests.setUpClass()
 
     def mountain(self):

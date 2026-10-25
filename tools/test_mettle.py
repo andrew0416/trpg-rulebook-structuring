@@ -126,7 +126,9 @@ class MettleTests(unittest.TestCase):
         self.assertEqual(self.attack(e,a,b,m),40);self.assertEqual(a.stages['atk'],-2)
     def test_actual_damage_dice_are_rolled_once(self):
         e,a,b,m=self.fixture();rolls=[]
-        def roll(expr,times=1):rolls.append((expr,times));return 15,[3,4]
+        def roll(expr,times=1,*,actor=None,purpose=None):
+            self.assertIs(actor,a);self.assertEqual(purpose,'damage')
+            rolls.append((expr,times));return 15,[3,4]
         e.roll_expr=roll
         self.assertEqual(e.use_move(a,b,m,free_action=True),32);self.assertEqual(len(rolls),1)
     def test_response_can_prevent_fainting(self):

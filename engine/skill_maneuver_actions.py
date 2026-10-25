@@ -17,15 +17,16 @@ def resuming(actor,source,options):
  active=actor.custom_conditions.get(ACTIVE);row=actor.custom_conditions.get(RECEIPTS,{}).get(active,{})
  return active==source+':'+str(options.get('roll_id')) or bool(active and row.get('native_reaction') and row['basis']['source']==source and options.get('roll_id') is None)
 
-def prepare(e,actor,target,source,basis,plans,*,observe=False):
+def prepare(e,actor,target,source,basis,plans,*,observe=False,challenger=None):
  import body_modes as BODY_MODES
  BODY_MODES.require_targetable(target,engine=e)
  import skill_targets as TARGETS
  for c,skill,options in plans:
-  bound=TARGETS.bind(e,options,target if c is actor else actor)
+  bound=TARGETS.bind(e,options,target if c is actor or c is challenger else challenger or actor)
   options.update(bound)
  # An armed Athlete Coaching declares its bonus die before any pool is sized; its cost is paid after the maneuver's own action.
  import athlete as ATHLETE
+ ATHLETE.resist_maneuver(e,target,source,plans)
  ATHLETE.coaching_prepare(e,actor,source,plans)
  active=actor.custom_conditions.get(ACTIVE);old=actor.custom_conditions.get(RECEIPTS,{}).get(active,{})
  native_reaction=bool(old.get('native_reaction') and old['basis']['source']==source) or __import__('move_defense_reactions').native_attack_interested(e,target) or __import__('tumbler').acquired(actor,__import__('tumbler').QUICK) is not None
@@ -112,7 +113,9 @@ def _run(e,actor,prepared,*,spend,aoo,can_continue,accuracy,outcome,opposed=None
   return C.PendingDecision('GM continuation of interrupted native maneuver '+record['stage'],basis=deepcopy(record['basis']))
  if not record['accuracy']:return close(False)
  def finish(rolls):
-  resolved=C.opposed(*rolls)=='challenger' if resolve_rolls is None else resolve_rolls(rolls)
+  if resolve_rolls is None:
+   winner,rolls=SF.resolve_opposed(e,prepared['plans'],rolls);resolved=winner=='challenger'
+  else:resolved=resolve_rolls(rolls)
   record['stage']='outcome_started'
   result=outcome(resolved)
   return close(result)
@@ -132,6 +135,17 @@ def completed_attack_event(e,actor,attack):
 
 def run(e,actor,prepared,*,spend,aoo,can_continue,accuracy,outcome,opposed=None,attack=None,resolve_rolls=None):
  import action_lifecycle as ACTION,confusion_attacks as CONFUSION
+ original_accuracy=accuracy
+ def native_accuracy():
+  # Included maneuvers have no child action frame. The short-lived actual
+  # callback scope plus its native attack event cannot survive an exception.
+  previous=getattr(e,'_athlete_maneuver_accuracy',None)
+  e._athlete_maneuver_accuracy=actor
+  try:return original_accuracy()
+  finally:
+   if previous is None:vars(e).pop('_athlete_maneuver_accuracy',None)
+   else:e._athlete_maneuver_accuracy=previous
+ accuracy=native_accuracy
  options=dict(spend=spend,aoo=aoo,can_continue=can_continue,accuracy=accuracy,outcome=outcome,opposed=opposed,resolve_rolls=resolve_rolls)
  included=attack is None
  if included and not (prepared and prepared.get('native_reaction')):return _run(e,actor,prepared,**options)

@@ -464,14 +464,7 @@ def seize(engine,trainer,pokemon,*,event_id,move,target,**options):
         I.begin(e,queued['window_id'],event_id)
         try:result=e.use_move(p,t,move,**options)
         except Exception as error:
-            import passive_events as PASSIVE,heavy_injury_adapter as HEAVY
-            if (type(error) is PASSIVE.PassiveEventPending and e._passive_pending==error.event_id
-                    and error.event_id in e._passive_events):
-                pending.append((PASSIVE.PassiveEventPending,error.event_id))
-            elif (type(error) is HEAVY.HeavyPending and e._heavy_pending==error.event_id
-                    and error.event_id in e._heavy_events):
-                pending.append((HEAVY.HeavyPending,error.event_id))
-            else:raise
+            if not G.record_native_pending(e,error,pending):raise
             overflow_trigger(e,event_id)[1]['suspended']=True
             return None
         I.finish(e)

@@ -221,15 +221,20 @@ def require_turn(engine,pokemon):
     if INTERRUPTS.is_borrow_start(engine,pokemon):return
     trainer=owner(engine,pokemon)
     if trainer is None or POLICY not in trainer.spec:return
+    import focused_command as FOCUSED
+    FOCUSED.require_turn(engine,trainer,pokemon,ordinary_command_limit(engine,trainer))
     limit=command_limit(engine,trainer)
     used=sum(tuple(row['scope'])==scope(engine) for row in trainer.spec.get('party_command_turns',[]))
     if used+INTERRUPTS.command_debts(engine,trainer)>=limit:
         raise ValueError('this trainer already used the Pokemon ordinary turn for this round')
 
 
-def command_limit(engine,trainer):
+def ordinary_command_limit(engine,trainer):
     profile=gym_profile(engine)
     return profile['leader_turn_limit'] if profile is not None and trainer.entity_id==profile['leader_id'] else trainer.spec[POLICY].get('command_limit',1)
+
+def command_limit(engine,trainer):
+    return __import__('focused_command').command_limit(engine,trainer,ordinary_command_limit(engine,trainer))
 
 def record_turn(engine,pokemon):
     if pokemon.kind!='pokemon' or not engine.encounter_active:return

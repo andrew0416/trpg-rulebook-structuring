@@ -230,7 +230,7 @@ def resolve(e,chooser,choice_id,*,selection=None,choice=None,accept=None,consent
     import frequency as FREQ
     if mode=='reaction' and accept:
         if actor.fainted or actor.abilities_suppressed or row['source'].split('/',1)[1] not in actor.abilities:raise ValueError('reaction ability no longer available')
-        if not FREQ.activation_allowed(actor,row['source'],e.r.ability_freq.get(row['source'].split('/',1)[1]),engine=e):raise ValueError('reaction frequency exhausted')
+        if not FREQ.activation_allowed(actor,row['source'],e.r.ability_freq.get(row['source'].split('/',1)[1]),engine=e,action_actor=actor):raise ValueError('reaction frequency exhausted')
     def apply(staged,actual,other):
         saved=actual.custom_conditions[RECORDS][choice_id]
         consent_by=tuple(c for c in saved.get('permission_holders',()) if saved.get('permissions',{}).get(c.entity_id) is True)
@@ -252,7 +252,7 @@ def resolve(e,chooser,choice_id,*,selection=None,choice=None,accept=None,consent
             if not ACTION.status_permission(staged,actual,'free',new_action=True):raise ValueError('reaction Free action not permitted')
             chosen=saved.get('selected_key') or saved['options'][0]['key']
             result=ITEMS.transfer_equipment(staged,other,actual,chosen,slots=('held',),consent_by=consent_by)
-            ACTION.record_action(staged,actual,'free');FREQ.consume_activation(actual,row['source'],staged.r.ability_freq.get(row['source'].split('/',1)[1]),engine=staged);result['accepted']=True
+            ACTION.record_action(staged,actual,'free');FREQ.consume_activation(actual,row['source'],staged.r.ability_freq.get(row['source'].split('/',1)[1]),engine=staged,action_actor=actual);result['accepted']=True
         saved=actual.custom_conditions[RECORDS][choice_id]
         return _finish_choice(staged,saved,result,declaration)
     with CONTRACTS.resuming(e,row['receipt']):

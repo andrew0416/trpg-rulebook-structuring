@@ -167,7 +167,7 @@ def choose(e,event_id,owner,*,use,reason):
             return deepcopy(row)
         _eligible(staged,actor);adapter=_adapter(staged,SOURCE)
         frequency=adapter.definition(staged.r)['frequency']
-        if not FREQUENCY.activation_allowed(actor,SOURCE,frequency,engine=staged):
+        if not FREQUENCY.activation_allowed(actor,SOURCE,frequency,engine=staged,action_actor=actor):
             raise ValueError('Reaction daily frequency unavailable')
         with _scope(staged,event_id,actor):
             plan=adapter.prepare(staged,actor,event_id)
@@ -179,7 +179,7 @@ def choose(e,event_id,owner,*,use,reason):
             window=queued['window_id'];INIT.begin(staged,window,request)
             if not TURN.spend(staged,actor,'standard',SOURCE):
                 raise ValueError('actual Standard Reaction action unavailable')
-            FREQUENCY.consume_activation(actor,SOURCE,frequency,engine=staged)
+            FREQUENCY.consume_activation(actor,SOURCE,frequency,engine=staged,action_actor=actor)
             import cheerleader as CHEER
             cheer_snapshot=CHEER.support_snapshot(staged,actor)
             activation=adapter.activate(staged,actor,plan)

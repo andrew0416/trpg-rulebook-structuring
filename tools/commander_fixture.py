@@ -13,14 +13,14 @@ ROOT=Path(__file__).resolve().parents[1]
 
 
 class CommanderFixture:
-    def scene(self,*,bundle='feat/유린-지시',command=6,acquire=True,seed=24081,ruleset='core'):
+    def scene(self,*,bundle='feat/유린-지시',command=6,acquire=True,seed=24081,ruleset='core',initial_edges=None):
         self.ruleset_name=ruleset;self.r=Rules(ROOT,ruleset=ruleset);self.e=Engine(self.r,seed=seed);self.e.grid=Grid(24,12)
         common=dict(level=40,stats={'hp':100,'atk':10,'def':5,'spa':10,'spd':5,'spe':20},
             moves=['move/막치기','move/물대포','move/성장','move/파도타기','move/전광석화'],
             abilities=[],movement={'land':6,'swim':0,'sky':0},size='중형')
         self.a=Combatant(self.r,dict(deepcopy(common),name='actual Commander',kind='trainer',
             skills={'명령':command,'협박':6,'통찰':6,'교활':6,'매력':6,'육상':3,'곡예':3},
-            feats=[],classes=[],exp_bank=100))
+            feats=[],classes=[],exp_bank=100,**({'edges':list(initial_edges)} if initial_edges is not None else {})))
         self.e.gm.add_combatant(self.a,pos=(1,1),side='party',reason='actual issuing Trainer')
         self.p=Combatant(self.r,dict(deepcopy(common),name='own partner',kind='pokemon',
             trainer_id=self.a.entity_id,trainer=self.a.name,skills={'육상':'3d6','곡예':'3d6'}))

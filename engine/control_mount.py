@@ -22,8 +22,7 @@ class MountableLoadDecisionRequired(ValueError):
 
 def _acquisitions(actor,feature,*,active=False):
     import trainer_feature_acquisition as TFA
-    return [row['static_acquisition'] for _,row,live in TFA._static_records(actor)
-            if row['static_acquisition']['feature_id']==feature and (live or not active)]
+    return [record for _, record in TFA.static_acquisitions(actor, feature, active=active)]
 
 
 def acquisition_snapshot(actor,feature):
@@ -280,7 +279,7 @@ def board(engine,rider,mount,value,*,gm_mountable,roll_options=None,mountable_lo
         if bonus:actual['mods']=actual.get('mods',0)+bonus
         if not automatic:R.plan(e,c,boarding['skill'],purpose='declared mounting',target=target,**actual)
         if not TURN.spend(e,c,boarding['action'],'declared mounting'):return C.PendingDecision('required boarding action unavailable')
-        if not automatic:check=C.against_dc(e.skill_roll(c,boarding['skill'],skill_target=target,**actual),boarding['dc'])
+        if not automatic:check=__import__('skill_feature_actions').resolve_check(e,c,boarding['skill'],boarding['dc'],e.skill_roll(c,boarding['skill'],skill_target=target,**actual),actual)
         passed=automatic or check.passed
         if passed:
             _attach(e,c,target,value)
@@ -421,7 +420,7 @@ def retain(engine,rider,*,event='manual',roll_options=None):
         if not c.fainted and not target.fainted:
             actual=dict(options);actual['mods']=actual.get('mods',0)+bonus
             R.plan(e,c,policy['skill'],purpose='mount retention:'+event,target=target,**actual)
-            check=C.against_dc(e.skill_roll(c,policy['skill'],skill_target=target,**actual),policy['dc']);passed=check.passed
+            check=__import__('skill_feature_actions').resolve_check(e,c,policy['skill'],policy['dc'],e.skill_roll(c,policy['skill'],skill_target=target,**actual),actual);passed=check.passed
         if not passed:_detach(e,c,target,'retention:'+event)
         else:sync(e,target)
         result={'event':event,'rider_id':c.entity_id,'mount_id':target.entity_id,'passed':passed,'bonus':bonus,

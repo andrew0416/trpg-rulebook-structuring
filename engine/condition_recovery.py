@@ -29,7 +29,7 @@ def saving_check(engine,actor,condition,dc,*,fixed=None):
     """The actual native save calculation; curing belongs to its producer."""
     import food_effects as FOOD
     import cheerleader as CHEER
-    if FOOD.save_preflight(engine,actor,condition) is not None or 'fashion_next_save' in actor.spec or CHEER.live(actor,'Cheered') or actor.spec.get('capture_next_save'):
+    if FOOD.save_preflight(engine,actor,condition) is not None or 'fashion_next_save' in actor.spec or CHEER.live(actor,'Cheered') or actor.spec.get('capture_next_save') or actor.custom_conditions.get('_trickster_first_save') or actor.custom_conditions.get('_trickster_stacked'):
         import state_grants as GRANTS
         return GRANTS.transition(engine,actor,
             lambda staged,subject:_saving_check(staged,subject,condition,dc,fixed=fixed),
@@ -57,11 +57,13 @@ def _saving_check(engine,actor,condition,dc,*,fixed=None):
     optional_bonus+=STAT.stratagem_bonus(engine,actor,'save',condition=condition)
     capture_penalty=__import__('capture_specialist').save_penalty(engine,actor)
     adjusted=EXT.save_dc(engine,actor,condition,dc)+engine.rulings.consume('dc',actor.name,engine)-TURN.weather_save_mod(engine,condition,actor)-bonus-optional_bonus-fashion_bonus-all_roll_modifier-capture_penalty
+    adjusted-=__import__('trickster').save_penalty(actor,condition)
     passed=natural>=adjusted
     label=condition or '숨돌리기'
     engine.log(f"    {actor.name} {label} 내성 체크 d20={natural} vs DC {adjusted} → {'성공' if passed else '실패'}",
                'condition/'+condition if condition else 'ch07-combat/전투의-다른-행동/숨돌리기')
     if condition is not None:STATUSES.on_save(engine,actor,condition,natural)
+    __import__('trickster').saved(engine,actor,condition,passed)
     return {'natural':natural,'dc':adjusted,'base_dc':dc,'food_bonus':bonus,'optional_equipment_bonus':optional_bonus,'fashion_bonus':fashion_bonus,'all_roll_modifier':all_roll_modifier,'passed':passed,**({'capture_penalty':capture_penalty} if capture_penalty else {}),**({'cheered':cheered} if cheered else {})}
 
 

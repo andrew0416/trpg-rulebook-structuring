@@ -31,7 +31,10 @@ def _resolve(actor,value,prefix,names=None):
     matches=names.get(value,[])
     if len(matches)!=1:raise ValueError("unambiguous acquired feature source required: "+value)
     uid=matches[0]
-    if actor.r._selected_rule(uid)!=uid:raise ValueError("selected feature variant needs its own instance policy")
+    supported=uid in ('feat/훈련-상황','feat/작열')
+    if actor.r._selected_rule(uid,supports_versions=supported)!=uid:raise ValueError("selected feature variant needs its own instance policy")
+    if uid=='feat/훈련-상황':__import__('athlete').regime_source(actor.r)
+    if uid=='feat/작열':__import__('pokemon_move_edges').incandescence_source(actor.r)
     return uid
 
 
@@ -115,7 +118,7 @@ def feature_rank(actor,source_id):
         if value in names:acquired.append(_resolve(actor,value,"feat/",names))
     if uid not in acquired:raise ValueError("actual acquired ranked feature required")
     tags=actor.r.selection.units[uid].get("tags",[])
-    maxima=[int(match.group(1)) for tag in tags if (match:=re.fullmatch(r"랭크\s*(\d+)",tag))]
+    maxima=[int(match[1] or match[2]) for tag in tags if (match:=re.fullmatch(r"(?:랭크\s*(\d+)|(\d+)\s*랭크)",tag))]
     ranks=actor.spec.get("feat_ranks",{})
     if not isinstance(ranks,dict):raise ValueError("acquired feature ranks must be a mapping")
     rank=ranks.get(uid,1)
@@ -191,8 +194,11 @@ def owned_rule_count(actor,source_id):
     supplemental = not source_id.startswith(('edge/','feat/','class/'))
     if supplemental and actor.r.selection.units.get(source_id,{}).get('kind')!='entity:feat':
         raise ValueError('exact trainer Edge/Feature/Class source required')
-    if actor.r._selected_rule(source_id)!=source_id:
+    supported=source_id in ('feat/훈련-상황','feat/작열')
+    if actor.r._selected_rule(source_id,supports_versions=supported)!=source_id:
         raise ValueError('selected acquisition source needs its own ownership query')
+    if source_id=='feat/훈련-상황':__import__('athlete').regime_source(actor.r)
+    if source_id=='feat/작열':__import__('pokemon_move_edges').incandescence_source(actor.r)
     if actor.kind!='trainer':return 0
     if supplemental:
         entries=actor.spec.get('feats',[])

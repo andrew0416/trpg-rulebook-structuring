@@ -11,9 +11,8 @@ Intercept), once per Pokemon per Scene. Adrenaline Rush records the actual
 HP crossing to half or below and the Trainer answers it as a triggered Free
 Action limited to three per day and once per Scene.
 
-Training Regime is acquirable here as Coaching's prerequisite; its printed
-passive bonuses belong to the cross-class clause C04-061 and stay outside
-this template.
+Training Regime reads the current two trained stats; its five passive bonuses
+use the native maneuver, Intercept, Move completion and Sprint owners.
 """
 from copy import deepcopy
 from pathlib import Path
@@ -58,8 +57,7 @@ def _text(value,label):
 # ---------------------------------------------------------------- acquisition
 def records(actor,feature=None,active=False):
  import trainer_feature_acquisition as T
- return [r['static_acquisition'] for _,r,live in T._static_records(actor)
-  if r['static_acquisition']['feature_id'] in FEATURES and (feature is None or r['static_acquisition']['feature_id']==feature) and (not active or live)]
+ return [record for _, record in T.static_family_acquisitions(actor, FEATURES, feature, active=active)]
 
 
 def acquired(actor,feature,*,exclude=()):
@@ -119,7 +117,8 @@ def qualification(actor,feature,snapshot,prerequisite_source):
 def require(engine,actor,feature=CLASS):
  import world_entities as W
  W.require_actors(engine,actor)
- if actor.kind!='trainer' or acquired(actor,CLASS) is None or (feature!=CLASS and acquired(actor,feature) is None):
+ hobbyist=feature==COACHING and __import__('hobbyist').provider(actor,feature) is not None
+ if actor.kind!='trainer' or (acquired(actor,CLASS) is None and not hobbyist) or (feature!=CLASS and acquired(actor,feature) is None):
   raise ValueError('actual acquired Athlete Feature required: '+feature)
  return acquired(actor,feature)
 
@@ -132,11 +131,12 @@ def _owned_pokemon(engine,trainer,pokemon):
 
 def trainer_of(engine,actor,feature=CLASS,*,exclude=()):
  import world_entities as W
- if actor.kind=='trainer':return actor if acquired(actor,feature,exclude=exclude) and acquired(actor,CLASS,exclude=exclude) else None
+ if actor.kind=='trainer':return actor if acquired(actor,feature,exclude=exclude) and (acquired(actor,CLASS,exclude=exclude) or (feature==COACHING and not exclude and __import__('hobbyist').provider(actor,feature))) else None
  index=W.actor_index(engine)
  if index.get(actor.entity_id) is not actor:return None
  owner=index.get(W.identity_field(engine,actor,'owner_id',index=index))
- if owner is None or owner.kind!='trainer' or acquired(owner,CLASS,exclude=exclude) is None or acquired(owner,feature,exclude=exclude) is None:return None
+ if owner is None or owner.kind!='trainer' or acquired(owner,feature,exclude=exclude) is None:return None
+ if acquired(owner,CLASS,exclude=exclude) is None and not (feature==COACHING and not exclude and __import__('hobbyist').provider(owner,feature)):return None
  return owner
 
 
@@ -162,6 +162,82 @@ def _install(t,stats):
  key=_base_key(t)
  CS.end_source(t,ends=key)
  for stat in stats:CS.add_base(t,key,stat,TRAINED['default_stage'],source=CLASS,ends=key)
+
+
+def regime(actor,stat):
+ """Only a living acquisition and a currently trained stat enable a passive."""
+ return (actor.kind=='trainer' and acquired(actor,CLASS) is not None
+  and acquired(actor,REGIME) is not None and stat in trained_stats(actor))
+
+
+def regime_source(rules):
+ """S-001: the Korean six DR and original Core five DR are selectable."""
+ from source_context import verified_source
+ if rules._selected_rule(REGIME,supports_versions=True)!=REGIME:raise ValueError('selected Training Regime required')
+ version=rules.ruleset.unit_versions.get(REGIME,'ptk')
+ versions={'ptk':6,'ptu-core-1.05':5}
+ if version not in versions:raise ValueError('unknown Training Regime source version')
+ verified_source(rules,{'file':'input/ch04-trainer-classes.md','sha256':_data['source_sha256']},label='Training Regime')
+ if version=='ptu-core-1.05':
+  verified_source(rules,{'file':'source-audit/ptu-core-1.05.pdf','sha256':'e5e0371031601c3ad0a04056771c17599a2d8826e5a5102ccd37f9b368108907'},label='Core Training Regime p155',source_root='source-audit')
+ return {'version':version,'intercept_reduction':versions[version]}
+
+
+def maneuver_accuracy(engine,actor,move):
+ """The producer's current accuracy event also covers included-cost maneuvers."""
+ events=getattr(engine,'_precision_events',[])
+ row=events[-1] if events else {}
+ actual=(getattr(engine,'_athlete_maneuver_accuracy',None) is actor
+  and row.get('actor') is actor and row.get('source')==move['id']
+  and row.get('producer')=='combat_maneuver' and row.get('round')==engine.round_no and row.get('result')=='activated')
+ return 2 if actual and regime(actor,'atk') else 0
+
+
+def resist_maneuver(engine,target,source,plans):
+ """SM.prepare binds this bonus only to the actual target's resisting pool."""
+ if not regime(target,'spd'):return
+ for actor,skill,options in plans:
+  if actor is target:
+   C.integer(options.get('mods',0),'maneuver modifier')
+   options['mods']=options.get('mods',0)+2
+
+
+def intercept_reduction(engine,target,event):
+ """Require the real recipient token; intercepted=True alone is not evidence."""
+ if not regime(target,'def') or not event or event.get('target') is not target:return 0
+ token=event.get('athlete_defense_token')
+ if token is None:return 0
+ import move_defense_reactions as D
+ if not D.require_damage_receipt(engine,token,event['attacker'],target,event['move']):return 0
+ defense=D._defense(engine,engine._passive_events[token[0]])
+ if not any(a.get('actor_id')==target.entity_id and a.get('source') in (D.MELEE,D.RANGED)
+   and a.get('paid')is True and a.get('outcome')=='intercepted' for a in defense['attempts']):return 0
+ return regime_source(engine.r)['intercept_reduction']
+
+
+def begin_move(engine,actor,move,completion):
+ """Record the optional Special Attack choice once for this native Move."""
+ if not regime(actor,'spa') or move['class'] not in ('물리','특수'):return
+ import class_move_grants as MOVES
+ allowed={'move/'+name for names in MOVES.RANKED['feat/육상-기술'].values() for name in names}
+ if move['id'] not in allowed:return
+ row=engine._move_completions[completion]
+ if row['actor'] is not actor or row['move_id']!=move['id']:raise ValueError('actual Athlete Move completion required')
+ if 'athlete_regime' not in row:
+  answer=engine.rulings.decide({'type':'training_regime_special_attack','unit':REGIME,'actor':actor.name,'move_id':move['id'],'text':'Add half the current Special Attack Stat to this damaging Athlete Move (not with Twisted Power)?'})
+  if answer is not None and type(answer)is not bool:raise ValueError('explicit Training Regime Special Attack choice required')
+  row['athlete_regime']={'enabled':answer is True,'source':REGIME,'request_id':acquired(actor,REGIME)['request_id']}
+ move['_athlete_regime_completion']=completion
+ for target_move in row['target_moves'].values():target_move['_athlete_regime_completion']=completion
+
+
+def move_bonus(engine,actor,move):
+ token=move.get('_athlete_regime_completion')
+ if token is None:return 0
+ row=getattr(engine,'_move_completions',{}).get(token)
+ if row is None or row['actor'] is not actor or row['move_id']!=move['id']:raise ValueError('actual Training Regime Move receipt required')
+ if not row.get('athlete_regime',{}).get('enabled') or not regime(actor,'spa'):return 0
+ return __import__('arithmetic_policy').ratio(actor.staged('spa'),2)
 
 
 def _end_training(e,t,*,cause):
@@ -337,9 +413,9 @@ def coach_sprint(engine,pokemon):
 
 
 def sprint_rate(engine,actor):
- """Sprint movement increase: the printed +50%, or +100% while this Sprint is coached."""
+ """Coaching and a Speed-trained Athlete replace +50% by +100%; never add."""
  state=getattr(actor,'custom_conditions',{}).get('질주')
- return '1' if type(state) is dict and state.get('coaching') else '0.5'
+ return '1' if type(state) is dict and (state.get('coaching') or regime(actor,'spe')) else '0.5'
 
 
 def opportunity(engine,pokemon,mover,run):
@@ -485,4 +561,13 @@ def validate(engine):
     if marker is not None:
      owner=index.get(marker['trainer_id'])
      if owner is None or owner.kind!='trainer' or acquired(owner,COACHING) is None:raise ValueError('Coaching maneuver marker lost its Athlete owner')
+ for row in getattr(engine,'_move_completions',{}).values():
+  if 'athlete_regime' not in row:continue
+  choice=row['athlete_regime'];actor=row['actor']
+  import class_move_grants as MOVES
+  allowed={'move/'+name for names in MOVES.RANKED['feat/육상-기술'].values() for name in names}
+  if (type(choice)is not dict or set(choice)!={'enabled','source','request_id'} or type(choice['enabled'])is not bool
+    or choice['source']!=REGIME or row['move_id'] not in allowed or row['move']['class'] not in ('물리','특수')
+    or not any(r['request_id']==choice['request_id'] for r in records(actor,REGIME))):
+   raise ValueError('actual Training Regime Move choice and acquisition required')
  return True

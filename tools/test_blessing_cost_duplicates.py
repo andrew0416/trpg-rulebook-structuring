@@ -265,7 +265,8 @@ class BlessingCostDuplicateTests(unittest.TestCase):
 
     def test_stage_aliases_apply_once_for_both_acquisition_orders_and_rank_seven_plus(self):
         self.enterContext(patch.object(self.rules, 'rulings', deepcopy(self.rules.rulings)))
-        for declared in (7, 8):
+        # configure() already declares rank7; retain it and add only rank8.
+        for declared in (8,):
             self.rules.rulings.set_mech('gameplay/skill-rank-dice', 'by_rank_name.선언랭크' + str(declared),
                 {'rank': declared, 'dice': str(declared) + 'd6', 'eng': 'Declared Rank ' + str(declared)},
                 reason='explicit campaign ranks for the stage bonus boundary', rules=self.rules)

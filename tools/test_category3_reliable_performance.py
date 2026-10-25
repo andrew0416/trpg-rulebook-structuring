@@ -116,8 +116,11 @@ class Tests(unittest.TestCase):
   dealt=self.e.use_move(self.p,self.target,'move/몸통박치기',set_damage=True,reliable_trainer=self.t)
   self.assertGreater(dealt,0);self.assertLess(self.target.hp,hp);self.assertEqual(self.t.spec['ap_spent'],2)
   self.setUp();self.e.rng=NoRandom()
+  self.e.start_round(self.e.everyone);self.e.start_of_turn(self.p)
   self.assertEqual(self.e.use_move(self.p,self.target,'move/솔라빔',set_damage=True,reliable_trainer=self.t),0)
   self.assertNotIn('ap_spent',self.t.spec)
+  self.e.end_of_turn(self.p);self.e.end_round()
+  self.e.start_round(self.e.everyone);self.e.start_of_turn(self.p)
   self.e.use_move(self.p,self.target,'move/솔라빔',set_damage=True,reliable_trainer=self.t)
   self.assertEqual(self.t.spec['ap_spent'],2)
  def test_native_invalid_selection_precedes_move_action_frequency_and_event(self):

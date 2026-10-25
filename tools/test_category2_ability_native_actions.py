@@ -174,6 +174,7 @@ class AbilityNativeActionTests(unittest.TestCase):
   e.gm.set_weather('sunny',reason='actual sunlight');self.turn(e,user,[user])
   charged=e.activate_ability(user,'노을 [Playtest]',(user,{'mode':'charge'}))
   self.assertEqual((charged['operation'],user.budget['swift']),('radiant_charge',0))
+  self.assertEqual(charged['operation'],'radiant_charge')
   quota=deepcopy(user.spec['frequency_state']['activations']['ability/노을-playtest'])
   self.assertEqual((quota['kind'],quota['used']),('daily',1))
   e.end_of_turn(user);e.end_round();self.turn(e,user,[user])

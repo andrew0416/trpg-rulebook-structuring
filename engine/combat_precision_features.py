@@ -300,7 +300,7 @@ def damage_modifier(engine, attacker, move):
 
 def status_can_critical(engine, attacker, target, move):
     mm,_ = engine.r.move_mech(move['id'])
-    return owns(engine,attacker,DEMORALIZE) and (move.get('ac') is not None or blur_applies(engine,target,move,mm))
+    return (owns(engine,attacker,DEMORALIZE) or __import__('trickster').flourish_applies(engine,attacker,target,move)) and not __import__('move_accuracy').no_status_check(engine,attacker,target,move,mm)
 
 
 def bad_mood_critical_bonus(engine,actor):

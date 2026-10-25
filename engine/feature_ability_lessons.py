@@ -12,7 +12,7 @@ import state_grants as GRANTS
 import turn as TURN
 import world_entities as WORLD
 
-SOURCES = ("feat/효과적인-방법", "feat/댄스-연습", "feat/집단-전술", "feat/요리-음미")
+SOURCES = ("feat/효과적인-방법", "feat/댄스-연습", "feat/집단-전술", "feat/요리-음미", "feat/래밍-스피드")
 POLICY = "data/feature-ability-lessons.json"
 
 
@@ -71,6 +71,8 @@ def _qualify(engine, teacher, pupil, uid, ability):
     ACTIVITIES._pokemon(pupil)
     ACTIVITIES._outside(engine)
     row = _policy(engine.r)[uid]
+    if uid == 'feat/래밍-스피드' and __import__('conquerors_march').acquired(teacher, uid) is None:
+        raise ValueError('actual acquired Ramming Speed and Rider prerequisite required')
     TEACHING.source(engine.r, uid, row["parent"], TEACHING.POINTS)
     if not TEACHING._acquired_feature(teacher, uid) or not TEACHING._acquired_feature(teacher, row["parent"]):
         raise ValueError("actual acquired teaching Feature and parent class required")

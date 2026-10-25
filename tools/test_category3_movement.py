@@ -82,7 +82,7 @@ class MovementTests(unittest.TestCase):
  def test_teleport_leaving_adjacency_uses_existing_real_opportunity_attack(self):
   self.a.moves=['move/순간이동'];self.a.side='party';self.base()
   enemy=Combatant(self.r,{'id':'enemy','name':'enemy','kind':'pokemon','level':20,'size':'Medium','stats':{'hp':20,'atk':5,'def':5,'spa':5,'spd':5,'spe':5},'moves':[]});enemy.pos=(0,1);enemy.side='wild';self.e.everyone.append(enemy)
-  self.turn();self.tele((5,1))
+  self.e.start_round(self.e.everyone);self.e.start_of_turn(self.a);self.tele((5,1))
   self.assertTrue(enemy.aoo_used);self.assertTrue(any('기회 공격' in line for line in self.e.log_lines));self.assertEqual(self.a.pos,(5,1))
  def test_no_sprint_stacking_and_unused_sprint_expires_at_turn_end(self):
   self.turn();self.e.sprint(self.a,source_policy="ch06_once")

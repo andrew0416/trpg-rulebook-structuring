@@ -228,8 +228,8 @@ class TumblerTests(TumblerScene,unittest.TestCase):
     first,last=((2,4),(2,5)) if trigger=='jump' else ((2,3),(2,4))
     import effects_ext as EXT,effects as FX
     original=EXT.on_enter_cell
-    def observed_entry(e,actor,point):
-     original(e,actor,point)
+    def observed_entry(e,actor,point,**options):
+     original(e,actor,point,**options)
      if actor.entity_id==self.a.entity_id and point==first:FX.run_effects(e,actor,actor,[{'type':'stage_change','stat':'def','delta':1,'if':'target was asleep'}],{'hit':True},'hazard/observed-conditional-entry')
     self.decision('quick_gymnastics',{'path':[first,last]})
     with patch.object(EXT,'on_enter_cell',side_effect=observed_entry):
@@ -252,8 +252,8 @@ class TumblerTests(TumblerScene,unittest.TestCase):
  def test_quick_paid_path_rejects_resume_after_its_triggering_turn(self):
   import effects_ext as EXT,effects as FX
   self.family(T.QUICK);self.begin();self.e.apply_status(self.a,'넘어짐');self.decision('quick_gymnastics',{'path':[(2,3),(2,4)]});original=EXT.on_enter_cell
-  def entry(e,actor,point):
-   original(e,actor,point)
+  def entry(e,actor,point,**options):
+   original(e,actor,point,**options)
    if actor.entity_id==self.a.entity_id and point==(2,3):FX.run_effects(e,actor,actor,[{'type':'stage_change','stat':'def','delta':1,'if':'target was asleep'}],{'hit':True},'hazard/quick-turn-boundary')
   with patch.object(EXT,'on_enter_cell',side_effect=entry):self.e.stand_up(self.a)
   token=next(k for k,r in self.e._effect_dispatch_receipts.items() if r['status']=='condition_unknown')
@@ -267,8 +267,8 @@ class TumblerTests(TumblerScene,unittest.TestCase):
   self.decision('quick_gymnastics',{'path':[(2,4),(2,5)]});self.e.watch_move_defense(self.a,[{'actor_id':self.a.entity_id,'source':T.SPLASH}],reason='actual nested Jump and Quick movement')
   with self.assertRaises(PASSIVE.PassiveEventPending):self.use(self.t,self.a,'move/몸통박치기')
   event=self.e._passive_pending;original=EXT.on_enter_cell
-  def entry(e,actor,point):
-   original(e,actor,point)
+  def entry(e,actor,point,**options):
+   original(e,actor,point,**options)
    if actor.entity_id==self.a.entity_id and point==(2,4):FX.run_effects(e,actor,actor,[{'type':'stage_change','stat':'def','delta':1,'if':'target was asleep'}],{'hit':True},'hazard/nested-splash-quick-entry')
   with patch.object(EXT,'on_enter_cell',side_effect=entry):
    with self.assertRaises(PASSIVE.PassiveEventPending):self.e.choose_move_defense(event,self.a,use=True,options={'jump':{'destination':(2,3),'difficult':False,'clear_path':True}},reason='actual Splash with its nested Quick movement')

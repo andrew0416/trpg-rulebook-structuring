@@ -9,6 +9,14 @@ import effects_ext as EXT
 import turn as TURN
 METTLE = "feat/깡다구"
 
+
+def finalize_choice(engine,event,damage):
+    """The one native post-choice hook/floor boundary, including paired hits."""
+    damage=engine.rulings.run_hooks('before_damage',damage,dict(event['context'],final=damage),engine)
+    if event.get('damage_floor'):damage=min(damage,max(0,event['target'].hp-1))
+    __import__('weather_blessings').finish_damage(engine,event,damage)
+    return damage
+
 def resistance_multiplier(engine, multiplier):
     steps={1.0:0,1.5:1,2.0:2,3.0:3,0.5:-1,0.25:-2,0.125:-3}
     if multiplier==0:return 0
@@ -28,7 +36,7 @@ def select_mettle(engine, event):
             break
     if header is None:return damage
     frequency=header.get("frequency")
-    if not FREQ.activation_allowed(c,METTLE,frequency,engine=engine):return damage
+    if not FREQ.activation_allowed(c,METTLE,frequency,engine=engine,action_actor=c):return damage
     potential=min(damage,max(0,c.hp-1)) if event.get("damage_floor") else damage
     # Match injury processing: the actual maximum is unchanged by injury healing caps.
     massive=max(0,EXT.cap_damage(engine,c,potential)-c.temp_hp)>=A.multiply(engine.formula("massive_damage"),c.base_max_hp)
@@ -51,5 +59,5 @@ def finish_mettle(engine,event):
     if not event.get("damage_applied") or not event.get("mettle_selected") or event.get("mettle_finished"):return
     event["mettle_finished"]=True
     c=event["target"];foe=event["attacker"]
-    FREQ.consume_activation(c,METTLE,event["mettle_frequency"],engine=engine)
+    FREQ.consume_activation(c,METTLE,event["mettle_frequency"],engine=engine,action_actor=c)
     FX.h_stage_change(engine,c,foe,dict(type="stage_change",stat=event["attack_stat"],delta=-2,target="target"),dict(engine=engine,source_id=METTLE,attacker=c,target=foe,hit=True))

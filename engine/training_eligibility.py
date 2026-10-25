@@ -148,6 +148,16 @@ def experience_plan(engine,trainer,targets,*,use_intimidate=False,use_reserves=F
         if selected_policy=='csv_target_limit':A._groomer_csv_source(engine.r)
         value['capacity' if selected_policy=='csv_target_limit' else 'xp_rank']['skill']=bonus_skill
     elif bonus_skill is not None or grooming_policy is not None:raise ValueError('education/source selection is exclusive to Groomer')
+    import hobbyist as H
+    if use_reserves:
+        value['capacity']['skill']=H.direct_skill(trainer,'edge/예비-훈련',value['capacity']['skill'])
+    elif use_intimidate:
+        value['capacity']['skill']=H.direct_skill(trainer,'edge/비스트-마스터',value['capacity']['skill'])
+    if use_intimidate:
+        value['xp_rank']['skill']=H.direct_skill(trainer,'edge/비스트-마스터',value['xp_rank']['skill'])
+    if from_grooming:
+        field='capacity' if selected_policy=='csv_target_limit' else 'xp_rank'
+        value[field]['skill']=H.direct_skill(trainer,'edge/미용사',value[field]['skill'])
     plan=prepare(engine,trainer,targets,value,safe=safe,from_grooming=from_grooming,from_training=from_training)
     base=plan['capacity_rank']
     if value['capacity']['skill']!=skill:

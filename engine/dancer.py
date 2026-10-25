@@ -87,8 +87,7 @@ def _rank_text(rows):
 # ---------------------------------------------------------------- acquisition (shared static receipts)
 def _records(actor, feature, *, active=True):
     import trainer_feature_acquisition as TFA
-    return [row['static_acquisition'] for _, row, live in TFA._static_records(actor)
-            if row['static_acquisition']['feature_id'] == feature and (live or not active)]
+    return [record for _, record in TFA.static_acquisitions(actor, feature, active=active)]
 
 
 def _reference(actor, feature):

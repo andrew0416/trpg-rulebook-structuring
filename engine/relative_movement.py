@@ -290,9 +290,9 @@ def _check_entry(e,a,row,cell):
     if opts.get('feature') is not None:
         identity='relative:'+a.entity_id+':'+row['declaration']['movement_id']+':'+str(ordinal)
         result=SKILLS.sequence(e,identity,{'declaration':row['declaration'],'cell':cell['destination']},
-            [(a,skill,opts)],lambda rolls:CHECKS.against_dc(rolls[0],10))
+            [(a,skill,opts)],lambda rolls:SKILLS.resolve_check(e,a,skill,10,rolls[0],opts))
     else:
-        result=CHECKS.against_dc(e.skill_roll(a,skill,**opts),10)
+        result=SKILLS.resolve_check(e,a,skill,10,e.skill_roll(a,skill,**opts),opts)
         SKILLS.finish(e,a,opts.get('roll_id'))
     row['checks'].append({'cell_index':len(row['cells'])-1,'skill':skill,'result':result})
     if not result.passed or automatic:

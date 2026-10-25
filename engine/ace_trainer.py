@@ -72,9 +72,7 @@ def source(rules, contract='core_1.05', *, csv_source=False):
 
 def records(actor, feature=None, *, active=False):
     import trainer_feature_acquisition as T
-    return [row['static_acquisition'] for _,row,live in T._static_records(actor)
-            if row['static_acquisition']['feature_id'] in {*FEATURES,*TRAINING}
-            and (feature is None or row['static_acquisition']['feature_id']==feature) and (not active or live)]
+    return [record for _, record in T.static_family_acquisitions(actor, {*FEATURES, *TRAINING}, feature, active=active)]
 
 
 def acquired(actor, feature=CLASS):
@@ -205,7 +203,8 @@ def critical_moment(engine, trainer, targets):
         if not any(r['mode']=='training' for r in TRAIN.active(p)):raise ValueError('actual Training Feature applied to each target required')
     quota={'kind':'scene','uses':2}
     if not F.activation_allowed(trainer,CRITICAL,quota,engine=engine):raise ValueError('Critical Moment frequency exhausted')
-    if ORDERS.current(engine,trainer,CRITICAL) is None:PRIORITY.preflight(engine,trainer,action=__import__('commander').priority_action(engine,trainer,CRITICAL),source=CRITICAL)
+    voice=bool((__import__('commander').scope(engine,trainer,CRITICAL) or {}).get('voice'))
+    if ORDERS.current(engine,trainer,CRITICAL) is None and not voice:PRIORITY.preflight(engine,trainer,action=__import__('commander').priority_action(engine,trainer,CRITICAL),source=CRITICAL)
     def apply(e,t,*ps):
         for p in ps:
             declaration={'id':'ace-critical-order','source':CRITICAL,'capabilities':[],'requirements':[],
@@ -213,7 +212,9 @@ def critical_moment(engine, trainer, targets):
                 'connection':None,'frequency':{'kind':'at_will','uses':1},'retry':None,'distance_exceptions':[]}
             sent=COMM.send(e,t,p,declaration,'Critical Moment',request_id='critical:'+str(len(getattr(e,COMM.KEY,{}).get('attempts',[]))+1))
             if sent['status']!='delivered':raise ValueError('Critical Moment Order communication not delivered')
-        if ORDERS.current(e,t,CRITICAL) is not None:
+        if voice:
+            paid=__import__('commander').voice_payment(e,t,CRITICAL)
+        elif ORDERS.current(e,t,CRITICAL) is not None:
             if len(ps)!=1 or ORDERS.current(e,t,CRITICAL)['target'] is not ps[0]:raise ValueError('targeted Free Critical Moment requires its actual recipient')
             import turn as TURN
             if not TURN.spend(e,t,'standard',CRITICAL):raise ValueError('actual Free Order action required')
@@ -404,42 +405,92 @@ def forget_spec(rules,spec,move_id,*,at,reason):
     return deepcopy(row)
 
 
+def _techniques(engine,actor,move_id):
+    rows=[active(engine.r,actor.spec,move_id),__import__('z_moves').technique(engine,actor,move_id)]
+    return [row for row in rows if row is not None]
+
+
+def _technique(engine,actor,move_id,modification):
+    return next((r for r in _effective(_techniques(engine,actor,move_id)) if r['modification']==modification),None)
+
+
+def _effective(rows):
+    """One property per name; differing contracts require an actual use choice."""
+    selected={}
+    for row in rows:
+        previous=selected.get(row['modification'])
+        if previous is None:selected[row['modification']]=row
+        elif previous['source_contract']!=row['source_contract']:
+            crystal=row if row.get('z_crystal') else previous
+            if crystal.get('same_modifier_source') not in ('signature','crystal'):
+                raise ValueError('explicit same_modifier_source selection required for different modifier contracts')
+            selected[row['modification']]=(crystal if crystal['same_modifier_source']=='crystal'
+                                          else previous if not previous.get('z_crystal') else row)
+    return list(selected.values())
+
+
+def _marker(row,actor):
+    return {'investment_id':row['id'],'actor_id':actor.entity_id,'modification':row['modification'],'source_contract':row['source_contract']}
+
+
+def _markers(move):
+    return [(key,move[key]) for key in (MARKER,__import__('z_moves').MARKER) if key in move]
+
+
+def _projected(engine,actor,move):
+    expected=prepare(engine,actor,engine.r.move(move['id']))
+    if _markers(expected)!=_markers(move):raise ValueError('actual source-owned Technique projection required')
+    return _markers(move)
+
+
+def _historical(engine,actor,move,key,marker):
+    if key==__import__('z_moves').MARKER:
+        row=__import__('z_moves').historical(engine,actor,marker,move['id'])
+    else:
+        validate_spec(engine.r,actor.spec)
+        row=next((r for r in _history(actor.spec) if r['id']==marker['investment_id']),None)
+    if row is None or _marker(row,actor)!=marker:raise ValueError('actual source-owned Technique history required')
+    return row
+
+
 def prepare(engine,actor,move):
-    row=active(engine.r,actor.spec,move['id']);marker=move.get(MARKER)
-    if row is None:
-        if marker is not None:raise ValueError('stale Signature Technique projection')
+    rows=_techniques(engine,actor,move['id'])
+    expected=[( __import__('z_moves').MARKER if r.get('z_crystal') else MARKER,_marker(r,actor)) for r in rows]
+    previous=_markers(move)
+    if previous:
+        if previous!=expected:raise ValueError('Technique projection source changed')
         return move
-    expected={'investment_id':row['id'],'actor_id':actor.entity_id,'modification':row['modification'],'source_contract':row['source_contract']}
-    if marker is not None:
-        if marker!=expected:raise ValueError('Technique projection source changed')
-        return move
-    out=deepcopy(move);mod=row['modification'];range_text=out['range'];values=source(engine.r,row['source_contract'])
-    if mod=='scattershot':
-        out['range']='4m, 대상'+str(values['scattershot_targets'])
-        out['_class_move_range']={'raw':out['range'],'origin':4,'targets':values['scattershot_targets'],'parsed':True}
-    elif mod=='vicious_storm':
-        out['range']+=', 강타'
-        out['keywords']=list(dict.fromkeys([*(out.get('keywords') or []),'강타']))
-    elif mod=='alternative_energy':out['class']='특수' if out['class']=='물리' else '물리'
-    elif mod=='double_down':out['range']+=', 이단타격'
-    elif mod=='double_curse':
-        out['range']=re.sub(r'대상\s*1|1\s*대상|1\s*Target','대상2',range_text,flags=re.I)
-        out['_class_move_range']=dict(__import__('weapon_actions').range_spec(engine,move,actor),raw=out['range'],targets=2)
-    out[MARKER]=expected
+    if not rows:return move
+    out=deepcopy(move)
+    for row in rows:
+        key=__import__('z_moves').MARKER if row.get('z_crystal') else MARKER
+        out[key]=_marker(row,actor)
+    for row in _effective(rows):
+        mod=row['modification'];values=source(engine.r,row['source_contract'])
+        if mod=='scattershot':
+            out['range']='4m, 대상'+str(values['scattershot_targets'])
+            out['_class_move_range']={'raw':out['range'],'origin':4,'targets':values['scattershot_targets'],'parsed':True}
+        elif mod=='vicious_storm':
+            out['range']+=', 강타'
+            out['keywords']=list(dict.fromkeys([*(out.get('keywords') or []),'강타']))
+        elif mod=='alternative_energy':out['class']='특수' if out['class']=='물리' else '물리'
+        elif mod=='double_down':out['range']+=', 이단타격'
+        elif mod=='double_curse':
+            out['range']=re.sub(r'대상\s*1|1\s*대상|1\s*Target','대상2',out['range'],flags=re.I)
+            out['_class_move_range']=dict(__import__('weapon_actions').range_spec(engine,move,actor),raw=out['range'],targets=2)
     return out
 
 
 def selected_targets(engine,actor,move,candidates,primary):
-    marker=move.get(MARKER)
-    if not marker or marker['modification'] not in ('scattershot','double_curse'):return None
-    if prepare(engine,actor,engine.r.move(move['id'])).get(MARKER)!=marker:
-        raise ValueError('actual source-owned Technique target projection required')
+    markers=[m for _,m in _markers(move) if m['modification'] in ('scattershot','double_curse')]
+    if not markers:return None
+    _projected(engine,actor,move)
     import weapon_actions as WEAPONS,body_state as BODY
     rng=WEAPONS.range_spec(engine,move,actor)
     if not candidates or candidates[0] is not primary or len(candidates)>rng['targets']:
         raise ValueError('select the actual primary and no more than the Technique target maximum')
     if len({id(p) for p in candidates})!=len(candidates):raise ValueError('distinct actual Technique recipients required')
-    if marker['modification']=='double_curse' and any(p.side==actor.side for p in candidates):
+    if any(m['modification']=='double_curse' for m in markers) and any(p.side==actor.side for p in candidates):
         raise ValueError('Double Curse selects actual foes')
     reach=BODY.melee_reach(actor) if rng.get('origin')=='melee' else rng['origin']
     if any(not BODY.in_range(engine,actor,p,reach,move=move) for p in candidates):
@@ -448,13 +499,13 @@ def selected_targets(engine,actor,move,candidates,primary):
 
 
 def vicious_storm(engine,actor,move):
-    marker=move.get(MARKER)
-    return bool(marker and marker['modification']=='vicious_storm' and move['class'] in ('물리','특수')
-        and prepare(engine,actor,engine.r.move(move['id'])).get(MARKER)==marker)
+    if not any(m['modification']=='vicious_storm' for _,m in _markers(move)) or move['class'] not in ('물리','특수'):return False
+    _projected(engine,actor,move)
+    return True
 
 
 def mechanics(engine, actor, move, mechanics):
-    row=active(engine.r,actor.spec,move['id'])
+    row=_technique(engine,actor,move['id'],'double_down')
     if row is None:return mechanics
     out=deepcopy(mechanics)
     if row['modification']=='double_down':
@@ -465,15 +516,21 @@ def mechanics(engine, actor, move, mechanics):
 
 
 def strike_authority(engine,actor,move):
-    row=active(engine.r,actor.spec,move['id'])
+    row=_technique(engine,actor,move['id'],'double_down')
     if not row or row['modification']!='double_down':return False
-    if prepare(engine,actor,engine.r.move(move['id'])).get(MARKER)!=move.get(MARKER):raise ValueError('Double Down requires actual source-owned Move projection')
+    _projected(engine,actor,move)
     _eligible(engine.r,move['id'],'double_down',row['source_contract'])
-    return {'source':SIGNATURE,'investment_id':row['id'],'actor_id':actor.entity_id,'source_contract':row['source_contract']}
+    return {'source':__import__('z_moves').CRYSTAL if row.get('z_crystal') else SIGNATURE,'investment_id':row['id'],'actor_id':actor.entity_id,'source_contract':row['source_contract']}
 
 
 def validate_strike_record(engine,actor,record):
     authority=record.get('technique_authority',{})
+    if authority.get('source')==__import__('z_moves').CRYSTAL:
+        row=__import__('z_moves').historical(engine,actor,{'investment_id':authority.get('investment_id')},record['move_id'])
+        if (row['modification']!='double_down' or record['kind']!='double' or authority!={
+                'source':__import__('z_moves').CRYSTAL,'investment_id':row['id'],'actor_id':actor.entity_id,'source_contract':row['source_contract']}):
+            raise ValueError('actual historical crystal Double Down strike required')
+        return True
     rows=[r for r in _history(actor.spec) if r['id']==authority.get('investment_id')]
     if (len(rows)!=1 or rows[0]['modification']!='double_down' or rows[0]['move_id']!=record['move_id']
             or record['kind']!='double' or authority!={'source':SIGNATURE,'investment_id':rows[0]['id'],
@@ -488,7 +545,7 @@ def timed(actor,kind=None):
 
 
 def _effect(engine,actor,target,row,kind,completion,*,next_user_turn=False,one_round=False,**fields):
-    receipt={'source':SIGNATURE,'ace_technique':kind,'technique_id':row['id'],'completion_id':completion,
+    receipt={'source':__import__('z_moves').CRYSTAL if row.get('z_crystal') else SIGNATURE,'ace_technique':kind,'technique_id':row['id'],'completion_id':completion,
              'user_id':actor.entity_id,**fields}
     if next_user_turn:receipt.update(turn_owner=actor,turn_deadline=actor.custom_conditions.get('combat_turn_serial',0)+1)
     if one_round:receipt['count_deadline']=[engine.round_no+1,TIME.current(engine)]
@@ -497,20 +554,22 @@ def _effect(engine,actor,target,row,kind,completion,*,next_user_turn=False,one_r
 
 def after_target(engine,completion,target):
     actor=completion['actor'];move=completion.get('target_moves',{}).get(target.entity_id,completion['move'])
-    marker=move.get(MARKER)
-    if not marker:return
+    markers=_markers(move)
+    if not markers:return
     result=__import__('move_completion').recipient_result(completion,target)
     if not result or result.get('cancelled'):return
-    row=next(r for r in _history(actor.spec) if r['id']==marker['investment_id']);mod=row['modification']
-    token=target.entity_id+':'+mod
-    if token in completion.setdefault('ace_target_effects',[]):return
-    completion['ace_target_effects'].append(token)
-    if mod=='shock_and_awe' and target.side!=actor.side:
-        _effect(engine,actor,target,row,mod,completion['id'],next_user_turn=True,save_modifier=-2,evasion_modifier=-1)
-    elif mod=='guarding_strike' and result['hit']:
-        _effect(engine,actor,actor,row,mod,completion['id'],next_user_turn=True,against_id=target.entity_id,damage_reduction=5)
-    elif mod=='unbalancing_blow':
-        _effect(engine,actor,target,row,mod,completion['id'],one_round=True,evasion_zero=True)
+    rows=[_historical(engine,actor,move,key,marker) for key,marker in markers]
+    for row in _effective(rows):
+        mod=row['modification']
+        token=target.entity_id+':'+mod
+        if token in completion.setdefault('ace_target_effects',[]):continue
+        completion['ace_target_effects'].append(token)
+        if mod=='shock_and_awe' and target.side!=actor.side:
+            _effect(engine,actor,target,row,mod,completion['id'],next_user_turn=True,save_modifier=-2,evasion_modifier=-1)
+        elif mod=='guarding_strike' and result['hit']:
+            _effect(engine,actor,actor,row,mod,completion['id'],next_user_turn=True,against_id=target.entity_id,damage_reduction=5)
+        elif mod=='unbalancing_blow':
+            _effect(engine,actor,target,row,mod,completion['id'],one_round=True,evasion_zero=True)
 
 
 def after_damaging_hit(engine,target,completion_id):
@@ -524,6 +583,7 @@ def damage_reduction(actor,attacker):return max([r.get('damage_reduction',0) for
 
 
 def validate_world(engine,index):
+    __import__('z_moves').validate_world(engine,index)
     for actor in index.values():
         validate_spec(engine.r,actor.spec)
         for investment in _history(actor.spec):
@@ -540,6 +600,8 @@ def validate_world(engine,index):
                 if (index.get(getattr(owner,'entity_id',None)) is not owner or
                         not any(r['request_id']==effect.get('acquisition') for r in records(owner,CRITICAL))):
                     raise ValueError('Critical Moment needs its actual issuing acquisition and turn owner')
+                if str(effect.get('payment_id','')).startswith('commander:') and not __import__('commander').voice_authority(owner,actor,CRITICAL,effect['payment_id']):
+                    raise ValueError('Critical Moment lost its actual Focused Command Voice payment')
         for row in timed(actor):
             completion=getattr(engine,'_move_completions',{}).get(row.get('completion_id'))
             if completion is None or completion['actor'] is not index.get(row.get('user_id')):
@@ -587,7 +649,7 @@ def top_source(actor):
 
 def before_frequency(engine,actor,move_id):
     """Capture the real frequency owner before native consumption, once."""
-    row=active(engine.r,actor.spec,move_id)
+    row=_technique(engine,actor,move_id,'reliable_attack')
     if not row or row['modification']!='reliable_attack':return
     import frequency as F
     import move_permissions as P
@@ -599,10 +661,13 @@ def before_frequency(engine,actor,move_id):
 
 
 def begin_move(engine,completion):
-    actor=completion['actor'];move=completion['move'];row=active(engine.r,actor.spec,move['id'])
-    if not row:return
-    completion['ace_technique_investment']=row['id']
-    if row['modification']=='reliable_attack':
+    __import__('z_moves').begin(engine,completion)
+    actor=completion['actor'];move=completion['move'];rows=_techniques(engine,actor,move['id'])
+    if not rows:return
+    completion['ace_technique_investment']=rows[0]['id']
+    completion['ace_technique_investments']=[r['id'] for r in rows]
+    row=next((r for r in _effective(rows) if r['modification']=='reliable_attack'),None)
+    if row:
         # Native completion creation precedes this activation's consume_move.
         before_frequency(engine,actor,move['id'])
         snapshot=actor.custom_conditions.pop('ace_reliable_frequency',None)
@@ -614,8 +679,8 @@ def _completion(engine,actor,completion_id,modification):
     row=getattr(engine,'_move_completions',{}).get(completion_id)
     if row is None or row['actor'] is not actor or row['phase']!='complete' or not row['sealed']:
         raise ValueError('actual completed Signature Technique Move required')
-    marker=row['move'].get(MARKER)
-    if marker is None or marker['modification']!=modification or row.get('ace_technique_investment')!=marker['investment_id']:
+    markers=[m for _,m in _markers(row['move']) if m['modification']==modification]
+    if not markers or markers[0]['investment_id'] not in row.get('ace_technique_investments',[row.get('ace_technique_investment')]):
         raise ValueError('actual source-owned Technique completion required')
     if (row['round']!=engine.round_no or row['turn_serial']!=actor.custom_conditions.get('combat_turn_serial',0)
             or row['completed_at']!=engine.elapsed_seconds):
@@ -624,11 +689,11 @@ def _completion(engine,actor,completion_id,modification):
 
 
 def after_move(engine,completion):
-    marker=completion['move'].get(MARKER)
-    if marker is None or completion.get('ace_after_move'):return
+    markers=_markers(completion['move'])
+    if not markers or completion.get('ace_after_move'):return
     if completion['phase']!='complete':raise ValueError('Technique needs whole actual Move completion')
     completion['ace_after_move']=True
-    if marker['modification']=='reliable_attack':
+    if any(m['modification']=='reliable_attack' for _,m in markers):
         results=[v for v in completion['results'].values() if not v['cancelled']]
         if results and all(not r['hit'] for r in results):
             fact=completion['ace_reliable_frequency'];owner=W.actor_index(engine)[fact['owner_id']]
@@ -642,8 +707,9 @@ def after_move(engine,completion):
             else:state['moves'][mid]=deepcopy(fact['occurrence'])
             completion['ace_reliable_offer']={'target_ids':[t.entity_id for t in completion['targets']],
                 'used':False,'action_history':deepcopy(getattr(completion['actor'],'_action_history',[]))}
-    elif marker['modification']=='burst_of_motivation':
+    if any(m['modification']=='burst_of_motivation' for _,m in markers):
         completion['ace_motivation_offer']={'used':False,'action_history':deepcopy(getattr(completion['actor'],'_action_history',[]))}
+    __import__('z_moves').finish(engine,completion)
 
 
 def reliable_struggle(engine,pokemon,target,completion_id):
@@ -695,7 +761,7 @@ def supreme(engine,actor,move=None):
         if frame is None or frame['actor'] is not actor or frame['kind']!='move':return False
         mid=frame['source']
     else:mid=move['id']
-    row=active(engine.r,actor.spec,mid)
+    row=_technique(engine,actor,mid,'supreme_concentration')
     return bool(row and row['modification']=='supreme_concentration')
 
 
@@ -738,10 +804,11 @@ def replace_core_confusion(engine,actor,result):
 
 
 def bloodied_authority(engine,actor,move_id):
-    row=active(engine.r,actor.spec,move_id)
+    row=_technique(engine,actor,move_id,'bloodied_speed')
     if not row or row['modification']!='bloodied_speed':return None
     if actor.hp*2>=actor.max_hp:raise ValueError('Bloodied Speed requires strictly below half maximum HP')
-    return {'source':SIGNATURE,'investment_id':row['id'],'modification':'bloodied_speed'}
+    return {'source':__import__('z_moves').CRYSTAL if row.get('z_crystal') else SIGNATURE,
+            'investment_id':row['id'],'modification':'bloodied_speed'}
 
 
 def priority_bloodied(engine,actor,target,move_id):

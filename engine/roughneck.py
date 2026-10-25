@@ -22,8 +22,7 @@ def owns(actor,feature):
 
 def records(actor,feature,active=True):
     import trainer_feature_acquisition as T
-    return [r['static_acquisition'] for _,r,live in T._static_records(actor)
-            if r['static_acquisition']['feature_id']==feature and (live or not active)]
+    return [record for _, record in T.static_acquisitions(actor, feature, active=active)]
 
 
 def acquisition_snapshot(e,actor,feature):

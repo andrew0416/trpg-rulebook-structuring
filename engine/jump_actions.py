@@ -162,7 +162,7 @@ def jump(e,c,destination,*,jump_id,apex_height=0,landing_altitude=0,difficult=No
   for index,(key,skill,dc,opts) in enumerate(plans):
    roll=observed[index] if observed is not None else roll_engine.skill_roll(c,skill,**opts)
    SF.finish(roll_engine,c,opts.get('roll_id'))
-   check=C.against_dc(roll,dc);checks[key]=check
+   check=SF.resolve_check(roll_engine,c,skill,dc,roll,opts);checks[key]=check
    if key=='boost' and check.passed:effective[boost]+=1
    if not check.passed:return checks,effective,key
   return checks,effective,None
@@ -190,11 +190,11 @@ def jump(e,c,destination,*,jump_id,apex_height=0,landing_altitude=0,difficult=No
    return False
  if featured:
   try:
-   checks,effective,failed=SF.sequence(e,'jump:'+c.spec['id']+':'+jump_id,basis,[(c,skill,opts) for _,skill,_,opts in plans],lambda rolls:resolve(e,rolls),stop_after=lambda index,roll:not C.against_dc(roll,plans[index][2]).passed)
+   checks,effective,failed=SF.sequence(e,'jump:'+c.spec['id']+':'+jump_id,basis,[(c,skill,opts) for _,skill,_,opts in plans],lambda rolls:resolve(e,rolls),stop_after=lambda index,roll:not SF.resolve_check(e,c,plans[index][1],plans[index][2],roll,plans[index][3]).passed)
   finally:
    if 'jump:'+c.spec['id']+':'+jump_id in getattr(e,'_skill_sequences',{}) and any(opts.get('roll_id') in e._ap_rolls and e._ap_rolls[opts['roll_id']].get('skill_event') is not None for _,_,_,opts in plans):commit_shift()
  else:
-  checks,effective,failed=COMMON._staged_rolls(e,resolve);commit_shift()
+  checks,effective,failed=COMMON._staged_rolls(e,resolve,actors=(c,));commit_shift()
  c.spec.pop('_jump_inflight',None)
  record={'destination':destination,'landing_altitude':landing_altitude,'apex_height':apex_height,'base_limits':cap,'effective_limits':effective,'requested':requested,'boost':boost,'checks':checks,'reason':reason_text,'failed':failed,'whole_shift':True,'running_start':running_start,'running_reason':running_reason,'running_bonus_included':running_bonus_included}
  if wall is not None:record['wall_run']=deepcopy(wall)

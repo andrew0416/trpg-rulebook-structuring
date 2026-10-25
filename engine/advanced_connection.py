@@ -31,6 +31,14 @@ def owned(rules,spec,ability,abilities=None):
  return any(A.ability_id(rules,name)==ability for name in ability_values(rules,spec))
 
 
+def validate_immediate_receipt(rules,row):
+ """The Connection keyword pays one point immediately, without a teaching hour."""
+ if row.get('source')!=SOURCE or row.get('training_source')!=KEYWORD or 'mentor_source_id' in row or 'pusher' in row:
+  raise ValueError('actual immediate Advanced Connection source required')
+ F.integer(row.get('point_cost'),'immediate Advanced Connection Tutor Point cost',1,1)
+ linked_moves(rules,row.get('ability'))
+
+
 def checked(rules,spec,*,allow_lost=False):
  import poke_edge_variants as V
  active=0

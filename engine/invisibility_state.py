@@ -117,8 +117,15 @@ def force_end(engine,actor,*,reason):
  return True
 
 
-def accuracy_penalty(engine,actor):
+def visual_block(engine,actor,*,observer=None):
  active=projection(engine,actor)['active']
+ if __import__('psionic_sight').ignores_invisibility(engine,observer,actor):return None
+ return 'invisibility_time_unknown' if active is None else 'target_invisible' if active else None
+
+
+def accuracy_penalty(engine,actor,*,observer=None):
+ active=projection(engine,actor)['active']
+ if __import__('psionic_sight').ignores_invisibility(engine,observer,actor):active=False
  if active is None:raise ValueError('invisibility accuracy needs elapsed-time resolution')
  import body_modes as BODY_MODES
  return 4 if active or BODY_MODES.flat(actor) else 0

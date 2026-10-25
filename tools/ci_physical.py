@@ -48,6 +48,72 @@ def evidence_references(stage, evidence_id):
     }
 
 
+class OrdinaryGeneratedCapture:
+    """Only new scratch data written by the active frozen test can be a generated input."""
+    def __init__(self,stage,before,physical,raw_open,capture_bytes,event):
+        self.stage,self.before,self.physical=stage,before,physical
+        self.raw_open,self.capture_bytes,self.event=raw_open,capture_bytes,event
+        self.closed,self.generated_reads={},{}
+
+    def writer(self,file,mode,test):
+        if test is None or isinstance(file,int) or mode not in ('w','wt','wb','x','xt','xb'):return None
+        try:path=Path(file).resolve()
+        except (TypeError,ValueError,OSError):return None
+        if not path.is_relative_to(self.stage):return None
+        rel=path.relative_to(self.stage)
+        if (len(rel.parts)!=3 or rel.parts[0]!='work' or not rel.parts[1].startswith('tmp')
+                or path.suffix.lower() not in ('.json','.jsonl','.txt','.csv','.md')):return None
+        if str(path) in self.before or str(path) in self.closed or path.exists() or path.is_symlink():return None
+        module=sys.modules.get(type(test).__module__);source=getattr(module,'__file__',None)
+        if source is None:return None
+        source=Path(source).resolve();expected=self.before.get(str(source))
+        if expected is None:return None
+        frames=[];frame=sys._getframe(1)
+        try:
+            while frame:
+                physical=Path(frame.f_code.co_filename).resolve()
+                if physical.is_relative_to(self.stage) and physical!=Path(__file__).resolve():
+                    frames.append((frame,physical))
+                frame=frame.f_back
+            if not frames or frames[0][1]!=source or frames[0][0].f_locals.get('self') is not test:return None
+            if not any(p==source and f.f_locals.get('self') is test and f.f_code.co_name==test._testMethodName for f,p in frames):return None
+            return {'file':str(path),'path':rel.as_posix(),'mode':mode,'test_id':test.id(),
+                'writer_source':str(source),'writer_source_sha256':expected,
+                'writer_function':frames[0][0].f_code.co_name,'writer_line':frames[0][0].f_lineno,
+                'source_frozen_before_import':True,'absent_before_write':True}
+        finally:
+            del frame,frames
+
+    def wrap(self,stream,proof):
+        owner=self
+        self.event('ordinary_generated_write_open',**proof)
+        class Writer:
+            recorded=False
+            def __getattr__(self,name):return getattr(stream,name)
+            def __enter__(self):stream.__enter__();return self
+            def commit(self):
+                if self.recorded:return
+                with owner.raw_open(proof['file'],'rb') as raw:body=raw.read()
+                row=dict(proof,write_closed_sha256=hashlib.sha256(body).hexdigest())
+                owner.closed[proof['file']]=row;self.recorded=True
+                owner.event('ordinary_generated_write_closed',**row)
+            def close(self):stream.close();self.commit()
+            def __exit__(self,*args):
+                result=stream.__exit__(*args)
+                if args[0] is None:self.commit()
+                return result
+        return Writer()
+
+    def generated_read(self,path,digest):
+        proof=self.closed.get(str(path))
+        if proof is None or proof['write_closed_sha256']!=digest:return False
+        member=self.capture_bytes(path,digest,self.physical,'ordinary-generated')
+        row=dict(proof,sha256=digest,archive_member=member)
+        self.generated_reads[str(path)]=row
+        self.event('ordinary_generated_first_read',**row)
+        return True
+
+
 def run(stage, hashes, target, output):
     physical_open, physical_builtin_open = io.open, builtins.open
     stage, output = stage.resolve(), output.resolve()
@@ -113,11 +179,18 @@ def run(stage, hashes, target, output):
             procedural=PROCEDURAL.packet(value)
         elif value.get('execution_kind') is not None:
             raise ValueError('Unknown typed CI execution kind')
+    ordinary_helper = None
+    if gate is None and procedural is None:
+        helper = (stage / 'tools/ci_procedural_gate.py').resolve()
+        if str(helper) in before:
+            helper_spec=importlib.util.spec_from_file_location('ci_procedural_gate',helper)
+            ordinary_helper=importlib.util.module_from_spec(helper_spec);sys.modules[helper_spec.name]=ordinary_helper
+            helper_spec.loader.exec_module(ordinary_helper)
     gate_report = None
     mode_origins = {}
     started, clock = datetime.now(timezone.utc).isoformat(), time.monotonic()
     actual, reads, missing, origin_errors = [], {}, [], []; actual_modes = {}
-    before_execution, result = {}, None
+    before_execution, result, active_test = {}, None, None
     events = physical_open(physical / (PREFIX + "-events.jsonl"), "x",
                            encoding="utf-8", newline="\n")
 
@@ -132,6 +205,8 @@ def run(stage, hashes, target, output):
     event("capture_ready", execution_stage=str(stage), started_utc=started,
           evidence_references=references,
           runtime_test_data_sha256_before=before)
+    ordinary_capture=OrdinaryGeneratedCapture(stage,before,physical,physical_open,
+        ordinary_helper.capture_generated_bytes,event) if ordinary_helper else None
 
     def observe_read(file, args, kwargs):
         mode = args[0] if args else kwargs.get("mode", "r")
@@ -148,17 +223,25 @@ def run(stage, hashes, target, output):
         if key not in reads:
             reads[key] = digest(path)
             generated = bool(key not in before and procedural_capture is not None and procedural_capture.generated_read(path,reads[key]))
+            if key not in before and not generated and ordinary_capture is not None:
+                generated=ordinary_capture.generated_read(path,reads[key])
             if key not in before and not generated:
                 missing.append(key)
             event("first_read", file=key, sha256=reads[key], captured_before=key in before, declared_generated_input=generated)
 
     def tracking_open(file, *args, **kwargs):
         observe_read(file, args, kwargs)
-        return physical_builtin_open(file, *args, **kwargs)
+        return tracked_write(physical_builtin_open,file,args,kwargs)
 
     def tracking_io_open(file, *args, **kwargs):
         observe_read(file, args, kwargs)
-        return physical_open(file, *args, **kwargs)
+        return tracked_write(physical_open,file,args,kwargs)
+
+    def tracked_write(raw_open,file,args,kwargs):
+        mode=args[0] if args else kwargs.get('mode','r')
+        proof=ordinary_capture.writer(file,mode,active_test) if ordinary_capture else None
+        stream=raw_open(file,*args,**kwargs)
+        return ordinary_capture.wrap(stream,proof) if proof else stream
 
     def loaded_origins():
         origins = {}
@@ -186,7 +269,7 @@ def run(stage, hashes, target, output):
         origin_errors.extend(wrong)
         return not wrong
 
-    original_start, original_run = unittest.TestResult.startTest, unittest.TextTestRunner.run
+    original_start, original_stop, original_run = unittest.TestResult.startTest, unittest.TestResult.stopTest, unittest.TextTestRunner.run
     diagnostic_methods = {name: getattr(unittest.TestResult, name)
                           for name in ("addFailure", "addError", "addSubTest")}
 
@@ -201,11 +284,18 @@ def run(stage, hashes, target, output):
         return observed
 
     def start_test(self, test):
+        nonlocal active_test
+        active_test=test
         actual.append(test.id())
         mode = getattr(self, "_ci_equivalence_mode", None)
         if mode is not None:actual_modes.setdefault(mode, []).append(test.id())
         event("test_start", id=test.id(), mode=getattr(self, "_ci_equivalence_mode", None))
         return original_start(self, test)
+
+    def stop_test(self,test):
+        nonlocal active_test
+        try:return original_stop(self,test)
+        finally:active_test=None
 
     class Tee:
         def __init__(self, original, durable):
@@ -253,7 +343,7 @@ def run(stage, hashes, target, output):
         if not check_origins(before_execution):
             raise RuntimeError('Equivalence module is outside authenticated physical inputs')
 
-    unittest.TestResult.startTest, unittest.TextTestRunner.run = start_test, run_suite
+    unittest.TestResult.startTest, unittest.TestResult.stopTest, unittest.TextTestRunner.run = start_test, stop_test, run_suite
     for name, method in diagnostic_methods.items():
         setattr(unittest.TestResult, name, observe_diagnostic(method))
     builtins.open, io.open = tracking_open, tracking_io_open
@@ -294,7 +384,7 @@ def run(stage, hashes, target, output):
         print(exception)
     finally:
         builtins.open, io.open = physical_builtin_open, physical_open
-        unittest.TestResult.startTest, unittest.TextTestRunner.run = original_start, original_run
+        unittest.TestResult.startTest, unittest.TestResult.stopTest, unittest.TextTestRunner.run = original_start, original_stop, original_run
         for name, method in diagnostic_methods.items():
             setattr(unittest.TestResult, name, method)
         origins = loaded_origins()
@@ -365,6 +455,7 @@ def run(stage, hashes, target, output):
             "changed_origin_errors": origin_errors,
             "input_read_errors": read_errors,
             "method_timings": details.get("test_durations", []),
+            "ordinary_generated_first_reads":list(ordinary_capture.generated_reads.values()) if ordinary_capture else [],
         }
         if gate:
             metadata['execution_kind'] = 'frequency_equivalence_gate'

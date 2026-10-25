@@ -85,7 +85,10 @@ def suspend(e,scope,error):
  event=e._passive_events.get(error.event_id)
  if event is None:return False
  while event.get('defense_parent'):event=e._passive_events[event['defense_parent']]
- if event.get('completion_id')!=scope.get('completion_id') or not event.get('continuation'):return False
+ if event.get('completion_id')!=scope.get('completion_id'):
+  event=__import__('conquerors_march').counter_parent(e,event,scope['completion_id'])
+  if event is None:return False
+ elif not event.get('continuation'):return False
  row=e._move_completions[scope['completion_id']]
  import world_entities as WORLD
  memo={id(actor):actor for actor in WORLD.actor_index(e).values()}
@@ -98,7 +101,7 @@ def suspend(e,scope,error):
  # Geometry is bound before the ally is pushed, not recalculated from it later.
  if snapshot['accuracy'] is not None and snapshot['options'].get('aim') is None:
   import weapon_actions as WEAPON
-  move=event['continuation']['args']['move']
+  move=event['continuation']['args']['move'] if event.get('continuation') else __import__('move_completion').event_move(e,event)
   shape=WEAPON.range_spec(e,move,scope['actor']).get('shape')
   snapshot['options']['aim']=scope['actor'].pos if shape=='burst' else scope['primary'].pos
  row['activation_continuation']={'scope':snapshot,'event_id':event['id'],
@@ -168,9 +171,17 @@ def validate_continuations(e,index):
   scope=saved['scope'];event=e._passive_events.get(saved['event_id'])
   if (event is None or event.get('completion_id')!=key or scope['completion_id']!=key or
       scope['actor'] is not row['actor'] or list(scope['targets'])!=row['targets'] or
-      not 0<scope['index']<=len(scope['targets']) or scope['targets'][scope['index']-1] is not event['target'] or
+      not 0<scope['index']<=len(scope['targets']) or (scope['targets'][scope['index']-1] is not event['target'] and
+       not __import__('conquerors_march').pair_wait_index(e,row,event,scope)) or
       saved['fingerprint']!=R.fingerprint(_continuation_facts(scope,event['id']))):
-   raise ValueError('native suspended target group lacks its actual producer')
+   raise ValueError('native suspended target group lacks its actual producer: '+str({
+    'completion':key,'scope_completion':scope.get('completion_id'),
+    'event_completion':None if event is None else event.get('completion_id'),
+    'index':scope['index'],'targets':[a.entity_id for a in scope['targets']],
+    'declared':[a.entity_id for a in row['targets']],
+    'event_target':None if event is None else event['target'].entity_id,
+    'actor_matches':scope['actor'] is row['actor'],
+    'fingerprint_matches':event is not None and saved['fingerprint']==R.fingerprint(_continuation_facts(scope,event['id']))}))
   if any(index.get(actor.entity_id) is not actor for actor in scope['targets']):
    raise ValueError('native target group lost an actual target')
   converted=scope.get('stat_maneuver')

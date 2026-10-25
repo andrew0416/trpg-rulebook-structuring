@@ -285,12 +285,13 @@ def procedural_edge(rules,actor,uid):
     if count!=1 or actor.kind!='trainer':raise ValueError('single trainer edge acquisition required')
     if rules._selected_rule(uid)!=uid:raise ValueError('selected procedural edge needs its own policy')
     need=record['prerequisite']
-    if rank(rules,actor,need['skill'])[2]<need['minimum_rank']:raise ValueError('procedural edge prerequisite is not established')
+    if not __import__('hobbyist').skill_waived(actor,uid) and rank(rules,actor,need['skill'])[2]<need['minimum_rank']:raise ValueError('procedural edge prerequisite is not established')
     return record
 
 def assistance_bonus(rules,helper,skill,rank_value):
     record=procedural_edge(rules,helper,'edge/설명')
     if record and skill_id(rules.skill_policy,skill,required=True) in record['education_skills']:
-        if rank_value<3:raise ValueError('Instruction needs at least Novice in the helping Education skill')
-        return rank_value
+        substituted=__import__('hobbyist').direct_rank(helper,'edge/설명',skill,effective=False)
+        if substituted<3:raise ValueError('Instruction needs at least Novice in the helping Education skill')
+        return substituted
     return M.ratio(rank_value,2)

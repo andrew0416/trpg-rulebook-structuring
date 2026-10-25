@@ -82,6 +82,7 @@ class RollResourceTests(unittest.TestCase):
                 else:self.e.opposed_check(self.a,'육상',self.p,'육상',challenger_options={'roll_id':'same'},defender_options={'roll_id':'same'})
             self.assertEqual(self.e.rng.getstate(),before);self.assertEqual(self.e._ap_rolls,{})
     def test_team_uses_prepaid_roll_once_and_preserves_live_references(self):
+        self.e.gm.add_combatant(self.a);self.e.gm.add_combatant(self.p)
         self.prepare()
         out=self.e.common_action(skill='육상',dc=6,mode='team',participants=[self.a,self.p],required_people=2,equal_contribution=True,no_main_actor=True,participant_options=[{'roll_id':'one','fixed':[1]*6},{'roll_id':'two','fixed':[1]*6}])
         self.assertEqual(out.check.total,13);self.assertEqual(self.e._ap_rolls['one']['state'],'resolved')

@@ -54,11 +54,11 @@ def activate_form(engine,actor,ability):
  def apply(e,c):
   import frequency as F,turn as TURN,combat_timing as TIMING,effects_ext as EXT
   key='ability:'+reg['name']
-  if not F.activation_allowed(c,key,row['definition']['frequency'],engine=e):raise ValueError('form ability scene frequency exhausted')
+  if not F.activation_allowed(c,key,row['definition']['frequency'],engine=e,action_actor=c):raise ValueError('form ability scene frequency exhausted')
   active=[x for x in TIMING.records(c) if x.get('permission_ability')==reg['name']]
   if active:raise ValueError('form permission is already active')
   if not TURN.spend(e,c,'swift',reg['name']):raise ValueError('form activation requires its Swift action')
-  F.consume_activation(c,key,row['definition']['frequency'],engine=e)
+  F.consume_activation(c,key,row['definition']['frequency'],engine=e,action_actor=c)
   scene=c.spec['frequency_state']['scene'];grant_source=key+':form:'+str(scene)
   G.scalar(c,'form','달마모드',grant_source)
   ctx={'source_id':uid,'form_permission_activation':uid,'permission_source':grant_source,'attacker':c,'target':c,'engine':e}
@@ -93,12 +93,12 @@ def activate_rider(engine,actor,move_id):
  def apply(e,c,donor):
   import frequency as F,turn as TURN,combat_timing as TIMING
   uid=reg['source_id'];row=policies(e.r)[uid];key='ability:'+RIDER
-  if not F.activation_allowed(c,key,row['definition']['frequency'],engine=e):raise ValueError('Rider scene frequency exhausted')
+  if not F.activation_allowed(c,key,row['definition']['frequency'],engine=e,action_actor=c):raise ValueError('Rider scene frequency exhausted')
   for other in TIMING.records(c):
    if other.get('permission_ability')==RIDER:raise ValueError('existing Rider selection must finish its turn before another selection')
   if any(F.state(c)[field]!=F.state(donor)[field] for field in ('day','scene')):raise ValueError('Rider and mount frequency calendars must agree')
   if not TURN.spend(e,c,'swift',RIDER):raise ValueError('Rider activation requires its Swift action')
-  F.consume_activation(c,key,row['definition']['frequency'],engine=e)
+  F.consume_activation(c,key,row['definition']['frequency'],engine=e,action_actor=c)
   serial=c.custom_conditions.get('combat_turn_serial',0);grant_source=key+':turn:'+str(F.state(c)['scene'])+':'+str(F.state(c)['turn'])
   G.grant_moves(c,[mid],grant_source,'effect',owner_id=c.entity_id,lifetime='user_turn_end',rule_id=uid,mode='permission')
   G.state(c)['sources'][grant_source]['shared_move_frequency']={'mount_id':donor.entity_id,'move_id':mid,'source':uid}

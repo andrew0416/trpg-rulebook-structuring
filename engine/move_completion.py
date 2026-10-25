@@ -74,7 +74,7 @@ def record_return(e,event_id,*,hit_prevented):
     refresh(e,row['id'])
 
 
-def require_returned_event(e,event_id):
+def require_returned_event(e,event_id,*,_recipient_only=False):
     """Join an observed recipient return to the finished whole Move.
 
     This read-only receipt does not select a reaction, its payment, or its
@@ -92,17 +92,16 @@ def require_returned_event(e,event_id):
     row=getattr(e,KEY,{}).get(event.get('completion_id'))
     if (row is None or row['actor'] is not event['actor'] or
             row['move_id']!=event['move_id'] or row['round']!=event['round'] or
-            row['seconds']!=event['elapsed_seconds'] or row['phase']!='complete' or
-            not row['sealed'] or set(row['results'])!={t.entity_id for t in row['targets']} or
-            ACTION.pending_resolution_effects(e,row)):
+            row['seconds']!=event['elapsed_seconds'] or (not _recipient_only and
+            (row['phase']!='complete' or not row['sealed'] or
+             set(row['results'])!={t.entity_id for t in row['targets']} or ACTION.pending_resolution_effects(e,row)))):
         raise ValueError('whole Move targets and completion effects must have returned')
     parent_id=event.get('defense_parent',event_id)
     parent=e._passive_events.get(parent_id)
     if (parent is None or parent['producer']!='Engine.use_move' or
             parent['completion_id']!=row['id'] or parent['actor'] is not row['actor'] or
-            parent['target'] not in row['targets'] or
-            parent['phase']!='producer_return_boundary' or
-            parent['status'] not in ('applied','inapplicable')):
+            parent['target'] not in row['targets'] or (not _recipient_only and
+            (parent['phase']!='producer_return_boundary' or parent['status'] not in ('applied','inapplicable')))):
         raise ValueError('actual parent Move return required')
     if event_id!=parent_id:
         received=row.get('received',{}).get(event['target'].entity_id)
@@ -133,15 +132,15 @@ def require_returned_event(e,event_id):
                         'actor_id':e._effect_dispatch_receipts[token]['actor'].entity_id,
                         'target_id':e._effect_dispatch_receipts[token]['target'].entity_id}
                        for token in row['effects']],
-            'completed_at':row['completed_at'],'observations':deepcopy(observations),
+            'completed_at':row.get('completed_at'),'observations':deepcopy(observations),
             'native_return':deepcopy(facts)}
 
 
-def require_hit_return(e,event_id,recipient):
+def require_hit_return(e,event_id,recipient,*,_recipient_only=False):
     """Require an actual hit recipient, not the original Intercept target."""
     import world_entities as WORLD
     WORLD.require_actors(e,recipient)
-    receipt=require_returned_event(e,event_id)
+    receipt=require_returned_event(e,event_id,_recipient_only=_recipient_only)
     event=e._passive_events[event_id];row=getattr(e,KEY)[receipt['completion_id']]
     result=recipient_result(row,recipient)
     if (event['target'] is not recipient or result is None or not result['hit'] or
@@ -154,6 +153,11 @@ def require_hit_return(e,event_id,recipient):
                        ('hit','dealt','cancelled','hit_prevented')}
     receipt['result']['hit_prevented']=receipt['native_return']['hit_prevented']
     return receipt
+
+
+def require_recipient_hit_return(e,event_id,recipient):
+    """A returned hit may trigger Cavalier before other area recipients return."""
+    return require_hit_return(e,event_id,recipient,_recipient_only=True)
 
 
 def after_all(effect,rules=None,move=None):
@@ -191,6 +195,7 @@ def start_target(e,actor,target,move,mm,scope):
         __import__("provocateur").begin_move(e,rows[token])
         __import__('hex_maniac').begin_move(e,rows[token])
         __import__('rogue').begin_move(e,rows[token])
+        __import__('trickster').begin_move(e,rows[token])
         __import__("tumbler").begin_move(e,rows[token])
         __import__('focus_punch').begin_move(e,rows[token])
         __import__('ace_trainer').begin_move(e,rows[token])
@@ -300,9 +305,13 @@ def apply_empty_field(e,actor,move,effects,cells):
          'round':e.round_no,'seconds':e.elapsed_seconds,'turn_serial':actor.custom_conditions.get('combat_turn_serial',0),
             'full_turn':__import__('action_lifecycle').current_full_turn(e)}
     rows[token]=row
+    action=getattr(e,'_native_action_stack',[])
+    if action and action[-1]['actor'] is actor and action[-1]['kind']=='move':
+        row['native_action_frame']=action[-1]
     import optional_state_effect_contracts as OPTIONAL_STATE
     OPTIONAL_STATE.begin_move(e,actor,None,move,token)
     __import__('provocateur').begin_move(e,row)
+    __import__('trickster').begin_move(e,row)
     ICE_LAKE.bind_move(e,row)
     import confusion_attacks as CONFUSION
     CONFUSION.begin(e,row)
@@ -327,6 +336,7 @@ def apply_empty_field(e,actor,move,effects,cells):
     row['phase']='complete';row['completed_at']=e.elapsed_seconds
     __import__('musician').after_empty_use(e,actor,row)
     __import__('juggler').after_move(e,row)
+    __import__('trickster').after_move(e,row)
     __import__('native_switch_transfer').observe_move(e,row)
     return row
 
@@ -361,6 +371,7 @@ def refresh(e,token=None):
         __import__('commander_orders').mark_complete(e,row)
         __import__('musician').after_completion(e,row)
         __import__('rogue').after_move(e,row)
+        __import__('trickster').after_move(e,row)
         import duelist as DUELIST
         DUELIST.after_move(e,row)
         import cheerleader as CHEER
@@ -383,6 +394,7 @@ def refresh(e,token=None):
         __import__('coordinator').after_move(e,row)
         __import__('commander_orders').after_completion(e,row)
         __import__('juggler').after_move(e,row)
+        __import__('conquerors_march').after_move(e,row)
         __import__('native_switch_transfer').observe_move(e,row)
         return refresh(e,token)
     profile=ACTIVATION._profile(e)

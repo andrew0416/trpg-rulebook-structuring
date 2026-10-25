@@ -172,9 +172,12 @@ def _finish_recipient_return(e,frame):
     COMPLETE.finish_target(e,args['completion_id'],args['attacker'],args['target'],
         hit=result['hit'],dealt=result['dealt'],effects=result['effects'],hit_prevented=result['hit_prevented'])
     REACTIVE.resolved_hit(e,args['attacker'],args['target'],args['move'],args['completion_id'],
-        hit_prevented=result['hit_prevented'])
+        hit_prevented=result['hit_prevented'],contact=result.get('melee_contact'))
     COMPLETE.record_return(e,event_id,hit_prevented=result['hit_prevented'])
     if event_id is not None:e._passive_events[event_id].pop('continuation')
+    if event_id is not None:
+        __import__('conquerors_march').after_move(e,e._move_completions[args['completion_id']],event_id=event_id)
+        __import__('conquerors_march').flush_pair_wait(e,event_id,result['dealt'])
     return result['dealt']
 
 
@@ -206,7 +209,7 @@ def after_accuracy(e,**args):
     if ev is not None:
         ev.update(hit=args['hit'],natural_roll=args['nat'],critical=args['crit'])
     import ability_interrupt_choices as ABILITY_INTERRUPTS
-    if ev is None or not (__import__('coordinator').damage_offer(e,args['attacker']) is not None or DEFENSE.wants_boundary(ev) or ABILITY_INTERRUPTS.wants_boundary(ev) or __import__('warper').switch_interested(e,args['attacker'],args['target']) or __import__('tumbler').acquired(args['attacker'],__import__('tumbler').QUICK) or any(p.get('event')=='accuracy_resolved' for p in ev['listener_profiles'].values())):
+    if ev is None or not (__import__('conquerors_march').lean_interested(e,args['target']) or __import__('coordinator').damage_offer(e,args['attacker']) is not None or DEFENSE.wants_boundary(ev) or ABILITY_INTERRUPTS.wants_boundary(ev) or __import__('warper').switch_interested(e,args['attacker'],args['target']) or __import__('tumbler').acquired(args['attacker'],__import__('tumbler').QUICK) or any(p.get('event')=='accuracy_resolved' for p in ev['listener_profiles'].values())):
         return e._finish_move_resolution(**args)
     from root_resolution import fingerprint as request_fingerprint
     frame={'args':args,'scopes':list(getattr(e,'_event_use_scopes',()))}
@@ -262,7 +265,7 @@ def _deliver_accuracy(e,event_id):
         try:return e._finish_move_resolution(**args)
         except PassiveEventPending as pending:
             current=e._passive_events[event_id]
-            if pending.event_id==event_id and current.get('reason') in ('quick_gymnastics_movement_pending','coordinator_damage_pending'):
+            if (pending.event_id==event_id and current.get('reason') in ('quick_gymnastics_movement_pending','coordinator_damage_pending')) or __import__('conquerors_march').pair_checkpoint(e,event_id,pending.event_id):
                 current['continuation']=frame;current['phase']='accuracy_boundary'
             raise
     finally:
@@ -349,7 +352,7 @@ def begin(e,actor,target,move,*,ordinary_single,move_mechanics=None,completion_i
     import gleeful_interference as GLEEFUL
     import style_expert as STYLE
     import roughneck as ROUGHNECK,endure as ENDURE
-    if not __import__('type_ace').close_quarters_interested(e,actor,move) and __import__('coordinator').innovation_instance(e.r,move['id']) is None and __import__('coordinator').damage_offer(e,actor) is None and not ROUGHNECK.owns(actor,ROUGHNECK.CLASS) and ENDURE.known(e,target) is None and not GLEEFUL.interested(e,actor,move) and not ICE_LAKE.interested(e) and not ABILITY_REACTIONS.interested(e) and not interested(e,actor) and not ABILITY_INTERRUPTS.interested(e) and not DEFENSE.watch_interested(target,move) and not warning_interested and not STYLE.reaction_interested(e,target) and not __import__('tumbler').acquired(actor,__import__('tumbler').QUICK) and not __import__('hex_maniac').attack_interested(e,actor,target,move) and not __import__('warper').switch_interested(e,actor,target):
+    if not __import__('conquerors_march').event_interested(e,actor,target) and not __import__('type_ace').close_quarters_interested(e,actor,move) and __import__('coordinator').innovation_instance(e.r,move['id']) is None and __import__('coordinator').damage_offer(e,actor) is None and not ROUGHNECK.owns(actor,ROUGHNECK.CLASS) and ENDURE.known(e,target) is None and not GLEEFUL.interested(e,actor,move) and not ICE_LAKE.interested(e) and not ABILITY_REACTIONS.interested(e) and not interested(e,actor) and not ABILITY_INTERRUPTS.interested(e) and not DEFENSE.watch_interested(target,move) and not warning_interested and not STYLE.reaction_interested(e,target) and not __import__('tumbler').acquired(actor,__import__('tumbler').QUICK) and not __import__('hex_maniac').attack_interested(e,actor,target,move) and not __import__('warper').switch_interested(e,actor,target):
         return None
     e._passive_sequence+=1
     uid="passive-move-"+str(e._passive_sequence)
@@ -444,6 +447,11 @@ def _bind_intent(e, ev):
         row=intent['coordinator_recipient_prefix'];facts=C._prefix_facts(e,row)
         if row.get('sha256')!=fingerprint(facts):raise ValueError('Coordinator native recipient prefix changed')
         intent['coordinator_recipient_prefix']=facts
+    if 'rider_damage_selection' in intent:
+        import coordinator as C
+        row=intent['rider_damage_selection']
+        if row.get('sha256')!=C._damage_seal(row):raise ValueError('Rider selected damage observation changed')
+        intent['rider_damage_selection']={'sha256':row['sha256']}
     bind_request_intent(ev, intent)
 
 
@@ -490,6 +498,8 @@ def deliver(e,event_id,*,_resume_activation=True):
             import pass_moves as PASS, action_lifecycle as ACTION, move_completion as COMPLETE
             COMPLETE.validate_return_continuation(staged,event)
             with ACTION.resume_move(staged,event,enabled=_resume_activation), PASS.restored_scope(staged,event):
+                paired=__import__('conquerors_march').resume_pair_wait(staged,event)
+                if paired is not None:return paired['result']
                 if event['phase']=='accuracy_boundary':
                     result=_deliver_accuracy(staged,event_id)
                 else:
@@ -508,6 +518,7 @@ def deliver(e,event_id,*,_resume_activation=True):
                     result=ACTIVATION.resume_after_event(staged,event,result)
             if _resume_activation:
                 result=__import__('combat_move_reactions').resume_after_event(staged,event,result)
+                result=__import__('conquerors_march').resume_counter(staged,event,result)
             return result
         except PassiveEventPending as pending:
             if staged._passive_pending!=pending.event_id or pending.event_id not in staged._passive_events:raise

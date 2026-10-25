@@ -4,7 +4,7 @@ from copy import deepcopy
 from unittest.mock import patch
 import json,unittest
 
-ROOT=Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
+ROOT=Path(__file__).resolve().parents[1]
 from engine import Engine,Rules,Combatant
 from grid import Grid
 from state_codec import dump_engine,load_engine

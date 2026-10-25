@@ -613,15 +613,8 @@ def _activate(engine, actor, primary, declaration, everyone, setup_options, nati
                 _prepare_resolution(engine, actor, primary, declaration, setup_options)
             result = engine.use_move_on(actor, primary, move_id, everyone, **native_options)
     except Exception as error:
-        import passive_events as PASSIVE
-        import heavy_injury_adapter as HEAVY
-        if (type(error) is PASSIVE.PassiveEventPending and
-                engine._passive_pending == error.event_id and error.event_id in engine._passive_events):
-            native_pending.append((PASSIVE.PassiveEventPending, error.event_id))
-        elif (type(error) is HEAVY.HeavyPending and
-                engine._heavy_pending == error.event_id and error.event_id in engine._heavy_events):
-            native_pending.append((HEAVY.HeavyPending, error.event_id))
-        else:
+        import state_grants as GRANTS
+        if not GRANTS.record_native_pending(engine, error, native_pending):
             raise
         result = None
     finally:

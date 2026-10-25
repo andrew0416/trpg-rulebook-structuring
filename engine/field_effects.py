@@ -271,11 +271,11 @@ def activate_local_grass(engine, actor, target, *, request_id):
         grid = staged.grid
         if not grid.inside(origin):
             raise ValueError('local Grass origin outside map')
-        if not FREQUENCY.activation_allowed(owner,LOCAL_SOURCE,definition['frequency'],engine=staged):
+        if not FREQUENCY.activation_allowed(owner,LOCAL_SOURCE,definition['frequency'],engine=staged,action_actor=owner):
             raise ValueError('local Grass Scene frequency exhausted')
         if not TURN.spend(staged,owner,'shift',definition['name']):
             raise ValueError('local Grass Shift action unavailable')
-        FREQUENCY.consume_activation(owner,LOCAL_SOURCE,definition['frequency'],engine=staged)
+        FREQUENCY.consume_activation(owner,LOCAL_SOURCE,definition['frequency'],engine=staged,action_actor=owner)
         receipt = {'request_id':request_id,'source_id':LOCAL_SOURCE,'clause_id':definition['clause_id'],
             'source_row_sha256':definition['row_sha256'],'creator_id':owner.entity_id,
             'scene':owner.spec['frequency_state']['scene'],'round':staged.round_no,

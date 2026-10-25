@@ -67,6 +67,7 @@ def grant(e,actor,effect,source):
 
 
 def intercept(e,actor,target,move):
+ if __import__('trickster').bypass(e,actor,target,move):return None
  rows=live(target)
  if not rows:return None
  import effects_ext as EXT,ability_transitions as A

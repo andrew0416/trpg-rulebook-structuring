@@ -7,7 +7,7 @@ import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-CANON = Path('D:/trpg-rulebook-structuring/ptk-structure-experiment')
+CANON = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT/'engine'), str(ROOT/'tools'), str(CANON/'engine'), str(CANON/'tools')]
 from engine import Engine
 from grid import Grid

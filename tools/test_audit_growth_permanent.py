@@ -103,7 +103,7 @@ class InheritanceGrowthTests(unittest.TestCase):
         actor=next(x for x in loaded.gm.everyone if x.entity_id==c.entity_id);before=dump_engine(loaded)
         self.assertTrue(loaded.choose_growth_inheritance(actor,20,'move/뿌리박기',reason=reason)['replayed'])
         self.assertEqual(before,dump_engine(loaded))
-        assert_rejected_unchanged(loaded,lambda:loaded.choose_growth_inheritance(actor,20,'move/망각술',reason=reason),reason_pattern='already recorded')
+        assert_rejected_unchanged(loaded,lambda:loaded.choose_growth_inheritance(actor,20,'move/망각술',reason=reason),reason_pattern='^move no longer belongs to individual inheritance list$')
     def test_thirty_is_an_independent_right_and_nineteen_twenty_nine_are_not(self):
         f=self.f;c=self.child(29)
         self.assertNotIn('inheritance:20',c.spec.get(MILESTONES.KEY,{}))

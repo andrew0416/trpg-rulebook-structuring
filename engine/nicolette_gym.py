@@ -487,7 +487,7 @@ def climb(engine, actor, destination, *, climb_id, route, reason, skill=None, fi
     check = None
     if checked:
         options = {} if fixed is None else {"fixed": fixed}
-        check = C.against_dc(engine.skill_roll(actor, skill, **options), 12)
+        check = __import__('skill_feature_actions').resolve_check(engine,actor,skill,12,engine.skill_roll(actor,skill,**options),options)
         if not check.passed:
             attempts[climb_id] = {"route": route, "rise": rise, "skill": skill,
                                   "dc": 12, "passed": False, "reason": reason}

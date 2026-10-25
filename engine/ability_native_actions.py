@@ -188,6 +188,8 @@ def _actual_owner(actor, reg):
 
 def _frequency(engine, actor, target, source, declaration, action):
     import frequency as F
+    if action is not None and not __import__('focused_command').frequency_allowed(engine,actor,declaration['kind']):
+        raise ValueError('Focused Command permits only At-Will actions this round')
     if declaration['kind'] == 'encounter':
         if not engine.encounter_active:
             raise ValueError('encounter Ability requires an active encounter')
@@ -204,15 +206,16 @@ def _frequency(engine, actor, target, source, declaration, action):
     return ('native', key)
 
 
-def _consume_frequency(engine, actor, source, declaration, plan):
+def _consume_frequency(engine, actor, source, declaration, plan, *, action=None):
     if plan[0] == 'encounter':
         _state(actor)[source]['encounter_used'] = {
             'round': engine.round_no,
             'at': engine.elapsed_seconds,
         }
+        if action is not None:__import__('focused_command').record_fact(engine,actor,source,declaration['kind'])
     else:
         import frequency as F
-        F.consume_activation(actor, plan[1], declaration, engine=engine)
+        F.consume_activation(actor, plan[1], declaration, engine=engine,action_actor=actor if action is not None else None)
 
 
 def _pay(engine, actor, target, source, row, *, action=None, declaration=None):
@@ -222,7 +225,7 @@ def _pay(engine, actor, target, source, row, *, action=None, declaration=None):
     plan = _frequency(engine, actor, target, source, declaration, action)
     if action is not None and (not TURN.spend(engine, actor, action, row['name'])):
         raise ValueError('Ability action unavailable')
-    _consume_frequency(engine, actor, source, declaration, plan)
+    _consume_frequency(engine, actor, source, declaration, plan,action=action)
     return plan
 
 
@@ -639,7 +642,7 @@ def _frighten(engine, actor, target, source, row, options):
     import turn as TURN
     if not TURN.spend(engine, actor, row['action'], row['name']):
         raise ValueError('Ability action unavailable')
-    _consume_frequency(engine, actor, source, row['frequency'], global_plan)
+    _consume_frequency(engine, actor, source, row['frequency'], global_plan,action=row['action'])
     F.consume_activation(actor, target_key, row['target_frequency'], engine=engine)
     import forced_movement as FORCED
     import coat_effects as COATS

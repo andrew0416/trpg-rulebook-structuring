@@ -47,10 +47,10 @@ def _eligible(e,actor,source):
 def pay_free(e,actor,source,frequency):
     """Pay only inside an authenticated source caller's native atomic scope."""
     import reactive_ability_events as REACTIVE
-    if not REACTIVE._reaction_allowed(e,actor) or not FREQUENCY.activation_allowed(actor,source,frequency,engine=e):
+    if not REACTIVE._reaction_allowed(e,actor) or not FREQUENCY.activation_allowed(actor,source,frequency,engine=e,action_actor=actor):
         raise ValueError('Free reaction action or source frequency unavailable')
     ACTION.record_action(e,actor,'free')
-    FREQUENCY.consume_activation(actor,source,frequency,engine=e)
+    FREQUENCY.consume_activation(actor,source,frequency,engine=e,action_actor=actor)
 
 
 def watch(e,owner,source,*,reason):

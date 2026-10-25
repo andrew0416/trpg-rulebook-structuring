@@ -22,10 +22,12 @@ class WeatherTests(unittest.TestCase):
             assert hashlib.sha256(value.encode()).hexdigest()==row['sha256'],row
     def fixture(self,weather=None):
         e,a,b,_=_fixture_test_frequencies.FrequencyTests().fixture()
-        e.weather=weather
+        e.gm.set_weather(weather,rounds=None,reason='actual observed source-regression weather')
         return e,a,b
     def test_weather_or_does_not_accept_substring(self):
-        e,a,b=self.fixture('not-rain')
+        e,a,b=self.fixture()
+        with self.assertRaises(ValueError):
+            e.gm.set_weather('not-rain',reason='invalid weather cannot become rain by substring')
         self.assertFalse(FX.cond_ok(e,{'if_weather':'rain|hail'},{'hit':True})[0])
     def test_replacement_does_not_suppress_unrelated_target_heal(self):
         e,a,b=self.fixture('sunny');a.hp=b.hp=1
@@ -49,14 +51,14 @@ class WeatherTests(unittest.TestCase):
         FX.apply_passives(e,b,[{'type':'damage_reduction','value':5,'if_weather':'sunny'}])
         m=e.r.move('move/하이드로스팀')
         for w,dr in [(None,0),('sunny',5),('rain',0),('sunny',5),(None,0)]:
-            e.weather=w
+            e.gm.set_weather(w,rounds=None,reason='actual changed weather for retained passive')
             self.assertEqual(EXT.defense_hook(e,a,b,m,{},'spd')[1],dr)
     def test_sunny_veil_ambiguous_registration_stays_unresolved(self):
         e,a,b=self.fixture()
         self.assertEqual(set(e.r.selection.names['햇살베일']),{'ability/햇살베일','ability/햇살베일-2'})
         before=(list(b.modifiers),b.evasion_mod,b.damage_reduction,list(b.ability_triggers))
         with self.assertRaises(UnresolvedRuleSelection):
-            e.register_abilities_one(b,'햇살베일')
+            e.gm.set_ability(b,'햇살베일',True,reason='actual ambiguous Ability acquisition request')
         self.assertEqual((b.modifiers,b.evasion_mod,b.damage_reduction,b.ability_triggers),before)
 
     def test_solar_beam_weather_override_preserves_stab(self):
@@ -89,8 +91,8 @@ for wi,w in enumerate(WEATHERS):
     add('blade_multiplier_'+str(wi),blade)
     def hydro(self,w=w):
         e,a,b=self.fixture(w);m=e.r.move('move/하이드로스팀')
-        e.weather=None;base=e.roll_damage(a,b,m,set_damage=True)
-        e.weather=w;actual=e.roll_damage(a,b,m,set_damage=True)
+        e.gm.set_weather(None,reason='clear actual weather for baseline');base=e.roll_damage(a,b,m,set_damage=True)
+        e.gm.set_weather(w,rounds=None,reason='actual comparison weather');actual=e.roll_damage(a,b,m,set_damage=True)
         self.assertEqual(actual,base+(10 if w=='sunny' else 5 if w=='rain' else 0))
     add('hydro_damage_'+str(wi),hydro)
     def electro(self,w=w):
@@ -99,7 +101,7 @@ for wi,w in enumerate(WEATHERS):
         self.assertEqual(a.budget,{'standard':0,'shift':1 if w=='rain' else 0,'swift':1})
     add('electro_action_'+str(wi),electro)
     def desert(self,w=w):
-        e,a,b=self.fixture(w);e.register_abilities_one(b,'사막날씨 [Playtest]')
+        e,a,b=self.fixture(w);e.gm.set_ability(b,'사막날씨 [Playtest]',True,reason='actual selected weather Ability')
         m=dict(e.r.move('move/하이드로스팀'),type='불꽃')
         ctx={'attacker':a,'target':b,'hit':True,'move':m}
         self.assertEqual(FX.passive_damage_mods(e,a,b,m,ctx)[2],1 if w=='sunny' else 0)

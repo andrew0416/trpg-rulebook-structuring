@@ -38,6 +38,9 @@ def owned_source(engine, actor, rule_id):
     WORLD.require_actors(engine, actor)
     if rule_id not in _owned(actor):
         raise ValueError('actual acquired trainer source required')
+    import type_expertise as TYPE_EXPERTISE
+    if rule_id == TYPE_EXPERTISE.FEATURE:
+        return TYPE_EXPERTISE.source_for_rank(actor)
     import stat_ace as STAT
     branches=STAT.records(actor,rule_id,active=True) if rule_id in STAT.FEATURES else []
     if len(branches)==1:return 'feature:'+actor.entity_id+':'+rule_id+':'+branches[0]['snapshot']['branch']
@@ -287,7 +290,7 @@ def _native_dependencies(engine, actor, owned):
 
 
 def retrain(engine, actor, rule_id, *, request_id, reason, gm_decision,
-            retained_dependencies, granted_skill_edge_policy=None):
+            retained_dependencies, granted_skill_edge_policy=None, rank=None):
     """Retire one actual Edge/Feature selection after GM and source checks.
 
     GM-owned dynamic prerequisites (including skill-rank providers) name actual
@@ -317,6 +320,8 @@ def retrain(engine, actor, rule_id, *, request_id, reason, gm_decision,
               'gm_decision': deepcopy(gm_decision), 'retained_dependencies': deepcopy(retained_dependencies)}
     if granted_skill_edge_policy is not None:
         intent['granted_skill_edge_policy'] = deepcopy(granted_skill_edge_policy)
+    if rank is not None:
+        intent['rank'] = rank
     fingerprint = TRANSACTIONS.request_fingerprint(intent)
     for entry in actor.spec.get(GRANTS.KEY, {}).get('ended_sources', []):
         prior = entry['record'].get('retraining', {})
@@ -327,7 +332,9 @@ def retrain(engine, actor, rule_id, *, request_id, reason, gm_decision,
     owned = _owned(actor)
     if rule_id not in owned:
         raise ValueError('actual acquired trainer source required')
-    if ACQUIRED.owned_rule_count(actor, rule_id) != 1:
+    import type_expertise as TYPE_EXPERTISE
+    selected_rank = TYPE_EXPERTISE.retraining_rank(actor, rule_id, rank)
+    if selected_rank is None and ACQUIRED.owned_rule_count(actor, rule_id) != 1:
         raise ValueError('select one actual trainer acquisition for retraining')
     if request_id in actor.spec.get(XP.KEY, {}):
         raise ValueError('retraining request already belongs to an XP payment')
@@ -343,6 +350,9 @@ def retrain(engine, actor, rule_id, *, request_id, reason, gm_decision,
             if len(set(parents).intersection(declared))<5:
                 raise ValueError('retained Keep Fighting requires five actual Cheerleader Feature sources')
         retained = set(sources.values()) - GRANTS._revocation_sources(trainer,[sources[rule_id]])
+        retained_ranks = {sid for sid, row in TYPE_EXPERTISE.records(trainer)
+                          if selected_rank is None or row['snapshot']['rank_number'] < selected_rank}
+        retained.update(retained_ranks)
         import ace_trainer as ACE
         if ACE.CHAMP in owned and sources[ACE.CHAMP] in retained:
             parents=[sources[uid] for uid in ACE.FEATURES if uid in sources and uid!=ACE.CHAMP and sources[uid] in retained]
@@ -371,7 +381,7 @@ def retrain(engine, actor, rule_id, *, request_id, reason, gm_decision,
             raise ValueError('dependencies must cover every actual retained trainer source')
         required = _native_dependencies(e, trainer, owned)
         for source, parents in retained_dependencies.items():
-            uid = next(uid for uid, value in sources.items() if value == source)
+            uid = TYPE_EXPERTISE.FEATURE if source in retained_ranks else next(uid for uid, value in sources.items() if value == source)
             WITHDRAWAL.dependencies(e, trainer, source, parents)
             if any(sources[parent] not in parents for parent in required.get(uid, [])):
                 raise ValueError('native retained acquisition prerequisite cannot be omitted')
@@ -383,6 +393,7 @@ def retrain(engine, actor, rule_id, *, request_id, reason, gm_decision,
             keys = [key for key, row in target.spec.get(GRANTS.KEY, {}).get('sources', {}).items()
                     if row.get('owner_id') == trainer.entity_id and row.get('rule_id') == rule_id and
                     row.get('lifetime') in ('while_owned', 'your_pokemon') and
+                    (selected_rank is None or key == source) and
                     (key == source or row.get('static_acquisition',{}).get('feature_id')==rule_id or (row.get('kind') == 'static_trainer_modifier' and key.startswith(modifier_prefix)) or
                      (row.get('kind') == 'class_passive_combat' and
                       (row.get('source_variant') == 'C03-126' or
@@ -391,12 +402,17 @@ def retrain(engine, actor, rule_id, *, request_id, reason, gm_decision,
             if keys:
                 GRANTS.preflight_revoke(target, keys)
                 affected.append((target, keys))
-        acquisition_ids = [row['receipt_id'] for row in trainer.spec.get(FEATURES.LEDGER_KEY, {}).values()
-                           if row['feature_id'] == rule_id and row['receipt_id'] not in retired_receipts(trainer)]
+        # Type Expertise stores each rank in its own static source record. The
+        # archived selected source already retains that exact request/receipt.
+        acquisition_ids = [] if selected_rank is not None else [
+            row['receipt_id'] for row in trainer.spec.get(FEATURES.LEDGER_KEY, {}).values()
+            if row['feature_id'] == rule_id and row['receipt_id'] not in retired_receipts(trainer)]
         payment = XP.retraining(e, trainer, 'edge' if rule_id.startswith('edge/') else 'feature',
                                 request_id=request_id, reason=reason, refund_policy='before_use')
         result = {'rule_id': rule_id, 'source_id': source, 'request_id': request_id,
                   'xp_paid': payment['amount'], 'cause': 'retraining'}
+        if selected_rank is not None:
+            result['rank'] = selected_rank
         GRANTS.state(trainer)['sources'][source]['retraining'] = {
             'cause': 'retraining', 'request_id': request_id, 'intent': fingerprint,
             'gm_decision': deepcopy(gm_decision), 'acquisition_receipt_ids': acquisition_ids,
@@ -423,9 +439,12 @@ def retrain(engine, actor, rule_id, *, request_id, reason, gm_decision,
         for target, keys in affected:
             GRANTS._revoke_sources(target, keys, e)
         field, raw = owned[rule_id]
-        trainer.spec[field].remove(raw)
-        for key in ('feat_ranks', 'feature_choices'):
-            trainer.spec.get(key, {}).pop(rule_id, None)
+        if selected_rank is not None and selected_rank > 1:
+            trainer.spec['feat_ranks'][rule_id] = selected_rank - 1
+        else:
+            trainer.spec[field].remove(raw)
+            for key in ('feat_ranks', 'feature_choices'):
+                trainer.spec.get(key, {}).pop(rule_id, None)
         if rule_id.startswith('edge/'):
             import skill_modifiers as SKILLS
             import weapon_actions as WEAPONS

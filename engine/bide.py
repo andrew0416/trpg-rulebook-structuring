@@ -60,8 +60,9 @@ def reaction(engine,actor,event_id,*,trainer=None,ranked=None,payment='current',
   permission=None
   style=STYLE.special_scope(e,a,p,SOURCE,effect=effect,flourish=flourish) if effect or flourish else None
   if ranked:
-   if AP.available(a)<1:raise ValueError('Tough Tumble requires 1 AP')
-   AP.spend(a,1);permission='bide-permission:'+p.entity_id+':'+event_id
+   cost=STYLE.ranked_cost(a,ranked,SOURCE)
+   if AP.available(a)<cost:raise ValueError('Tough Tumble requires '+str(cost)+' AP')
+   AP.spend(a,cost);permission='bide-permission:'+p.entity_id+':'+event_id
    G.grant_moves(p,[SOURCE],permission,'feature',owner_id=a.entity_id,lifetime='scene',rule_id=ranked,mode='permission')
   request={'id':'bide:'+p.entity_id+':'+event_id,'actor_id':p.entity_id,'source':SOURCE,'priority':0,
    'mode':'reaction','payment':payment,'budget':{'standard':1},'clock':'none'}

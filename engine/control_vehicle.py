@@ -305,7 +305,7 @@ def operate(engine,operator,identity,value,*,command,request_id,body_eligible,re
         if check is not None:R.plan(e,c,check['skill'],purpose=check['purpose'],target=actual_target,**options)
         if value['actions']['share_with_operator'] and not TURN.spend(e,c,action,'machine '+command,movement=False):return C.PendingDecision('actual operator action unavailable')
         budget['actions'][action]+=1;budget['operators'].setdefault(c.entity_id,[]).append(command)
-        roll=None if check is None else C.against_dc(e.skill_roll(c,check['skill'],skill_target=actual_target,**options),check['dc'])
+        roll=None if check is None else __import__('skill_feature_actions').resolve_check(e,c,check['skill'],check['dc'],e.skill_roll(c,check['skill'],skill_target=actual_target,**options),options)
         passed=roll is None or roll.passed
         result={'machine_id':identity,'operator_id':c.entity_id,'command':command,'source':value['source'],'passed':passed,'action':action,
                 'check':None if roll is None else asdict(roll),'initiative':ctx['initiative'],'at':e.elapsed_seconds,'round':e.round_no}

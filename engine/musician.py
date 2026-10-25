@@ -20,8 +20,7 @@ KEY = 'musician'
 
 def _records(actor, feature, active=True):
     import trainer_feature_acquisition as TFA
-    return [row['static_acquisition'] for _, row, live in TFA._static_records(actor)
-            if row['static_acquisition']['feature_id'] == feature and (live or not active)]
+    return [record for _, record in TFA.static_acquisitions(actor, feature, active=active)]
 
 
 def owns(actor, feature):
@@ -309,7 +308,7 @@ def drown_out(e, attacker, target, move, total, shared_roll=None):
         if answer is not True:
             continue
         INTERRUPTS.pay_free(e, owner, source, frequency)
-        check = e.skill_roll(owner, '집중').total if source == DROWN else None
+        check = e.skill_check(owner, '집중', dc)[1] if source == DROWN else None
         cancelled = source == DROWN_PLAYTEST or check >= dc
         result['attempts'].append({'owner_id': owner.entity_id, 'source': source, 'check': check, 'dc': dc, 'ruling': deepcopy(ruling), 'cancelled': cancelled})
         if cancelled:

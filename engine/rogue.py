@@ -37,8 +37,7 @@ WEAPONS=('소형 근접무기','단거리 사격무기')
 
 def records(a,feature,active=False):
  import trainer_feature_acquisition as A
- return [row['static_acquisition'] for _,row,live in A._static_records(a)
-         if row['static_acquisition']['feature_id']==feature and (live or not active)]
+ return [record for _, record in A.static_acquisitions(a, feature, active=active)]
 
 
 def owns(a,feature):

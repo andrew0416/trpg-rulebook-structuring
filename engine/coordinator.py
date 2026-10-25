@@ -73,7 +73,7 @@ def static_source(rules,feature):
 
 def records(actor,feature=None,active=True):
  import trainer_feature_acquisition as T
- return [r['static_acquisition'] for _,r,live in T._static_records(actor) if r['static_acquisition']['feature_id'] in FEATURES and (feature is None or r['static_acquisition']['feature_id']==feature) and (live or not active)]
+ return [record for _, record in T.static_family_acquisitions(actor, FEATURES, feature, active=active)]
 
 
 def contract(actor,feature=CLASS):
@@ -113,6 +113,7 @@ def qualification(actor,feature,snapshot,prerequisite_source):
 def require(engine,trainer,feature):
  CF.conscious_trainer(trainer);CF.require(engine,trainer,feature)
  selected=source(engine.r,contract(trainer,feature),feature)
+ if feature==NUANCED and __import__('hobbyist').provider(trainer,feature) is not None:return selected
  for parent in PARENTS[feature]:
   if parent in FEATURES:require(engine,trainer,parent)
   else:CF.require(engine,trainer,parent)
@@ -371,7 +372,7 @@ def decide_nuanced(engine,trainer,completion_id,decision):
  W.require_actors(engine,trainer)
  if type(decision)is not bool:raise ValueError('explicit post-miss Nuanced choice required')
  def apply(e,t):
-  import action_points as AP,move_permissions as MP,move_completion as MC
+  import action_points as AP,move_completion as MC
   c=e._move_completions[completion_id];plan=c.get('nuanced');actor=c['actor']
   if not plan or plan['trainer'] is not t or c['phase']!='complete' or not c.get('nuanced_pending'):raise ValueError('actual whole-move miss observation required')
   if c.get('nuanced_decided'):
@@ -383,13 +384,10 @@ def decide_nuanced(engine,trainer,completion_id,decision):
   if decision:
    if AP.available(t)<1:raise ValueError('Nuanced requires 1 AP')
    CF.trigger_free_action(e,t,NUANCED);AP.spend(t,1)
-   owner=MP.frequency_owner(e,actor,plan['move_id']);kind=plan['kind']
+   kind=plan['kind']
    if kind=='scene':F.restore_scene_use(e,actor,plan['move_id'])
    elif kind=='every_other_turn':F.restore_eot(e,actor,plan['move_id'])
-   elif kind=='daily':
-    st=F.state(owner);owner.move_uses[plan['move_id']]=max(0,owner.move_uses.get(plan['move_id'],0)-1);owner.spec['move_uses']=dict(owner.move_uses)
-    if plan['move_id'] in st['moves']:st.setdefault('restored_move_occurrences',{})[plan['move_id']]=deepcopy(st['moves'][plan['move_id']])
-    st['moves'].pop(plan['move_id'],None)
+   elif kind=='daily':F.restore_daily_use(e,actor,plan['move_id'])
   c['nuanced_decided']={'accepted':decision,'ap':1 if decision else 0};t.spec.pop('nuanced_offer',None)
   return deepcopy(c['nuanced_decided'])
  return G.transition(engine,trainer,apply)
@@ -537,7 +535,7 @@ def recipient_prefix(engine,event_id,attacker,target,move_id,prefix=None):
  event=engine._passive_events.get(event_id)
  if event is None:return None
  if prefix is not None:
-  if damage_offer(engine,attacker) is None:return None
+  if damage_offer(engine,attacker) is None and not __import__('conquerors_march').lean_interested(engine,target):return None
   row={'actor_id':attacker.entity_id,'target_id':target.entity_id,'move_id':move_id,'event_id':event_id,'prefix':prefix}
   row['sha256']=__import__('root_resolution').fingerprint(_prefix_facts(engine,row));event['coordinator_recipient_prefix']=row
   return prefix

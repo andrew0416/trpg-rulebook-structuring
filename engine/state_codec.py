@@ -211,6 +211,7 @@ def rules_fingerprint(rules):
     # when cold and its actual contents when warm, preserving override checks.
     # Keep this registry explicit: arbitrary private rule state is still hashed.
     caches = {
+        '_juggler_contract': ('juggler-source-contract.json', None),
         'capability_policy': ('capability-policy.json', None),
         '_blessing_effect_policy': ('blessing-effect-policy.json', None),
         '_coat_effect_policy': ('coat-effect-policy.json', None),
@@ -251,6 +252,9 @@ def rules_fingerprint(rules):
     static_name='_static_trainer_modifier_policy'
     if static_name in policy and policy[static_name]==saved_policy('static-trainer-modifier-policy.json'):
         policy.pop(static_name)
+    lesson_name='_feature_ability_lessons'
+    if lesson_name in policy and policy[lesson_name]==saved_policy('feature-ability-lessons.json','rules'):
+        policy.pop(lesson_name)
     ranked_name='_ranked_class_move_tables'
     if ranked_name in policy and policy[ranked_name]==saved_policy('class-ranked-move-tables.json','rules'):
         policy.pop(ranked_name)
@@ -457,6 +461,11 @@ class _Encoder:
             decisions = attrs.pop('_native_roll_decisions',None)
             if decisions is not None and (type(decisions) is not dict or any(type(k)is not str or not callable(v) for k,v in decisions.items())):
                 _fail('invalid live native roll decision bindings')
+            offers=attrs.get('_let_me_help_offers')
+            if offers is not None:
+                if type(offers)is not dict or any(type(row)is not dict or ('decision' in row and not callable(row['decision'])) for row in offers.values()):
+                    _fail('invalid live Let Me Help decision bindings')
+                attrs['_let_me_help_offers']={key:{k:v for k,v in row.items() if k!='decision'} for key,row in offers.items()}
             # The data-only actor offer survives. Its observation callback must
             # be authenticated again after load, like other live decision input.
             binding = attrs.pop('_root_common_binding', None)

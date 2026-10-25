@@ -57,6 +57,7 @@ def _rank(e,actor,skill):
 
 
 def owns(trainer,feature):
+ if feature==WARFARE and __import__('hobbyist').provider(trainer,feature) is not None:return True
  return trainer.kind=='trainer' and FEATURES.owned(trainer,feature)
 
 
@@ -74,6 +75,9 @@ def qualify(e,trainer,feature):
  """Printed prerequisites against the actual sheet: field, parent Features, Edges and skill ranks."""
  import pokemon_activities as P
  d=DEFINITIONS[feature]
+ if feature==WARFARE and __import__('hobbyist').provider(trainer,WARFARE) is not None:
+  FEATURES.conscious_trainer(trainer);RF.source(e)
+  return d
  RF.require(e,trainer,feature,d['field'],static=feature==PUSHER)
  pre=d.get('prerequisites',{})
  for parent in pre.get('feats',()):qualify(e,trainer,parent)

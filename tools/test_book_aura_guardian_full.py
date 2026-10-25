@@ -260,8 +260,8 @@ class FocusPunchTests(AuraScene,unittest.TestCase):
   self.e.gm.set_position(self.t,(4,4),reason='actual target for optional Shift');self.prepare(path=[(2,3),(3,3)]);self.close()
   import effects_ext as EXT,effects as FX,focus_punch as FOCUS
   original=EXT.on_enter_cell
-  def actual_entry(e,actor,point):
-   original(e,actor,point)
+  def actual_entry(e,actor,point,**options):
+   original(e,actor,point,**options)
    if actor.entity_id==self.a.entity_id and point==(2,3):FX.run_effects(e,actor,actor,[{'type':'stage_change','stat':'def','delta':1,'if':'target was asleep'}],{'hit':True},'hazard/actual-focus-entry')
   with patch.object(EXT,'on_enter_cell',side_effect=actual_entry):result=self.release()
   self.assertIsInstance(result,__import__('common_checks').PendingDecision);self.assertEqual(self.a.pos,(2,3));self.assertNotIn('move/힘껏펀치',self.a.move_uses);self.assertEqual(FOCUS.active(self.e,self.a)['shift_progress']['phase'],'entry_pending');self.valid();self.restore()

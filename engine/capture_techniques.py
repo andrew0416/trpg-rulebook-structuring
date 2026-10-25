@@ -58,6 +58,26 @@ def _child_id(actor, receipt, index):
     return _source_id(actor, receipt) + ":skill:" + str(index)
 
 
+def grant_skill_edge(engine, actor, edge, sid, **metadata):
+    """One observed rank transition, reused by actual printed grant providers."""
+    import skill_modifiers as SKILL, state_fields as FIELDS, state_grants as GRANTS
+    expected = _skill_edge(engine.r, {"edge": edge["edge"], "skill": edge["skill"]},
+                           actor.level, SKILL.rank(engine.r, actor, edge["skill"])[2])
+    if edge != expected:
+        raise ValueError("Skill Edge transition no longer matches its observed source and rank")
+    skills = deepcopy(actor.spec.get("skills", {}))
+    canonical = SKILL.skill_id(engine.r.skill_policy, edge["skill"], required=True)
+    skills = {key: value for key, value in skills.items() if SKILL.skill_id(engine.r.skill_policy, key) != canonical}
+    skills[edge["skill"]] = edge["after"]
+    change = FIELDS.base_patch(actor, {"skills": skills}, reason="acquired eligible Capture Skill Edge",
+                               source=edge["edge"], request_id=sid)
+    native = GRANTS._source(actor, sid, "feature", owner_id=actor.entity_id, lifetime="permanent",
+                           rule_id=edge["edge"], tutor_points=0, skill_edge=deepcopy(edge),
+                           state_change=deepcopy(change), **metadata)
+    native["grants"]["edges"] = [edge["edge"]]
+    return native
+
+
 def _grant_skill_edges(engine, actor, receipt):
     import skill_modifiers as SKILL
     import state_fields as FIELDS
@@ -66,20 +86,9 @@ def _grant_skill_edges(engine, actor, receipt):
         edge = proof["skill_edge"]
         if edge is None:
             continue
-        if SKILL.rank(engine.r, actor, edge["skill"])[2] != edge["before"]:
-            raise ValueError("Capture Skill Edge transition no longer starts at its observed rank")
-        skills = deepcopy(actor.spec.get("skills", {}))
-        canonical = SKILL.skill_id(engine.r.skill_policy, edge["skill"])
-        skills = {key: value for key, value in skills.items() if SKILL.skill_id(engine.r.skill_policy, key) != canonical}
-        skills[edge["skill"]] = edge["after"]
         sid = _child_id(actor, receipt, index)
-        change = FIELDS.base_patch(actor, {"skills": skills}, reason="acquired eligible Capture Skill Edge",
-                                   source=edge["edge"], request_id=sid)
-        native = GRANTS._source(actor, sid, "feature", owner_id=actor.entity_id, lifetime="permanent",
-                       rule_id=edge["edge"], tutor_points=0, capture_skill_receipt=receipt["receipt_id"],
-                       capture_parent_source=_source_id(actor, receipt), skill_edge=deepcopy(edge),
-                       state_change=deepcopy(change))
-        native["grants"]["edges"] = [edge["edge"]]
+        grant_skill_edge(engine, actor, edge, sid, capture_skill_receipt=receipt["receipt_id"],
+                         capture_parent_source=_source_id(actor, receipt))
         import acquisition_withdrawal as WITHDRAWAL
         dependencies = [identity for identity, row in skill_edges(actor) if identity != sid and
                         row["skill_edge"]["skill"] == edge["skill"] and row["skill_edge"]["after"] <= edge["before"]]

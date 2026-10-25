@@ -22,7 +22,7 @@ CONTRACTS={CORE:{'type':'telepathy_interrupt','action':'shift','damaging_only':F
 
 def records(a,feature=None,active=False):
  import trainer_feature_acquisition as T
- return [r['static_acquisition'] for _,r,live in T._static_records(a) if r['static_acquisition']['feature_id'] in FEATURES and (feature is None or r['static_acquisition']['feature_id']==feature) and (not active or live)]
+ return [record for _, record in T.static_family_acquisitions(a, FEATURES, feature, active=active)]
 
 def acquired(a,feature=CLASS):
  rows=records(a,feature,True)
@@ -124,7 +124,9 @@ def effect(e,a,target,source,operation,payload,lifetime):
 def residue(e,a,target,source,trigger):
  # Its expiry is unspecified. This discoverable instance is ended only by an
  # explicit world observation; no invented scene or clock expiry is attached.
- return effect(e,a,target,source,'psychic_residue',{'trigger':trigger,'discoverable':True},{'boundary':'unspecified'})
+ row=effect(e,a,target,source,'psychic_residue',{'trigger':trigger,'discoverable':True},{'boundary':'unspecified'})
+ __import__('psionic_sight').witness_created(e,a,target,row)
+ return row
 
 def suggest(e,a,target,thought):
  require(e,a,SUGGEST,True);W.require_actors(e,target);E.text(thought,'actual suggested thought')
@@ -168,6 +170,7 @@ def validate_world(e,index):
    if caster is None:raise ValueError('actual Telepath caster required')
    if p['operation']=='suggestion' and caster.ap_account.identified_bindings().get(r['id'])!=1:raise ValueError('Suggestion lacks its exact AP binding')
    if p['operation']=='read' and r.get('turn_owner')is not caster:raise ValueError('Read must expire at the actual caster turn')
+ __import__('psionic_sight').validate_world(e,index)
  return True
 
 def mechanics(r,mid,mm):

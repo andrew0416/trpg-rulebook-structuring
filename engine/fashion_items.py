@@ -243,10 +243,10 @@ def _consume_scene(engine, actor, row, registration, obj, *, target_id=None, tri
     import frequency as FREQ
     key = "fashion:" + registration["instance_id"]
     declaration = {"kind": "scene", "uses": 1}
-    if not FREQ.activation_allowed(actor, key, declaration, engine=engine):
+    if not FREQ.activation_allowed(actor, key, declaration, engine=engine, action_actor=actor):
         raise ValueError("Fashion scene activation is exhausted")
     _free_action(engine, actor, row["item_id"])
-    FREQ.consume_activation(actor, key, declaration, engine=engine)
+    FREQ.consume_activation(actor, key, declaration, engine=engine, action_actor=actor)
     state = obj.setdefault(STATE, {})
     receipt = {"item_id": row["item_id"], "clause_id": row["clause_id"],
                "instance_id": registration["instance_id"], "wearer_id": actor.entity_id,

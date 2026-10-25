@@ -373,7 +373,8 @@ def validate_native_receipt(engine, token, attacker, target, move):
     if receipt is None:raise ValueError("native receipt is absent, expired or consumed")
     import taskmaster as TASK
     epoch_current=(receipt["activation_epoch"]==engine._heavy_activation_sequence
-                   or TASK.paired_receipt_current(engine,token))
+                   or TASK.paired_receipt_current(engine,token)
+                   or __import__('conquerors_march').paired_receipt_current(engine,token))
     if (receipt["attacker"] is not attacker or receipt["target"] is not target
         or not epoch_current
         or receipt["move_id"]!=move.get("id") or receipt["round"]!=engine.round_no

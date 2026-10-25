@@ -387,6 +387,12 @@ def damage_roll_bonus(engine, actor, move):
     return result + CSV_ITEMS.damage_roll_bonus(engine, actor, move)
 
 
+def suppresses_melee_hit_reactions(engine, attacker, move):
+    """Read the actual held source without changing the prepared Move."""
+    return bool("근접" in str(move.get("range", ""))
+                and _active(engine, attacker, "punching_glove"))
+
+
 def after_attack_damage(engine, attacker, target, move, receipt, *, type_multiplier=None):
     actual_hit = (isinstance(receipt, dict)
                   and receipt.get("observation_boundary") == "native_attack_application_including_its_hooks"
@@ -406,8 +412,7 @@ def after_attack_damage(engine, attacker, target, move, receipt, *, type_multipl
                                         "attacker_id": attacker.entity_id, "before": before,
                                         "after": state["current_dr"]})
         _sync_projection(registration, state)
-    if ("근접" in str(move.get("range", ""))
-            and _active(engine, attacker, "punching_glove")):
+    if suppresses_melee_hit_reactions(engine, attacker, move):
         move["_equipment_original_range"] = move.get("range")
         move["range"] = str(move.get("range", "")).replace("근접", "비접촉")
         move["_melee_hit_effects_suppressed"] = True

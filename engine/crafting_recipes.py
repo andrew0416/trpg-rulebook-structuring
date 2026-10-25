@@ -98,6 +98,11 @@ def material_groups(groups):
 
 
 def _selected(engine, uid):
+    # Communication and restored communication facts reuse this identity reader.
+    # Only this source already has an explicit, source-verified version owner.
+    if uid=='feat/작열':
+        __import__('pokemon_move_edges').incandescence_source(engine.r)
+        return
     if engine.r._selected_rule(uid)!=uid:raise ValueError('selected recipe source needs its own declaration')
 
 
@@ -133,11 +138,11 @@ def require_tool(engine, actor, instance_id):
                 user_id=actor.entity_id)
 
 
-def _observe(engine, actor, node, sources):
+def _observe(engine, actor, node, sources, *, provider_source=None):
     kind=node['kind']
     if kind in ('all','any'):
         # Evaluate every authored branch so an unresolved source never hides.
-        values=[_observe(engine,actor,x,sources) for x in node['conditions']]
+        values=[_observe(engine,actor,x,sources,provider_source=provider_source) for x in node['conditions']]
         return all(values) if kind=='all' else any(values)
     if kind=='owned':
         for field in node['fields']:
@@ -146,6 +151,7 @@ def _observe(engine, actor, node, sources):
             if name.startswith(('edge/','feat/','class/')):_selected(engine,name);sources.add(name)
         return any(name in actor.spec.get(field,[]) for field in node['fields'] for name in node['names'])
     if kind=='skill':
+        if provider_source is not None and __import__('hobbyist').waives_printed_skill(actor,provider_source,node['skill'],node['rank']):return True
         rank=SKILL.effective_rank(engine.r,actor,node['skill']) if node['effective'] else SKILL.rank(engine.r,actor,node['skill'])[2]
         return rank>=node['rank']
     if kind=='region':
@@ -189,6 +195,14 @@ def action_policy(engine, actor, source, seconds):
     import cleanse_tags as CLEANSE
     if CLEANSE.handles(source):
         policy=CLEANSE.crafting_policy(engine,actor,source,seconds)
+    elif source=='feat/몬스터볼-장인':
+        import hobbyist as H,source_context as SOURCE
+        SOURCE.verified_source(engine.r,{'file':'input/ch03-skills-edges-feats.md','sha256':H.GENERAL},label='Poké Ball Crafter permission')
+        origin=engine.r.selection.units[source]['source']
+        if (origin.get('file'),origin.get('lines'),origin.get('sha256'))!=('ch03-skills-edges-feats.md',[892,895],H.GENERAL):raise ValueError('exact Poké Ball Crafter permission source required')
+        _,header=engine.r.feat_effects(source)
+        if META.resolve_feature_action(header)!=('static','') or FREQ.parse(header.get('frequency')) not in (('static',1),('at_will',1)):raise ValueError('changed Poké Ball Crafter permission requires its own policy')
+        policy=META.resolve_crafting_policy({'feature_kind':'crafting'})
     else:
         _,header=engine.r.feat_effects(source)
         policy=META.resolve_crafting_policy(dict(header,feature_kind='crafting'))
@@ -212,7 +226,7 @@ def prepare(engine, actor, recipe, *, count=1, inputs=None):
     if engine.r.item_effects(output['key'])[1].get('id')!=output['item_id']:raise ValueError('recipe output key belongs to another selected rule')
     C.integer(actor.spec.get('items',{}).get(output['key'],0),'existing crafted inventory',0)
     sources={R.SOURCE,recipe['source'],output['item_id']}
-    checks=[Q.check(row['id'],'prerequisite',_observe(engine,actor,row['condition'],sources),row['reason']) for row in recipe['requirements']]
+    checks=[Q.check(row['id'],'prerequisite',_observe(engine,actor,row['condition'],sources,provider_source=recipe['source']),row['reason']) for row in recipe['requirements']]
     qualification=Q.require(recipe['source'],actor.entity_id,'recipe:'+recipe['id'],checks)
     policy=action_policy(engine,actor,recipe['source'],recipe['seconds'])
     material_plan=prepare_materials(engine,actor,recipe['materials'],count=count,inputs=inputs)

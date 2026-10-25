@@ -80,7 +80,12 @@ def validate_record(actor,record,*,terminal=False):
     if record.get('sage_conversions'):return _validate_converted(actor,record,terminal=terminal)
     definition_row=definition(actor.r,record['source']);m=record[E.KEY]
     if definition_row is None or record['effect']!=definition_row['payload']:raise ValueError('Blessing payload differs from selected source')
-    if m['kind']!=KIND or m['capacity']!={'bucket':'team_blessing','source':record['source'],'limit':definition_row['capacity']}:raise ValueError('Blessing shared capacity changed')
+    extra=record.get('trickster_extensions',[])
+    if type(extra) is not list or any(type(x) is not dict or set(x)!={'source','completion','trainer_id','added'} or x['source']!=__import__('trickster').ENCORE or x['added']!=1 or not isinstance(x['completion'],str) or not isinstance(x['trainer_id'],str) for x in extra) or len({x['completion'] for x in extra})!=len(extra):raise ValueError('actual Encore Blessing extension receipts required')
+    limit=definition_row['capacity']
+    if extra and limit is None:raise ValueError('continuous Blessing has no additional use')
+    if limit is not None:limit+=len(extra)
+    if m['kind']!=KIND or m['capacity']!={'bucket':'team_blessing','source':record['source'],'limit':limit}:raise ValueError('Blessing shared capacity changed')
     if m['lifetime']!={'boundary':definition_row['lifetime']}:raise ValueError('Blessing cannot invent a Scene or creator expiry')
     if len(m['ownership'])!=1 or m.get('applied_by_actor_id')!=actor.entity_id:raise ValueError('Blessing storage remains under its actual creator')
     scope=record.get('scope_history')
@@ -278,6 +283,19 @@ def grant(engine,actor,effect,source):
     return True
 
 
+def extend_from_completion(engine,actor,completion,uses):
+    import trickster as T
+    if uses!=1 or completion['actor'] is not actor or completion['phase']!='complete':raise ValueError('actual Encore Blessing completion required')
+    rows=[r for r in live(actor) if r['source']==completion['move_id'] and r['at']==completion['seconds']]
+    if len(rows)!=1 or continuous(rows[0]):raise ValueError('Encore requires an actual use-limited Blessing activated by this Move')
+    row=rows[0];validate_record(actor,row)
+    trainer=T.owner(engine,actor,T.ENCORE)
+    row.setdefault('trickster_extensions',[]).append({'source':T.ENCORE,'completion':completion['id'],'trainer_id':trainer.entity_id,'added':1})
+    row[E.KEY]['capacity']['limit']+=1
+    validate_record(actor,row)
+    return row['id']
+
+
 def select_damage(engine,event):
     """Optional responses to an actual hit, after its original damage dice once."""
     if event.get('blessing_processed'):return event['damage']
@@ -389,6 +407,7 @@ def _damage_multiplier(rules,record,multiplier):
 
 def reaction_blocked(engine,attacker,move):
     """Existing exact no-Blessing-response operators apply to either origin."""
+    if __import__('trickster').sleight_scope(engine,attacker,move):return True
     if move.get('id')=='move/레이징불':
         return engine.r._selected_rule(move['id'])==move['id']
     if attacker.abilities_suppressed:return False
@@ -433,9 +452,9 @@ def activate(engine,actor,ability,target):
     preflight(engine,actor,row['raw'],source)
     def apply(e,who):
         act=row['manual_activation'];key='ability:'+reg['name']
-        if not F.activation_allowed(who,key,act['frequency'],engine=e):raise ValueError('Blessing Ability frequency exhausted')
+        if not F.activation_allowed(who,key,act['frequency'],engine=e,action_actor=who):raise ValueError('Blessing Ability frequency exhausted')
         if not TURN.spend(e,who,act['action'],reg['name']):raise ValueError('Blessing Ability action unavailable')
-        F.consume_activation(who,key,act['frequency'],engine=e)
+        F.consume_activation(who,key,act['frequency'],engine=e,action_actor=who)
         grant(e,who,row['raw'],source)
         record=live(who)[-1]
         return {'source':source,'effect_id':record['id'],'remaining':remaining(record)}
