@@ -24,12 +24,14 @@ import trainer_capabilities as TRAINER
 ROCKS = ((6, 1), (6, 3), (8, 0), (8, 4))
 
 
-class TerrainTalentTableTests(unittest.TestCase):
+class TerrainTalentTableTests(FIX.TerrainTalentChain, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.rules = Rules(ROOT, ruleset='core')
 
     def setUp(self):
+        if self.begin_talent_stage():
+            return
         previous = self.rules.rulings
         self.rules.rulings = deepcopy(previous)
         self.addCleanup(setattr, self.rules, 'rulings', previous)
@@ -53,16 +55,23 @@ class TerrainTalentTableTests(unittest.TestCase):
             engine.use_move(actor, target, 'struggle', set_damage=True)
 
     def test_forest_ranger_grants_the_stealth_capability_everywhere_only_to_the_actual_choice(self):
-        world = self.world('forest', 'cave')
+        world = self.talent_stage_input(1)
         engine, trainer = world['engine'], world['trainer']
-        self.assertEqual(V.talents(engine, trainer), ('forest', 'cave'))
-        self.assertIn('은밀', G.effective_capabilities(trainer))
-        self.assertEqual(SOUND.sources(trainer).get('stealth'), 'capability/은밀')
-        self.assertEqual(SC.capability_contributions(trainer), ['은밀'])
-        other = self.world('cave', 'mountain')
-        self.assertNotIn('은밀', G.effective_capabilities(other['trainer']))
-        self.assertNotIn('은밀', G.effective_capabilities(world['partner']))
+        rows = []
+        for phase, facts in FIX.forest_transition(world):
+            rows.append((phase, facts))
+            if phase == 'before-forest':
+                self.assertEqual(V.talents(engine, trainer), ('cave', 'mountain'))
+                self.assertNotIn('은밀', G.effective_capabilities(trainer))
+            else:
+                self.assertEqual(V.talents(engine, trainer), ('cave', 'mountain', 'forest', 'tundra'))
+                self.assertIn('은밀', G.effective_capabilities(trainer))
+                self.assertEqual(SOUND.sources(trainer).get('stealth'), 'capability/은밀')
+                self.assertEqual(SC.capability_contributions(trainer), ['은밀'])
+                self.assertNotIn('은밀', G.effective_capabilities(world['partner']))
+        self._terrain_records[1] = rows
         self.assertTrue(engine.validate_state()['valid'])
+        self.complete_talent_stage(1)
 
     def test_marsh_stomper_keeps_the_poison_without_hit_point_loss_and_loses_one_stage(self):
         for talent in (True, False):
@@ -104,53 +113,57 @@ class TerrainTalentTableTests(unittest.TestCase):
         self.assertEqual(TRAINER.breath_grace(other['trainer'], 'water', engine=other['engine']), 60)
 
     def test_arctic_pilgrim_ignores_hail_and_frozen_and_reduces_ice_damage_by_five(self):
-        move, fire = self.rules.move('move/냉동빔'), self.rules.move('move/화염방사')
-        baseline = self.world('cave', 'mountain', foe_moves=['move/냉동빔'])
-        plain = baseline['engine'].roll_damage(baseline['foe'], baseline['trainer'], move, set_damage=True)
-        plain_fire = baseline['engine'].roll_damage(baseline['foe'], baseline['trainer'], fire, set_damage=True)
-        world = self.world('tundra', 'cave', foe_moves=['move/냉동빔'])
+        world = self.talent_stage_input(2)
         engine, trainer, partner, foe = world['engine'], world['trainer'], world['partner'], world['foe']
-        self.assertEqual(engine.roll_damage(foe, trainer, move, set_damage=True), plain - 5)
-        self.assertEqual(engine.roll_damage(foe, trainer, fire, set_damage=True), plain_fire)
-        self.assertFalse(engine.apply_status(trainer, '얼음'))
-        self.assertNotIn('얼음', trainer.conditions)
-        self.assertTrue(engine.apply_status(partner, '얼음'))
-        FIX.battle(engine, foe)
-        engine.gm.set_weather('hail', rounds=5, reason='GM observed the hail')
-        FIX.next_turn(engine, foe, trainer, count=15)
-        hp = trainer.hp
-        engine.end_of_turn(trainer)
-        engine.end_round()
-        engine.start_round(engine.everyone)
-        engine.start_of_turn(trainer, initiative_count=15)
-        self.assertEqual(trainer.hp, hp)
-        self.assertTrue(any('싸라기눈 피해 면역 (생존가)' in line for line in engine.log_lines))
-        engine.end_of_turn(trainer)
-        hp = foe.hp
-        engine.start_of_turn(foe, initiative_count=10)
-        self.assertEqual(foe.hp, hp - engine.tick_loss(foe))
+        rows = []
+        for phase, facts in FIX.arctic_transition(world):
+            rows.append((phase, facts))
+            if phase == 'damage':
+                self.assertEqual(facts['ice'], world['plain_ice'] - 5)
+                self.assertEqual(facts['fire'], world['plain_fire'])
+            elif phase == 'frozen':
+                self.assertFalse(facts['trainer_applied'])
+                self.assertNotIn('얼음', trainer.conditions)
+                self.assertTrue(facts['partner_applied'])
+            elif phase == 'hail-immune':
+                self.assertEqual(facts['hp_after'], facts['hp_before'])
+                self.assertTrue(any('싸라기눈 피해 면역 (생존가)' in line for line in engine.log_lines))
+            else:
+                self.assertEqual(facts['hp_after'], facts['hp_before'] - facts['loss'])
+        self._terrain_records[2] = rows
         self.assertTrue(engine.validate_state()['valid'])
+        self.complete_talent_stage(2)
 
     def test_cave_dweller_is_immune_to_stealth_rock_hazards(self):
-        for talent in (True, False):
-            with self.subTest(talent=talent):
-                world = self.world('cave', 'mountain', talents=talent, foe_moves=['move/스텔스록'])
-                engine, trainer, foe = world['engine'], world['trainer'], world['foe']
-                FIX.battle(engine, foe)
-                engine.use_move_on(foe, foe, 'move/스텔스록', engine.everyone, aim=ROCKS)
-                self.assertEqual(sum(len(x['instances']) for x in engine.hazards.values()), 4)
-                FIX.next_turn(engine, foe, trainer, count=10)
-                hp = trainer.hp
-                engine.approach(trainer, foe)
-                self.assertGreaterEqual(trainer.pos[0], 5)
-                if talent:
-                    self.assertEqual(trainer.hp, hp)
-                    self.assertEqual(sum(len(x['instances']) for x in engine.hazards.values()), 4)
-                    self.assertTrue(any('동굴 거주자로 스텔스록 함정 면역' in line for line in engine.log_lines))
-                else:
-                    self.assertLess(trainer.hp, hp)
-                    self.assertLess(sum(len(x['instances']) for x in engine.hazards.values()), 4)
+        world = self.talent_stage_input(0)
+        engine, trainer = world['engine'], world['trainer']
+        rows = []
+        for phase, facts in FIX.cave_transition(world):
+            rows.append((phase, facts))
+            if phase == 'placed':
+                self.assertEqual(facts['hazards'], 4)
+            elif phase == 'unprotected':
+                self.assertGreaterEqual(facts['position'][0], 5)
+                self.assertLess(facts['hp_after'], facts['hp_before'])
+                self.assertGreater(facts['hazards'], 0)
+                self.assertLess(facts['hazards'], 4)
                 self.assertTrue(engine.validate_state()['valid'])
+            elif phase == 'unchosen':
+                self.assertEqual(SC.talent_projection(trainer), ())
+                self.assertNotIn('은밀', G.effective_capabilities(trainer))
+                self.assertEqual(SC.jump_bonus(trainer), {'high_jump': 0, 'long_jump': 0})
+                with self.assertRaisesRegex(ValueError, '^actual chosen Terrain Talents required$'):
+                    SC.talent_set(engine, trainer)
+            elif phase == 'ready-immune':
+                self.assertTrue(facts['triggers'], 'actual next paid step must encounter surviving Stealth Rock')
+            else:
+                self.assertEqual(facts['position'], facts['destination'])
+                self.assertEqual(facts['hp_after'], facts['hp_before'])
+                self.assertEqual(facts['hazards_after'], facts['hazards_before'])
+                self.assertTrue(any('동굴 거주자로 스텔스록 함정 면역' in line for line in facts['new_logs']))
+                self.assertTrue(engine.validate_state()['valid'])
+        self._terrain_records[0] = rows
+        self.complete_talent_stage(0)
 
     def test_traceur_adds_one_jump_and_half_survival_rank_evasion_against_push_trip_and_opportunity_attacks(self):
         results = {}
@@ -228,31 +241,25 @@ class TerrainTalentTableTests(unittest.TestCase):
         self.assertTrue(engine.validate_state()['valid'])
 
     def test_talent_effects_survive_both_restores_and_need_the_actual_choice(self):
-        world = self.world('forest', 'tundra')
+        world = self.talent_stage_input(3)
         engine, trainer = world['engine'], world['trainer']
-        self.assertEqual(SC.talent_projection(trainer), ('forest', 'tundra'))
+        chosen = ('cave', 'mountain', 'forest', 'tundra')
+        self.assertEqual(SC.talent_projection(trainer), chosen)
         engine.gm.snapshot('chosen')
         loaded, index = FIX.restore(self.rules, engine)
         again = index[trainer.entity_id]
-        self.assertEqual(SC.talent_set(loaded, again), ('forest', 'tundra'))
+        self.assertEqual(SC.talent_set(loaded, again), chosen)
         self.assertIn('은밀', G.effective_capabilities(again))
         self.assertFalse(loaded.apply_status(again, '얼음'))
         self.assertTrue(loaded.validate_state()['valid'])
-        trainer.spec['_survivalist_talents']['terrains'] = ('forest', 'cave')
-        self.assertEqual(SC.talent_projection(trainer), ('forest', 'cave'))
+        forged = ('cave', 'mountain', 'forest', 'desert')
+        trainer.spec['_survivalist_talents']['terrains'] = forged
+        self.assertEqual(SC.talent_projection(trainer), forged)
         with self.assertRaises(ValueError):
             SC.talent_set(engine, trainer)
         engine.gm.restore('chosen')
-        self.assertEqual(SC.talent_set(engine, trainer), ('forest', 'tundra'))
-        unchosen = FIX.scene(self.rules)
-        FIX.master(unchosen['engine'], unchosen['trainer'], 'forest')
-        FIX.master(unchosen['engine'], unchosen['trainer'], 'cave')
-        FIX.acquire(unchosen['engine'], unchosen['trainer'], SC.TALENT, rank=1)
-        self.assertEqual(SC.talent_projection(unchosen['trainer']), ())
-        self.assertNotIn('은밀', G.effective_capabilities(unchosen['trainer']))
-        self.assertEqual(SC.jump_bonus(unchosen['trainer']), {'high_jump': 0, 'long_jump': 0})
-        with self.assertRaises(ValueError):
-            SC.talent_set(unchosen['engine'], unchosen['trainer'])
+        self.assertEqual(SC.talent_set(engine, trainer), chosen)
+        self.complete_talent_stage(3)
 
 
 if __name__ == '__main__':

@@ -5,6 +5,7 @@ from unittest.mock import patch
 import json,sys,unittest
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
+from chained_case_lifecycle import bind_case_lifecycle,defer_case_commit
 from engine import Rules,Engine
 import test_book_conquerors_march as BASE
 import conquerors_march as CM,control_mount as M,pass_moves as PASS
@@ -15,6 +16,49 @@ import feature_ability_lessons as LESSONS,ability_transitions as AB
 AREA=BASE.FAMILY_MOVES['파열']
 
 class RiderFullTests(unittest.TestCase):
+    CSV_CHAIN_METHODS=(
+        'test_csv_source_drift_is_rejected_before_action',
+        'test_csv_selection_is_exact_idempotent_and_book_remains_pass_only',
+        'test_csv_all_five_families_keep_dash_and_pass_in_real_native_hits',
+    )
+    CSV_STAGE_CONTRACT=(
+        {'stage':'source_drift','input':'one mounted world, no paid Order',
+         'output':'same world and RNG; wrong current CSV SHA rejected before cost'},
+        {'stage':'edition_selection','input':'source_drift output',
+         'output':'CSV Dash then Book-only Pass; same actors, HP, positions and uses retained',
+         'restore':'pending CSV Order cold-load then real paid Dash Pass on independent restored branch'},
+        {'stage':'five_families','input':'edition_selection output after real EOT cooldown',
+         'output':'five real two-target Dash+Pass hits; each input uses[mid]+1, Standard 1->0',
+         'restore':'one cold load contains every accumulated Book/CSV/family receipt; completed last Pass replays without cost'},
+    )
+    CSV_FAMILY_CONTRACT=(
+        {'family':'대시','origin':(0,0),'destination':(4,0),'recipients':('enemy','other')},
+        {'family':'파열','origin':(4,0),'destination':(0,0),'recipients':('other','enemy')},
+        {'family':'폭발','origin':(0,0),'destination':(4,0),'recipients':('enemy','other')},
+        {'family':'원뿔','origin':(4,0),'destination':(0,0),'recipients':('other','enemy')},
+        {'family':'직선','origin':(0,0),'destination':(4,0),'recipients':('enemy','other')},
+    )
+
+    @classmethod
+    def prepare_chained_cases(cls,cases):
+        stages=[case for case in cases if case._testMethodName in cls.CSV_CHAIN_METHODS]
+        if {case._testMethodName for case in stages}!=set(cls.CSV_CHAIN_METHODS):return None
+        if len(stages)!=len(cls.CSV_CHAIN_METHODS) or any(type(case) is not cls for case in stages):
+            raise ValueError('each Rider CSV stage must be selected exactly once')
+        if any(hasattr(case,'_csv_chain_context') for case in stages):raise ValueError('Rider CSV stages already chained')
+        by_name={case._testMethodName:case for case in stages}
+        stages=tuple(by_name[name] for name in cls.CSV_CHAIN_METHODS)
+        context={'case_ids':tuple(case.id() for case in stages),'next_stage':0,'helper':None,'objects':None}
+        for case in stages:
+            case._csv_chain_context=context
+            bind_case_lifecycle(case,lambda reason:context.setdefault('blocked',reason))
+        ordered=[];inserted=False
+        for case in cases:
+            if case._testMethodName in cls.CSV_CHAIN_METHODS:
+                if not inserted:ordered.extend(stages);inserted=True
+            else:ordered.append(case)
+        return ordered
+
     @classmethod
     def setUpClass(cls):cls.rules=Rules(ROOT,ruleset='all')
 
@@ -81,6 +125,106 @@ class RiderFullTests(unittest.TestCase):
         opts.update(kw)
         return self.e.pokemon_activity(self.a,'teach_feature_ability',**opts)
 
+    def build_csv_drift_input(self):
+        self.setup()
+        # A single prolonged scene needs the same two living targets for seven
+        # Passes. Observe their higher HP once, never heal/reset between stages.
+        for target in (self.enemy,self.other):
+            self.e.gm.set_stat(target,'hp',value=400,reason='observed durable target for the continuous Rider scene')
+            self.e.gm.set_hp(target,value=target.base_max_hp,reason='initial observed HP before this prolonged scene')
+        self.h.start()
+        return self.h
+
+    def build_csv_selection_input(self):
+        self.build_csv_drift_input();self.verify_csv_source_drift()
+        return self.h
+
+    def build_csv_families_input(self):
+        self.build_csv_selection_input();self.verify_csv_edition_selection()
+        return self.h
+
+    def _csv_stage_input(self,stage):
+        context=getattr(self,'_csv_chain_context',None)
+        if context is None:
+            return (self.build_csv_drift_input,self.build_csv_selection_input,self.build_csv_families_input)[stage]()
+        self.assertEqual(context['case_ids'][stage],self.id())
+        if context.get('blocked'):raise unittest.SkipTest('blocked connected predecessor: '+context['blocked'])
+        if context['next_stage']!=stage:
+            raise unittest.SkipTest('blocked by failed prerequisite: Rider CSV stage '+str(context['next_stage'])+' did not complete')
+        if stage==0:
+            self.assertIsNone(context['helper']);context['helper']=self.build_csv_drift_input()
+            context['objects']=(self.e,self.a,self.p,self.enemy,self.other)
+        else:
+            self.h=context['helper'];self.sync()
+        for current,original in zip((self.e,self.a,self.p,self.enemy,self.other),context['objects']):self.assertIs(current,original)
+        return self.h
+
+    def _csv_stage_complete(self,stage):
+        context=getattr(self,'_csv_chain_context',None)
+        if context is not None:
+            self.assertEqual(context['next_stage'],stage)
+            for current,original in zip((self.e,self.a,self.p,self.enemy,self.other),context['objects']):self.assertIs(current,original)
+            defer_case_commit(self,lambda:context.update(next_stage=stage+1))
+
+    def _csv_next_round(self,*,rounds=1):
+        self.assertIs(self.e._active_turn_actor,self.p)
+        self.e.end_of_turn(self.p);self.h.close(self.enemy);self.h.close(self.other);self.e.end_round()
+        for index in range(rounds):
+            self.e.start_round(self.e.everyone)
+            if index<rounds-1:
+                for actor in (self.a,self.p,self.enemy,self.other):self.h.close(actor)
+                self.e.end_round()
+        self.e.gm.observe_sensory_environment(self.a,self.p,paths={'auditory':True},present=True,
+            reason='actual next mounted Order observed at the current continued positions')
+
+    def _csv_cold_probe(self):
+        # Restore the accumulated history on a separate real branch: the live
+        # world and its actual actor identities remain the successor input.
+        saved=json.loads(json.dumps(CODEC.dump_engine(self.e),ensure_ascii=False))
+        probe=BASE.ConquerorsMarchTests();probe.rules=Rules(ROOT,ruleset='all')
+        probe.e=CODEC.load_engine(probe.rules,saved);index=W.actor_index(probe.e)
+        probe.a,probe.p,probe.enemy,probe.other=[index[c.entity_id] for c in (self.a,self.p,self.enemy,self.other)]
+        def gameplay(helper):
+            fields=('spec','stats','modifiers','moves','conditions','pos','hp','temp_hp','injuries',
+                    'stages','accuracy_stage','evasion_mod','move_uses','budget','took_standard','_action_history')
+            return (helper.e.round_no,helper.e.elapsed_seconds,helper.e.rng.getstate(),
+                helper.e._active_turn_actor.entity_id if helper.e._active_turn_actor is not None else None,
+                [c.entity_id for c in helper.e.everyone],
+                [(c.entity_id,[(key,deepcopy(vars(c)[key])) for key in fields if key in vars(c)])
+                    for c in (helper.a,helper.p,helper.enemy,helper.other)],
+                (PASS.KEY in vars(helper.e),deepcopy(vars(helper.e).get(PASS.KEY))))
+        # Cold import intentionally renews root authentication epochs; gameplay,
+        # source receipts, paid histories, timing and RNG must still be exact.
+        probe.valid();self.assertEqual(gameplay(probe),gameplay(self.h))
+        return probe
+
+    def verify_csv_source_drift(self):
+        with patch.dict(CM.CSV_SOURCE,{'sha256':'0'*64}):
+            self.reject(lambda:self.e.conquerors_march(self.a,self.p,event_id='csv/drift',edition=CM.CSV))
+
+    def verify_csv_edition_selection(self):
+        self.reject(lambda:self.e.conquerors_march(self.a,self.p,event_id='bad',edition='csv'))
+        row=self.e.conquerors_march(self.a,self.p,event_id='csv/order',edition=CM.CSV)
+        self.assertEqual(self.e.conquerors_march(self.a,self.p,event_id='csv/order',edition=CM.CSV),row)
+        self.reject(lambda:self.e.conquerors_march(self.a,self.p,event_id='csv/order'))
+        probe=self._csv_cold_probe()
+        self.assertEqual(CM.conversion(probe.e,probe.p,probe.rules.move(BASE.FAMILY_MOVES['대시']))['edition'],CM.CSV)
+        probe.close(probe.a);probe.e.start_of_turn(probe.p);before=probe.p.budget['standard']
+        with patch.object(Engine,'d20',return_value=15):cold_row=probe.pass_move(BASE.FAMILY_MOVES['대시'])
+        self.assertEqual(cold_row['phase'],'complete');self.assertEqual(before-probe.p.budget['standard'],1);probe.valid()
+        self.h.close(self.a);self.e.start_of_turn(self.p);before=self.p.budget['standard']
+        with patch.object(Engine,'d20',return_value=15):self.h.pass_move(BASE.FAMILY_MOVES['대시'])
+        self.assertEqual(before-self.p.budget['standard'],1)
+        self._csv_next_round(rounds=2);self.h.order();self.h.close(self.a);self.e.start_of_turn(self.p)
+        native=Engine._apply_hit_recipient;seen=[]
+        def observe(e,a,t,mid,move,*args,**kw):
+            if a.entity_id==self.p.entity_id:
+                self.assertNotIn('대시',move['range']);seen.append(t.entity_id)
+            return native(e,a,t,mid,move,*args,**kw)
+        with patch.object(Engine,'d20',return_value=15),patch.object(Engine,'_apply_hit_recipient',observe):
+            self.h.pass_move(BASE.FAMILY_MOVES['대시'],event='march/pass/book',destination=(0,0))
+        self.assertEqual(seen,[self.other.entity_id,self.enemy.entity_id]);self.valid()
+
     def test_ramming_actual_extended_payment_permanent_grant_and_codec(self):
         self.setup(run_up=False,mounted=False)
         self.p.spec['tutor_points']=2
@@ -130,10 +274,14 @@ class RiderFullTests(unittest.TestCase):
         self.valid()
 
     def test_csv_all_five_families_keep_dash_and_pass_in_real_native_hits(self):
-        for family,mid in list(BASE.FAMILY_MOVES.items())[:5]:
+        self._csv_stage_input(2);completed=[];last_row=None
+        for number,contract in enumerate(self.CSV_FAMILY_CONTRACT):
+            family=contract['family'];mid=BASE.FAMILY_MOVES[family]
             with self.subTest(family=family):
-                self.setup();self.h.start()
-                self.e.conquerors_march(self.a,self.p,event_id='csv/order',edition=CM.CSV)
+                self._csv_next_round(rounds=2 if number==0 else 1)
+                self.assertEqual(self.p.pos,contract['origin']);self.assertEqual(self.a.pos,contract['origin'])
+                uses=self.p.move_uses.get(mid,0);hp=(self.enemy.hp,self.other.hp)
+                self.e.conquerors_march(self.a,self.p,event_id='csv/order/'+family,edition=CM.CSV)
                 self.h.close(self.a);self.e.start_of_turn(self.p)
                 seen=[];native=Engine._apply_hit_recipient
                 def observe(e,a,t,move_id,move,*args,**kw):
@@ -142,33 +290,27 @@ class RiderFullTests(unittest.TestCase):
                         self.assertIn('대시',move['keywords']);self.assertIn('통과',move['keywords']);seen.append(t.entity_id)
                     return native(e,a,t,move_id,move,*args,**kw)
                 with patch.object(Engine,'d20',return_value=15),patch.object(Engine,'_apply_hit_recipient',observe):
-                    row=self.h.pass_move(mid)
-                self.assertEqual(seen,[self.enemy.entity_id,self.other.entity_id])
-                self.assertEqual(self.p.move_uses[mid],1);self.assertEqual(self.p.budget['standard'],0)
-                self.restore();self.valid()
+                    row=self.h.pass_move(mid,event='csv/pass/'+family,destination=contract['destination'])
+                self.assertEqual(seen,[getattr(self,name).entity_id for name in contract['recipients']])
+                self.assertEqual(self.p.move_uses[mid],uses+1);self.assertEqual(self.p.budget['standard'],0)
+                self.assertEqual(self.p.pos,contract['destination']);self.assertEqual(self.a.pos,contract['destination'])
+                self.assertLess(self.enemy.hp,hp[0]);self.assertLess(self.other.hp,hp[1]);self.valid()
+                completed.append(family);last_row=row
+            if len(completed)!=number+1:
+                for later in self.CSV_FAMILY_CONTRACT[number+1:]:
+                    with self.subTest(family=later['family']):self.skipTest('blocked by failed prerequisite family '+family)
+                return
+        probe=self._csv_cold_probe();before=probe.snap();rng=probe.e.rng.getstate()
+        with patch.object(Engine,'d20',side_effect=AssertionError('completed restored Pass cannot reroll')):
+            self.assertEqual(probe.pass_move(mid,event='csv/pass/'+family,destination=contract['destination']),last_row)
+        self.assertEqual(probe.snap(),before);self.assertEqual(probe.e.rng.getstate(),rng);probe.valid()
+        self._csv_stage_complete(2)
 
     def test_csv_selection_is_exact_idempotent_and_book_remains_pass_only(self):
-        self.setup();self.h.start()
-        self.reject(lambda:self.e.conquerors_march(self.a,self.p,event_id='bad',edition='csv'))
-        row=self.e.conquerors_march(self.a,self.p,event_id='csv/order',edition=CM.CSV)
-        self.assertEqual(self.e.conquerors_march(self.a,self.p,event_id='csv/order',edition=CM.CSV),row)
-        self.reject(lambda:self.e.conquerors_march(self.a,self.p,event_id='csv/order'))
-        self.restore();self.h.close(self.a);self.e.start_of_turn(self.p)
-        before=self.p.budget['standard']
-        with patch.object(Engine,'d20',return_value=15):self.h.pass_move(BASE.FAMILY_MOVES['대시'])
-        self.assertEqual(before-self.p.budget['standard'],1)
-        self.setup();self.h.start();self.h.order();self.h.close(self.a);self.e.start_of_turn(self.p)
-        native=Engine._apply_hit_recipient;seen=[]
-        def observe(e,a,t,mid,move,*args,**kw):
-            if a.entity_id==self.p.entity_id:self.assertNotIn('대시',move['range']);seen.append(t.entity_id)
-            return native(e,a,t,mid,move,*args,**kw)
-        with patch.object(Engine,'d20',return_value=15),patch.object(Engine,'_apply_hit_recipient',observe):self.h.pass_move(BASE.FAMILY_MOVES['대시'])
-        self.assertEqual(len(seen),2);self.valid()
+        self._csv_stage_input(1);self.verify_csv_edition_selection();self._csv_stage_complete(1)
 
     def test_csv_source_drift_is_rejected_before_action(self):
-        self.setup();self.h.start()
-        with patch.dict(CM.CSV_SOURCE,{'sha256':'0'*64}):
-            self.reject(lambda:self.e.conquerors_march(self.a,self.p,event_id='csv/drift',edition=CM.CSV))
+        self._csv_stage_input(0);self.verify_csv_source_drift();self._csv_stage_complete(0)
 
     def test_overrun_uses_actual_roll_speed_and_target_reduction(self):
         results=[]

@@ -5,6 +5,7 @@ import copy, hashlib, json, sys, unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'engine'))
+from chained_case_lifecycle import bind_case_lifecycle, defer_case_commit
 from engine import Rules, Engine, Combatant
 import action_points as AP
 import effects as FX
@@ -34,6 +35,7 @@ class BoundAPTests(unittest.TestCase):
         context = {'case_ids': tuple(case.id() for case in stages), 'next_stage': 0, 'state': None}
         for case in stages:
             case._bound_ap_context = context
+            bind_case_lifecycle(case, lambda reason: context.setdefault('blocked', reason))
         ordered = []
         inserted = False
         for case in cases:
@@ -55,6 +57,8 @@ class BoundAPTests(unittest.TestCase):
         if context is None:
             return self.build_release_replay_input() if stage == 3 else self.fixture()
         self.assertEqual(context['case_ids'][stage], self.id())
+        if context.get('blocked'):
+            raise unittest.SkipTest('blocked connected predecessor: ' + context['blocked'])
         if context['next_stage'] != stage:
             raise unittest.SkipTest('blocked by failed prerequisite: bound AP stage ' +
                 str(context['next_stage']) + ' did not complete; required stage ' + str(stage) + ' remains unexecuted')
@@ -68,7 +72,7 @@ class BoundAPTests(unittest.TestCase):
         context = getattr(self, '_bound_ap_context', None)
         if context is not None:
             self.assertEqual(context['next_stage'], stage)
-            context['next_stage'] = stage + 1
+            defer_case_commit(self, lambda: context.update(next_stage=stage + 1))
 
     @classmethod
     def setUpClass(cls): cls.rules=Rules(str(ROOT),ruleset='all')

@@ -12,7 +12,7 @@ import items as ITEMS
 import effects as FX
 import downtime as DT
 from reference_rule_connections import (registered_plate_state, initial_gift_state,
-    exhausted_gift_state, reference_step, prepare_reference_cases, connected_reference_suite)
+    exhausted_gift_state, end_gift_scene, reference_step, prepare_reference_cases, connected_reference_suite)
 
 PLATES=[
 ('용의플레이트','드래곤',159),('공포플레이트','악',160),('대지플레이트','땅',161),
@@ -82,7 +82,7 @@ class ReferenceRuleTests(unittest.TestCase):
     @reference_step
     def test_gift_scene_end_does_not_refresh_daily_limit(self):
         e,a,b=exhausted_gift_state(self,ITEMS.manual_feat,GIFT)
-        e.end_scene([a,b])
+        end_gift_scene(self,e,[a,b])
         self.assertEqual(ITEMS.manual_feat(e,a,GIFT,b),(0,1))
         self.assertEqual(b.injuries,3)
     @reference_step

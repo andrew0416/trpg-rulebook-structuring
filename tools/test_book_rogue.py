@@ -10,26 +10,24 @@ import frequency as F,move_completion as MC,trainer_feature_acquisition as T
 import skill_feature_actions as SF,skill_maneuver_actions as SM,state_fields as FIELDS
 
 class RogueTests(RogueScene,unittest.TestCase):
+ LIFECYCLE_METHODS=(
+  'test_class_rank_count_and_parent_selection_rejections_are_atomic',
+  'test_seven_independent_acquisitions_and_attack_tags',
+  'test_pursuit_requires_observed_enemy_for_actual_recall_and_flee')
  @classmethod
  def setUpClass(cls):cls.rules=Rules(ROOT)
  def test_seven_independent_acquisitions_and_attack_tags(self):
-  before=self.a.stats['atk'];self.acquire(R.CLASS)
-  self.assertEqual(self.a.stats['atk'],before+1);self.assertEqual(self.a.spec['feats'],[R.CLASS])
-  self.assertTrue(set(R.MOVES[:2])<=set(self.a.moves));self.assertFalse(set(R.MOVES[2:])&set(self.a.moves))
-  for uid in list(R.FEATURES)[1:]:self.acquire(uid,ability=R.CRUELTY)
-  self.assertEqual(self.a.stats['atk'],before+7);self.assertTrue(set(R.MOVES)<=set(self.a.moves))
+  self.rogue_stage_input(1)
+  observed=self._rogue_class_only
+  self.assertEqual(observed['attack'],self._rogue_base_attack+1);self.assertEqual(observed['feats'],(R.CLASS,))
+  self.assertTrue(set(R.MOVES[:2])<=set(observed['moves']));self.assertFalse(set(R.MOVES[2:])&set(observed['moves']))
+  self.seven_acquisitions_prefix()
+  for uid,before,after in self._rogue_attack_steps:self.assertEqual(after,before+1,uid)
+  self.assertEqual(self.a.stats['atk'],self._rogue_base_attack+7);self.assertTrue(set(R.MOVES)<=set(self.a.moves))
   self.assertTrue(__import__('ability_transitions').active(self.a,R.CRUELTY));self.assertEqual(len(T._static_records(self.a)),7)
-  T.validate_actor(self.a);self.restore();self.valid()
+  T.validate_actor(self.a);self.restore();self.valid();self.complete_rogue_stage(1)
  def test_class_rank_count_and_parent_selection_rejections_are_atomic(self):
-  self.reject(lambda:self.acquire(R.CUT),'prerequisite')
-  FIELDS.base_patch(self.a,{'skills':{'곡예':3,'육상':2,'은신':2}},reason='actual insufficient ranks')
-  self.reject(lambda:self.acquire(R.CLASS),'rank')
-  FIELDS.base_patch(self.a,{'skills':{'곡예':5,'육상':3,'은신':2}},reason='actual two novice ranks')
-  self.acquire(R.CLASS)
-  self.reject(lambda:self.acquire(R.UNEXPECTED),'rank')
-  self.reject(lambda:self.acquire(R.UNDERHAND,ability='ambush'),'choose')
-  self.acquire(R.UNDERHAND,ability=R.CRUELTY)
-  self.reject(lambda:self.acquire(R.UNDERHAND,ability=R.AMBUSH,request='again'),'one Ability')
+  self.qualification_prefix();self.complete_rogue_stage(0)
  def test_cutthroat_short_weapon_range_and_original_move_are_independent(self):
   self.family(R.CUT);key=self.weapon('근거리 사격무기');move=self.rules.move(R.MOVES[0])
   self.assertNotIn('_weapon_attack',WA.prepare(self.e,self.a,move))
@@ -360,47 +358,101 @@ class RogueTests(RogueScene,unittest.TestCase):
 
  def test_pursuit_requires_observed_enemy_for_actual_recall_and_flee(self):
   import pokemon_party as PARTY,combat_move_reactions as CMR,action_resources as RES,movement_actions as M
+  from grid import Grid
+  self.rogue_stage_input(2)
+  self.assertEqual(len(T._static_records(self.a)),7)
+  self.assertEqual(self.a.stats['atk'],self._rogue_base_attack+7)
+  self.assertTrue(__import__('ability_transitions').active(self.a,R.CRUELTY))
+  self.rules.rulings.add_answer('cruelty',False,reason='actual optional Cruelty purchases declined during Pursuit',scope='scene')
+  self.e.grid=Grid(32,12)
+  self.e.gm.set_position(self.b,(30,10),reason='uninvolved observer outside the actual flee path')
+  self.e.gm.set_position(self.u,(30,11),reason='wild participant waits outside the actual recall path')
+  owner=self.add('actual recalling owner','trainer',(6,2),side='foes',feats=[],classes=[],edges=[])
+  owner_id=owner.entity_id;self.t.spec['trainer_id']=owner_id;self.t.spec['wild']=False
+  PARTY.configure(self.e,owner,mode='standard',reason='actual recall roster',roster=[self.t],storage={'kind':'center','id':'recall-center'})
+  self.e.configure_party_combat(owner,battle_mode='full_contact',reason='actual full contact encounter')
+  self.u.spec['wild']=True;self.e.gm.set_level(self.u,5,reason='actual low-level wild participant')
+  M.set_capabilities(self.e,self.u,{'land':4,'swim':0},basis='current',reason_text='actual observed land movement')
+  self.e.use_item(self.a,'item/벌레회피스프레이',aim={'reason':'actual wearer spray, one paid application for the continuous encounter'})
+  self.e.observe_relative_directions(self.a,directions={'follow':(1,0)},quickly_trip_placement='before_entry',reason='actual eastward pursuit path')
+  self.e.observe_relative_directions(self.u,directions={'away':(1,0)},quickly_trip_placement='before_entry',reason='actual understood away direction')
+  actor_ids=tuple(actor.entity_id for actor in (self.a,self.t,self.u));initial_engine=self.e;live_world=None
+  self.begin()
   for kind in ('recall','flee'):
-   for sides in (('absent','absent'),(None,None),(None,'foes'),('party',None),('party','party'),('party','foes')):
+   for index,sides in enumerate((('absent','absent'),(None,None),(None,'foes'),('party',None),('party','party'),('party','foes'))):
     with self.subTest(kind=kind,sides=sides):
-     self.setup();self.family(R.UNEXPECTED)
-     self.e.gm.set_position(self.b,(12,10),reason='uninvolved observer outside the actual flee path')
-     self.e.gm.set_position(self.u,(12,11),reason='uninvolved observer outside the actual flee path')
+     debt=RES.pending(self.a).get('standard',0)
+     if kind!='recall' or index:self.next_round()
+     self.assertEqual(RES.pending(self.a),{})
+     self.assertEqual(self.a.budget['standard'],1-debt)
      if kind=='recall':
-      owner=self.add('actual recalling owner','trainer',(6,2),side='foes',feats=[],classes=[],edges=[])
-      self.t.spec['trainer_id']=owner.entity_id
-      PARTY.configure(self.e,owner,mode='standard',reason='actual recall roster',roster=[self.t],storage={'kind':'center','id':'recall-center'})
-      self.e.configure_party_combat(owner,battle_mode='full_contact',reason='actual full contact encounter')
-      owner_id=owner.entity_id;self.begin(owner)
+      self.turn(owner,count=20)
+      if index:
+       sent=self.e.act_on_party(owner,send=[(self.t,(3,2))],request_id='side-boundary-send-'+str(index),reason='actual paid re-entry after the preceding recall')
+       self.assertEqual(sent['sent'],[self.t.entity_id]);self.assertTrue(self.t.on_field)
+       self.next_round();self.turn(owner,count=20)
+      target=self.t
      else:
-      self.e.gm.set_level(self.t,5,reason='actual low-level wild target')
-      M.set_capabilities(self.e,self.t,{'land':4,'swim':0},basis='current',reason_text='actual observed land movement')
-      self.e.use_item(self.a,'item/벌레회피스프레이',aim={'reason':'actual wearer spray'})
-      self.e.observe_repel_approach(self.a,self.t,nearby=True,reason='actual close approach')
-      self.e.observe_relative_directions(self.t,directions={'away':(1,0)},quickly_trip_placement='before_entry',reason='actual understood away direction')
-      self.e.observe_repel_flee(self.t,movement={'direction':'away','distance':4,'pace':'quickly','movement_id':'side-boundary-flee'},reason='actual fastest feasible retreat')
-      self.begin(self.t)
+      if not index:
+       self.e.gm.set_position(owner,(30,9),reason='recalling owner leaves the observed flee path')
+       self.e.gm.set_position(self.u,(3,2),reason='the existing wild participant actually approaches the sprayed wearer')
+      else:
+       before=self.a.pos
+       follow=self.e.move_relative(self.a,direction='follow',distance=4,pace='quickly',movement_id='side-boundary-follow-'+str(index))
+       self.assertEqual(follow['state'],'complete');self.assertEqual(self.a.pos,(before[0]+4,before[1]))
+       self.assertEqual(self.a.budget['shift'],0)
+      target=self.u
+      self.assertEqual(target.pos,(self.a.pos[0]+1,self.a.pos[1]))
+      self.e.observe_repel_approach(self.a,target,nearby=True,reason='actual nearby wild participant remains ahead of the pursuing wearer')
+      self.e.observe_repel_flee(target,movement={'direction':'away','distance':4,'pace':'quickly','movement_id':'side-boundary-flee-'+str(index)},reason='actual fastest feasible retreat from the previous endpoint')
+      self.turn(target,count=20)
      CMR.arm(self.e,self.a,CMR.PURSUIT)
-     for actor,side in zip((self.a,self.t),sides):
+     for actor,side in zip((self.a,target),sides):
       actor.spec.pop('side',None)
       if side=='absent':vars(actor).pop('side',None)
       else:actor.side=side
-     self.restore();before=self.t.hp;choice=deepcopy(self.a.spec[CMR.CHOICES][CMR.PURSUIT])
-     self.assertEqual(self.a in TURN.adjacent_enemies(self.e,self.t),sides==('party','foes'))
+     if kind=='recall' and index<2:
+      self.restore();owner=__import__('world_entities').actor_index(self.e)[owner_id];target=self.t
+      for actor,side in zip((self.a,target),sides):
+       self.assertEqual(hasattr(actor,'side'),side!='absent')
+       if side!='absent':self.assertIs(actor.side,None)
+      if index==1:live_world=(self.e,self.a,self.t,self.u,owner)
+     if live_world is not None:
+      for actual,previous in zip((self.e,self.a,self.t,self.u,owner),live_world):self.assertIs(actual,previous)
+     before=target.hp;origin=target.pos;uses=self.a.move_uses.get(CMR.PURSUIT,0)
+     choice=deepcopy(self.a.spec[CMR.CHOICES][CMR.PURSUIT]);events=len(self.a.spec.get(CMR.EVENTS,{}))
+     def pursuit_completions():return sum(row['move_id']==CMR.PURSUIT and row['actor'] is self.a for row in getattr(self.e,'_move_completions',{}).values())
+     completions=pursuit_completions()
+     self.assertEqual(self.a in TURN.adjacent_enemies(self.e,target),sides==('party','foes'))
      with patch.object(Engine,'d20',return_value=15):
       if kind=='recall':
-       owner=__import__('world_entities').actor_index(self.e)[owner_id]
-       self.e.act_on_party(owner,recall=[self.t],request_id='side-boundary-recall',reason='actual voluntary recall')
-      else:self.e.resolve_repel_flee(self.t)
+       result=self.e.act_on_party(owner,recall=[target],request_id='side-boundary-recall-'+str(index),reason='actual voluntary recall')
+      else:result=self.e.resolve_repel_flee(target)
      if sides==('party','foes'):
-      self.assertLess(self.t.hp,before);self.assertEqual(self.a.move_uses[CMR.PURSUIT],1)
+      self.assertLess(target.hp,before);self.assertEqual(self.a.move_uses[CMR.PURSUIT],uses+1)
       self.assertEqual(RES.pending(self.a),{'standard':1});self.assertNotIn(CMR.PURSUIT,self.a.spec[CMR.CHOICES])
+      self.assertEqual(len(self.a.spec[CMR.EVENTS]),events+1);self.assertEqual(pursuit_completions(),completions+1)
+      response=[row for row in self.e._move_completions.values() if row['move_id']==CMR.PURSUIT and row['actor'] is self.a][-1]
+      self.assertEqual(response['phase'],'complete');self.assertTrue(MC.recipient_result(response,target)['hit'])
+      self.assertGreater(MC.recipient_result(response,target)['dealt'],0)
      else:
-      self.assertEqual(self.t.hp,before);self.assertNotIn(CMR.PURSUIT,self.a.move_uses)
+      self.assertEqual(target.hp,before);self.assertEqual(self.a.move_uses.get(CMR.PURSUIT,0),uses)
       self.assertEqual(RES.pending(self.a),{});self.assertEqual(self.a.spec[CMR.CHOICES][CMR.PURSUIT],choice)
-     if kind=='recall':self.assertFalse(self.t.on_field)
-     else:self.assertEqual(self.t.pos,(7,2));self.assertEqual(self.t.budget['shift'],0)
-     self.restore();self.valid()
+      self.assertEqual(len(self.a.spec.get(CMR.EVENTS,{})),events);self.assertEqual(pursuit_completions(),completions)
+     if kind=='recall':
+      self.assertFalse(target.on_field);self.assertEqual(owner.budget['shift'],0)
+      paid=(target.hp,owner.budget.copy(),self.a.move_uses.copy(),deepcopy(RES.pending(self.a)),len(self.a.spec.get(CMR.EVENTS,{})),len(getattr(self.e,'_move_completions',{})))
+      replay=self.e.act_on_party(owner,recall=[target],request_id='side-boundary-recall-'+str(index),reason='actual voluntary recall')
+      self.assertEqual(replay,result)
+      self.assertEqual((target.hp,owner.budget,self.a.move_uses,RES.pending(self.a),len(self.a.spec.get(CMR.EVENTS,{})),len(getattr(self.e,'_move_completions',{}))),paid)
+     else:
+      self.assertEqual(result['status'],'attempted');self.assertEqual(target.pos,(origin[0]+4,origin[1]));self.assertEqual(target.budget['shift'],0)
+     self.assertEqual(tuple(actor.entity_id for actor in (self.a,self.t,self.u)),actor_ids)
+     if kind=='recall' and index==0:self.assertIsNot(self.e,initial_engine)
+    if self._outcome is not None and not self._outcome.success:return
+  before=(self.u.hp,self.a.move_uses[CMR.PURSUIT],deepcopy(RES.pending(self.a)),self.u.pos)
+  self.restore();self.assertEqual((self.u.hp,self.a.move_uses[CMR.PURSUIT],RES.pending(self.a),self.u.pos),before)
+  self.assertNotIn(CMR.PURSUIT,self.a.spec[CMR.CHOICES]);self.valid();self.complete_rogue_stage(2)
  def test_scoundrel_branch_uses_possessed_ability_but_ambush_activation_requires_active(self):
   self.family(R.STRIKE);self.a.abilities_suppressed=True;self.begin();token=self.hit()
   self.e.scoundrel_strike(self.a,self.t,token)

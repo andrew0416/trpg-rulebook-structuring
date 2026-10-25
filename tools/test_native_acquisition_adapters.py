@@ -11,6 +11,7 @@ STAGE = Path(__file__).resolve().parents[1]
 ROOT = STAGE if (STAGE / 'data/core-rules.json').exists() else Path(os.environ.get(
     'PTK_CANONICAL_ROOT', r'D:/trpg-rulebook-structuring/work/public-actions-20261023/repository'))
 sys.path[:0] = [str(STAGE / 'engine'), str(ROOT / 'engine'), str(ROOT / 'tools')]
+from chained_case_lifecycle import bind_case_lifecycle, defer_case_commit
 from engine import Rules, Engine, Combatant
 from builder import build_trainer, build_pokemon
 import acquired_features as A
@@ -50,6 +51,7 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
                    'source_ids': None, 'states': {}, 'completed': {}, 'next_stage': 0}
         for case in ordered_stages:
             case._native_lifecycle_context = context
+            bind_case_lifecycle(case, lambda reason: context.setdefault('blocked', reason))
         ordered = []
         inserted = False
         for case in cases:
@@ -167,6 +169,8 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
         source_ids = tuple(N.DEFINITIONS)
         if context is not None:
             self.assertEqual(context['case_ids'][stage], self.id())
+            if context.get('blocked'):
+                raise unittest.SkipTest('blocked connected predecessor: ' + context['blocked'])
             if context['next_stage'] != stage:
                 raise unittest.SkipTest('blocked by failed prerequisite: native acquisition stage ' +
                     str(context['next_stage']) + ' did not complete; required stage ' + str(stage) + ' remains unexecuted')
@@ -175,6 +179,7 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
                 context['source_ids'] = source_ids
                 context['completed'] = {uid: [] for uid in source_ids}
             self.assertEqual(context['source_ids'], source_ids)
+        completed = []
         for uid in source_ids:
             with self.subTest(source=uid):
                 if context is None:
@@ -187,12 +192,17 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
                             ' has an incomplete predecessor; required stage ' + str(stage) + ' remains unexecuted')
                     self.assertIn(uid, context['states'])
                     state = context['states'][uid]
-                verifiers[stage](state)
                 if context is not None:
                     context['states'][uid] = state
+                verifiers[stage](state)
+                if context is not None:
+                    completed.append(uid)
+        if context is not None and completed == list(source_ids):
+            def commit():
+                for uid in completed:
                     context['completed'][uid].append(stage)
-        if context is not None and all(context['completed'][uid] == list(range(stage + 1)) for uid in source_ids):
-            context['next_stage'] = stage + 1
+                context['next_stage'] = stage + 1
+            defer_case_commit(self, commit)
 
     def verify_native_acquisition(self, state):
         uid = state['uid']; definition = N.DEFINITIONS[uid]

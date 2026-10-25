@@ -196,4 +196,29 @@ class WorldTests(unittest.TestCase):
    self.assertFalse(getattr(self.e,'_world_relation_receipts',{}))
    self.assertTrue(W.validate_world(self.e)['valid'])
 
+ def test_actor_traversal_keeps_hidden_keys_cycles_and_native_observation_references(self):
+  from effect_contracts import BatchResult,Outcome
+  from skill_feature_actions import SkillEvent
+  hidden=self.actor('trainer/hidden');observed=self.actor('trainer/observed')
+  self.e.everyone=self.e.gm.everyone=[self.a]
+  cycle=[None,True,12,1.5,'leaf',b'leaf'];cycle.append(cycle)
+  cycle.append({hidden:{'same_actor':hidden}})
+  self.a.custom_conditions['actual_refs']=cycle
+  self.e.delayed=[BatchResult(1,0,[Outcome('test','actual','completed',receipt=SkillEvent(observed,'skill/test',(),(),None))])]
+  self.assertEqual(W.actors(self.e),(self.a,hidden,observed))
+  self.assertIs(W.actor_index(self.e)[hidden.entity_id],hidden)
+  self.assertIs(cycle[-2],cycle)
+  self.assertIs(cycle[-1][hidden]['same_actor'],hidden)
+
+ def test_actor_traversal_rechecks_mutated_container_subclasses_and_extra_references(self):
+  class References(dict):pass
+  hidden=self.actor('trainer/hidden');later=self.actor('trainer/later')
+  self.e.everyone=self.e.gm.everyone=[self.a]
+  refs=References(hidden=hidden);self.e.delayed=[refs]
+  self.assertEqual(W.actors(self.e,extra=(later,)),(self.a,hidden,later))
+  refs['hidden']=later
+  self.assertEqual(W.actors(self.e),(self.a,later))
+  refs.clear()
+  self.assertEqual(W.actors(self.e),(self.a,))
+
 if __name__=='__main__':unittest.main()

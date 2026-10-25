@@ -1473,8 +1473,8 @@
     },
     {
       "path": "data/verification/common-activation-current-requirements.json",
-      "sha256": "f26283b5064f2fe57869c4b556102c902762d67f6765ddd9601110be2ed66da6",
-      "size": 522614
+      "sha256": "d8e479d4943efe966c2bd4b03f9eb296508191dcd058577ad8edbd1da1095d82",
+      "size": 523196
     },
     {
       "path": "data/verification/common-activation-transition-contract.json",
@@ -3998,13 +3998,13 @@
     },
     {
       "path": "tools/frequency_current_binding_review.json",
-      "sha256": "d72375053fef24b59f51d7b2cd47a754e6a88b0a9ee1a78be96f631223f4c160",
-      "size": 109475
+      "sha256": "1d69d08ef1d5d9a3a54b2ff3398098cc137d337d4706d57c7f7ae3ac18956049",
+      "size": 104833
     },
     {
       "path": "tools/frequency_source_connection_contract.json",
-      "sha256": "8db786760ae564355047a1048ea80bd1e7ad2e09c4f3c0b9a6fe8d85b16a47e0",
-      "size": 16423
+      "sha256": "ecbcf0bbdc90c6e7331abf680ba25175ffe4c10721b9bacdd0d7aec702d00113",
+      "size": 17791
     },
     {
       "path": "tools/inject_vault_entrypoint.ps1",

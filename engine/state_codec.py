@@ -163,6 +163,8 @@ def _plain(value):
     if kind is list:
         result = None
         for index, item in enumerate(value):
+            if item is None or type(item) in (str, bool, int):
+                continue
             normalized = _plain(item)
             if normalized is not item:
                 if result is None:
@@ -179,6 +181,8 @@ def _plain(value):
         for key, item in value.items():
             if type(key) is not str:
                 _fail('selected rule fingerprint requires text keys')
+            if item is None or type(item) in (str, bool, int):
+                continue
             normalized = _plain(item)
             if normalized is not item:
                 if result is None:

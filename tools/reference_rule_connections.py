@@ -1,6 +1,7 @@
 """Explicit plate and Gift lifecycles; unrelated and partial selections stay cold."""
 from copy import deepcopy
 from functools import wraps
+from chained_case_lifecycle import bind_case_lifecycle, case_is_unverified, defer_case_commit
 import inspect
 import random
 import types
@@ -63,6 +64,7 @@ class ReferenceLifecycle:
     def __init__(self,key,steps):
         self.key,self.steps=key,tuple(steps)
         self.cursor=0;self.environment=None;self.failed=None;self.snapshot=None;self.profile=None
+        self._cases=None;self._active_case=None;self._scene_end=None;self._scene_ended=False
 
     def source_profile(self,test):
         owner=test.rules
@@ -84,25 +86,58 @@ class ReferenceLifecycle:
             self.environment=builder()
             if self.environment[0].r is not test.rules:raise AssertionError('reference lifecycle Rules identity differs')
             self.profile=self.source_profile(test)
+            if self.key[0]=='gift':self._scene_end=self.environment[0].end_scene
         return self.environment
+
+    def end_gift_scene(self,test,engine,combatants):
+        if (self.key[0]!='gift' or self.steps!=GIFT_STEPS or self.cursor!=2 or test._testMethodName!=GIFT_STEPS[2]
+                or self._cases is None or self._cases[2] is not test or self._active_case is not test
+                or self._scene_ended
+                or self.environment is None or engine is not self.environment[0]
+                or len(combatants)!=len(self.environment)-1
+                or any(actor is not original for actor,original in zip(combatants,self.environment[1:]))):
+            raise AssertionError('reference Gift scene transition differs')
+        current=engine.end_scene
+        if (type(current) is not types.MethodType or type(self._scene_end) is not types.MethodType
+                or current.__self__ is not engine or self._scene_end.__self__ is not engine
+                or current.__func__ is not self._scene_end.__func__):
+            raise AssertionError('reference Gift native scene entrypoint changed')
+        before=self.source_profile(test)
+        if before!=self.profile or engine.rulings is not test.rules.rulings:
+            raise AssertionError('reference lifecycle Rules/source profile changed before scene end')
+        self._scene_ended=True
+        result=self._scene_end(combatants)
+        rulings=before[1]
+        state=dict(rulings[2])
+        state['log']=[*state['log'],dict(kind='end_scene',what='scene',before=None,after=None,reason='',scope='scene')]
+        expected=(before[0],(rulings[0],rulings[1],state),before[2])
+        after=self.source_profile(test)
+        if after!=expected:
+            raise AssertionError('reference Gift scene end changed more than its native log entry')
+        self.profile=after
+        return result
 
     def execute(self,test,body):
         if self.failed:raise unittest.SkipTest('blocked connected predecessor: '+self.failed)
         try:
-            if self.cursor>=len(self.steps) or test._testMethodName!=self.steps[self.cursor]:
+            if (self.cursor>=len(self.steps) or test._testMethodName!=self.steps[self.cursor]
+                    or self._active_case is not None
+                    or self._cases is not None and test is not self._cases[self.cursor]):
                 raise AssertionError('reference lifecycle order differs')
             if self.environment is not None:
                 if self.environment[0].r is not test.rules or self.source_profile(test)!=self.profile:
                     raise AssertionError('reference lifecycle Rules/source profile changed')
                 if _world(self.environment)!=self.snapshot:raise AssertionError('reference lifecycle handoff changed')
-            result=getattr(getattr(test,'_outcome',None),'result',None)
-            before=(len(result.failures),len(result.errors)) if result is not None else None
-            value=body(test)
-            if before is not None and before!=(len(result.failures),len(result.errors)):
+            self._active_case=test
+            try:value=body(test)
+            finally:self._active_case=None
+            if case_is_unverified(test,getattr(getattr(test,'_outcome',None),'result',None)):
                 self.failed=test.id();return value
             if self.environment is None:raise AssertionError('reference lifecycle did not construct its first environment')
             if self.source_profile(test)!=self.profile:raise AssertionError('reference lifecycle source mutated')
-            self.snapshot=_world(self.environment);self.cursor+=1
+            snapshot=_world(self.environment)
+            def commit():self.snapshot=snapshot;self.cursor+=1
+            defer_case_commit(test,commit)
             return value
         except BaseException:
             self.failed=test.id();raise
@@ -130,6 +165,12 @@ def initial_gift_state(test,gift):
     return chain.acquire(test,('gift',gift),builder) if chain else builder()
 
 
+def end_gift_scene(test,engine,combatants):
+    """Observe the original native transition, without exempting arbitrary log edits."""
+    chain=getattr(test,'_reference_lifecycle',None)
+    return chain.end_gift_scene(test,engine,combatants) if chain else engine.end_scene(combatants)
+
+
 def reference_step(function):
     @wraps(function)
     def wrapped(test):
@@ -151,7 +192,10 @@ def prepare_reference_cases(cls,cases,plates,gift):
     replacements={}
     for key,steps in groups:
         chain=ReferenceLifecycle(key,steps)
-        for step in steps:by_name[step]._reference_lifecycle=chain;replacements[step]=steps
+        chain._cases=tuple(by_name[step] for step in steps)
+        for step in steps:
+            test=by_name[step];test._reference_lifecycle=chain;replacements[step]=steps
+            bind_case_lifecycle(test,lambda reason,chain=chain,test=test:setattr(chain,'failed',chain.failed or test.id()))
     # shortcut: connect complete reviewed families only; review a new partial contract before widening.
     emitted=set();ordered=[]
     for case in cases:

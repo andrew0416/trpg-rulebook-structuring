@@ -3,6 +3,7 @@ Only source-keyed low-level policy cases with unchanged actor/type context join.
 A failed contract or unexpected world mutation blocks its remaining chain.
 """
 from functools import wraps
+from chained_case_lifecycle import bind_case_lifecycle, defer_case_commit
 import ast
 from copy import deepcopy
 import hashlib
@@ -207,7 +208,7 @@ class SourceFrequencyChain:
             raise AssertionError('source-frequency fixture is not a session-policy test')
         return self.environment
 
-    def execute(self, case, callback):
+    def execute(self, test, case, callback):
         if self.blocked is not None:
             raise unittest.SkipTest('blocked connected predecessor: ' + self.blocked)
         mid = case['id']
@@ -224,10 +225,13 @@ class SourceFrequencyChain:
             self.blocked = mid + ': ' + type(exc).__name__ + ': ' + str(exc)
             raise
         else:
-            self.seen.add(mid)
             state = self.environment[1].spec.get('frequency_state', {})
-            self.entries.append({'source_id': mid, 'day': state.get('day', 0),
-                                 'scene': state.get('scene', 0), 'turn': state.get('turn', 0)})
+            entry = {'source_id': mid, 'day': state.get('day', 0),
+                     'scene': state.get('scene', 0), 'turn': state.get('turn', 0)}
+            def commit():
+                self.seen.add(mid)
+                self.entries.append(entry)
+            defer_case_commit(test, commit)
             return result
         finally:
             self.current = None
@@ -244,7 +248,7 @@ def source_case_contract(case, function):
         chain = getattr(test, '_source_frequency_chain', None)
         if chain is None:
             return function(test)
-        return chain.execute(case, lambda: function(test))
+        return chain.execute(test, case, lambda: function(test))
     wrapped._source_frequency_case = case
     return wrapped
 
@@ -297,6 +301,7 @@ def prepare_source_frequency_cases(cls, cases, source_cases, root=None):
         chain = SourceFrequencyChain(guard)
         for test in chunk:
             test._source_frequency_chain = chain
+            bind_case_lifecycle(test, lambda reason, chain=chain: setattr(chain, 'blocked', chain.blocked or reason))
     return cases
 
 

@@ -34,6 +34,7 @@ def actors(engine, extra=()):
     from state_codec import native_data_types, native_batch_type, _types
     pure_records = native_data_types();batch_type=native_batch_type();actor_type=_types()[1]
     found = {}; seen = set()
+    scalar_types = (str, int, float, bool, bytes, type(None))
     def visit(value):
         key = id(value)
         if key in seen:
@@ -42,7 +43,7 @@ def actors(engine, extra=()):
         if type(value) is actor_type:
             found[key] = value
             for field, child in vars(value).items():
-                if field != 'r':
+                if field != 'r' and type(child) not in scalar_types:
                     visit(child)
         elif type(value) is batch_type:
             visit(value.outcomes)
@@ -51,10 +52,11 @@ def actors(engine, extra=()):
                 visit(getattr(value, field.name))
         elif isinstance(value, dict):
             for k, v in value.items():
-                visit(k); visit(v)
+                if type(k) not in scalar_types:visit(k)
+                if type(v) not in scalar_types:visit(v)
         elif isinstance(value, (list, tuple, set, frozenset)):
             for child in value:
-                visit(child)
+                if type(child) not in scalar_types:visit(child)
     visit(getattr(getattr(engine, 'gm', None), 'everyone', []))
     for field, value in vars(engine).items():
         if field not in ('r', 'gm', 'rulings', 'rng'):

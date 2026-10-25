@@ -6,6 +6,7 @@ acquired sources; branch choices determine distinct class-slot instances.
 import acquisition_qualification as Q
 import json
 import re
+from functools import lru_cache
 
 BRANCH_CLASSES={
     "class/스타일-전문가":("아름다움","근사함","귀여움","슬기로움","강인함"),
@@ -16,9 +17,33 @@ BRANCH_CLASSES={
 STAT_ALIASES=dict(zip(("공격","방어","특수공격","특수방어","스피드"),("atk","def","spa","spd","spe")))
 
 
+@lru_cache(maxsize=16)
+def _prefix_ids(keys,prefix):
+    """Index only immutable IDs, never selection decisions or live aliases."""
+    return tuple(uid for uid in keys if uid.startswith(prefix))
+
+
 def _names(actor,prefix):
+    units=actor.r.selection.units
+    # Re-snapshot keys on every call: additions, removals and order changes are
+    # immediately visible. Exact builtins make this path free of user callbacks;
+    # custom mappings/strings retain the original iteration and error behavior.
+    if type(units) is dict and type(prefix) is str:
+        keys=tuple(units)
+        if set(map(type,keys)) <= {str}:
+            result={}
+            for uid in _prefix_ids(keys,prefix):
+                unit=units[uid]
+                if type(unit) is not dict:break
+                title,eng=unit.get("title"),unit.get("eng")
+                if not (title is None or type(title) is str):break
+                if not (eng is None or type(eng) is str):break
+                for name in (uid,title,eng):
+                    if name:result.setdefault(name,[]).append(uid)
+            else:
+                return result
     result={}
-    for uid,unit in actor.r.selection.units.items():
+    for uid,unit in units.items():
         if not uid.startswith(prefix):continue
         for name in (uid,unit.get("title"),unit.get("eng")):
             if name:result.setdefault(name,[]).append(uid)

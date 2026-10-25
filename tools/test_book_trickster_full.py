@@ -10,6 +10,7 @@ import hashlib,json,sys,unittest
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
+from chained_case_lifecycle import bind_case_lifecycle,defer_case_commit
 from engine import Rules,Engine,Combatant
 from grid import Grid
 from native_scenario_fixture import prepare_body,assert_rejected_unchanged
@@ -37,10 +38,53 @@ CELLS8=((3,1),(3,2),(3,3),(4,1),(4,2),(4,3),(5,1),(5,2))
 
 
 class TricksterFullTests(unittest.TestCase):
+ STACKED_CHAIN_METHODS=(
+  'test_stacked_failed_save_does_not_consume_next_success_and_success_trips_slows',
+  'test_stacked_accuracy_evasion_minus_two_lasts_only_selected_volatile_condition',
+  'test_stacked_all_four_save_conditions_and_all_four_volatile_conditions',
+  'test_stacked_scene_per_foe_quota_is_not_per_condition',
+ )
+ STACKED_CONDITIONS=('마비','얼음','조이기','잠듦','혼란','난동','억압','헤롱헤롱')
+ STACKED_STAGE_CONTRACT=(
+  {'input':'one original core world and one acquired family','output':'failed then successful paralysis save; AP spent and Stacked Deck consumed, Trip+Slow live'},
+  {'input':'prior output cured through native APIs, then actual next Scene','output':'real Confuse Ray, accuracy/evasion -2 only while confused; original modifiers expire on cure'},
+  {'input':'prior cured output, actual next Scene','output':'same actors process all eight printed group1/group2 conditions, native cure and Scene/AP refresh between conditions'},
+  {'input':'prior eight-condition output, actual next Scene','output':'Burn and Paralysis coexist; same-foe Scene quota rejects second condition with full state/RNG unchanged'},
+ )
+
+ @classmethod
+ def prepare_chained_cases(cls,cases):
+  stages=[case for case in cases if case._testMethodName in cls.STACKED_CHAIN_METHODS]
+  if {case._testMethodName for case in stages}!=set(cls.STACKED_CHAIN_METHODS):return None
+  if len(stages)!=len(cls.STACKED_CHAIN_METHODS) or any(type(case) is not cls for case in stages):
+   raise ValueError('each Trickster Stacked Deck stage must be selected exactly once')
+  if any(hasattr(case,'_stacked_context') for case in stages):raise ValueError('Stacked Deck stages already connected')
+  by_name={case._testMethodName:case for case in stages};stages=tuple(by_name[name] for name in cls.STACKED_CHAIN_METHODS)
+  context={'case_ids':tuple(case.id() for case in stages),'next_stage':0,'state':None}
+  for case in stages:
+   case._stacked_context=context
+   bind_case_lifecycle(case,lambda reason:context.setdefault('blocked',reason))
+  ordered=[];inserted=False
+  for case in cases:
+   if case._testMethodName in cls.STACKED_CHAIN_METHODS:
+    if not inserted:ordered.extend(stages);inserted=True
+   else:ordered.append(case)
+  return ordered
+
  @classmethod
  def setUpClass(cls):cls.rules=Rules(ROOT,ruleset='core')
 
  def setUp(self):
+  context=getattr(self,'_stacked_context',None)
+  if context is not None:
+   stage=self.STACKED_CHAIN_METHODS.index(self._testMethodName)
+   self.assertEqual(context['case_ids'][stage],self.id())
+   if context.get('blocked') or context['next_stage']!=stage:
+    raise unittest.SkipTest('blocked connected Trickster predecessor: '+context.get('blocked','stage '+str(context['next_stage'])+' did not complete'))
+   if stage:
+    previous=self.rules.rulings;self.rules.rulings=context['rulings']
+    self.addCleanup(setattr,self.rules,'rulings',previous)
+    self.__dict__.update(context['state']);return
   previous=self.rules.rulings;self.rules.rulings=deepcopy(previous)
   self.addCleanup(setattr,self.rules,'rulings',previous)
   self.setup()
@@ -132,6 +176,99 @@ class TricksterFullTests(unittest.TestCase):
   ACQ.acquire_static(self.e,trainer,T.BAG,rank=1,selection={'source':'core','techniques':[T.MIND,T.ESCAPE]},acquisition_request_id='other/bag')
   ACQ.acquire_static(self.e,trainer,T.STACK,selection={'source':'core'},acquisition_request_id='other/stack')
   return trainer,pokemon
+
+ def build_stacked_save_input(self):
+  self.family();self._stacked_initial_ap=AP.available(self.t);self._stacked_previous_condition=None
+
+ def build_stacked_volatile_input(self):
+  self.build_stacked_save_input();self.verify_stacked_save();self._stacked_next_scene()
+
+ def build_stacked_matrix_input(self):
+  self.build_stacked_volatile_input();self.verify_stacked_volatile();self._stacked_next_scene()
+
+ def build_stacked_quota_input(self):
+  self.build_stacked_matrix_input()
+  if not self.verify_stacked_matrix():raise unittest.SkipTest('blocked by failed original eight-condition prefix')
+  self._stacked_next_scene()
+
+ def _stacked_stage_input(self,stage):
+  if getattr(self,'_stacked_context',None) is None:
+   (self.build_stacked_save_input,self.build_stacked_volatile_input,self.build_stacked_matrix_input,self.build_stacked_quota_input)[stage]()
+  elif stage==0:self.build_stacked_save_input()
+  else:self._stacked_next_scene()
+
+ def _stacked_complete(self,stage):
+  context=getattr(self,'_stacked_context',None)
+  if context is not None:
+   self.assertEqual(context['next_stage'],stage)
+   state={key:getattr(self,key) for key in ('e','t','ps','foe','p','q','serial','_stacked_initial_ap','_stacked_previous_condition')}
+   if stage:
+    for key in ('e','t','foe','p','q'):self.assertIs(state[key],context['state'][key])
+   rulings=self.rules.rulings
+   defer_case_commit(self,lambda:context.update(state=state,rulings=rulings,next_stage=stage+1))
+
+ def _stacked_next_scene(self):
+  # Only the selected condition and its native Stacked Deck consequences are
+  # cured; the world, learned Moves, acquisitions and actual history stay live.
+  for condition in (self._stacked_previous_condition,'넘어짐','둔화'):
+   if condition is not None and condition in self.foe.conditions:self.e.cure_status(self.foe,condition)
+  self.assertNotIn(T.STACK_KEY,self.foe.custom_conditions)
+  objects=(self.e,self.t,self.p,self.foe);scene=F.state(self.foe)['scene']
+  self.close()
+  if self.e.round_start_seconds is not None:self.e.end_round()
+  self.e.end_scene()
+  self.assertEqual(F.state(self.foe)['scene'],scene+1)
+  self.assertEqual(AP.available(self.t),self._stacked_initial_ap)
+  for current,original in zip((self.e,self.t,self.p,self.foe),objects):self.assertIs(current,original)
+
+ def verify_stacked_save(self):
+  row=self.use('move/저리가루');self._stacked_previous_condition='마비'
+  self.e.stacked_deck(self.t,self.p,self.foe,row['id'],'마비')
+  self.assertFalse(RECOVERY.saving_check(self.e,self.foe,'마비',11,fixed=1)['passed'])
+  self.assertNotIn('넘어짐',self.foe.conditions)
+  self.assertFalse(self.foe.custom_conditions[T.STACK_KEY][0]['consumed'])
+  self.assertTrue(RECOVERY.saving_check(self.e,self.foe,'마비',11,fixed=20)['passed'])
+  self.assertTrue({'넘어짐','둔화'}<=self.foe.conditions)
+  self.assertTrue(self.foe.custom_conditions[T.STACK_KEY][0]['consumed']);self.valid()
+
+ def verify_stacked_volatile(self):
+  row=self.use('move/이상한빛');base=self.foe.evasion('특수');self._stacked_previous_condition='혼란'
+  self.e.stacked_deck(self.t,self.p,self.foe,row['id'],'혼란')
+  self.assertEqual(self.foe.evasion('특수'),max(0,base-2))
+  effects=[r for r in TIME.records(self.foe) if r.get('trickster_condition')=='혼란']
+  self.assertEqual(len(effects),1);self.assertEqual(effects[0]['accuracy_modifier'],-2)
+  self.e.cure_status(self.foe,'혼란');self.assertFalse([r for r in TIME.records(self.foe) if r.get('trickster_condition')])
+  self.assertEqual(self.foe.evasion('특수'),base);self.valid()
+
+ def verify_stacked_matrix(self):
+  completed=[]
+  for index,condition in enumerate(self.STACKED_CONDITIONS):
+   with self.subTest(condition=condition):
+    if index:self._stacked_next_scene()
+    self.begin();self.source_condition(condition);self._stacked_previous_condition=condition
+    row=self.use('move/애교부리기',begin=False);self.e.stacked_deck(self.t,self.p,self.foe,row['id'],condition)
+    record=self.foe.custom_conditions[T.STACK_KEY][0]
+    if condition in T.GROUPS[1]:
+     self.assertEqual(record['group'],1)
+     RECOVERY.saving_check(self.e,self.foe,condition,20,fixed=1)
+     self.assertFalse(self.foe.custom_conditions[T.STACK_KEY][0]['consumed'])
+     RECOVERY.saving_check(self.e,self.foe,condition,20,fixed=20)
+     self.assertTrue({'넘어짐','둔화'}<=self.foe.conditions)
+    else:
+     self.assertEqual(record['group'],2)
+     self.assertTrue(any(r.get('trickster_condition')==condition and r['accuracy_modifier']==-2 and r['evasion_modifier']==-2 for r in TIME.records(self.foe)))
+    self.e.cure_status(self.foe,condition);self.assertNotIn(T.STACK_KEY,self.foe.custom_conditions)
+    self.valid();completed.append(condition)
+   if len(completed)!=index+1:
+    for pending in self.STACKED_CONDITIONS[index+1:]:
+     with self.subTest(condition=pending):self.skipTest('blocked by failed preceding actual condition: '+condition)
+    return False
+  return True
+
+ def verify_stacked_quota(self):
+  self.source_condition('화상');self._stacked_previous_condition='화상';row=self.use('move/저리가루')
+  self.e.stacked_deck(self.t,self.p,self.foe,row['id'],'화상')
+  self.reject(lambda:self.e.stacked_deck(self.t,self.p,self.foe,row['id'],'마비'),'this foe this Scene')
 
  def test_actual_class_acquisition_has_no_automatic_feature_or_technique(self):
   self.acquire();self.assertEqual([r['feature_id'] for r in T.records(self.t,active=True)],[T.CLASS])
@@ -246,46 +383,17 @@ class TricksterFullTests(unittest.TestCase):
     self.valid()
 
  def test_stacked_failed_save_does_not_consume_next_success_and_success_trips_slows(self):
-  self.family();row=self.use('move/저리가루')
-  self.e.stacked_deck(self.t,self.p,self.foe,row['id'],'마비')
-  self.assertFalse(RECOVERY.saving_check(self.e,self.foe,'마비',11,fixed=1)['passed'])
-  self.assertNotIn('넘어짐',self.foe.conditions)
-  self.assertFalse(self.foe.custom_conditions[T.STACK_KEY][0]['consumed'])
-  self.assertTrue(RECOVERY.saving_check(self.e,self.foe,'마비',11,fixed=20)['passed'])
-  self.assertTrue({'넘어짐','둔화'}<=self.foe.conditions)
-  self.assertTrue(self.foe.custom_conditions[T.STACK_KEY][0]['consumed']);self.valid()
+  self._stacked_stage_input(0);self.verify_stacked_save();self._stacked_complete(0)
 
  def test_stacked_accuracy_evasion_minus_two_lasts_only_selected_volatile_condition(self):
-  self.family();row=self.use('move/이상한빛');base=self.foe.evasion('특수')
-  self.e.stacked_deck(self.t,self.p,self.foe,row['id'],'혼란')
-  self.assertEqual(self.foe.evasion('특수'),max(0,base-2))
-  effects=[r for r in TIME.records(self.foe) if r.get('trickster_condition')=='혼란']
-  self.assertEqual(len(effects),1);self.assertEqual(effects[0]['accuracy_modifier'],-2)
-  self.e.cure_status(self.foe,'혼란');self.assertFalse([r for r in TIME.records(self.foe) if r.get('trickster_condition')])
-  self.assertEqual(self.foe.evasion('특수'),base);self.valid()
+  self._stacked_stage_input(1);self.verify_stacked_volatile();self._stacked_complete(1)
 
  def test_stacked_all_four_save_conditions_and_all_four_volatile_conditions(self):
-  for condition in ('마비','얼음','조이기','잠듦','혼란','난동','억압','헤롱헤롱'):
-   with self.subTest(condition=condition):
-    self.setup();self.family();self.begin();self.source_condition(condition)
-    row=self.use('move/애교부리기',begin=False);self.e.stacked_deck(self.t,self.p,self.foe,row['id'],condition)
-    record=self.foe.custom_conditions[T.STACK_KEY][0]
-    if condition in T.GROUPS[1]:
-     self.assertEqual(record['group'],1)
-     RECOVERY.saving_check(self.e,self.foe,condition,20,fixed=1)
-     self.assertFalse(self.foe.custom_conditions[T.STACK_KEY][0]['consumed'])
-     RECOVERY.saving_check(self.e,self.foe,condition,20,fixed=20)
-     self.assertTrue({'넘어짐','둔화'}<=self.foe.conditions)
-    else:
-     self.assertEqual(record['group'],2)
-     self.assertTrue(any(r.get('trickster_condition')==condition and r['accuracy_modifier']==-2 and r['evasion_modifier']==-2 for r in TIME.records(self.foe)))
-    self.e.cure_status(self.foe,condition);self.assertNotIn(T.STACK_KEY,self.foe.custom_conditions)
-    self.valid()
+  self._stacked_stage_input(2)
+  if self.verify_stacked_matrix():self._stacked_complete(2)
 
  def test_stacked_scene_per_foe_quota_is_not_per_condition(self):
-  self.family();self.source_condition('화상');row=self.use('move/저리가루')
-  self.e.stacked_deck(self.t,self.p,self.foe,row['id'],'화상')
-  self.reject(lambda:self.e.stacked_deck(self.t,self.p,self.foe,row['id'],'마비'),'this foe this Scene')
+  self._stacked_stage_input(3);self.verify_stacked_quota();self._stacked_complete(3)
 
  def test_stacked_once_per_foe_is_shared_across_trainers_after_cure_restore_and_next_scene(self):
   self.family();other,partner=self.other_pair();self.source_condition('화상')

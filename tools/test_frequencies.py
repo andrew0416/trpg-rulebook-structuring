@@ -52,9 +52,9 @@ class FrequencyTests(unittest.TestCase):
         self.assertEqual(b.injuries,1);self.assertEqual(a.move_uses[m],1)
     def test_scene_move_cap_and_no_action_cost_on_rejection(self):
         e,a,b,m=self.fixture()
-        for _ in range(2):self.combat_turn(e,a);self.combat_turn(e,a);self.cast(e,a,b,m)
-        self.combat_turn(e,a);before=dict(a.budget);e.use_move(a,b,m)
-        self.assertEqual(b.injuries,2);self.assertEqual(a.budget,before)
+        for _ in range(2):self.combat_turn(e,a);self.combat_turn(e,a);e.use_move(a,b,m)
+        self.combat_turn(e,a);self.combat_turn(e,a);before=dict(a.budget);e.use_move(a,b,m)
+        self.assertEqual(b.injuries,2);self.assertEqual(a.budget,before);self.assertEqual(a.move_uses[m],2)
     def test_scene_end_refreshes_scene_move(self):
         e,a,b,m=self.fixture(uses=1);self.cast(e,a,b,m);e.end_scene([a,b]);self.cast(e,a,b,m)
         self.assertEqual(b.injuries,2);self.assertEqual(a.move_uses[m],1)
@@ -149,9 +149,9 @@ class FrequencyTests(unittest.TestCase):
         self.cast(e,a,b,m);self.assertEqual(b.injuries,2)
 
     def test_scene_move_cannot_repeat_consecutive_turns(self):
-        e,a,b,m=self.fixture();self.combat_turn(e,a);self.cast(e,a,b,m)
-        self.combat_turn(e,a);self.cast(e,a,b,m);self.assertEqual(b.injuries,1)
-        self.combat_turn(e,a);self.cast(e,a,b,m);self.assertEqual(b.injuries,2)
+        e,a,b,m=self.fixture();self.combat_turn(e,a);e.use_move(a,b,m)
+        self.combat_turn(e,a);e.use_move(a,b,m);self.assertEqual(b.injuries,1)
+        self.combat_turn(e,a);e.use_move(a,b,m);self.assertEqual(b.injuries,2)
     def test_eot_cannot_repeat_same_or_next_turn(self):
         e,a,b,m=self.fixture('every_other_turn');self.turn(e,a);self.cast(e,a,b,m)
         self.cast(e,a,b,m);self.assertEqual(b.injuries,1)

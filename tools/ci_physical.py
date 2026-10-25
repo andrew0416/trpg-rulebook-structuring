@@ -33,6 +33,70 @@ def safe_id(value):
     return value
 
 
+def diagnostic_profile(packet, target):
+    enabled = packet.get('diagnostic_profile', False) if isinstance(packet, dict) else False
+    if type(enabled) is not bool:
+        raise ValueError('diagnostic_profile must be an explicit boolean')
+    probe = str(target).replace('\\', '/') == '.ci/suites/performance_probe.json'
+    if enabled != probe:
+        raise ValueError('only performance_probe requires and permits diagnostic_profile=true')
+    if enabled and packet.get('execution_kind') is not None:
+        raise ValueError('diagnostic profiling does not change count/typed/procedural execution modes')
+    return enabled
+
+
+def profile_suite(run_suite, runner, suite, destination):
+    """Observe the original runner; profiling failures never replace its result/error."""
+    import cProfile
+    from functools import wraps
+    import pstats
+    phases = []
+    hooks = {'_callSetUp':'setup', '_callTestMethod':'body',
+             '_callTearDown':'teardown', '_callCleanup':'cleanup'}
+    originals = {name:getattr(unittest.TestCase, name) for name in hooks}
+    profiler = cProfile.Profile()
+
+    def observe(method, phase):
+        @wraps(method)
+        def observed(test, *args, **kwargs):
+            started = time.perf_counter()
+            try:
+                return method(test, *args, **kwargs)
+            finally:
+                phases.append({'id':test.id(), 'phase':phase, 'seconds':time.perf_counter()-started})
+        return observed
+
+    started = time.perf_counter()
+    try:
+        for name, method in originals.items():
+            setattr(unittest.TestCase, name, observe(method, hooks[name]))
+        return profiler.runcall(run_suite, runner, suite)
+    finally:
+        profiler.disable()
+        elapsed = time.perf_counter()-started
+        for name, method in originals.items():
+            setattr(unittest.TestCase, name, method)
+        try:
+            raw = destination.with_suffix('.prof')
+            report = destination.with_suffix('.json')
+            if raw.exists() or report.exists():
+                raise FileExistsError('Refusing to overwrite native profile evidence')
+            profiler.dump_stats(str(raw))
+            functions = [{'file':file, 'line':line, 'function':name, 'primitive_calls':cc, 'calls':nc,
+                          'self_seconds':tt, 'cumulative_seconds':ct}
+                         for (file,line,name),(cc,nc,tt,ct,callers) in pstats.Stats(profiler).stats.items()]
+            functions.sort(key=lambda row:row['cumulative_seconds'], reverse=True)
+            with report.open('x', encoding='utf-8', newline='\n') as stream:
+                json.dump({'kind':'diagnostic_cprofile_not_acceptance', 'raw_profile':raw.name,
+                           'suite_wall_seconds':elapsed, 'functions':functions, 'test_phases':phases,
+                           'scope':'Original runner/cases; synchronous base TestCase hooks only. Class/module fixtures remain in function profiles; nested phase intervals are inclusive.',
+                           'speedup_claimed':False}, stream, ensure_ascii=False, indent=2)
+                stream.write('\n')
+        except Exception:
+            # This traceback remains in the existing private command log.
+            sys.stderr.write('Native profiling failed; original test outcome retained.\n'+traceback.format_exc())
+
+
 def evidence_references(stage, evidence_id):
     relative = "data/verification/ci-runs/" + safe_id(evidence_id)
     destination = stage / relative
@@ -162,10 +226,12 @@ def run(stage, hashes, target, output):
         raise ValueError("Verifier target must be a captured stage input")
 
     gate = None
+    profile_native = False
     procedural = procedural_capture = procedural_report = None
     procedural_actual = []
     if selected.suffix == '.json':
         value = json.loads(physical_bytes(selected))
+        profile_native = diagnostic_profile(value, selected.relative_to(stage).as_posix())
         if value.get('execution_kind') == 'frequency_equivalence':
             import ci_frequency_gate as FREQUENCY_GATE
             gate = FREQUENCY_GATE.packet(value)
@@ -353,7 +419,8 @@ def run(stage, hashes, target, output):
                                encoding="utf-8", newline="\n") as stream:
                 self.stream = Tee(original_stream, stream)
                 try:
-                    result = original_run(self, suite)
+                    result = (profile_suite(original_run, self, suite, physical / 'native-profile')
+                              if profile_native else original_run(self, suite))
                 finally:
                     self.stream = original_stream
             return result

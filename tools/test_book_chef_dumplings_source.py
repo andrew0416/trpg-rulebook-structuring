@@ -694,70 +694,124 @@ class DumplingsSourceTests(unittest.TestCase):
         self.assertEqual(len(p.buffs),1)
         self.assertNotIn('move/몸통박치기',p.move_uses)
 
-    def test_ten_poffin_ingredient_preserves_use_explicit_en_full500_path_actual_production_and_native_contest_effect(self):
-        import crafting_activities as CRAFT
-        w=self.scene();e,chef,p=w['engine'],w['chef'],w['partner']
+    def _poffin_ingredient_input(self):
+        """Independent O_A builder: actual stock/history only, never another test body."""
+        world=self.scene();engine,chef=world['engine'],world['chef']
+        names='라즈 블리 나나 서배 파인 메호키 자야 슈박 두리 루베 버치 유루 복슝 복분 배리 무화 위키 마고 아바 파야'.split()
+        # ch09:305-343: first choice is explicit for each two-stat ingredient.
+        stats=('근사함','아름다움','귀여움','슬기로움','강인함',
+               '근사함','귀여움','귀여움','슬기로움','근사함',
+               '근사함','아름다움','귀여움','슬기로움','강인함',
+               '근사함','아름다움','귀여움','슬기로움','강인함')
+        cases=tuple(('item/'+name+'열매',stat) for name,stat in zip(names,stats))
         chef.spec['items']['포핀 혼합기']=1
-        chef.spec['cooking_materials_value']=10500
-        # The ten pure ingredients and the ten already-edible cure/flavor
-        # Berries are all printed native Poffin inputs; do not narrow the adapter.
-        ids=['item/'+n+'열매' for n in '라즈 블리 나나 서배 파인 메호키 자야 슈박 두리 루베 버치 유루 복슝 복분 배리 무화 위키 마고 아바 파야'.split()]
-        made={}
-        for uid in ids:
-            chef.spec['items'][uid]=1
-            made[uid]=FIX.cook(e,chef,recipe='preserves',origin=uid)
-        chef.spec['items']['라즈열매']=1
-        other_origin=FIX.cook(e,chef,recipe='preserves',origin='item/라즈열매')
+        # 20 original + 20 cold-fresh EN products, alternate, mixed and KR; no refills.
+        chef.spec['cooking_materials_value']=21500
+        for uid,_ in cases:
+            chef.spec['items'].pop(uid.removeprefix('item/'),None)
+            chef.spec['items'][uid]=5 if uid=='item/라즈열매' else 2 if uid=='item/블리열매' else 1
+        made={uid:FIX.cook(engine,chef,recipe='preserves',origin=uid) for uid,_ in cases}
+        other=FIX.cook(engine,chef,recipe='preserves',origin='item/라즈열매')
+        mixed=FIX.cook(engine,chef,recipe='preserves',origin='item/블리열매')
+        return world,cases,made,other,mixed
+
+    def test_ten_poffin_ingredient_preserves_use_explicit_en_full500_path_actual_production_and_native_contest_effect(self):
+        import poffin_state as POFFINS
+        w,cases,made,other_origin,mixed_origin=self._poffin_ingredient_input()
+        e,chef,p=w['engine'],w['chef'],w['partner']
+        prepared_engine,prepared_chef=e,chef
         snapshot=e.gm.snapshot('actual ingredient Preserves')
-        loaded,actors=FIX.restore(self.rules,e)
-        for current,cook,target in ((e,chef,p),(loaded,actors[chef.entity_id],actors[p.entity_id])):
-            for index,uid in enumerate(ids):
-                row=made[uid];name=uid.removeprefix('item/')
-                stat=CRAFT.BERRIES.get(name) or CRAFT.POFFIN_ALTERNATIVES[name][0]
-                opts=dict(ingredients={},preserves={row['batch_id']:1},edition='core_en_1_05',minutes=1,reason='actual EN500 and Berry conjunction',tie_choice=stat,event_id='actual-en-poffin/'+uid)
-                self.reject(current,lambda:current.pokemon_activity(cook,'cook_poffins',**dict(opts,edition=None)),'explicit core_en_1_05')
-                if index==0:
-                    original=cook.spec['cooking_materials_value'];cook.spec['cooking_materials_value']=499
-                    self.reject(current,lambda:current.pokemon_activity(cook,'cook_poffins',**opts),'worth500')
-                    cook.spec['cooking_materials_value']=original
-                before=cook.spec['cooking_materials_value']
-                result=current.pokemon_activity(cook,'cook_poffins',**opts)
-                self.assertEqual((before-cook.spec['cooking_materials_value'],result['batch']['contest_stat'],result['batch']['count']),(500,stat,2))
-                self.assertEqual(current.pokemon_activity(cook,'cook_poffins',**opts),result)
-                self.assertEqual(CHEF.batches(cook)[row['batch_id']]['count'],1)
-                stock=result['batch']['preserves_inputs'][0]
-                self.assertEqual((stock['stock']['unit'],stock['production_id'],stock['origin_item']),(1,row['production_id'],uid))
-                if index==0:
-                    batch=cook.spec['poffin_batches'][result['batch']['id']]
-                    original=deepcopy(batch['preserves_inputs'])
-                    alternate=current.pokemon_activity(cook,'cook_poffins',ingredients={},preserves={other_origin['batch_id']:1},edition='core_en_1_05',minutes=1,reason='another actual identical-origin Poffin production',tie_choice=stat)
-                    # Another genuine paid production of the SAME Berry, not a
-                    # nonexistent ID or a visibly different effect, cannot replace it.
-                    batch['preserves_inputs']=deepcopy(alternate['batch']['preserves_inputs'])
-                    self.assertFalse(current.validate_state()['valid'])
-                    with self.assertRaises(ValueError):FIX.restore(self.rules,current)
-                    batch['preserves_inputs']=original
-                    current.pokemon_activity(cook,'feed_poffin',batch_id=result['batch']['id'],target=target,minutes=1,reason='actual native Poffin intake')
-                    self.assertEqual(target.spec['poffins'],[stat])
-                self.assertTrue(current.validate_state()['valid'])
-            self.assertEqual(cook.spec['cooking_materials_value'],0)
-            cook.spec['items']['라즈열매']=2
-            cook.spec['cooking_materials_value']=500
-            mixed_options=dict(ingredients={'라즈열매':2},preserves={made['item/블리열매']['batch_id']:1},edition='core_en_1_05',minutes=1,reason='actual original and preserved Berry proportions')
-            self.reject(current,lambda:current.pokemon_activity(cook,'cook_poffins',**mixed_options,tie_choice='아름다움'),'unique dominant')
-            mixed=current.pokemon_activity(cook,'cook_poffins',**mixed_options)
-            self.assertEqual(mixed['batch']['berry_counts'],{'라즈열매':2,'블리열매':1})
-            self.assertEqual((mixed['batch']['contest_stat'],cook.spec['cooking_materials_value'],cook.spec['items']['라즈열매']),('근사함',0,0))
-            cook.spec['items']['라즈열매']=1
-            cook.spec['cooking_materials_value']=500
-            price=self.rules.item_effects('item/라즈열매')[1]['price']
-            legacy=current.pokemon_activity(cook,'cook_poffins',ingredients={'라즈열매':1},minutes=1,reason='unchanged KR Berry price deduction')
-            self.assertNotIn('poffin_basis',legacy['batch'])
-            self.assertEqual(cook.spec['cooking_materials_value'],price)
-            self.assertTrue(current.validate_state()['valid'])
-        e.gm.restore(snapshot)
-        self.assertEqual(chef.spec['cooking_materials_value'],10500)
-        self.assertTrue(all(CHEF.batches(chef)[row['batch_id']]['count']==2 for row in made.values()))
+        def options(uid,stat):
+            return dict(ingredients={},preserves={made[uid]['batch_id']:1},edition='core_en_1_05',
+                        minutes=1,reason='actual EN500 and Berry conjunction',tie_choice=stat,event_id='actual-en-poffin/'+uid)
+        first_uid,first_stat=cases[0];first_options=options(first_uid,first_stat)
+        # The edition guard precedes all ingredient dispatch. Share that exact
+        # atomic predicate, but retain every ingredient's actual production.
+        self.reject(e,lambda:e.pokemon_activity(chef,'cook_poffins',**dict(first_options,edition=None)),'explicit core_en_1_05')
+        materials=chef.spec['cooking_materials_value'];chef.spec['cooking_materials_value']=499
+        self.reject(e,lambda:e.pokemon_activity(chef,'cook_poffins',**first_options),'worth500')
+        chef.spec['cooking_materials_value']=materials
+        produced={}
+        for uid,stat in cases:
+            before=chef.spec['cooking_materials_value']
+            result=e.pokemon_activity(chef,'cook_poffins',**options(uid,stat));produced[uid]=result
+            self.assertEqual((before-chef.spec['cooking_materials_value'],result['batch']['contest_stat'],result['batch']['count']),(500,stat,2))
+            self.assertEqual(CHEF.batches(chef)[made[uid]['batch_id']]['count'],1)
+            stock=result['batch']['preserves_inputs'][0]
+            self.assertEqual((stock['stock']['unit'],stock['production_id'],stock['origin_item']),(1,made[uid]['production_id'],uid))
+        first=produced[first_uid]
+        alternate=e.pokemon_activity(chef,'cook_poffins',ingredients={},preserves={other_origin['batch_id']:1},
+                    edition='core_en_1_05',minutes=1,reason='another actual identical-origin Poffin production',tie_choice=first_stat)
+        self.assertEqual(chef.spec['cooking_materials_value'],11000)
+        batch=chef.spec['poffin_batches'][first['batch']['id']];original=deepcopy(batch['preserves_inputs'])
+        # A genuine same-origin alternate cannot replace this production's input.
+        batch['preserves_inputs']=deepcopy(alternate['batch']['preserves_inputs'])
+        self.assertFalse(e.validate_state()['valid'])
+        with self.assertRaises(ValueError):FIX.restore(self.rules,e)
+        batch['preserves_inputs']=original
+        # The original world consumes its actually produced first Poffin.
+        self.assertEqual(POFFINS.consumption_limit(p,engine=e),5)
+        fed=e.pokemon_activity(chef,'feed_poffin',batch_id=first['batch']['id'],target=p,
+                              minutes=1,reason='actual original native Poffin intake')
+        self.assertEqual((fed['effective'],fed['contest_stat'],p.spec['poffins']),(True,first_stat,[first_stat]))
+        self.assertEqual(chef.spec['poffin_batches'][first['batch']['id']]['count'],1)
+        before_cold={'poffins':deepcopy(chef.spec['poffin_batches']),
+                     'preserves':deepcopy(CHEF.batches(chef)),
+                     'productions':deepcopy(chef.spec['crafting_products']),
+                     'transformations':deepcopy(chef.spec['resource_transformations']),
+                     'materials':chef.spec['cooking_materials_value'],'rng':e.rng.getstate(),'time':e.elapsed_seconds,
+                     'consumed':deepcopy(p.spec['poffins']),'consumption':deepcopy(p.spec['poffin_consumption'])}
+        # O_B's actual outputs become O_C's input through one cold reconstruction.
+        e,actors=FIX.restore(self.rules,e);chef,p=actors[chef.entity_id],actors[p.entity_id]
+        self.assertEqual(chef.spec['poffin_batches'],before_cold['poffins'])
+        self.assertEqual(CHEF.batches(chef),before_cold['preserves'])
+        self.assertEqual(chef.spec['crafting_products'],before_cold['productions'])
+        self.assertEqual(chef.spec['resource_transformations'],before_cold['transformations'])
+        self.assertEqual((chef.spec['cooking_materials_value'],e.rng.getstate(),e.elapsed_seconds),
+                         (before_cold['materials'],before_cold['rng'],before_cold['time']))
+        self.assertEqual((p.spec['poffins'],p.spec['poffin_consumption']),(before_cold['consumed'],before_cold['consumption']))
+        for uid,stat in cases:
+            result=produced[uid]
+            self.assertEqual(e.pokemon_activity(chef,'cook_poffins',**options(uid,stat)),result)
+            self.assertEqual(CHEF.batches(chef)[made[uid]['batch_id']]['count'],1)
+        self.assertEqual(chef.spec['cooking_materials_value'],11000)
+        # Replay checks history; new events must also consume every actual cold
+        # ingredient through the native producer and its second physical unit.
+        cold_produced={}
+        for uid,stat in cases:
+            before=chef.spec['cooking_materials_value']
+            result=e.pokemon_activity(chef,'cook_poffins',**dict(options(uid,stat),event_id='cold-fresh-poffin/'+uid))
+            cold_produced[uid]=result
+            self.assertEqual((before-chef.spec['cooking_materials_value'],result['batch']['contest_stat'],result['batch']['count']),(500,stat,2))
+            self.assertNotEqual(result['production_id'],produced[uid]['production_id'])
+            self.assertEqual(CHEF.batches(chef)[made[uid]['batch_id']]['count'],0)
+            stock=result['batch']['preserves_inputs'][0]
+            self.assertEqual((stock['stock']['unit'],stock['production_id'],stock['origin_item']),(2,made[uid]['production_id'],uid))
+        self.assertEqual(chef.spec['cooking_materials_value'],1000)
+        # The same real partner retains its original consumption across cold
+        # restore, then consumes the newly produced cold-world Poffin (cap5).
+        cold_first=cold_produced[first_uid]
+        fed=e.pokemon_activity(chef,'feed_poffin',batch_id=cold_first['batch']['id'],target=p,
+                              minutes=1,reason='actual cold fresh native Poffin intake')
+        self.assertEqual((fed['effective'],fed['contest_stat'],p.spec['poffins']),(True,first_stat,[first_stat,first_stat]))
+        self.assertEqual(chef.spec['poffin_batches'][cold_first['batch']['id']]['count'],1)
+        self.assertEqual(POFFINS.available(p,engine=e),(first_stat,first_stat))
+        mixed_options=dict(ingredients={'라즈열매':2},preserves={mixed_origin['batch_id']:1},
+                           edition='core_en_1_05',minutes=1,reason='actual original and preserved Berry proportions')
+        self.reject(e,lambda:e.pokemon_activity(chef,'cook_poffins',**mixed_options,tie_choice='아름다움'),'unique dominant')
+        mixed=e.pokemon_activity(chef,'cook_poffins',**mixed_options)
+        self.assertEqual(mixed['batch']['berry_counts'],{'라즈열매':2,'블리열매':1})
+        self.assertEqual((mixed['batch']['contest_stat'],chef.spec['cooking_materials_value'],chef.spec['items']['item/라즈열매']),('근사함',500,1))
+        price=self.rules.item_effects('item/라즈열매')[1]['price']
+        legacy=e.pokemon_activity(chef,'cook_poffins',ingredients={'라즈열매':1},minutes=1,reason='unchanged KR Berry price deduction')
+        self.assertNotIn('poffin_basis',legacy['batch'])
+        self.assertEqual(chef.spec['cooking_materials_value'],price)
+        self.assertEqual(chef.spec['items']['item/라즈열매'],0)
+        self.assertTrue(e.validate_state()['valid'])
+        prepared_engine.gm.restore(snapshot)
+        self.assertEqual(prepared_chef.spec['cooking_materials_value'],21500)
+        self.assertTrue(all(CHEF.batches(prepared_chef)[row['batch_id']]['count']==2 for row in [*made.values(),other_origin,mixed_origin]))
+
 
 
     def test_pure_poffin_ingredient_leftovers_dumplings_keep_both_physical_consumers_and_actual_full_production(self):

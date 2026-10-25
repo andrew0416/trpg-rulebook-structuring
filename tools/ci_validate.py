@@ -20,9 +20,11 @@ import traceback
 from uuid import uuid4
 import zipfile
 
-from ci_physical import safe_id
+from ci_physical import safe_id, diagnostic_profile
 
 SUITES = {
+    "changed_revisions": ".ci/suites/changed_revisions.json",
+    "performance_probe": ".ci/suites/performance_probe.json",
     "frequency_equivalence": ".ci/suites/frequency_equivalence.json",
     "metadata_revisions": ".ci/suites/metadata_revisions.json",
     "procedural_22": ".ci/suites/procedural_22.json",
@@ -637,6 +639,8 @@ def main():
                 if target == SUITES[args.suite]:
                     selected_packet = packet
                 public_ids.update(case for row in packet["completed"].values() for case in row["tests"])
+        if diagnostic_profile(selected_packet, SUITES[args.suite]):
+            metadata['diagnostic_profile'] = True
         metadata["fixture_bundle_sha256"] = hashes[BUNDLE]
         metadata["fixture_manifest_sha256"] = hashes[MANIFEST]
         manifest = json.loads((root / MANIFEST).read_text(encoding="utf-8"))

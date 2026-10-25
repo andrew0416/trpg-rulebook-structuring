@@ -17,9 +17,14 @@ import effects_ext as EXT
 import frequency as FREQUENCY
 import optional_state_effect_contracts as OPTIONAL
 import skill_modifiers as SKILL
+import optional_state_continuity_fixture as CONTINUITY
 
 
 class OptionalStateEffectEightTests(unittest.TestCase):
+    @classmethod
+    def prepare_chained_cases(cls, cases):
+        return CONTINUITY.prepare(cases)
+
     @classmethod
     def setUpClass(cls):
         cls.rules = Rules(ROOT, ruleset="all")
@@ -291,6 +296,7 @@ class OptionalStateEffectEightTests(unittest.TestCase):
         self.assertEqual(EXT.movement_profile(e, a, 8, 0)[0], 8)
         self.assertEqual(a.evasion("물리"), before_evasion)
 
+    @CONTINUITY.stage
     def test_yang_yin_breather_clears_combat_components_but_keeps_movement_clock(self):
         import combat_stage_sources as CS
         import combat_modifiers as MODS
@@ -298,8 +304,8 @@ class OptionalStateEffectEightTests(unittest.TestCase):
         for clause_id, feature in (("SB-107", "feat/레시라무의-메이저-기프트-하얀-양"),
                                    ("SB-110", "feat/제크로무의-메이저-기프트-검은-음")):
             with self.subTest(clause=clause_id):
-                e, owner, a, b, _ = self.fixture(feature)
-                e.activate_optional_state_effect(owner, clause_id, targets=(a, b))
+                world = CONTINUITY.active_world(self, clause_id, feature, consumer="breather")
+                e, owner, a, b, foe = world["actors"]
                 deadline = OPTIONAL.records(a)[0]["count_deadline"]
                 e.end_of_turn(owner)
                 e.start_of_turn(a, initiative_count=15)
@@ -318,22 +324,33 @@ class OptionalStateEffectEightTests(unittest.TestCase):
                 self.assertFalse(OPTIONAL.records(b)[0]["stages_reset"])
                 self.assertEqual((OPTIONAL.movement_addition(a), OPTIONAL.movement_limit(a, 8)),
                                  (2, 8) if clause_id == "SB-107" else (0, 1))
+                e.end_of_turn(a)
+                ids = [actor.entity_id for actor in (owner, a, b, foe)]
                 e = CODEC.load_engine(Rules(str(e.r.root), ruleset="all"),
                                       json.loads(json.dumps(CODEC.dump_engine(e))))
-                a = next(actor for actor in e.everyone if actor.entity_id == a.entity_id)
+                index = {actor.entity_id: actor for actor in e.everyone}
+                owner, a, b, foe = [index[uid] for uid in ids]
                 self.assertEqual(OPTIONAL.records(a)[0]["count_deadline"], deadline)
                 self.assertTrue(OPTIONAL.records(a)[0]["stages_reset"])
+                self.assertFalse(OPTIONAL.records(b)[0]["stages_reset"])
+                CONTINUITY.publish(self, clause_id, (e, owner, a, b, foe), "breather")
 
+    @CONTINUITY.stage
     def test_yang_yin_recall_resets_combat_components_without_ending_movement(self):
         import combat_stage_sources as CS
         import combat_modifiers as MODS
         for clause_id, feature in (("SB-107", "feat/레시라무의-메이저-기프트-하얀-양"),
                                    ("SB-110", "feat/제크로무의-메이저-기프트-검은-음")):
             with self.subTest(clause=clause_id):
-                e, owner, a, b, _ = self.fixture(feature)
-                e.activate_optional_state_effect(owner, clause_id, targets=(a, b))
+                world = CONTINUITY.active_world(self, clause_id, feature, consumer="recall")
+                e, owner, a, b, foe = world["actors"]
+                if world["phase"] == "breather":
+                    # Recall the untouched second recipient of the same actual blessing.
+                    a, b = b, a
+                else:
+                    e.end_of_turn(owner)
+                self.assertFalse(OPTIONAL.records(a)[0]["stages_reset"])
                 deadline = OPTIONAL.records(a)[0]["count_deadline"]
-                e.end_of_turn(owner)
                 e.gm.recall(a, reason="actual recalled recipient with a three-round blessing")
                 self.assertFalse(a.on_field)
                 self.assertEqual((CS.effective_stage(a, "atk"), MODS.accuracy_stage(a)), (0, 0))
@@ -343,25 +360,34 @@ class OptionalStateEffectEightTests(unittest.TestCase):
                 self.assertEqual(OPTIONAL.records(a)[0]["count_deadline"], deadline)
                 e.end_encounter()
                 self.assertFalse(OPTIONAL.records(a))
+                self.assertFalse(OPTIONAL.records(b))
+                CONTINUITY.publish(self, clause_id, (e, owner, a, b, foe), "ended")
 
+    @CONTINUITY.stage
     def test_white_yang_native_accuracy_and_stages_obey_shared_caps(self):
         import combat_modifiers as MODS
         import combat_stage_sources as CS
-        e, owner, a, _, foe = self.fixture("feat/레시라무의-메이저-기프트-하얀-양")
+        e, owner, a, b, foe = self.fixture("feat/레시라무의-메이저-기프트-하얀-양")
         e.gm.set_stage(a, "atk", value=6, reason="actual capped Attack stage")
         e.gm.set_stage(a, "acc", value=-6, reason="actual minimum Accuracy stage")
-        e.activate_optional_state_effect(owner, "SB-107", targets=(a,))
+        result = e.activate_optional_state_effect(owner, "SB-107", targets=(a, b))
+        self.assertEqual(set(result["targets"]), {a.entity_id, b.entity_id})
         self.assertEqual((CS.effective_stage(a, "atk"), MODS.accuracy_stage(a)), (6, -6))
-        e.accuracy_check(a, foe, self.rules.move("move/몸통박치기"), fixed_roll=10)
-        self.assertTrue(any("명중 d20=10-6=4" in line for line in e.log_lines))
+        log_start = len(e.log_lines)
+        e.accuracy_check(a, foe, e.r.move("move/몸통박치기"), fixed_roll=10)
+        self.assertTrue(any("명중 d20=10-6=4" in line for line in e.log_lines[log_start:]))
+        CONTINUITY.publish(self, "SB-107", (e, owner, a, b, foe), "active")
 
+    @CONTINUITY.stage
     def test_black_yin_extra_evasion_uses_shared_six_and_final_nine_caps(self):
-        e, owner, a, _, _ = self.fixture("feat/제크로무의-메이저-기프트-검은-음")
+        e, owner, a, b, foe = self.fixture("feat/제크로무의-메이저-기프트-검은-음")
         e.gm.set_stage(a, "eva", value=6, reason="actual capped extra Evasion")
         before = a.evasion("물리")
-        e.activate_optional_state_effect(owner, "SB-110", targets=(a,))
+        result = e.activate_optional_state_effect(owner, "SB-110", targets=(a, b))
+        self.assertEqual(set(result["targets"]), {a.entity_id, b.entity_id})
         self.assertEqual(a.evasion("물리"), before)
         self.assertLessEqual(a.evasion("물리"), 9)
+        CONTINUITY.publish(self, "SB-110", (e, owner, a, b, foe), "active")
 
     def test_black_yin_both_source_choices_keep_their_movement_after_stage_reset(self):
         import state_codec as CODEC
@@ -445,7 +471,7 @@ class OptionalStateEffectEightTests(unittest.TestCase):
             "name": "actual long-range bow", "kind": "장거리 사격무기",
             "grade": "간단", "slot": "주요손", "moves": [],
         })
-        ranged = WEAPONS.prepare(e, owner, self.rules.move(bow), bow)
+        ranged = WEAPONS.prepare(e, owner, e.r.move(bow), bow)
         self.assertEqual(OPTIONAL.attack_modifiers(owner, ranged), (2, 2))
         hit, natural, critical = e._accuracy_check_native(owner, enemy, ranged, fixed_roll=18)
         self.assertTrue(hit)

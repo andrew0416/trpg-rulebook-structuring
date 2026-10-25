@@ -187,6 +187,7 @@ class GroundedEffectivenessNativeTests(unittest.TestCase):
         self.hit(expected=.5)
         self.assertIn(coat, COATS.live(self.t))
         self.a.type_override_next = '불꽃'
+        self.begin(self.a)  # An actual idle turn satisfies Earth Power's every-other-turn interval.
         self.hit(GROUND, expected=2.0, actual_type='불꽃')
         self.assertFalse(COATS.live(self.t))
 

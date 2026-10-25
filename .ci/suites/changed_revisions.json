@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "id": "changed_revisions",
+  "purpose": "Development validation of the reviewed C102 successor change groups only; not complete downstream impact or whole-scope acceptance. Full original obligations remain in final/all validation.",
+  "completion_credit": 0,
+  "required_unique_count": 63,
+  "completed": {
+    "live_world_traversal": {
+      "tests": [
+        "tools.test_category2_world_entities.WorldTests.test_actor_only_reachable_from_native_skill_event_is_in_world",
+        "tools.test_category2_world_entities.WorldTests.test_actor_traversal_keeps_hidden_keys_cycles_and_native_observation_references",
+        "tools.test_category2_world_entities.WorldTests.test_actor_traversal_rechecks_mutated_container_subclasses_and_extra_references",
+        "tools.test_category2_world_entities.WorldTests.test_carry_connects_registry_and_release_does_not_invent_ground",
+        "tools.test_category2_world_entities.WorldTests.test_commit_of_same_registry_does_not_clear_live_instances",
+        "tools.test_category2_world_entities.WorldTests.test_controller_changes_no_owner_side_or_entitlement",
+        "tools.test_category2_world_entities.WorldTests.test_duplicate_id_off_field_reference_is_rejected",
+        "tools.test_category2_world_entities.WorldTests.test_equipment_instance_relative_location_and_holder_are_consistent",
+        "tools.test_category2_world_entities.WorldTests.test_lifecycle_flags_distinguish_disabled_suppressed_and_false_destruction",
+        "tools.test_category2_world_entities.WorldTests.test_maps_do_not_share_distance_without_relationship",
+        "tools.test_category2_world_entities.WorldTests.test_missing_owner_and_controller_are_distinct_findings",
+        "tools.test_category2_world_entities.WorldTests.test_native_grooming_owner_effect_is_removed_but_daily_history_survives",
+        "tools.test_category2_world_entities.WorldTests.test_object_and_actor_identity_spaces_do_not_collide",
+        "tools.test_category2_world_entities.WorldTests.test_observation_and_carry_preserve_actual_object_references",
+        "tools.test_category2_world_entities.WorldTests.test_off_field_owner_can_resolve_through_clock_graph",
+        "tools.test_category2_world_entities.WorldTests.test_repeat_snapshot_restores_carry_and_transfer_graph",
+        "tools.test_category2_world_entities.WorldTests.test_same_name_distinct_entities_and_alias_roster",
+        "tools.test_category2_world_entities.WorldTests.test_second_carrier_fails_before_load_or_registry_mutation",
+        "tools.test_category2_world_entities.WorldTests.test_terminal_record_requires_actual_detached_instance",
+        "tools.test_category2_world_entities.WorldTests.test_transfer_keeps_identity_owner_controller_side_separate",
+        "tools.test_category2_world_entities.WorldTests.test_transfer_overflow_goes_to_real_storage",
+        "tools.test_category2_world_entities.WorldTests.test_transfer_releases_only_former_owner_grants_and_refunds_once",
+        "tools.test_category2_world_entities.WorldTests.test_two_item_instances_keep_same_rule_distinct",
+        "tools.test_category2_world_entities.WorldTests.test_unknown_or_abstract_never_invents_distance",
+        "tools.test_category2_world_entities.WorldTests.test_unmapped_drag_fails_before_resource_or_random",
+        "tools.test_category2_world_entities.WorldTests.test_untracked_owner_effect_blocks_atomic_transfer",
+        "tools.test_category2_world_entities.WorldTests.test_world_check_invokes_actor_structural_contract",
+        "tools.test_category2_state_codec.StateCodecTests.test_cross_actor_cycles_and_mutable_aliases",
+        "tools.test_category2_state_codec.StateCodecTests.test_tuple_list_cycle_and_actor_dict_keys",
+        "tools.test_category2_state_codec.StateCodecTests.test_off_roster_delayed_actor_identity_and_native_execution"
+      ]
+    },
+    "equipment_matrix": {
+      "tests": [
+        "tools.test_equipment_permissions_scope_repair.EquipmentPermissionsScopeRepairTests.test_corrupt_scope_and_receipt_shapes_are_rejected_by_json_and_gm_without_commit",
+        "tools.test_equipment_permissions_scope_repair.EquipmentPermissionsScopeRepairTests.test_legacy_active_json_binds_once_preserves_receipts_and_later_battle_unlocks"
+      ]
+    },
+    "optional_state": {
+      "tests": [
+        "tools.test_category2_optional_state_effect_eight.OptionalStateEffectEightTests.test_aiming_down_sights_consumes_only_next_ranged_weapon_attack_or_next_turn",
+        "tools.test_category2_optional_state_effect_eight.OptionalStateEffectEightTests.test_black_yin_extra_evasion_uses_shared_six_and_final_nine_caps",
+        "tools.test_category2_optional_state_effect_eight.OptionalStateEffectEightTests.test_white_yang_native_accuracy_and_stages_obey_shared_caps",
+        "tools.test_category2_optional_state_effect_eight.OptionalStateEffectEightTests.test_yang_yin_breather_clears_combat_components_but_keeps_movement_clock",
+        "tools.test_category2_optional_state_effect_eight.OptionalStateEffectEightTests.test_yang_yin_recall_resets_combat_components_without_ending_movement"
+      ]
+    },
+    "ground_move_interval": {
+      "tests": [
+        "tools.test_grounded_effectiveness_native_pass.GroundedEffectivenessNativeTests.test_native_tar_coat_is_preserved_by_ground_then_consumed_by_actual_fire"
+      ]
+    },
+    "runner_metadata_and_exact_scope": {
+      "tests": [
+        "tools.test_verifier_metrics.VerifierMetricsTests.test_actual_unresolved_descriptor_read_still_fails_physical_capture",
+        "tools.test_verifier_metrics.VerifierMetricsTests.test_c89_chaining_keeps_selected_ids_and_execution_order",
+        "tools.test_verifier_metrics.VerifierMetricsTests.test_class_fixture_failure_has_suite_cpu_but_no_fake_method_timings",
+        "tools.test_verifier_metrics.VerifierMetricsTests.test_collection_has_environment_but_no_fabricated_execution_cpu",
+        "tools.test_verifier_metrics.VerifierMetricsTests.test_native_platform_covers_windows_unix_and_absent_api_fallback",
+        "tools.test_verifier_metrics.VerifierMetricsTests.test_native_platform_does_not_launch_subprocess",
+        "tools.test_verifier_metrics.VerifierMetricsTests.test_physical_metadata_capture_preserves_native_pass",
+        "tools.test_verifier_metrics.VerifierMetricsTests.test_process_cpu_addition_preserves_exact_wall_difference",
+        "tools.test_verifier_metrics.VerifierMetricsTests.test_required_skip_remains_unverified_and_retryable",
+        "tools.test_verifier_metrics.VerifierMetricsTests.test_runtime_fields_keep_failure_retry_and_exact_selection",
+        "tools.test_verifier_metrics.VerifierMetricsTests.test_subtest_failure_and_cleanup_still_use_original_result_contract",
+        "tools.test_verifier_selection_scope.VerifierSelectionScopeTests.test_bare_method_gets_tools_prefix_without_losing_tail",
+        "tools.test_verifier_selection_scope.VerifierSelectionScopeTests.test_direct_class_keeps_every_method_in_only_that_class",
+        "tools.test_verifier_selection_scope.VerifierSelectionScopeTests.test_direct_qualified_method_runs_only_that_method",
+        "tools.test_verifier_selection_scope.VerifierSelectionScopeTests.test_dotted_module_py_alias_keeps_whole_module",
+        "tools.test_verifier_selection_scope.VerifierSelectionScopeTests.test_file_path_keeps_whole_module",
+        "tools.test_verifier_selection_scope.VerifierSelectionScopeTests.test_module_keeps_both_classes",
+        "tools.test_verifier_selection_scope.VerifierSelectionScopeTests.test_navigation_sample_still_expands_to_whole_contract_module",
+        "tools.test_verifier_selection_scope.VerifierSelectionScopeTests.test_overlapping_direct_scopes_retain_duplicate_guard",
+        "tools.test_verifier_selection_scope.VerifierSelectionScopeTests.test_packet_still_runs_all_declared_obligations",
+        "tools.test_verifier_selection_scope.VerifierSelectionScopeTests.test_partial_report_restores_current_full_packet",
+        "tools.test_verifier_selection_scope.VerifierSelectionScopeTests.test_relative_file_path_keeps_whole_module",
+        "tools.test_verifier_selection_scope.VerifierSelectionScopeTests.test_saved_method_report_still_expands_to_current_whole_module",
+        "tools.test_verifier_selection_scope.VerifierSelectionScopeTests.test_selector_py_suffix_is_not_silently_removed",
+        "tools.test_verifier_selection_scope.VerifierSelectionScopeTests.test_unknown_class_or_method_stops_before_any_fixture"
+      ]
+    }
+  },
+  "base_manifest": {
+    "path": "D:\\trpg-rulebook-structuring\\work\\revision-scratch-20261024\\repair102-composed-candidate\\successor-integration.json",
+    "sha256": "cfe4c39db1ca987eaaf7649a589195fec62a1b5a9bbee4e7a935e38c5309d647"
+  },
+  "source_packets": [
+    {
+      "path": "D:\\trpg-rulebook-structuring\\work\\revision-scratch-20261024\\repair103-final-binding\\proposal-c102\\manifest.json",
+      "sha256": "1968384dfc45dc60faea87ded58add233e40b2eb8cb1385fbd8d8c7ec9290a1f"
+    },
+    {
+      "path": "D:\\trpg-rulebook-structuring\\work\\revision-scratch-20261024\\repair105-world-traversal\\manifest.json",
+      "sha256": "eac5b5888a8ad9c169f36514a6fea8f4200067c07175541255d46f1bf41b212a"
+    },
+    {
+      "path": "D:\\trpg-rulebook-structuring\\work\\revision-scratch-20261024\\repair107-equipment-reuse\\manifest.json",
+      "sha256": "2576d1a68439af1dd1f941e83d08b61ff6b66bb387230d8daead3ca68702197a"
+    },
+    {
+      "path": "D:\\trpg-rulebook-structuring\\work\\revision-scratch-20261024\\repair110-optional-state-continuity\\manifest.json",
+      "sha256": "a6e3416c45cdee5030a0647e41d118723ae021c4b4a8be8c23d8d016ceaa8db8"
+    },
+    {
+      "path": "D:\\trpg-rulebook-structuring\\work\\revision-scratch-20261024\\repair113-verifier-platform\\manifest.json",
+      "sha256": "7b8f94adfaf8a0836cea4668f9872482490e1b84b07ebd6e4206c397d48a9367"
+    },
+    {
+      "path": "D:\\trpg-rulebook-structuring\\work\\revision-scratch-20261024\\repair115-changed-actions\\composition-c102.json",
+      "sha256": "e4eaaefa0773204ad7d37d9e1c36e518e3fbdad29940d3bf954632bf49179ac8"
+    },
+    {
+      "path": "D:\\trpg-rulebook-structuring\\work\\revision-scratch-20261024\\repair104-connected-batch\\minimal-tar\\manifest.json",
+      "sha256": "644f78c6e5c9d2bc310e6638cfe7bd55690e6c392fef76fc23674734b32b1806"
+    }
+  ]
+}

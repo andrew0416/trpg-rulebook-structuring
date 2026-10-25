@@ -62,6 +62,15 @@ class WorkflowMode(IntFlag):
     BRIEF = 8
 
 
+def native_platform():
+    if hasattr(sys, "getwindowsversion"):
+        return "Windows-" + ".".join(map(str, sys.getwindowsversion()[:3]))
+    if hasattr(os, "uname"):
+        system = os.uname()
+        return f"{system.sysname}-{system.release}-{system.machine}"
+    return sys.platform
+
+
 def read_object(path):
     value = json.loads(Path(path).read_text(encoding='utf-8-sig'))
     if not isinstance(value, dict):
@@ -69,8 +78,12 @@ def read_object(path):
     return value
 
 
-def test_module(value, stage, canonical):
-    """Accept test references, never shell commands or a guessed runtime owner."""
+def test_module(value, stage, canonical, *, preserve_selector=False):
+    """Normalize a test reference; only direct inputs retain class/method tails.
+
+    Saved reports and navigation still expand to whole declared modules.
+    Unknown direct selectors reach unittest discovery, never a module fallback.
+    """
     path = Path(value)
     if path.is_absolute():
         resolved = path.resolve()
@@ -80,17 +93,22 @@ def test_module(value, stage, canonical):
                 break
         else:
             raise ValueError(f'test path leaves the selected roots: {value}')
-    parts = value.removesuffix('.py').replace('\\', '.').replace('/', '.').split('.')
-    if not all(part.replace('-', '_').isidentifier() for part in parts):
-        raise ValueError(f'not a test reference: {value}')
+    parts = value.replace('\\', '.').replace('/', '.').split('.')
     index = next((i for i, part in enumerate(parts) if part.startswith('test_')), None)
+    # Only the module position has a file extension; selector tails are exact.
+    if index is not None and parts[index + 1:] == ['py']:
+        parts.pop()
+    module_parts = parts[:index + 1] if preserve_selector and index is not None else parts
+    if not all(part.replace('-', '_').isidentifier() for part in module_parts):
+        raise ValueError(f'not a test reference: {value}')
     if index is None:
         raise ValueError(f'no declared test module: {value}')
+    selector = parts[index + 1:] if preserve_selector else []
     parts = parts[:index + 1]
     if len(parts) == 1 and not any((root / (parts[0] + '.py')).is_file()
                                   for root in (stage, canonical)):
         parts.insert(0, 'tools')
-    return '.'.join(parts)
+    return '.'.join([*parts, *selector])
 
 
 def workflow_plan(targets, *, stage=None, canonical=None):
@@ -99,6 +117,7 @@ def workflow_plan(targets, *, stage=None, canonical=None):
     Historical success/frequency never authorizes omitting a declared test.
     A report restores *current full packet declarations*, including omissions.
     A navigation target selects whole declared modules, never a lookup sample.
+    A direct test reference keeps its explicitly selected module/class/method.
     """
     started = time.perf_counter()
     canonical_fixed = canonical is not None
@@ -162,8 +181,8 @@ def workflow_plan(targets, *, stage=None, canonical=None):
             continue
         active_stage = stage or canonical
         try:
-            modules.append(test_module(target, active_stage, canonical))
-            reasons.append('explicit_current_test_module')
+            modules.append(test_module(target, active_stage, canonical, preserve_selector=True))
+            reasons.append('explicit_current_test_reference')
             continue
         except ValueError:
             pass
@@ -497,12 +516,14 @@ class ReportingResult(unittest.TextTestResult):
         self.test_durations = []
 
     def startTest(self, test):
+        self._case_cpu_started = time.process_time()
         self._case_started = time.perf_counter()
         super().startTest(test)
 
     def stopTest(self, test):
         self.test_durations.append({'id': test.id(),
-                                    'seconds': time.perf_counter() - self._case_started})
+                                    'seconds': time.perf_counter() - self._case_started,
+                                    'process_cpu_seconds': time.process_time() - self._case_cpu_started})
         super().stopTest(test)
 
     def addSubTest(self, test, subtest, err):
@@ -880,7 +901,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("modules", nargs="*", help="module, class or exact method; .py paths also accepted")
     parser.add_argument('--auto', nargs='+', metavar='TARGET',
-                        help='route packets, saved reports, test references or exact navigation targets')
+                        help='direct test references keep exact module/class/method scope; packets, reports and navigation restore full declarations')
     parser.add_argument('--mode', type=lambda value: int(value, 0), metavar='BITS',
                         help='with --auto: ALLOCATE=1 RUN=2 SAVE=4 BRIEF=8; default 15, collect-only 13')
     parser.add_argument('--workflow-stats', type=Path, nargs='+', metavar='REPORT',
@@ -1099,7 +1120,8 @@ def main() -> None:
     if allocation:
         requested = [case for group in allocation for case in group['tests']]
     elif not saved_selection:
-        requested = [module_name(value) for value in args.modules]
+        # Workflow test references are already normalized, including exact tails.
+        requested = list(args.modules) if workflow else [module_name(value) for value in args.modules]
     requested = list(dict.fromkeys(requested))
     if allocation or args.also or args.repeat_from:
         # unittest repeats setUpClass/tearDownClass whenever a class is revisited.
@@ -1154,6 +1176,8 @@ def main() -> None:
     sys.meta_path.insert(0, StageOverlayFinder())
     if STAGE != CANONICAL:
         install_filesystem_overlay()
+    runtime_environment = {'python_version': sys.version, 'python_executable': sys.executable,
+                           'platform': native_platform(), 'cpu_clock': 'time.process_time'}
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()
     started = time.perf_counter()
@@ -1222,7 +1246,8 @@ def main() -> None:
                'stage': str(STAGE), 'requested': requested, 'collected': collected,
                'sources': sources, 'tests_run': 0, 'retry_ids': [],
                'required_selection': required_selection, 'discovery_errors': loader.errors,
-               'selected_case_ids': selected_case_ids, 'chained_cases': chained_cases}
+               'selected_case_ids': selected_case_ids, 'chained_cases': chained_cases,
+               'runtime_environment': runtime_environment}
     if workflow:
         details['workflow'] = workflow
         if len(collected) != len(set(collected)):
@@ -1315,6 +1340,7 @@ def main() -> None:
         details['kind'] = 'collection'
         successful = True
     else:
+        run_cpu_started = time.process_time()
         run_started = time.perf_counter()
         result = unittest.TextTestRunner(
             stream=report,
@@ -1322,6 +1348,7 @@ def main() -> None:
             resultclass=ReportingResult,
         ).run(suite)
         suite_seconds = time.perf_counter() - run_started
+        suite_process_cpu_seconds = time.process_time() - run_cpu_started
         successful = result.wasSuccessful() and not (
             required_selection and (result.skipped or result.expectedFailures))
         if required_selection and (result.skipped or result.expectedFailures):
@@ -1330,6 +1357,7 @@ def main() -> None:
         details.update(kind='run', tests_run=result.testsRun,
                        test_durations=result.test_durations,
                        suite_seconds=suite_seconds,
+                       suite_process_cpu_seconds=suite_process_cpu_seconds,
                        unattributed_suite_seconds=max(
                            0.0, suite_seconds - sum(item['seconds']
                                                     for item in result.test_durations)),

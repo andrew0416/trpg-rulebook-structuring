@@ -15,6 +15,7 @@ import turn as TURN
 import world_entities as WORLD
 from engine import Engine, Rules
 from native_scenario_fixture import assert_rejected_unchanged
+import equipment_scope_chain_fixture as CHAIN
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,11 +25,15 @@ ARMORS = ("item/마찰저하복", "item/특수마찰저하복")
 
 
 class EquipmentPermissionsScopeRepairTests(unittest.TestCase):
+    prepare_chained_cases = classmethod(CHAIN.prepare_cases)
+
     @classmethod
     def setUpClass(cls):
         cls.all_rules = Rules(str(ROOT), ruleset="all")
 
     def setUp(self):
+        if CHAIN.enter(self):
+            return
         self.r = Rules(str(ROOT), ruleset="core")
         self.f = BASE.EquipmentVariantContractTests()
         self.f.r = self.r
@@ -239,6 +244,7 @@ class EquipmentPermissionsScopeRepairTests(unittest.TestCase):
                 self.assertEqual(VARIANTS.activate_slipstream(engine, actor)["reason"], "encounter_frequency_spent")
 
     def test_legacy_active_json_binds_once_preserves_receipts_and_later_battle_unlocks(self):
+        worlds = {}
         for item in ARMORS:
             with self.subTest(item=item):
                 engine, actor, target, uid = self.legacy_used(item, sessions=True)
@@ -259,6 +265,8 @@ class EquipmentPermissionsScopeRepairTests(unittest.TestCase):
                 engine = self.restore(engine); actor, target = self.actual(engine, actor), self.actual(engine, target)
                 engine.apply_status(actor, "구속", source="gm/repair", applied_by=target)
                 self.assertEqual(VARIANTS.activate_slipstream(engine, actor)["reason"], "encounter_frequency_spent")
+                worlds[item] = (engine, actor, target, uid)
+        CHAIN.complete(self, 0, worlds)
 
     def test_legacy_inactive_json_and_live_boundary_do_not_lock_the_next_battle(self):
         for item in ARMORS:
@@ -359,7 +367,7 @@ class EquipmentPermissionsScopeRepairTests(unittest.TestCase):
             lambda s: s.update(legacy_encounter_scope=None),
             lambda s: s["legacy_encounter_scope"].update(receipt_count=0),
             lambda s: s["legacy_encounter_scope"].update(receipt_count=2),
-            lambda s: s["legacy_encounter_scope"].update(encounter=[0, 999]),
+            lambda s: s["legacy_encounter_scope"].update(encounter=[s["legacy_encounter_scope"]["encounter"][0], 999]),
             lambda s: s.pop("legacy_encounter_scope"),
             lambda s: s.pop("encounter_scope_version"),
             lambda s: s["encounter_uses"][0].update(encounter=[False, 0]),
@@ -367,25 +375,35 @@ class EquipmentPermissionsScopeRepairTests(unittest.TestCase):
             lambda s: s["encounter_uses"][0].update(actor_id=""),
             lambda s: s["encounter_uses"][1].pop("scope_version"),
             lambda s: s["encounter_uses"][1].update(scope_version=True),
-            lambda s: s["encounter_uses"][1].update(encounter=[0, 999]),
-            lambda s: s["encounter_uses"][2].update(encounter=[0, 2]),
+            lambda s: s["encounter_uses"][1].update(encounter=[s["encounter_uses"][1]["encounter"][0], 999]),
+            lambda s: s["encounter_uses"][2].update(encounter=list(s["encounter_uses"][1]["encounter"])),
         )
-        for item in ARMORS:
-            engine, actor, target, uid = self.legacy_used(item)
+        worlds = CHAIN.matrix_inputs(self, ARMORS)
+        self._equipment_negative_counts = {"gm": 0, "json": 0}
+        for item, (engine, actor, target, uid) in worlds.items():
+            # Consume A's real second battle, retaining B's cold JSON boundary.
             engine = self.restore(engine); actor, target = self.actual(engine, actor), self.actual(engine, target)
-            for _ in range(2):
-                self.next_battle(engine, actor, target)
-                self.assertTrue(VARIANTS.activate_slipstream(engine, actor)["activated"])
+            previous = deepcopy(self.state(engine, uid)["encounter_uses"])
+            self.assertEqual(len(previous), 2)
+            self.next_battle(engine, actor, target)
+            self.assertTrue(VARIANTS.activate_slipstream(engine, actor)["activated"])
+            self.assertEqual(self.state(engine, uid)["encounter_uses"][:2], previous)
+            self.assertEqual([r["encounter"][1] for r in self.state(engine, uid)["encounter_uses"]][1:], [2, 3])
             clean = deepcopy(self.state(engine, uid))
+            engine.gm.snapshot("bad")
+            saved = engine.gm.snapshots["bad"]["engine"]["_physical_objects"][uid][VARIANTS.OBJECT_STATE]
+            before, rng_before = engine.export_state(), engine.rng.getstate()
             for index, mutate in enumerate(mutations):
                 with self.subTest(item=item, mutation=index):
-                    engine.gm.snapshot("bad")
-                    saved = engine.gm.snapshots["bad"]["engine"]["_physical_objects"][uid][VARIANTS.OBJECT_STATE]
                     mutate(saved)
-                    before = engine.export_state()
-                    with self.assertRaisesRegex(ValueError, "Slipstream"):
-                        engine.gm.restore("bad", reason="must reject malformed saved scope")
-                    self.assertEqual(engine.export_state(), before)
+                    try:
+                        with self.assertRaisesRegex(ValueError, "Slipstream"):
+                            engine.gm.restore("bad", reason="must reject malformed saved scope")
+                        self.assertEqual(engine.export_state(), before)
+                        self.assertEqual(engine.rng.getstate(), rng_before)
+                        self._equipment_negative_counts["gm"] += 1
+                    finally:
+                        saved.clear(); saved.update(deepcopy(clean))
                     # Build a malformed import through the normal graph format;
                     # export is taken while valid so no guard is bypassed.
                     payload = deepcopy(before)
@@ -418,6 +436,11 @@ class EquipmentPermissionsScopeRepairTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         Engine.import_state(self.r, payload)
                     self.assertEqual(engine.export_state(), before)
+                    self.assertEqual(engine.rng.getstate(), rng_before)
+                    self._equipment_negative_counts["json"] += 1
+            worlds[item] = (engine, actor, target, uid)
+        self.assertEqual(self._equipment_negative_counts, {"gm": 28, "json": 28})
+        CHAIN.complete(self, 1, worlds)
 
 
 if __name__ == "__main__":

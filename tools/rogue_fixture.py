@@ -2,12 +2,13 @@
 from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
-import json,sys
+import json,sys,unittest
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
+from chained_case_lifecycle import bind_case_lifecycle,defer_case_commit
 from engine import Rules,Engine,Combatant
 from grid import Grid
-from native_scenario_fixture import prepare_body,assert_rejected_unchanged
+from native_scenario_fixture import prepare_body,assert_rejected_unchanged,assert_rejections_unchanged
 import rogue as R
 import trainer_feature_acquisition as T
 import turn as TURN
@@ -16,8 +17,74 @@ import world_entities as W
 
 class RogueScene:
  def setUp(self):
+  context=getattr(self,'_rogue_context',None)
+  if context is not None:
+   stage=self.LIFECYCLE_METHODS.index(self._testMethodName)
+   self.assertEqual(context['case_ids'][stage],self.id())
+   if context.get('blocked'):raise unittest.SkipTest('blocked connected predecessor: '+context['blocked'])
+   if context['next_stage']!=stage:
+    raise unittest.SkipTest('blocked by failed prerequisite: Rogue stage '+str(context['next_stage'])+' did not complete')
+   if stage:
+    old=self.rules.rulings;self.rules.rulings=context['rulings'];self.addCleanup(setattr,self.rules,'rulings',old)
+    self.__dict__.update(context['state']);return
   old=self.rules.rulings;self.rules.rulings=deepcopy(old);self.addCleanup(setattr,self.rules,'rulings',old)
   self.setup()
+ @classmethod
+ def prepare_chained_cases(cls,cases):
+  if any(type(case) is not cls for case in cases):raise ValueError('Rogue lifecycle requires this exact class')
+  stages=[case for case in cases if case._testMethodName in cls.LIFECYCLE_METHODS]
+  if {case._testMethodName for case in stages}!=set(cls.LIFECYCLE_METHODS):return None
+  if len(stages)!=len(cls.LIFECYCLE_METHODS):raise ValueError('each Rogue stage must be selected once')
+  if any(hasattr(case,'_rogue_context') for case in stages):raise ValueError('Rogue stages already have a context')
+  by_name={case._testMethodName:case for case in stages};stages=tuple(by_name[name] for name in cls.LIFECYCLE_METHODS)
+  context={'case_ids':tuple(case.id() for case in stages),'next_stage':0,'state':None}
+  for case in stages:
+   case._rogue_context=context
+   bind_case_lifecycle(case,lambda reason:context.setdefault('blocked',reason))
+  ordered=[];inserted=False
+  for case in cases:
+   if case._testMethodName in cls.LIFECYCLE_METHODS:
+    if not inserted:ordered.extend(stages);inserted=True
+   else:ordered.append(case)
+  return ordered
+ def complete_rogue_stage(self,stage):
+  context=getattr(self,'_rogue_context',None)
+  if context is not None:
+   self.assertEqual(context['next_stage'],stage)
+   completed={'state':{key:getattr(self,key) for key in ('e','a','t','b','u','common','_rogue_base_attack','_rogue_class_only')},
+    'rulings':self.rules.rulings,'next_stage':stage+1}
+   defer_case_commit(self,lambda:context.update(completed))
+ def rogue_stage_input(self,stage):
+  if getattr(self,'_rogue_context',None) is None:
+   if stage>=1:
+    self._rogue_base_attack=self.a.stats['atk']
+    __import__('state_fields').base_patch(self.a,{'skills':{'곡예':3,'육상':2,'은신':2}},reason='actual insufficient ranks')
+    __import__('state_fields').base_patch(self.a,{'skills':{'곡예':5,'육상':3,'은신':2}},reason='actual two novice ranks')
+    self.acquire(R.CLASS);self.observe_rogue_class_only();self.acquire(R.UNDERHAND,ability=R.CRUELTY)
+   if stage>=2:self.seven_acquisitions_prefix();self.restore();self.valid()
+ def observe_rogue_class_only(self):
+  self._rogue_class_only={'attack':self.a.stats['atk'],'feats':tuple(self.a.spec['feats']),'moves':tuple(self.a.moves)}
+ def qualification_prefix(self):
+  self._rogue_base_attack=self.a.stats['atk']
+  __import__('state_fields').base_patch(self.a,{'skills':{'곡예':3,'육상':2,'은신':2}},reason='actual insufficient ranks')
+  assert_rejections_unchanged(self.e,[lambda:self.acquire(R.CUT),lambda:self.acquire(R.CLASS)],reason_pattern=[
+   '^actual Rogue prerequisite required: class/로그$','^printed Rogue skill ranks required$'])
+  __import__('state_fields').base_patch(self.a,{'skills':{'곡예':5,'육상':3,'은신':2}},reason='actual two novice ranks')
+  self.acquire(R.CLASS)
+  self.observe_rogue_class_only()
+  self.assertEqual(self._rogue_class_only['attack'],self._rogue_base_attack+1)
+  self.assertEqual(self._rogue_class_only['feats'],(R.CLASS,))
+  self.assertTrue(set(R.MOVES[:2])<=set(self.a.moves));self.assertFalse(set(R.MOVES[2:])&set(self.a.moves))
+  assert_rejections_unchanged(self.e,[lambda:self.acquire(R.UNEXPECTED),lambda:self.acquire(R.UNDERHAND,ability='ambush')],reason_pattern=[
+   '^printed Rogue skill ranks required$','^choose Core Ambush, Playtest Ambush, or Cruelty explicitly$'])
+  self.acquire(R.UNDERHAND,ability=R.CRUELTY)
+  self.reject(lambda:self.acquire(R.UNDERHAND,ability=R.AMBUSH,request='again'),'^Underhanded Tactics has one Ability choice$')
+ def seven_acquisitions_prefix(self):
+  __import__('state_fields').base_patch(self.a,{'skills':{'곡예':5,'육상':5,'은신':5,'집중':3,'전투':2}},reason='actual later Rogue training')
+  self._rogue_attack_steps=[]
+  for uid in R.FEATURES:
+   if not R.acquired(self.a,uid):
+    before=self.a.stats['atk'];self.acquire(uid,ability=R.CRUELTY);self._rogue_attack_steps.append((uid,before,self.a.stats['atk']))
  def setup(self,skills=None,extra_feats=(),target_kind='pokemon',target_edges=None):
   self.e=Engine(self.rules,seed=2595);self.e.grid=Grid(14,12)
   self.common=dict(level=30,size='중형',stats={'hp':70,'atk':20,'def':10,'spa':20,'spd':10,'spe':20},
