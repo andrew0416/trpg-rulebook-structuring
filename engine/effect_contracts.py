@@ -21,7 +21,7 @@ SCHEMAS={
  'push':{'meters'},
  'stage_change':{'stat','delta','base','linked_to'},'stat_mod':{'stat','value','min','multiplier'},
  'apply_status':{'status','parameters'},'apply_status_random':{'options'},'cure_status':{'status'},'cure_all_status':set(),
- 'heal':{'amount','fraction_of_max','replaces'},'hp_loss':{'value','unpreventable'},'self_hp_set':{'self_hp','unpreventable'},
+ 'heal':{'amount','fraction_of_max','replaces'},'hp_loss':{'value','unpreventable','as'},'self_hp_set':{'self_hp','unpreventable','faint','loyalty'},
  'temp_hp':{'value'},'set_weather':{'weather','rounds'},'field_effect':{'field','rounds','effect'},
  'skill_check_mod':{'value'},'damage_reduction':{'value'},'evasion_mod':{'value'},'accuracy_mod':{'value'},'save_mod':{'value'},
  'initiative':{'delta','set_to','multiplier','priority'},'initiative_multiplier':{'value'},'drain':{'fraction'},'reset_stages':set(),
@@ -115,6 +115,12 @@ def hit_recipients(engine,actor,target,effect,source):
 def inspect(engine,actor,target,effect,source,index=0):
  import effects as FX
  if not isinstance(effect,dict) or not isinstance(effect.get('type'),str):return Issue('unsupported_execution','type','typed effect record required')
+ if effect.get('type')=='hp_loss' and 'as' in effect and (source!='move/목숨걸기' or effect['as']!='damage'):
+  return Issue('unsupported_execution','as','only the reviewed Final Gambit fixed-damage declaration is supported')
+ if effect.get('type')=='self_hp_set' and 'faint' in effect and type(effect['faint']) is not bool:
+  return Issue('unsupported_execution','faint','explicit boolean required')
+ if effect.get('type')=='self_hp_set' and 'loyalty' in effect and (source not in ('move/대폭발','move/자폭') or type(effect['loyalty']) is not int or effect['loyalty']!=-1):
+  return Issue('unsupported_execution','loyalty','reviewed sacrifice decrease with explicit GM amount required')
  kind=effect['type']
  if kind=='oracle_mark':
   try:__import__('oracle').mark_payload(engine,actor,target,effect,source,preflight=True)

@@ -5,6 +5,7 @@ This module keeps each trap as a physical instance, groups one Move's instances
 into a stable region, and projects the instances back through ``engine.hazards``
 so existing movement, GM, snapshot, and field-clearing paths share one state.
 """
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 import hashlib
 import json
@@ -601,7 +602,7 @@ def relocate_allied(engine,trainer,pokemon,kind,destinations,*,source='core'):
     selected=[r for env in ensure(engine).values() for r in env['instances'] if r['owner_side']==pokemon.side and r['kind']==kind]
     if not selected:raise ValueError('Shell Game needs an actual allied Hazard type')
     if type(destinations) is not dict or set(destinations)!={r['id'] for r in selected}:raise ValueError('Shell Game must name all allied instances of one Hazard type')
-    distance=SKILL.rank(engine.r,trainer,'교활')[2]//2
+    distance=NUMERIC.ratio(SKILL.rank(engine.r,trainer,'교활')[2],2)
     planned=[]
     for row in selected:
         raw=destinations[row['id']]

@@ -27,7 +27,7 @@ class Tests(unittest.TestCase):
  def turn(self):self.e.start_round(self.e.everyone);self.e.start_of_turn(self.a)
  def changed_source(self,source):
   original=self.r._selected_rule
-  return patch.object(self.r,'_selected_rule',side_effect=lambda uid,*args:uid+'/unreviewed' if uid==source else original(uid,*args))
+  return patch.object(self.r,'_selected_rule',side_effect=lambda uid, *args, **kwargs: uid + '/unreviewed' if uid == source else original(uid, *args, **kwargs))
  def craft(self,**kw):
   options=dict(item='item/몬스터볼-2',minutes=5,reason='GM actual Extended work time');options.update(kw)
   return self.e.pokemon_activity(self.a,'craft_item',**options)

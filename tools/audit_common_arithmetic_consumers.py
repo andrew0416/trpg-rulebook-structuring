@@ -20,9 +20,46 @@ REVIEWED_PATHS = {
  ('weather_templates.py','require'): ("root/'input/hb-weather.md'", "root/'data/homebrew-weather-policy.json'"),
 }
 
+# New exact path sites: the inspected owners bind base/root to Path(rules.root),
+# or receive that Path from rules_fingerprint. Numeric lookalikes stay unreviewed.
+REVIEWED_PATHS.update({
+ ('acquired_feature_projections.py','_load'): ('base / POLICY','base / name'),
+ ('chef_cooking.py','definitions'): ("root / data['source_file']","root / source['file']"),
+ ('mentor_csv.py','_catalog'): ("root / 'input/db/learnsets.csv'","root / 'output/entities/learnsets.json'"),
+ ('move_state.py','ability_registration'): ("root/'input/db/abilities.csv'","root/'output/entities/abilities.json'"),
+ ('source_scoped_ability_grants.py','_load'): ('base / POLICY','base / source_file'),
+ ('state_codec.py','_corpus_paths'): ('root / directory',),
+ ('state_codec.py','rules_fingerprint'): REVIEWED_PATHS[('state_codec.py','rules_fingerprint')]+('root/filename',"root/'output/entities/abilities.json'"),
+ ('survivalist_class.py','definitions'): ("root/_data['source_file']",),
+})
+
+# Non-integer-result contexts, reviewed one expression at a time. These are not
+# generic rounding exemptions; changed owners, operands or operators need review.
+REVIEWED_CONTEXTS = {
+ ('ability_native_actions.py','_color_payload','floor_division','(roll - 1) // 2'): ('source_table_index','abilities.csv record228 explicitly maps d12 faces1/3/5/7/9/11 to six single colors; guarded1..12 odd branch indexes that table, not a rounded stat.'),
+ ('ability_native_actions.py','_color_payload','floor_division','roll // 2'): ('source_table_index','abilities.csv record228 explicitly maps even d12 faces to adjacent color pairs; guarded even branch uses pair index and wraps12 to purple-red.'),
+ ('baby_templates.py','_native_remaining','floor_division','birth_level//5'): ('source_progression_index','ch05-pokemon:676 restores one base-stat point at each multiple of5 levels; floor locates the next milestone strictly after the actual birth level, not a stat rounding boundary.'),
+ ('campaign_rewards.py','_purchase','division','exact(total)/POINTS_PER_DOLLAR'): ('exact_currency_ratio','Dollar quotation is an exact Fraction of settled whole points; the same function rejects nonintegral point prices before payment. No integerization of the displayed dollar quotation.'),
+ ('capture_specialist.py','gotta_roll','floor_division','natural//10'): ('source_digit_permutation','Core Gotta Catch Em All swaps decimal tens and ones of an actual d100 roll, with100 and1 special cases. This extracts a decimal digit, not a scaled game quantity.'),
+ ('channeler.py','focus','floor_division','e.elapsed_seconds//10'): ('clock_period_index','Shared Senses records an outside-combat10-second round bucket to prohibit changing the selected Pokemon in the same period; no fractional game quantity is rounded.'),
+ ('cultivation_harvest.py','_period','floor_division',"epoch//period['span']"): ('clock_period_index','Validated nonnegative clock and positive authored period span identify the active harvest period; incomplete periods do not open a second quota.'),
+ ('cultivation_harvest.py','_usage','floor_division',"baseline//value['period']['span']"): ('clock_period_index','Historical day baseline is compared in the same validated harvest period, not converted to yield or elapsed duration.'),
+ ('cultivation_harvest.py','_usage','floor_division',"{'day':row['day'],'seconds':row['at'],'sessions':row['session']}[value['period']['clock']]//value['period']['span']"): ('clock_period_index','Historical receipt clock is mapped to the identical authored period bucket before quota consumption is compared.'),
+ ('environment_derive.py','context','division',"_number(actual['gravity'])/_number(value['home_gravity'],True)"): ('exact_physical_ratio','Both operands are root exact rational numbers and the home gravity is positive; relative gravity remains an exact dimensionless measurement, never an integer game quantity.'),
+ ('equipment_variant_contracts.py','_advance_ablative','floor_division','(now - state["last_repair_at"]) // row["repair_seconds"]'): ('complete_interval_count','Ablative source repair_amount accrues only for completed repair_seconds intervals; the remainder stays in last_repair_at, so no partial interval is lost or repaired early.'),
+ ('growth_stats.py','allocate','division','weights[st] / (stats[st] - adjusted[st] + 1)'): ('optimizer','Ranks already-legal stat allocation choices; the score is not a stat quantity and must not be integerized before argmax.'),
+ ('growth_stats.py','increment','division','weights[st] / max(1, result[st] - base[st] + 1)'): ('optimizer','Ranks already-legal level-up stat choices; all actual stat changes are integral +1 after selection.'),
+ ('physical_limits.py','add_sources','division',"value['numerator']/value['denominator']"): ('native_measurement_adapter','Exact sourced composition is adapted back to the existing native physical-measurement API (including float inputs). This is not a whole-number gameplay boundary or a claim of exact float representation.'),
+ ('repair_breach.py','_crossing','division','Fraction(maximum-before)/step'): ('strict_boundary_formula','Exact Fraction index of old integrity across explicit breach markers; floor+1 excludes the old boundary, not a rounded damage or repair amount.'),
+ ('repair_breach.py','_crossing','division','Fraction(maximum-after)/step'): ('strict_boundary_formula','Exact Fraction index of final integrity counts newly crossed breach markers; the inclusive endpoint is paired with the old exclusive endpoint.'),
+ ('repels.py','definition','floor_division','duration//3600'): ('source_unit_rendering','Reviewed Repel durations are whole-hour constants from ch09:100-108; this renders the exact source-note hours and does not round an elapsed timer.'),
+ ('training_eligibility.py','prepare','floor_division',"capacity//value['capacity']['multiplier']"): ('exact_inverse','capacity is the validated effective rank multiplied by that same positive authored multiplier in rank(); exact inverse records the original rank without a remainder.'),
+}
+
 
 def classify(file,fn,kind,expr):
  # Narrowly reviewed category2 consumers; new sites still require review.
+ if (file,fn,kind,expr) in REVIEWED_CONTEXTS:return REVIEWED_CONTEXTS[(file,fn,kind,expr)]
  if kind=='division' and expr in REVIEWED_PATHS.get((file,fn),()):return 'filesystem_or_parser','Inspected function binds root to pathlib.Path(rules.root); exact file expression, not numeric division.'
  if file=='telekinetic_load.py' and fn=='range_check' and kind=='floor_division' and expr=='min(dx,dy)//2':return 'geometry_or_parser','Integer diagonal-pair count in max(dx,dy)+min(dx,dy)//2; matches ch07-combat:132 alternating 1,2 metre diagonals and Grid.diagonal_cost, not generic rounding.' 
  if kind=='division' and ((file=='actor_templates.py' and fn=='policy' and expr in ('root / "data/category2-encounter-template-policy.json"','root / name')) or (file=='state_codec.py' and fn=='rules_fingerprint' and expr=='root / directory')):return 'filesystem_or_parser','Reviewed pathlib composition; no numeric value.'

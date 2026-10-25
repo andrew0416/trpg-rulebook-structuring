@@ -139,7 +139,7 @@ class PokemonActivityTests(unittest.TestCase):
   self.assertEqual(before,self.state())
  def test_disabled_feature_profile_refused_before_rng(self):
   self.own('psychologist');original=self.e.r._selected_rule
-  with patch.object(self.e.r,'_selected_rule',side_effect=lambda uid:uid+'@unsupported' if uid=='edge/포켓몬-심리학자' else original(uid)):
+  with patch.object(self.e.r,'_selected_rule',side_effect=lambda uid, *args, **kwargs: uid + '@unsupported' if uid == 'edge/포켓몬-심리학자' else original(uid, *args, **kwargs)):
    before=self.state()
    with self.assertRaises(ValueError):self.act('pokemon_interaction',target=self.p,skill='매력',dc=12,use_pokemon_education=True)
    self.assertEqual(before,self.state())

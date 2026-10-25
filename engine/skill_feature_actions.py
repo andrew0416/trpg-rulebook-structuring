@@ -3,6 +3,7 @@
 Once observed, the first roll survives later choice failures. Only reroll dice
 and the source's action/frequency cost form a new transaction.
 """
+import arithmetic_policy as NUMERIC
 from copy import copy, deepcopy
 from dataclasses import dataclass, replace
 import common_checks as C
@@ -241,7 +242,7 @@ def resolve_team(e,plans,rolls,dc,required,weights=None):
   index=eligible[0];actor,skill,options=plans[index]
   roll_id,_=_observed(e,actor,rolls[index],options)
   remainder=dc*required-sum(r.total*w for i,(r,w) in enumerate(zip(rolls,multipliers)) if i!=index)
-  threshold=-(-remainder//multipliers[index])
+  threshold=NUMERIC.ceil_ratio(remainder,multipliers[index])
   resolve_check(e,actor,skill,threshold,rolls[index],options)
   observed=event(e,actor,roll_id)
   if observed is not None and observed.final is not None:rolls[index]=observed.final

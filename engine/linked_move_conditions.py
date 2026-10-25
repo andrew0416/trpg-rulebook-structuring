@@ -1,4 +1,5 @@
 """Move conditions that consume their actual applying actor or holder turns."""
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 import common_checks as C
 import condition_instances as CONDITIONS
@@ -100,7 +101,7 @@ def validate_record(actor, record, *, row, terminal=False):
             if index > 2 or event.get('remaining') != 2 - index: raise ValueError('Perish countdown changed')
         elif operation == 'seed_drain':
             maximum = C.integer(event.get('maximum_hp'), 'actual maximum HP', 1)
-            if event.get('requested') != maximum // 10: raise ValueError('seed drain amount changed')
+            if event.get('requested') != NUMERIC.ratio(maximum,10): raise ValueError('seed drain amount changed')
             C.integer(event.get('lost'), 'actual seed HP loss', 0, event['requested'])
     if terminal and meta['end_event'].get('kind') != 'condition_cure': raise ValueError('actual linked condition cure required')
     return True
@@ -125,7 +126,7 @@ def turn_start(engine, actor, record, *, _boss_round=False):
     caster = W.actor_index(engine).get(record[E.KEY]['applied_by_actor_id'])
     if caster is None: raise ValueError('seed drain applying actor missing')
     maximum = actor.base_max_hp
-    event.update(maximum_hp=maximum, requested=maximum // 10, lost=0)
+    event.update(maximum_hp=maximum, requested=NUMERIC.ratio(maximum,10), lost=0)
     applications.append(event)
     before = actor.hp
     import boss_transitions as BOSS

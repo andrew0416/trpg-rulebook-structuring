@@ -119,7 +119,7 @@ class CombatTests(unittest.TestCase):
         from grid import Grid,cheb
         self.a.spec['movement']={'land':2,'swim':6};self.a.stages['spe']=6
         self.e.grid=Grid(30,3);self.a.pos=(0,0);self.t.pos=(20,0)
-        TURN.reset_budget(self.e,self.a)
+        self.e.start_round([self.a,self.t]);self.e.start_of_turn(self.a)
         self.e.approach(self.a,self.t,movement_mode='swim')
         self.assertEqual(cheb((0,0),self.a.pos),9)
         self.assertEqual(self.a.budget['shift'],0)

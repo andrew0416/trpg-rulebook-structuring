@@ -29,6 +29,7 @@ class ActionPointTests(unittest.TestCase):
         e.r.feats_mech[rid]={'name':'ap-audit','coverage':'full','header':header,'effects':effects}
         a.spec['feats']=[rid]
         ITEMS.register_feats(e,a)
+        if action!='free':e.start_round([a,b]);e.start_of_turn(a)
         return e,a,b,rid
     def fire(self,e,a,b,rid,automatic=False):
         if automatic:FX.fire_event(e,a,{'event':'on_move_use','move':{'name':'audit'}},b)

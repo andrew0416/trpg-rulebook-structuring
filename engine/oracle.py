@@ -1,4 +1,5 @@
 """Oracle source adapters over native acquisition, observation, rolls and effects."""
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 from hashlib import sha256
 from pathlib import Path
@@ -200,7 +201,7 @@ def mark(e,owner,target,*,willing,seconds,reason):
  if willing is not True or target.kind!='trainer':raise ValueError('actual willing Trainer required')
  if mark_for(owner,target):raise ValueError('each Mark requires a different Trainer')
  total=sum(mark_for(owner,c)is not None for c in W.actor_index(e).values())
- if total>=__import__('skill_modifiers').rank(e.r,owner,'통찰')[2]//2:raise ValueError('half Perception Rank Mark limit reached')
+ if total>=NUMERIC.ratio(__import__('skill_modifiers').rank(e.r,owner,'통찰')[2],2):raise ValueError('half Perception Rank Mark limit reached')
  def apply(se,a,t):
   extended(se,a,MARK,seconds,reason,() if t is a else (t,))
   instance=G.effect_source(a,{'source_id':MARK+':'+a.entity_id},'oracle-mark')

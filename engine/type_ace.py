@@ -3,6 +3,7 @@
 The class is a template. Only committed acquisitions provide permissions; a
 completion ID is an observed native Move, never a caller-supplied hit flag.
 """
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 from pathlib import Path
 import json
@@ -416,7 +417,7 @@ def accuracy(engine,a,t,move,mm):
  for mark in markers(engine,a):
   if _targets_marker(engine,a,t,move,mark) or not engine.adjacent(a,mark):continue
   tr=_stat_owner(engine,mark,'Face Me Whelp')
-  if tr:result-=rank(engine,tr,'격투')//2
+  if tr:result-=NUMERIC.ratio(rank(engine,tr,'격투'),2)
  return result
 
 
@@ -839,7 +840,7 @@ def react(engine,a,p,feature,completion_id,**options):
  on_hit=name in ('Disruption Order','Black-Out Strike','Tyrant’s Roar','Vampirism','Bigger and Boulder','Fountain of Life','Aqua Vortex','Chain Lightning','Corrosive Blight','Psychic Resonance')
  if on_hit and not hits:raise ValueError('actual successful hit required')
  if name in ('Clever Ruse','Miasma') and (move['type']!=branch or (not _completed_targets(row,False) if name=='Miasma' else bool(hits))):raise ValueError('actual missed typed attack required')
- if name=='Disruption Order':options['x']=rank(engine,a,'벌레')//2
+ if name=='Disruption Order':options['x']=NUMERIC.ratio(rank(engine,a,'벌레'),2)
  if name=='Clever Ruse' and engine._active_turn_actor is not p:raise ValueError('Clever Ruse requires the actual own turn')
  if name=='Cross-Pollinate' and '풀' not in p.types:raise ValueError('actual Grass Pokemon required for Cross-Pollinate')
  def apply(e,t,q,*_):
@@ -1079,7 +1080,7 @@ def disengage(engine,p,path,*,mode='land',free=False):
 
 def _trip_plan(engine,a,p,target,feature,options,event,recipients):
  import maneuver_opposed as M
- opts=dict(options.get('challenger_options') or {});opts['mods']=opts.get('mods',0)+rank(engine,a,'땅')//2
+ opts=dict(options.get('challenger_options') or {});opts['mods']=opts.get('mods',0)+NUMERIC.ratio(rank(engine,a,'땅'),2)
  defender=dict(options.get('defender_options') or {})
  identity='upheaval:'+p.entity_id+':'+str(next(iter(event.items())))+':'+target.entity_id
  opts.setdefault('roll_id',identity+':challenger');defender.setdefault('roll_id',identity+':defender')
@@ -1175,7 +1176,7 @@ def _boulder(engine,a,p,hits,options,x):
  for t in hits:
   d=directions[t.entity_id]
   if type(d) is not dict or set(d)!={'direction','distance'}:raise ValueError('direction and actual push distance required')
-  C.integer(d['distance'],'Boulder push',0,x//2)
+  C.integer(d['distance'],'Boulder push',0,NUMERIC.ratio(x,2))
   if not push_immunity(engine,t,attacker=p):FM.displace(engine,p,t,direction=d['direction'],distance=d['distance'],source=uid('Bigger and Boulder'))
   _timed(engine,t,uid('Bigger and Boulder'),statuses=['취약'])
   if t.side!=p.side:_place_rock(engine,p,uid('Bigger and Boulder'),cell=cells[t.entity_id],adjacent_to=t)
@@ -1276,7 +1277,7 @@ def incoming_reduction(engine,a,p,move,mult):
 def fountain(engine,p,move,rolled):
  s=scope(engine,p,move)
  if not s or s['feature']!=uid('Fountain of Life'):return rolled
- n=s['penalty'];C.integer(n,'Fountain penalty',0,min(3*rank(engine,s['trainer'],'물'),rolled//2))
+ n=s['penalty'];C.integer(n,'Fountain penalty',0,min(3*rank(engine,s['trainer'],'물'),NUMERIC.ratio(rolled,2)))
  if not s['paid']:
   _pay(engine,s['trainer'],p,s['feature'],per_pokemon=True);s['paid']=True
   __import__('temporary_hp').grant(engine,p,2*n,provenance={'feature':s['feature'],'rolled_damage':rolled,'penalty':n})

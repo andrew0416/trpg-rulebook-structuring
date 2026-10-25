@@ -3,6 +3,7 @@
 Hardened is a result of the Class trigger, not another Training regime.  The
 printed Class gives it no rest deadline; its source is the actual owning Class.
 """
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 from functools import wraps
 import common_checks as C
@@ -317,12 +318,12 @@ def press(engine,owner,target,*,stats,obedience=False,whip=None):
         parent=None
         with ACTION.resolution(e,trainer,PRESS_ACTION,kind='feature'):
             if not TURN.spend(e,trainer,'standard',PRESS_ACTION):raise ValueError('Press requires Standard action permission')
-            e.lose_hp(pupil,max(1,pupil.base_max_hp//6),PRESS_ACTION)
+            e.lose_hp(pupil,max(1,NUMERIC.ratio(pupil.base_max_hp,6)),PRESS_ACTION)
             if '잠듦' in pupil.conditions:e.cure_status(pupil,'잠듦')
             for stat in stats:e.change_stage(pupil,stat,1)
             if obedience:
                 TIMING.install(e,trainer,{'source':PRESS_ACTION,'press_target':pupil.entity_id,
-                    'press_obedience':__import__('hobbyist').direct_rank(trainer,PRESS_ACTION,'협박',effective=True)//2,'round_end_deadline':e.round_no})
+                    'press_obedience':NUMERIC.ratio(__import__('hobbyist').direct_rank(trainer,PRESS_ACTION,'협박',effective=True),2),'round_end_deadline':e.round_no})
             if whip is not None and whip.get('order') is not None:
                 order=whip['order'];feature=order if isinstance(order,str) else order['feature']
                 if feature not in e.r.selection.units:feature=e.r.selection.resolve_name(feature,('feat/',))

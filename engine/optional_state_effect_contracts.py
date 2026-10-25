@@ -6,6 +6,7 @@ features store JSON-safe source records on the affected actors.  Consumers
 read those records at stat, evasion, accuracy, critical, and movement queries.
 """
 from __future__ import annotations
+import arithmetic_policy as NUMERIC
 
 from copy import deepcopy
 import hashlib
@@ -379,7 +380,7 @@ def combat_stage_delta(actor, stat):
 
 def staged_value(actor, stat, value):
     if stat in ("atk", "spe") and any(r["clause_id"] == "SB-099" for r in records(actor)):
-        return value // 2
+        return NUMERIC.ratio(value,2)
     return value
 
 

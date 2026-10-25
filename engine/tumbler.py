@@ -146,7 +146,7 @@ def burst_offer(e,actor):
  answer=e.rulings.decide({'type':'burst_of_speed','unit':BURST,'actor':actor.name,'initiative':value.value,'text':'Choose an extra turn count at most half your Initiative, or decline.'})
  if answer is None or answer is False:return
  C.integer(answer,'Burst of Speed initiative count')
- if answer>value.value/2 or answer>TIME.current(e):raise ValueError('Burst of Speed count must be no more than half Initiative and still ahead this round')
+ if answer*2>value.value or answer>TIME.current(e):raise ValueError('Burst of Speed count must be no more than half Initiative and still ahead this round')
  ACTION.triggered_free_action(e,actor,BURST)
  S.grant_extra_turn(e,actor,source=BURST,count=answer,initiative=value.value)
  F.consume_activation(actor,BURST,{'kind':'scene','uses':1},engine=e)

@@ -138,8 +138,9 @@ def jump_projection(actor, values):
     if partner is None:
         return values
     import jump_actions as JUMP
-    other = JUMP.limits(partner)
-    return {key: max(value, other[key]) for key, value in values.items()}
+    other = JUMP.limits(partner, _partial=True)
+    return {key: max(values[key], other[key]) if key in values and key in other
+            else values[key] if key in values else other[key] for key in values.keys() | other.keys()}
 
 
 def merge_necrozma(engine, necrozma, partner, *, willing=False, helpless=False, signature_move=None):

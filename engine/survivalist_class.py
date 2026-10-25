@@ -8,6 +8,7 @@ Geography as-if terrain for one turn (C04-093) and the remaining Terrain Talent 
 (C04-094). Lifetimes use combat_timing, frequencies use frequency, trap instances use
 hazard_state, transactions use state_grants; nothing here overwrites actual world terrain.
 """
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 from pathlib import Path
 import hashlib
@@ -410,7 +411,7 @@ def evasion_bonus(engine,target,attacker,move):
  opportunity=(isinstance(scope,dict) and scope.get('source')==OPPORTUNITY and scope.get('attacker_id')==attacker.entity_id and scope.get('target_id')==target.entity_id)
  if move.get('id') not in (PUSH,TRIP) and not opportunity:return 0
  import skill_modifiers as S
- return S.effective_rank(engine.r,target,'생존')//2
+ return NUMERIC.ratio(S.effective_rank(engine.r,target,'생존'),2)
 
 
 # ---------------------------------------------------------------- Trapper (ch04:2156-2164)

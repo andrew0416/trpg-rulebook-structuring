@@ -1,4 +1,5 @@
 """Source-bound Gigantamax activation and its completed field consumers."""
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 import json
 import os
@@ -436,7 +437,7 @@ def start_turn(engine, actor):
                 if row["turns"] == 0:
                     keep.append(row)
                     continue
-            damage = actor.base_max_hp // 6
+            damage = NUMERIC.ratio(actor.base_max_hp,6)
             if damage:
                 engine.lose_hp(actor, damage, source=row["move_id"], unpreventable=True)
             row["turns"] -= 1

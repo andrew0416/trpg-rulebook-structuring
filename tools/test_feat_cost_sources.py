@@ -1,5 +1,6 @@
 """Every standalone AP frequency line in feat source spans must survive each pipeline stage."""
 import hashlib,json,sys,unittest
+from copy import deepcopy
 from pathlib import Path
 from datetime import datetime,timezone
 ROOT=Path(__file__).resolve().parents[1]
@@ -7,6 +8,9 @@ sys.path[:0]=[str(ROOT/'tools'),str(ROOT/'engine')]
 from engine import Rules,Engine,Combatant
 import items as ITEMS
 import action_points as AP
+import combat_precision_features as CPF
+import trainer_feature_acquisition as FEATURES
+from builder import build_pokemon
 from ptk_structure import parse_blocks
 CASES=json.loads((ROOT/'data/source-feat-cost-cases.json').read_text(encoding='utf-8'))
 class FeatCostSourceTests(unittest.TestCase):
@@ -32,12 +36,48 @@ def make(case):
         if case['mode']=='bind':
             engine=Engine(self.rules,seed=1)
             actor=Combatant(self.rules,dict(name='AP source audit',kind='trainer',level=10,stats={s:20 for s in ['hp','atk','def','spa','spd','spe']},types=[],abilities=[],moves=[],feats=[case['id']]))
+            if case['id']==CPF.PINPOINT:
+                actor.spec.update(feats=[],skills={'명령':5})
+                engine.everyone=[actor];engine.gm.everyone=engine.everyone
+                receipt=FEATURES.acquire_static(engine,actor,CPF.PRECISION,
+                    acquisition_request_id='feat-cost/precision-orders')
+                self.assertEqual(receipt['feature_id'],CPF.PRECISION)
+                self.assertEqual(receipt['status'],'acquired')
+                self.assertIn(CPF.PINPOINT,actor.spec['feats'])
             before=(dict(actor.stats),dict(actor.stages),actor.evasion_mod,actor.accuracy_stage,actor.damage_reduction,list(actor.abilities),list(actor.moves))
-            ITEMS.register_feats(engine,actor)
+            if case['id']=='feat/즉석-도구':
+                # Its errata branch lifetime has no native acquisition owner;
+                # a source-format test must not pretend this raw name acquired it.
+                refused_state=deepcopy((actor.spec,actor.registry,engine.log_lines)),engine.rng.getstate()
+                with self.assertRaisesRegex(ValueError,'^actual acquired feature branches required: feat/즉석-도구$'):
+                    ITEMS.register_feats(engine,actor)
+                self.assertEqual(((actor.spec,actor.registry,engine.log_lines),engine.rng.getstate()),refused_state)
+            else:
+                ITEMS.register_feats(engine,actor)
             after=(dict(actor.stats),dict(actor.stages),actor.evasion_mod,actor.accuracy_stage,actor.damage_reduction,list(actor.abilities),list(actor.moves))
             self.assertEqual(after,before,'binding cannot apply free permanent benefits at registration')
             effects,header=self.rules.feat_effects(case['id'])
             self.assertIsNone(AP.quote(header,effects)[0],'unimplemented binding must stay explicit')
+            if case['id']==CPF.PINPOINT:
+                partner=Combatant(self.rules,build_pokemon(self.rules,'피그점프',5,
+                    extra={'trainer':actor.name,'trainer_id':actor.entity_id}))
+                engine.everyone.append(partner);engine.time_actors(engine.everyone)
+                engine.gm.observe_sensory_environment(actor,partner,paths={'auditory':True},
+                    present=True,reason='actual acquired Pinpoint Order delivery')
+                engine.start_round(engine.everyone);engine.start_of_turn(actor)
+                available=AP.available(actor)
+                self.assertEqual(available,AP.maximum(actor))
+                self.assertEqual(engine.manual_feat(actor,CPF.PINPOINT,partner),(1,0))
+                binding=CPF.binding(engine,partner)
+                self.assertIs(binding['owner'],actor);self.assertIs(binding['target'],partner)
+                self.assertEqual(binding['source'],case['id'])
+                self.assertEqual(AP.ActionPointAccount(actor).identified_bindings(),{binding['instance']:case['ap']})
+                self.assertEqual(AP.available(actor),available-case['ap'])
+                self.assertEqual(actor.budget['standard'],0)
+                self.assertEqual(CPF.release(engine,actor,partner),(1,0))
+                self.assertIsNone(CPF.binding(engine,partner))
+                self.assertEqual(AP.ActionPointAccount(actor).identified_bindings(allow_missing=True),{})
+                self.assertEqual(AP.available(actor),available)
     return test
 for i,c in enumerate(CASES):
     setattr(FeatCostSourceTests,'test_source_'+str(i).zfill(3),make(c))

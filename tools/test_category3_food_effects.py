@@ -59,7 +59,7 @@ class FoodTests(unittest.TestCase):
  def test_replaced_food_source_and_multiple_serving_request_reject_before_cost(self):
   self.a.spec['items']['맛있는물']=2;original=self.e.r._selected_rule
   try:
-   self.e.r._selected_rule=lambda uid:uid+'/unsupported' if uid==FOOD.DRINK_SOURCE else original(uid);before=self.state()
+   self.e.r._selected_rule=lambda uid, *args, **kwargs: uid + '/unsupported' if uid == FOOD.DRINK_SOURCE else original(uid, *args, **kwargs);before=self.state()
    with self.assertRaises(ValueError):self.drink()
    self.assertEqual(before,self.state())
   finally:self.e.r._selected_rule=original

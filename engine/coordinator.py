@@ -4,6 +4,7 @@ Core and local translated source choices stay in the shared acquisition receipt.
 Created Moves encode their immutable template and Contest choices in their ID;
 permanent learning, quota, actions and effects retain their existing owners.
 """
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 from hashlib import sha256
 from pathlib import Path
@@ -431,7 +432,7 @@ def selected_targets(engine,actor,move,candidates,primary):
 
 def effect_range(engine,actor,move):
  row=move.get('innovation_instance')
- return (contest_dice(engine,actor,row['contest_type'])//2 if row and row['template']==3 else 0)+attack_boon(actor,move,'아름다움')
+ return (NUMERIC.ratio(contest_dice(engine,actor,row['contest_type']),2) if row and row['template']==3 else 0)+attack_boon(actor,move,'아름다움')
 
 
 def damage_bonus(engine,actor,move):

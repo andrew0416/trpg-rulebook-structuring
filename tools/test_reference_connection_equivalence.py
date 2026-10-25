@@ -9,6 +9,10 @@ def _assertion_value(value):
     if kind is float and math.isfinite(value):return ('float',value)
     if kind in (list,tuple):return (kind.__name__,tuple(_assertion_value(v) for v in value))
     if kind is dict:return ('dict',tuple((_assertion_value(k),_assertion_value(v)) for k,v in value.items()))
+    if isinstance(value,tuple):
+        from effect_contracts import BatchResult
+        # Original assertions compare its tuple counts; lifecycle guards check the world separately.
+        if kind is BatchResult:return ('tuple',tuple(_assertion_value(v) for v in value))
     raise AssertionError('unsupported reference assertion value: '+kind.__qualname__)
 
 

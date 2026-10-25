@@ -1,6 +1,7 @@
 """Native actions and projections for remaining CSV capability/environment rows."""
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
-from math import ceil, isfinite
+from math import isfinite
 
 import common_checks as C
 import csv_item_contract_policy as POLICY
@@ -594,7 +595,7 @@ def muscle_jump_bonus(actor):
 
 def injury_recovery_seconds(actor, ordinary_seconds):
     C.integer(ordinary_seconds, "ordinary injury recovery seconds", 0)
-    return ceil(ordinary_seconds / 2) if has(actor, "개선된 인조 근육") else ordinary_seconds
+    return NUMERIC.ceil_ratio(ordinary_seconds,2) if has(actor, "개선된 인조 근육") else ordinary_seconds
 
 
 def daily_injury_heal(actor, ordinary):

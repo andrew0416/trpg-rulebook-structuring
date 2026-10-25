@@ -61,6 +61,18 @@ import status_sets as STATUS_SETS
 STATUS_NORM = STATUS_SETS.ALIASES
 
 
+def _excluded_move_admission(fn):
+    """Keep native exclusion refusal ahead of selected-source feature readers."""
+    from functools import wraps
+    @wraps(fn)
+    def run(engine, attacker, target, move_id, *args, **kwargs):
+        if move_id in engine.r.excluded_moves:
+            if engine._ruleset_move(attacker, move_id) is None:
+                return 0
+        return fn(engine, attacker, target, move_id, *args, **kwargs)
+    return run
+
+
 class Rules:
     def __init__(self, root, use_hand=True, rulings_path=None, ruleset=None, custom_species=None):
         self.root = root
@@ -758,8 +770,9 @@ class Combatant:
         if any(e["type"] == "evasion_disabled" and not e.get("only") for c in conditions for e in self.r.condition_effects(c)):
             return 0
         src = ev["sources"]
+        import evasion_source as EVASION_SOURCE
         def by(stat):
-            return min(ev["cap"], M.ratio(self.staged(stat),ev["per_points"]))
+            return min(ev["cap"], EVASION_SOURCE.stat_component(self.r, ev, self.staged(stat)))
         speed_ok = not any(e["type"] == "evasion_disabled" and e.get("only") == "speed" for c in conditions for e in self.r.condition_effects(c))
         speed=by(src["speed"]) if speed_ok else 0
         if speed_ok and engine is not None:
@@ -1476,7 +1489,12 @@ class Engine:
         if selected_id is not None:
             import move_state
             registration = move_state.ability_registration(self.r, selected_id)
-            requested = move_state.ability_registration(self.r, name)
+            if selected_id in __import__('hp_setting_moves').CAPS and registration and name == registration['name']:
+                # This exact source was already chosen; do not re-resolve its
+                # ambiguous display name against the separately held R492 row.
+                requested = registration
+            else:
+                requested = move_state.ability_registration(self.r, name)
             if not registration or not requested or registration["name"] != requested["name"] or registration["source_id"] != selected_id:
                 raise ValueError("explicit ability source requires reviewed exact source identity")
             name = registration["name"]
@@ -3526,7 +3544,8 @@ class Engine:
     def _lose_hp(self, c, amount, source="damage", *, unpreventable=False, loss_kind="loss"):
         """Ordinary loss consumes temporary HP; an HP-setting adapter changes actual HP.
 
-        Explicit HP setting is not damage and cannot be reduced by a damage cap.
+        HP setting is HP loss: a selected loss cap can reduce its decrease.
+        Explicit unpreventable sources bypass prevention; forced faint is separate.
         Percentage loss keeps ordinary loss layers but cannot overflow a boss bar.
         Marker/life transitions remain shared, without attack-damage reactions.
         Unpreventable loss bypasses damage caps; temporary HP follows the selected
@@ -3544,17 +3563,20 @@ class Engine:
         if loss_kind not in ("loss", "percentage", "hp_setting"):
             raise ValueError("loss_kind must be loss, percentage or hp_setting")
         import taskmaster as TASK
-        if loss_kind in ('loss','percentage') and TASK.immune_loss(c):return
-        if loss_kind in ('loss','percentage') and __import__('coordinator').prevent_loss(self,c,source):return
+        if not unpreventable and loss_kind in ('loss','percentage') and TASK.immune_loss(c):return
+        if not unpreventable and loss_kind in ('loss','percentage') and __import__('coordinator').prevent_loss(self,c,source):return
         TEMP_HP.ensure_certain(self, c)
-        if loss_kind in ("loss", "percentage") and not unpreventable:
-            amount = EXT.cap_damage(self, c, amount)
+        if not unpreventable:
+            amount = EXT.cap_damage(self, c, amount, loss_kind=loss_kind)
         if loss_kind in ("loss", "percentage"):
             amount = TEMP_HP.loss_remainder(self, c, amount, unpreventable=unpreventable)
         before, maxhp = c.hp, c.base_max_hp          # 표시점은 실제 최대 체력 기준
         import keep_fighting as KEEP
-        proposed=__import__('endure').replace_hp(self,c,before,before-amount,source=source,loss_kind=loss_kind)
-        c.hp = KEEP.replace_hp(self,c,before,proposed,source=source,loss_kind=loss_kind,amount=amount,unpreventable=unpreventable)
+        proposed = before - amount
+        if not unpreventable:
+            proposed=__import__('endure').replace_hp(self,c,before,proposed,source=source,loss_kind=loss_kind)
+            proposed=KEEP.replace_hp(self,c,before,proposed,source=source,loss_kind=loss_kind,amount=amount,unpreventable=False)
+        c.hp = proposed
         import bandages as BANDAGES
         __import__('type_ace').hp_changed(self,c,before,maxhp)
         __import__('athlete').hp_changed(self,c,before,maxhp)
@@ -3925,6 +3947,9 @@ class Engine:
     def coup_de_grace(self, actor, target, move_id, **options):
         return self.use_move(actor,target,move_id,coup_de_grace=True,**options)
 
+    @__import__('hp_setting_moves').preparation_scope
+    @__import__('partial_entities').complete_move
+    @_excluded_move_admission
     @__import__('warper').native_move
     @__import__('telepath').native_move
     @__import__('telekinetic').native_move
@@ -4209,14 +4234,15 @@ class Engine:
         return CHAIN.continue_move(self,completion_id,chain_steps=chain_steps,stop=stop)
 
     def _ruleset_move(self, attacker, move_id):
-        import living_weapon as LIVING
-        LIVING.refresh(self,attacker)
         """룰셋 필터: 제외된 기술은 거부(None), 코어판→변형판 치환은 로그."""
         if move_id in self.r.unresolved_moves:
             raise UnresolvedRuleSelection(move_id, self.r.unresolved_moves[move_id])
         if move_id in self.r.excluded_moves:
+            self.r.selection.require_current_filter(self.r.ruleset)
             self.log(f"  {attacker.name} {self.r.moves[move_id]['name']}: 룰셋 '{self.r.ruleset.name}' 에서 제외된 기술({self.r.excluded_moves[move_id]}) → 사용 불가", "ruleset/exclude")
             return None
+        import living_weapon as LIVING
+        LIVING.refresh(self,attacker)
         new = self.r.resolve_move(move_id)
         if self.r.move(new).get('class') == '항상':
             raise ValueError('static learned Move cannot be activated')
@@ -4224,6 +4250,9 @@ class Engine:
             self.log(f"  [룰셋 {self.r.ruleset.name}] {self.r.moves[move_id]['name']} → {self.r.moves[new]['name']} (변형판 대체)", "ruleset/alias")
         return new
 
+    @__import__('hp_setting_moves').preparation_scope
+    @__import__('partial_entities').complete_move
+    @_excluded_move_admission
     @__import__('warper').native_move
     @__import__('telepath').native_move
     @__import__('telekinetic').native_move
@@ -4938,7 +4967,12 @@ class Engine:
                 self._heavy_native_receipts.pop(heavy_context,None)
         if reactive_damage_observation.get('channeler_pain'):
             return dict(hit=True,dealt=0,held=0,hit_prevented=False,melee_contact=reactive_contact,channeler_pain=reactive_damage_observation['channeler_pain'],effects=[key for key in getattr(self,'_effect_dispatch_receipts',{}) if key not in completion_receipts])
-        if substitute is not None:mm=__import__('substitute').mechanics(move,mm)
+        if substitute is not None:
+            if move_id == 'move/목숨걸기':
+                # The coat intercepts the target damage, never the user's cost.
+                mm = dict(mm, effects_exec=[dict(effect,target='self') if effect.get('type')=='self_hp_set' else effect
+                                           for effect in mm.get('effects_exec',[])])
+            mm=__import__('substitute').mechanics(move,mm)
         actual_type = reactive_damage_observation.get("actual_damage_type",move["type"])
         # 효과 (hand mech 우선, 없으면 auto)
         import eldritch_magic as ELDRITCH
@@ -4989,6 +5023,9 @@ class Engine:
             __import__('researcher_fields').relic_after_hit(self,attacker,target,move,dealt)
         with DAMAGE_HISTORY.native_effects(self,attacker,target,move,completion_id):
             done, held = FX.run_effects(self, attacker, target, mm.get("effects_exec", []), ctx, f"{move_id} ({conf})")
+        if move_id == "move/목숨걸기":
+            dealt = DAMAGE_HISTORY.effect_damage_total(self, attacker, target, move_id, completion_receipts)
+            ctx["dealt"] = dealt
         self.effect_stats["done"] += done
         self.effect_stats["held"] += held
         EXT.after_move(self, attacker, target, move, mm, ctx)
@@ -5867,7 +5904,7 @@ class Engine:
         name=ITEMS.ball_name(self.r.items_mech.get(ball_name,{}).get('name',ball_name))
         import csv_item_physical_contracts as CSV_ITEMS
         cannon = CSV_ITEMS.cannon_profile(self,trainer,cannon_instance_id,projectile='ball') if cannon_instance_id is not None else None
-        manual_bonus = 0 if type_manual_instance_id is None else -CSV_ITEMS.manual_capture_modifier(self,trainer,target,type_manual_instance_id)//5
+        manual_bonus = 0 if type_manual_instance_id is None else M.ratio(-CSV_ITEMS.manual_capture_modifier(self,trainer,target,type_manual_instance_id),5)
         inv=trainer.spec.get('items',{})
         inventory_key=ITEMS.ball_inventory_key(trainer,ball_name)
         if cannon is not None:

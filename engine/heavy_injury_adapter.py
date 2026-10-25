@@ -10,6 +10,7 @@ import heavy_injury_kernel as K
 
 class Producer(Enum):
     RESOLVED_HIT = "Engine.resolve_attack_damage"
+    EFFECT_DAMAGE = "HISTORY.effect_loss.fixed_damage"
     SECOND_HIT = "EXT.after_move.second_hit"
     DELAYED_HIT = "EXT.end_of_turn.delayed_attack"
 

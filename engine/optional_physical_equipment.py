@@ -4,6 +4,7 @@ The physical object and the ordinary item registration own the lifetime.  This
 module only projects source-reviewed weapon grants, conditional saves and the
 two explicit activations into existing native consumers.
 """
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 import json
 import os
@@ -491,7 +492,7 @@ def claim_blood_scythe_healing(engine, actor):
     def apply(staged, staged_actor):
         current = staged_actor.custom_conditions.pop("blood_scythe_healing")
         FREQ.consume_activation(staged_actor, key, frequency, engine=staged)
-        amount = current["damage"] // 2
+        amount = NUMERIC.ratio(current["damage"],2)
         gained = staged.heal(staged_actor, amount, source_kind="feature")
         return {"healed": gained, "eligible_damage": current["damage"], "instance_id": row["instance_id"]}
     import state_grants as GRANTS

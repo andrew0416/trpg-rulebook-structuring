@@ -1,4 +1,5 @@
 """Book Channeler adapters; connections, observations, effects and resources keep their native owners."""
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 import common_checks as C
 import state_grants as G
@@ -419,7 +420,7 @@ def replace_attack(e,attacker,pokemon,amount,move,actual_type):
   if any(uid not in index for uid in choice):raise ValueError('actual Pain Dampening recipients required')
   selected=[target(e,owner,index[uid]) for uid in choice]
   resisted=sum(e.type_multiplier(actual_type,p)[0]<1 for p in selected)
-  loss=max(0,amount-resisted*rank(e,owner))//len(selected)
+  loss=NUMERIC.ratio(max(0,amount-resisted*rank(e,owner)),len(selected))
   ACTION.triggered_free_action(e,owner,PAIN);F.consume_activation(owner,PAIN,{'kind':'scene','uses':2},engine=e)
   before={p.entity_id:p.hp for p in selected}
   for p in selected:e.lose_hp(p,loss,source=PAIN)

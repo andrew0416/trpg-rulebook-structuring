@@ -126,7 +126,7 @@ class RollResourceTests(unittest.TestCase):
         self.assertEqual(self.a.spec,before);self.assertEqual(self.e.rng.getstate(),rng)
         self.a.spec['skills']['직감']='숙련'
         original=self.r._selected_rule
-        self.r._selected_rule=lambda uid:'alternate' if uid=='edge/타고난-적성' else original(uid)
+        self.r._selected_rule=lambda uid, *args, **kwargs: 'alternate' if uid == 'edge/타고난-적성' else original(uid, *args, **kwargs)
         try:
             before=AP.available(self.a)
             with self.assertRaises(ValueError):self.prepare()
@@ -158,7 +158,7 @@ class RollResourceTests(unittest.TestCase):
     def test_instruction_selected_variant_or_pokemon_ownership_does_not_apply(self):
         self.a.spec['edges']=['edge/설명'];self.a.spec['skills']['일반지식']='초보'
         original=self.r._selected_rule
-        self.r._selected_rule=lambda uid:'alternate' if uid=='edge/설명' else original(uid)
+        self.r._selected_rule=lambda uid, *args, **kwargs: 'alternate' if uid == 'edge/설명' else original(uid, *args, **kwargs)
         try:
             with self.assertRaises(ValueError):self.e.common_action(self.p,'육상',10,mode='skill',helper=self.a,helper_skill='일반지식')
         finally:self.r._selected_rule=original

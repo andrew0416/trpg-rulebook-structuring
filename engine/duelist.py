@@ -1,4 +1,5 @@
 """Book Duelist: one tagged foe, native Momentum producers and its consumers."""
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 import acquired_features as A
 import common_checks as C
@@ -87,7 +88,7 @@ def accuracy(engine,pokemon,foe):
     if trainer is None or not focused(pokemon,trainer):return 0
     tag=trainer.spec.get(KEY,{}).get('tag')
     if tag is None:return 0
-    if tag==foe.entity_id:return (momentum(pokemon)+1)//2
+    if tag==foe.entity_id:return NUMERIC.ceil_ratio(momentum(pokemon),2)
     import training_features as TRAIN
     return -sum(TRAIN.bonuses(row).get('accuracy',0) for row in TRAIN.active(pokemon)
                 if row['rule_id']==FOCUSED and row['owner'] is trainer)
@@ -95,7 +96,7 @@ def accuracy(engine,pokemon,foe):
 
 def evasion(engine,pokemon,foe):
     trainer=_owner(engine,pokemon)
-    return (momentum(pokemon)+1)//2 if trainer and focused(pokemon,trainer) and tagged(engine,pokemon,foe) else 0
+    return NUMERIC.ceil_ratio(momentum(pokemon),2) if trainer and focused(pokemon,trainer) and tagged(engine,pokemon,foe) else 0
 
 
 def tag(engine,trainer,foe):
@@ -205,7 +206,7 @@ def after_move(engine,row):
         if hits and row.get('duelist_already_critical') and not overflow.get('heal_applied'):
             import life
             overflow['heal_applied']=True
-            overflow['healed']=life.heal(engine,pokemon,pokemon.base_max_hp//2,source_kind='feature')
+            overflow['healed']=life.heal(engine,pokemon,NUMERIC.ratio(pokemon.base_max_hp,2),source_kind='feature')
         if overflow.get('suspended'):
             # The native continuation has now completed the already paid Move.
             import initiative_interrupts as I

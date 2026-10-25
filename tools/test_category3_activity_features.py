@@ -19,6 +19,7 @@ class ActivityFeatureTests(unittest.TestCase):
  def bad(self,rid='r'):return self.opts(rid,lambda first:'invalid')
  def used(self):return self.a.spec.get('frequency_state',{}).get('activations',{}).get(SF.MONKEY,{}).get('used',0)
  def test_standard_activity_observed_failure_resume_spends_action_only_once(self):
+  self.e.start_round([self.a,self.p,self.q]);self.e.start_of_turn(self.a)
   self.own('maniac');self.a.budget={'standard':1,'shift':1,'swift':1}
   with self.assertRaises(ValueError):self.act('pokemaniac',target=self.p,**self.bad())
   self.assertEqual(self.a.budget['standard'],0);self.assertEqual(SF.event(self.e,self.a,'r').first.total,4);rng=self.e.rng.getstate();self.assertEqual(self.used(),0)

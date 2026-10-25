@@ -700,7 +700,7 @@ def grant_extra_turn(engine,actor,*,source,count,initiative):
  C.integer(count,'extra turn initiative count');C.integer(initiative,'actual Initiative')
  closure=engine._turn_closures[-1] if engine._turn_closures else None
  if engine._active_turn_actor is not None or closure is None or closure['actor'] is not actor or closure['round']!=engine.round_no:raise ValueError('actual just-closed owner turn required')
- if count>initiative/2:raise ValueError('extra turn exceeds half Initiative')
+ if count*2>initiative:raise ValueError('extra turn exceeds half Initiative')
  rows=getattr(engine,EXTRA,[])
  origin={'actor_id':actor.entity_id,'source':source,'count':count,'initiative':initiative,'closure':closure['sequence'],'round':engine.round_no}
  if any(r['origin']==origin for r in rows):raise ValueError('closed turn already granted this extra turn')
@@ -742,7 +742,7 @@ def validate_extra_turns(engine,index):
   if index.get(origin['actor_id']) is not actor or origin['source']!=T.BURST or row['integrity']!=R.fingerprint(origin):raise ValueError('extra turn source or actor changed')
   closure=next((c for c in engine._turn_closures if c['sequence']==origin['closure']),None)
   if closure is None or closure['actor'] is not actor or closure['round']!=origin['round']:raise ValueError('extra turn lost its actual source turn closure')
-  if origin['count']>origin['initiative']/2 or row['status'] not in ('queued','open','closed','declined','expired'):raise ValueError('invalid extra turn count or state')
+  if origin['count']*2>origin['initiative'] or row['status'] not in ('queued','open','closed','declined','expired'):raise ValueError('invalid extra turn count or state')
   if row['status']=='open' and (engine._active_turn_actor is not actor or engine.round_no!=origin['round']):raise ValueError('extra turn must own the native open turn')
   if row['status']=='closed' and not any(c['sequence']==row['closed_by'] and c['actor'] is actor and c['round']==origin['round'] for c in engine._turn_closures):raise ValueError('extra turn actual close receipt missing')
  return True

@@ -4,6 +4,7 @@
 module derives the boss slots and mutates that owner only from actual round,
 turn, HP, condition, frequency and capture consumers.
 """
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 
 
@@ -459,7 +460,7 @@ def evasion(actor, value):
     if any(binding.get("variant") in ("drowsy", "chilled")
            and condition in actor.conditions
            for condition, binding in row["condition_bindings"].items()):
-        return value // 2
+        return NUMERIC.ratio(value,2)
     return value
 
 

@@ -351,6 +351,7 @@ def h_execute(engine, a, t, e, ctx):
     if ok:
         import attack_damage_history as HISTORY
         HISTORY.received_loss(engine,t,max(0,t.hp),source="일격",move=ctx.get('move'),loss_kind="hp_setting")
+        __import__("life").faint(engine,t)
 
 
 def h_transform(engine, a, t, e, ctx):
@@ -1636,17 +1637,26 @@ def multiplier_hook(engine, a, move, mm, ctx):
     return 1.0
 
 
-def cap_damage(engine, c, amount):
+def cap_damage(engine, c, amount, *, loss_kind='damage'):
     cap = c.damage_cap
     if not cap:
         return amount
-    v = FX._amount(cap.get("value"), c, engine, {"attacker": c})
+    if loss_kind not in ('damage', 'loss', 'percentage', 'hp_setting'):
+        raise ValueError('known damage or HP-loss kind required')
+    scope = cap.get('applies_to')
+    if scope not in (None, 'damage', 'damage and hp loss'):
+        raise ValueError('unsupported damage-cap scope')
+    if loss_kind != 'damage' and scope == 'damage':
+        return amount
+    if not __import__('hp_setting_moves').cap_active(engine, c, cap):
+        return amount
+    v = FX._amount(cap.get('value'), c, engine, {'attacker': c})
     if v is None:
         return amount
-    if cap.get("round") == "up" and str(cap.get("value", "")).endswith("/2"):
-        v = M.ceil_ratio(c.base_max_hp,2)
+    if cap.get('round') == 'up' and str(cap.get('value', '')).endswith('/2'):
+        v = M.ceil_ratio(c.base_max_hp, 2)
     if amount > v:
-        engine.log(f"    피해 상한 {v} 적용 ({amount} → {v})", "effect/damage_cap")
+        engine.log(f"    피해 상한 {v} 적용 ({amount} → {v})", 'effect/damage_cap')
         return v
     return amount
 

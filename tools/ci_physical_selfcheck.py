@@ -36,6 +36,31 @@ class Check(unittest.TestCase):
         self.assertNotIn("PTK_FIXTURE_KEY", os.environ)
         self.assertEqual((ROOT / "input.txt").read_text(encoding="utf-8"), "synthetic input")
 '''
+    nested = '''        import io, types, sys
+        for fixture in ('class_setup','class_teardown','module_setup','module_teardown'):
+            with self.subTest(fixture=fixture):
+                def bad_fixture(*args): raise RuntimeError('synthetic fixture error')
+                module = types.ModuleType('synthetic_nested_' + fixture)
+                sys.modules[module.__name__] = module
+                attributes = {'__module__':module.__name__, 'test_inner':lambda self:None}
+                if fixture.startswith('class'):
+                    attributes['setUpClass' if fixture.endswith('setup') else 'tearDownClass'] = classmethod(bad_fixture)
+                else:
+                    setattr(module, 'setUpModule' if fixture.endswith('setup') else 'tearDownModule', bad_fixture)
+                inner = type('Inner', (unittest.TestCase,), attributes)
+                result = unittest.TextTestRunner(stream=io.StringIO()).run(unittest.TestSuite([inner('test_inner')]))
+                self.assertEqual(result.testsRun, 0 if fixture.endswith('setup') else 1)
+                self.assertEqual(len(result.errors), 1)
+                self.assertEqual(result.failures, [])
+'''
+    wrong_origin = '''        import importlib.util, sys
+        outside = ROOT.parent / "outside.py"
+        spec = importlib.util.spec_from_file_location("outside_project", outside)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        self.assertEqual(module.VALUE, 7)
+'''
     body += {
         "pass": "",
         "failure": '        self.fail("synthetic raw failure")\n',
@@ -58,6 +83,8 @@ class Check(unittest.TestCase):
         import time
         time.sleep(30)
 ''',
+        "nested": nested,
+        "nested_wrong_origin": nested + wrong_origin,
     }[variant]
     (stage / "tools/test_ci_physical_synthetic.py").write_text(body, encoding="utf-8")
     (home / "outside.py").write_text("VALUE = 7\n", encoding="utf-8")
@@ -214,7 +241,7 @@ class Check(unittest.TestCase):
 def engine_namespace_runs(project, home):
     """Exercise the shared loader using only generated engine/test modules."""
     runs = {}
-    for variant in ('api_first', 'tests_first', 'inputs_first',
+    for variant in ('api_first', 'tests_first', 'inputs_first', 'qualified_first',
                     'sparse_fallback', 'sparse_override', 'missing'):
         run_home = home / variant
         stage = run_home / 'stage'
@@ -245,10 +272,20 @@ def engine_namespace_runs(project, home):
             imports = ('from engine import root_inputs\nfrom engine import Rules, Engine, Combatant\n'
                        if cls == 'Independent' else
                        'from engine import Rules, Engine, Combatant\nfrom engine import root_inputs\n')
+            if variant == 'qualified_first':
+                imports = 'from engine.engine import Rules, Engine, Combatant\nfrom engine import root_inputs\n'
             body = 'import unittest\n' + imports + f'''
 class {cls}(unittest.TestCase):
     def test_identity(self):
         import engine
+        import importlib
+        qualified = importlib.import_module('engine.engine')
+        self.assertIs(qualified, engine)
+        self.assertIs(engine.engine, engine)
+        self.assertIs(qualified.Engine, engine.Engine)
+        self.assertIs(qualified.Combatant, engine.Combatant)
+        self.assertIs(qualified.Rules, engine.Rules)
+        self.assertEqual(qualified.__file__, engine.__file__)
         self.assertIs(Rules, engine.Rules)
         self.assertIs(Engine, engine.Engine)
         self.assertIs(Combatant, engine.Combatant)
@@ -302,7 +339,7 @@ def self_check(project):
     with tempfile.TemporaryDirectory(prefix="ci-physical-self-check-", dir=project.parent) as directory:
         home = Path(directory).resolve()
         runs = {}
-        for variant in ("pass", "failure", "changed", "missing", "wrong_origin", "timeout", "timeout_failure"):
+        for variant in ("pass", "failure", "changed", "missing", "wrong_origin", "timeout", "timeout_failure", "nested", "nested_wrong_origin"):
             run = runs[variant] = synthetic_run(
                 project, home / variant, variant, timeout=1.5 if variant.startswith("timeout") else 20)
             meta = run["metadata"]
@@ -333,8 +370,8 @@ def self_check(project):
             original = Path(meta["original_cli_log"])
             assert original.read_bytes() == (physical / "ci-native.log").read_bytes()
             assert original.read_text(encoding="utf-8") == (physical / "ci-native-partial.log").read_text(encoding="utf-8")
-            assert (run["outcome"]["exit_code"] == 0) == (variant == "pass")
-            if variant == "pass":
+            assert (run["outcome"]["exit_code"] == 0) == (variant in ("pass", "nested"))
+            if variant in ("pass", "nested"):
                 assert meta["successful"] and meta["stable_hashes"]
                 assert meta["complete_pre_input_capture"] and meta["complete_loaded_input_capture"]
                 assert meta["runtime_test_data_sha256_before"] == meta["runtime_test_data_sha256_after"]
@@ -345,7 +382,7 @@ def self_check(project):
                 assert not meta["stable_hashes"]
             elif variant == "missing":
                 assert not meta["complete_pre_input_capture"]
-            elif variant == "wrong_origin":
+            elif variant in ("wrong_origin", "nested_wrong_origin"):
                 assert any(row["module"] == "outside_project" for row in meta["changed_origin_errors"])
         engine_namespace_runs(project, home / "engine-namespace")
         chaining_runs(project, home / "chaining")

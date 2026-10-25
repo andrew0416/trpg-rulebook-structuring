@@ -282,13 +282,36 @@ def h_hp_loss(engine, a, t, e, ctx):
 
 
 def h_self_hp_set(engine, a, t, e, ctx):
-    v = e.get("self_hp")
+    import hp_setting_moves as SETTING
+    source = ctx.get('source_id') or e.get('_rule_id')
+    loyalty = SETTING.prepare_loyalty(engine, a, e, source, completion=ctx.get('move_completion'))
+    if 'faint' in e and type(e['faint']) is not bool:
+        raise ValueError('self HP-setting faint must be an explicit boolean')
+    v = e.get('self_hp')
     if v == 0:
-        engine.lose_hp(a, max(0, a.hp), source="체력 0", unpreventable=e.get("unpreventable") is True, loss_kind="hp_setting")
-    elif isinstance(v, str) and "-50%" in v:
-        engine.lose_hp(a, a.hp + M.ratio(a.base_max_hp,2), source="체력 -50%", unpreventable=e.get("unpreventable") is True, loss_kind="hp_setting")
+        amount = max(0, a.hp)
+    elif isinstance(v, str) and '-50%' in v:
+        # The source sets a negative final value. Floor -83/2 to -42,
+        # rather than subtracting floor(+83/2) and incorrectly ending at -41.
+        amount = a.hp - M.ratio(-a.base_max_hp, 2)
     else:
         return f"self_hp 미해석: {v}"
+    before = a.hp
+    token = ctx.get('effect_receipt')
+    if token is not None:
+        engine._effect_dispatch_receipts[token]['hp_setting'] = {
+            'before_hp': before, 'prepared_loyalty': dict(loyalty) if loyalty is not None else None,
+            'unpreventable': e.get('unpreventable') is True, 'completion_id':ctx.get('move_completion')}
+    engine.lose_hp(a, amount, source=source or ('체력 0' if v == 0 else '체력 -50%'),
+                   unpreventable=e.get('unpreventable') is True, loss_kind='hp_setting')
+    ctx['hp_lost'] = max(0, before - a.hp)
+    if e.get('faint') is True:
+        import life as LIFE
+        LIFE.faint(engine, a)
+        engine.check_fainted(a)
+    SETTING.apply_loyalty(engine, a, loyalty, source, ctx.get('move_completion'))
+    if token is not None:
+        engine._effect_dispatch_receipts[token]['hp_setting'].update(after_hp=a.hp,actual_hp_lost=ctx['hp_lost'])
 
 
 def h_temp_hp(engine, a, t, e, ctx):
@@ -634,6 +657,7 @@ def preflight_effects(engine, attacker, target, effects, src, *, consumer=None):
     # effect can matter. The native hit gate still records the paid miss.
     if MINDLOCK.move_block(engine,attacker,target,{'id':CONTRACTS.source_id(engine,src)}):return None
     identity=CONTRACTS.require(engine,attacker,target,effects,src,consumer=consumer)
+    __import__("hp_setting_moves").preflight(engine,attacker,effects,identity)
     import move_coins as COINS
     COINS.preflight(engine,attacker,identity)
     import declarative_move_contracts as DECLARATIVE_MOVES

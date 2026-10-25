@@ -116,6 +116,7 @@ class OrdinaryGeneratedCapture:
 
 def run(stage, hashes, target, output):
     physical_open, physical_builtin_open = io.open, builtins.open
+    physical_link, physical_unlink = os.link, os.unlink
     stage, output = stage.resolve(), output.resolve()
     if output.is_relative_to(stage):
         raise ValueError("Physical evidence and scratch must be outside the input stage")
@@ -179,18 +180,24 @@ def run(stage, hashes, target, output):
             procedural=PROCEDURAL.packet(value)
         elif value.get('execution_kind') is not None:
             raise ValueError('Unknown typed CI execution kind')
-    ordinary_helper = None
+    ordinary_helper = extended_helper = None
     if gate is None and procedural is None:
         helper = (stage / 'tools/ci_procedural_gate.py').resolve()
         if str(helper) in before:
             helper_spec=importlib.util.spec_from_file_location('ci_procedural_gate',helper)
             ordinary_helper=importlib.util.module_from_spec(helper_spec);sys.modules[helper_spec.name]=ordinary_helper
             helper_spec.loader.exec_module(ordinary_helper)
+            extended = (stage / 'tools/ci_generated_input_gate.py').resolve()
+            if str(extended) in before:
+                extended_spec=importlib.util.spec_from_file_location('ci_generated_input_gate',extended)
+                extended_helper=importlib.util.module_from_spec(extended_spec);sys.modules[extended_spec.name]=extended_helper
+                extended_spec.loader.exec_module(extended_helper)
     gate_report = None
     mode_origins = {}
     started, clock = datetime.now(timezone.utc).isoformat(), time.monotonic()
     actual, reads, missing, origin_errors = [], {}, [], []; actual_modes = {}
     before_execution, result, active_test = {}, None, None
+    runner_depth = 0
     events = physical_open(physical / (PREFIX + "-events.jsonl"), "x",
                            encoding="utf-8", newline="\n")
 
@@ -207,6 +214,8 @@ def run(stage, hashes, target, output):
           runtime_test_data_sha256_before=before)
     ordinary_capture=OrdinaryGeneratedCapture(stage,before,physical,physical_open,
         ordinary_helper.capture_generated_bytes,event) if ordinary_helper else None
+    extended_capture=extended_helper.ExtendedGeneratedCapture(stage,before,physical,physical_open,
+        ordinary_helper.capture_generated_bytes,event) if extended_helper else None
 
     def observe_read(file, args, kwargs):
         mode = args[0] if args else kwargs.get("mode", "r")
@@ -225,6 +234,8 @@ def run(stage, hashes, target, output):
             generated = bool(key not in before and procedural_capture is not None and procedural_capture.generated_read(path,reads[key]))
             if key not in before and not generated and ordinary_capture is not None:
                 generated=ordinary_capture.generated_read(path,reads[key])
+            if key not in before and not generated and extended_capture is not None:
+                generated=extended_capture.generated_read(path,reads[key])
             if key not in before and not generated:
                 missing.append(key)
             event("first_read", file=key, sha256=reads[key], captured_before=key in before, declared_generated_input=generated)
@@ -240,8 +251,15 @@ def run(stage, hashes, target, output):
     def tracked_write(raw_open,file,args,kwargs):
         mode=args[0] if args else kwargs.get('mode','r')
         proof=ordinary_capture.writer(file,mode,active_test) if ordinary_capture else None
+        extended_proof=extended_capture.writer(file,mode,active_test) if extended_capture and proof is None else None
         stream=raw_open(file,*args,**kwargs)
-        return ordinary_capture.wrap(stream,proof) if proof else stream
+        return ordinary_capture.wrap(stream,proof) if proof else extended_capture.wrap(stream,extended_proof) if extended_proof else stream
+
+    def tracking_link(source,target,*args,**kwargs):
+        return extended_capture.link(physical_link,source,target,active_test,*args,**kwargs) if extended_capture else physical_link(source,target,*args,**kwargs)
+
+    def tracking_unlink(file,*args,**kwargs):
+        return extended_capture.unlink(physical_unlink,file,active_test,*args,**kwargs) if extended_capture else physical_unlink(file,*args,**kwargs)
 
     def loaded_origins():
         origins = {}
@@ -275,6 +293,7 @@ def run(stage, hashes, target, output):
 
     def observe_diagnostic(method):
         def observed(self, *args, **kwargs):
+            if runner_depth > 1:return method(self,*args,**kwargs)
             counts = {field: len(getattr(self, field)) for field in ("failures", "errors")}
             value = method(self, *args, **kwargs)
             for field, count in counts.items():
@@ -285,6 +304,7 @@ def run(stage, hashes, target, output):
 
     def start_test(self, test):
         nonlocal active_test
+        if runner_depth > 1:return original_start(self,test)
         active_test=test
         actual.append(test.id())
         mode = getattr(self, "_ci_equivalence_mode", None)
@@ -294,6 +314,7 @@ def run(stage, hashes, target, output):
 
     def stop_test(self,test):
         nonlocal active_test
+        if runner_depth > 1:return original_stop(self,test)
         try:return original_stop(self,test)
         finally:active_test=None
 
@@ -319,20 +340,25 @@ def run(stage, hashes, target, output):
             return getattr(self.original, name)
 
     def run_suite(self, suite):
-        nonlocal before_execution, result
-        before_execution = loaded_origins()
-        event("before_execution", loaded_module_origins=before_execution)
-        if not check_origins(before_execution):
-            raise RuntimeError("Loaded module is outside authenticated physical inputs")
-        original_stream = self.stream
-        with physical_open(physical / (PREFIX + "-partial.log"), "x",
-                           encoding="utf-8", newline="\n") as stream:
-            self.stream = Tee(original_stream, stream)
-            try:
-                result = original_run(self, suite)
-            finally:
-                self.stream = original_stream
-        return result
+        nonlocal before_execution, result, runner_depth
+        runner_depth += 1
+        try:
+            if runner_depth > 1:return original_run(self,suite)
+            before_execution = loaded_origins()
+            event("before_execution", loaded_module_origins=before_execution)
+            if not check_origins(before_execution):
+                raise RuntimeError("Loaded module is outside authenticated physical inputs")
+            original_stream = self.stream
+            with physical_open(physical / (PREFIX + "-partial.log"), "x",
+                               encoding="utf-8", newline="\n") as stream:
+                self.stream = Tee(original_stream, stream)
+                try:
+                    result = original_run(self, suite)
+                finally:
+                    self.stream = original_stream
+            return result
+        finally:
+            runner_depth -= 1
 
     def before_equivalence_mode(mode):
         nonlocal before_execution
@@ -347,6 +373,7 @@ def run(stage, hashes, target, output):
     for name, method in diagnostic_methods.items():
         setattr(unittest.TestResult, name, observe_diagnostic(method))
     builtins.open, io.open = tracking_open, tracking_io_open
+    if extended_capture:os.link,os.unlink=tracking_link,tracking_unlink
     code, exception = 1, None
     details, report = {}, None
     try:
@@ -384,6 +411,7 @@ def run(stage, hashes, target, output):
         print(exception)
     finally:
         builtins.open, io.open = physical_builtin_open, physical_open
+        os.link, os.unlink = physical_link, physical_unlink
         unittest.TestResult.startTest, unittest.TestResult.stopTest, unittest.TextTestRunner.run = original_start, original_stop, original_run
         for name, method in diagnostic_methods.items():
             setattr(unittest.TestResult, name, method)
@@ -428,6 +456,9 @@ def run(stage, hashes, target, output):
                 details['successful']=False
             with physical_open(physical/'procedural-runner.json','w',encoding='utf-8',newline='\n') as stream:
                 json.dump(procedural_report,stream,ensure_ascii=False,indent=2)
+        if extended_capture and extended_capture.errors:
+            exception=(exception or '')+'\nExtended generated writer did not close cleanly.'
+            code=1
         metadata = {
             "purpose": "Authenticated CI stage; fixed verifier selection and native execution.",
             "clause_delta": 0, "execution_stage": str(stage),
@@ -456,6 +487,8 @@ def run(stage, hashes, target, output):
             "input_read_errors": read_errors,
             "method_timings": details.get("test_durations", []),
             "ordinary_generated_first_reads":list(ordinary_capture.generated_reads.values()) if ordinary_capture else [],
+            "ordinary_extended_generated_first_reads":list(extended_capture.generated_reads.values()) if extended_capture else [],
+            "ordinary_extended_generated_errors":list(extended_capture.errors) if extended_capture else [],
         }
         if gate:
             metadata['execution_kind'] = 'frequency_equivalence_gate'

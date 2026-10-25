@@ -54,10 +54,16 @@ def _fail(message):
 
 def _types():
     import engine as native
-    if hasattr(native, '__path__'):
-        from engine.engine import Engine, Combatant, Rules
-    else:
+    import sys
+    names = ('Engine', 'Combatant', 'Rules')
+    if all(name in vars(native) for name in names):
         from engine import Engine, Combatant, Rules
+        qualified = sys.modules.get('engine.engine')
+        if qualified is not None and any(vars(qualified).get(name) is not vars(native)[name] for name in names):
+            _fail('conflicting native engine module identities')
+    else:
+        # A real namespace package has no bare API; preserve that import mode.
+        from engine.engine import Engine, Combatant, Rules
     from gm_state import GMState
     from grid import Grid
     from rulings import Rulings

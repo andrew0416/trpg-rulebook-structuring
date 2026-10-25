@@ -39,6 +39,33 @@ class StateCodecTests(unittest.TestCase):
     def roundtrip(self, e):
         return load_engine(self.rules, json.loads(json.dumps(dump_engine(e), ensure_ascii=False)))
 
+    def test_api_and_qualified_identity_keep_exact_native_world_membership(self):
+        import engine as native
+        import importlib
+        import state_codec as CODEC
+        import world_entities as WORLD
+        self.assertEqual(CODEC._types()[:3], (Engine, Combatant, Rules))
+        if hasattr(native, '__path__') and all(name in vars(native) for name in ('Engine', 'Combatant', 'Rules')):
+            qualified = importlib.import_module('engine.engine')
+            self.assertIs(qualified, native)
+            self.assertEqual(Path(qualified.__file__).resolve(), Path(native.__file__).resolve())
+        e, a, b = self.fixture()
+        self.assertIs(WORLD.require_actors(e, a, b)[a.entity_id], a)
+        outsider = Combatant(self.rules, dict(copy.deepcopy(a.spec), id='pokemon/codec-unregistered'))
+        with self.assertRaisesRegex(ValueError, 'actual registered actor/target'):
+            WORLD.require_actors(e, outsider)
+        class FakeCombatant(Combatant): pass
+        fake = object.__new__(FakeCombatant);vars(fake).update(vars(a))
+        with self.assertRaisesRegex(ValueError, 'actual registered actor/target'):
+            WORLD.require_actors(e, fake)
+        class FakeEngine(Engine): pass
+        fake_engine = object.__new__(FakeEngine);vars(fake_engine).update(vars(e))
+        with self.assertRaisesRegex(StateCodecError, 'native Engine and Rules required'):
+            dump_engine(fake_engine)
+        restored = self.roundtrip(e)
+        self.assertIs(type(restored), Engine)
+        self.assertIs(type(restored.everyone[0]), Combatant)
+
     def test_capability_policy_cache_preserves_cold_save_and_rejects_actual_override(self):
         import capability_actions as LOAD
         r = Rules(str(ROOT), ruleset='core')

@@ -166,7 +166,8 @@ def after_all(effect,rules=None,move=None):
         import post_resolution_stage_effects as POST_STAGE
         post_stage=POST_STAGE.owns(rules,move,effect)
     focus_after=rules is not None and __import__('declarative_move_contracts').after_all(rules,effect)
-    return (focus_after or post_stage or field_effect(effect) or
+    sacrifice=rules is not None and move is not None and __import__('hp_setting_moves').after_all(rules,move,effect)
+    return (sacrifice or focus_after or post_stage or field_effect(effect) or
             (effect.get('type') in ('counter','stage_change') and effect.get('on')=='after use' and effect.get('target','self')=='self') or
             (effect.get('type')=='type_change' and effect.get('target','self')=='self'))
 
@@ -186,6 +187,7 @@ def start_target(e,actor,target,move,mm,scope):
             'started':[],'target_moves':{},'results':{},'effects':[],'sealed':scope is None,'phase':'targets',
             'round':e.round_no,'seconds':e.elapsed_seconds,'turn_serial':actor.custom_conditions.get('combat_turn_serial',0),
             'full_turn':__import__('action_lifecycle').current_full_turn(e)}
+        __import__('hp_setting_moves').begin_move(e,rows[token])
         action=getattr(e,'_native_action_stack',[])
         if action and action[-1]['actor'] is actor and action[-1]['kind']=='move':
             rows[token]['native_action_frame']=action[-1]
@@ -406,7 +408,7 @@ def refresh(e,token=None):
     # after-use counter also advances on a genuine miss, never a refusal.
     import post_resolution_stage_effects as POST_STAGE
     post=[x for x in row['post_effects'] if not all_cancelled and
-          (hit or field_effect(x) or POST_STAGE.owns(e.r,row['move'],x) or
+          (hit or __import__('hp_setting_moves').after_all(e.r,row['move'],x) or field_effect(x) or POST_STAGE.owns(e.r,row['move'],x) or
            __import__('declarative_move_contracts').after_all(e.r,x) or
            x.get('on')=='after use' or x.get('on_miss'))]
     stage_post=[x for x in post if POST_STAGE.owns(e.r,row['move'],x)]
@@ -442,6 +444,7 @@ def validate_return_continuation(e,event):
 
 
 def validate_world(e,index):
+    __import__('hp_setting_moves').validate_world(e,index)
     __import__('coordinator').validate_world(e,index)
     __import__('ace_trainer').validate_world(e,index)
     __import__('aura_guardian').validate_world(e,index)

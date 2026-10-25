@@ -56,6 +56,20 @@ class Tests(unittest.TestCase):
         self.assertEqual(self.e.rng.getstate(),before)
         self.assertEqual(self.a.hp,hp)
         self.assertEqual(row,known)
+    def test_move_wrappers_reject_partial_before_pending_or_feature_inspection(self):
+        parent=self.e.gm.observe_partial_entity(name="witness",actor_kind="trainer",reason="NPC has no combat sheet")
+        part=self.e.gm.observe_partial_entity(name="seal",actor_kind="object",parent_id=parent["entity_id"],known={"hp":12},reason="HP-only weak part")
+        actions=[]
+        for view in (parent,part):
+            row=self.e._partial_entities[view["entity_id"]]
+            for mid in ("struggle","move/사이코키네시스","move/텔레키네시스"):
+                actions.extend((
+                    lambda row=row,mid=mid:self.e.use_move(row,self.a,mid),
+                    lambda row=row,mid=mid:self.e.use_move(self.a,row,mid),
+                    lambda row=row,mid=mid:self.e.use_move_on(row,self.a,mid,[self.a]),
+                    lambda row=row,mid=mid:self.e.use_move_on(self.a,row,mid,[self.a]),
+                ))
+        assert_rejections_unchanged(self.e,actions,reason_pattern="missing stats are unknown")
     def test_public_accuracy_and_setup_gate_both_partial_kinds_before_clock(self):
         from grid import Grid
         import setup_move_state as SETUP

@@ -246,6 +246,8 @@ GIVER_IDS=('ability/기부자','ability/기부자-2')
 
 
 def ability_registration(rules,name):
+ cap=__import__('hp_setting_moves').registration(rules,name)
+ if cap:return cap
  typed=__import__('typed_defensive_bypass').registration(rules,name)
  if typed:return typed
  core_suction=__import__('core_suction_cups').registration(rules,name)

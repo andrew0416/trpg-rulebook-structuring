@@ -3,6 +3,8 @@ from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
 import json
+import hashlib
+import re
 import unittest
 from engine import Engine,Rules
 import native_scenario_fixture as NATIVE
@@ -94,6 +96,43 @@ class GeneratedWeaponColdRestoreTests(unittest.TestCase):
         before=self.rules_state(fresh)
         with self.assertRaises(CODEC.StateCodecError):CODEC.load_engine(fresh,payload)
         self.assertEqual(self.rules_state(fresh),before)
+
+    def test_finite_persisted_weapon_ids_match_frozen_encoding_after_owner_move_and_cold_restore(self):
+        import weapon_actions as WEAPONS
+        e,a,b,ids=self.world()
+        for uid,row in a.custom_conditions['equipped_weapons'].items():
+            weapon=row['weapon']
+            digest=hashlib.sha256(json.dumps(weapon,ensure_ascii=False,sort_keys=True).encode('utf-8')).hexdigest()[:12]
+            expected='move/무기-'+re.sub(r'\s+','-',weapon['name'])+'-'+digest
+            self.assertEqual(uid,expected);self.assertEqual(row['struggle_id'],expected)
+            actual,move,mechanics=WEAPONS.derived_definition(e.r,weapon)
+            self.assertEqual(actual,expected);self.assertEqual(e.r.moves[uid],move)
+            self.assertEqual(e.r.moves_mech[uid],mechanics)
+        payload=json.loads(json.dumps(CODEC.dump_engine(e),ensure_ascii=False))
+        fresh=self.fresh();before=self.rules_state(fresh);restored=CODEC.load_engine(fresh,payload)
+        user=WORLD.actor_index(restored)[a.entity_id]
+        self.assertEqual(list(user.custom_conditions['equipped_weapons']),ids)
+        self.assertEqual(user.custom_conditions['equipped_weapons'],a.custom_conditions['equipped_weapons'])
+        self.assertEqual(restored.r._runtime_weapon_declarations,e.r._runtime_weapon_declarations)
+        self.assertEqual(self.rules_state(fresh),before);self.assertTrue(restored.validate_state()['valid'])
+
+    def test_nonfinite_weapon_identity_is_refused_before_equip_or_cold_restore_mutation(self):
+        e,a,_,ids=self.world();payload=json.loads(json.dumps(CODEC.dump_engine(e)))
+        for uid in ids:TURN.unequip_weapon(e,a,uid)
+        for value in (float('nan'),float('inf'),float('-inf')):
+            with self.subTest(value=str(value)):
+                weapon={'name':'nonfinite identity','kind':'소형 근접무기','grade':'간단','moves':[],
+                        'identity_metadata':{'nested':[value]}}
+                before_rules=self.rules_state(e.r)
+                NATIVE.assert_rejected_unchanged(e,lambda:TURN.equip_weapon(e,a,weapon),
+                    reason_pattern='Out of range float values are not JSON compliant')
+                self.assertEqual(self.rules_state(e.r),before_rules)
+                bad=deepcopy(payload);bad['rules']['generated_weapons'][0]['weapon']['identity_metadata']={'nested':[value]}
+                unchanged=json.dumps(bad,sort_keys=True,ensure_ascii=False,allow_nan=True)
+                fresh=self.fresh();before=self.rules_state(fresh)
+                with self.assertRaises(CODEC.StateCodecError):CODEC.load_engine(fresh,bad)
+                self.assertEqual(self.rules_state(fresh),before)
+                self.assertEqual(json.dumps(bad,sort_keys=True,ensure_ascii=False,allow_nan=True),unchanged)
 
 
 if __name__=='__main__':unittest.main()

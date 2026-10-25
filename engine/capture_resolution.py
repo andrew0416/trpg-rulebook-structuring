@@ -85,7 +85,7 @@ def rate(engine,target,rarity=0,*,source_variant=None,hp=None):
     current=target.hp if hp is None else C.integer(hp,'capture-only HP observation',1)
     if procedure.sides==20:
         cr=selected['capture_rate'];boxes=0
-        ctx={'hp_le_50':current<=0.5*target.base_max_hp,'hp_le_25':current<=0.25*target.base_max_hp,
+        ctx={'hp_le_50':current*2<=target.base_max_hp,'hp_le_25':current*4<=target.base_max_hp,
              'injuries_ge_5':target.injuries>=5,
              'any_status':any(engine.r.condition_class(s) in ('persistent','volatile') for s in target.conditions),
              'two_evolutions_left':target.spec.get('evolutions_remaining',0)==2,
@@ -95,7 +95,7 @@ def rate(engine,target,rarity=0,*,source_variant=None,hp=None):
         return cr['base']+M.ratio(target.level,10)*cr['per_10_levels']+rarity-boxes*cr['checkbox_penalty'],boxes
     C.integer(rarity,'Core GM capture rarity adjustment')
     if current<=0:raise ValueError('Core capture requires positive HP or actual Catch Combo')
-    health=30 if current==1 else 15 if current<=target.base_max_hp/4 else 0 if current<=target.base_max_hp/2 else -15 if current<=target.base_max_hp*3/4 else -30
+    health=30 if current==1 else 15 if current*4 <= target.base_max_hp else 0 if current*2 <= target.base_max_hp else -15 if current*4 <= target.base_max_hp*3 else -30
     evolutions=C.integer(target.spec.get('evolutions_remaining',0),'remaining evolution stages',0,2)
     conditions=sum(10 if engine.r.condition_class(s)=='persistent' else 5 if engine.r.condition_class(s)=='volatile' else 0 for s in target.conditions)
     total=100-2*target.level+health+{2:10,1:0,0:-10}[evolutions]+5*target.injuries+conditions

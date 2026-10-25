@@ -297,12 +297,14 @@ class MaintenanceTests(unittest.TestCase):
                 self.assertIn(phrase, e.gm_prompts[-1]["text"])
 
     def test_flashbang_use_surfaces_corrected_range(self):
-        e = Engine(self.rules, 1); c = Combatant(self.rules, self.pokemon())
+        spec = self.pokemon(); spec["items"] = {"플래시뱅 [위험:전문 기술학]": 1}
+        e = Engine(self.rules, 1); c = Combatant(self.rules, spec)
         before = set(c.conditions)
         ITEMS.use_item(e, c, "플래시뱅 [위험:전문 기술학]", c, free=True)
         self.assertTrue(e.gm_prompts)
         self.assertIn("19–20", e.gm_prompts[-1]["text"])
         self.assertEqual(c.conditions, before)  # No automatic flinch without an accuracy roll.
+        self.assertEqual(c.spec["items"]["플래시뱅 [위험:전문 기술학]"], 0)
 
 if __name__ == "__main__":
     stream=io.StringIO()

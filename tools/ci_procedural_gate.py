@@ -64,6 +64,20 @@ def packet(value):
     return copy.deepcopy(value)
 
 
+# Finite outputs reviewed against these exact original runner sources, not a glob deletion policy.
+GENERATED_PREPARATION = {
+    'script:tools/test_common_check_engine_independent.py': (
+        '7173e9db63020164756fd02dbdbd7eac422b2a328e7e1a20e4b75e5381e5b73f',
+        tuple('tools/native-profile-test-'+name+'.json' for name in (
+            'missing','unpinned','mismatch','wrong_role','positive','changed',
+            'context-formulas','context-mech','context-effects','context-situational',
+            'context-answers','context-hooks','context-provider'))),
+    'script:tools/test_root_child_bridge_independent.py': (
+        'fecc114c17fe8be0a67c7a382fd4ad53555eb9f5a0bc8c9c8bfae8fcf86d3aa3',
+        ('tools/certificate-parent.json','tools/certificate-child.json','tools/certificate-grand.json')),
+}
+
+
 def prepare_stage(stage,declaration,hashes,destination):
     """Record exact stale declared outputs before removing only their fresh-stage copies."""
     packet(declaration)
@@ -72,8 +86,18 @@ def prepare_stage(stage,declaration,hashes,destination):
     runner=declaration['runner'];source=stage/runner['source_path']
     if hashes.get(runner['source_path'])!=runner['source_sha256'] or _sha(source)!=runner['source_sha256']:
         raise ValueError('preparation source differs from the frozen runner')
+    generated=()
+    if declaration['unit_id'] in GENERATED_PREPARATION:
+        reviewed_source,generated=GENERATED_PREPARATION[declaration['unit_id']]
+        if runner['source_sha256']!=reviewed_source:
+            raise ValueError('generated preparation requires its exact reviewed writer source')
+        patterns=runner['mutations']['generated_retained']
+        if any(not any(fnmatchcase(rel,p) for p in patterns) for rel in generated):
+            raise ValueError('reviewed generated path has no original mutation contract')
+        if any(p.relative_to(stage).as_posix() not in generated for pattern in patterns for p in stage.glob(pattern)):
+            raise ValueError('unreviewed existing generated path; no broad cleanup permitted')
     rows=[]
-    for rel in [runner['report']['path'],*runner['additional_outputs']]:
+    for rel in [runner['report']['path'],*runner['additional_outputs'],*generated]:
         if (not isinstance(rel,str) or '\\' in rel or ':' in rel
                 or any(p in ('','..','.') for p in rel.split('/'))):
             raise ValueError('unsafe exact procedural output path')
@@ -84,12 +108,14 @@ def prepare_stage(stage,declaration,hashes,destination):
         if not path.is_file():raise ValueError('procedural output is not a regular file')
         body=_bytes(path);digest=hashlib.sha256(body).hexdigest()
         if hashes.get(rel)!=digest:raise ValueError('stale output has no authenticated preimage')
-        rows.append({'path':rel,'sha256':digest,'preimage_base64':base64.b64encode(body).decode('ascii')})
+        rows.append({'path':rel,'sha256':digest,'preimage_base64':base64.b64encode(body).decode('ascii'),
+            'role':'declared_generated_retained' if rel in generated else 'declared_output'})
     record={'schema_version':1,'action':'remove_exact_declared_output_stage_copy_before_pre_capture',
         'execution_stage':str(stage),'unit_id':declaration['unit_id'],
         'source_path':runner['source_path'],'source_sha256':runner['source_sha256'],
         'original_contract_sha256':declaration['original_contract_sha256'],
-        'inventory_sha256':declaration['inventory_sha256'],'preimages':rows}
+        'inventory_sha256':declaration['inventory_sha256'],'preimages':rows,
+        'reviewed_generated_paths':list(generated)}
     _write_json(destination,record)
     for row in rows:
         path=stage/row['path']

@@ -22,7 +22,9 @@ class ContestSelectionTests(unittest.TestCase):
         cls.units = json.loads((ROOT / 'data/contest-rules.json').read_text(encoding='utf-8'))['units']
         moves = json.loads((ROOT / 'output/entities/moves.json').read_text(encoding='utf-8'))
         cls.attract = next(m for m in moves if m['id'] == 'move/헤롱헤롱')
-        cls.arithmetic_unit = next(u for line in (ROOT/'output/ruleunits.jsonl').read_text(encoding='utf-8').splitlines() if (u:=json.loads(line))['id']==M.SOURCE)
+        catalog = [json.loads(line) for line in (ROOT/'output/ruleunits.jsonl').read_text(encoding='utf-8').splitlines() if line.strip()]
+        cls.fixture_catalog = [u for u in catalog if u['id'] in (M.SOURCE, 'condition/혼란')]
+        assert {u['id'] for u in cls.fixture_catalog} == {M.SOURCE, 'condition/혼란'}
 
     def test_replaced_filter_requires_new_selection_before_any_read(self):
         rules=self.rules()
@@ -41,7 +43,7 @@ class ContestSelectionTests(unittest.TestCase):
         (root / 'data/rulesets.json').write_bytes((ROOT / 'data/rulesets.json').read_bytes())
         (root / 'data/contest-rules.json').write_text(json.dumps({'units': self.units if units is None else units}, ensure_ascii=False), encoding='utf-8')
         (root / 'output/entities/moves.json').write_text(json.dumps([self.attract] if moves is None else moves, ensure_ascii=False), encoding='utf-8')
-        (root/'output/ruleunits.jsonl').write_text(json.dumps(self.arithmetic_unit,ensure_ascii=False)+'\n',encoding='utf-8')
+        (root/'output/ruleunits.jsonl').write_text(''.join(json.dumps(u,ensure_ascii=False)+'\n' for u in self.fixture_catalog),encoding='utf-8')
         return ContestRules(root, ruleset=profile)
 
     def state(self, e, cs):

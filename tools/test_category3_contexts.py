@@ -131,7 +131,7 @@ class Tests(unittest.TestCase):
    out=self.opposed('rescue_mental_control',defender_skill=skill,context={'ally_under_mental_control':True});self.assertEqual(out.basis['defender_skill'],skill);self.assertIsInstance(out,C.PendingDecision)
  def test_source_variant_and_invalid_environment_do_not_roll_or_mutate(self):
   before=self.e.rng.getstate();old=self.r._selected_rule
-  self.r._selected_rule=lambda uid:uid+'-other'
+  self.r._selected_rule=lambda uid, *args, **kwargs: uid + '-other' if uid == 'ch03-skills-edges-feats/스킬/일반-지식' else old(uid, *args, **kwargs)
   try:
    with self.assertRaises(ValueError):self.context('general_knowledge',dc=16)
   finally:self.r._selected_rule=old

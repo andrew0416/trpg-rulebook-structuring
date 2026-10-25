@@ -10,6 +10,7 @@ KEY = 'attack_damage_history'
 
 def direct_hp_loss(move, mechanics):
     """The selected variable-DB declaration supplies loss, not rolled damage."""
+    if __import__('hp_setting_moves').final_gambit(move,mechanics):return True
     effects=mechanics.get('effects_exec',[])
     return (move.get('damage_base')=='variable' and move.get('class') in ('물리','특수')
             and sum(e.get('type')=='hp_loss' and e.get('target','target')=='target'
@@ -104,6 +105,10 @@ def effect_loss(engine, attacker, target, recipient, effect, context, amount):
     import effect_contracts as EC
     import state_grants as G
     frame=native_recipient(engine,attacker,target,context,error='HP loss must belong to the active native recipient',allow_miss=recipient is attacker and effect.get('on_miss') is True)
+    if effect.get('as') not in (None,'damage'):
+        raise ValueError('HP-loss as mode must be damage or absent')
+    if effect.get('as')=='damage' and frame is None:
+        raise ValueError('fixed damage requires an actual native Move recipient')
     if frame is None:
         if context.get('move_completion'):
             raise ValueError('HP-loss continuation needs its native Move producer')
@@ -112,27 +117,39 @@ def effect_loss(engine, attacker, target, recipient, effect, context, amount):
         return
     actor,actual_target,move,completion=frame
     # Self costs and independently timed effects are not a received attack.
+    if effect.get('as')=='damage' and (recipient is not target or move.get('class') not in ('물리','특수')):
+        raise ValueError('fixed damage requires its actual damaging Move recipient')
     if recipient is not target or move.get('class') not in ('물리','특수'):
         engine.lose_hp(recipient,amount,source=move['id'],unpreventable=effect.get('unpreventable') is True)
         return
     token=context.get('effect_receipt')
     EC.validate_receipt(engine,token,move['id'],context.get('effect_occurrence'),attacker,target,effect)
     entry=engine._effect_dispatch_receipts[token]
-    if entry['status']!='dispatching' or 'attack_hp_loss' in entry:
+    if entry['status']!='dispatching' or 'attack_hp_loss' in entry or 'attack_damage' in entry:
         raise ValueError('one actual dispatched HP-loss occurrence required')
+    if effect.get('as')=='damage' and context.get('multiplier')==0:
+        entry['fixed_damage_immunity']=True
+        return
     substitute=__import__('substitute').receive_damage(engine,attacker,target,move,amount)
     if substitute is not None:
         entry['substitute_hp_loss']=deepcopy(substitute)
         return
     def apply(staged,actual,source_actor):
         before=DAMAGE.observe(actual)
-        staged.lose_hp(actual,amount,source=move['id'],unpreventable=effect.get('unpreventable') is True)
+        is_damage=effect.get('as')=='damage'
+        if is_damage:
+            import heavy_injury_adapter as HEAVY
+            HEAVY.apply_attack_damage(staged,source_actor,actual,amount,move,
+                producer=HEAVY.Producer.EFFECT_DAMAGE, remainder='remaining native fixed-damage effect continuation',
+                actual_damage_type=context.get('actual_damage_type',move['type']))
+        else:
+            staged.lose_hp(actual,amount,source=move['id'],unpreventable=effect.get('unpreventable') is True)
         receipt=DAMAGE.application(requested=amount,before=before,after=DAMAGE.observe(actual),
                                    source=move['id'],damage_class=move['class'])
         woke=wake_after_loss(staged,actual,move,before)
-        _record(staged,source_actor,actual,receipt,move['type'],application_kind='hp_loss')
-        staged._effect_dispatch_receipts[token]['attack_hp_loss']={
-            'kind':'native_attack_hp_loss','completion_id':completion,'receipt':deepcopy(receipt),
+        _record(staged,source_actor,actual,receipt,context.get('actual_damage_type',move['type']),application_kind='damage' if is_damage else 'hp_loss')
+        staged._effect_dispatch_receipts[token]['attack_damage' if is_damage else 'attack_hp_loss']={
+            'kind':'native_attack_damage' if is_damage else 'native_attack_hp_loss','completion_id':completion,'receipt':deepcopy(receipt),
             'woke_sleep':woke,'unpreventable':effect.get('unpreventable') is True}
     G.transition(engine,recipient,apply,participants=(attacker,))
 
@@ -264,3 +281,17 @@ def validate_world(engine, index):
                     or row['at'] > engine.elapsed_seconds):
                 raise ValueError('attack history references missing actor or future event')
 
+
+
+def effect_damage_total(engine, attacker, target, source, prior_receipts):
+    total=0
+    for token,row in engine._effect_dispatch_receipts.items():
+        if (token in prior_receipts or row['actor'] is not attacker or row['target'] is not target
+                or row['source_id']!=source):continue
+        if 'substitute_hp_loss' in row and row['effect'].get('as')=='damage':
+            total+=row['substitute_hp_loss']['damage']
+            continue
+        if 'attack_damage' not in row:continue
+        receipt=row['attack_damage']['receipt']
+        total+=max(0,receipt['net_hp_loss'])+max(0,receipt['net_temporary_hp_loss'])
+    return total

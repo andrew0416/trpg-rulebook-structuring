@@ -5,6 +5,7 @@ retain its GM approval receipt, and use an actual registered observer/target.
 World facts are signed separately so an observation never invents campaign
 truth from a name, a handler, or a caller-provided result.
 """
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 from math import hypot,isfinite
 from pathlib import Path
@@ -326,7 +327,7 @@ def _project(engine, observer, gift, rule, value, target, selection):
         if target is None or target.spec.get('dead') is not True:raise ValueError('Death Sense requires an actual corpse')
         died=value['died_at'];age=engine.elapsed_seconds-died
         if age<0 or age>rule['maximum_age_seconds']:raise ValueError('corpse death lies outside the one-week information window')
-        return {'hours_since_death':age//3600}
+        return {'hours_since_death':NUMERIC.ratio(age,3600)}
     if gift=='gift/메이저-기프트-꿈의-전조':
         patron=_choice(observer,gift,'patron',{'크레세리아','다크라이'})
         expected='유리함' if patron=='크레세리아' else '위험/슬픔'

@@ -91,7 +91,20 @@ class ConditionSaveTimingTests(unittest.TestCase):
         self.assertEqual(len(self.entities), 22)
         self.assertEqual(len(self.saved), 23)
         expected = {x["id"]: self.parser.mechanize(x) for x in self.entities}
-        actual = {x["id"]: x for x in self.saved}
+        actual = {x["id"]: copy.deepcopy(x) for x in self.saved}
+        # The chapter parser owns the base; separately sourced versions remain exact.
+        confusion = actual["condition/혼란"]["mech"]["data"]
+        self.assertEqual(confusion.pop("core-1.05"), {
+            "effects": [{"type": "core_confusion_start_turn", "self_hit_max": 8,
+                         "normal_max": 15, "cure_min": 16, "attack": "typeless_physical_struggle",
+                         "resistance_steps": 1, "no_other_actions": True}],
+            "authority": {"document": "PTU 1.05 Core", "page": 247},
+        })
+        self.assertEqual(confusion.pop("february-2016"), {
+            "effects": [{k: v for k, v in effect.items() if not k.startswith("_")}
+                        for effect in expected["condition/혼란"]["mech"]["data"]["effects"]],
+            "authority": {"document": "PTU February 2016 Playtest v2", "page": 2},
+        })
         self.assertEqual({uid: actual[uid] for uid in expected}, expected)
         self.assertEqual(set(actual) - set(expected), {"condition/조이기"})
         # Vortex is sourced from the keyword chapter, outside this parser's22 rows.

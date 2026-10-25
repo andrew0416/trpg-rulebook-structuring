@@ -102,7 +102,7 @@ def replace_hp(e,target,before,proposed,*,source,loss_kind,preview=False):
     if not receipt or not receipt['used'] or receipt['own_completion'] is None:return proposed
     own=e._move_completions[receipt['own_completion']]
     if own['phase']!='complete' or own['actor'] is not target:return proposed
-    if receipt['source']==SOURCES[1] and proposed<=-(target.base_max_hp//4):return proposed
+    if receipt['source']==SOURCES[1] and proposed*4<=-target.base_max_hp:return proposed
     if not preview:receipt.setdefault('hp_replacements',[]).append({'before':before,'proposed':proposed,'after':1,'loss_kind':loss_kind,'source':source})
     return 1
 

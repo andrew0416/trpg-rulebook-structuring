@@ -96,8 +96,6 @@ def _effect(rank, adjustment, until=UNTIL):
             "target": "target", "until": deepcopy(until)}
 
 
-import cheerleader as CHEER
-
 def _activate(engine, actor, target, *, adjustment, communication=None):
     import world_entities as W
     import state_grants as G
@@ -242,9 +240,8 @@ def validate_world(engine, index):
 
 
 
-_csv_activate=CHEER.order_activation(SOURCE)(_activate)
-_core_activate=CHEER.order_activation(FEATURE)(_activate)
-
 def activate(engine,actor,target,*,adjustment,communication=None):
+    import cheerleader as CHEER
     choice=__import__('coordinator').contract(actor,FEATURE)
-    return (_core_activate if choice=='core_1.05' else _csv_activate)(engine,actor,target,adjustment=adjustment,communication=communication)
+    source=FEATURE if choice=='core_1.05' else SOURCE
+    return CHEER.order_activation(source)(_activate)(engine,actor,target,adjustment=adjustment,communication=communication)

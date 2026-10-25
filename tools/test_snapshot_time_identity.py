@@ -72,9 +72,17 @@ class SnapshotIdentityTests(unittest.TestCase):
         self.assertEqual(e.delayed[0]['turns'],1);self.assertEqual(a.buffs['nested'],[2])
 
     def test_item_modifier_alias_within_actor_stays_live(self):
-        e,a,b=self.fixture();modifier={'value':3};a.modifiers=[modifier];a._item_reg={'example':{'mods':[modifier]}}
+        import items as ITEMS
+        import world_entities as WORLD
+        e,a,b=self.fixture()
+        WORLD.register_object(e,'snapshot-alias-item',location={'kind':'unknown'},
+            reason='snapshot modifier alias fixture',kind='item_instance',
+            item_rule_id='item/예리한손톱',owner_id=a.entity_id)
+        ITEMS.register_item(e,a,'예리한손톱',source_instance_id='snapshot-alias-item')
+        # Retain a legacy graph alias on a real native item registration.
+        a._item_reg['예리한손톱']['mods']=[a.modifiers[-1]]
         e.gm.snapshot();e.gm.restore()
-        self.assertIs(a._item_reg['example']['mods'][0],a.modifiers[0])
+        self.assertIs(a._item_reg['예리한손톱']['mods'][0],a.modifiers[-1])
 
     def test_clock_offset_and_recovery_timer_rewind_together(self):
         e,a,b=self.fixture();b.hp=0;e.heal(b,1,source_kind='ordinary_item')
@@ -115,3 +123,4 @@ if __name__=='__main__':
         results=result.rows,input_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in paths},whole_rule_certified=False)
     (ROOT/'output/snapshot-time-identity-tests.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     raise SystemExit(0 if result.wasSuccessful() else 1)
+

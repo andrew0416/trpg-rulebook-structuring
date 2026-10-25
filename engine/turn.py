@@ -368,7 +368,7 @@ def spend_compound(engine, c, cost, what="", *, movement=False, sleep_cure=False
         import action_resources as RESOURCES
         planned=RESOURCES.plan_cost(budget,cost.components)
         if planned is None:
-            engine.log(c.name+': insufficient compound action budget','combat/action-economy')
+            engine.log(c.name+': 복합 행동 예산이 남지 않음 (insufficient compound action budget)','combat/action-economy')
             return False
         import wild_equipment as WILD
         if WILD.pending(c) and ("standard" in cost.components or planned.get("standard",0)<budget.get("standard",0)):

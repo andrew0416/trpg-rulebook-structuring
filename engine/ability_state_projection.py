@@ -4,6 +4,7 @@ The policy fixes every source row and every projected rule identity.  Runtime
 records retain the observed fact/choice, own all additive contributions through
 ``state_grants``, and restore only those contributions at their authored end.
 """
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 from pathlib import Path
 import hashlib,json
@@ -65,8 +66,17 @@ def ability_registration(rules,value):
     candidates=[uid for uid,row in rows.items() if value==uid or value in (row.get('name'),row.get('eng'))]
     if not candidates:return None
     if value in rows:uid=value
-    elif len(candidates)==1:uid=candidates[0]
-    else:return None
+    else:
+        from ruleset import ExcludedRuleSelection,UnresolvedRuleSelection
+        selected=set()
+        for candidate in candidates:
+            try:selected.add(rules.selection.resolve(candidate))
+            except ExcludedRuleSelection:continue
+        # A catalog alias does not claim an excluded or replaced source.
+        if not selected:return None
+        if len(selected)!=1:raise UnresolvedRuleSelection(value,sorted(selected))
+        uid=selected.pop()
+        if uid not in rows:return None
     if rules._selected_rule(uid)!=uid:raise ValueError('projected ability target is not selected')
     row=rows[uid]
     return {'name':row['name'],'source_id':uid,'equivalent_source_ids':[uid]}
@@ -431,7 +441,7 @@ def _apply(engine,actor,source,choice,payload,observation,reason,*,lifetime,prio
         # The projected Perfect allocation supplies this one grant. The source
         # record installed below makes all subsequent real-HP consumers use the
         # original form through hp_stat(), without copying a second HP balance.
-        TEMP.grant(engine,actor,engine.tick(actor)*payload['temp_hp'] if payload.get('temp_hp_unit')=='tick' else actor.base_max_hp*payload['temp_hp']//2)
+        TEMP.grant(engine,actor,engine.tick(actor)*payload['temp_hp'] if payload.get('temp_hp_unit')=='tick' else NUMERIC.ratio(actor.base_max_hp*payload['temp_hp'],2))
     record={'source':source,'row_id':definition(engine.r,source)['row_id'],'choice':choice,'observation':deepcopy(observation),'reason':reason,
       'grant_source':sid,'lifetime':lifetime,'payload':deepcopy(payload),'prior_form':prior_form,'installed_at':engine.elapsed_seconds,
       'blocks_temp_hp':bool(payload.get('blocks_temp_hp'))}

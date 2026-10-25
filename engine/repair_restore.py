@@ -1,4 +1,5 @@
 """Actual object repair with existing material, elapsed-job and recovery owners."""
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 from dataclasses import asdict
 import common_checks as C,crafting_recipes as Q,state_grants as G,world_entities as W
@@ -146,7 +147,7 @@ def _amount(target,effect,payments,check):
     else:
         if target['kind']=='item_instance':raise ValueError('item repair has no maximum HP fraction')
         amount=target['max_hp']
-    return max(0,amount)*effect['ratio'][0]//effect['ratio'][1]
+    return NUMERIC.ratio(max(0,amount)*effect['ratio'][0],effect['ratio'][1])
 
 
 def execute(e,actor,target_id,value,*,request_id,reason,inputs=None,accessible=None,event_id=None,roll_options=None):

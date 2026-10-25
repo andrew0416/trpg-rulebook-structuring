@@ -34,13 +34,26 @@ def install(rules):
 
 
 def registration(rules,name):
-    for uid,row in rules.ability_capacity_policy['abilities'].items():
-        if name in (uid,row['name'],*row['aliases']):
-            if rules._selected_rule(uid)!=uid:
-                raise ValueError('selected capacity ability requires its own source policy')
-            rules.selection.require_supported_version(uid)
-            return {'name':row['name'],'source_id':uid}
-    return None
+    rows=rules.ability_capacity_policy['abilities']
+    candidates=[uid for uid,row in rows.items()
+                if name in (uid,row['name'],*row['aliases'])
+                or (name is not None and name==rules.selection.units.get(uid,{}).get('eng'))]
+    if not candidates:return None
+    if name in rows:uid=name
+    else:
+        from ruleset import ExcludedRuleSelection,UnresolvedRuleSelection
+        selected=set()
+        for candidate in candidates:
+            try:selected.add(rules.selection.resolve(candidate))
+            except ExcludedRuleSelection:continue
+        if not selected:return None
+        if len(selected)!=1:raise UnresolvedRuleSelection(name,sorted(selected))
+        uid=selected.pop()
+        if uid not in rows:return None
+    if rules._selected_rule(uid)!=uid:
+        raise ValueError('selected capacity ability requires its own source policy')
+    rules.selection.require_supported_version(uid)
+    return {'name':rows[uid]['name'],'source_id':uid}
 
 
 def sources(rules,names,kind):

@@ -190,7 +190,7 @@ class Tests(unittest.TestCase):
   for name,count in {'플러스파워':2,'버치열매':2,'item/몬스터볼-2':2,'상처약':4,'불꽃의돌':1,'타우린':1,'구애머리띠':1,'TM26':1}.items():self.assertEqual(self.a.spec['items'][name],count)
  def test_native_luck_rng_has_no_skill_accuracy_or_ap_modifiers(self):
   self.config();self.a.spec['skills']={'행운':99};before=self.e.rng.getstate()
-  with mock.patch.object(self.e,'d20',side_effect=AssertionError('accuracy unavailable')),mock.patch.object(self.e,'skill_roll',side_effect=AssertionError('skill unavailable')):row=self.act('luck',event_id='native',reason='GM occasion')
+  with mock.patch.object(self.e,'accuracy_check',side_effect=AssertionError('accuracy unavailable')),mock.patch.object(self.e,'skill_roll',side_effect=AssertionError('skill unavailable')):row=self.act('luck',event_id='native',reason='GM occasion')
   self.assertNotEqual(before,self.e.rng.getstate());self.assertEqual(row['rolls'][0]['die'],20)
   before=self.state()
   with self.assertRaises(ValueError):self.act('luck',event_id='native',reason='try again')

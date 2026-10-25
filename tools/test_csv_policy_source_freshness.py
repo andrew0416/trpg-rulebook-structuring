@@ -19,8 +19,7 @@ import world_entities as WORLD
 from ruleset import ExcludedRuleSelection
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKSPACE = Path(r'C:\Users\admin\Documents\ChatGPT\trpg-rulebook-structuring')
-TEMP_ROOT = WORKSPACE / 'tmp'
+TEMP_ROOT = Path(tempfile.gettempdir())
 STATUS = 'data/verification/category2-item-table-status.json'
 MANUAL = 'item/타입-공부-메뉴얼-1'
 MANUAL_CLAUSE = 'C2CSV/inventory:70:1'

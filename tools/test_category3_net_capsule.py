@@ -159,7 +159,7 @@ class NetTests(unittest.TestCase):
  def test_selected_source_replacement_and_duplicate_nets_fail_before_cost(self):
   original=self.e.r._selected_rule
   try:
-   self.e.r._selected_rule=lambda uid:uid+'/unreviewed' if uid==NET.SOURCE else original(uid);before=self.state()
+   self.e.r._selected_rule=lambda uid, *args, **kwargs: uid + '/unreviewed' if uid == NET.SOURCE else original(uid, *args, **kwargs);before=self.state()
    with self.assertRaises(ValueError):self.fire()
    self.assertEqual(before,self.state())
   finally:self.e.r._selected_rule=original

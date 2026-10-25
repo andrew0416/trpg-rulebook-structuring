@@ -4,6 +4,7 @@ The existing completion owns declared targets and received hits. The existing
 passive continuation owns waits; initiative/action and movement modules own the
 actual reaction. An armed watch contains choices, never an asserted hit.
 """
+import arithmetic_policy as NUMERIC
 from contextlib import contextmanager
 from copy import copy, deepcopy
 from pathlib import Path
@@ -543,7 +544,7 @@ def _attempt(e, event, state, request, choice):
         else:
             # A coached Intercept automatically succeeds its skill check: no roll, full declared distance.
             passed,total = True,divisor*plan['distance']
-        allowed = plan['distance'] if passed else min(plan['distance'],max(0,total//divisor))
+        allowed = plan['distance'] if passed else min(plan['distance'],max(0,NUMERIC.ratio(total,divisor)))
         facts={'source':source,'actor_id':actor.entity_id,'paid':True,
                'window_id':queued['window_id'],'request_id':request_id,
                'check_total':total,'dc':divisor*plan['distance'],'plan':plan,

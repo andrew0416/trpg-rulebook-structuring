@@ -263,7 +263,7 @@ def encrypt_evidence(root, output, key, temp_root):
     files += list((output / "verifier").glob("tests-*.log"))
     files += [path for path in (output / "physical").glob("*") if path.is_file()]
     # Generated first-read evidence must survive the existing encrypted archive.
-    for directory in ("procedural-generated", "procedural-additional", "ordinary-generated"):
+    for directory in ("procedural-generated", "procedural-additional", "ordinary-generated", "ordinary-extended-generated"):
         files += [path for path in (output / "physical" / directory).rglob("*") if path.is_file()]
     if (output / "input-read-errors.json").exists():
         files.append(output / "input-read-errors.json")

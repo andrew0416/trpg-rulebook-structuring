@@ -21,8 +21,10 @@ LOCAL_SNOW_SOURCE = 'ability/아이스제트'
 
 
 if __package__:
+    from . import arithmetic_policy as NUMERIC
     from . import resolution_transaction as _FINGERPRINTS
 else:
+    import arithmetic_policy as NUMERIC
     import resolution_transaction as _FINGERPRINTS
 
 def _grass_policy(rules):
@@ -788,7 +790,7 @@ def turn_start(engine, actor):
     state = terrain_for(engine, actor, "그래스", include_virtual=False)
     if state is None or not touches_ground(actor) or getattr(actor, "hp", 0) <= 0:
         return 0
-    amount = max(0, actor.base_max_hp // 10)
+    amount = max(0, NUMERIC.ratio(actor.base_max_hp,10))
     if amount:
         engine.heal(actor, amount, source_kind="move")
         engine.log(f"    {actor.name}: 그래스필드 회복 {amount}", state["source_id"])

@@ -1,4 +1,5 @@
 """Core p410 Substitute: a source-owned Coat receives the actual incoming hit."""
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 import common_checks as C
 import effect_instances as E
@@ -34,8 +35,8 @@ def validate(actor,record,terminal=False):
  E.validate(record,actor=actor,terminal=terminal);definition(actor.r,SOURCE)
  if record['effect']!=ROW['payload'] or record[E.KEY]['capacity']!={'bucket':'source_coat','source':SOURCE} or record[E.KEY]['lifetime']!={'boundary':ROW['lifetime']}:raise ValueError('actual source-owned Substitute Coat required')
  basis=C.integer(record.get('maximum_hp'),'original Substitute HP basis',1)
- maximum=basis//4+1;remaining=C.integer(record.get('hp'),'actual Substitute HP',0,maximum)
- if record.get('paid_hp')!=basis//4:raise ValueError('Substitute quarter HP payment changed')
+ maximum=NUMERIC.ratio(basis,4)+1;remaining=C.integer(record.get('hp'),'actual Substitute HP',0,maximum)
+ if record.get('paid_hp')!=NUMERIC.ratio(basis,4):raise ValueError('Substitute quarter HP payment changed')
  apps=record.get('applications')
  if type(apps)is not list:raise ValueError('actual Substitute hit observations required')
  previous=maximum
@@ -57,7 +58,7 @@ def grant(e,actor,effect,source):
  if source!=SOURCE:return False
  if effect!=RAW:raise ValueError('actual Substitute Coat declaration required')
  if actor.hp*4<actor.max_hp or live(actor):raise ValueError('Substitute requires quarter HP and no existing Coat')
- basis=actor.max_hp;cost=basis//4
+ basis=actor.max_hp;cost=NUMERIC.ratio(basis,4)
  # Core explicitly forbids every prevention layer, including temporary HP.
  e.lose_hp(actor,cost,source=SOURCE,unpreventable=True,loss_kind='hp_setting')
  record=E.create(e,actor,kind='coat',source=SOURCE,payload=ROW['payload'],capacity={'bucket':'source_coat','source':SOURCE},lifetime={'boundary':ROW['lifetime']},applied_by=actor)

@@ -19,8 +19,7 @@ from ruleset import ExcludedRuleSelection, UnresolvedRuleSelection
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKSPACE = Path(r'C:\Users\admin\Documents\ChatGPT\trpg-rulebook-structuring')
-TEMP_ROOT = WORKSPACE / 'tmp'
+TEMP_ROOT = Path(tempfile.gettempdir())
 STATUS = 'data/verification/category2-item-table-status.json'
 ARMOR = 'item/분리중갑'
 GLOVE = 'item/펀치글러브'

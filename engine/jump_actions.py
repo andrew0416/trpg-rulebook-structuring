@@ -12,7 +12,7 @@ import turn as TURN
 import trainer_capabilities as TRAINER
 from physical_limits import number
 
-def limits(c):
+def limits(c,*,_partial=False):
  mv=TRAINER.values(c) if c.spec.get('movement_basis')=='trainer_base' else c.spec.get('movement') or {}
  if c.kind=='trainer' and c.spec.get('movement_basis')=='base':mv=TRAINER.jump_bonuses(c,mv)
  if c.spec.get('movement_basis') in ('base','trainer_base'):
@@ -26,14 +26,16 @@ def limits(c):
  import csv_item_capability_contracts as CSV_CAPABILITIES
  bonuses=CSV_CAPABILITIES.muscle_jump_bonus(c)
  survival=__import__('survivalist_class').jump_bonus(c)
- mv={key:(mv.get(key) or 0)+bonuses[key]+survival[key] for key in ('high_jump','long_jump')}
+ mv={key:number(mv.get(key,0),key,minimum=0)+bonuses[key]+survival[key]
+     for key in ('high_jump','long_jump') if key in mv or bonuses[key] or survival[key]}
  import csv_item_form_contracts as CSV_FORMS
  mv=CSV_FORMS.jump_projection(c,mv)
  if c.kind=='pokemon':
   import baby_templates as BABY
   mv=BABY.capability_values(c,mv,('high_jump','long_jump'))
  bonus=__import__('jump_move_actions').bonus(c)
- return {key:number(mv.get(key),key,minimum=0)+bonus for key in ('high_jump','long_jump')}
+ if bonus:mv={key:mv.get(key,0)+bonus for key in ('high_jump','long_jump')}
+ return {key:number(mv.get(key),key,minimum=0) for key in ('high_jump','long_jump') if not _partial or key in mv}
 
 def _fall_options(options):
  if type(options) is not dict:raise ValueError('explicit native falling options required for lower landing')

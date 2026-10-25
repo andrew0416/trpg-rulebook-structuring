@@ -1,6 +1,7 @@
 """Explicit plate and Gift lifecycles; unrelated and partial selections stay cold."""
 from copy import deepcopy
 from functools import wraps
+import inspect
 import random
 import types
 import unittest
@@ -31,6 +32,21 @@ def _world(environment):
             return ('function',identity,freeze(value.__defaults__),freeze(value.__kwdefaults__),
                     tuple(freeze(c.cell_contents) for c in (value.__closure__ or ())))
         if isinstance(value,types.MethodType):return ('method',freeze(value.__self__),freeze(value.__func__))
+        # Class namespaces remain value-checked; these readonly descriptors are not object state.
+        if type(value) in (types.GetSetDescriptorType,types.MemberDescriptorType):
+            return ('descriptor',type(value).__name__,identity,id(value.__objclass__),value.__name__)
+        if type(value) is property:
+            return ('property',identity,freeze(value.fget),freeze(value.fset),freeze(value.fdel),freeze(value.__doc__))
+        if type(value) in (staticmethod,classmethod):
+            return (type(value).__name__,identity,freeze(value.__func__),freeze(vars(value)))
+        # Native trace/recipient wrappers retain signatures, whose mapping/enum internals are not world state.
+        if type(value) is inspect.Signature:
+            return ('signature',identity,tuple((freeze(k),freeze(v)) for k,v in value.parameters.items()),freeze(value.return_annotation))
+        if type(value) is inspect.Parameter:
+            kind=value.kind
+            if type(kind) is not type(inspect.Parameter.POSITIONAL_ONLY):
+                raise AssertionError('unreviewed reference parameter kind: '+type(kind).__qualname__)
+            return ('parameter',identity,freeze(value.name),id(kind),freeze(kind.name),freeze(kind.value),freeze(value.default),freeze(value.annotation))
         slots=tuple(name for cls in type(value).__mro__
                     for name in ((cls.__dict__.get('__slots__'),) if isinstance(cls.__dict__.get('__slots__'),str) else cls.__dict__.get('__slots__',()))
                     if name not in ('__dict__','__weakref__') and hasattr(value,name))
