@@ -5065,11 +5065,6 @@
       "path": "work/common-owner-integration-1255/fingerprint-sites.json",
       "sha256": "c5fd961c8c5124b04435b040764e3dc628fc795810ed3a0c169eb87b54ad5fac",
       "size": 23300
-    },
-    {
-      "path": "work/reuse-partials/verify_overlay_tests.py",
-      "sha256": "879e8ce68e1f570f472e33aa271b8e7d5a4066730fbba27bc6b2b8c691c6af0a",
-      "size": 51103
     }
   ]
 }
