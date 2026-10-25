@@ -222,8 +222,10 @@ class Cases(unittest.TestCase):
   self.assert_driver_pending(e)
  def test_024_actual_encounter_driver_returns_incomplete(self):
   from encounter import run_encounter
-  with mock.patch.object(Engine,"initiative",lambda e,actors:list(actors)):
-   e,party,wild=run_encounter(str(ROOT),"data/encounters/lakeside.json",seed=5,ruleset="all",hook=self.driver_hook,write=False)
+  # The encounter driver uses the native schedule; supply its explicit tie policy.
+  e,party,wild=run_encounter(str(ROOT),"data/encounters/lakeside.json",seed=5,ruleset="all",
+      rulings_path=str(ROOT/"tools/fixtures/initiative-gm-policy.json"),hook=self.driver_hook,write=False)
+  self.assertTrue(any(row['kind']=='initiative_adjudication' for row in e.rulings.log))
   self.assert_driver_pending(e)
 class Result(unittest.TextTestResult):
  def __init__(self,*a,**k):super().__init__(*a,**k);self.rows=[]

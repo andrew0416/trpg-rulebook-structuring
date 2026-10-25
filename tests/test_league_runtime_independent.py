@@ -63,7 +63,7 @@ class Independent(unittest.TestCase):
   e,c=self.f.start();self.f.trainers(e);e.gm.snapshot('beforeattack');before_rng=e.rng.getstate();e.league_step(pokemon_intent=self.f.move());e.gm.restore('beforeattack')
   self.assertIs(e._league_runtime['actors']['a:pokemon'],c['a:pokemon']);self.assertIs(e._league_runtime['close_receipts'][0]['actor'],c['b:trainer'])
   self.assertIsNone(c['a:pokemon'].last_target);self.assertEqual(c['b:pokemon'].hp,110);self.assertEqual(c['a:pokemon'].move_uses,{})
-  self.assertNotEqual(e.rng.getstate(),before_rng) # explicit existing limit: snapshot does not replay RNG
+  self.assertEqual(e.rng.getstate(),before_rng) # GM snapshot v2 replays the saved RNG state
   self.assertEqual(e.league_status()['next'],(A.Phase.POKEMON,'a:pokemon'))
  def test_12_pending_snapshot_preserves_ledger_and_actor_identity(self):
   e,c,pairs=self.f.fixture();c['b:pokemon'].hp=50;c['b:pokemon'].injuries=5;e.start_league(pairs,mode='league');self.f.trainers(e);e.league_step(pokemon_intent=self.f.move());e.gm.snapshot('pending');e.gm.restore('pending')
@@ -89,6 +89,27 @@ class Independent(unittest.TestCase):
   e,c=self.f.start();self.f.finish(e);e.everyone.pop();observed=list(e.everyone)
   r=e.next_league_round();self.assertEqual(r['status'],'incomplete')
   self.assertEqual(e.everyone,observed);self.assertEqual((e.round_no,e.elapsed_seconds),(1,10));self.assertIsNone(e.round_start_seconds)
+ def test_18_passive_damage_history_does_not_admit_active_or_malformed_state(self):
+  import conditional_damage_base as DB,attack_damage_history as HISTORY
+  cases=('active_streak','pending_setup','malformed_round','unknown_attacker','malformed_streaks','missing_receipt','unknown_condition')
+  for kind in cases:
+   with self.subTest(kind=kind):
+    e,c=self.f.start();self.f.trainers(e)
+    self.assertEqual(e.league_step(pokemon_intent=self.f.move())['status'],'ready')
+    target=c['b:pokemon'];state=target.custom_conditions[DB.STATE]
+    if kind=='active_streak':state['streaks']['struggle']={'successes':1}
+    elif kind=='pending_setup':state['pending_setup']={'move_id':'struggle'}
+    elif kind=='malformed_round':state['damage_round']=True
+    elif kind=='unknown_attacker':state['damaged_by']['unregistered']=e.round_no
+    elif kind=='malformed_streaks':state['streaks']=[]
+    elif kind=='missing_receipt':target.spec[HISTORY.KEY]=[]
+    else:target.custom_conditions['unknown_optional_effect']=True
+    before=(target.hp,dict(c['a:pokemon'].move_uses),len(e._turn_closures),e.elapsed_seconds)
+    result=e.league_step(pokemon_intent={'kind':'no_action'})
+    self.assertEqual(result['status'],'incomplete')
+    self.assertIn('b:pokemon:unsupported custom_conditions',result['pending']['evidence'])
+    self.assertIsNone(e._active_turn_actor)
+    self.assertEqual((target.hp,c['a:pokemon'].move_uses,len(e._turn_closures),e.elapsed_seconds),before)
 class Results(unittest.TextTestResult):
  def __init__(self,*a,**kw):super().__init__(*a,**kw);self.rows=[]
  def addSuccess(self,t):super().addSuccess(t);self.rows.append({'id':'LEAGUE-INDEPENDENT-'+t._testMethodName,'status':'pass'})

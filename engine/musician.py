@@ -107,7 +107,9 @@ def sonic(actor, move):
 
 def project_move(e, actor, move):
     import effects_ext as EXT
-    move=dict(move,keywords=sorted(EXT.keywords_for(actor,move)))
+    keywords=sorted(EXT.keywords_for(actor,move))
+    move=dict(move)
+    if keywords or 'keywords' in move:move['keywords']=keywords
     if move['id'] != 'move/멸망의노래' and sonic(actor, move) and voice_owner(e, actor) is not None:
         return dict(move, keywords=sorted(set(move.get('keywords', [])) | {'친화'}))
     return move

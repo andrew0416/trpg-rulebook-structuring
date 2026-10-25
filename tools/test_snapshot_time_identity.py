@@ -54,22 +54,26 @@ class SnapshotIdentityTests(unittest.TestCase):
         self.assertIs(e.delayed[0]['attacker'],a);self.assertEqual(a.hp,17)
 
     def test_cross_actor_references_are_preserved(self):
-        e,a,b=self.fixture();a.buffs={'linked_target':b};b.buffs={'linked_target':a}
-        e.gm.snapshot();a.buffs={};b.buffs={};e.gm.restore()
-        self.assertIs(a.buffs['linked_target'],b);self.assertIs(b.buffs['linked_target'],a)
+        e,a,b=self.fixture()
+        e.gm.set_custom(a,'snapshot_graph',{'linked_target':b},reason='snapshot graph fixture')
+        e.gm.set_custom(b,'snapshot_graph',{'linked_target':a},reason='snapshot graph fixture')
+        e.gm.snapshot();a.custom_conditions.pop('snapshot_graph');b.custom_conditions.pop('snapshot_graph');e.gm.restore()
+        self.assertIs(a.custom_conditions['snapshot_graph']['linked_target'],b);self.assertIs(b.custom_conditions['snapshot_graph']['linked_target'],a)
 
     def test_mutable_alias_across_engine_and_actor_is_preserved(self):
-        e,a,b=self.fixture();shared={'counter':2};a.buffs={'shared':shared};e.field={'shared':shared}
+        e,a,b=self.fixture();shared={'counter':2}
+        e.gm.set_custom(a,'snapshot_graph',shared,reason='snapshot alias fixture');e.field={'shared':shared}
         e.gm.snapshot();shared['counter']=9;e.gm.restore()
         self.assertEqual(e.field['shared']['counter'],2)
-        self.assertIs(e.field['shared'],a.buffs['shared'])
+        self.assertIs(e.field['shared'],a.custom_conditions['snapshot_graph'])
         e.field['shared']['counter']=13;e.gm.restore()
-        self.assertEqual(a.buffs['shared']['counter'],2)
+        self.assertEqual(a.custom_conditions['snapshot_graph']['counter'],2)
 
     def test_source_state_mutation_does_not_change_snapshot(self):
-        e,a,b=self.fixture();self.delayed(e,a,b);a.buffs={'nested':[2]};e.gm.snapshot()
-        e.delayed[0]['turns']=90;a.buffs['nested'].append(3);e.gm.restore()
-        self.assertEqual(e.delayed[0]['turns'],1);self.assertEqual(a.buffs['nested'],[2])
+        e,a,b=self.fixture();self.delayed(e,a,b)
+        e.gm.set_custom(a,'snapshot_graph',{'nested':[2]},reason='snapshot isolation fixture');e.gm.snapshot()
+        e.delayed[0]['turns']=90;a.custom_conditions['snapshot_graph']['nested'].append(3);e.gm.restore()
+        self.assertEqual(e.delayed[0]['turns'],1);self.assertEqual(a.custom_conditions['snapshot_graph']['nested'],[2])
 
     def test_item_modifier_alias_within_actor_stays_live(self):
         import items as ITEMS

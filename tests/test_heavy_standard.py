@@ -200,11 +200,15 @@ class Tests(unittest.TestCase):
   self.assertEqual(seen,[]);self.assertEqual((a.hp,b.hp),(50,110))
   self.assertIn('nonplain_public_move_inputs',self.standard(e)[0]['issues'])
  def test_031_nonboolean_public_flags_do_not_certify(self):
-  for kwargs in [{'count_use':1},{'set_damage':1},{'free_action':0}]:
+  for kwargs in [{'count_use':1},{'free_action':0}]:
    e,a,b=self.pair()
    with self.assertRaises(H.HeavyPending):e.use_move(a,b,'struggle',**kwargs)
    self.assertEqual((a.hp,b.hp),(50,110))
    self.assertIn('nonplain_public_move_inputs',self.standard(e)[0]['issues'])
+  e,a,b=self.pair();before=(a.hp,b.hp,dict(a.budget),list(a._action_history),dict(a.move_uses),e.rng.getstate())
+  with self.assertRaisesRegex(ValueError,'boolean Set Damage'):e.use_move(a,b,'struggle',set_damage=1)
+  self.assertEqual((a.hp,b.hp,a.budget,a._action_history,a.move_uses,e.rng.getstate()),before)
+  self.assertFalse(e._heavy_events);self.assertFalse(e._heavy_pending)
  def test_032_stages_dictionary_observer_is_not_certified(self):
   e,a,b=self.pair();seen=[]
   class HPStages(dict):
@@ -225,16 +229,17 @@ class Tests(unittest.TestCase):
   self.assertEqual((a.hp,b.hp),(50,110))
   self.assertIn('actor:nonpassive_state:budget',self.standard(e)[0]['issues'])
  def test_034_name_format_observer_is_not_certified(self):
-  e,a,b=self.pair()
+  e,a,b=self.pair();seen=[]
   class HPName(str):
    def __format__(self,fmt):
+    seen.append(a.hp)
     if a.hp>47:b.stats['def']=0
     return str.__format__(self,fmt)
   a.name=HPName(a.name)
   with self.assertRaises(H.HeavyPending):e.use_move(a,b,'struggle',set_damage=True)
-  self.assertEqual(a.hp,50)
+  self.assertEqual(a.hp,50);self.assertEqual(seen,[]);self.assertEqual(b.stats['def'],30)
   self.assertFalse(self.standard(e)[0]['semantic_commit_proven'])
-  self.assertIn('actor:nonpassive_state:name',self.standard(e)[0]['issues'])
+  self.assertIn('actor:nonpassive_state:spec',self.standard(e)[0]['issues'])
  def test_035_prefix_passive_contract_checks_container_families(self):
   for owner,field,make in [
    ('actor','registry',lambda v:type('SequenceObserver',(list,),{})(v)),

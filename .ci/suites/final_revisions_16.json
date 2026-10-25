@@ -3,7 +3,7 @@
   "id": "final_revisions_16",
   "purpose": "repair118 complete retained method scope; no old unaffected-PASS reuse. Typed1029/three modes/sentinel, phase1 procedural21 plus phase2 procedural22, mandatory metadata65+audit1 remain distinct.",
   "completion_credit": 0,
-  "required_unique_count": 899,
+  "required_unique_count": 900,
   "completed": {
     "tests.test_heavy_production.Tests": {
       "tests": [
@@ -142,6 +142,7 @@
         "tools.test_book_musician_full.MusicianTests.test_musical_ability_is_one_choice_and_soundproof_is_effective",
         "tools.test_book_musician_full.MusicianTests.test_no_accuracy_core_drown_out_is_pending_before_any_game_action",
         "tools.test_book_musician_full.MusicianTests.test_no_accuracy_core_drown_out_resumes_only_with_an_explicit_scoped_gm_dc",
+        "tools.test_book_musician_full.MusicianTests.test_noop_keyword_projection_preserves_absent_and_explicit_source_shape",
         "tools.test_book_musician_full.MusicianTests.test_playtest_drown_out_cancels_no_accuracy_move_without_a_focus_check",
         "tools.test_book_musician_full.MusicianTests.test_power_chord_uses_one_native_skill_check_special_defense_and_normal_type",
         "tools.test_book_musician_full.MusicianTests.test_prerequisite_chain_and_each_printed_rank_are_enforced",

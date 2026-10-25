@@ -196,6 +196,15 @@ class MusicianTests(unittest.TestCase):
         self.combat(self.t);AP.spend(self.t,AP.available(self.t))
         self.rejected(lambda:M.play(self.e,self.t,['life']),'one AP')
 
+    def test_noop_keyword_projection_preserves_absent_and_explicit_source_shape(self):
+        native=self.rules.move('struggle');self.assertNotIn('keywords',native)
+        for source in (native,dict(native,keywords=[]),dict(native,keywords=['소리'])):
+            with self.subTest(keywords=source.get('keywords')):
+                before=deepcopy(source);projected=M.project_move(self.e,self.t,source)
+                self.assertEqual(projected,before);self.assertIsNot(projected,source)
+                self.assertEqual(source,before)
+        self.assertNotIn('keywords',self.rules.move('struggle'))
+
     def test_voice_lessons_projects_only_current_owner_sound_moves_except_perish(self):
         self.musician(M.VOICE);own=self.pokemon();other=self.add('Other','trainer',(10,3),feats=[],classes=[])
         foreign=self.pokemon('Foreign',(10,4),owner=other)

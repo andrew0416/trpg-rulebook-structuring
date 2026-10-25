@@ -183,13 +183,15 @@ class ChainedCaseLifecycleTests(unittest.TestCase):
             ruleset=None;rulings=None
             def item_effects(self,name):return {'plate':name}
             def feat_effects(self,name):return {'gift':name}
+        class FakeEngine(SimpleNamespace):
+            def end_scene(self,combatants):pass
         class Case(unittest.TestCase):
             @classmethod
             def setUpClass(cls):cls.rules=Rules()
             @classmethod
             def prepare_chained_cases(cls,cases):return prepare_reference_cases(cls,cases,plates,'gift')
             def fixture(self,item=None,feat=False):
-                return SimpleNamespace(r=self.rules),SimpleNamespace(hp=20),SimpleNamespace(hp=20)
+                return FakeEngine(r=self.rules),SimpleNamespace(hp=20),SimpleNamespace(hp=20)
         names=[]
         for index,(plate,_,_) in enumerate(plates,1):
             for mode in ('matching','nonmatching','lifecycle'):

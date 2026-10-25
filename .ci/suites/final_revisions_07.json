@@ -3,7 +3,7 @@
   "id": "final_revisions_07",
   "purpose": "repair118 complete retained method scope; no old unaffected-PASS reuse. Typed1029/three modes/sentinel, phase1 procedural21 plus phase2 procedural22, mandatory metadata65+audit1 remain distinct.",
   "completion_credit": 0,
-  "required_unique_count": 649,
+  "required_unique_count": 650,
   "completed": {
     "tests.test_league_runtime_independent.Independent": {
       "tests": [
@@ -23,7 +23,8 @@
         "tests.test_league_runtime_independent.Independent.test_14_unsupported_pokemon_producer_does_not_open_turn",
         "tests.test_league_runtime_independent.Independent.test_15_declaration_replacement_and_unknown_target_are_not_executed",
         "tests.test_league_runtime_independent.Independent.test_16_end_requires_complete_and_does_not_infer_winner",
-        "tests.test_league_runtime_independent.Independent.test_17_completed_round_roster_change_is_not_silently_replaced"
+        "tests.test_league_runtime_independent.Independent.test_17_completed_round_roster_change_is_not_silently_replaced",
+        "tests.test_league_runtime_independent.Independent.test_18_passive_damage_history_does_not_admit_active_or_malformed_state"
       ]
     },
     "tools.test_action_metadata_independent.Independent": {

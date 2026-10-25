@@ -72,7 +72,8 @@ for automatic in (False,True):
  for case in ('success','missing_swift','missing_standard','shift_zero','ap_short','exhausted','paralysis','sleep_selfcure','frozen','fainted','other_turn','heavy','unknown_effect'):
   def test(self,automatic=automatic,case=case):
    effects=[{'type':'cure_status','status':['잠듦'],'target':'self'}] if case=='sleep_selfcure' else ([{'type':'unresolved_fixture_effect'}] if case=='unknown_effect' else None)
-   e,a,b,rid=self.fixture(automatic,effects=effects)
+   if case=='paralysis':e,a,b,rid=self.fixture(automatic,raw='장면 x1 - 기본 행동 + 이동 행동',effects=effects)
+   else:e,a,b,rid=self.fixture(automatic,effects=effects)
    if case=='missing_swift':a.budget['swift']=0
    elif case=='missing_standard':a.budget['standard']=0
    elif case=='shift_zero':a.budget['shift']=0
@@ -93,6 +94,15 @@ for automatic in (False,True):
    else:
     self.assertEqual(self.state(e,a,b),before)
     if case=='heavy':self.assertTrue(any('중상' in x and '보류' in x for x in e.log_lines))
+    if case=='paralysis':
+     # The explicit limit forbids two restricted categories, not Standard plus Swift.
+     e,a,b,rid=self.fixture(automatic);a._turn_action_limit={'choose_one_of':['standard','shift']}
+     self.fire(e,a,b,rid,automatic)
+     self.assertEqual(a.budget,{'standard':0,'shift':1,'swift':0})
+     self.assertEqual(a.spec.get('ap_spent'),2);self.assertEqual(b.injuries,1)
+     self.assertEqual(F.state(a)['activations'][rid]['used'],1);self.assertTrue(a.took_standard)
+     self.assertEqual(a._action_history,[{'kind':'compound','components':['standard','swift']}])
+     self.assertTrue(a._restricted_action_taken)
   setattr(Independent,'test_'+('trigger_' if automatic else 'manual_')+case,test)
 
 if __name__=='__main__':

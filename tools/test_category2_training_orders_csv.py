@@ -8,11 +8,8 @@ ROOT=Path(os.environ.get('PTK_CANONICAL_ROOT',STAGE))
 sys.path[:0]=[str(STAGE/'engine'),str(ROOT/'engine')]
 
 from engine import Rules,Engine,Combatant
-# engine.py gives its canonical directory import priority.  Restore the partial
-# overlay before loading the three staged modules under direct test.
+# Keep the staged import path without replacing owners already held by other fixtures.
 sys.path.insert(0,str(STAGE/'engine'))
-for _module in ('training_features','training_rewards','priority_limited','action_resources'):
- sys.modules.pop(_module,None)
 import training_features as T
 import items as ITEMS
 import pokemon_entities as ENTITIES
