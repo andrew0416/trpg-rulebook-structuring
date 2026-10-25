@@ -1,7 +1,7 @@
 {
   "canonical_completed": 1503,
-  "fixture_files": 1559,
-  "fixture_zip_sha256": "6f07cb7e71264fed40c05fbd887df3e5c4a5607faa89f5edb89d9f2ee3ff1291",
+  "fixture_files": 1569,
+  "fixture_zip_sha256": "4f8ff9bf4dfa08106cc311360bbcf5143c23d15497edaca203aeb2477fd3c4ae",
   "scope": "Full fixed185-finding/406-clause revision drafts plus accepted shared-runtime regressions and explicitly separate personal type permissions; no current PASS or completion credit.",
   "revision_groups": [
     "final_revisions_01",
@@ -24,13 +24,13 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "repair133-prerequisites",
-  "active_repair_scope": "Bounded fresh metadata prerequisites plus exact Root-reviewed affected methods: ordinary395 and typed1029, 1424 unique. Global13800 obligations and sole F118fullrun retained; no previousPASS reuse, no completion credit, phase2 metadata remains pending.",
+  "active_repair": "repair134-metadata",
+  "active_repair_scope": "Only prewired metadata65 plus audit1, no ordinary gameplay or typed repeat",
   "active_repair_candidate_sha256": "38f2bf42b29cba4621740dc2c2170c5f907572e99c53d758b6b05b83d38f1d12",
-  "active_repair_required_tests": 395,
+  "active_repair_required_tests": 65,
   "active_repair_groups": [
-    "repair_revisions_01",
-    "frequency_equivalence"
+    "metadata_revisions",
+    "procedural_22"
   ],
   "original_final_required_tests": 4115,
   "validation_chain_controls": {
@@ -44,8 +44,8 @@
   "separately_pending_frequency_equivalence_methods": 1029,
   "separately_pending_procedural_runners": 21,
   "ordinary_shard_count": 18,
-  "active_repair_phase": "metadata_prerequisites",
-  "active_repair_procedural_runners": 0,
+  "active_repair_phase": "phase2_metadata",
+  "active_repair_procedural_runners": 1,
   "full_method_obligations": 13800,
   "ordinary_methods_separate_run": 40141538702,
   "ordinary_methods": 12144,
@@ -75,12 +75,13 @@
     "line_content_unchanged": true,
     "proof_sha256": "07d9cfa5f5e93d93455585f71d4347aeca774206306785ea96fd925e1f60891f"
   },
-  "active_repair_frequency_methods": 1029,
+  "active_repair_frequency_methods": 0,
   "phase2_metadata_methods_mandatory": 65,
   "phase2_additional_procedural_runners": 1,
   "unaffected_previous_PASS_reused": 0,
-  "selected_method_obligations": 1424,
+  "selected_method_obligations": 65,
   "partial_prerequisite_refresh": true,
   "full_method_scope_executed": false,
-  "source_fresh_native_prerequisites": 1404
+  "source_fresh_native_prerequisites": 1404,
+  "native_prerequisite_run": "40241811271"
 }

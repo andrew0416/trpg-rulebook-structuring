@@ -1142,6 +1142,56 @@
       "size": 16100
     },
     {
+      "path": "data/verification/activation-current-proof/093e6078f5546cedf4b47ecc9bc43a5c476a94ca847fa5c97f84454cd8ee2610-metadata.json",
+      "sha256": "093e6078f5546cedf4b47ecc9bc43a5c476a94ca847fa5c97f84454cd8ee2610",
+      "size": 2028251
+    },
+    {
+      "path": "data/verification/activation-current-proof/0f56b7e31e372779e6a07ef6b7ee7c645926ae5a05d3358df7b2edcf051156d9-native-envelope.bin",
+      "sha256": "0f56b7e31e372779e6a07ef6b7ee7c645926ae5a05d3358df7b2edcf051156d9",
+      "size": 290923
+    },
+    {
+      "path": "data/verification/activation-current-proof/4415b810cbb46a8d0dea2856db985b1e8774027473a606e78d6c2ef43e6ef3b6-frequency.json",
+      "sha256": "4415b810cbb46a8d0dea2856db985b1e8774027473a606e78d6c2ef43e6ef3b6",
+      "size": 37099018
+    },
+    {
+      "path": "data/verification/activation-current-proof/7536e7bc6570d17a26d9e6b9b0c0bf1bba4fb80e36d785e53611d348115a7886-raw-log.txt",
+      "sha256": "7536e7bc6570d17a26d9e6b9b0c0bf1bba4fb80e36d785e53611d348115a7886",
+      "size": 60442
+    },
+    {
+      "path": "data/verification/activation-current-proof/9265c79d51141ed2c43716c95d50fb27d31526c84c55abdd11b7d0914dcc47a3-raw-log.txt",
+      "sha256": "9265c79d51141ed2c43716c95d50fb27d31526c84c55abdd11b7d0914dcc47a3",
+      "size": 168
+    },
+    {
+      "path": "data/verification/activation-current-proof/9a3d7f291674f92d907cc69b92a853e8050da86aaf487ba57911a1bd63ba08ad-metadata.json",
+      "sha256": "9a3d7f291674f92d907cc69b92a853e8050da86aaf487ba57911a1bd63ba08ad",
+      "size": 1656414
+    },
+    {
+      "path": "data/verification/activation-current-proof/H-accepted.json",
+      "sha256": "5ab735d7ee2de4372c5884dc6bfb1a4764b2e34f296344eb6f7746c5375ee563",
+      "size": 6791985
+    },
+    {
+      "path": "data/verification/activation-current-proof/cd545eb484d2153a3e8db281a2a66dfac7c9e00edd4f2a0535ea3fc42fd9e1d3-native-envelope.bin",
+      "sha256": "cd545eb484d2153a3e8db281a2a66dfac7c9e00edd4f2a0535ea3fc42fd9e1d3",
+      "size": 3970
+    },
+    {
+      "path": "data/verification/activation-current-proof/collector.json",
+      "sha256": "a3f4a9439dedf1b22ded4ff49a4410348f9045ed6c771d5650e0dc45e000274c",
+      "size": 2216
+    },
+    {
+      "path": "data/verification/activation-current-proof/current.json",
+      "sha256": "bbec44c57efae6156ab6ec5c9d2f7cd0544074ff47511940f1fbe2b8ff682730",
+      "size": 1358433
+    },
+    {
       "path": "data/verification/architecture-effect-range-scope-cycle8-before.log",
       "sha256": "fb45c7d3601cb2b840d9c01055efd3a8a333ed2537d74b42ec3d442cc2432cea",
       "size": 3283
