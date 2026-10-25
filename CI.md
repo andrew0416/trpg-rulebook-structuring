@@ -1,29 +1,33 @@
 # Native revision CI with private fixtures
 
-The **Validate revisions** workflow runs the selected packet's final required test IDs on GitHub-hosted `windows-2022` with Python 3.11. The unchanged fixed verifier enforces exact packet selection. This validates the declared revision scope and earns **zero clause-completion credit**.
+The **Validate revisions** workflow runs the selected packet's final required test IDs on GitHub-hosted `windows-2022` with Python 3.11. The versioned verifier enforces exact packet selection. This validates the declared revision scope and earns **zero clause-completion credit**.
 
 Only reviewed code, schema files, CI configuration and public test-ID packets are public plaintext. Rulebook inputs and supporting fixture data are stored in `.ci/fixtures.zip.enc`, authenticated with AES-256-GCM. `.ci/fixtures-manifest.json` contains only relative paths, byte sizes and SHA-256 hashes. This repository does not relicense those sources or grant redistribution rights. Private candidate ledgers and original source documents are not published as plaintext.
 
 ## Running
 
-Maintainers configure the repository Actions secret **PTK_FIXTURE_KEY** with the 64 hexadecimal characters representing the bundle's 32-byte key. The key must not be committed, placed in command-line arguments, or included in artifacts.
+During development, run the reviewed changed-impact selection. **Actions → Validate revisions → Run workflow** defaults to `changed_revisions`, which runs one job using `.ci/suites/changed_revisions.json`.
 
-Validation runs only on manual dispatch after a revision snapshot is ready. Pushes do not start game checks. The default `next_revisions` packet runs on one Windows VM. Explicit `all_revisions` runs the three historical revision groups on independent VMs with `max-parallel: 3` and `fail-fast: false`. The job additionally requires repository identity `andrew0416/trpg-rulebook-structuring`, a manual event, and a `main` or `codex/**` branch ref. Pull requests and external forks do not receive the private-fixture validation; there is no `pull_request_target` workflow.
+This is an explicit exact-ID packet, not an automatic Git-diff dependency detector. Update it for each change: include changed tests, affected consumers of shared code, and required producer/consumer stages. Its `required_unique_count` must equal the unique selected IDs. A subset PASS validates only that selection and does not certify the full project or award clause completion.
 
-**Actions → Validate revisions → Run workflow** offers a fixed choice on a trusted branch:
+| Choice | Purpose |
+| --- | --- |
+| `changed_revisions` (default) | Reviewed changed-impact checks during development; one job |
+| `all_revisions` | Final ordinary shards, frequency-equivalence modes and procedural runners |
+| `metadata_revisions` | Separate final metadata phase, after its native prerequisites are verified |
+| `final_revisions` | Ordinary final shards only |
+| `frequency_equivalence` / `procedural_runners` | Their explicit specialized validation scopes |
+| `performance_probe` | Optional explicit profiling of its diagnostic packet; never a completion substitute |
 
-| Choice | Scope | Unique required IDs |
-| --- | --- | ---: |
-| `all_revisions` | All three historical revision groups, each on its own VM | 259 across groups |
-| `move_revisions` | Voice/keyword final 99 plus Push Buttons final 23 | 122 |
-| `rank_revisions` | Declared ranks final 107, martial ranks final 20, integration final 2 | 126 |
-| `retraining` | Edge choice retraining final 13 | 13 |
-| `common_checks` | Existing full common-check module | 34 currently |
-| `next_revisions` (manual default) | Root-reviewed integration packet, one VM and one physical execution | Defined by the packet |
+Use the existing local verifier with exact module, class or method references, or a reviewed packet:
 
-Finish and freeze the revision snapshot before dispatching `.ci/suites/next_revisions.json` for its final required checks. Reuse valid earlier PASS evidence when the behavior, inputs, dependencies and source authority remain applicable. After a failure or relevant change, rerun the failed and affected checks together; preserve the original required scope and execution history. Do not repeat a full run for an unrelated push or merely because a new packet was prepared. The full final integration check remains a separate required step. Older commits and runs keep their own workflow definitions and evidence. A single integration packet avoids combining parallel execution histories into one sequential acceptance history.
+```powershell
+python -B work/reuse-partials/verify_overlay_tests.py --auto tools.test_example.Tests.test_changed --stage <stage> --canonical <same-source-root> --record <D-evidence-directory>
+```
 
-The three groups make 261 test executions because two IDs are shared across independent groups. `rank_revisions` already includes the 34 common checks, so manual `all_revisions` does not add a redundant smoke job. Within each group only exact duplicate IDs are removed by the existing verifier. Its `tools.` module identity rules remain unchanged.
+After a failure or relevant change, rerun the failed and affected checks together. The verifier supports `--failed-from REPORT --also EXISTING_AFFECTED_IDS...`; genuinely new tests need a current declaration. Preserve the original report and do not repeat unrelated passing checks. Run the full retained scope once on a stable final candidate, then its gated metadata phase; later fixes receive affected-scope validation rather than another unrelated whole run.
+
+Pushes do not start game checks. Dispatch remains manual and restricted to this repository and `main` or `codex/**` branches. Existing source hashing, authenticated fixture restoration, physical evidence capture, original failure records and full-scope obligations remain enforced. Older runs keep their original head, packet and evidence; never relabel an older run as validation of unreviewed later code.
 
 The [public suite packets](.ci/suites/) retain the original candidate IDs, relative provenance paths, candidate SHA-256 hashes, and final `required_test_ids` as exact `completed[*].tests` declarations. The `completed` key is required by the existing verifier format; it does not claim accepted clauses. Withdrawn assumptions and superseded initial failure allocations do not become current obligations. Original private candidate ledgers are not needed on the runner.
 
