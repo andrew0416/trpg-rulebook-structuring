@@ -881,9 +881,11 @@ class GMState:
             # receive the restored dictionaries only after validation succeeds.
             staged={identity:copy.copy(c) for identity,c in actors.items() if identity in restored["combatants"]}
             candidate_engine=copy.copy(self.e)
+            # Live check authority is not saved state and belongs only to this host.
+            candidate_engine.__dict__.pop('_root_common_binding',None)
             # Native transient attribution (for example _inflictor) can also
             # refer to actors. Validate it against the candidate actor graph.
-            transient={key:value for key,value in vars(self.e).items() if key not in ENGINE_FIELDS and key not in ('r','gm','rulings','rng')}
+            transient={key:value for key,value in vars(self.e).items() if key not in ENGINE_FIELDS and key not in ('r','gm','rulings','rng','_root_common_binding')}
             candidate_engine.__dict__.update(copy.deepcopy(transient,{**staged,id(self.e):candidate_engine,id(self.e.r):self.e.r,id(self):self}))
             checked=copy.deepcopy(restored,{**staged,id(self.e):candidate_engine,id(self.e.r):self.e.r})
             candidate_engine.rng=copy.deepcopy(self.e.rng)

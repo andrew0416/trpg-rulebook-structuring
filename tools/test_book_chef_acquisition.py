@@ -65,7 +65,7 @@ class ChefAcquisitionTests(unittest.TestCase):
             self.assertEqual(self.rules.selection.units[uid]['source']['lines'], data['features'][uid]['catalog_span'])
             self.assertIn(uid, ACQUIRE.STATIC_FEATURES)
         self.assertEqual(ACQUIRE.STATIC_FEATURES[CHEF.CLASS]['span'], [1884, 1884])
-        self.assertEqual(set(data['recipes']), {CHEF.TASTY, CHEF.HEARTY, CHEF.PRESERVES, CHEF.LEFTOVERS})
+        self.assertEqual(set(data['recipes']), {CHEF.TASTY, CHEF.HEARTY, CHEF.PRESERVES, CHEF.LEFTOVERS, CHEF.BAIT, CHEF.VITAMINS, CHEF.MEAL_PLANNER})
         self.assertEqual(data['taste_bonuses']['짠맛'], {'kind': 'temporary_hp', 'value': 5, 'stack': True})
         self.assertEqual(data['taste_bonuses']['단맛'], {'kind': 'initiative', 'value': 5})
         world = FIX.scene(self.rules, feats=(CHEF.CLASS,))

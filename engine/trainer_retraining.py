@@ -54,6 +54,10 @@ def owned_source(engine, actor, rule_id):
     acquisition=HUNTER.acquired(actor,rule_id) if rule_id in HUNTER.FEATURES else None
     if acquisition is not None and HUNTER.DEFINITIONS[rule_id].get('branch'):
         return 'feature:'+actor.entity_id+':'+rule_id+':'+acquisition['snapshot']['branch']
+    import dancer as DANCER
+    acquisitions=DANCER._records(actor,rule_id) if rule_id==DANCER.CLASS else []
+    if len(acquisitions)==1:
+        return DANCER.acquisition_source_id(actor,rule_id,acquisitions[0]['snapshot']['branch'])
     source = 'feature:' + actor.entity_id + ':' + rule_id
     row = GRANTS.state(actor)['sources'].get(source)
     if row is not None:

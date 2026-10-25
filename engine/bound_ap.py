@@ -40,6 +40,25 @@ def _modifier_supported(modifier):
             and ('move_type' not in modifier or type(modifier['move_type']) is str))
 
 
+def inert_history(actor):
+    """Recognize only the closed, nonbehavioral single-modifier release receipt."""
+    records=getattr(actor,'_ap_bound_effects',{})
+    if type(records) is not dict:return False
+    for uid,row in records.items():
+        if (type(uid) is not str or type(row) is not dict
+                or set(row)!={'amount','expected_modifier','ending_method','source_ref','adapter','state','end_event'}
+                or row['state']!='ended' or row['adapter']!='single_damage_roll_modifier_v1'
+                or type(row['amount']) is not int or row['amount']<=0
+                or not _modifier_supported(row['expected_modifier'])
+                or row['ending_method']!='none_specified' or type(row['source_ref']) is not str or not row['source_ref']
+                or type(row['end_event']) is not dict or set(row['end_event'])!={'id','instance_id','round','action'}):return False
+        event=row['end_event']
+        if (type(event['id']) is not str or not event['id'] or event['instance_id']!=uid
+                or type(event['round']) is not int or event['round']<0 or event['action']!='free'
+                or uid in actor.spec.get('ap_bound',{})):return False
+    return True
+
+
 def adopt(engine, actor, instance_id, *, modifier, ending_method, source_ref):
     """Import identity for an existing binding; does not activate/grant anything.
 

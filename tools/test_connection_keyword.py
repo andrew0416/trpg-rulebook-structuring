@@ -260,6 +260,15 @@ class ConnectionKeywordTests(unittest.TestCase):
         self.assertEqual(set(M.known(self.rules,{'moves':target.moves})),set(M.known(self.rules,{'moves':before})))
         self.assertNotIn(self.bite,target.moves)
 
+    def test_transform_lifetime_requires_the_exact_selected_source_contract(self):
+        import effect_lifetimes as LIFE
+        self.temporary('변신')
+        effect=next(e for e in self.rules.move_mech('move/변신')[0]['effects_exec'] if e['type']=='transform')
+        self.assertTrue(LIFE.prepare(self.e,self.p,self.donor,effect,'move/변신')['transform_owned'])
+        for source,payload in [('move/몸통박치기',effect),('move/변신',dict(effect,until='scene_end'))]:
+            with self.assertRaisesRegex(LIFE.TimingUnsupported,'exact selected source-owned lifetime'):
+                LIFE.prepare(self.e,self.p,self.donor,payload,source)
+
     def test_transform_native_faint_and_encounter_end_restore_only_form_moves(self):
         for event in ('faint','encounter'):
             with self.subTest(event=event):

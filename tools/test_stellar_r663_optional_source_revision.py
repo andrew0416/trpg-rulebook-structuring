@@ -32,6 +32,10 @@ class StellarR663OptionalSourceRevisionTests(unittest.TestCase):
         fixture.rules = self.rules
         fixture.setUp()
         e, actor, target = fixture.engine, fixture.owner, fixture.foe
+        # Repeated actual damage must not silently turn later uses into the
+        # separate nonpositive-HP admission path. Defense/type stay unchanged.
+        e.gm.set_stat(target,'hp',value=300,reason='multi-activation fixture HP headroom')
+        e.gm.set_hp(target,value=target.base_max_hp,reason='multi-activation fixture starts healthy')
         if tera is not None:
             HOME.observe_type(e, actor, tera, reason='actual established ordinary Tera choice')
             HOME.observe_active(e, actor, True, reason='actual source-owned ordinary Terastal state')

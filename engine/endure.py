@@ -11,7 +11,11 @@ SOURCES=('move/버티기','move/버티기-홈브류')
 
 
 def known(e,actor):
-    return next((mid for name in actor.moves if (mid:=e.r.move_id(name)) in SOURCES),None)
+    # An observer must not try to activate/select unrelated learned Moves.
+    # The actual matching Endure still goes through ordinary source admission.
+    names={mid for mid in SOURCES}
+    names.update(e.r.moves[mid]['name'] for mid in SOURCES if mid in e.r.moves)
+    return next((mid for name in actor.moves if name in names and (mid:=e.r.move_id(name)) in SOURCES),None)
 
 
 def authority(e,actor):

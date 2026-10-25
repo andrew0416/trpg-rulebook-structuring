@@ -5,7 +5,8 @@ import sys,json,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT));sys.path.insert(0,str(ROOT/'engine'))
 from tools import test_category2_equipment_protection as FIX
 from tools import test_category2_csv_item_transfers as LEGACY
-from engine import Engine
+from engine import Engine,Combatant
+from builder import build_trainer
 import held_equipment as H,equipment_actions as E,items as I,world_entities as W,state_grants as G,common_checks as C
 
 class DualHeldTests(unittest.TestCase):
@@ -100,7 +101,15 @@ class DualHeldTests(unittest.TestCase):
   self.assertEqual(len(H.entries(b)),2);self.assertEqual(b.initiative_bonus,10);self.assertEqual(H.pending(b)[0]['kind'],'identical_effect_stacking')
   e.gm.set_item(b,None,reason='observed first copy removed',selection='object/1');self.assertEqual(b.item,'선제공격손톱');self.assertEqual(b.initiative_bonus,10);self.assertFalse(H.pending(b));self.valid(e)
  def test_other_actor_turns_snapshot_and_ordinary_damage_do_not_read_ambiguous_item(self):
-  e,a,b,mid=self.fixture('몸통박치기');e.start_round(e.everyone);e.start_of_turn(a);damage=e.use_move(a,b,mid);self.assertGreater(damage,0);e.end_of_turn(a)
+  e,a,b,mid=self.fixture('몸통박치기')
+  trainer=Combatant(e.r,build_trainer(e.r,'campaign discussion participant',1,dict.fromkeys(('hp','atk','def','spa','spd','spe'),10),abilities=[],pos=(8,8)))
+  e.gm.add_combatant(trainer,reason='actual Trainer records this fixture campaign decision')
+  e.pokemon_activity(trainer,'configure_intelligence',
+   portrayal='this holder can make the declared Intuition check',discussed_with=['GM','player'],
+   social=False,education=False,
+   exceptions={b.entity_id:{'skills':['직감'],'reason':'actual two-held-item skill-check participant'}},
+   reason='fixture campaign discussion permits only this individual Intuition pool')
+  e.start_round(e.everyone);e.start_of_turn(a);damage=e.use_move(a,b,mid);self.assertGreater(damage,0);e.end_of_turn(a)
   import root_common_engine as ROOT_CHECK
   context=ROOT_CHECK.host_context(e,{'attacker':a,'holder':b});self.assertEqual(len(context['actors']['holder']['held_equipment']),2)
   # The root adapter admits explicit rank names; this fixture supplies that input.

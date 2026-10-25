@@ -134,7 +134,7 @@ def main():
   {'id':'levelup_hp_policy','state':'unresolved_legacy_policy','detail':'gain_exp_combatant preserves proportional HP via nearest round without verified source. Kept visible; not treated as a sourced nearest-round exception.'},
   {'id':'evasion_translation','state':'provisional_local_source_adoption','detail':'PTK line119 says nearest; combat/stat-per-five and PTU explicitly favor floor. Existing adopted floor retained, not presented as internally consistent translation.'},
   {'id':'speed_half_translation','state':'provisional_local_source_adoption','detail':'PTU explicitly floors signed Speed CS/2; PTK omits the operator. Existing signed //2 semantics retained through common ratio.'},
-  {'id':'contest_xp_operand','state':'unresolved_source_operand','detail':'Explicit ceil half-count operator exists, but count identity/example conflict remains outside common encounter XP.'}],
+  {'id':'contest_xp_operand','state':'resolved_user_decision','detail':'S-002 (2026-10-25): level * ceil(strictly defeated Pokemon / 2) * significance, then ordinary final floor. No self/participant bonus; genuine final ties are not beaten, while native Festival elimination and scoped winner adjudications remain authoritative. contest_experience owns the explicit native award; Festival pays the whole event once. Printed 60/20 remains a source discrepancy, not an unresolved default.'}],
  'whole_source_semantics_complete':False,
  'unclassified_sites':[r for r in records if r['status']=='needs_review']}
  out=ROOT/'output/common-arithmetic-consumer-inventory.json';out.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf8')

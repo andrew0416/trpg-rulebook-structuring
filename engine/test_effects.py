@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from engine import Combatant, Engine, Rules  # noqa: E402
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 from synthetic_rule_fixture import register_synthetic  # noqa: E402
+from native_scenario_fixture import prepare_body  # noqa: E402
 import effects as FX  # noqa: E402
 
 
@@ -33,11 +34,15 @@ def run(root):
     # 1. swap_stages (가드스왑 llm 초안)
     e = Engine(r)
     a, t = make(r, "pokemon/archie"), make(r, "pokemon/oddish-1")
+    e.gm.add_combatant(a)
+    e.gm.add_combatant(t)
     a.stages["def"], t.stages["def"], t.stages["spd"] = 2, -1, 3
     FX.run_effects(e, a, t, [{"type": "swap_stages", "swap_stages": ["def", "spd"], "between": ["self", "target"]}], {"hit": True}, "test")
     check("swap_stages: def/spd 전투단계 교환", a.stages["def"] == -1 and t.stages["def"] == 2 and a.stages["spd"] == 3)
     # 2. field_effect / set_weather
-    FX.run_effects(e, a, t, [{"type": "field_effect", "field": "원더", "rounds": 5}, {"type": "set_weather", "weather": "rain", "rounds": 5}], {"hit": True}, "test")
+    field_batch = FX.run_effects(e, a, t, [{"type": "field_effect", "field": "원더", "rounds": 5, "effect": {"swap_defense_stats": True}}, {"type": "set_weather", "weather": "rain", "rounds": 5}], {"hit": True}, "test")
+    assert field_batch == (2, 0) and not field_batch.pending
+    assert all(outcome.status == "completed" for outcome in field_batch.outcomes)
     check("field_effect / set_weather 저장", e.field["name"] == "원더" and e.weather == "rain")
     # 3. reaction_shield: 다음 공격 무효
     FX.run_effects(e, t, a, [{"type": "reaction_shield", "trigger": "user hit by a move", "effect": "negate hit"}], {"hit": True}, "test")
@@ -59,6 +64,8 @@ def run(root):
     # 6. hp_loss 식 (user.level, current_hp/2, tick*2) / self_hp_set -50%
     a2, t2 = make(r, "pokemon/archie"), make(r, "pokemon/oddish-2")
     e2 = Engine(r)
+    e2.gm.add_combatant(a2)
+    e2.gm.add_combatant(t2)
     FX.run_effects(e2, a2, t2, [{"type": "hp_loss", "value": "user.level", "target": "target"}], {"hit": True, "attacker": a2}, "test")
     check("hp_loss user.level: 뚜벅초 53 → 33 (아치 레벨 20)", t2.hp == 33, f"{t2.hp}")
     FX.run_effects(e2, a2, t2, [{"type": "hp_loss", "value": "current_hp/2", "target": "target"}], {"hit": True, "attacker": a2}, "test")
@@ -66,9 +73,13 @@ def run(root):
     FX.run_effects(e2, a2, t2, [{"type": "self_hp_set", "self_hp": "-50% max", "unpreventable": True}], {"hit": True, "attacker": a2}, "test")
     check("self_hp_set -50%: 아치 60 → -30, 기절", a2.hp == -30 and a2.fainted, f"{a2.hp}")
     # 7. 미지원/미해석은 보류로 세고 멈추지 않음
-    done, held = FX.run_effects(e2, make(r, "pokemon/archie"), t2, [{"type": "multi_target_chain", "max": 3}, {"type": "push", "meters": "8 - target.weight_class"}, {"type": "stage_change", "stat": "atk", "delta": 1, "target": "self"}], {"hit": True}, "test")
+    chain_actor = make(r, "pokemon/archie", id="pokemon/effects-chain-actor")
+    e2.gm.add_combatant(chain_actor)
+    done, held = FX.run_effects(e2, chain_actor, t2, [{"type": "multi_target_chain", "max": 3}, {"type": "push", "meters": "8 - target.weight_class"}, {"type": "stage_change", "stat": "atk", "delta": 1, "target": "self"}], {"hit": True}, "test")
     check("보류 집계: 턴구조(multi_target_chain)는 엔진 처리라 건너뜀, push 8-체급 식 평가되어 실행, 보류 0", done == 2 and held == 0, f"done {done} held {held}")
-    done, held = FX.run_effects(e2, make(r, "pokemon/archie"), t2, [{"type": "no_such_effect"}], {"hit": True}, "test")
+    unknown_actor = make(r, "pokemon/archie", id="pokemon/effects-unknown-actor")
+    e2.gm.add_combatant(unknown_actor)
+    done, held = FX.run_effects(e2, unknown_actor, t2, [{"type": "no_such_effect"}], {"hit": True}, "test")
     check("미지원 유형은 보류 1", done == 0 and held == 1, f"done {done} held {held}")
     # 7b. 식 평가기
     ctx3 = {"attacker": a2, "target": t2, "engine": e2, "hit": True}
@@ -89,7 +100,9 @@ def run(root):
     e3 = Engine(r); a3, t3 = make(r, "pokemon/archie"), make(r, "pokemon/oddish-2")
     r.ability_effects["물맞이(가상)"] = [{"type": "trigger", "text": "물타입 기술로 맞았을 때"}, {"type": "stage_change", "stat": "spd", "delta": 1, "target": "self"}]
     r.ability_freq["물맞이(가상)"] = "장면 x1 - 발동"
-    t3.abilities = ["물맞이(가상)"]; e3.register_abilities(t3)
+    t3.abilities = ["물맞이(가상)"]
+    e3.gm.add_combatant(a3)
+    e3.gm.add_combatant(t3)
     check("trigger 등록: ability_triggers 1개", len(t3.ability_triggers) == 1 and t3.ability_triggers[0]["spec"] == {"event": "on_hit_received", "move_type": "물"}, t3.ability_triggers)
     e3.use_move(a3, t3, "move/불꽃세례", set_damage=True)
     check("불꽃 기술에는 발동 안 함", t3.stages.get("spd", 0) == 0)
@@ -98,7 +111,9 @@ def run(root):
     check("물 기술 피격 → spd +1, 장면 x1 이라 두 번째는 발동 안 함", t3.stages.get("spd", 0) == 1 and t3.counters.get("ab:물맞이(가상)") == 1, f"{t3.stages} {t3.counters}")
     # 7e. 단계 하락 면역(클리어바디) / stat_mod(라이트메탈 체급 -2) / connection(꿀도둑: 벌레먹기 사용 시 임시 체력 tick)
     e4 = Engine(r); a5, t5 = make(r, "pokemon/archie"), make(r, "pokemon/oddish-2")
-    t5.abilities = ["클리어바디", "라이트메탈 [Playtest]", "꿀도둑"]; e4.register_abilities(t5)
+    t5.abilities = ["클리어바디", "라이트메탈 [Playtest]", "꿀도둑"]
+    e4.gm.add_combatant(a5)
+    e4.gm.add_combatant(t5)
     FX.run_effects(e4, a5, t5, [{"type": "stage_change", "stat": "atk", "delta": -1, "target": "target"}, {"type": "stage_change", "stat": "atk", "delta": -1, "target": "self"}], {"hit": True, "attacker": a5, "target": t5}, "test")
     check("클리어바디: 적이 내린 atk -1 은 면역, 자기 자신의 하락은 그대로", t5.stages["atk"] == 0 and a5.stages["atk"] == -1, f"{t5.stages} {a5.stages}")
     check("라이트메탈: 체급 1 → 1 (하한 1), 영구 체급 보존", t5.weight_class == 1 and t5.spec["weight_class"] == 1, (t5.weight_class,t5.spec["weight_class"]))
@@ -108,6 +123,8 @@ def run(root):
     check("벌레먹기 사용 → 임시 체력 tick(뚜벅초 최대 53 → 5)", t5.temp_hp == 5, t5.temp_hp)
     # 7f. 속임수(llm): 대상의 공격 스탯으로 피해 계산 — 뚜벅초(atk 7)가 아치(atk 9, def 8)에게: 지정 데미지 + 9 - 8
     e6 = Engine(r); a6, t6 = make(r, "pokemon/archie"), make(r, "pokemon/oddish-2")
+    e6.gm.add_combatant(a6)
+    e6.gm.add_combatant(t6)
     mid = r.mech("combat/damage-chart")["by_damage_base"]["10"]["set"]["mid"]
     dmg = e6.roll_damage(t6, a6, r.move("move/속임수"), set_damage=True)
     check(f"속임수: 대상(아치) 공격 9 로 계산 → {mid}+9-8 = {mid + 1} (자기 공격 7이면 {mid - 1})", dmg == mid + 1, dmg)
@@ -115,8 +132,8 @@ def run(root):
     e3 = Engine(r)
     a3 = make(r, "pokemon/archie", abilities=["맹화", "대운"])
     t3 = make(r, "pokemon/oddish-1", abilities=["두꺼운지방"])
-    e3.register_abilities(a3)
-    e3.register_abilities(t3)
+    e3.gm.add_combatant(a3)
+    e3.gm.add_combatant(t3)
     dmg = e3.roll_damage(a3, t3, r.move("move/불꽃세례"), set_damage=True)
     # 기준값(패시브 없음) 27: 15 + 16 = 31 → +5 = 36, -13 = 23, 불꽃 vs 풀/독 ×1.5 → 두꺼운지방 -1단계 → ×1 = 23
     check("패시브 맹화 +5 와 두꺼운지방 저항 1단계: 지정 데미지 27 → 23", dmg == 23, f"{dmg}")
@@ -126,28 +143,32 @@ def run(root):
     hit, nat, crit = e3.accuracy_check(a3, t3, r.move("move/불꽃세례"), fixed_roll=18)
     check("대운: 자연 18 도 치명타", hit and crit)
     t4 = make(r, "pokemon/oddish-2", abilities=["저수"])
-    e3.register_abilities(t4)
+    e3.gm.add_combatant(t4)
     t4.hp = 20
     dmg = e3.roll_damage(a3, t4, {"id": "move/x", "name": "물대포", "class": "특수", "ac": 2, "type": "물", "damage_base": 4})
     check("저수: 물 공격 무효 + 소량(5) 회복 → 피해 0, 체력 20 → 25", dmg == 0 and t4.hp == 25, f"{dmg} {t4.hp}")
     # 9. 특성 패시브: 본능(회피 +2), 복안(명중 +3), 가증스러움(HP 기본 +5), 조가비갑옷(치명타 면역은 보류 대상 아님: immunity 'to')
     c5 = make(r, "pokemon/oddish-3", abilities=["본능", "복안"])
-    e3.register_abilities(c5)
+    e3.gm.add_combatant(c5)
     check("본능/복안: 회피 +2, 명중 +3 등록", c5.evasion_mod == 2 and c5.accuracy_stage == 3)
     # 10. 임시 체력이 먼저 깎임
-    c6 = make(r, "pokemon/oddish-1")
+    c6 = make(r, "pokemon/oddish-1", id="pokemon/effects-temp-hp-target")
+    e3.gm.add_combatant(c6)
     c6.temp_hp = 10
     e3.take_damage(c6, 15)
     check("임시 체력 10 → 15 피해면 실제 체력 5 감소 (53 → 48)", c6.hp == 48 and c6.temp_hp == 0, f"{c6.hp} {c6.temp_hp}")
     # 11. damage_floor (칼등치기): 체력 1 미만으로 안 내려감
     e4 = Engine(r)
     a4, t5 = make(r, "trainer/maya"), make(r, "pokemon/oddish-1")
+    e4.gm.add_combatant(a4)
+    e4.gm.add_combatant(t5)
     t5.hp = 5
     dmg = e4.roll_damage(a4, t5, r.move("move/칼등치기"), fixed_dice=[8])
     check("damage_floor(칼등치기 llm): 피해가 체력 1 남기도록 제한 → 4", dmg == 4, f"{dmg}")
     # 12. llm 초안이 엔진에 꽂힘: 회복지령(heal 1/2) 사용
     e5 = Engine(r)
     a5 = make(r, "pokemon/archie")
+    e5.gm.add_combatant(a5)
     a5.hp = 10
     e5.use_move(a5, a5, "move/회복지령")
     check("llm 초안 실행: 회복지령 → 체력 10 → 40 (최대 60의 절반)", a5.hp == 40, f"{a5.hp}")
@@ -156,6 +177,8 @@ def run(root):
     import effects_ext as EXT
     from grid import Grid
     e7 = Engine(r); a7, t7 = make(r, "pokemon/archie"), make(r, "pokemon/oddish-2")
+    e7.gm.add_combatant(a7)
+    e7.gm.add_combatant(t7)
     t7.item = "오랭열매"
     FX.run_effects(e7, a7, t7, [{"type": "steal_item", "if": "user holds nothing"}], {"hit": True, "attacker": a7, "target": t7}, "test")
     check("steal_item: 도구 없는 아치가 뚜벅초의 오랭열매를 빼앗음", a7.item == "오랭열매" and t7.item is None, f"{a7.item} {t7.item}")
@@ -177,10 +200,14 @@ def run(root):
     FX.run_effects(e7, a7, t7, [{"type": "alternate_effect", "if": "stockpile >= 3", "then": {"type": "heal", "fraction_of_max": [1, 1], "target": "self"}}], {"hit": True, "attacker": a7, "target": t7}, "test")
     check("alternate_effect: 'stockpile >= 3' 분기 → 전부 회복", a7.hp == a7.max_hp, a7.hp)
     # 일격(execute): 레벨 100 vs 13 → X=117 → 반드시 기절; 얼음 타입은 무효
-    a8 = make(r, "pokemon/archie", level=100); t8 = make(r, "pokemon/oddish-2")
+    a8 = make(r, "pokemon/archie", id="pokemon/effects-execute-actor", level=100)
+    t8 = make(r, "pokemon/oddish-2", id="pokemon/effects-execute-target")
+    e7.gm.add_combatant(a8)
+    e7.gm.add_combatant(t8)
     FX.run_effects(e7, a8, t8, [{"type": "execute", "roll": "1d100", "threshold": "30 + user.level - target.level", "immune_if": "얼음 type"}], {"hit": True, "attacker": a8, "target": t8}, "test")
     check("execute: X=117 → 1d100 < X 이므로 기절", t8.fainted, t8.hp)
-    t8b = make(r, "pokemon/oddish-2", types=["얼음"])
+    t8b = make(r, "pokemon/oddish-2", id="pokemon/effects-ice-execute-target", types=["얼음"])
+    e7.gm.add_combatant(t8b)
     FX.run_effects(e7, a8, t8b, [{"type": "execute", "roll": "1d100", "threshold": "30 + user.level - target.level", "immune_if": "얼음 type"}], {"hit": True, "attacker": a8, "target": t8b}, "test")
     check("execute: 얼음 타입 대상은 무효", not t8b.fainted)
     # 부상·완전 회복·체력 공유
@@ -200,12 +227,16 @@ def run(root):
     check("delayed_heal: 대상 턴 끝에 최대 절반(26) 회복 → 36", t7.hp == 36, t7.hp)
     # 지연 공격 (미래예지): 사용 턴엔 아무 일도, 대상 턴 끝에 명중
     e8 = Engine(r, 2); a9, t9 = make(r, "pokemon/archie"), make(r, "pokemon/oddish-2")
+    e8.gm.add_combatant(a9)
+    e8.gm.add_combatant(t9)
     d0 = e8.use_move(a9, t9, "move/미래예지")
     check("delayed_attack: 사용 턴 피해 0, 체력 그대로", d0 == 0 and t9.hp == 53, f"{d0} {t9.hp}")
     e8.end_of_turn(t9)
     check("delayed_attack: 대상 턴 끝에 피해 발생", t9.hp < 53, t9.hp)
     # 코트(물놀이: 불꽃 1회 저항) / 축복(리플렉터: 물리 2회 저항) / 흰안개
     e9 = Engine(r); a10, t10 = make(r, "pokemon/archie"), make(r, "pokemon/oddish-2")
+    e9.gm.add_combatant(a10)
+    e9.gm.add_combatant(t10)
     d_plain = e9.roll_damage(a10, t10, r.move("move/불꽃세례"), set_damage=True)
     FX.run_effects(e9, a10, t10, [{"type": "apply_coat", "coat": "물놀이", "effect": {"resist_once": "불꽃"}, "target": "target"}], {"hit": True}, "test")
     d_coat = e9.roll_damage(a10, t10, r.move("move/불꽃세례"), set_damage=True)
@@ -222,11 +253,13 @@ def run(root):
     e9.change_stage(a10, "def", -1)
     check("blessing 흰안개: 남이 내리는 단계는 무효, 스스로 내리는 건 적용", a10.stages["atk"] == 0 and a10.stages["def"] == -1, f"{a10.stages}")
     # 피해 상한(옹골참 플레이테스트) / 폼 규칙(리밋실드)
-    a11 = make(r, "pokemon/archie")
+    a11 = make(r, "pokemon/archie", id="pokemon/effects-damage-cap-actor")
+    e9.gm.add_combatant(a11)
     FX.run_effects(e9, a11, a11, [{"type": "damage_cap", "value": "max_hp/2", "applies_to": "damage and hp loss"}], {"hit": True}, "test")
     e9.take_damage(a11, 100)
     check("damage_cap: 100 피해 → 최대 체력 절반(30)으로 제한", a11.hp == 30, a11.hp)
-    a12 = make(r, "pokemon/archie")
+    a12 = make(r, "pokemon/archie", id="pokemon/effects-form-change-actor")
+    e9.gm.add_combatant(a12)
     FX.run_effects(e9, a12, a12, [{"type": "form_change", "forms": ["유성", "코어"], "trigger": "hp < half → 코어", "shared_hp": True}], {"hit": True}, "test")
     e9.take_damage(a12, 40)
     check("form_change 리밋실드: 60 → 20 (부상 2, 최대 48) 절반 미만 → 코어 폼", a12.form == "코어", f"{a12.form} {a12.hp}/{a12.max_hp}")
@@ -234,6 +267,11 @@ def run(root):
     e10 = Engine(r); e10.grid = Grid(10, 10)
     a13, t13 = make(r, "pokemon/archie"), make(r, "pokemon/oddish-2")
     a13.pos, t13.pos = (2, 2), (6, 2)
+    e10.gm.add_combatant(a13)
+    e10.gm.add_combatant(t13)
+    for actor in (a13, t13):
+        prepare_body(e10, actor, size="소형", offsets=[(0, 0)],
+                     reason="effects fixture observes the small example Pokemon on the hazard map")
     mv = r.move("move/압정뿌리기")
     mm13, _ = r.move_mech("move/압정뿌리기")
     FX.run_effects(e10, a13, t13, [x for x in mm13["effects_exec"] if x["type"] == "create_terrain"], {"hit": True, "move": mv, "attacker": a13, "target": t13, "engine": e10}, "test")
@@ -244,6 +282,8 @@ def run(root):
     # Double Strike must remain pending until two accuracy rolls feed one combined
     # DB calculation, including each hit's critical dice before one defense deduction.
     e11 = Engine(r, 3); a14, t14 = make(r, "pokemon/archie"), make(r, "pokemon/oddish-2")
+    e11.gm.add_combatant(a14)
+    e11.gm.add_combatant(t14)
     a14.registry.append({"type": "gain_keyword", "keyword": "이단타격", "moves": "all"})
     before = (t14.hp, dict(a14.move_uses), e11.rng.getstate())
     pending = False
@@ -254,19 +294,26 @@ def run(root):
     check("gain_keyword 이단타격: 원문 합산 미확정 시 비용/굴림 전 보류", pending and before == (t14.hp, dict(a14.move_uses), e11.rng.getstate()), t14.hp)
     # 방어 수정자 무시(DD래리어트): 방어 +6 단계여도 기본 방어로 계산
     e12 = Engine(r); a15, t15 = make(r, "pokemon/archie"), make(r, "pokemon/oddish-2")
+    e12.gm.add_combatant(a15)
+    e12.gm.add_combatant(t15)
     t15.stages["def"] = 6
     d_dd = e12.roll_damage(a15, t15, r.move("move/dd래리어트"), set_damage=True)
     mid9 = r.mech("combat/damage-chart")["by_damage_base"]["9"]["set"]["mid"]
     check(f"ignore_defense_modifiers: DD래리어트 = {mid9}+atk 9-기본 방어 12 = {mid9 - 3}", d_dd == mid9 + 9 - 12, d_dd)
     # 명중 치환(번개: 쾌청이면 AC 11)
     e13 = Engine(r); a16, t16 = make(r, "pokemon/archie"), make(r, "pokemon/oddish-2")
-    e13.weather = "none"  # Explicit observed absence, distinct from unknown weather.
+    e13.gm.add_combatant(a16)
+    e13.gm.add_combatant(t16)
+    e13.gm.observe_natural_weather("clear weather without a battlefield weather effect",
+                                  reason="effects fixture explicitly observes ordinary weather")
     h_norm = e13.accuracy_check(a16, t16, r.move("move/번개"), fixed_roll=10)[0]
-    e13.weather = "sunny"
+    e13.gm.set_weather("sunny", rounds=5, reason="effects fixture tests Thunder in sourced harsh sunlight")
     h_sun = e13.accuracy_check(a16, t16, r.move("move/번개"), fixed_roll=10)[0]
     check("accuracy_override 번개: 보통 날씨 AC 7 명중, 쾌청 AC 11 빗나감 (d20=10)", h_norm and not h_sun, f"{h_norm} {h_sun}")
     # 타입 치환(타오르는분노: 장면 1회 불꽃으로) → 풀/독 상대에 유리한 불꽃 선택
     e14 = Engine(r); a17, t17 = make(r, "pokemon/archie"), make(r, "pokemon/oddish-2")
+    e14.gm.add_combatant(a17)
+    e14.gm.add_combatant(t17)
     e14.roll_damage(a17, t17, r.move("move/타오르는분노"), set_damage=True)
     check("alternate_type: 악 → 불꽃 (풀 상대 ×1.5) 자동 선택", any("타입 치환: 악 → 불꽃" in l for l in e14.log_lines))
     # 누적 DB(구르기) / 사용 제한(코골기) / 대상 규칙(꿈먹기) / 변신 / 동작 / GM 프롬프트
@@ -278,13 +325,27 @@ def run(root):
     check("targeting_rule 꿈먹기: 잠든 대상에게만", used2 == 0 and any("잠든 대상에게만" in l for l in e14.log_lines))
     FX.run_effects(e14, a17, t17, [{"type": "transform", "target": "target", "copy": ["types", "moves"]}], {"hit": True}, "test")
     check("transform: 아치 타입 → 풀/독", a17.types == ["풀", "독"], a17.types)
-    FX.run_effects(e14, a17, t17, [{"type": "free_maneuver", "maneuver": "걸기", "target": "target"}], {"hit": True}, "test")
+    # Use the existing reviewed Take Down child source, not a synthetic permission.
+    import skill_modifiers as SKILLS
+    e14.grid = Grid(8, 8)
+    for actor, pos in ((a17, (1, 1)), (t17, (2, 1))):
+        e14.gm.set_position(actor, pos, reason='actual adjacent Trip component participants')
+        prepare_body(e14, actor, size='소형', offsets=[(0, 0)], reason='actual small one-cell Trip body')
+    e14.start_round([a17, t17]); e14.start_of_turn(a17, initiative_count=20)
+    trip = next(effect for effect in r.move_mech('move/돌진')[0]['effects_exec'] if effect['type']=='free_maneuver')
+    options = {'accept':True, 'challenger_skill':'전투', 'defender_skill':'전투', 'fixed_accuracy':20,
+        'challenger_options':{'fixed':[6]*SKILLS.rank(r,a17,'전투')[2]},
+        'defender_options':{'fixed':[1]*SKILLS.rank(r,t17,'전투')[2]}}
+    trip_batch = FX.run_effects(e14, a17, t17, [trip], {'hit':True, 'maneuver_options':options}, 'move/돌진')
+    assert trip_batch == (1, 0) and not trip_batch.pending
     check("free_maneuver 걸기 → 넘어짐", "넘어짐" in t17.conditions)
     n0 = len(e14.gm_prompts)
     done_n, held_n = FX.run_effects(e14, a17, t17, [{"type": "rule", "note": "escaping 구속 also escapes 수렁"}, {"type": "reveal", "info": "target ability"}], {"hit": True}, "test")
     check("GM 프롬프트: 미응답 rule/reveal 은 대기 2건이고 실행 성공 0건", done_n == 0 and held_n == 2 and len(e14.gm_prompts) == n0 + 2, f"{done_n} {held_n}")
     # 다중 굴림(변덕레이저)
     e15 = Engine(r, 4); a18, t18 = make(r, "pokemon/archie"), make(r, "pokemon/oddish-2")
+    e15.gm.add_combatant(a18)
+    e15.gm.add_combatant(t18)
     e15.use_move(a18, t18, "move/변덕레이저")
     check("multi_roll 변덕레이저: 명중 3회 굴림", any("다중 굴림 3회" in l for l in e15.log_lines))
     check("전체 지원: DB 의 모든 effect 유형이 effects.SUPPORTED 에 있음", True)

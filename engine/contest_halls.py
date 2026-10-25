@@ -112,6 +112,38 @@ def validate_hall(host, state):
         raise ValueError('original Contest Hall observation changed')
 
 
+def terminal_scores(host, state, *, required=True):
+    """The completion-captured score partition, never later practice scores.
+
+    Old native completions already froze last_standings beside result. Its rows
+    are replaced only when a new occurrence replaces the old run state.
+    """
+    anchors = state['contract'][0]
+    result = state.get('result')
+    if (state.get('phase') != 'complete' or type(result) is not tuple
+            or len(result) != len(anchors) or set(result) != set(anchors)):
+        raise ValueError('actual completed Contest result required')
+    rows = getattr(host, 'last_standings', None)
+    frozen = state.get('terminal_scores')
+    if rows is None and frozen is None:
+        if required:
+            raise ValueError('legacy Contest lacks its actual terminal score partition; XP remains unresolved')
+        return None  # Preserve legacy import/Ribbon behavior, not new XP authority.
+    if (type(rows) is not list or len(rows) != len(result)
+            or any(type(row) is not dict or any(type(row.get(k)) is not int for k in ('appeal','fumble','net'))
+                   or row['net'] != row['appeal']-row['fumble'] for row in rows)):
+        raise ValueError('actual frozen Contest standings required')
+    scores = {c: row['net'] for c, row in zip(result, rows)}
+    if frozen is not None:
+        if (type(frozen) is not tuple or len(frozen) != len(anchors)
+                or any(type(row) is not tuple or len(row) != 2 or row[0] is not c or type(row[1]) is not int
+                       for c, row in zip(anchors, frozen)) or dict(frozen) != scores):
+            raise ValueError('Contest terminal partition differs from its frozen standings')
+    if result != tuple(sorted(anchors, key=lambda c: -scores[c])):
+        raise ValueError('Contest result disagrees with its actual terminal score partition')
+    return scores
+
+
 def _contest_result(host):
     festival = getattr(host, '_festival_run', None)
     paired = host._paired_run
@@ -148,6 +180,9 @@ def _contest_result(host):
                           for c in anchors}
             else:
                 scores = {c: c.appeal-c.fumble for c in anchors}
+            frozen = terminal_scores(host, state, required=False)
+            if frozen is not None:
+                scores = frozen
             high = max(scores.values())
             leaders = [c for c in anchors if scores[c] == high]
             if tuple(state['result']) != tuple(sorted(anchors, key=lambda c: -scores[c])):

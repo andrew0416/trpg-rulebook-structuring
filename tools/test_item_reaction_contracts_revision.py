@@ -121,9 +121,12 @@ class ItemReactionContractsRevisionTests(unittest.TestCase):
 
     def test_cloak_preserves_native_rollout_source_owned_continuation(self):
         engine, attacker, wearer = self.cloak_scene("move/구르기")
+        engine.grid = Grid(10, 10)
         hp = wearer.hp
         with patch.object(Engine, "d20", return_value=18):
-            engine.use_move(attacker, wearer, "move/구르기", set_damage=True)
+            engine.use_pass_move(attacker,"move/구르기",(4,2),event_id='cloak/actual-rollout',
+                object_adjudications={},source='gm/observed-object-hits',
+                reason='actual paid Rollout Pass crosses the cloak wearer')
         self.assertLess(wearer.hp, hp)
         self.assertEqual(FORCED_MOVE.current(engine, attacker), "move/구르기")
         engine, attacker = self.restore(engine, attacker, mode="json")

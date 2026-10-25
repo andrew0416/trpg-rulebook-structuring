@@ -133,15 +133,16 @@ def _prepare(engine, actor, target, move_id, trainer, stat_trainer=None, chronic
         prepared=__import__('weapon_actions').prepare(engine,actor,move,weapon_id)
         return prepared,__import__('rogue').prepare_ambush(engine,actor,prepared,ambush)
     if trainer is None:
+        berry_source = __import__('food_effects').priority_berry(engine, actor, move_id)
         found = classify(engine.r, move_id)
-        if found is None or found['variant'] != 'plain':
+        if berry_source is None and (found is None or found['variant'] != 'plain'):
             raise ValueError('actual unconditional plain Priority header required; source producer needed for variants')
         # A closed actual schedule slot, not an old budget or a caller flag,
         # determines whether this round's ordinary right has already been used.
         _, _, due = INTERRUPTS._loan_location(engine, actor)
         if due != engine.round_no:
             raise ValueError('ordinary Priority requires this round unacted turn right')
-        return move, move_id
+        return move, berry_source or move_id
     WORLD.require_actors(engine, trainer)
     if trainer.kind != 'trainer':
         raise ValueError('Shocking Speed requires its actual trainer feature owner')

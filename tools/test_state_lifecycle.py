@@ -164,6 +164,8 @@ class LifecycleTests(unittest.TestCase):
         from grid import Grid
         for hp,conds in [(0,set()),(10,{'기절'})]:
             e,a,b=self.potion();e.grid=Grid(10,10);a.pos=(0,0);b.pos=(5,0);a.hp=hp;a.conditions=conds
+            for actor in (a,b):
+                e.gm.set_footprint(actor,[(0,0)],reason='GM observes the movement-refusal fixture body')
             before=dict(a.budget);e.approach(a,b)
             self.assertEqual(a.pos,(0,0));self.assertEqual(a.budget,before)
     def test_unconscious_user_cannot_throw_ball(self):

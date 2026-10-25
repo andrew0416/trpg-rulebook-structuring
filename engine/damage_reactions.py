@@ -51,6 +51,7 @@ def select_mettle(engine, event):
     __import__("action_lifecycle").triggered_free_action(engine,c,METTLE)
     event["mettle_frequency"]=frequency
     event["mettle_selected"]=True
+    event['effective_type_multiplier']=resistance_multiplier(engine,event['damage_formula']['multiplier'])
     engine.log(f"    깡다구: 해당 공격 저항 1단계 → 피해 {damage} → {event['resisted_damage']}",METTLE)
     return event["resisted_damage"]
 

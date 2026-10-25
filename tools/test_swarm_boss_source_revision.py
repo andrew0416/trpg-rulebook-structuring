@@ -133,9 +133,9 @@ class NicoletteSourceRepairTests(unittest.TestCase):
     def scene(self,trained):
         self.e.grid=Grid(12,12)
         N.configure(self.e,heights={(1,1):0,(1,2):3,(9,9):3,(3,1):0,(3,2):6},
-            ladder_links=[((3,1),(3,2))],snow_cells=[],brush_cells=[],ice_cells=[],
+            ladder_links=[((3,1),(3,2))],snow_cells=[(10,10)],brush_cells=[(10,11)],ice_cells=[(11,10)],
             pc_deploy_cells=[(10,9)],gym_deploy_cells=[(1,9)],nicolette_cell=(2,9),
-            reason='GM observes the printed cliff and one linked ladder')
+            reason='GM adopts the cliff, linked ladder and remote snow, brush and ice cells')
         actor=self.ps[0]
         actor.pos=(1,1)
         for other in self.e.everyone:

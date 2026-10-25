@@ -131,17 +131,19 @@ def prepare(engine, participants, *, source, bindings=None, layout=None, procedu
         actual_index = {c.entity_id:c for c in actual}
         staged_slots = {key:dict(row,actor=actual_index[row['actor'].entity_id]) for key,row in slots.items()}
         actor_slots = {row['actor'].entity_id:key for key,row in staged_slots.items()}
-        order = []
+        order = []; resolved_values = {}
         for group in groups:
             group_actors = [staged_slots[key]['actor'] for key in group]
             group_procedures = None if procedures is None else {c.entity_id:procedures[c.entity_id] for c in group_actors if c.entity_id in procedures}
             resolved = INIT.order(staged,group_actors,procedures=group_procedures,
-                                  round_no=staged.round_no+1)
+                                  round_no=staged.round_no+1,resolved_values=resolved_values)
             if resolved is None:
                 return {'status':'pending','reason':'initiative order requires a decision','consumed':False}
             order.extend(actor_slots[c.entity_id] for c in resolved)
         state = {'version':1,'source':source,'round':staged.round_no+1,'status':'prepared',
                  'slots':staged_slots,'order':order,'layout':deepcopy(layout),
+                 # Preserve the chosen count with the initial stable turn right.
+                 'initiative_values':{actor_slots[identity]:value for identity,value in resolved_values.items()},
                  'steps':_layout(staged_slots,order,layout),'cursor':0,'open_slot':None,
                  'declarations':{},'records':[],'replacements':[],
                  'initial_bindings':{key:{'actor':row['actor'],'role':row['role']} for key,row in staged_slots.items()},'procedures':deepcopy(procedures or {})}
@@ -559,6 +561,11 @@ def _validate_world(engine,index):
         raise ValueError('initiative schedule round differs from its native boundary')
     if not state['slots'] or set(state['initial_bindings']) != set(state['slots']):
         raise ValueError('original actual slot bindings required')
+    if 'initiative_values' in state:
+        values=state['initiative_values']
+        if type(values) is not dict or set(values)!=set(state['slots']):
+            raise ValueError('resolved initiative values require the exact original slots')
+        for value in values.values():C.integer(value,'resolved initiative value')
     bindings = dict(state['initial_bindings'])
     for key,row in bindings.items():
         if index.get(row['actor'].entity_id) is not row['actor'] or row['role'] != state['slots'][key]['role']:

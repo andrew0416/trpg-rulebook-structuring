@@ -5,9 +5,15 @@ import json
 _POLICY=json.loads((Path(__file__).resolve().parents[1]/'data/native-area-hit-effects.json').read_text(encoding='utf-8'))['moves']
 
 def manages(e,mid):
-    return mid in _POLICY
+    return mid=='move/일렉트로빔' or mid in _POLICY
 
 def selected(e,mid):
+    if mid=='move/일렉트로빔':
+        import electro_shot as ELECTRO,area_targets as AREA
+        row=ELECTRO.policy(e.r);mechanics=e.r.move_mech(mid)[0]
+        if AREA.empty_field_effects(mechanics)!=[dict(row['effect'],_activation_scope='field')]:
+            raise ValueError('actual Electro Shot field adapter required')
+        return dict(definition=row['definition'],mechanics=mechanics,mapless_observed_area=False)
     row=_POLICY[mid]
     mechanics=e.r.move_mech(mid)[0]
     if mid=='move/소란피기':

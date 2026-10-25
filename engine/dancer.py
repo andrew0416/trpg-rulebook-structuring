@@ -56,6 +56,32 @@ TEMPLATES = ('form', 'beguiling')
 PIROUETTE_OPTIONS = ('confuse_adjacent', 'stage', 'clear')
 WALTZ_PROMPT = 'passing_waltz'
 STATE_FIELDS = {'version', 'dance_moves', 'last_dance', 'pirouettes', 'waltzes'}
+WALTZ_CSV = {'file': 'input/db/feats.csv', 'sha256': '4435ff1c462a211564c85d2c1c9a2ac6e7c790c7545e1ad7056d32888b2367bd',
+             'record': 396, 'clause_id': 'C2CSV/input/db/feats.csv:R396:main'}
+
+
+def waltz_source(rules):
+    """S-001: the CSV explicitly requires Dance Practice, the book Dance Form."""
+    import csv
+    from io import StringIO
+    from source_context import verified_source
+    if rules._selected_rule(WALTZ, supports_versions=True) != WALTZ:
+        raise ValueError('selected Passing Waltz source required')
+    version = rules.ruleset.unit_versions.get(WALTZ, 'ptk')
+    if version not in ('ptk', 'local_csv'):
+        raise ValueError('unknown Passing Waltz source version')
+    if version == 'ptk':
+        return {'version': version, 'parents': [DANCE_FORM]}
+    content = verified_source(rules, WALTZ_CSV, label='Passing Waltz CSV')
+    row = list(csv.reader(StringIO(content.decode('utf-8-sig'))))[WALTZ_CSV['record'] - 1]
+    if row[:4] != ['패싱 왈츠', '[+스피드]', '댄스 연습 및 달인 곡예, 육상 또는 매력', '1 AP – 자유 행동']:
+        raise ValueError('Passing Waltz CSV record differs from reviewed source')
+    return dict(WALTZ_CSV, version=version, parents=[PRACTICE])
+
+
+def selected_definition(rules, feature):
+    definition = STATIC_DEFINITIONS[feature]
+    return dict(definition, parents=waltz_source(rules)['parents']) if feature == WALTZ else definition
 
 
 def uid(name):
@@ -101,7 +127,7 @@ def _reference(actor, feature):
 
 def acquisition_snapshot(engine, actor, feature, branch=None):
     import acquired_features as ACQUIRED
-    d = STATIC_DEFINITIONS[feature]
+    d = selected_definition(engine.r, feature)
     if feature == CLASS:
         if branch not in CLASS_DEFINITION['abilities']:
             raise ValueError('Dancer requires one printed Ability choice: ' + ' or '.join(CLASS_DEFINITION['abilities']))
@@ -119,7 +145,7 @@ def acquisition_snapshot(engine, actor, feature, branch=None):
 
 def qualification(actor, feature, snapshot, prerequisite_source):
     import acquisition_qualification as Q
-    d = STATIC_DEFINITIONS[feature]
+    d = selected_definition(actor.r, feature)
     if prerequisite_source is not None or type(snapshot) is not dict:
         raise ValueError('exact Dancer acquisition observations required')
     checks = [Q.check('trainer', 'prerequisite', actor.kind == 'trainer', 'actual Trainer required')]
@@ -177,6 +203,9 @@ def after_acquire(engine, trainer, feature, branch=None):
         items.register_feats(engine, trainer)   # the printed +Speed tag and lesson owner of Dance Practice stay with their existing table
     else:
         G.stat(trainer, STAT_TAG, 1, sid, operation_id='acquisition_stat_tag')
+    if feature == WALTZ and waltz_source(engine.r)['version'] == 'local_csv':
+        import acquisition_withdrawal as WITHDRAWAL
+        WITHDRAWAL.dependencies(engine, trainer, sid, [acquisition_source_id(trainer, PRACTICE)])
     return st
 
 
@@ -214,7 +243,7 @@ def state(trainer, create=False):
 
 def qualify(e, trainer, feature):
     """Printed prerequisites against the actual sheet: parent Features/class and skill ranks, re-validated on every use."""
-    d = STATIC_DEFINITIONS[feature]
+    d = selected_definition(e.r, feature)
     if trainer.kind != 'trainer':
         raise ValueError('actual Dancer trainer required')
     if not owns(trainer, feature):

@@ -47,6 +47,7 @@ class AbilityNativeActionTests(unittest.TestCase):
 
  def test_exact_ten_source_rows_policy_and_registry_are_bound(self):
   expected={
+    'ability/눈퍼트리기':'24a2b08971641aee5f6b703ac01a5a5abfd2db32bf6db375feb64232f40d1e6c',
     'ability/리프가드-playtest':'85990e74c797c1657422f8623bd3e4d1c376e94bd7075ea011f633d4ab48ac83',
    'ability/겁주기':'ad5c193917a8c34e2d7a10170c037948a515581fbcaa421781d5c9cf4a9990e3',
    'ability/노을-playtest':'10e5eb3f92b428ed071511daaaaba7b84fbf807785dc62a41575c485e6a029a0',

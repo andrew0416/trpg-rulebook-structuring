@@ -1,4 +1,4 @@
-"""Reviewed native actions for eleven CSV Abilities sharing one owned-state path.
+"""Reviewed native actions for twelve CSV Abilities sharing one owned-state path.
 
 Every activation is admitted from an exact CSV row, paid through the native
 action/frequency ledgers, committed in ``state_grants.transition`` and linked
@@ -9,6 +9,7 @@ from pathlib import Path
 import csv
 import hashlib
 import json
+from contextvars import ContextVar
 
 import common_checks as C
 import resolution_transaction as _FINGERPRINTS
@@ -20,6 +21,7 @@ SEQUENCE = 'ability_native_action_sequence'
 TARGET_RECORDS = 'ability_native_action_effects'
 PREFIX = 'ability-native:'
 POLICY = 'data/ability-native-actions-policy.json'
+_WEATHER_ACTIVATION=ContextVar('native_ability_weather',default=None)
 SUPPORTED_KINDS = {
     'frighten',
     'sunset',
@@ -32,6 +34,7 @@ SUPPORTED_KINDS = {
     'gardener',
     'death_resistance',
     'leaf_guard',
+    'weather',
 }
 COLOR_STATS = ('atk', 'def', 'spa', 'spd', 'spe', 'hp')
 COLOR_NAMES = ('빨강', '주황', '노랑', '초록', '파랑', '보라')
@@ -46,8 +49,8 @@ def policy(rules):
     if data is not None:
         return data
     data = json.loads((Path(rules.root) / POLICY).read_text(encoding='utf-8'))
-    if data.get('schema_version') != 1 or len(data.get('sources', {})) != 11:
-        raise ValueError('reviewed eleven-source native Ability policy required')
+    if data.get('schema_version') != 1 or len(data.get('sources', {})) != 12:
+        raise ValueError('reviewed twelve-source native Ability policy required')
     for file, digest in data.get('source_files', {}).items():
         path = Path(rules.root) / file
         if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
@@ -155,6 +158,11 @@ def register(engine, actor, value):
     )
     if row.get('source') != reg['source_id'] or row.get('registered') is not True:
         raise ValueError('native Ability registration state changed')
+    if definition(engine.r,reg['source_id'])['kind']=='weather':
+        # Registration grants the printed Static exception, never the weather.
+        import effects as FX
+        FX.apply_passives(engine,actor,[dict(effect,_ability=reg['name'],_rule_id=reg['source_id'])
+            for effect in definition(engine.r,reg['source_id'])['effects'] if effect['type']=='immunity'])
     if definition(engine.r, reg['source_id'])['kind'] == 'color_theory':
         color = actor.spec.get('color_theory_birth')
         if color is None:
@@ -1024,7 +1032,49 @@ def _gardener(engine, actor, target, source, row, options):
     )
 
 
+def weather_contract(engine,actor,source,weather,rounds):
+    frame=_WEATHER_ACTIVATION.get()
+    if (frame is None or frame['engine'] is not engine or frame['actor'] is not actor
+            or frame['source']!=source or frame['weather']!=weather or frame['rounds']!=rounds):
+        raise ValueError('actual paid native Ability weather activation required')
+    return frame['activation_id']
+
+
+def validate_weather_record(engine,record,index=None):
+    import world_entities as W
+    row=definition(engine.r,record['source_id'])
+    actor=(W.actor_index(engine) if index is None else index).get(record.get('actor_id'))
+    if row is None or row['kind']!='weather' or actor is None:
+        raise ValueError('weather needs its actual reviewed Ability producer')
+    histories=actor.spec.get(HISTORY,[])
+    receipt=next((r for r in histories if r.get('id')==record.get('ability_activation_id')),None)
+    if (receipt is None or receipt.get('source')!=record['source_id'] or receipt.get('actor_id')!=actor.entity_id
+            or receipt.get('target_id')!=actor.entity_id or receipt.get('operation')!='weather'
+            or receipt.get('details')!={'weather':row['weather'],'rounds':row['rounds']}
+            or record['weather']!=row['weather'] or record['duration']!=row['rounds']+2*len(record.get('trickster_extensions',[]))
+            or receipt.get('round')!=record['started_round']):
+        raise ValueError('Ability weather occurrence differs from its actual paid producer')
+
+
+def _weather(engine,actor,target,source,row,options):
+    if target is not actor or options:raise ValueError('weather Ability is an explicit Self activation without options')
+    import environment_change as EC
+    if EC.has_pending(engine) and not getattr(engine,'_environment_change_depth',0):
+        return EC.run(engine,actor,lambda e,a:_weather(e,a,a,source,row,options))
+    import weather_state as WEATHER
+    _pay(engine,actor,target,source,row)
+    receipt=_receipt(engine,actor,source,actor.entity_id,'weather',{'weather':row['weather'],'rounds':row['rounds']})
+    token=_WEATHER_ACTIVATION.set({'engine':engine,'actor':actor,'source':source,'weather':row['weather'],
+        'rounds':row['rounds'],'activation_id':receipt['id']})
+    try:
+        weather=WEATHER.set_weather(engine,row['weather'],rounds=row['rounds'],source_id=source,
+            origin='ability',actor=actor,reason='actual explicit native Ability activation')
+    finally:_WEATHER_ACTIVATION.reset(token)
+    return receipt
+
+
 HANDLERS = {
+    'weather': _weather,
     'threat': _threat,
     'death_resistance': _death_resistance,
     'forewarn': _forewarn,

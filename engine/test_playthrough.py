@@ -92,9 +92,11 @@ class PlaythroughTests(unittest.TestCase):
         self.assertEqual(c.hp,original[0]+20)
 
     def test_growth_registers_new_ability_once_without_duplicate_equipment(self):
-        e=self.engine;c=self.pokemon(item="분홍진주");e.register_abilities(c)
+        e=self.engine;c=self.pokemon(item="분홍진주")
+        e.gm.add_combatant(c,reason="actual growing pearl holder")
         before=dict(c.stats);old_stages=dict(c.stages)
         DT.gain_exp_combatant(e,c,"to next level")
+        e.choose_growth_ability(c,20,"두꺼운지방",reason="select the attained native ability milestone")
         self.assertEqual(c.level,20)
         self.assertIn("두꺼운지방",c.abilities)
         self.assertEqual(c.abilities,c.spec["abilities"])
@@ -106,7 +108,12 @@ class PlaythroughTests(unittest.TestCase):
         DT.gain_exp_combatant(e,c,0)
         self.assertEqual([m for m in c.modifiers if m.get("_ability")=="두꺼운지방"],fat)
         attacker=self.pokemon("브케인",20)
-        plain=Combatant(self.rules,copy.deepcopy(c.spec))
+        e.gm.add_combatant(attacker,reason="actual native damage source")
+        plain=self.pokemon(level=20)
+        e.gm.add_combatant(plain,reason="actual unmodified damage control")
+        for stat,value in c.stats.items():
+            e.gm.set_stat(plain,stat,value=value,reason="match the grown recipient's statistics without its ability")
+        self.assertEqual(plain.stats,c.stats)
         move=self.rules.move("move/불꽃세례")
         self.assertLess(e.roll_damage(attacker,c,move,set_damage=True),
                         e.roll_damage(attacker,plain,move,set_damage=True))

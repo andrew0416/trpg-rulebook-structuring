@@ -7,6 +7,8 @@ from engine import Rules,Engine,Combatant
 import heavy_injury_adapter as H
 import heavy_standard_adapter as S
 import turn as TURN
+import effects as FX
+import temporary_hp as TEMP_HP
 
 class Tests(unittest.TestCase):
  @classmethod
@@ -21,6 +23,11 @@ class Tests(unittest.TestCase):
   e.everyone=e.gm.everyone=[a,b];e.start_round([a,b]);e.start_of_turn(a)
   return e,a,b
  def standard(self,e):return [p for p in e._heavy_events.values() if p['producer']=='Engine.use_move.native_standard']
+ def grant_temp(self,e,c,value):
+  FX.run_effects(e,c,c,[dict(type='temp_hp',value=value)],
+                dict(hit=True,attacker=c,target=c,engine=e,round_offset_seconds=0),'condition/임시-체력')
+  self.assertEqual(c.temp_hp,value)
+  self.assertEqual(c.custom_conditions[TEMP_HP.STATE]['minimum_seconds'],300)
  def test_001_native_hit_is_one_actual_standard_and_one_loss(self):
   e,a,b=self.pair();self.assertEqual(e.use_move(a,b,'struggle',set_damage=True),11)
   self.assertEqual((a.hp,b.hp,a.injuries),(45,99,5));self.assertEqual(a.move_uses,{'struggle':1})
@@ -34,7 +41,7 @@ class Tests(unittest.TestCase):
   self.assertEqual(a.move_uses,{'struggle':1});self.assertEqual(len(e._heavy_events),1)
  def test_003_temporary_hp_consumed_first(self):
   for temp,want in [(3,(48,0)),(8,(50,3))]:
-   e,a,b=self.pair();a.temp_hp=temp;e.use_move(a,b,'struggle',set_damage=True)
+   e,a,b=self.pair();self.grant_temp(e,a,temp);e.use_move(a,b,'struggle',set_damage=True)
    self.assertEqual((a.hp,a.temp_hp),want);self.assertEqual(a.injuries,5)
  def test_004_seven_stable_injuries_lose_seven(self):
   e,a,b=self.pair(inj=7);a.hp=30;e.use_move(a,b,'struggle',set_damage=True)

@@ -19,6 +19,7 @@ import world_entities as WORLD
 import items as ITEMS
 import keep_fighting as KEEP
 import attack_damage_history as HISTORY
+from native_scenario_fixture import prepare_body
 
 SOURCES={'homebrew':'ability/옹골참-홈브류','playtest':'ability/옹골참-playtest','core':'ability/옹골참'}
 
@@ -45,6 +46,8 @@ class HPSettingSourceTests(unittest.TestCase):
                 types=['노말'],skills={'육상':6,'명령':6,'집중':6},moves=[],abilities=[],movement={'land':6},items={})
             spec.update(extra);actor=Combatant(rules,spec)
             e.gm.add_combatant(actor,pos=pos,side=side,reason='actual HP-source regression world')
+            prepare_body(e,actor,size='중형' if kind=='trainer' else '소형',offsets=[(0,0)],
+                         reason='observed one-cell HP-source fixture body')
             return actor
         owner=add('hp-cap/owner','trainer',23,(8,8),'party') if owned else None
         actor=add('hp-cap/user','pokemon',hp_stat,(2,2),'party',wild=not owned,
@@ -194,6 +197,7 @@ class HPSettingSourceTests(unittest.TestCase):
                     other=Combatant(e.r,dict(id='hp-cap/other',name='Other',kind='pokemon',wild=True,level=1,
                         stats=dict(hp=197,atk=10,**{'def':10},spa=10,spd=10,spe=10),types=['노말'],moves=[],abilities=[],movement={'land':6}))
                     e.gm.add_combatant(other,pos=(2,3),side='enemy',reason='second actual area recipient')
+                    prepare_body(e,other,size='소형',offsets=[(0,0)],reason='observed second one-cell area recipient')
                     self.start(e,actor,target,move,hit=hit)
                     e.use_move_on(actor,target,move,[actor,target,other],set_damage=True)
                     self.assertEqual(actor.base_max_hp,83)

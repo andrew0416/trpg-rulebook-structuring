@@ -93,14 +93,17 @@ def load_encounter(root, path, ruleset=None, rulings_path=None, seed=None):
             c.side = side_name
             (party if side_name == "party" else wild).append(c)
     everyone = party + wild
+    # Native passives can read other actors and local weather during admission.
+    e.gm.everyone = everyone
+    e.everyone = everyone
+    import world_entities as WORLD
+    WORLD.actor_index(e)
     for c in everyone:
         e.register_abilities(c)
     for ent, c in zip([x for x in enc.get("party", [])] + [x for x in enc.get("wild", [])], everyone):
         w = (ent.get("trainer") or {}).get("weapon") or ent.get("weapon")
         if w:
             TURN.equip_weapon(e, c, w)
-    e.gm.everyone = everyone
-    e.everyone = everyone
     return e, enc, party, wild
 
 
@@ -170,7 +173,7 @@ def run_encounter(root, path, seed=None, ruleset=None, rulings_path=None, hook=N
                     SCHEDULE.skip_unavailable(e, c)
                     continue
                 turn_no += 1
-                e.start_of_turn(c)
+                e.start_of_turn(c, initiative_count=schedule['initiative_values'][slot])
                 enemies = wild if c in party else party
                 allies = party if c in party else wild
                 kind, mid, target = choose_action(e, c, enemies, allies)

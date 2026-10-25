@@ -11,6 +11,7 @@ import heavy_injury_adapter as H
 import effects_ext as EXT
 import effects as FX
 import turn as TURN
+import temporary_hp as TEMP_HP
 
 class Tests(unittest.TestCase):
  @classmethod
@@ -25,6 +26,11 @@ class Tests(unittest.TestCase):
  def pending(self,e,a,b):
   with self.assertRaises(H.HeavyPending) as caught:e.use_move(a,b,"struggle",set_damage=True)
   return e._heavy_events[caught.exception.event_id]
+ def grant_temp(self,e,c,value):
+  FX.run_effects(e,c,c,[dict(type='temp_hp',value=value)],
+                dict(hit=True,attacker=c,target=c,engine=e,round_offset_seconds=0),'condition/임시-체력')
+  self.assertEqual(c.temp_hp,value)
+  self.assertEqual(c.custom_conditions[TEMP_HP.STATE]['minimum_seconds'],300)
  def ack(self,e,b,packet,**changes):
   values=dict(expected_current_state=H.observe(b),ruling="TEST-ONLY explicit GM ruling: accept adjudicated state",
               disposition=H.ContinuationDisposition.CANCELLED_BY_RULING,
@@ -82,7 +88,7 @@ class Tests(unittest.TestCase):
   self.assertEqual(b.hp,-8);self.assertTrue(b.fainted)
   self.assertIn("incapacitation_order_unresolved",p["issues"])
  def test_010_original_temp_absorption_preserved(self):
-  e,a,b=self.pair();b.temp_hp=12;p=self.pending(e,a,b)
+  e,a,b=self.pair();self.grant_temp(e,b,12);p=self.pending(e,a,b)
   self.assertEqual((b.hp,b.temp_hp),(50,1))
   self.assertEqual(p["before"]["temporary_hp"],12)
  def test_011_pending_blocks_action_turn_round_and_time(self):
@@ -169,7 +175,7 @@ class Tests(unittest.TestCase):
   self.ack(e,b,e._heavy_events[p["event_id"]]);e.gm.restore("pending")
   self.assertEqual(e._heavy_events[p["event_id"]]["status"],"pending")
  def test_022_raw_massive_candidate_near_threshold_held(self):
-  e,a,b=self.pair(4);b.hp=90;b.temp_hp=60;e.roll_damage=lambda *args,**kwargs:65
+  e,a,b=self.pair(4);b.hp=90;self.grant_temp(e,b,60);e.roll_damage=lambda *args,**kwargs:65
   p=self.pending(e,a,b)
   self.assertEqual((b.hp,b.temp_hp,b.injuries),(85,0,4))
   self.assertIn("raw_massive_damage_threshold_requires_review",p["issues"])
@@ -203,7 +209,7 @@ class Tests(unittest.TestCase):
    self.assertFalse(p["heavy_consequence"]["recursive_attack"])
    self.assertEqual(p["heavy_consequence"]["order_claim"],"both_restricted_orders_agree")
  def test_028_native_partial_temp_absorption_then_local_loss(self):
-  e,a,b=self.pair(certified=True);b.temp_hp=3
+  e,a,b=self.pair(certified=True);self.grant_temp(e,b,3)
   e.use_move(a,b,"struggle",set_damage=True)
   self.assertEqual((b.hp,b.temp_hp,b.injuries),(37,0,5))
   self.assertEqual(len(e._heavy_events),1)
@@ -317,7 +323,7 @@ class Tests(unittest.TestCase):
    self.assertIsNone(e._heavy_pending)
    self.assertEqual(next(iter(e._heavy_events.values()))["status"],"not_applicable")
  def test_043_absorbed_massive_below_five_still_requires_review(self):
-  e,a,b=self.pair(injuries=4);b.hp=b.base_max_hp-10;b.temp_hp=60
+  e,a,b=self.pair(injuries=4);b.hp=b.base_max_hp-10;self.grant_temp(e,b,60)
   with self.assertRaises(H.HeavyPending):
    H.apply_attack_damage(e,a,b,65,e.r.move("struggle"),producer=H.Producer.RESOLVED_HIT,remainder="test-only continuation")
   self.assertEqual(b.injuries,4);self.assertEqual(b.temp_hp,0)
@@ -360,6 +366,53 @@ class Tests(unittest.TestCase):
    certificate=H.certify_native_context(e,a,b,e.r.move('struggle'),{},ordinary_single=True)
   self.assertEqual(scan.call_count,1)
   self.assertIn('test observer boundary',certificate.failures)
+ def test_047_certain_grant_survives_heavy_absorption_but_not_its_observed_expiry(self):
+  e,a,b=self.pair(certified=True);self.grant_temp(e,b,20)
+  self.assertFalse(H.certify_native_context(e,a,b,e.r.move('struggle'),{},ordinary_single=True).failures)
+  e.use_move(a,b,'struggle',set_damage=True)
+  self.assertEqual((b.hp,b.temp_hp),(50,4));self.assertIsNone(e._heavy_pending)
+  self.assertEqual(b.custom_conditions[TEMP_HP.STATE]['contributions'][0]['amount'],4)
+  e.at_round_offset(10)
+  self.assertEqual(b.custom_conditions[TEMP_HP.STATE]['minimum_seconds'],300)
+  e.end_encounter([a,b],round_elapsed_seconds=10);e.advance_time(299)
+  self.assertEqual((b.temp_hp,b.custom_conditions[TEMP_HP.STATE]['minimum_seconds']),(4,1))
+  e.gm.snapshot('heavy-barrier-before-expiry');e.take_damage(b,1);self.assertEqual(b.temp_hp,3)
+  e.gm.restore('heavy-barrier-before-expiry',reason='restore exact remaining barrier and lifetime')
+  self.assertEqual((b.temp_hp,b.custom_conditions[TEMP_HP.STATE]['minimum_seconds']),(4,1))
+  e.advance_time(1)
+  self.assertEqual((b.hp,b.temp_hp),(50,0));self.assertNotIn(TEMP_HP.STATE,b.custom_conditions)
+ def test_048_opaque_scalar_still_refuses_before_native_cost_or_roll(self):
+  e,a,b=self.pair(certified=True);b.temp_hp=12
+  self.assertIn('target:custom_conditions',H.certify_native_context(e,a,b,e.r.move('struggle'),{},ordinary_single=True).failures)
+  before=(a.hp,b.hp,b.temp_hp,copy.deepcopy(a.budget),dict(a.move_uses),e.rng.getstate(),copy.deepcopy(b.custom_conditions))
+  with self.assertRaisesRegex(ValueError,'origin/clock observation'):e.use_move(a,b,'struggle',set_damage=True)
+  self.assertEqual((a.hp,b.hp,b.temp_hp,a.budget,a.move_uses,e.rng.getstate(),b.custom_conditions),before)
+  self.assertFalse(e._heavy_events)
+ def test_049_lifetime_label_cannot_certify_opaque_stale_or_forged_timing(self):
+  for case in ('no_contributions','legacy_clock','projection','expired','future_birth','uncertain_expiry','forged_source','opaque_payload','gm_unbounded'):
+   with self.subTest(case=case):
+    e,a,b=self.pair(certified=True);self.grant_temp(e,b,20);state=b.custom_conditions[TEMP_HP.STATE]
+    if case=='no_contributions':state.pop('contributions')
+    elif case=='legacy_clock':state.pop('clock_basis')
+    elif case=='projection':state['contributions'][0]['amount']+=1
+    elif case=='expired':
+     state.update(minimum_seconds=0,maximum_seconds=0);state['contributions'][0].update(minimum_seconds=0,maximum_seconds=0)
+    elif case=='future_birth':state['birth_round']=e.round_no+1
+    elif case=='uncertain_expiry':
+     state['minimum_seconds']=0;state['contributions'][0].update(minimum_seconds=0,unknown_elapsed=True)
+    elif case=='forged_source':state['contributions'][0]['source']=dict(kind='food',rule_id='item/forged',receipt_sequence=99,buff_id='not-observed')
+    elif case=='opaque_payload':state['on_damage']={'type':'unreviewed live rule'}
+    else:e.gm.set_temp_hp(b,20,reason='explicit GM unbounded is not an ordinary timer')
+    before=(b.temp_hp,copy.deepcopy(b.custom_conditions))
+    self.assertIn('target:custom_conditions',H.certify_native_context(e,a,b,e.r.move('struggle'),{},ordinary_single=True).failures)
+    self.assertEqual((b.temp_hp,b.custom_conditions),before)
+ def test_050_invalid_contribution_projection_refuses_before_native_mutation(self):
+  e,a,b=self.pair(certified=True);self.grant_temp(e,b,20)
+  b.custom_conditions[TEMP_HP.STATE]['contributions'][0]['amount']+=1
+  before=(a.hp,b.hp,b.temp_hp,copy.deepcopy(a.budget),dict(a.move_uses),e.rng.getstate(),copy.deepcopy(b.custom_conditions))
+  with self.assertRaisesRegex(ValueError,'contribution balances disagree'):e.use_move(a,b,'struggle',set_damage=True)
+  self.assertEqual((a.hp,b.hp,b.temp_hp,a.budget,a.move_uses,e.rng.getstate(),b.custom_conditions),before)
+  self.assertFalse(e._heavy_events)
 class Results(unittest.TextTestResult):
  def __init__(self,*a,**k):super().__init__(*a,**k);self.rows=[]
  def addSuccess(self,t):super().addSuccess(t);self.rows.append(dict(id="HEAVY-PRODUCTION-"+t._testMethodName,status="pass"))

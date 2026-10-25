@@ -59,19 +59,21 @@ def comparable_party(e,actor,target,party,reason):
   raise ValueError('comparable party must include the actual carried roster')
  return {'party_levels':{p.spec['id']:p.level for p in party},'target_level':target.level,'gm_level_match_reason':reason}
 
-def attract(e,actor,*,phase,bait_id,target=None,party=None,level_match_reason=None,fixed=None,habitat=None):
+def attract(e,actor,*,phase,bait_id,target=None,party=None,level_match_reason=None,fixed=None,habitat=None,chef_batch_id=None,use_intuition=False):
  import state_grants as G,world_entities as WORLD
  if party is not None and not isinstance(party,list):raise ValueError('actual comparable trainer party required')
  participants=([target] if target is not None else [])+list(party or [])
  WORLD.require_actors(e,actor,*participants)
  return G.transition(e,actor,lambda se,sa,*ps:_attract(se,sa,phase=phase,bait_id=bait_id,
   target=ps[0] if target is not None else None,party=list(ps[1:] if target is not None else ps) if party is not None else None,
-  level_match_reason=level_match_reason,fixed=fixed,habitat=habitat),participants=participants)
+  level_match_reason=level_match_reason,fixed=fixed,habitat=habitat,chef_batch_id=chef_batch_id,use_intuition=use_intuition),participants=participants)
 
-def _attract(e,actor,*,phase,bait_id,target=None,party=None,level_match_reason=None,fixed=None,habitat=None):
+def _attract(e,actor,*,phase,bait_id,target=None,party=None,level_match_reason=None,fixed=None,habitat=None,chef_batch_id=None,use_intuition=False):
  import encounter_candidates as CANDIDATES
  P=_p();P._outside(e);P._text(bait_id,'placed bait identity');profile=CANDIDATES.equipment(e.r,'미끼')
  records=actor.spec.get('placed_bait',{});record=records.get(bait_id)
+ if type(use_intuition)is not bool or use_intuition and phase!='wait':raise ValueError('Super Bait Intuition choice belongs to its attraction roll')
+ if chef_batch_id is not None and phase!='place':raise ValueError('Chef bait batch is selected at placement only')
  if phase!='place' and habitat is not None and not (record and 'regional_candidates' not in record and phase=='select'):
   raise ValueError('regional bait habitat is fixed at placement')
  if phase=='place':
@@ -80,22 +82,34 @@ def _attract(e,actor,*,phase,bait_id,target=None,party=None,level_match_reason=N
   from crafting_activities import _inventory
   import state_grants as G,frequency as F
   alluring=actor.kind=='pokemon' and '매혹' in G.effective_capabilities(actor)
-  if alluring:
+  chef_bait=None
+  if chef_batch_id is not None:
+   import chef_cooking as CHEF
+   stock,chef_bait=CHEF.bait_stock(e,actor,chef_batch_id)
+   chef_bait.update(stock=CHEF.consume_batch_unit(e,actor,stock),cook_id=actor.entity_id)
+  elif alluring:
    e.r._selected_rule('capability/매혹')
    if not F.activation_allowed(actor,'capability/매혹','하루',engine=e):raise ValueError('Alluring already used today')
    F.consume_activation(actor,'capability/매혹','하루',engine=e)
   else:
    key=_inventory(actor,'미끼',1)
    actor.spec['items'][key]-=1
-  record={'id':bait_id,'source':profile['source'],'attraction_source':'capability/매혹' if alluring else profile['source'],'unit_price':profile['price'],'owner_id':actor.spec['id'],'placed_at':e.elapsed_seconds,'misses':0,'status':'placed','checks':[],'regional_candidates':pool}
+  record={'id':bait_id,'source':profile['source'],'attraction_source':'capability/매혹' if alluring and chef_bait is None else profile['source'],'unit_price':profile['price'],'owner_id':actor.spec['id'],'placed_at':e.elapsed_seconds,'misses':0,'status':'placed','checks':[],'regional_candidates':pool}
+  if chef_bait is not None:record['chef_bait']=chef_bait
   actor.spec.setdefault('placed_bait',{})[bait_id]=record
   return deepcopy(record)
  if not record or record.get('owner_id')!=actor.spec['id']:raise ValueError('actual placed bait required')
+ if record.get('chef_bait') is not None:__import__('chef_cooking').validate_bait(e,record['chef_bait'])
  if record.get('source')!=profile['source']:raise ValueError('placed bait source differs from the selected equipment')
  pool=record.get('regional_candidates')
  if pool is None and phase=='select':
   pool=CANDIDATES.bait_pool(e.r,habitat);record['regional_candidates']=pool
  if pool is not None:CANDIDATES.validate_pool(e.r,pool)
+ if phase=='eat':
+  if record['status']!='encountered' or target is None or record.get('target_id')!=target.entity_id or any(x is not None for x in (party,fixed,level_match_reason)):raise ValueError('actual encountered Pokemon and uneaten placed bait required')
+  _wild(e,target);_eat_chef_bait(e,target,record.get('chef_bait'))
+  record.update(status='eaten',eaten_at=e.elapsed_seconds)
+  return deepcopy(record)
  if phase=='select':
   if record['status']!='awaiting_encounter' or target is not None or party is not None or fixed is not None or level_match_reason is not None:raise ValueError('successful attraction before random regional selection required')
   record['regional_selection']=CANDIDATES.select(e,pool,random_choice=True,previous=record.get('regional_selection'))
@@ -107,6 +121,10 @@ def _attract(e,actor,*,phase,bait_id,target=None,party=None,level_match_reason=N
   bonus=tools_bonus(e,actor,'attraction')+STYLE.lure_bonus(actor)
   import capability_parameter_edges as PARAMETERS,state_grants as G
   if record.get('attraction_source')=='capability/매혹' and actor.kind=='pokemon' and '매혹' in G.effective_capabilities(actor):bonus+=PARAMETERS.enticing_bonus(actor)
+  if use_intuition:
+   if record.get('chef_bait',{}).get('variant')!='super':raise ValueError('actual Super Bait required for Intuition bonus')
+   import chef_cooking as CHEF
+   bonus+=CHEF._intuition(actor)
   e.advance_time(900,[actor]);face=e.roll_d20(actor,'attraction',fixed=fixed);result={'natural':face,'bonus':bonus,'total':face+bonus,'dc':15,'at':e.elapsed_seconds};record['checks'].append(result)
   if face+bonus>=15:record['status']='awaiting_encounter'
   else:
@@ -139,15 +157,22 @@ def lure_loss(e,actor,state,*,target,cause,lost,reason,party=None,level_match_re
  if lost:actor.spec['items']['루어']-=1
  return deepcopy(state)
 
-def distract(e,actor,*,target,**roll_options):
+def distract(e,actor,*,target,chef_batch_id=None,**roll_options):
  P=_p();_wild(e,target);_selected(e,'item/미끼')
  if target.spec.get('bait_distraction',{}).get('status')=='distracted':raise ValueError('target already has an unresolved bait distraction')
  from crafting_activities import _inventory
- key=_inventory(actor,'미끼',1);prepared=P._preflight(e,target,'집중',roll_options)
+ chef_bait=None
+ if chef_batch_id is not None:
+  import chef_cooking as CHEF
+  stock,chef_bait=CHEF.bait_stock(e,actor,chef_batch_id)
+ else:key=_inventory(actor,'미끼',1)
+ prepared=P._preflight(e,target,'집중',roll_options)
  if not TURN.spend(e,actor,'standard','미끼 던지기'):return False
- actor.spec['items'][key]-=1
+ if chef_bait is not None:chef_bait.update(stock=CHEF.consume_batch_unit(e,actor,stock),cook_id=actor.entity_id)
+ else:actor.spec['items'][key]-=1
  check=C.against_dc(e.skill_roll(target,'집중',**prepared),12)
  record={'source':'item/미끼','actor_id':actor.spec['id'],'target_id':target.spec['id'],'check':asdict(check),'status':'resisted' if check.passed else 'distracted','at':e.elapsed_seconds}
+ if chef_bait is not None:record['chef_bait']=chef_bait
  target.spec['bait_distraction']=record
  return {'activity':'distract_bait','check':check,'status':record['status']}
 
@@ -164,8 +189,14 @@ def replace_standard(e,actor):
   if budget.get('standard',0)<=0:return False
   budget['standard']-=1
  ACTION.record_action(e,actor,'standard');record=actor.spec['bait_distraction'];record.update(status='eaten',eaten_at=e.elapsed_seconds,eaten_round=e.round_no)
+ _eat_chef_bait(e,actor,record.get('chef_bait'))
  e.log('    '+actor.name+': 다음 기본 행동을 미끼 먹기에 사용','item/미끼')
  return True
+
+def _eat_chef_bait(e,target,bait):
+ if bait is not None:
+  __import__('chef_cooking').validate_bait(e,bait)
+  if bait['variant']=='vile':e.apply_status(target,'독',source='recipe/미끼-믹서',applied_by=target)
 
 def snare_bonus(e,actor,target,*,conversion=None,source_variant=None):
  if conversion is not None:

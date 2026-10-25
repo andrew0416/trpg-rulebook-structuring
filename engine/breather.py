@@ -118,6 +118,7 @@ def _continue(engine,actor,request_id,record):
         if not TURN.can_act(engine,actor):
             return OBS.complete(record,{'completed':False,'save':record['observation']['check'],'movement':movement,'reason':'incapacitated_during_retreat'})
         if movement['steps']!=len(record['observation']['retreat']['path'])-1:
+            ACTION.ensure_resolutions_clear(engine,_breather_attempt=record)
             raise ValueError('actual Breather path interrupted; continue the same paid and observed producer')
         return _finish(engine,actor,request_id,record['observation']['origin'],movement=movement)
 
@@ -352,5 +353,6 @@ def _take(engine,actor,*,request_id,path=None,retreat_reason=None,save_dc=None,s
         if not TURN.can_act(engine,actor):
             return OBS.complete(observation,{'completed':False,'save':check,'movement':movement,'reason':'incapacitated_during_retreat'})
         if movement['steps']!=len(plan['path'])-1:
+            ACTION.ensure_resolutions_clear(engine,_breather_attempt=observation)
             raise ValueError('actual Breather path interrupted; paid cost and observed save cannot replay')
         return _finish(engine,actor,request_id,origin,movement=movement)

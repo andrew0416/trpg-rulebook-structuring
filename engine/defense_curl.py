@@ -5,12 +5,44 @@ import json
 import effect_instances as E
 import condition_instances as CONDITIONS
 import root_resolution as ROOT
+from contextvars import ContextVar
 
 MOVE='move/웅크리기'
 NAME='웅크리기'
 CHOICE='defense_curl_source'
 ROLLING={'move/구르기','move/아이스볼'}
 _POLICY=json.loads((Path(__file__).resolve().parents[1]/'data/defense-curl-policy.json').read_text(encoding='utf-8'))
+_NATIVE_TRANSACTION=ContextVar('defense_curl_native',default=False)
+
+
+def native_move(fn):
+    """The complete selected Self activation commits, or none of it does."""
+    from functools import wraps
+    @wraps(fn)
+    def run(engine,actor,target,move_id,*args,**kwargs):
+        if move_id not in (MOVE,NAME) or _NATIVE_TRANSACTION.get():return fn(engine,actor,target,move_id,*args,**kwargs)
+        import state_grants as G
+        pending=[]
+        def apply(e,a):
+            copied_args,copied_kwargs=G._stage_transition_payload(engine,e,((target,move_id,*args),kwargs))
+            before=set(getattr(e,'_effect_dispatch_receipts',{}));token=_NATIVE_TRANSACTION.set(True)
+            try:
+                result=fn(e,a,*copied_args,**copied_kwargs)
+                for key,row in e._effect_dispatch_receipts.items():
+                    if key not in before and row['source_id']==MOVE and row['status']=='execution_failed':
+                        error=row.get('result')
+                        if isinstance(error,Exception):raise error
+                        raise ValueError('actual Defense Curl effect failed')
+                return result
+            except Exception as error:
+                if G.record_native_pending(e,error,pending):return None
+                raise
+            finally:_NATIVE_TRANSACTION.reset(token)
+        result=G.transition(engine,actor,apply,include_rulings=True,include_grid=engine.grid is not None)
+        if pending:
+            exception,event_id=pending[0];raise exception(event_id)
+        return result
+    return run
 
 
 def policy(rules):

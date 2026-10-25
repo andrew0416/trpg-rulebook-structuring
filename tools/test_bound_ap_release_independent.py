@@ -147,6 +147,18 @@ class Independent(unittest.TestCase):
   self.assertEqual(z.reason,'effect_already_ended');self.assertEqual(before,self.projection(e,a))
   e.use_move(a,b,'struggle',set_damage=True)
   self.assertEqual(b.hp,34);self.assertFalse(e._heavy_pending)
+ def test_021_ended_history_cannot_certify_an_unknown_live_interaction(self):
+  import heavy_injury_adapter as HEAVY
+  for corruption in ('unknown_condition','invalid_clock','active_bound_receipt'):
+   with self.subTest(corruption=corruption):
+    e,a,b,m,o=self.fixture(native=True);self.release_all(e,a,o);b.injuries=5;b.hp=50
+    if corruption=='unknown_condition':a.custom_conditions['unreviewed_interaction']={'source':'unknown'}
+    elif corruption=='invalid_clock':
+     a.custom_conditions['combat_turn_serial']=True
+     self.assertFalse(HEAVY.inert_turn_bookkeeping(e,a));continue
+    else:a._ap_bound_effects['A']['state']='active'
+    with self.assertRaises(HEAVY.HeavyPending):e.use_move(a,b,'struggle',set_damage=True)
+    self.assertIsNotNone(e._heavy_pending)
 class Result(unittest.TextTestResult):
  def __init__(self,*a,**k):super().__init__(*a,**k);self.rows=[]
  def addSuccess(self,t):super().addSuccess(t);self.rows.append(dict(id='BAP-INDEPENDENT-'+t._testMethodName,status='pass'))

@@ -151,6 +151,7 @@ def effect_loss(engine, attacker, target, recipient, effect, context, amount):
         staged._effect_dispatch_receipts[token]['attack_damage' if is_damage else 'attack_hp_loss']={
             'kind':'native_attack_damage' if is_damage else 'native_attack_hp_loss','completion_id':completion,'receipt':deepcopy(receipt),
             'woke_sleep':woke,'unpreventable':effect.get('unpreventable') is True}
+        __import__('food_effects').berry_after_hit(staged,source_actor,actual,move,{'attacker':source_actor,'target':actual,'move':move},receipt)
     G.transition(engine,recipient,apply,participants=(attacker,))
 
 

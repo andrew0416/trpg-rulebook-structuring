@@ -19,6 +19,7 @@ import ability_state_projection as P
 import ability_transitions as A
 import cheerleader
 import capacity_abilities as CAP
+import world_entities as WORLD
 
 CORE = 'ability/엽록소'
 PLAYTEST = 'ability/엽록소-playtest'
@@ -50,6 +51,9 @@ class ProjectionSourceAliasTests(unittest.TestCase):
             engine, _, party, wild = load_encounter(ROOT, str(path), ruleset='core')
         self.assertEqual(wild, [])
         actor = party[0]
+        self.assertIs(WORLD.require_actors(engine, actor)[actor.entity_id], actor)
+        self.assertEqual(engine.gm.everyone, party + wild)
+        self.assertEqual(engine.everyone, party + wild)
         self.assertIsNone(P.ability_registration(engine.r, '엽록소'))
         self.assertIsNone(P.ability_registration(engine.r, 'Chlorophyll'))
         self.assertEqual(A.ability_id(engine.r, '엽록소'), CORE)

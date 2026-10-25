@@ -31,6 +31,10 @@ def mechanics(rules, move_id, declaration):
                                _native_empty_field_activation=_EMPTY_FIELD_AUTHORITY)
     if move_id=='move/소란피기' and declaration=={'effects_exec':[{'type':'cure_status','status':'잠듦','target':'all_targets'}]}:
         declaration=dict(declaration,effects_exec=[dict(declaration['effects_exec'][0],_activation_scope='field')],_native_empty_field_activation=_EMPTY_FIELD_AUTHORITY,_native_empty_field_kind='uproar')
+    if move_id=='move/일렉트로빔':
+        import electro_shot as ELECTRO
+        declaration=ELECTRO.mechanics(rules,move_id,declaration)
+        declaration=dict(declaration,_native_empty_field_activation=_EMPTY_FIELD_AUTHORITY,_native_empty_field_kind='electro_shot')
     import hazard_state as HAZARDS
     return HAZARDS.mechanics(rules, move_id, declaration)
 
@@ -43,6 +47,8 @@ def empty_field_effects(declaration):
         return hazard
     if declaration.get('_native_empty_field_activation') is not _EMPTY_FIELD_AUTHORITY:
         return []
+    if declaration.get('_native_empty_field_kind')=='electro_shot':
+        return __import__('electro_shot').field_effects(declaration)
     if declaration.get('_native_empty_field_kind')=='uproar' and declaration.get('effects_exec')==[{'type':'cure_status','status':'잠듦','target':'all_targets','_activation_scope':'field'}]:return declaration['effects_exec']
     expected = [dict(_WHIRLWIND_PUSH, target='target'),
                 *(dict(effect, _activation_scope='field')

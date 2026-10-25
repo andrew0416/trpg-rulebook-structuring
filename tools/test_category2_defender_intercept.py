@@ -168,7 +168,10 @@ class DefenderInterceptTests(unittest.TestCase):
             self.assertEqual((f.t.hp,f.r.hp),hp)
             self.assertEqual(f.a.move_uses['move/풀베기'],1)
             self.assertEqual((f.a.budget['standard'],f.a.budget['shift']),(0,0))
-            f.choose(f.e._passive_pending,options=self.faces(f))
+            options=self.faces(f)
+            # The paid Pass has already placed its attacker at (4,2).
+            options['shove_destination']=[4,3]
+            f.choose(f.e._passive_pending,options=options)
         row=getattr(f.e,PASS.KEY)['defender-pass/pending']
         self.assertEqual(row['phase'],'complete')
         self.assertEqual(COMPLETE.actual_recipients(f.e._move_completions[row['completion_id']]),[f.r])

@@ -125,12 +125,12 @@ class Table18ItemBoundaries(unittest.TestCase):
         a.spec['trainer_id']=b.spec['trainer_id']=owner.entity_id;x.spec['trainer_id']=foreign.entity_id
         e=self.f.fixture(owner,foreign,a,b,x);a.on_field=True;b.on_field=x.on_field=False
         self.f.equip(e,a,'boundary/pack','item/탈출팩')
+        e.start_round([a]);e.start_of_turn(a,initiative_count=20)
         e.change_stage(a,'atk',1);self.assertNotIn('eject_pack',a.spec.get(P.PENDING,{}))
         e.change_stage(a,'atk',-1);self.assertIn('eject_pack',a.spec[P.PENDING])
         saved=CODEC.dump_engine(e)
         with self.assertRaisesRegex(ValueError,'same controller'):P.resolve_pending(e,a,'eject_pack',send=x)
         self.assertEqual(CODEC.dump_engine(e),saved)
-        e.start_round([a,b]);e.start_of_turn(a,initiative_count=20)
         budget=deepcopy(a.budget);P.resolve_pending(e,a,'eject_pack',send=b)
         self.assertFalse(a.on_field);self.assertTrue(b.on_field);self.assertEqual(a.budget,budget)
 

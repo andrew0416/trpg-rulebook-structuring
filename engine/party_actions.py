@@ -377,8 +377,9 @@ def act(engine,trainer,*,recall=(),send=(),request_id,reason,release_throw=None,
         if tag_in:
             import native_switch_transfer as SWITCH
             SWITCH.select_tag_in(e,a,from_index[recall[0].entity_id],reason=reason)
-        before_ap=__import__('action_points').available(a);before_budget=deepcopy(a.budget)
+        before_ap=__import__('action_points').available(a)
         if feature_plan:
+            if feature_plan['action']:before_budget=deepcopy(a.budget)
             __import__('juggler').party_payment(e,a,feature_plan)
         if feature_plan and feature_plan['action']:
             payment={'kind':feature_plan['action'],'phase':'paid','source':feature_plan['source'],'ap':feature_plan['ap'],

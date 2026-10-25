@@ -36,10 +36,11 @@ def snack_effect(rules, uid):
 
 
 def power_herb_interested(actor):
+    import food_effects as FOOD
     choice = actor.spec.get('food_move_choice')
     return isinstance(choice, dict) and any(
         isinstance(buff, dict) and buff.get('id') == choice.get('buff_id')
-        and buff.get('effect', {}).get('kind') == 'herb_skip_setup'
+        and FOOD._consumer_effect(buff).get('kind') == 'herb_skip_setup'
         for buff in actor.buffs)
 
 
@@ -59,22 +60,27 @@ def validate_power_herb_choice(actor):
         return None
     import food_effects as FOOD
     choice = actor.spec['food_move_choice']
-    if set(choice) != {'buff_id', 'move_id'}:
+    if set(choice) not in ({'buff_id', 'move_id'}, {'buff_id', 'move_id', 'owner_id'}):
         raise ValueError('typed Power Herb Move choice required')
     buff = FOOD.get_buff(actor, choice['buff_id'])
-    if buff['item'] != 'item/파워풀허브' or buff['effect'] != SNACK_EFFECTS[buff['item']]:
+    if FOOD._consumer_effect(buff) != SNACK_EFFECTS['item/파워풀허브']:
         raise ValueError('Power Herb choice needs its actual selected Digestion Buff')
+    if ('owner_id' in choice) != FOOD._has_suppression(buff):
+        raise ValueError('Power Herb composite owner choice differs from its Suppressant Berry')
     _power_herb_setup(actor.r, choice['move_id'])
     return buff
 
 
-def prepare_power_herb(engine, actor, buff, move_id):
+def prepare_power_herb(engine, actor, buff, move_id, owner_consent_by=None):
     _power_herb_setup(engine.r, move_id)
     if actor.setup_move is not None:
         raise ValueError('Power Herb skips a new Set-Up turn, not an already prepared Move')
     if 'food_move_choice' in actor.spec:
         raise ValueError('one actual Move food choice at a time')
     actor.spec['food_move_choice'] = {'move_id': move_id, 'buff_id': buff['id']}
+    import food_effects as FOOD
+    if FOOD._has_suppression(buff):
+        actor.spec['food_move_choice']['owner_id'] = owner_consent_by.entity_id
     validate_power_herb_choice(actor)
     return {'status': 'prepared_for_actual_move', 'move_id': move_id, 'buff_id': buff['id']}
 
@@ -92,6 +98,10 @@ def power_herb_plan(engine, actor, move_id):
         raise ValueError('Power Herb cannot remove a Set-Up turn already taken')
     import food_effects as FOOD
     FOOD.consumption_allowed(engine, actor, buff)
+    if FOOD._has_suppression(buff):
+        import vitamin_moves as V
+        if V.owner_consent(engine, actor, FOOD._suppression_choice_owner(engine, actor)) is None:
+            raise ValueError('Power Herb composite needs its actual current owner consent')
     return buff
 
 
@@ -100,8 +110,11 @@ def consume_power_herb(engine, actor, move_id):
     if buff is None:
         raise ValueError('actual Power Herb choice changed before resolution')
     import food_effects as FOOD
+    owner = FOOD._suppression_choice_owner(engine, actor)
     receipt = FOOD.remove_buff(engine, actor, buff, producer=move_id)
     receipt['benefit'] = {'kind': 'skip_setup', 'move_id': move_id}
+    if buff['effect']['kind'] == 'chef_composite':
+        receipt['benefit']['composite'] = FOOD._apply_composite_rest(engine, actor, buff, receipt, 'Power Herb Set-Up trade-in', owner)
     return receipt
 
 
@@ -256,37 +269,43 @@ def consume(engine, request):
             return False
         obj = staged._physical_objects[stock['instance_id']]
         plan = _ensure_plan(staged, obj)
-        stats = list(plan['stats'])
         receipt = STOCK.debit(staged, actor, stock)
         uid = r.source_id
-        cured = []
-        if uid == 'item/작은버섯':
-            staged.lose_hp(actor, 5, source=uid)
-        elif uid == 'item/큰버섯':
-            staged.apply_status(actor, '독', source=uid)
-        else:
-            import boss_transitions as BOSS
-            for condition in ('화상', '마비', '독'):
-                stored = BOSS.condition_variant(actor, condition)
-                before = stored in actor.conditions
-                staged.cure_status(actor, condition)
-                if before and stored not in actor.conditions:
-                    cured.append(condition)
-        delta = -1 if uid == 'item/향기버섯' else 1
-        changed = []
-        if delta > 0 or cured:
-            for stat in stats:
-                staged.change_stage(actor, stat, delta)
-                changed.append(stat)
-        result = dict(status='consumed', item=uid, instance_id=obj['id'],
-                      stats=changed, delta=delta if changed else 0, cured=cured,
-                      item_stock=receipt)
+        result = apply_mushroom(staged, actor, uid, plan)
+        result.update(status='consumed', item=uid, instance_id=obj['id'], item_stock=receipt)
         import consumption_execution as EXECUTION
         EXECUTION.finish(actor, receipt, target_id=actor.entity_id, outcome='applied',
                          results=[{'kind': 'mushroom', 'id': obj['id']}])
         return result
 
     return GRANTS.transition(engine, r.user, apply)
+
+
+def apply_mushroom(engine, actor, uid, plan):
+    """The same actual body-fixed effect is used by its two Preserves units."""
+    selected(engine.r, uid)
+    if plan['stats'] != _derive_stats(uid, plan['faces']) or plan['item_id'] != uid:
+        raise ValueError('actual Mushroom origin plan required')
+    cured = []
+    if uid == 'item/작은버섯':
+        engine.lose_hp(actor, 5, source=uid)
+    elif uid == 'item/큰버섯':
+        engine.apply_status(actor, '독', source=uid)
+    else:
+        import boss_transitions as BOSS
+        for condition in ('화상', '마비', '독'):
+            stored = BOSS.condition_variant(actor, condition)
+            before = stored in actor.conditions
+            engine.cure_status(actor, condition)
+            if before and stored not in actor.conditions:
+                cured.append(condition)
+    delta = -1 if uid == 'item/향기버섯' else 1
+    changed = []
+    if delta > 0 or cured:
+        for stat in plan['stats']:
+            engine.change_stage(actor, stat, delta)
+            changed.append(stat)
+    return dict(stats=changed, delta=delta if changed else 0, cured=cured)
 
 
 def validate_world(engine, index):

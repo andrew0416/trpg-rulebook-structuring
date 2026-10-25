@@ -78,7 +78,9 @@ def _inventory(actor,name,count):
  if key is None:raise ValueError('insufficient owned items: '+name)
  return key
 
-def _cook_poffins(e,actor,*,ingredients,minutes,reason,tie_choice=None):
+def _cook_poffins(e,actor,*,ingredients,minutes,reason,tie_choice=None,preserves=None,edition=None):
+ if edition=='core_en_1_05':return _cook_poffins_en(e,actor,ingredients=ingredients,preserves=preserves,minutes=minutes,reason=reason,tie_choice=tie_choice)
+ if edition is not None or preserves is not None:raise ValueError('Preserves Poffin ingredients require the explicit core_en_1_05 source; no unknown preserved value is deducted from the KR price route')
  P=_p();_duration(e,minutes,reason);P._tool(actor,'포핀 혼합기');_selected(e,'item/포핀-혼합기')
  if not isinstance(ingredients,dict) or not ingredients:raise ValueError('owned Poffin berries required')
  selected={};total=0
@@ -103,6 +105,56 @@ def _cook_poffins(e,actor,*,ingredients,minutes,reason,tie_choice=None):
  for key,number in selected.values():actor.spec['items'][key]-=number
  actor.spec['cooking_materials_value']=materials-remainder
  batch={'id':batch_id,'count':2,'contest_stat':stat,'ingredients':dict(ingredients),'value':500,'source':'item/포핀-혼합기','duration_reason':reason}
+ actor.spec.setdefault('poffin_batches',{})[batch_id]=batch;actor.spec['poffin_batch_serial']=serial
+ return {'activity':'cook_poffins','batch':deepcopy(batch)}
+
+
+def _cook_poffins_en(e,actor,*,ingredients,preserves,minutes,reason,tie_choice):
+ """Printed EN conjunction: actual ingredients worth500 AND actual Berries.
+
+ Preserve units receive no price, and the unchanged KR route still deducts
+ original Berry prices. All stock and time use the native transformation owner.
+ """
+ import chef_cooking as CHEF,food_effects as FOOD
+ P=_p();_duration(e,minutes,reason);P._tool(actor,'포핀 혼합기');_selected(e,'item/포핀-혼합기')
+ basis=FOOD._berry_en_source(e.r)
+ if type(ingredients) is not dict or preserves is not None and type(preserves) is not dict:raise ValueError('actual original Berry and Preserves input mappings required')
+ preserves={} if preserves is None else preserves
+ if not ingredients and not preserves:raise ValueError('at least one actual Poffin Berry ingredient required')
+ originals=Counter();counts=Counter();selected={};prepared=[]
+ for raw,number in ingredients.items():
+  name=raw.removeprefix('item/')
+  if name not in BERRIES and name not in POFFIN_ALTERNATIVES:raise ValueError('selected ingredient must be a sourced Poffin berry')
+  C.integer(number,'original Berry count',1);originals[name]+=number
+ for name,number in originals.items():
+  key=_inventory(actor,name,number);_selected(e,'item/'+name)
+  selected[name]=(key,number);counts[name]+=number
+ for batch_id,number in preserves.items():
+  C.integer(number,'Preserves unit count',1);row=CHEF._batch(actor,batch_id);CHEF._validate_batch(actor,batch_id,row)
+  origin=CHEF.poffin_ingredient(actor,row);name=origin['origin_item'].removeprefix('item/')
+  if name not in BERRIES and name not in POFFIN_ALTERNATIVES:raise ValueError('actual Poffin Ingredient Berry required')
+  if row['count']<number:raise ValueError('insufficient actual Preserves units')
+  prepared.append((row,number,origin));counts[name]+=number
+ materials=C.integer(actor.spec.get('cooking_materials_value',0),'owned cooking materials value',0)
+ if materials<500:raise ValueError('EN Poffin path needs actual cooking ingredients worth500 independently of the Berry')
+ biggest=max(counts.values());dominant={stat for name,count in counts.items() if count==biggest for stat in ((BERRIES[name],) if name in BERRIES else POFFIN_ALTERNATIVES[name])}
+ if len(dominant)>1:
+  if tie_choice not in dominant:raise ValueError('GM must resolve equal dominant berry types')
+  stat=tie_choice
+ else:
+  stat=next(iter(dominant))
+  if tie_choice is not None and tie_choice!=stat:raise ValueError('GM tie choice cannot replace a unique dominant berry')
+ serial=actor.spec.get('poffin_batch_serial',0)+1;batch_id='poffin-'+str(serial)
+ e.advance_time(minutes*60,[actor])
+ for key,number in selected.values():actor.spec['items'][key]-=number
+ actor.spec['cooking_materials_value']=materials-500
+ inputs=[]
+ for row,number,origin in prepared:
+  for _ in range(number):
+   stock=CHEF._take_batch_unit(e,actor,row['id'],reason='EN Poffin Ingredient '+batch_id)
+   inputs.append({'stock':stock,**deepcopy(origin)})
+ batch={'id':batch_id,'count':2,'contest_stat':stat,'ingredients':dict(originals),'berry_counts':dict(counts),'preserves_inputs':inputs,
+        'value':500,'source':'item/포핀-혼합기','duration_reason':reason,'poffin_basis':dict(basis,edition='core_en_1_05')}
  actor.spec.setdefault('poffin_batches',{})[batch_id]=batch;actor.spec['poffin_batch_serial']=serial
  return {'activity':'cook_poffins','batch':deepcopy(batch)}
 
@@ -223,6 +275,11 @@ def cook_poffins(e,actor,**options):
  return T.dispatch(e,actor,'cook_poffins',**options)
 
 def dismantle(e,actor,**options):
+ if 'chef_batch_id' in options:
+  _p()._trainer(actor);_p()._outside(e)
+  if set(options)-{'item','chef_batch_id','count'}:raise ValueError('Chef batch disposition uses its actual item, batch and count only')
+  import chef_cooking as CHEF
+  return CHEF.dismantle_decision(e,actor,**options)
  import transformation_use as T
  return T.dispatch(e,actor,'dismantle',**options)
 

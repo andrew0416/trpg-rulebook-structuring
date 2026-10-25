@@ -398,7 +398,7 @@ def training_authority_id(owner, target_id, feature, payment_id):
     for row in owner.spec.get(ACTIVATIONS,[]):
         if row.get('integrity')!=_seal(row):raise ValueError('Commander training activation changed')
         if row.get('voice') and row['id']==payment_id:
-            return {'target_id':target.entity_id,'feature':feature} in row['orders']
+            return {'target_id':target_id,'feature':feature} in row['orders']
         if any(p['id']==payment_id and p['commander_activation']==row['id'] and p['feature']==feature
                and p['target_id']==next(e['target_id'] for e in row['orders'] if e['feature']==feature) for p in __import__('training_features').core_payments(owner)):
             return {'target_id':target_id,'feature':feature} in row['orders']

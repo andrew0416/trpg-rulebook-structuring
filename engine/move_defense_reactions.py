@@ -751,8 +751,10 @@ def _continue_intercept(e,event,state,actor,target):
     if 'coaching' in facts:result['coaching']=deepcopy(facts['coaching'])
     if facts['source'] in PERCEPTIONS:
         result.update(payment=deepcopy(facts['payment']),payment_fingerprint=facts['payment_fingerprint'])
+    # Transfer the retired paid-path owner; its native receipts bind this exact graph node.
     result.update(outcome='avoided' if facts['source'] in PERCEPTIONS else 'intercepted' if facts['passed'] else 'failed',movement=movement,
-                  push=active['push'],ally_cells_after=target_cells,progress=deepcopy(progress))
+                  push=active['push'],ally_cells_after=target_cells,
+                  progress=progress)
     state.pop('active_attempt')
     return result
 

@@ -503,7 +503,7 @@ def use_item(engine, user, item_name, target=None, free=False, accepted=True, *,
 
 
 def _use_immediate_item(engine,user,item_name,target,*,free=False,accepted=True,
-                        duration_minutes=None,duration_reason=None,count=1,held_selection=None,medicine_source_choice=None):
+                        duration_minutes=None,duration_reason=None,count=1,held_selection=None,medicine_source_choice=None,chef_batch_id=None):
     """Immediate source adapter; public use/selection belongs to consumable_use."""
     import food_effects as FOOD,turn as TURN
     effs,header=engine.r.item_effects(item_name)
@@ -522,7 +522,7 @@ def _use_immediate_item(engine,user,item_name,target,*,free=False,accepted=True,
         engine.log(f"  {user.name}: 도구 {item_name} 은(는) DB 에 없음", "item/unknown")
         return None
     import item_stock as STOCK
-    stock=STOCK.prepare(engine,user,header['id'],held_selection=held_selection,allow_empty=True)
+    stock=STOCK.prepare(engine,user,header['id'],held_selection=held_selection,allow_empty=True,chef_batch_id=chef_batch_id)
     if stock is None:
         engine.log(f"    {user.name}: {item_name} 재고 없음",f"item/{item_name}")
         return (0,0)
@@ -572,6 +572,13 @@ def _use_immediate_item(engine,user,item_name,target,*,free=False,accepted=True,
             lost='신속' if 'swift' in recipient_debt else '이동'
             engine.log(f"    {target.name}은(는) 다음 기본 행동과 {lost} 행동을 잃음 (아이템 사용)", "ch09/아이템-사용")
     if is_x and RESTORATIVE.special_apply(engine,target,header['id']):return (1,0)
+    return apply_immediate_effects(engine,user,target,item_name,effs,header)
+
+
+def apply_immediate_effects(engine,user,target,item_name,effs,header):
+    """Apply the admitted source effect; stock and action costs stay with the caller."""
+    import food_effects as FOOD
+    herbal=header.get('id') in FOOD.HERBS
     ctx = {"attacker": user, "target": target, "hit": True, "nat": None, "engine": engine, "who": target}
     run = []
     native_done = 0

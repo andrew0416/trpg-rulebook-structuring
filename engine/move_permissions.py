@@ -127,7 +127,8 @@ def require_native_move(engine,actor,move_id):
  import special_entities as SPECIAL
  if SPECIAL.prime_instance(engine.r,move_id) is not None:
   SPECIAL.validate_prime_world(engine)
-  if move_id not in SPECIAL.validate_prime_spec(engine.r,actor.spec,moves=actor.moves,complete=True):raise ValueError('actual Prime Hidden Power source ownership required')
+  # A permanent join snapshot records the chosen instance, not a revoked Move grant.
+  if move_id not in actor.moves or move_id not in SPECIAL.validate_prime_spec(engine.r,actor.spec,moves=actor.moves,complete=True):raise ValueError('actual Prime Hidden Power source ownership required')
  import wired_capability as WIRED
  return WIRED.require_native_move(engine,actor,move_id)
 

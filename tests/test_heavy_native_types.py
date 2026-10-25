@@ -60,7 +60,19 @@ class NativeTypeTests(unittest.TestCase):
   for who in ('attacker','target'):
    with self.subTest(who=who):
     e,a,b=self.pair();actor=a if who=='attacker' else b;actor.r=self.other_rules
-    self.assertIn(who+':different_rules_context',self.diagnostic(e,a,b).failures);self.held(e,a,b)
+    self.assertIn(who+':different_rules_context',self.diagnostic(e,a,b).failures)
+    # Unlike an uncertified subclass in a valid world, this is not an admitted actor.
+    def observed():
+     return copy.deepcopy((a.hp,b.hp,a.temp_hp,b.temp_hp,a.budget,a.spec,b.spec,
+         a.conditions,b.conditions,a.custom_conditions,b.custom_conditions,a.move_uses,b.move_uses,
+         e.rng.getstate(),e.elapsed_seconds,e.round_no,a._action_history,
+         e._heavy_events,e._heavy_pending,e._heavy_native_receipts,
+         getattr(e,'_move_completions',{}),getattr(e,'_effect_dispatch_receipts',{})))
+    before=observed()
+    with self.assertRaisesRegex(ValueError,'actual registered actor'):
+     e.use_move(a,b,'struggle',set_damage=True)
+    self.assertEqual(observed(),before)
+    self.assertEqual((a.hp,b.hp),(50,50));self.assertIsNone(e._heavy_pending)
  def test_instance_formula_and_log_wrappers_are_not_certified(self):
   for name in ('formula','log'):
    with self.subTest(method=name):

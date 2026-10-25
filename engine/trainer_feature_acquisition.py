@@ -339,7 +339,7 @@ def _static_source(rules, feature_id):
         raise ValueError("reviewed selectionless Feature definition required")
     authority = definition.get("source", STATIC_SOURCE)
     SOURCES.verified_source(rules, authority, label="selectionless Feature")
-    supported=feature_id in ('feat/훈련-상황','feat/작열')
+    supported=feature_id in ('feat/훈련-상황','feat/작열','feat/패싱-왈츠')
     if rules._selected_rule(feature_id,supports_versions=supported) != feature_id:
         raise ValueError("selected static Feature requires its own acquisition contract")
     source = rules.selection.units[feature_id].get("source", {})
@@ -354,6 +354,9 @@ def _static_source(rules, feature_id):
         if feature_id in rules.ruleset.unit_versions:result['behavior_source']=selected
     if feature_id=='feat/작열':
         selected=__import__('pokemon_move_edges').incandescence_source(rules)
+        if feature_id in rules.ruleset.unit_versions:result['behavior_source']=selected
+    if feature_id=='feat/패싱-왈츠':
+        selected=__import__('dancer').waltz_source(rules)
         if feature_id in rules.ruleset.unit_versions:result['behavior_source']=selected
     if definition.get('branch'):
         result['interpretation']={'authority':'PTU 1.05 English, user-selected precedence',
@@ -634,7 +637,7 @@ def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequ
             if record["feature_id"] != feature_id or record["prerequisite_source"] != prerequisite_source or actual_branch!=expected_branch or (rank is not None and record['snapshot'].get('rank_number')!=rank):
                 raise ValueError("static Feature acquisition replay cannot change its intent")
             return dict(deepcopy(record), status="acquired" if active else "withdrawn")
-    if selection is not None and feature_id!=__import__('type_sync').FEATURE and feature_id!=__import__('psionic_sight').FEATURE and feature_id not in __import__('hobbyist').FEATURES and feature_id!=__import__('commander').COMPLEX and feature_id!=__import__("provocateur").PUSH and feature_id not in {*__import__('style_expert').FEATURES,__import__('type_expertise').FEATURE,*__import__('versatility').FEATURES,*__import__('trickster').FEATURES,*__import__('type_ace').CSV_VARIANTS,*__import__('juggler').DEFINITIONS,*__import__('mentor').FEATURES,*__import__('coordinator').FEATURES,*__import__('ace_trainer').FEATURES,*__import__('ace_trainer').TRAINING,*__import__('aura_guardian').FEATURES,*__import__('hex_maniac').FEATURES,__import__('sage').HANDS,__import__('telekinetic').POWER,__import__('telepath').AWARE,__import__('walk_it_off').FEATURE,'feat/포획-추진력','feat/포켓몬-넌-내-꺼야'}:raise ValueError("this Feature has no optional acquisition selection")
+    if selection is not None and feature_id not in {'feat/특색있는-맛','feat/경단'} and feature_id!=__import__('type_sync').FEATURE and feature_id!=__import__('psionic_sight').FEATURE and feature_id not in __import__('hobbyist').FEATURES and feature_id!=__import__('commander').COMPLEX and feature_id!=__import__("provocateur").PUSH and feature_id not in {*__import__('style_expert').FEATURES,__import__('type_expertise').FEATURE,*__import__('versatility').FEATURES,*__import__('trickster').FEATURES,*__import__('type_ace').CSV_VARIANTS,*__import__('juggler').DEFINITIONS,*__import__('mentor').FEATURES,*__import__('coordinator').FEATURES,*__import__('ace_trainer').FEATURES,*__import__('ace_trainer').TRAINING,*__import__('aura_guardian').FEATURES,*__import__('hex_maniac').FEATURES,__import__('sage').HANDS,__import__('telekinetic').POWER,__import__('telepath').AWARE,__import__('walk_it_off').FEATURE,'feat/포획-추진력','feat/포켓몬-넌-내-꺼야'}:raise ValueError("this Feature has no optional acquisition selection")
     branched=STATIC_FEATURES[feature_id].get('branch',False)
     ranked=STATIC_FEATURES[feature_id].get('ranked',False)
     if rank is not None and not ranked:raise ValueError('this Feature is not Ranked')
@@ -689,7 +692,7 @@ def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequ
     import taskmaster as TASK
     if feature_id in TASK.FEATURES:snapshot=TASK.acquisition_snapshot(actor,feature_id)
     import chef_cooking as CHEF
-    if feature_id in CHEF.FEATURES:snapshot=CHEF.acquisition_snapshot(engine,actor,feature_id)
+    if feature_id in CHEF.FEATURES:snapshot=CHEF.acquisition_snapshot(engine,actor,feature_id,selection)
     import survivalist_class as SURVIVAL
     if feature_id in SURVIVAL.FEATURES:snapshot=SURVIVAL.acquisition_snapshot(engine,actor,feature_id,rank)
     import control_mount as MOUNT

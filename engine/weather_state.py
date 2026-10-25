@@ -32,7 +32,7 @@ def validate(engine,index=None):
  if type(layers) is not list:raise ValueError('weather layers must be sourced occurrences')
  records=[*state['history'],*([active] if active else []),*layers]
  for record in records:
-  if type(record) is not dict or record.get('weather') not in KINDS or record.get('origin') not in ('move','gm','natural','encounter') or not isinstance(record.get('source_id'),str) or not record['source_id'] or type(record.get('id')) is not int or not 1<=record['id']<=state['sequence']:
+  if type(record) is not dict or record.get('weather') not in KINDS or record.get('origin') not in ('move','ability','gm','natural','encounter') or not isinstance(record.get('source_id'),str) or not record['source_id'] or type(record.get('id')) is not int or not 1<=record['id']<=state['sequence']:
    raise ValueError('invalid sourced weather record')
   duration=record.get('duration');deadline=record.get('deadline_round');count=record.get('deadline_count')
   start=record.get('started_round')
@@ -51,6 +51,8 @@ def validate(engine,index=None):
    DURATION_ITEMS.validate(item_extension,actor_id=record.get('actor_id'),weather=record['weather'],duration=duration-added)
   import homebrew_weather as HOME_WEATHER
   HOME_WEATHER.validate_record(engine,record,active=record is active,index=index)
+  if record['origin']=='ability':__import__('ability_native_actions').validate_weather_record(engine,record,index=index)
+  elif 'ability_activation_id' in record:raise ValueError('non-Ability weather cannot claim an Ability activation')
  if len({r['id'] for r in records})!=len(records):raise ValueError('duplicate weather occurrence')
  if 'nicolette' in state:
   import nicolette_gym as GYM
@@ -230,7 +232,8 @@ def prepare(engine,weather,rounds,source_id,origin,reason='',*,actor=None,policy
  import ability_native_actions as NATIVE
  holder=NATIVE.weather_locked(engine)
  if holder is not None:raise ValueError('Air Lock holds normal weather: '+holder.entity_id)
- if origin not in ('move','gm','natural','encounter') or not isinstance(source_id,str) or not source_id:raise ValueError('weather needs its producer and rule source')
+ if origin not in ('move','ability','gm','natural','encounter') or not isinstance(source_id,str) or not source_id:raise ValueError('weather needs its producer and rule source')
+ activation_id=NATIVE.weather_contract(engine,actor,source_id,weather,rounds) if origin=='ability' else None
  if not isinstance(reason,str):raise ValueError('weather reason must be text')
  import homebrew_weather as HOME_WEATHER
  override=HOME_WEATHER.require_request(engine,weather,rounds,source_id,origin,policy)
@@ -250,6 +253,7 @@ def prepare(engine,weather,rounds,source_id,origin,reason='',*,actor=None,policy
   if not cursor or cursor.get('round')!=engine.round_no:raise ValueError('timed weather in an open round requires the current initiative count')
   count=cursor['count']
  result={'weather':weather,'source_id':source_id,'origin':origin,'reason':reason,'started_round':engine.round_no,'duration':rounds,'deadline_round':None if rounds is None else engine.round_no+rounds,'deadline_count':count}
+ if activation_id is not None:result['ability_activation_id']=activation_id
  if item_extension is not None:result['item_extension']=item_extension
  if policy is not None:result.update(policy=deepcopy(policy),started_seconds=engine.elapsed_seconds)
  if override is not None:result.update(policy_override=override,started_seconds=engine.elapsed_seconds)

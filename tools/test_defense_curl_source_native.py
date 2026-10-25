@@ -86,7 +86,10 @@ class DefenseCurlSourceTests(unittest.TestCase):
                 self.cast();self.assertNotIn('둔화',CONDITIONS.effective_conditions(self.a))
                 self.assertEqual(self.e.move_profile(self.a)[0],6)
                 for mid in (ICE,ROLL):
-                    self.assertTrue(self.e.accuracy_check(self.a,self.foe,self.e.r.move(mid),fixed_roll=5)[0])
+                    move=self.e.r.move(mid)
+                    threshold=move['ac']+self.foe.evasion(move['class'],attacker=self.a,engine=self.e)
+                    self.assertTrue(self.e.accuracy_check(self.a,self.foe,move,fixed_roll=threshold)[0])
+                    self.assertFalse(self.e.accuracy_check(self.a,self.foe,move,fixed_roll=threshold-1)[0])
                     self.assertEqual(self.e.roll_damage(self.a,self.foe,self.e.r.move(mid),set_damage=True)-baseline[mid],10)
                 self.next_turn();hp=self.foe.hp
                 with patch.object(Engine,'d20',return_value=10):self.e.use_move(self.a,self.foe,ICE,set_damage=True)

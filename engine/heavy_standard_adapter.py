@@ -94,7 +94,8 @@ def _public_data_failures(actor,target,move,mm,public_inputs):
    value=getattr(c,field,None)
    if type(value) is not list or any(type(x) is not str for x in value):failures.append(label+':nonplain_'+field)
   if type(c.conditions) is not set or any(type(x) is not str for x in c.conditions):failures.append(label+':nonplain_conditions')
- if not _plain_json(move) or not _plain_json(mm):failures.append('nonplain_move_data')
+ source_move=H.single_target_move_data(move,target)
+ if source_move is None or not _plain_json(source_move) or not _plain_json(mm):failures.append('nonplain_move_data')
  return failures
 
 def diagnose(engine,actor,target,move,mm,ordinary_single,*,public_inputs=None):
@@ -210,9 +211,7 @@ def diagnose_empty_field(engine,actor,move,mm,effects,ordinary_single,*,public_i
   failures.append('actor_not_ordinary_conscious_on_field')
  for field in ('abilities','conditions','buffs','coats','blessings'):
   if getattr(actor,field,None):failures.append('actor:'+field)
- custom=getattr(actor,'custom_conditions',{})
- if (type(custom) is not dict or set(custom)-{'combat_turn_serial'}
-     or any(type(v) is not int for v in custom.values())):
+ if not H.inert_turn_bookkeeping(engine,actor):
   failures.append('actor:custom_conditions')
  for field in ('abilities','feats','edges','item'):
   if actor.spec.get(field):failures.append('actor:spec.'+field)

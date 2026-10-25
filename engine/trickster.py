@@ -155,7 +155,7 @@ def _hit(e,p,target,token):
  row=_completion(e,p,token)
  import move_completion as COMPLETE
  actual=COMPLETE.recipient_result(row,target)
- if target.side is None or p.side is None or p.side==target.side or not actual or not actual['hit'] or actual.get('cancelled'):raise ValueError('actual completed hit on a foe required')
+ if not _foe(p,target) or not actual or not actual['hit'] or actual.get('cancelled'):raise ValueError('actual completed hit on a foe required')
  events=[uid for uid,r in row.get('native_returns',{}).items() if r['facts']['recipient_id']==target.entity_id]
  if events:COMPLETE.require_hit_return(e,events[-1],target)
  elif target.entity_id in row.get('received',{}) or any(v.get('completion_id')==token and v.get('target') is target for v in getattr(e,'_passive_events',{}).values()):raise ValueError('actual native recipient return required')
@@ -188,7 +188,7 @@ def accuracy_hit(e,p,target,move,completion,natural,critical):
 
 
 def hazard_trigger(e,p,target,instance):
- if p is None or owner(e,p) is None or p.side==target.side:return
+ if p is None or owner(e,p) is None or not _foe(p,target):return
  rows=p.custom_conditions.setdefault('_trickster_hazard_events',{})
  token='trickster-hazard:'+p.entity_id+':'+str(len(rows)+1)
  rows[token]={'id':token,'pokemon':p,'target':target,'instance_id':instance['id'],'source':instance['source_id'],'round':e.round_no,'scene':F.state(p)['scene'],'complete':True}
@@ -296,14 +296,19 @@ def saved(e,actor,condition,passed):
    row['consumed']=True;e.apply_status(actor,'넘어짐');e.apply_status(actor,'둔화')
 
 
+def _foe(p,target):
+ left,right=getattr(p,'side',None),getattr(target,'side',None)
+ return p is not target and left is not None and right is not None and left!=right
+
+
 def flourish_applies(e,p,target,move):
- return bool(move and move.get('class')=='변화' and p.side is not None and target.side is not None and p.side!=target.side and owner(e,p,FLOURISH))
+ return bool(move and move.get('class')=='변화' and _foe(p,target) and owner(e,p,FLOURISH))
 
 
 def flourish(e,trainer,pokemon,completion,choice,*,stat=None):
  require(e,trainer,pokemon,FLOURISH);row=_completion(e,pokemon,completion)
  import move_completion as MC
- targets=[t for t in MC.actual_recipients(row) if MC.recipient_result(row,t)['hit'] and not MC.recipient_result(row,t).get('cancelled') and t.side!=pokemon.side]
+ targets=[t for t in MC.actual_recipients(row) if MC.recipient_result(row,t)['hit'] and not MC.recipient_result(row,t).get('cancelled') and _foe(pokemon,t)]
  critical=[t for t in targets if row.get('trickster_accuracy',{}).get(t.entity_id,{}).get('critical') and row['trickster_accuracy'][t.entity_id]['natural'] is not None]
  if row['move']['class']!='변화' or not critical:raise ValueError('actual natural-roll Status critical required')
  if row.get('trickster_flourish'):raise ValueError('this actual Flourish critical was already resolved')
@@ -329,7 +334,7 @@ def flourish(e,trainer,pokemon,completion,choice,*,stat=None):
 
 def encore(e,trainer,pokemon,completion,choice,*,stat=None,cells=None):
  require(e,trainer,pokemon,ENCORE);row=_completion(e,pokemon,completion)
- if row['move']['class']!='변화' or any(t.side is not None and t.side!=pokemon.side for t in row['targets']):raise ValueError('Encore requires a Status Move not targeting foes')
+ if row['move']['class']!='변화' or any(t is not pokemon and (getattr(pokemon,'side',None) is None or getattr(t,'side',None) is None or t.side!=pokemon.side) for t in row['targets']):raise ValueError('Encore requires a Status Move not targeting foes')
  if row.get('trickster_encore_action') or row.get('trickster_encore'):raise ValueError('Encore cannot trigger itself or replay a completed choice')
  if choice not in ('stage','standard','hazard','weather','blessing'):raise ValueError('choose one of five printed Encore outcomes')
  if choice=='stage':
@@ -405,7 +410,7 @@ def mind_games(e,trainer,pokemon,target,completion,*,replace=None,with_condition
 def escape_artist(e,trainer,pokemon,target,move_id,destination,**options):
  require(e,trainer,pokemon,tech=ESCAPE)
  move=e.r.move(move_id)
- if move['class']!='변화' or not e.adjacent(pokemon,target) or pokemon.side==target.side:raise ValueError('Escape Artist requires an adjacent foe targeted by a Status Move')
+ if move['class']!='변화' or not e.adjacent(pokemon,target) or not _foe(pokemon,target):raise ValueError('Escape Artist requires an adjacent foe targeted by a Status Move')
  key=ESCAPE+':pokemon:'+pokemon.entity_id
  # Native move and movement both run in one transaction; invalid destination,
  # unavailable Move/frequency or a failed native continuation cannot spend AP.
@@ -448,7 +453,7 @@ def sleight_scope(e,p,move):
 
 
 def bypass(e,p,target,move):
- return bool(sleight_scope(e,p,move) and p.side is not None and target.side is not None and p.side!=target.side)
+ return bool(sleight_scope(e,p,move) and _foe(p,target))
 
 
 def ignores_defensive(e,target,ability):

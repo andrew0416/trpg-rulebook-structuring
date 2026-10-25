@@ -31,10 +31,11 @@ def _resolve(actor,value,prefix,names=None):
     matches=names.get(value,[])
     if len(matches)!=1:raise ValueError("unambiguous acquired feature source required: "+value)
     uid=matches[0]
-    supported=uid in ('feat/훈련-상황','feat/작열')
+    supported=uid in ('feat/훈련-상황','feat/작열','feat/패싱-왈츠')
     if actor.r._selected_rule(uid,supports_versions=supported)!=uid:raise ValueError("selected feature variant needs its own instance policy")
     if uid=='feat/훈련-상황':__import__('athlete').regime_source(actor.r)
     if uid=='feat/작열':__import__('pokemon_move_edges').incandescence_source(actor.r)
+    if uid=='feat/패싱-왈츠':__import__('dancer').waltz_source(actor.r)
     return uid
 
 
@@ -194,11 +195,12 @@ def owned_rule_count(actor,source_id):
     supplemental = not source_id.startswith(('edge/','feat/','class/'))
     if supplemental and actor.r.selection.units.get(source_id,{}).get('kind')!='entity:feat':
         raise ValueError('exact trainer Edge/Feature/Class source required')
-    supported=source_id in ('feat/훈련-상황','feat/작열')
+    supported=source_id in ('feat/훈련-상황','feat/작열','feat/패싱-왈츠')
     if actor.r._selected_rule(source_id,supports_versions=supported)!=source_id:
         raise ValueError('selected acquisition source needs its own ownership query')
     if source_id=='feat/훈련-상황':__import__('athlete').regime_source(actor.r)
     if source_id=='feat/작열':__import__('pokemon_move_edges').incandescence_source(actor.r)
+    if source_id=='feat/패싱-왈츠':__import__('dancer').waltz_source(actor.r)
     if actor.kind!='trainer':return 0
     if supplemental:
         entries=actor.spec.get('feats',[])

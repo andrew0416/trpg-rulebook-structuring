@@ -1,7 +1,7 @@
 """Independent active-combat lifecycle contracts. Draft until parent API binding review.
 Not a certification of Priority/Interrupt, all reactions, or outside-combat helpers.
 """
-import argparse,copy,hashlib,json,pathlib,sys,unittest
+import argparse,copy,hashlib,json,pathlib,sys,tempfile,unittest
 from datetime import datetime,timezone
 sys.dont_write_bytecode=True
 ROOT=pathlib.Path(__file__).resolve().parents[1]
@@ -101,7 +101,15 @@ class ActionLifecycleTests(unittest.TestCase):
     if asleep and actor.move_uses!=before:observations.append(mid)
     return value
    e.use_move=wrapped
-  encounter.run_encounter(str(ROOT),'data/encounters/lakeside.json',seed=1,ruleset='core',hook=hook,write=False)
+  # This sample explicitly selects CSV295 Chlorophyll [Playtest], not a core definition.
+  # Its initial tie needs an explicit fixture policy before the real hook can run.
+  with tempfile.TemporaryDirectory(dir=ROOT/'work') as folder:
+   policy=pathlib.Path(folder)/'sleep-loop-initiative-policy.json'
+   policy.write_text(json.dumps({'rulings':[{'kind':'answer','key':'initiative_tie_order','scope':'campaign',
+    'reason':'explicit lifecycle fixture tie policy; not a source rule',
+    'answer':{'policy':'highest_d20','same_face':'reroll','max_rounds':100,'reason':'allow the actual sleep hook to run'}}]}),encoding='utf-8')
+   e,_,_=encounter.run_encounter(str(ROOT),'data/encounters/lakeside.json',seed=1,ruleset='all',rulings_path=str(policy),hook=hook,write=False)
+  self.assertTrue(armed);self.assertGreater(e.round_no,0)
   self.assertEqual(observations,[])
 
  def test_026_start_without_open_round_value_error_no_effects(self):

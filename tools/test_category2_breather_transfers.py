@@ -82,12 +82,15 @@ class BreatherTransferTests(unittest.TestCase):
   self.assertIsInstance(self.take(path=[(2,2),(6,2)],movement_mode='teleport',movement_options={'surface_contact':True}),C.PendingDecision)
   self.assertEqual(CODEC.dump_engine(self.e),before)
  def test_actual_teleport_reaction_then_changed_destination_resumes_after_json_without_repay_or_aoo(self):
-  options=self.transfer_options('teleport');self.b.aoo_used=False;departure=M.departure
-  def obstruct(e,c,q,altitude):
-   permitted=departure(e,c,q,altitude);e.grid.blocking.add((6,2));return permitted
-  with patch.object(M,'departure',side_effect=obstruct),patch.object(self.e,'use_move',wraps=self.e.use_move) as attack:
+  options=self.transfer_options('teleport');self.b.aoo_used=False;teleport_plan=M.teleport_plan
+  def obstruct(e,c,*args,**kwargs):
+   # FAQ p18: Teleport never provokes. Observe the actual post-payment
+   # geometry boundary instead of inventing a departure reaction.
+   if c.budget['standard']==0:e.grid.blocking.add((6,2))
+   return teleport_plan(e,c,*args,**kwargs)
+  with patch.object(M,'teleport_plan',side_effect=obstruct),patch.object(self.e,'use_move',wraps=self.e.use_move) as attack:
    with self.assertRaisesRegex(ValueError,'line of sight'):self.e.take_breather(self.a,**options)
-   self.assertEqual(attack.call_count,1)
+   self.assertEqual(attack.call_count,0)
   self.assertEqual((self.a.pos,self.a._action_history.count('full')),((2,2),1));self.assertNotIn('_teleport',self.a.spec)
   restored=CODEC.load_engine(self.r,json.loads(json.dumps(CODEC.dump_engine(self.e))))
   current=next(c for c in restored.everyone if c.entity_id==self.a.entity_id);restored.grid.blocking.remove((6,2))

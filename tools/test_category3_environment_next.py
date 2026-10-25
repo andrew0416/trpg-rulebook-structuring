@@ -122,6 +122,7 @@ class EnvironmentTests(unittest.TestCase):
  def test_falling_acrobatics_dc12_intentional_and20_unintentional(self):
   for intentional,faces,passed in ((True,[3]*5,True),(False,[3]*5,False),(False,[4]*5,True)):
    self.c=self.actor("acro");self.c.spec["movement"]["high_jump"]=0
+   self.e.gm.add_combatant(self.c,reason="actual falling Acrobatics actor")
    out=self.fall(intentional=intentional,acrobatics=True,acrobatics_options={"fixed":faces},fixed_damage=None)
    self.assertEqual(out["checks"]["falling_acrobatics"].passed,passed)
    self.assertEqual(out["damage_distance"],2 if passed else 3)

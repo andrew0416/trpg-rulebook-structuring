@@ -171,6 +171,7 @@ class UnownSourceRevisionTests(unittest.TestCase):
         loaded,actual=self.restore(e,h);self.assertNotIn(mid,actual.moves)
         self.assertEqual(S.prime_moves(self.r,actual.spec[S.PRIME_KEY]),[mid])
         assert_rejected_unchanged(loaded,lambda:loaded.use_move(actual,WORLD.actor_index(loaded)[t.entity_id],mid),reason_pattern='owned|ownership|known')
+        assert_rejected_unchanged(loaded,lambda:loaded.use_move_on(actual,WORLD.actor_index(loaded)[t.entity_id],mid,loaded.everyone),reason_pattern='owned|ownership|known')
         e.gm.restore('retained-power',reason='actual same pre-loss source snapshot')
         self.assertIn(mid,h.moves);self.assertEqual(len(h.spec[S.PRIME_KEY]['joined']),1)
         self.restore(e,h);self.valid(e)

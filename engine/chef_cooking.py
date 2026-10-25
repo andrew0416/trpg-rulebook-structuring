@@ -29,6 +29,9 @@ TASTY = 'recipe/맛있는-간식'
 HEARTY = 'recipe/푸짐한-식사'
 PRESERVES = 'recipe/프리저브스'
 LEFTOVERS = 'recipe/먹다남은음식'
+BAIT = 'recipe/미끼-믹서'
+VITAMINS = 'recipe/영양제'
+MEAL_PLANNER = 'recipe/식단-관리사'
 HEARTY_ITEM = 'item/푸짐한-식사'
 LEFTOVERS_ITEM = 'item/먹다남은음식'
 KEY = 'chef_batches'
@@ -36,20 +39,39 @@ SERIAL = 'chef_batch_serial'
 MEAL = 'hearty_meal'
 BONUS = 'chef_taste_bonus'
 RULING = 'chef_taste_bonus_lifetime'
-BATCH_KINDS = ('tasty_snack', 'hearty_meal', 'preserves', 'leftovers', 'dumplings')
+BATCH_KINDS = ('tasty_snack', 'hearty_meal', 'preserves', 'leftovers', 'dumplings', 'bait')
 SNACK_BATCH_KINDS = ('tasty_snack', 'preserves', 'leftovers', 'dumplings')
-IMMEDIATE_KINDS = ('heal', 'cure', 'turn_heal')
-TRIGGER_KINDS = ('chef_snack', 'type_resistance')
+IMMEDIATE_KINDS = ('heal', 'cure', 'turn_heal', 'stage_change', 'berry_cure_any', 'berry_critical', 'berry_random_stage', 'berry_accuracy', 'berry_scene_move', 'berry_flavor', 'stat_suppression', 'herb_cure_volatile', 'herb_reset_lowered', 'native_consumable')
+TRIGGER_KINDS = ('chef_snack', 'type_resistance', 'herb_skip_setup', 'berry_reactive', 'berry_priority')
+PRESERVES_HERBS = frozenset(('item/힘의뿌리', 'item/부활초', 'item/멘탈허브', 'item/파워풀허브', 'item/하양허브'))
+NATIVE_PRESERVES = frozenset(('item/힘의뿌리', 'item/부활초', 'item/작은버섯', 'item/큰버섯', 'item/향기버섯'))
 BONUS_FIELDS = {'critical_range': 'chef_critical_range', 'evasion_damaging': 'chef_evasion_damaging',
                 'effect_range': 'chef_effect_range', 'save_check': 'save_modifier', 'initiative': 'chef_initiative'}
 
 _CACHE = {}
 _VERIFIED = set()
+CSV_SOURCE = {'file': 'input/db/feats.csv', 'sha256': '4435ff1c462a211564c85d2c1c9a2ac6e7c790c7545e1ad7056d32888b2367bd'}
 _RAW = json.loads((Path(__file__).resolve().parents[1] / POLICY).read_text(encoding='utf-8'))
 FEATURES = {CLASS: tuple(_RAW['class_definition']['span']), **{uid: tuple(row['span']) for uid, row in _RAW['features'].items()}}
 STATIC_DEFINITIONS = {CLASS: dict(_RAW['class_definition'], clause_id=_RAW['class_definition']['clause_id']),
                       **{uid: dict(row) for uid, row in _RAW['features'].items()}}
 CHEF_FEATURES = tuple(FEATURES)
+
+
+def csv_taste_source(rules):
+    """R304's explicit May errata is opt-in; the printed Book remains unchanged."""
+    return _csv_source(rules, 304)
+
+
+def _csv_source(rules, record):
+    from source_context import verified_source
+    verified_source(rules, CSV_SOURCE, label='Chef CSV R' + str(record))
+    return dict(CSV_SOURCE, edition='local_csv', record=record,
+                clause_id='C2CSV/input/db/feats.csv:R' + str(record) + ':main')
+
+
+def csv_dumplings_source(rules):
+    return _csv_source(rules, 307)
 
 
 def _text(value, label):
@@ -119,7 +141,7 @@ def definitions(rules):
 
 def _nested_dumplings_allowed(rules):
     rule = definitions(rules)['dumplings']
-    return rule['nested_dumplings'] and not rules.ruleset.allows(rule['nested_dumplings_prohibition'])[0]
+    return rule['nested_dumplings']['book'] == 'first_ingredient_only' and not rules.ruleset.allows(rule['nested_dumplings_prohibition'])[0]
 
 
 def _composite_parts(parts):
@@ -162,14 +184,18 @@ def chef_feature_count(actor, exclude=()):
     return sum(1 for uid in uids if _owned(actor, uid))
 
 
-def acquisition_snapshot(engine, actor, feature):
+def acquisition_snapshot(engine, actor, feature, selection=None):
     data = definitions(engine.r)
+    if selection is not None and (feature not in (ACCENTUATED, DUMPLINGS) or type(selection) is not dict or selection != {'edition': 'local_csv'}):
+        raise ValueError('only Accentuated Taste and Dumplings have an exact local_csv acquisition selection')
     if feature == CLASS:
         import pokemon_activities as P
         P._feature(engine, actor, 'basic_cooking')
         return {'parent': data['class_definition']['prerequisites']['edge'], 'intuition': _intuition(actor)}
     row = data['features'][feature]
     result = {'parents': {uid: _parent_reference(actor, uid) for uid in row['parents']}, 'intuition': _intuition(actor)}
+    if selection is not None:
+        result.update(selection=deepcopy(selection), source=(csv_taste_source if feature == ACCENTUATED else csv_dumplings_source)(engine.r))
     if feature == DUMPLINGS:
         result['chef_features'] = [uid for uid in CHEF_FEATURES if uid != DUMPLINGS and _owned(actor, uid)]
     return result
@@ -190,6 +216,10 @@ def qualification(actor, feature, snapshot, prerequisite_source):
     else:
         row = data['features'][feature]
         fields = {'parents', 'intuition'} | ({'chef_features'} if feature == DUMPLINGS else set())
+        if snapshot.get('selection') is not None:
+            fields |= {'selection', 'source'}
+            if feature not in (ACCENTUATED, DUMPLINGS) or snapshot['selection'] != {'edition': 'local_csv'} or snapshot.get('source') != (csv_taste_source if feature == ACCENTUATED else csv_dumplings_source)(actor.r):
+                raise ValueError('immutable actual Chef CSV source required')
         if set(snapshot) != fields or set(snapshot['parents']) != set(row['parents']):
             raise ValueError('printed Chef prerequisites required')
         for uid, reference in snapshot['parents'].items():
@@ -226,7 +256,12 @@ def _validate_taste(rules, row, *, kind, item_id=None):
     data = definitions(rules)
     if row is None:
         return None
-    if type(row) is not dict or set(row) != {'taste', 'source', 'assigned_by', 'basis'}:
+    fields = {'taste', 'source', 'assigned_by', 'basis'}
+    if type(row) is dict and row.get('edition') == 'local_csv':
+        fields |= {'edition', 'acquisition_request'}
+        csv_taste_source(rules)
+        _text(row.get('acquisition_request'), 'CSV taste acquisition request')
+    if type(row) is not dict or set(row) != fields:
         raise ValueError('typed Chef taste assignment required')
     if row['source'] != ACCENTUATED or row['basis'] not in ('cooking', 'complex_aftertaste'):
         raise ValueError('taste assignment source changed')
@@ -255,24 +290,67 @@ def _batch(actor, batch_id):
     return row
 
 
+def _dumplings_source(rules, edition):
+    if edition == 'local_csv':
+        return csv_dumplings_source(rules)
+    if edition != 'book':
+        raise ValueError('actual Book or local_csv Dumplings source required')
+    data = definitions(rules)
+    return dict(file=data['source_file'], sha256=data['source_sha256'], edition='book',
+                clause_id=data['features'][DUMPLINGS]['clause_id'])
+
+
+def _dumplings_basis(actor):
+    records = _acquisitions(actor, DUMPLINGS, True)
+    record = records[0] if records else None
+    edition = 'local_csv' if record is not None and record['snapshot'].get('selection') == {'edition': 'local_csv'} else 'book'
+    return dict(edition=edition, source=_dumplings_source(actor.r, edition),
+                acquisition_request=record['request_id'] if record else _parent_reference(actor, DUMPLINGS))
+
+
+def _validate_dumplings_basis(actor, basis):
+    if type(basis) is not dict or set(basis) != {'edition', 'source', 'acquisition_request'} or basis['source'] != _dumplings_source(actor.r, basis['edition']):
+        raise ValueError('immutable actual Dumplings recipe source required')
+    reference = basis['acquisition_request']
+    if reference == DUMPLINGS:
+        if basis['edition'] != 'book' or not _owned(actor, DUMPLINGS):
+            raise ValueError('actual legacy Book Dumplings acquisition required')
+    else:
+        matches = [row for row in _acquisitions(actor, DUMPLINGS) if row['request_id'] == reference]
+        if len(matches) != 1:
+            raise ValueError('actual historical Dumplings acquisition required')
+        expected = 'local_csv' if matches[0]['snapshot'].get('selection') == {'edition': 'local_csv'} else 'book'
+        if basis['edition'] != expected:
+            raise ValueError('Dumplings source changed from its actual acquisition')
+    return basis
+
+
+def _component_payload(parts):
+    return {'kind': 'chef_composite', 'components': _composite_parts(parts)}
+
+
 def _expected_payload(rules, row):
     import food_effects as FOOD
     kind = row['kind']
+    if kind == 'bait':
+        if row.get('bait_variant') not in ('regular', 'super', 'vile'):
+            raise ValueError('printed Bait Mixer variant required')
+        return {'kind': 'chef_bait', 'variant': row['bait_variant'], 'source': BAIT}
     if kind == 'tasty_snack':
         return FOOD.chef_effect(rules, row['item_id'])
     if kind == 'leftovers':
         return FOOD.snack_effect(rules, LEFTOVERS_ITEM)
     if kind == 'preserves':
-        return FOOD.snack_effect(rules, row['origin_item'])
+        return preserves_effect(rules, row['origin_item'], row.get('origin_body'))
     if kind == 'dumplings':
-        return {'kind': 'chef_composite', 'components': _composite_parts(row['components'])}
+        return _component_payload(row['components'])
     return None
 
 
 def _validate_batch(actor, batch_id, row):
     data = definitions(actor.r)
     required = {'id', 'kind', 'recipe', 'item_id', 'count', 'units', 'created_at', 'gap_count', 'created_by', 'taste', 'payload', 'served'}
-    if type(row) is not dict or set(row) - (required | {'origin_item', 'components', 'ingredients', 'production_id'}) or set(row) & required != required:
+    if type(row) is not dict or set(row) - (required | {'origin_item', 'origin_body', 'components', 'ingredients', 'production_id', 'bait_variant', 'dumplings_basis'}) or set(row) & required != required:
         raise ValueError('exact Chef batch fields required')
     if row['id'] != batch_id or row['kind'] not in BATCH_KINDS or row['created_by'] != actor.entity_id:
         raise ValueError('Chef batch identity or cook changed')
@@ -280,8 +358,12 @@ def _validate_batch(actor, batch_id, row):
     if row['kind'] == 'dumplings':
         if row['recipe'] != DUMPLINGS:
             raise ValueError('Dumplings batch recipe changed')
+        if 'dumplings_basis' in row:
+            _validate_dumplings_basis(actor, row['dumplings_basis'])
     elif recipe is None or recipe['kind'] != row['kind']:
         raise ValueError('Chef batch recipe changed')
+    elif 'dumplings_basis' in row:
+        raise ValueError('Dumplings recipe source belongs only to a Dumplings batch')
     C.integer(row['units'], 'Chef batch units', 1)
     C.integer(row['count'], 'Chef batch remaining units', 0, row['units'])
     C.integer(row['created_at'], 'Chef batch creation time', 0)
@@ -299,8 +381,12 @@ def _validate_batch(actor, batch_id, row):
             raise ValueError('Tasty Snack batch item changed')
         if row['kind'] == 'leftovers' and item_id != LEFTOVERS_ITEM:
             raise ValueError('Leftovers batch item changed')
+        if row['kind'] == 'bait' and (item_id != 'item/미끼' or row['taste'] is not None):
+            raise ValueError('Bait Mixer makes bait, not a tasted Snack')
         if row['kind'] == 'preserves' and (row.get('origin_item') != item_id or not isinstance(item_id, str)):
             raise ValueError('Preserves batch origin changed')
+        if row['kind'] == 'preserves' and item_id in NATIVE_PRESERVES and row['taste'] is not None:
+            raise ValueError('non-Snack Preserves cannot receive a Snack Taste')
         if row['kind'] == 'dumplings':
             parts = row.get('components')
             if type(parts) is not list or len(parts) != 2 or parts[0]['item'] != item_id:
@@ -309,20 +395,38 @@ def _validate_batch(actor, batch_id, row):
             for index, part in enumerate(parts):
                 if part['batch_kind'] != 'dumplings':
                     continue
-                origin = part['ingredient']
-                if type(origin) is not dict or set(origin) != {'kind', 'batch_id', 'taste'} or origin['kind'] != 'batch':
+                ingredient = part['ingredient']
+                legacy = 'dumplings_basis' not in row
+                expected_fields = {'kind', 'batch_id', 'taste'} | (set() if legacy else {'stock'})
+                if type(ingredient) is not dict or set(ingredient) != expected_fields or ingredient['kind'] != 'batch':
                     raise ValueError('nested Dumplings needs its actual ingredient batch')
-                parent = batches(actor).get(origin['batch_id'])
+                if not legacy and row['dumplings_basis']['edition'] != 'book':
+                    raise ValueError('CSV Dumplings cannot be mixed from another Dumplings')
+                parent = batches(actor).get(ingredient['batch_id'])
                 debits = row.get('ingredients')
                 if (parent is None or parent is row or parent['kind'] != 'dumplings'
                         or parent['created_at'] >= row['created_at'] or parent['item_id'] != part['item']
-                        or parent['payload'] != part['effect'] or parent['taste'] != origin['taste']
+                        or parent['payload'] != part['effect'] or parent['taste'] != ingredient['taste']
                         or type(debits) is not list or len(debits) != 2
                         or debits[index] != {'kind': 'batch', 'batch_id': parent['id']}):
                     raise ValueError('nested Dumplings ingredient provenance changed')
+                _validate_batch(actor, parent['id'], parent)
+                if parent.get('dumplings_basis', {}).get('edition') == 'local_csv':
+                    raise ValueError('nested Dumplings changed its actual Book parent')
+                if not legacy:
+                    stock = ingredient['stock']
+                    if type(stock) is not dict or set(stock) != {'kind', 'item_id', 'batch_id', 'count', 'unit'} or stock['kind'] != 'chef_batch' or stock['item_id'] != parent['item_id'] or stock['batch_id'] != parent['id'] or stock['count'] != 1 or type(stock['unit']) is not int or not 1 <= stock['unit'] <= len(parent['served']):
+                        raise ValueError('nested Dumplings needs its actual parent unit debit')
+                    if parent['served'][stock['unit'] - 1]['kind'] != 'ingredient':
+                        raise ValueError('nested Dumplings parent was not consumed as an ingredient')
         if row['payload'] != _expected_payload(actor.r, row):
             raise ValueError('Chef batch payload differs from its source effect')
     _validate_taste(actor.r, row['taste'], kind=row['kind'], item_id=item_id)
+    if row['taste'] is not None and row['taste'].get('edition') == 'local_csv':
+        matches = [record for record in _acquisitions(actor, ACCENTUATED)
+                   if record['request_id'] == row['taste']['acquisition_request']]
+        if len(matches) != 1 or matches[0]['snapshot'].get('source') != csv_taste_source(actor.r):
+            raise ValueError('CSV taste needs the cook actual historical acquisition')
     return row
 
 
@@ -338,9 +442,11 @@ def _validate_components(rules, parts):
         if part['batch_kind'] == 'dumplings':
             if not _nested_dumplings_allowed(rules):
                 raise ValueError('Dumplings cannot be mixed from another Dumplings under the selected errata')
-            validate_composite(rules, {'item': part['item'], 'effect': part['effect'], 'effect_source': DUMPLINGS})
+            validate_composite(rules, dict(item=part['item'], effect=part['effect'], effect_source=DUMPLINGS))
+            if type(part['ingredient']) is not dict or part['ingredient'].get('kind') != 'batch':
+                raise ValueError('nested Dumplings needs its actual batch ingredient')
         else:
-            effect = FOOD.snack_effect(rules, part['item'])
+            effect = preserves_effect(rules, part['item'], part['effect'].get('origin_body'))
             if effect is None or part['effect'] != effect or effect['kind'] not in data['dumplings']['composite_component_kinds']:
                 raise ValueError('Dumplings component effect differs from its source')
         identity = (part['batch_kind'] if part['batch_kind'] != 'inventory_leftovers' else 'leftovers', part['item'])
@@ -355,6 +461,19 @@ def validate_actor(actor):
         raise ValueError('Chef batches belong to a trainer cook')
     for batch_id, row in rows.items():
         _validate_batch(actor, batch_id, row)
+    for product in actor.spec.get('crafting_products', {}).values():
+        options = product.get('intent', {}).get('options', {})
+        result = product.get('transformation', {}).get('result', {})
+        if options.get('recipe') != 'meal_planner' and result.get('chef_recipe') != MEAL_PLANNER:
+            continue
+        uid = actor.r.item_effects(options.get('item'))[1].get('id')
+        basis = _meal_planner_basis(actor.r, options.get('edition', 'book'), uid)
+        source = CHEF_SOURCE if basis['edition'] == 'book' else MEAL_PLANNER
+        if result.get('chef_recipe') != MEAL_PLANNER or result.get('meal_planner_basis') != basis or result.get('item_id') != uid or result.get('recipe_source') != source or result.get('money_spent') != basis['money'] or result.get('scrap_spent') != 0 or result.get('count') != 1:
+            raise ValueError('Meal Planner must retain its actual selected recipe source and paid product')
+        gates = result.get('recipe_definition', {}).get('requirements', [])
+        if not any(gate.get('id') == 'meal_planner_rank' and gate.get('condition') == {'kind': 'skill', 'skill': '직감', 'rank': basis['intuition_rank'], 'effective': False} for gate in gates):
+            raise ValueError('Meal Planner product rank differs from its actual recipe edition')
     C.integer(actor.spec.get(SERIAL, 0), 'Chef batch serial', len(rows))
     meal = actor.spec.get(MEAL)
     if meal is not None:
@@ -378,9 +497,130 @@ def validate_actor(actor):
 
 
 def validate_world(engine, index):
+    bait_units = set()
+    parent_units = set()
     for actor in index.values():
         validate_actor(actor)
+        _validate_poffin_preserves(engine,actor)
+        for batch in batches(actor).values():
+            body = batch.get('origin_body')
+            if body is not None:
+                _validate_origin_body(engine, batch['origin_item'], body)
+                made = [record['result'] for record in actor.spec.get('resource_transformations', [])
+                        if record.get('operation') == 'cook_chef_food' and record.get('result', {}).get('batch_id') == batch['id']]
+                if len(made) != 1 or made[0]['batch'].get('origin_body') != body or body['stock'] not in made[0]['materials'] and dict(body['stock'], group='origin') not in made[0]['materials']:
+                    raise ValueError('Mushroom Preserves origin differs from its actual paid transformation')
+            if batch['kind'] == 'dumplings':
+                for component in batch['components']:
+                    ingredient = component['ingredient']
+                    if ingredient.get('kind') == 'batch' and component['batch_kind'] == 'dumplings' and 'stock' in ingredient:
+                        stock = ingredient['stock']
+                        unit = (actor.entity_id, stock['batch_id'], stock['unit'])
+                        if unit in parent_units:
+                            raise ValueError('one actual parent Dumplings unit cannot back two products')
+                        parent_units.add(unit)
+                for part in batch['payload']['components']:
+                    body = part['effect'].get('origin_body')
+                    if body is not None:
+                        _validate_origin_body(engine, part['item'], body)
+        for record in [*actor.spec.get('placed_bait', {}).values(), actor.spec.get('bait_distraction', {})]:
+            if record.get('chef_bait') is not None:
+                validate_bait(engine, record['chef_bait'], index=index)
+                bait = record['chef_bait']
+                unit = (bait['cook_id'], bait['stock']['batch_id'], bait['stock']['unit'])
+                if unit in bait_units:
+                    raise ValueError('one actual Bait Mixer unit cannot back two uses')
+                bait_units.add(unit)
+        for buff in [*actor.buffs, *actor.spec.get('food_consumption_receipts', [])]:
+            if not buff.get('chef_batch') and not buff.get('chef_provenance'):
+                continue
+            origin, _ = _taste_origin(actor, buff)
+            batch = origin.get('chef_batch', {})
+            cook = index.get(batch.get('cook_id'))
+            made = batches(cook).get(batch.get('batch_id')) if cook is not None else None
+            local = (origin.get('taste_assignment') or {}).get('edition') == 'local_csv' or (made is not None and (made.get('taste') or {}).get('edition') == 'local_csv')
+            if local and (made is None or made['taste'] != origin.get('taste_assignment')):
+                raise ValueError('CSV tasted food needs its actual originating Chef batch')
+            if batch.get('kind') == 'dumplings' and len(origin.get('effect', {}).get('components', [])) > 2 and (made is None or made['payload'] != origin.get('effect')):
+                raise ValueError('nested Dumplings food needs its actual originating Chef batch')
     return True
+
+
+def _single_poffin_composite_origin(rules,payload,components):
+    """One passive Berry ingredient plus one already-owned, nonnested effect."""
+    parts=payload['components']
+    ingredients=[part for part in parts if part['effect']['kind']=='berry_ingredient']
+    companions=[part for part in parts if part['effect']['kind']!='berry_ingredient']
+    allowed=(len(parts)==2 and len(ingredients)==len(companions)==1
+             and all(part['batch_kind']!='dumplings' for part in components))
+    if allowed:
+        import crafting_activities as CRAFT
+        companion=companions[0]
+        name=companion['item'].removeprefix('item/')
+        # Cure/flavor Berries can also be Poffin ingredients. Their active
+        # food kind must not hide a second ingredient identity/proportion.
+        allowed=(companion['effect']['kind'] in IMMEDIATE_KINDS+TRIGGER_KINDS
+                 and name not in CRAFT.BERRIES and name not in CRAFT.POFFIN_ALTERNATIVES)
+    if not allowed:raise ValueError('Poffin Ingredient composite proportions require a GM source policy except one actual Ingredient plus one already-supported nonnested companion')
+    return ingredients[0]['item']
+
+
+def poffin_ingredient(actor,row):
+    """Retain the actual Chef production, not an invented batch-local product ID."""
+    import crafting_products as PRODUCTS
+    _validate_batch(actor,row['id'],row)
+    payload=row['payload']
+    if row['kind']=='preserves':
+        origin=row['origin_item']
+    elif row['kind']=='dumplings':
+        origin=_single_poffin_composite_origin(actor.r,payload,row['components'])
+    else:raise ValueError('actual Poffin Ingredient Preserves or supported two-leaf Dumplings required')
+    made=[entry for entry in actor.spec.get(PRODUCTS.KEY,{}).values()
+          if entry['transformation'].get('operation')=='cook_chef_food'
+          and entry['transformation'].get('result',{}).get('batch_id')==row['id']]
+    if len(made)!=1:raise ValueError('Poffin ingredient needs its actual Chef production')
+    entry=made[0];record=entry['transformation'];result=record['result']
+    if (not any(record is value for value in actor.spec.get('resource_transformations',[]))
+            or result.get('production_id')!=entry['id']
+            or {k:v for k,v in result['batch'].items() if k not in ('count','served')}
+               !={k:v for k,v in row.items() if k not in ('count','served')}):
+        raise ValueError('Poffin ingredient changed its actual Chef production or full payload')
+    return {'production_id':entry['id'],'origin_item':origin,'effect':deepcopy(payload)}
+
+
+def _validate_poffin_preserves(engine,actor):
+    """An EN Poffin input is one witnessed unit of its original Chef production."""
+    import food_effects as FOOD,crafting_products as PRODUCTS,crafting_activities as CRAFT
+    from collections import Counter
+    seen=set()
+    for batch in actor.spec.get('poffin_batches',{}).values():
+        if 'poffin_basis' not in batch:continue
+        if batch['poffin_basis']!=dict(FOOD._berry_en_source(engine.r),edition='core_en_1_05'):raise ValueError('Poffin source edition changed')
+        made=[r for r in actor.spec.get('resource_transformations',[]) if r.get('operation')=='cook_poffins' and r.get('result',{}).get('batch',{}).get('id')==batch['id']]
+        if len(made)!=1 or {k:v for k,v in made[0]['result']['batch'].items() if k!='count'}!={k:v for k,v in batch.items() if k!='count'}:raise ValueError('Poffin input changed its actual transformation')
+        events=[r for r in actor.spec.get(PRODUCTS.KEY,{}).values() if r['transformation'] is made[0]]
+        if len(events)!=1:raise ValueError('Poffin input needs its actual production request')
+        options=events[0]['intent']['options']
+        if options.get('edition')!='core_en_1_05':raise ValueError('Poffin source differs from its original request')
+        actual=Counter();counts=Counter(batch['ingredients'])
+        for entry in batch['preserves_inputs']:
+            if type(entry) is not dict or set(entry)!={'stock','production_id','origin_item','effect'}:raise ValueError('typed actual Poffin Preserve input required')
+            stock=entry['stock'];row=_batch(actor,stock.get('batch_id'));_validate_batch(actor,row['id'],row)
+            if set(stock)!={'kind','item_id','batch_id','count','unit'} or stock['kind']!='chef_batch' or stock['count']!=1 or stock['item_id']!=row['item_id'] or {k:v for k,v in entry.items() if k!='stock'}!=poffin_ingredient(actor,row):raise ValueError('Poffin input changed its actual Chef production')
+            unit=C.integer(stock['unit'],'Poffin actual Preserve unit',1,len(row['served']))
+            use=row['served'][unit-1]
+            if use.get('kind')!='ingredient' or use.get('reason')!='EN Poffin Ingredient '+batch['id']:raise ValueError('Poffin lacks its actual ingredient unit debit')
+            identity=(row['id'],unit)
+            if identity in seen:raise ValueError('one actual Preserve unit cannot back two Poffin products')
+            seen.add(identity);actual[row['id']]+=1;counts[entry['origin_item'].removeprefix('item/')]+=1
+        if dict(actual)!=(options.get('preserves') or {}) or dict(counts)!=batch['berry_counts']:raise ValueError('Poffin proportions differ from actual original and preserved inputs')
+        original=Counter()
+        for name,count in options['ingredients'].items():original[name.removeprefix('item/')]+=count
+        if dict(original)!=batch['ingredients']:raise ValueError('Poffin original Berry stock differs from request')
+        biggest=max(counts.values());dominant={stat for name,count in counts.items() if count==biggest for stat in ((CRAFT.BERRIES[name],) if name in CRAFT.BERRIES else CRAFT.POFFIN_ALTERNATIVES[name])}
+        if batch['contest_stat'] not in dominant or len(dominant)>1 and options.get('tie_choice')!=batch['contest_stat']:raise ValueError('Poffin effect differs from its actual Berry proportions')
+        changes=[r for r in made[0]['resources'] if r['field']=='cooking_materials_value']
+        if len(changes)!=1 or changes[0]['delta']!=-500:raise ValueError('EN Poffin requires actual separate500 material debit')
 
 
 # ---------- cooking ----------
@@ -431,7 +671,13 @@ def _assign_taste(e, actor, *, kind, item_id, taste):
         raise ValueError('taste assignment requires acquired Accentuated Taste')
     elif taste not in data['tastes']['assignable']:
         raise ValueError('assigned Taste must be one of ' + ', '.join(data['tastes']['assignable']))
-    return {'taste': taste, 'source': ACCENTUATED, 'assigned_by': actor.entity_id, 'basis': 'cooking'}
+    result = {'taste': taste, 'source': ACCENTUATED, 'assigned_by': actor.entity_id, 'basis': 'cooking'}
+    records = _acquisitions(actor, ACCENTUATED, True)
+    if records and records[0]['snapshot'].get('selection') == {'edition': 'local_csv'}:
+        if records[0]['snapshot'].get('source') != csv_taste_source(e.r):
+            raise ValueError('immutable actual Accentuated Taste CSV source required')
+        result.update(edition='local_csv', acquisition_request=records[0]['request_id'])
+    return result
 
 
 def _inventory_key(actor, item_id):
@@ -523,31 +769,90 @@ def _cook_leftovers(e, actor, *, minutes, reason, taste=None, scrap_value=0):
     return _result(e, actor, recipe=LEFTOVERS, plan=plan, payments=payments, job=job, batch=batch)
 
 
+def preserves_effect(rules, uid, body=None):
+    import food_effects as FOOD
+    import herb_mushroom_rules as HERB
+    if uid in NATIVE_PRESERVES:
+        effect = {'kind': 'native_consumable', 'item': uid}
+        if uid in HERB.MUSHROOMS:
+            if type(body) is not dict or set(body) != {'instance_id', 'plan', 'stock'}:
+                raise ValueError('Mushroom Preserves require their actual consumed origin body')
+            HERB.validate_object(rules, {'id': body['instance_id'], 'kind': 'item_instance', 'item_rule_id': uid, HERB.PLAN: body['plan']})
+            effect['origin_body'] = deepcopy(body)
+        elif body is not None:
+            raise ValueError('restorative Herb Preserves have no mushroom body plan')
+        return effect
+    if body is not None:
+        raise ValueError('only Mushroom Preserves retain an origin body plan')
+    return FOOD.snack_effect(rules, uid)
+
+
+def _validate_origin_body(engine, uid, body):
+    import herb_mushroom_rules as HERB
+    obj = getattr(engine, '_physical_objects', {}).get(body['instance_id'])
+    if not isinstance(obj, dict) or obj.get('item_rule_id') != uid or HERB.validate_object(engine.r, obj) != body['plan']:
+        raise ValueError('Mushroom Preserves changed their actual origin body or fixed effect')
+    stock = body['stock']
+    if type(stock) is not dict or stock.get('kind') != 'held_instance' or stock.get('instance_id') != obj['id'] or stock.get('item_id') != uid or stock.get('count') != 1 or not obj.get('consumed'):
+        raise ValueError('Mushroom Preserves need their actual consumed origin stock')
+    return obj
+
+
 def _cook_preserves(e, actor, *, origin, minutes, reason, taste=None, scrap_value=0):
     import food_effects as FOOD
     import herb_mushroom_rules as HERB
     data = definitions(e.r)
     _duration(e, minutes, reason)
-    header = e.r.item_effects(origin)[1]
+    selection = origin if type(origin) is dict else None
+    if selection is not None and set(selection) != {'item', 'instance_id'}:
+        raise ValueError('select one actual Mushroom origin item and instance_id')
+    header = e.r.item_effects(selection['item'] if selection is not None else origin)[1]
     origin_id = header.get('id')
-    if not isinstance(origin_id, str) or header.get('category') != '음식':
+    if not isinstance(origin_id, str):
         raise ValueError('Preserves require an actual Berry, Herb or Mushroom')
     berry = '열매' in origin_id
-    herb = origin_id in HERB.SNACK_HERBS or origin_id in FOOD.HERBS
+    herb = origin_id in PRESERVES_HERBS
     mushroom = origin_id in HERB.MUSHROOMS
     if not (berry or herb or mushroom):
         raise ValueError('Preserves require an actual Berry, Herb or Mushroom')
-    payload = FOOD.snack_effect(e.r, origin_id)
-    if payload is None:
+    native = origin_id in NATIVE_PRESERVES
+    if native and taste is not None:
+        raise ValueError('non-Snack Preserves cannot receive a Snack Taste')
+    stock = None
+    if mushroom:
+        import item_stock as STOCK
+        if selection is None:
+            raise ValueError('Mushroom Preserves require an actual held origin instance')
+        stock = STOCK.prepare(e, actor, origin_id, held_selection=selection['instance_id'])
+        HERB.validate_object(e.r, e._physical_objects[stock['instance_id']])
+    elif selection is not None:
+        raise ValueError('instance origin selection is reserved for Mushroom Preserves')
+    payload = None if mushroom else preserves_effect(e.r, origin_id)
+    if payload is None and not mushroom:
         raise ValueError('Preserves of this consumable need its source-specific consumer before cooking: ' + origin_id)
     row = data['recipes'][PRESERVES]
-    assignment = _assign_taste(e, actor, kind='preserves', item_id=origin_id, taste=taste)
-    key = _inventory_key(actor, origin_id)
-    materials = _money_material('음식', row['money']) + [{'id': 'origin', 'options': [{'kind': 'item', 'item_id': origin_id, 'key': key, 'amount': 1}]}]
+    assignment = None if native else _assign_taste(e, actor, kind='preserves', item_id=origin_id, taste=taste)
+    materials = _money_material('음식', row['money'])
+    inputs = {'cost': {'option': 0, 'scrap_value': scrap_value}}
+    if not mushroom:
+        key = _inventory_key(actor, origin_id)
+        materials += [{'id': 'origin', 'options': [{'kind': 'item', 'item_id': origin_id, 'key': key, 'amount': 1}]}]
+        inputs['origin'] = {'option': 0, 'scrap_value': 0}
     declaration = _declaration(e, actor, recipe_id=PRESERVES, source=CHEF_SOURCE, output_item=origin_id, prerequisites=row['prerequisites'],
                                materials=materials, seconds=minutes * 60)
-    plan, payments, job = _run(e, actor, declaration, inputs={'cost': {'option': 0, 'scrap_value': scrap_value}, 'origin': {'option': 0, 'scrap_value': 0}}, reason=reason, context={'origin': origin_id})
-    batch = _store_batch(e, actor, kind='preserves', recipe=PRESERVES, item_id=origin_id, units=row['units'], taste=assignment, payload=payload, origin_item=origin_id)
+    plan, payments, job = _run(e, actor, declaration, inputs=inputs, reason=reason, context={'origin': origin_id})
+    extra = {}
+    if mushroom:
+        obj = e._physical_objects[stock['instance_id']]
+        fixed = deepcopy(HERB._ensure_plan(e, obj))
+        paid = STOCK.debit(e, actor, stock)
+        extra['origin_body'] = dict(instance_id=obj['id'], plan=fixed, stock=deepcopy(paid))
+        payments.append(dict(paid, group='origin'))
+        payload = preserves_effect(e.r, origin_id, extra['origin_body'])
+    batch = _store_batch(e, actor, kind='preserves', recipe=PRESERVES, item_id=origin_id, units=row['units'], taste=assignment, payload=payload, origin_item=origin_id, **extra)
+    if mushroom:
+        import consumption_execution as EXECUTION
+        EXECUTION.finish(actor, paid, target_id=actor.entity_id, outcome='applied', results=[{'kind': 'chef_batch', 'id': batch['id']}])
     return _result(e, actor, recipe=PRESERVES, plan=plan, payments=payments, job=job, batch=batch)
 
 
@@ -571,6 +876,116 @@ def _cook_hearty_meal(e, actor, *, ingredients, units, minutes, reason, taste=No
     return _result(e, actor, recipe=HEARTY, plan=plan, payments=payments, job=job, batch=batch)
 
 
+def _cook_bait(e, actor, *, minutes, reason, variant='regular', honey=False):
+    data = definitions(e.r)
+    _duration(e, minutes, reason)
+    if variant not in ('regular', 'super', 'vile') or type(honey) is not bool:
+        raise ValueError('printed Bait Mixer variant and explicit Honey choice required')
+    row = data['recipes'][BAIT]
+    cost = row['upgrade_money'] if variant != 'regular' else 0
+    materials, inputs = [], {}
+    if honey:
+        key = _inventory_key(actor, 'item/꿀')
+        materials.append({'id': 'honey', 'options': [{'kind': 'item', 'item_id': 'item/꿀', 'key': key, 'amount': 1}]})
+        inputs['honey'] = {'option': 0, 'scrap_value': 0}
+    else:
+        cost += row['money']
+    if cost:
+        materials += _money_material('음식', cost)
+        inputs['cost'] = {'option': 0, 'scrap_value': 0}
+    declaration = _declaration(e, actor, recipe_id=BAIT, source=CHEF_SOURCE, output_item=row['item'],
+                               prerequisites=row['prerequisites'], materials=materials, seconds=minutes * 60)
+    plan, payments, job = _run(e, actor, declaration, inputs=inputs, reason=reason, context={'bait_variant': variant})
+    batch = _store_batch(e, actor, kind='bait', recipe=BAIT, item_id=row['item'], units=1, taste=None,
+                         payload={'kind': 'chef_bait', 'variant': variant, 'source': BAIT}, bait_variant=variant)
+    return _result(e, actor, recipe=BAIT, plan=plan, payments=payments, job=job, batch=batch)
+
+
+def _cook_vitamin(e, actor, *, item, minutes, reason):
+    import crafting_recipes as RECIPES
+    data = definitions(e.r)
+    _duration(e, minutes, reason)
+    row = data['recipes'][VITAMINS]
+    uid = e.r.item_effects(item)[1].get('id')
+    if uid not in row['vitamins'] + row['suppressants']:
+        raise ValueError('one printed ordinary Vitamin or Stat Suppressant required')
+    price = row['money'] if uid in row['vitamins'] else row['suppressant_money']
+    declaration = _declaration(e, actor, recipe_id=VITAMINS, source=CHEF_SOURCE, output_item=uid,
+                               prerequisites=row['prerequisites'], materials=_money_material('약', price), seconds=minutes * 60)
+    result = RECIPES.perform(e, actor, declaration, inputs={'cost': {'option': 0, 'scrap_value': 0}}, reason=reason, operation='cook_chef_food')
+    result['chef_recipe'] = VITAMINS
+    return result
+
+
+def _meal_planner_basis(rules, edition, uid):
+    data = definitions(rules)
+    row = data['recipes'][MEAL_PLANNER]
+    if edition not in ('book', 'local_csv') or uid not in row['products']:
+        raise ValueError('Meal Planner requires a printed product and exact book or local_csv recipe edition')
+    product = row['products'][uid]
+    source = ({'file': data['source_file'], 'sha256': data['source_sha256'], 'lines': [1929, 1929]}
+              if edition == 'book' else {'file': data['recipe_source']['file'], 'sha256': data['recipe_source']['file_sha256'], 'record': row['record'], 'columns': list(data['recipe_source']['columns']), 'cell_sha256': row['cell_sha256']})
+    return {'edition': edition, 'source': source, 'item': uid, 'intuition_rank': product[edition + '_rank'], 'money': product['money']}
+
+
+def _cook_meal_planner(e, actor, *, item, minutes, reason, edition='book'):
+    import crafting_recipes as RECIPES
+    _duration(e, minutes, reason)
+    uid = e.r.item_effects(item)[1].get('id')
+    basis = _meal_planner_basis(e.r, edition, uid)
+    row = definitions(e.r)['recipes'][MEAL_PLANNER]
+    source = CHEF_SOURCE if edition == 'book' else MEAL_PLANNER
+    declaration = _declaration(e, actor, recipe_id=MEAL_PLANNER, source=source, output_item=uid,
+                               prerequisites=row['prerequisites'], materials=_money_material('음식', basis['money']), seconds=minutes * 60)
+    declaration['requirements'].append({'id': 'meal_planner_rank', 'condition': {'kind': 'skill', 'skill': '직감', 'rank': basis['intuition_rank'], 'effective': False}, 'reason': 'Meal Planner product requires its selected printed Intuition rank'})
+    result = RECIPES.perform(e, actor, declaration, inputs={'cost': {'option': 0, 'scrap_value': 0}}, reason=reason, operation='cook_chef_food')
+    result.update(chef_recipe=MEAL_PLANNER, meal_planner_basis=basis)
+    return result
+
+
+def bait_stock(engine, actor, batch_id):
+    """Wild-equipment consumes a whole existing Chef batch unit, never a free variant flag."""
+    batch = _batch(actor, batch_id)
+    _validate_batch(actor, batch_id, batch)
+    if batch['kind'] != 'bait':
+        raise ValueError('Bait Mixer batch required')
+    stock = prepare_batch_stock(engine, actor, 'item/미끼', batch_id)
+    return stock, deepcopy(batch['payload'])
+
+
+def validate_bait(engine, bait, index=None):
+    if type(bait) is not dict or set(bait) != {'kind', 'variant', 'source', 'stock', 'cook_id'}:
+        raise ValueError('actual consumed Bait Mixer batch required')
+    if index is None:
+        import world_entities as WORLD
+        index = WORLD.actor_index(engine)
+    cook = index.get(bait['cook_id'])
+    stock = bait['stock']
+    if cook is None or type(stock) is not dict or set(stock) != {'kind', 'item_id', 'batch_id', 'count', 'unit'}:
+        raise ValueError('Bait Mixer actual stock receipt required')
+    batch = _batch(cook, stock['batch_id'])
+    _validate_batch(cook, batch['id'], batch)
+    if batch['kind'] != 'bait' or {k: bait[k] for k in ('kind', 'variant', 'source')} != batch['payload']:
+        raise ValueError('Bait Mixer variant changed from its actual batch')
+    if stock['kind'] != 'chef_batch' or stock['item_id'] != 'item/미끼' or stock['count'] != 1 or type(stock['unit']) is not int or not 1 <= stock['unit'] <= len(batch['served']):
+        raise ValueError('Bait Mixer unit lacks its actual batch debit')
+    return True
+
+
+def dismantle_decision(engine, actor, *, item, chef_batch_id, count=1):
+    """No unprinted Book reversal/price; CSV's explicit prohibition is not optional."""
+    import world_entities as WORLD
+    WORLD.require_actors(engine, actor)
+    C.integer(count, 'Dumplings disposition count', 1)
+    row = _batch(actor, chef_batch_id)
+    _validate_batch(actor, chef_batch_id, row)
+    if row['kind'] != 'dumplings' or row['item_id'] != engine.r.item_effects(item)[1].get('id') or row['count'] < count:
+        raise ValueError('actual owned Dumplings unit required for disposition')
+    if row.get('dumplings_basis', {}).get('edition') == 'local_csv':
+        raise ValueError('CSV Dumplings cannot be sold or disassembled into ingredients')
+    return C.PendingDecision('Book Dumplings has no printed disassembly/ingredient-return conversion rule; the recommended NPC service price is not a material-return value. Explicit GM policy required, no unit or value changed')
+
+
 def _ingredient(e, actor, selection, allowed, label):
     """Resolve one Dumplings ingredient to (component, debit plan)."""
     import food_effects as FOOD
@@ -592,6 +1007,8 @@ def _ingredient(e, actor, selection, allowed, label):
     kind = batch['kind']
     if kind == 'dumplings' and not _nested_dumplings_allowed(e.r):
         raise ValueError(label + ': Dumplings cannot be mixed from another Dumplings under the selected errata')
+    if kind == 'dumplings' and ('dumplings' not in allowed or batch.get('dumplings_basis', {}).get('edition') == 'local_csv'):
+        raise ValueError(label + ': this source forbids mixing from another Dumplings; ' + ', '.join(allowed) + ' required')
     if kind == 'hearty_meal':
         raise ValueError(label + ': Hearty Meals are not a Snack ingredient')
     bucket = 'chef_snack' if kind in ('tasty_snack', 'dumplings') else kind
@@ -600,7 +1017,7 @@ def _ingredient(e, actor, selection, allowed, label):
     if batch['count'] < 1:
         raise ValueError(label + ': the selected Chef batch is exhausted')
     effect = batch['payload']
-    if kind != 'dumplings' and effect['kind'] not in data['dumplings']['composite_component_kinds']:
+    if effect['kind'] not in data['dumplings']['composite_component_kinds'] and not (kind == 'dumplings' and effect['kind'] == 'chef_composite'):
         raise ValueError(label + ': this ingredient effect needs its source-specific composite consumer: ' + effect['kind'])
     return ({'item': batch['item_id'], 'effect': deepcopy(effect), 'ingredient': {'kind': 'batch', 'batch_id': batch['id'], 'taste': deepcopy(batch['taste'])}, 'batch_kind': kind},
             {'kind': 'batch', 'batch_id': batch['id']})
@@ -619,17 +1036,18 @@ def _mix_dumplings(e, actor, *, ingredient_1, ingredient_2, minutes, reason, tas
     data = definitions(e.r)
     _duration(e, minutes, reason)
     rule = data['dumplings']
-    first, debit_1 = _ingredient(e, actor, ingredient_1, rule['ingredient_1'], 'ingredient 1')
+    basis = _dumplings_basis(actor)
+    allowed_first = rule['ingredient_1'] + (['dumplings'] if rule['nested_dumplings'][basis['edition']] == 'first_ingredient_only' else [])
+    first, debit_1 = _ingredient(e, actor, ingredient_1, allowed_first, 'ingredient 1')
     second, debit_2 = _ingredient(e, actor, ingredient_2, rule['ingredient_2'], 'ingredient 2')
     _validate_components(e.r, [first, second])
     if debit_1 == debit_2:
         raise ValueError('the two Dumplings ingredients must be different items')
-    effects = _composite_parts((first, second))
-    triggers = [part['effect']['kind'] for part in effects if part['effect']['kind'] in TRIGGER_KINDS]
-    if len(triggers) > 1:
-        signature = {(part['effect']['kind'], part['effect'].get('trigger'), part['effect'].get('move_type')) for part in effects if part['effect']['kind'] in TRIGGER_KINDS}
-        if len(signature) > 1:
-            raise ValueError('Dumplings with two different trigger-bound ingredient effects need a GM trade-in policy before mixing')
+    payload = _component_payload([first, second])
+    if any(part['effect']['kind']=='berry_ingredient' for part in payload['components']):
+        _single_poffin_composite_origin(e.r,payload,(first,second))
+    triggers = [part['effect']['kind'] for part in payload['components'] if part['effect']['kind'] in TRIGGER_KINDS]
+    trigger_component({'effect': payload})
     materials = []
     inputs = {}
     for name, debit in (('ingredient_1', debit_1), ('ingredient_2', debit_2)):
@@ -642,17 +1060,20 @@ def _mix_dumplings(e, actor, *, ingredient_1, ingredient_2, minutes, reason, tas
     plan, payments, job = _run(e, actor, declaration, inputs=inputs, reason=reason, context={'ingredients': [first['item'], second['item']]})
     for debit in (debit_1, debit_2):
         if debit['kind'] == 'batch':
-            payments.append(dict(_take_batch_unit(e, actor, debit['batch_id'], reason='Dumplings ingredient'), group='ingredient'))
-    payload = {'kind': 'chef_composite', 'components': effects}
+            receipt = _take_batch_unit(e, actor, debit['batch_id'], reason='Dumplings ingredient')
+            payments.append(dict(receipt, group='ingredient'))
+            for part in (first, second):
+                if part['batch_kind'] == 'dumplings' and part['ingredient']['batch_id'] == debit['batch_id']:
+                    part['ingredient']['stock'] = receipt
     batch = _store_batch(e, actor, kind='dumplings', recipe=DUMPLINGS, item_id=first['item'], units=1, taste=assignment, payload=payload,
-                         components=[first, second], ingredients=[debit_1, debit_2])
+                         components=[first, second], ingredients=[debit_1, debit_2], dumplings_basis=basis)
     result = _result(e, actor, recipe=DUMPLINGS, plan=plan, payments=payments, job=job, batch=batch)
     result['trigger_components'] = triggers
     return result
 
 
 COOKS = {'tasty_snack': _cook_tasty_snack, 'leftovers': _cook_leftovers, 'preserves': _cook_preserves,
-         'hearty_meal': _cook_hearty_meal, 'dumplings': _mix_dumplings}
+         'hearty_meal': _cook_hearty_meal, 'dumplings': _mix_dumplings, 'bait': _cook_bait, 'vitamin': _cook_vitamin, 'meal_planner': _cook_meal_planner}
 
 
 def _perform(e, actor, options):
@@ -712,6 +1133,8 @@ def consume_batch_unit(engine, actor, stock):
 def batch_for_intake(engine, user, uid, batch_id):
     row = _batch(user, batch_id)
     _validate_batch(user, batch_id, row)
+    if row['kind'] == 'bait':
+        raise ValueError('Bait is used through wild-equipment, not Digestion Buff intake')
     if row['item_id'] != uid:
         raise ValueError('Chef batch belongs to another item rule')
     if row['count'] < 1:
@@ -793,6 +1216,29 @@ def serve(e, actor, *, batch_id, target=None, minutes=None, reason=None, accepte
 
     def apply(staged, user, *rest):
         recipient = rest[0] if rest else user
+        if row['kind'] == 'preserves' and uid in NATIVE_PRESERVES:
+            if type(accepted) is not bool:
+                raise ValueError('explicit Preserves acceptance required')
+            if not accepted:
+                return {'status': 'refused'}
+            if uid in ('item/힘의뿌리', 'item/부활초'):
+                import items as ITEMS
+                return ITEMS._use_immediate_item(staged, user, uid, recipient, chef_batch_id=batch_id)
+            import herb_mushroom_rules as HERB
+            import item_stock as STOCK
+            import turn as TURN
+            import consumption_execution as EXECUTION
+            if recipient.dead or recipient.fainted:
+                raise ValueError('conscious Mushroom Preserves consumer required')
+            stock = prepare_batch_stock(staged, user, uid, batch_id)
+            current = _batch(user, batch_id)
+            _validate_origin_body(staged, uid, current['origin_body'])
+            if not TURN.spend(staged, recipient, 'swift', uid):
+                return False
+            paid = STOCK.debit(staged, user, stock)
+            result = HERB.apply_mushroom(staged, recipient, uid, current['origin_body']['plan'])
+            EXECUTION.finish(user, paid, target_id=recipient.entity_id, outcome='applied', results=[{'kind': 'mushroom', 'id': current['origin_body']['instance_id']}])
+            return dict(result, status='consumed', item=uid, item_stock=paid)
         return FOOD.consume(staged, user, recipient, uid, minutes=minutes, reason=reason, accepted=accepted, chef_batch_id=batch_id)
     return G.transition(e, actor, apply, participants=() if target is actor else (target,))
 
@@ -803,10 +1249,10 @@ def composite_expected(rules, buff):
     import food_effects as FOOD
     effect = buff.get('effect')
     if type(effect) is not dict or effect.get('kind') != 'chef_composite' or type(effect.get('components')) is not list or len(effect['components']) < 2:
-        raise ValueError('Dumplings Digestion Buff needs its ingredient effects')
+        raise ValueError('Dumplings Digestion Buff needs its actual flattened components')
     if len(effect['components']) > 2 and not _nested_dumplings_allowed(rules):
         raise ValueError('Dumplings cannot be mixed from another Dumplings under the selected errata')
-    return {'kind': 'chef_composite', 'components': [{'item': part['item'], 'effect': FOOD.snack_effect(rules, part['item'])} for part in effect['components']]}
+    return {'kind': 'chef_composite', 'components': [{'item': part['item'], 'effect': preserves_effect(rules, part['item'], part['effect'].get('origin_body'))} for part in effect['components']]}
 
 
 def validate_composite(rules, buff):
@@ -830,10 +1276,8 @@ def trigger_component(buff):
     rows = [part['effect'] for part in effect['components'] if part['effect']['kind'] in TRIGGER_KINDS]
     if not rows:
         return None
-    if len(rows) > 1:
-        signature = {(row['kind'], row.get('trigger'), row.get('move_type')) for row in rows}
-        if len(signature) > 1:
-            raise ValueError('Dumplings with two different trigger-bound ingredient effects need a GM trade-in policy before use')
+    if any(row != rows[0] for row in rows[1:]):
+        raise ValueError('Dumplings with two different trigger-bound ingredient effects need a GM trade-in policy before use')
     return rows[0]
 
 
@@ -867,6 +1311,8 @@ def validate_buff_provenance(actor, buff):
         _text(provenance['event_id'], 'Complex Aftertaste event')
         _text(provenance['owner_id'], 'Complex Aftertaste owner')
         C.integer(provenance['origin_receipt_sequence'], 'Complex Aftertaste origin receipt', 1)
+    if provenance is not None:
+        _taste_origin(actor, buff)
     if buff.get('effect', {}).get('kind') == 'chef_composite' and kind != 'dumplings':
         raise ValueError('composite Digestion Buff needs its Dumplings batch provenance')
     return True
@@ -874,10 +1320,32 @@ def validate_buff_provenance(actor, buff):
 
 # ---------- Accentuated Taste bonuses ----------
 
+def _taste_origin(actor, buff):
+    """Follow the existing receipt chain, so new buffs do not reset an item's bonus."""
+    current, used = buff, False
+    ceiling = buff.get('sequence', len(actor.spec.get('food_consumption_receipts', [])) + 1)
+    while current.get('chef_provenance') is not None:
+        origin = current['chef_provenance']
+        sequence = origin['origin_receipt_sequence']
+        if type(sequence) is not int or not 1 <= sequence < ceiling:
+            raise ValueError('Complex Aftertaste needs an earlier actual item receipt')
+        parents = [row for row in actor.spec.get('food_consumption_receipts', []) if row.get('sequence') == sequence]
+        if len(parents) != 1 or parents[0].get('item') != origin['origin_item']:
+            raise ValueError('Complex Aftertaste actual origin receipt is missing')
+        parent = parents[0]
+        expected = dict(parent.get('taste_assignment', {}), basis='complex_aftertaste')
+        if current.get('taste_assignment') != expected:
+            raise ValueError('Complex Aftertaste changed its original item taste source')
+        used |= parent.get('taste_bonus') is not None
+        current, ceiling = parent, sequence
+    return current, used
+
 def bonus_plan(engine, actor, buff):
     """The printed bonus for one tasted Snack traded in by a Pokemon that does not dislike it."""
     taste = taste_of(buff)
     if taste is None:
+        return None
+    if buff['taste_assignment'].get('edition') == 'local_csv' and _taste_origin(actor, buff)[1]:
         return None
     data = definitions(engine.r)
     if actor.kind != data['taste_bonus_recipient'] or not actor.r._selected_rule(ACCENTUATED) == ACCENTUATED:
@@ -1026,7 +1494,10 @@ def aftertaste_grant(engine, owner, target, event):
     taste = payload.get('taste')
     uid = _tasty_item(engine.r, taste)
     effect = FOOD.chef_effect(engine.r, uid)
-    provenance = {'taste_assignment': {'taste': taste, 'source': ACCENTUATED, 'assigned_by': payload.get('assigned_by', owner.entity_id), 'basis': 'complex_aftertaste'},
+    parents = [row for row in target.spec.get('food_consumption_receipts', []) if row.get('sequence') == payload['receipt_sequence']]
+    if len(parents) != 1 or parents[0].get('buff_id') != payload['buff_id'] or parents[0].get('item') != payload['item']:
+        raise ValueError('Complex Aftertaste needs its actual consumed item receipt')
+    provenance = {'taste_assignment': dict(parents[0]['taste_assignment'], basis='complex_aftertaste'),
                   'chef_provenance': {'source': AFTERTASTE, 'event_id': event['id'], 'owner_id': owner.entity_id,
                                       'origin_receipt_sequence': payload['receipt_sequence'], 'origin_item': payload['item']}}
     buff = FOOD.grant_buff(engine, target, uid, effect, source=FOOD.FOOD, provenance=provenance)

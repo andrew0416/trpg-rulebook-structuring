@@ -344,6 +344,7 @@ def end_selected(engine, actor, *, source=None, occurrence=None):
 
 def validate_world(engine, index):
     __import__('native_path_area_moves').validate_world(engine,index)
+    __import__('electro_shot').validate_world(engine,index)
     import effect_contracts as CONTRACTS
     import perception_communicate as COMM
     import native_order_transfer as TRANSFER

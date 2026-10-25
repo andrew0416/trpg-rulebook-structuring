@@ -98,7 +98,7 @@ class ParalysisStateTests(unittest.TestCase):
                     engine.end_of_turn(actual)
                     engine.start_round(engine.gm.everyone)
                     with patch.object(Engine, 'd20', return_value=11):
-                        engine.start_of_turn(actual, initiative_count=INITIATIVE.value(self.r, actual, engine=engine).value)
+                        engine.start_of_turn(actual, initiative_count=INITIATIVE.value(engine.r, actual, engine=engine).value)
                     self.assertTrue(TURN.spend(engine, actual, 'standard', 'next turn success'))
                     self.assertTrue(TURN.spend(engine, actual, 'shift', 'next turn success'))
                     self.assertIn('마비', actual.conditions)

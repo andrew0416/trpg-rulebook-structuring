@@ -474,7 +474,9 @@ class MentorFullTests(unittest.TestCase):
         policy=case.policy();policy['inheritance']['tutoring_policy']='official_sep2015'
         row=case.create(policy)
         self.assertEqual(row['inheritance_moves'],['move/뿌리박기'])
-        assert_rejections_unchanged(case.e,[lambda:case.hatch(row)],reason_pattern='inherited candidates')
+        premature=case.choices();premature['moves']=list(row['inheritance_moves'])
+        assert_rejections_unchanged(case.e,[lambda:case.hatch(row,choices=premature)],
+            reason_pattern='birth known move is outside natural level-up candidates')
         choices=case.choices();choices['moves']=[]
         child=case.hatch(row,choices=choices)['pokemon']
         self.assertEqual(child.spec['inheritance_moves'],['move/뿌리박기'])

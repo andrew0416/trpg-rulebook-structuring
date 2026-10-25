@@ -556,7 +556,10 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
   _,cost=_travel_geometry(e,c,q,height,measured)
   return q,height,cost,diagonals+min(dx,dy)
  _paid_receipts(e,progress);_paid_progress(c,path,progress)
- spent=0 if progress is None else progress['distance']
+ import electro_shot as ELECTRO
+ active_exits={} if progress is None else ELECTRO.restore_exits(e,c,progress)
+ physical_distance=0 if progress is None else progress['distance']
+ spent=0 if progress is None else progress.get('charged_distance',physical_distance)
  moved=0 if progress is None else progress['next']
  for node in path[moved:]:
   q=node['position'] if aerial else _point(node[:2])
@@ -567,7 +570,11 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
   import map_terrain as TERRAIN
   if mode=='shadow_surface' and not BODY_MODES.shadow_contact(e,c,node):break
   if not TERRAIN.can_travel(e,c,q,mode,altitude=height,movement_mode=movement_mode) or not BODY.can_place(e,c,q,origin=c.pos,ignore_actors=actual_ignored,**({'altitude':height} if aerial else {})):break
+  origin_diagonals=getattr(c,'_diagonal_steps',0)
   q,height,cost,diagonals=geometry(node)
+  physical_cost=cost
+  exit_candidate=ELECTRO.exit_step(e,c,path,moved,active_exits,movement_mode=shared_mode,progress=progress)
+  if exit_candidate is not None:cost=0
   if spent+cost>maximum_distance:break
   if not LIVING.can_shift(e,c,cost,movement_mode=shared_mode):break
   if not _paid_departure(e,c,q,height,progress,pass_scope=pass_scope,chain_scope=chain_scope,disengage_scope=disengage_scope):break
@@ -575,11 +582,15 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
   if c.pos!=origin or c.spec.get('_movement_altitude',0)!=altitude:break
   if mode=='shadow_surface' and not BODY_MODES.shadow_contact(e,c,node):break
   if not TERRAIN.can_travel(e,c,q,mode,altitude=height,movement_mode=movement_mode) or not BODY.can_place(e,c,q,origin=origin,ignore_actors=actual_ignored,**({'altitude':height} if aerial else {})):break
+  origin_diagonals=getattr(c,'_diagonal_steps',0)
   q,height,cost,diagonals=geometry(node)
+  physical_cost=cost
+  exit_candidate=ELECTRO.exit_step(e,c,path,moved,active_exits,movement_mode=shared_mode,progress=progress)
+  if exit_candidate is not None:cost=0
   if spent+cost>maximum_distance:break
   if not LIVING.can_shift(e,c,cost,movement_mode=shared_mode):break
   if action_owner is not c and action_owner.spec.get('mount_id')!=c.entity_id:break
-  departure_distance=cost if aerial else step_cost(origin,q,getattr(c,'_diagonal_steps',0))[0]
+  departure_distance=physical_cost if aerial else step_cost(origin,q,getattr(c,'_diagonal_steps',0))[0]
   origin_contact=FIELD.touches_ground(c)
   c._diagonal_steps=diagonals;c.pos=q
   if pass_scope is not None:__import__('native_path_area_moves').roller_entry(e,c,pass_scope,q)
@@ -588,18 +599,21 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
   import burrow_tunnels as TUNNELS
   TUNNELS.enter(e,c,mode)
   entry_mode(c,mode,altitude=height if aerial else None)
+  active_exits=ELECTRO.commit_step(e,progress,c,exit_candidate,moved,physical_cost,path,origin,altitude,height,origin_diagonals,diagonals)
   if aerial:
    consume_sprint(c)
   MOUNT.sync(e,c)
   LIVING.shifted(e,c,cost)
-  spent+=cost;moved+=1
+  spent+=cost;physical_distance+=physical_cost;moved+=1
   TA.moved(c,cost)
   if progress is not None:
-   progress.update(next=moved,distance=spent,position=c.pos,altitude=c.spec.get('_movement_altitude',0),
+   progress.update(next=moved,distance=physical_distance,position=c.pos,altitude=c.spec.get('_movement_altitude',0),
                    diagonals=c._diagonal_steps,phase='entering')
+   if spent!=physical_distance:progress['charged_distance']=spent
   if not _paid_entry(e,c,progress,surface=not aerial or height==0 or mode=='shadow_surface',reconcile=aerial,previous_position=origin if altitude==height and origin_contact==FIELD.touches_ground(c) else None):break
  if progress is not None and moved==len(path) and progress['phase']=='ready':progress['phase']='complete'
- result={'distance':spent,'steps':moved,'position':c.pos,'mode':mode}
+ result={'distance':physical_distance,'steps':moved,'position':c.pos,'mode':mode}
+ if spent!=physical_distance:result['charged_distance']=spent
  if aerial:result['altitude']=c.spec.get('_movement_altitude',0)
  return result
 

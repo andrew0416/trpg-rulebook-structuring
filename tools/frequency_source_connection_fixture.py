@@ -6,6 +6,7 @@ from functools import wraps
 import ast
 from copy import deepcopy
 import hashlib
+import inspect
 import json
 from pathlib import Path
 import random
@@ -55,6 +56,29 @@ def _stable(environment):
             return ('function', identity, freeze(value.__defaults__), freeze(value.__kwdefaults__), cells)
         if isinstance(value, types.MethodType):
             return ('method', freeze(value.__self__), freeze(value.__func__))
+        # Native class references and decorated methods are authority metadata,
+        # not actor instances. Preserve their namespaces and callable state;
+        # never invoke a descriptor to inspect its class-owned definition.
+        if isinstance(value, property):
+            return ('property', identity, freeze(value.fget), freeze(value.fset),
+                    freeze(value.fdel), freeze(value.__doc__))
+        if isinstance(value, (staticmethod, classmethod)):
+            return (type(value).__name__, identity, freeze(value.__func__), freeze(vars(value)))
+        # event_trace.operation retains these exact stdlib objects in closures.
+        # Project all signature slots without descending into enum/type internals.
+        if type(value) is inspect.Signature:
+            return ('signature', identity, tuple((name, freeze(parameter))
+                    for name, parameter in value.parameters.items()), freeze(value.return_annotation))
+        if type(value) is inspect.Parameter:
+            return ('parameter', identity, value.name, id(value.kind), value.kind.name,
+                    value.kind.value, freeze(value.default), freeze(value.annotation))
+        if isinstance(value, type):
+            return ('class', identity, type(value).__module__, type(value).__qualname__,
+                    tuple((id(base), base.__module__, base.__qualname__) for base in value.__bases__),
+                    tuple((name, freeze(member)) for name, member in vars(value).items()))
+        if type(value) in (types.GetSetDescriptorType, types.MemberDescriptorType):
+            return ('native_descriptor', identity, type(value).__name__,
+                    id(value.__objclass__), value.__name__)
         declared_slots = tuple(name for cls in type(value).__mro__
                                for name in ((cls.__dict__.get('__slots__'),) if isinstance(cls.__dict__.get('__slots__'), str)
                                             else cls.__dict__.get('__slots__', ()))

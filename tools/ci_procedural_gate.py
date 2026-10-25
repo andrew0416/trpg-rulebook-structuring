@@ -67,7 +67,7 @@ def packet(value):
 # Finite outputs reviewed against these exact original runner sources, not a glob deletion policy.
 GENERATED_PREPARATION = {
     'script:tools/test_common_check_engine_independent.py': (
-        '7173e9db63020164756fd02dbdbd7eac422b2a328e7e1a20e4b75e5381e5b73f',
+        'bf066e0903876e8cd543d7c593c274bba6c2fd9df1eef7874d7dc0eb78e31200',
         tuple('tools/native-profile-test-'+name+'.json' for name in (
             'missing','unpinned','mismatch','wrong_role','positive','changed',
             'context-formulas','context-mech','context-effects','context-situational',

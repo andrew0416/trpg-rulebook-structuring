@@ -31,7 +31,7 @@ class FrequencyTests(unittest.TestCase):
     def fixture(self,kind='scene',uses=2):
         r=self.rules;mid='audit/frequency'
         raw='턴1회' if kind=='every_other_turn' else ('장면' if kind=='scene' else '하루')+f' x{uses}'
-        r.moves[mid]=dict(id=mid,name='빈도 검사',type='노말',frequency=raw,range='자신',ac=None,damage_base=None,**{'class':'변화'},effect='',mech_auto={})
+        r.moves[mid]=dict(id=mid,name='빈도 검사',type='노말',frequency=raw,range='근접, 대상 1',ac=None,damage_base=None,**{'class':'변화'},effect='',mech_auto={})
         r.moves_mech[mid]=dict(name='빈도 검사',coverage='full',header=dict(frequency=dict(kind=kind,uses=uses)),effects=[dict(type='injury',value=1,target='target')])
         e=Engine(r,seed=17)
         def actor(name):return Combatant(r,dict(name=name,kind='trainer',level=10,stats={s:30 for s in ['hp','atk','def','spa','spd','spe']},abilities=[],types=[],moves=[mid]))

@@ -61,7 +61,8 @@ class FixedMovePairBatchTests(unittest.TestCase):
             moves=[],
         )
         spec.update(classes=[], feats=list(CASES), edges=[], feature_choices={},
-            static_feature_choices={'C2CSV/input/db/feats.csv:R597:main': 'atk'})
+            static_feature_choices={'C2CSV/input/db/feats.csv:R597:main': 'atk',
+                                    'C2CSV/input/db/feats.csv:R598:main': 'spa'})
         actor = Combatant(self.rules, spec)
         engine.everyone = engine.gm.everyone = [actor]
         return engine, actor

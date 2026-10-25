@@ -26,11 +26,11 @@ class CompletedCsvNativeRemaining(unittest.TestCase):
     def setUp(self):
         self.r.rulings.answers.clear()
 
-    def attack(self, e, a, t, move):
+    def attack(self, e, a, t, move, *, finish_turn=True):
         e.start_round([a, t]); e.start_of_turn(a, initiative_count=20)
         with patch.object(Engine, 'd20', return_value=20):
             e.use_move(a, t, move, set_damage=True)
-        e.end_of_turn(a)
+        if finish_turn:e.end_of_turn(a)
 
     def test_balloon_native_ground_immunity_hit_destruction_and_revoked_source(self):
         attacker = self.pokemon('balloon-attacker', moves=('move/진흙뿌리기','move/몸통박치기'))
@@ -70,11 +70,13 @@ class CompletedCsvNativeRemaining(unittest.TestCase):
         attacker = self.pokemon('button-attacker')
         holder = self.pokemon('button-holder')
         replacement = self.pokemon('button-replacement')
+        controller = self.trainer('button-controller')
+        holder.spec['trainer_id'] = replacement.spec['trainer_id'] = controller.entity_id
         replacement.on_field = False
-        e = self.fixture(attacker, holder, replacement)
+        e = self.fixture(controller, attacker, holder, replacement)
         replacement.on_field = False
         obj = self.equip(e, holder, 'csv/native-button', 'item/탈출버튼')
-        self.attack(e, attacker, holder, 'move/몸통박치기')
+        self.attack(e, attacker, holder, 'move/몸통박치기', finish_turn=False)
         self.assertEqual(holder.spec[PHYSICAL.PENDING]['eject_button']['event']['attacker_id'], attacker.entity_id)
         budget = deepcopy(getattr(holder, 'budget', None))
         restored = Engine.import_state(self.r, json.loads(json.dumps(e.export_state())))

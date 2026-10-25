@@ -396,7 +396,9 @@ def overrun(engine,attacker,target,move,event):
 
 def observe_hit(engine,attacker,target,move,completion_id,event_id):
     """Capture the actual mounted relation before faint/dismount consequences."""
-    if completion_id is None or event_id is None or attacker.side==target.side:return
+    attacker_side,target_side=getattr(attacker,'side',None),getattr(target,'side',None)
+    if (completion_id is None or event_id is None or attacker is target
+            or attacker_side is None or target_side is None or attacker_side==target_side):return
     import action_points as AP,root_resolution as R
     completion=engine._move_completions[completion_id]
     for owner,mount in MOUNT.mounted_pairs(target):
@@ -474,6 +476,7 @@ def _lean_resist(engine,event):
     mult=R.resistance_multiplier(engine,mult)
     if mult is None:raise ValueError('native resistance-step multiplier required')
     formula['multiplier']=mult;event['context']['multiplier']=mult
+    event['effective_type_multiplier']=mult
     return D.scale(after_defense=formula['after_defense'],type_multiplier=mult,
         other_multiplier=formula['other_multiplier'],adjustment=formula['adjustment'])
 

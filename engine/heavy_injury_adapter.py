@@ -259,6 +259,8 @@ def passive_prefix_failures(engine,actor,target,*,require_actor_budget=False):
   if budget is not None and (type(budget) is not dict or any(type(k) is not str or type(v) is not int for k,v in budget.items())):
    failures.append(label+':nonplain_budget')
   if require_actor_budget and label=='actor' and type(budget) is not dict:failures.append('actor:missing_native_budget')
+  if hasattr(c,'_ap_bound_effects') and not __import__('bound_ap').inert_history(c):
+   failures.append(label+':bound_effect_not_inert_history')
  # These containers are read by native use, accuracy, damage and no-effect
  # after_move/fire_event paths. Token/identity ledgers remain trusted internals.
  for field in ('zones','zone_cells','_smoke_regions','weather','field','taunt','effect_stats','gm_prompts',
@@ -278,6 +280,54 @@ def passive_prefix_failures(engine,actor,target,*,require_actor_budget=False):
   if field not in ('rulings','ruleset','selection') and not _passive(value):
    failures.append('rules:nonpassive_state:'+field)
  return failures
+
+def inert_turn_bookkeeping(engine,actor):
+    """Only reviewed turn markers and a certain ordinary barrier are passive."""
+    import temporary_hp as TEMP_HP
+    value=getattr(actor,'custom_conditions',None)
+    if type(value) is not dict or set(value)-{'combat_turn_serial','blessing_ignore_turn_open',TEMP_HP.STATE}:return False
+    serial=value.get('combat_turn_serial',0)
+    if type(serial) is not int or serial<0:return False
+    if 'blessing_ignore_turn_open' in value:
+        if value['blessing_ignore_turn_open'] is not True or engine._active_turn_actor is not actor:return False
+    state=value.get(TEMP_HP.STATE)
+    if state is None:
+        if type(actor.temp_hp) is not int or actor.temp_hp!=0:return False
+    else:
+        # A label alone is not expiry evidence; sourced/stacked/GM pools stay held.
+        fields={'kind','source','clock_basis','minimum_seconds','maximum_seconds',
+                'birth_round','uncertain_birth','contributions'}
+        if type(state) is not dict or set(state)!=fields:return False
+        if (state['kind']!='rule_grant' or state['clock_basis']!=TEMP_HP.CLOCK
+                or state['uncertain_birth'] is not False):return False
+        rows=state['contributions']
+        if (type(rows) is not list or len(rows)!=1 or type(rows[0]) is not dict
+                or set(rows[0])!={'amount','source','minimum_seconds','maximum_seconds'}
+                or rows[0]['source'] is not None):return False
+        birth=state['birth_round']
+        if birth is not None and (type(birth) is not int or not 0<=birth<=engine.round_no):return False
+        try:
+            TEMP_HP.validate(actor)
+            duration=TEMP_HP._policy(engine)
+        except (ValueError,TypeError,KeyError):return False
+        if not 0<state['minimum_seconds']==state['maximum_seconds']<=duration:return False
+    # These exact flags gain behavior only with the corresponding live source.
+    return not actor.spec.get('blessing_status_ignores')
+
+
+def single_target_move_data(move,target):
+    """Separate one native target binding from the source Move definition.
+
+    Engine.use_move retains live actors in this field. It is not rule data or
+    a receipt to ignore: only the exact current single target is reviewed here.
+    A raw source Move remains usable for diagnostics, never occurrence authority.
+    """
+    if type(move) is not dict or any(type(key) is not str for key in move):return None
+    if '_actual_targets' in move:
+        targets=move['_actual_targets']
+        if type(targets) is not tuple or len(targets)!=1 or targets[0] is not target:return None
+    return {key:value for key,value in move.items() if key!='_actual_targets'}
+
 
 def certify_native_context(engine, attacker, target, move, mm, *, ordinary_single):
     failures=[]
@@ -317,7 +367,9 @@ def certify_native_context(engine, attacker, target, move, mm, *, ordinary_singl
     if type(engine.log_lines) is not list or any(type(line) is not str for line in engine.log_lines):
         failures.append("noncanonical_log_sink")
     if ordinary_single is not True:failures.append("not_ordinary_single_activation")
-    if move.get("id")!="struggle" or move != engine.r.move("struggle") or mm != {}:
+    source_move=single_target_move_data(move,target)
+    if (source_move is None or not _passive(source_move)
+            or source_move.get("id")!="struggle" or source_move != engine.r.move("struggle") or mm != {}):
         failures.append("not_empty_mech_native_struggle")
     if not engine.encounter_active or engine._active_turn_actor is not attacker or engine.round_start_seconds is None:
         failures.append("ordinary_active_combat_context_missing")
@@ -339,10 +391,11 @@ def certify_native_context(engine, attacker, target, move, mm, *, ordinary_singl
             if (type(values) is not dict or any(type(k) is not str or type(v) is not int for k,v in values.items())):
                 failures.append(label+":nonplain_"+field)
         for field in ("registry","ability_triggers","abilities","modifiers","conditions",
-                      "buffs","coats","blessings","custom_conditions","counters",
+                      "buffs","coats","blessings","counters",
                       "item","shield","next_attack","reflect","damage_cap","form_rule",
                       "form","type_override_next","setup_move","locked_move"):
             if getattr(c,field,None):failures.append(label+":"+field)
+        if not inert_turn_bookkeeping(engine,c):failures.append(label+':custom_conditions')
         for field in ("feats","edges","abilities","item"):
             if c.spec.get(field):failures.append(label+":spec."+field)
         if c.dead or c.hp<=0 or c.captured or not c.on_field:

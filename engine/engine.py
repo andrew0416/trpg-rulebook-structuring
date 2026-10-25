@@ -537,6 +537,7 @@ class Rules:
             if any(key in getattr(self, attr) for attr in ("feats_mech", "feats_llm", "feats_reviewed", "edges_llm", "edges_reviewed")):
                 if key=='feat/훈련-상황':__import__('athlete').regime_source(self)
                 elif key=='feat/작열':__import__('pokemon_move_edges').incandescence_source(self)
+                elif key=='feat/패싱-왈츠':__import__('dancer').waltz_source(self)
                 else:key = self._selected_rule(key)
             auto = self.feats_mech.get(key)
             llm = self.feats_llm.get(key) if key.startswith(("feat/", "gift/")) else self.edges_llm.get(key)
@@ -1500,7 +1501,9 @@ class Engine:
             name = registration["name"]
         if selected_id is None and name in self.r.unresolved_abilities:
             raise UnresolvedRuleSelection(name, self.r.unresolved_abilities[name])
-        if name in self.r.excluded_abilities:
+        # An exact reviewed registration can share its display name with an
+        # excluded conflicting row; its source identity was validated above.
+        if selected_id is None and name in self.r.excluded_abilities:
             self.log(f"  {c.name} 특성 {name}: 룰셋 '{self.r.ruleset.name}' 에서 제외({self.r.excluded_abilities[name]}) → 무시", "ruleset/exclude")
             return
         if name in self.r.ability_alias:
@@ -3504,6 +3507,7 @@ class Engine:
         if native_damage:
             damage_receipt['native_damage'] = dict(DAMAGE.validate_native_hit(native_damage))
         CONDITIONAL_DB.commit(attacker, target, move, conditional_db_plan, damage_receipt)
+        __import__('food_effects').berry_after_hit(self,attacker,target,move,event,damage_receipt)
         __import__('hex_maniac').record_boost(self,attacker,target,move,conditional_db_plan,_passive_event)
         CONDITIONAL_DB.record_attack_damage(self, attacker, target, damage_receipt)
         import damage_coats as DAMAGE_COATS
@@ -3957,9 +3961,11 @@ class Engine:
     @__import__('aura_guardian').native_move
     @__import__('taskmaster').native_move
     @__import__('duelist').attack_scope
+    @__import__('defense_curl').native_move
     @OPTIONAL_WEAPONS.atomic_move
     @ACTION.resolved_move
     @__import__("cheerleader").native_action
+    @__import__('electro_shot').native_move
     def use_move_on(self, attacker, primary, move_id, everyone, *, weapon_id=None, equipment_options=None, struggle_choice=None, aim=None, appendage_id=None, origin_part=None, set_damage=False, chain_steps=None, versatile_stat=None, weather_ball_type=None, use_radiated_type=None):
         pending=__import__('musician').no_accuracy_pending(self,attacker,move_id)
         if pending is not None:return pending
@@ -4055,6 +4061,7 @@ class Engine:
         import area_targets as AREA
         import stat_ace as STAT
         move = STAT.bind(self,attacker,move)
+        if move_id=='move/일렉트로빔' and aim is None:aim=primary.pos
         move = AREA.bind(self,attacker,move,aim)
         move=__import__('native_area_hit_effects').bind(self,attacker,primary,move)
         aim=move.get('_area_aim',aim)
@@ -4260,11 +4267,13 @@ class Engine:
     @__import__('aura_guardian').native_move
     @__import__('taskmaster').native_move
     @__import__('duelist').attack_scope
+    @__import__('defense_curl').native_move
     @OPTIONAL_WEAPONS.atomic_move
     @ACTION.resolved_move
     @MOVE_ACTIVATION.effect_contributions
     @TRACE.operation('move_attempt','attacker','target','move_id','set_damage','count_use','free_action')
     @__import__("cheerleader").native_action
+    @__import__('electro_shot').native_move
     def use_move(self, attacker, target, move_id, situational=0, set_damage=False, count_use=True, free_action=False, _activation=None, _shared_accuracy=None, _action_grant=None, _field_activation=None, *, roll_id=None, weapon_id=None, reliable_trainer=None, struggle_choice=None, aim=None, appendage_id=None, origin_part=None, coup_de_grace=False, versatile_stat=None, weather_ball_type=None, use_radiated_type=None):
         if type(set_damage) is not bool:raise ValueError('boolean Set Damage declaration required')
         if set_damage and __import__('coordinator').damage_offer(self,attacker) is not None:raise ValueError('Coordinator rerolls a Damage Roll, not Set Damage')
@@ -4487,9 +4496,10 @@ class Engine:
             move, mm = CLASS_MOVES.prepare_curse(self,attacker,target,move,mm)
             WEAPONS.validate_target(self,attacker,target,move)
         if coup_de_grace:move=COUP.prepare(self,attacker,target,move,mm)
-        if self.grid is not None and ("zone" in mm or move_id == "move/날려버리기") and not PASS.converted_scope(self,attacker,move_id):
+        if self.grid is not None and ("zone" in mm or move_id in ("move/날려버리기","move/일렉트로빔")) and not PASS.converted_scope(self,attacker,move_id):
             move = AREA.bind(self,attacker,move,target.pos if aim is None else aim)
             move = dict(move,_effect_area_cells=AREA.cells(self,attacker,move))
+            if move_id=="move/일렉트로빔":move=__import__("electro_shot").capture_geometry(self,attacker,move)
         __import__('telepath').capture_area(self,attacker,target,move)
         field_scope = (MOVE_ACTIVATION.verify_empty_field(self,attacker,move,mm,_field_activation)
                        if _field_activation is not None else None)
@@ -5319,10 +5329,12 @@ class Engine:
         if shape == "blast":
             cells = self.grid.ranged_blast(primary.pos, size)
             return [c for c in others if BODY.cells(c,require_complete=True).intersection(cells)]
+        if primary not in others:
+            return []
         reach = BODY.melee_reach(attacker) if origin == "melee" else (origin if isinstance(origin, int) else 99)
         if not BODY.in_range(self,__import__('type_ace').range_actor(self,attacker,move),primary,reach,move=move):
             return []
-        return [primary] if primary in others else []       # 퇴장(볼 복귀)·기절·포획된 대상은 고를 수 없다
+        return [primary]
 
     def configure_party_combat(self,trainer,**options):
         import party_actions as PARTY_ACTIONS
@@ -5838,7 +5850,9 @@ class Engine:
         if moved:
             c.airborne = (mode == "공중/부유")
             self.log(f"  {c.name} 이동 행동: {moved}칸 → {c.pos} ({mode} {budget}{', 경로 ' + str(len(path)) + '칸' if len(path) > moved else ''})", "ch07/이동과-위치선정")
-        return {'distance':spent,'position':c.pos,'mode':mode}
+        result={'distance':spent,'position':c.pos,'mode':mode}
+        if 'charged_distance' in movement:result['charged_distance']=movement['charged_distance']
+        return result
 
     # ---------- 포획 ----------
     def capture_rate(self, target, rarity=0, *, source_variant=None, hp=None):

@@ -314,6 +314,8 @@ class CombatPrecisionTests(unittest.TestCase):
         # The captured Pokemon is deployed in the next encounter, preserving the
         # actual ownership record emitted by throw_ball.
         self.p.captured=False;self.p.on_field=True;self.p.side='party'
+        self.e.gm.observe_sensory_environment(self.a,self.p,paths={'auditory':True},present=True,
+            reason='actual newly deployed captured Pokemon hears the current Pinpoint Order at its new position')
         self.bind();self.assertIs(CPF.binding(self.e,self.p)['owner'],self.a)
 
     def test_pinpoint_critical_damage_reduction_is_five_not_ten(self):

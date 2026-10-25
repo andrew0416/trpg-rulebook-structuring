@@ -33,8 +33,8 @@
     },
     {
       "path": "data/ability-native-actions-policy.json",
-      "sha256": "536e03399b1083584b8dfeaf72a91b3623100412a446ff245bc29396f1ed2f49",
-      "size": 5610
+      "sha256": "78ae796e1b6bff44d775c1fe9aa4f6bdaeb573b5bde443e166314d7ac773c45b",
+      "size": 6134
     },
     {
       "path": "data/ability-state-projection-policy.json",
@@ -148,8 +148,8 @@
     },
     {
       "path": "data/chef-definitions.json",
-      "sha256": "95a7b5cefe36c2721408b9db8c06461a9caf250483367b2272d52e38a597147b",
-      "size": 7019
+      "sha256": "73ad49b3d1c06840088e5412779b668dc0ef5ee1706846c8559eac702f53da0b",
+      "size": 12010
     },
     {
       "path": "data/chronicler-definitions.json",
@@ -208,8 +208,8 @@
     },
     {
       "path": "data/contest-rules.json",
-      "sha256": "1726c65d9f8c2585722c5ae59dd1e01eb97e54fb73aa46a6448323a7cddcbafa",
-      "size": 11442
+      "sha256": "0d4885449d4ce221f70a8a0c021291ab71b3512f4863d8d999df5eb50ea8d2e2",
+      "size": 12997
     },
     {
       "path": "data/context-check-policy.json",
@@ -248,8 +248,8 @@
     },
     {
       "path": "data/creatures.json",
-      "sha256": "1f91db5d3c78dd991139c9c693a15fc35e99b71795a83b0c6f75cb59c9cd99ad",
-      "size": 3258
+      "sha256": "d8f46f9ae8dda897017d54c69482d5b5fbed691c2258d067347908af34e15ee1",
+      "size": 3366
     },
     {
       "path": "data/csv-remaining-item-contract-policy.json",
@@ -315,6 +315,11 @@
       "path": "data/effect-vocabulary.json",
       "sha256": "4ece3c6556934afb0b96fd830a456eff63f374ea9b7387dde43faece2ba86ccd",
       "size": 42738
+    },
+    {
+      "path": "data/electro-shot-policy.json",
+      "sha256": "38e433be488dd89bd4c6008909c3afe643c606af92f4e74b156dd7f3ecef4c1a",
+      "size": 1735
     },
     {
       "path": "data/encounters/cave.json",
@@ -788,8 +793,8 @@
     },
     {
       "path": "data/native-area-hit-effects.json",
-      "sha256": "02aa53c92cdc27225e5a78ecc53c142af5c6a3ed2c0b80e83dbccbaf95dff73e",
-      "size": 13633
+      "sha256": "ce3dc66f64354eda6185f5d28cf5f59e3e4b9feb1873b8100f07df4a38f01c21",
+      "size": 15238
     },
     {
       "path": "data/native-class-reaction-policy.json",
@@ -1458,8 +1463,8 @@
     },
     {
       "path": "data/verification/common-action-lifecycle-semantics.json",
-      "sha256": "b703dd7e7cbf64378a21220c3524433c106de0fefeca8e7f5cf31dd7541f455c",
-      "size": 262521
+      "sha256": "18b4ecac0d6ed4daf2f2c724a18cac13331104f4f1cc03413b5c55e24bbb2f5a",
+      "size": 262664
     },
     {
       "path": "data/verification/common-action-lifecycle-source-review.json",
@@ -3992,9 +3997,14 @@
       "size": 19779
     },
     {
+      "path": "tools/frequency_current_binding_review.json",
+      "sha256": "d72375053fef24b59f51d7b2cd47a754e6a88b0a9ee1a78be96f631223f4c160",
+      "size": 109475
+    },
+    {
       "path": "tools/frequency_source_connection_contract.json",
-      "sha256": "f618d5d3115753b0a59f375e19c3020761fe32639651453ac7e8fd0e54f31e17",
-      "size": 15320
+      "sha256": "8db786760ae564355047a1048ea80bd1e7ad2e09c4f3c0b9a6fe8d85b16a47e0",
+      "size": 16423
     },
     {
       "path": "tools/inject_vault_entrypoint.ps1",

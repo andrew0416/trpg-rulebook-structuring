@@ -135,6 +135,8 @@ class MaintenanceTests(unittest.TestCase):
         e = Engine(self.rules, 1)
         pc = Combatant(self.rules, self.pokemon(15))
         tr = Combatant(self.rules, build_trainer(self.rules, "test", 5, {s: 10 for s in pc.stats}, items={"타우린":1}))
+        e.gm.add_combatant(tr, reason="actual vitamin trainer")
+        e.gm.add_combatant(pc, reason="actual vitamin and growth recipient")
         before = dict(pc.stats)
         result = ITEMS.use_item(e, tr, "타우린", pc, free=True)
         self.assertEqual(pc.spec.get("vitamin_bonus", {}).get("atk"), 1, result)

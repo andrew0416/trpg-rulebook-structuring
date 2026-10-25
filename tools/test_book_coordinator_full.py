@@ -40,6 +40,7 @@ class CoordinatorFullTests(unittest.TestCase):
   self.p=self.add('Coordinator Pokemon','pokemon',(2,1),trainer_id=self.t.entity_id,moves=['move/몸통박치기','move/불꽃세례','move/울음소리'],tutor_points=9,speed=25,poffins=['근사함','근사함','아름다움'])
   self.q=self.add('second Pokemon','pokemon',(2,2),trainer_id=self.t.entity_id,moves=['move/몸통박치기','move/불꽃세례'],tutor_points=9,speed=24)
   self.foe=self.add('enemy','pokemon',(3,1),side='enemy',moves=['move/몸통박치기'],tutor_points=9,speed=10)
+  self.e.gm.observe_sensory_environment(self.t,self.foe,paths={'auditory':True},present=True,reason='actual unowned Pokemon hears the current Director Order')
  def acquire(self,feature,choice='core_1.05',trainer=None):
   return TFA.acquire_static(self.e,trainer or self.t,feature,selection={'source_contract':choice},acquisition_request_id='coordinator/'+feature+'/'+choice)
  def own(self,*features,choice='core_1.05'):

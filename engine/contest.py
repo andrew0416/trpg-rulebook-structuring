@@ -1050,7 +1050,7 @@ class ContestEngine:
             if state['phase']=='complete':raise ValueError('contest already completed; no duplicate rewards or performances')
         else:
             table=self.r.mech('contest/position-tables')[str(len(contestants))]
-            state={'id':contest_id or 'trainer-contest:1','contract':contract,'phase':'intro','pairs':pairs,'table':table,'round':0,'selections':{},'previous':{},'slot':0,'performer':0,'pending':None,'model':model,'round_type':None}
+            state={'id':contest_id or 'trainer-contest:'+str(uuid.uuid4()),'contract':contract,'phase':'intro','pairs':pairs,'table':table,'round':0,'selections':{},'previous':{},'slot':0,'performer':0,'pending':None,'model':model,'round_type':None}
             self._paired_run=state
         self._paired_busy=True
         try:
@@ -1111,7 +1111,8 @@ class ContestEngine:
             scores={c:(c.appeal+pairs[c].appeal,c.fumble+pairs[c].fumble) for c in contestants}
             final=sorted(contestants,key=lambda c:-(scores[c][0]-scores[c][1]))
             self.last_standings=[{'name':c.name,'trainer':pairs[c].name,'appeal':scores[c][0],'fumble':scores[c][1],'net':scores[c][0]-scores[c][1]} for c in final]
-            state.update(phase='complete',result=tuple(final))
+            state.update(phase='complete',result=tuple(final),
+                         terminal_scores=tuple((c,scores[c][0]-scores[c][1]) for c in contestants))
             for result in self.last_standings:self.log(str(result),'contest/appeal-scoring')
             high=self.last_standings[0]['net'];leaders=[r for r in self.last_standings if r['net']==high]
             self.log(('우승: ' if len(leaders)==1 else '최고점 동률 (단독 우승 판정 미확정): ')+', '.join(r['name'] for r in leaders),'contest/performance-stage')
@@ -1190,7 +1191,7 @@ class ContestEngine:
         else:
             ROTATION.bind_shared_state(proposed)
             table = self.r.mech("contest/position-tables")[str(len(anchors))]
-            state = {"id": contest_id or "rotation-contest:1", "contract": contract,
+            state = {"id": contest_id or "rotation-contest:"+str(uuid.uuid4()), "contract": contract,
                      "phase": "intro", "table": table, "round": 0, "slot": 0,
                      "round_type": None, "pending": None, "rotation": proposed}
             self._standard_run = state
@@ -1284,7 +1285,8 @@ class ContestEngine:
                  "spent_stat_dice": rotation["spent"][c]}
                 for c in final
             ]
-            state.update(phase="complete", result=tuple(final))
+            state.update(phase="complete", result=tuple(final),
+                         terminal_scores=tuple((c, totals[c][0]-totals[c][1]) for c in anchors))
             ROTATION.validate(rotation, state=state, valid_types=types,
                               move_validator=self.r.move_contest,
                               native_bindings=self._native_intro_bindings)
@@ -1300,6 +1302,15 @@ class ContestEngine:
             return final
         finally:
             self._standard_busy = False
+
+    def experience_quote(self, contestant, *, significance=None):
+        import contest_experience as EXPERIENCE
+        return EXPERIENCE.quote(self, contestant, significance=significance)
+
+    def award_experience(self, contestant, *, significance=None, stat_choices=None):
+        import contest_experience as EXPERIENCE
+        return EXPERIENCE.award(self, contestant, significance=significance,
+                                stat_choices=stat_choices)
 
     def run(self, contestants, contest_type, chooser, *, variant="standard",
             trainer_model=None, trainer_order=None, contest_id=None,
@@ -1375,7 +1386,7 @@ class ContestEngine:
                 raise ValueError('resume the original Contest Hall')
             HALLS.validate_hall(self, state)
         else:
-            state={'id':contest_id or 'standard-contest:1','contract':contract,
+            state={'id':contest_id or 'standard-contest:'+str(uuid.uuid4()),'contract':contract,
                    'phase':'intro','table':table,'round':0,'slot':0,
                    'round_type':None,'pending':None}
             if hall is not None:state['hall'] = hall
@@ -1430,7 +1441,8 @@ class ContestEngine:
                 state.update(round=state['round']+1,slot=0,round_type=None,phase='round')
             final=sorted(contestants,key=lambda c:-(c.appeal-c.fumble))
             self.last_standings=[{'name':c.name,'appeal':c.appeal,'fumble':c.fumble,'net':c.appeal-c.fumble} for c in final]
-            state.update(phase='complete',result=tuple(final))
+            state.update(phase='complete',result=tuple(final),
+                         terminal_scores=tuple((c,c.appeal-c.fumble) for c in contestants))
             self.log("## 결과")
             for c in final:
                 self.log(f"  {c.name}: 어필 {c.appeal} - 펌블 {c.fumble} = {c.appeal-c.fumble}", "contest/appeal-scoring")

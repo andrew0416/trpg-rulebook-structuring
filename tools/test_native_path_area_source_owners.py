@@ -5,6 +5,7 @@ from unittest.mock import patch
 import json
 import unittest
 from engine import Engine,Rules
+from ruleset import ExcludedRuleSelection
 import native_scenario_fixture as NATIVE
 import native_path_area_moves as SOURCE
 import field_effects as FIELD
@@ -21,15 +22,16 @@ GRASS='move/그래스필드';MAGIC='move/매직룸';SEED='move/씨뿌리기';SPI
 
 
 class NativePathAreaSourceTests(unittest.TestCase):
-    def world(self):
-        moves=[SOURCE.FAIRY,SOURCE.ROLLER,GRASS,MAGIC,SEED,SPIN,'move/몸통박치기','move/곰팡이독소']
+    def world(self,*,mould=False):
+        moves=[SOURCE.FAIRY,SOURCE.ROLLER,GRASS,MAGIC,SEED,SPIN,'move/몸통박치기']
+        if mould:moves.append('move/곰팡이독소')
         def row(key,pos,side):
             return {'key':key,'kind':'trainer','sheet':{'name':key,'level':30,
                 'stats':{'hp':100,'atk':30,'def':5,'spa':30,'spd':5,'spe':10},
                 'moves':moves,'abilities':[],'pos':pos,'side':side,
                 'extra':{'movement':{'land':6,'power':3},'movement_basis':'current'}},
                 'body':{'size':'중형','offsets':[(0,0)],'reason':'actual source-owned path/area body'}}
-        self.e,self.actors=NATIVE.prepare_scene(ROOT,ruleset='core',seed=7566,grid={'width':16,'height':12},
+        self.e,self.actors=NATIVE.prepare_scene(ROOT,ruleset='homebrew' if mould else 'core',seed=7566,grid={'width':16,'height':12},
             actors=[row('a',(2,2),'party'),row('b',(3,2),'foe'),row('c',(4,2),'foe'),
                     row('ally',(2,3),'party'),row('far',(12,10),'foe')])
         self.a,self.b,self.c,self.ally,self.far=[self.actors[key] for key in ('a','b','c','ally','far')]
@@ -117,7 +119,9 @@ class NativePathAreaSourceTests(unittest.TestCase):
         self.assertEqual(CODEC.dump_engine(self.e),before)
 
     def test_missing_mechanics_header_keeps_moulds_actual_six_metre_source_range(self):
-        self.world();move=self.e.r.move('move/곰팡이독소')
+        with self.assertRaisesRegex(ExcludedRuleSelection,'variant:홈브류'):
+            Rules(ROOT,ruleset='core').move('move/곰팡이독소')
+        self.world(mould=True);move=self.e.r.move('move/곰팡이독소')
         self.assertEqual(move['range'],'6, 대상 1')
         selected=WEAPONS.range_spec(self.e,move,self.a)
         self.assertEqual((selected['origin'],selected['targets']),(6,1))

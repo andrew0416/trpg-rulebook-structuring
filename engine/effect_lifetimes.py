@@ -22,6 +22,15 @@ def prepare(engine,actor,target,effect,source):
  if 'while' in effect and type(effect['while']) is not dict:raise TimingUnsupported('continuous predicate needs an explicit state declaration: '+str(effect['while']))
  if 'repeat' in effect and type(effect['repeat']) is not dict:raise TimingUnsupported('repeat needs an explicit event declaration: '+str(effect['repeat']))
  if not declared(effect):return None
+ if source=='move/일렉트로빔' and effect['type']=='zone_rule':
+  return __import__('electro_shot').prepare(engine,actor,target,effect,source)
+ if effect['type']=='transform':
+  raw={'type':'transform','target':'target','copy':['types','moves','abilities','capabilities','weight','height'],
+       'until':'switch, faint or encounter_end','range':'10m'}
+  if (source!='move/변신' or engine.r._selected_rule(source)!=source
+      or {k:v for k,v in effect.items() if not k.startswith('_')}!=raw):
+   raise TimingUnsupported('Transform requires its exact selected source-owned lifetime')
+  return {'source':source,'transform_owned':True}
  if effect['type']=='oracle_mark':
   if effect.get('until')!='target_ends':raise TimingUnsupported('Mark ends through its actual target consent boundary')
   return {'source':source,'manual_end':True,'effect_contract':True,'oracle_mark':__import__('oracle').mark_payload(engine,actor,target,effect,source)}
@@ -117,6 +126,13 @@ def prepare(engine,actor,target,effect,source):
 def install(engine,actor,target,effect,source,receipt,occurrence):
  record=prepare(engine,actor,target,effect,source)
  if record is None:return False
+ if record.get('electro_shot_owned'):
+  __import__('electro_shot').install(engine,actor,target,effect,source,receipt,occurrence)
+  return True
+ if record.get('transform_owned'):
+  __import__('effects_ext').h_transform(engine,actor,target,effect,
+      {'source_id':source,'effect_occurrence':occurrence,'effect_receipt':receipt})
+  return True
  if record.get('local_weather_owned'):
   import field_effects as FIELD
   FIELD.install_local_snow(engine,actor,target,effect,source,receipt,occurrence)

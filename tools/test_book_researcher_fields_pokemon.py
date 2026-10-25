@@ -445,6 +445,7 @@ class ResearcherFieldsPokemonTests(unittest.TestCase):
         k = self.restored('프테라', 'fossil')
         n = self.pokemon('투구', 20, 'ordinary', pos=(3, 0), moves=['move/단단해지기'], tutor_points=8)
         self.rejected(lambda: RFS.ancient_heritage(self.e, self.t, n, seconds=3600, reason='x'), 'restored from a fossil')
+        self.e.pokemon_activity(self.t, 'observe_tutor_points', target=k, balance=1, reason='GM confirms below Ancient Heritage minimum')
         self.rejected(lambda: RFS.ancient_heritage(self.e, self.t, k, seconds=3600, reason='x'), 'two actual Tutor Points')
         self.e.pokemon_activity(self.t, 'observe_tutor_points', target=k, balance=6, reason='GM establishes the actual balance')
         out = RFS.ancient_heritage(self.e, self.t, k, seconds=3600, reason='actual teaching')

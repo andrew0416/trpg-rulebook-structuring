@@ -92,13 +92,20 @@ class KeepFightingTests(unittest.TestCase):
 
     def test_loss_percentage_hp_setting_and_unpreventable_policies_use_post_temporary_hp(self):
         cases=[('loss',False,'temp_first',4,5),('percentage',False,'temp_first',4,5),
-               ('hp_setting',False,'temp_first',4,1),('loss',True,'temp_first',4,5),('loss',True,'bypass',20,1)]
+               ('hp_setting',False,'temp_first',4,1)]
         for kind,unpreventable,policy,temp,amount in cases:
             self.setup();self.ready_hp(self.b,temp=temp);self.e.gm.set_hp_loss_policy(policy,reason='actual adopted policy')
             self.e.lose_hp(self.b,amount,source='actual '+kind,loss_kind=kind,unpreventable=unpreventable)
             self.assertEqual(self.b.hp,1);self.assertFalse(self.b.fainted)
             self.assertEqual(self.b.temp_hp,max(temp if kind=='hp_setting' or unpreventable and policy=='bypass' else max(0,temp-amount),12))
             self.assertEqual(K._uses(self.a)[0]['origin']['proposed_hp'],0);self.valid()
+        # Explicitly unpreventable loss is not a Keep Fighting trigger.
+        # Retain each real temporary-HP policy without granting prevention.
+        for policy,temp,amount,remaining in [('temp_first',4,5,0),('bypass',20,1,20)]:
+            self.setup();self.ready_hp(self.b,temp=temp);self.e.gm.set_hp_loss_policy(policy,reason='actual adopted policy')
+            self.e.lose_hp(self.b,amount,source='actual loss',loss_kind='loss',unpreventable=True)
+            self.assertEqual(self.b.hp,0);self.assertTrue(self.b.fainted)
+            self.assertEqual(self.b.temp_hp,remaining);self.assertFalse(K._uses(self.a));self.valid()
         self.setup();self.ready_hp(self.b,temp=5);self.e.take_damage(self.b,5)
         self.assertEqual((self.b.hp,self.b.temp_hp),(1,0));self.assertFalse(K._uses(self.a));self.valid()
 

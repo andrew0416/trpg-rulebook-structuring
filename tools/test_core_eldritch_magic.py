@@ -54,7 +54,10 @@ def legacy_after_confusion_save(engine, actor, check):
 
 
 class EldritchMagicTests(unittest.TestCase):
-    setUpClass = classmethod(FIX.AttackLossTests.setUpClass.__func__)
+    @classmethod
+    def setUpClass(cls):
+        # These end-save/AoO assertions explicitly exercise the February revision.
+        cls.r = Rules(str(ROOT), ruleset='core-confusion-feb2016')
     actor = FIX.AttackLossTests.actor
     setUp = FIX.AttackLossTests.setUp
 

@@ -1,7 +1,7 @@
 """Native actions and projections for remaining CSV capability/environment rows."""
 import arithmetic_policy as NUMERIC
 from copy import deepcopy
-from math import isfinite
+from math import ceil, isfinite
 
 import common_checks as C
 import csv_item_contract_policy as POLICY

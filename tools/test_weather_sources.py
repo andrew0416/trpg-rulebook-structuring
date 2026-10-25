@@ -24,6 +24,14 @@ class WeatherTests(unittest.TestCase):
         e,a,b,_=_fixture_test_frequencies.FrequencyTests().fixture()
         e.gm.set_weather(weather,rounds=None,reason='actual observed source-regression weather')
         return e,a,b
+    def electro_fixture(self,weather=None):
+        from grid import Grid
+        e,a,b=self.fixture(weather);e.grid=Grid(12,8)
+        a.pos=(1,2);b.pos=(4,2);a.side='party';b.side='wild'
+        for actor in (a,b):e.gm.set_footprint(actor,[(0,0)],reason='observed Electro Shot regression body')
+        e.gm.set_move(a,'move/일렉트로빔',True,reason='actual learned source Move')
+        e.start_round([a,b]);e.start_of_turn(a,initiative_count=20)
+        return e,a,b
     def test_weather_or_does_not_accept_substring(self):
         e,a,b=self.fixture()
         with self.assertRaises(ValueError):
@@ -38,8 +46,8 @@ class WeatherTests(unittest.TestCase):
         self.assertEqual(a.hp,1+a.max_hp*2//3)
         self.assertEqual(b.hp,1+b.max_hp//2)
     def test_full_action_rejects_atomically_when_shift_unavailable(self):
-        e,a,b=self.fixture();a.budget={'standard':1,'shift':0,'swift':1}
-        before=dict(a.budget);e.use_move(a,b,'move/일렉트로빔')
+        e,a,b=self.electro_fixture();a.budget={'standard':1,'shift':0,'swift':1}
+        before=dict(a.budget);e.use_move_on(a,b,'move/일렉트로빔',e.everyone)
         self.assertEqual(a.budget,before)
         self.assertNotIn('move/일렉트로빔',a.move_uses)
     def test_sunny_veil_weather_component_tracks_changes_without_reregistering(self):
@@ -96,8 +104,8 @@ for wi,w in enumerate(WEATHERS):
         self.assertEqual(actual,base+(10 if w=='sunny' else 5 if w=='rain' else 0))
     add('hydro_damage_'+str(wi),hydro)
     def electro(self,w=w):
-        e,a,b=self.fixture(w);a.budget={'standard':1,'shift':1,'swift':1};e.d20=lambda:1
-        e.use_move(a,b,'move/일렉트로빔')
+        e,a,b=self.electro_fixture(w);a.budget={'standard':1,'shift':1,'swift':1};e.d20=lambda:1
+        e.use_move_on(a,b,'move/일렉트로빔',e.everyone)
         self.assertEqual(a.budget,{'standard':0,'shift':1 if w=='rain' else 0,'swift':1})
     add('electro_action_'+str(wi),electro)
     def desert(self,w=w):

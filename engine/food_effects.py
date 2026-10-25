@@ -26,6 +26,12 @@ CHEF_SNACK_IDS=frozenset({'item/짠맛-서프라이즈','item/매운맛-랩','it
 SNACK_ITEMS=frozenset(SNACKS)|CHEF_SNACK_IDS|frozenset({'item/멘탈허브','item/하양허브','item/파워풀허브'})
 HERBS={'item/힘의가루','item/힘의뿌리','item/만능가루','item/부활초','item/파스'}
 BERRY_HEALS={'item/오랭열매':5,'item/자뭉열매':15}
+BERRY_STAGES={'item/치리열매':'atk','item/용아열매':'def','item/캄라열매':'spe','item/야타비열매':'spa','item/규살열매':'spd'}
+BERRY_IMMEDIATE=('berry_cure_any','berry_critical','berry_random_stage','berry_accuracy','berry_scene_move','berry_flavor')
+BERRY_CHOICE='food_berry_choice'
+BERRY_HIT_CHOICE='food_berry_hit_choice'
+BERRY_PRIORITY_CHOICE='food_berry_priority_choice'
+BERRY_POLICY_ITEMS=frozenset('item/'+name+'열매' for name in '리샘 랑사 스타 미클 과사 의문 자보 애터 악키 타라프 애슈 무화 위키 마고 아바 파야 라즈 블리 나나 서배 파인 메호키 자야 슈박 두리 루베'.split())
 BERRY_CURES=dict(zip(('item/버치열매','item/유루열매','item/복슝열매','item/복분열매','item/배리열매','item/시몬열매','item/수숙열매','item/고스티열매','item/라부탐열매','item/노멜열매'),('마비','잠듦','독','화상','얼음','혼란','사슬묶기','난동','억압','헤롱헤롱')))
 BERRY_TYPES=dict(zip(('item/오카열매','item/꼬시개열매','item/초나열매','item/린드열매','item/플카열매','item/로플열매','item/으름열매','item/슈캐열매','item/바코열매','item/야파열매','item/리체열매','item/루미열매','item/수불열매','item/하반열매','item/마코열매','item/바리비열매','item/카리열매'),('불꽃','물','전기','풀','얼음','격투','독','땅','비행','에스퍼','벌레','바위','고스트','드래곤','악','강철','노말')))
 BABY_POLICIES={'book_xp20_level15','raw_training_level20','homebrew_initial_plus5'}
@@ -391,6 +397,8 @@ def validate_native(actor,buff,*,spent=False):
  elif kind=='stat_suppression':
   if actor.kind!='pokemon':raise ValueError('Suppressant Berries require a Pokemon recipient')
   if effect!=snack_effect(actor.r,uid):raise ValueError('Suppressant Berry differs from its selected stat source')
+ elif kind=='stage_change' or kind in (*BERRY_IMMEDIATE,'berry_reactive','berry_priority','berry_ingredient'):
+  if effect!=snack_effect(actor.r,uid):raise ValueError('stage Berry differs from its exact printed stat source')
  elif kind=='type_resistance':
   INSTANCES.text(effect.get('move_type'),'food resistance type')
   if type(effect.get('requires_super_effective')) is not bool:raise ValueError('food resistance trigger must be explicit')
@@ -399,6 +407,7 @@ def validate_native(actor,buff,*,spent=False):
  elif kind=='chef_composite':
   import chef_cooking as CHEF
   CHEF.validate_composite(actor.r,buff)
+  if _has_suppression(buff) and actor.kind!='pokemon':raise ValueError('Suppressant Berries require a Pokemon recipient')
  elif kind=='csv_food':
   if csv_choice is None:raise ValueError('exact CSV food source required')
  elif kind in ('herb_cure_volatile','herb_reset_lowered','herb_skip_setup'):
@@ -485,7 +494,7 @@ def consume(e,user,target,uid,*,minutes=None,reason=None,count=1,accepted=True,p
  chef_batch=CHEF.batch_for_intake(e,user,uid,chef_batch_id) if chef_batch_id is not None else None
  if chef_batch is not None and (held_selection is not None or container_selection is not None or shell_batch_id is not None or csv_choice is not None):raise ValueError('a Chef batch unit is its own actual stock')
  contract=EQUIPMENT.food_intake(e.r,uid,snack_items=SNACK_ITEMS|frozenset(CSV.ITEM_KINDS),drink_items=DRINKS,
-                                other_food_items={'item/이유식',CHEF.HEARTY_ITEM},forced_snack=shell_batch_id is not None,source_selection=csv_choice)
+                                other_food_items={'item/이유식',CHEF.HEARTY_ITEM},forced_snack=shell_batch_id is not None or chef_batch is not None and chef_batch['kind']=='dumplings',source_selection=csv_choice)
  if type(resumable) is not bool:raise ValueError('explicit intake clock mode required')
  if request_id is not None and not resumable:raise ValueError('intake request identity requires resumable time')
  request=dict(target_id=target.entity_id,item=uid,minutes=minutes,reason=reason,count=count,accepted=accepted,
@@ -681,6 +690,10 @@ def consumed_this_scene(e,actor):
 
 
 def move_allowed(e,actor,move,mm):
+ # Custap authorizes the native loan without spending food in _prepare.
+ # Exchange only inside its actual Move, after native action entry has checked
+ # prior choices; new Chef trigger offers remain for the real caller.
+ priority_berry(e,actor,move['id'],commit=True)
  restrictions=mm.get('effects_exec',[])+[x for x in actor.registry if x.get('type')=='usage_restriction']
  if not any(x.get('type')=='usage_restriction' and 'food buff' in str(x.get('only_if','')) for x in restrictions):return True
  selected(e,move['id'])
@@ -703,6 +716,7 @@ def remove_buff(e,actor,buff,*,producer='food_action'):
  if 'food_transfer_origin' in buff:receipt['food_transfer_origin']=deepcopy(buff['food_transfer_origin'])
  if 'csv_food_source' in buff:receipt['csv_food_source']=deepcopy(buff['csv_food_source'])
  if 'csv_legacy_origin' in buff:receipt['csv_legacy_origin']=deepcopy(buff['csv_legacy_origin'])
+ if actor.spec.get(BERRY_CHOICE,{}).get('buff_id')==buff['id']:receipt['berry_choices']=deepcopy(actor.spec[BERRY_CHOICE]['choices'])
  for key in ('taste_assignment','chef_batch','chef_provenance'):
   if key in buff:receipt[key]=deepcopy(buff[key])
  metadata=INSTANCES.consumed(buff,actor,e.elapsed_seconds)
@@ -715,7 +729,7 @@ def remove_buff(e,actor,buff,*,producer='food_action'):
  actor.counters['food_buff_consumed']=actor.counters.get('food_buff_consumed',0)+1
  if not buff.get(INSTANCES.KEY,{}).get('capacity',ordinary_capacity()).get('scene_usage_exempt',False):actor.counters['lim:food_buff_consumed']=actor.counters.get('lim:food_buff_consumed',0)+1
  actor.spec.setdefault('food_consumption_receipts',[]).append(receipt)
- for key in ('food_save_choice','food_hit_choice','food_move_choice',*CHEF_CHOICE_KEYS):
+ for key in ('food_save_choice','food_hit_choice','food_move_choice',BERRY_CHOICE,BERRY_HIT_CHOICE,BERRY_PRIORITY_CHOICE,*CHEF_CHOICE_KEYS):
   if actor.spec.get(key,{}).get('buff_id')==buff['id']:actor.spec.pop(key)
  import class_actor_state_actions as CLASS_STATE_ACTIONS
  CLASS_STATE_ACTIONS.observe_food_buff_consumed(e,actor,receipt)
@@ -743,18 +757,44 @@ def _immediate_parts(buff):
  return [(part['item'],part['effect']) for part in CHEF.immediate_components(buff)]
 
 
-def _immediate_part_preflight(e,actor,buff,effect,*,ignore_conditions=False,owner_consent_by=None):
- if effect.get('kind') not in ('heal','turn_heal','cure','stat_suppression','herb_cure_volatile','herb_reset_lowered'):raise ValueError('this Digestion Buff needs its own actual save/hit benefit event')
+def _immediate_part_preflight(e,actor,buff,effect,*,item=None,ignore_conditions=False,owner_consent_by=None):
+ if effect.get('kind') not in ('heal','turn_heal','cure','stage_change','stat_suppression','herb_cure_volatile','herb_reset_lowered','native_consumable',*BERRY_IMMEDIATE):raise ValueError('this Digestion Buff needs its own actual save/hit benefit event')
+ if effect['kind']=='stage_change' and effect!=snack_effect(e.r,item or buff['item']):raise ValueError('exact stage Berry source required')
+ choice=actor.spec.get(BERRY_CHOICE,{})
+ choices=choice.get('choices',{}) if choice.get('buff_id')==buff['id'] else {}
+ if effect['kind']=='berry_cure_any':
+  import boss_transitions as BOSS
+  condition=choices.get('condition')
+  if condition is None:return C.PendingDecision('Lum Berry needs the one actual status to cure')
+  if BOSS.condition_variant(actor,condition) not in actor.conditions:raise ValueError('Lum Berry needs the selected actual status')
+ elif effect['kind']=='berry_scene_move':
+  import frequency as FREQ
+  mid=choices.get('move_id')
+  if mid is None:return C.PendingDecision('Leppa Berry needs the one actual spent Scene Move to restore')
+  if FREQ.preflight_restore_move_use(e,actor,mid)[1]!='scene':raise ValueError('Leppa Berry restores only a Scene Move')
+ elif effect['kind']=='berry_critical' and not e.encounter_active:return C.PendingDecision('Lansat Berry requires its actual encounter lifetime')
+ elif effect['kind']=='berry_flavor':
+  if _flavor_disposition(actor,effect['flavor'])=='disliked' and 'flavor_edition' not in choices:return C.PendingDecision('Disliked Treat Berry needs explicit kr_book instead-Confusion or core_en_1_05 healing-plus-Confusion source selection')
+  if choices.get('flavor_edition')=='core_en_1_05':_berry_en_source(e.r)
+ if effect['kind']=='berry_random_stage' and not ignore_conditions and actor.hp*4>actor.base_max_hp:raise ValueError('Starf Berry requires HP at most one quarter true maximum')
+ if effect['kind']=='native_consumable':
+  import chef_cooking as CHEF,herb_mushroom_rules as HERB
+  uid=item or buff['item']
+  if effect!=CHEF.preserves_effect(e.r,uid,effect.get('origin_body')):raise ValueError('exact preserved native effect required')
+  if uid in HERB.MUSHROOMS:CHEF._validate_origin_body(e,uid,effect['origin_body'])
+  else:
+   herbal_preflight(e,actor,uid)
+   effs,_=e.r.item_effects(uid)
+   __import__('effects').preflight_effects(e,actor,actor,effs,uid,consumer='items.use_item')
  if effect['kind'] in ('herb_cure_volatile','herb_reset_lowered'):
   import herb_mushroom_rules as HERB
-  HERB.immediate_preflight(e,actor,buff)
+  HERB.immediate_preflight(e,actor,dict(buff,item=item or buff['item'],effect=effect))
  if effect['kind']=='stat_suppression':
   import vitamin_moves as V
   if V.owner_consent(e,actor,owner_consent_by) is None:return C.PendingDecision('Suppressant Berry needs the actual current owner choice before its effect')
- elif owner_consent_by is not None:raise ValueError('owner suppression choice requires a Suppressant Berry')
  if effect.get('berry') and effect['kind']!='stat_suppression' and not ignore_conditions:
   import boss_transitions as BOSS
-  condition_ok=effect['kind']=='cure' and BOSS.condition_variant(actor,effect['status']) in actor.conditions
+  condition_ok=(effect['kind']=='cure' and BOSS.condition_variant(actor,effect['status']) in actor.conditions) or effect['kind']=='berry_cure_any' and BOSS.condition_variant(actor,choices.get('condition')) in actor.conditions
   if actor.hp*2>actor.base_max_hp and not condition_ok:raise ValueError('Berry requires HP at most half true maximum or its curable status')
  if effect['kind']=='turn_heal' and not e.encounter_active:return C.PendingDecision('turn healing needs actual encounter timing')
  return None
@@ -762,8 +802,9 @@ def _immediate_part_preflight(e,actor,buff,effect,*,ignore_conditions=False,owne
 
 def immediate_preflight(e,actor,buff,*,ignore_conditions=False,owner_consent_by=None):
  consumption_allowed(e,actor,buff)
- for _,effect in _immediate_parts(buff):
-  pending=_immediate_part_preflight(e,actor,buff,effect,ignore_conditions=ignore_conditions,owner_consent_by=owner_consent_by)
+ if owner_consent_by is not None and not _has_suppression(buff):raise ValueError('owner suppression choice requires a Suppressant Berry')
+ for item,effect in _immediate_parts(buff):
+  pending=_immediate_part_preflight(e,actor,buff,effect,item=item,ignore_conditions=ignore_conditions,owner_consent_by=owner_consent_by)
   if pending is not None:return pending
  import combat_stage_sources as STAGES
  STAGES.validate(actor)
@@ -775,20 +816,65 @@ def _apply_immediate(e,actor,buff,effect,reason,receipt,result,owner_consent_by,
  item=buff['item'] if item is None else item
  effect_source=buff['effect_source'] if effect_source is None else effect_source
  if effect['kind']=='heal':result['healed']=e.heal(actor,effect['amount'],source_kind='ordinary_item')
+ elif effect['kind']=='stage_change':
+  before=actor.stages[effect['stat']]
+  e.change_stage(actor,effect['stat'],effect['delta'])
+  result.update(stat=effect['stat'],requested_delta=effect['delta'],actual_delta=actor.stages[effect['stat']]-before)
+ elif effect['kind']=='berry_random_stage':
+  import combat_stage_sources as STAGES
+  stat=e.rng.choice(STAGES.STATS)
+  before=actor.stages[stat];e.change_stage(actor,stat,effect['delta'])
+  result.update(stat=stat,requested_delta=effect['delta'],actual_delta=actor.stages[stat]-before)
+ elif effect['kind']=='berry_cure_any':
+  condition=receipt['berry_choices']['condition']
+  import boss_transitions as BOSS
+  stored=BOSS.condition_variant(actor,condition);before=stored in actor.conditions
+  e.cure_status(actor,condition);result.update(condition=condition,cured=before and stored not in actor.conditions)
+ elif effect['kind']=='berry_scene_move':
+  import frequency as FREQ
+  mid=receipt['berry_choices']['move_id'];owner,kind=FREQ.preflight_restore_move_use(e,actor,mid)
+  before=owner.move_uses[mid];FREQ.restore_scene_use(e,actor,mid)
+  result.update(move_id=mid,restored=before-owner.move_uses[mid],frequency_owner_id=owner.entity_id)
+ elif effect['kind']=='berry_accuracy':
+  import effects as FX
+  before=actor.accuracy_stage
+  FX.h_accuracy_mod(e,actor,actor,{'type':'accuracy_mod','value':effect['delta']},{'source_id':item})
+  result.update(requested_delta=effect['delta'],actual_delta=actor.accuracy_stage-before)
+ elif effect['kind']=='berry_flavor':
+  disposition=_flavor_disposition(actor,effect['flavor']);edition=receipt.get('berry_choices',{}).get('flavor_edition')
+  heal=disposition!='disliked' or edition=='core_en_1_05'
+  result.update(disposition=disposition,flavor=effect['flavor'],edition=edition or 'agreeing_printed_effect')
+  result['healed']=e.heal(actor,M.ratio(actor.base_max_hp,6 if disposition=='liked' else 8),source_kind='ordinary_item') if heal else 0
+  result['confusion_applied']=bool(e.apply_status(actor,'혼란',source=item,applied_by=actor)) if disposition=='disliked' else False
+ elif effect['kind']=='berry_critical':
+  import state_grants as G,combat_timing as TIMING
+  source=G.effect_source(actor,{'source_id':item,'effect_occurrence':buff['id']},'critical')
+  G._source(actor,source,'effect',owner_id=actor.entity_id,rule_id=item,lifetime='encounter_end')
+  modifier={'type':'crit_range','delta':effect['delta']}
+  G.apply_owned(e,actor,source,lambda:actor.modifiers.append(modifier))
+  TIMING.install(e,actor,{'source':item,'effect_contract':True,'berry_critical':True,'buff_id':buff['id'],'receipt_sequence':receipt['sequence'],'grant_source':source,'encounter_end':True})
+  result.update(delta=effect['delta'],grant_source=source,until='encounter_end')
  elif effect['kind']=='cure':
   import boss_transitions as BOSS
   stored=BOSS.condition_variant(actor,effect['status'])
   before=stored in actor.conditions;e.cure_status(actor,effect['status']);result['cured']=before and stored not in actor.conditions
  elif effect['kind'] in ('herb_cure_volatile','herb_reset_lowered'):
   import herb_mushroom_rules as HERB
-  result.update(HERB.immediate_commit(e,actor,buff))
+  result.update(HERB.immediate_commit(e,actor,dict(buff,item=item,effect=effect)))
+ elif effect['kind']=='native_consumable':
+  import herb_mushroom_rules as HERB
+  if item in HERB.MUSHROOMS:result.update(HERB.apply_mushroom(e,actor,item,effect['origin_body']['plan']))
+  else:
+   import items as ITEMS
+   effs,header=e.r.item_effects(item)
+   result['native_result']=ITEMS.apply_immediate_effects(e,actor,actor,item,effs,header)
  elif effect['kind']=='stat_suppression':
   import growth_stats as GROWTH,vitamin_moves as V
   owner_id=V.owner_consent(e,actor,owner_consent_by)
-  GROWTH.apply_vitamin(actor,effect['stat'],source=buff['item'],delta=-1)
+  GROWTH.apply_vitamin(actor,effect['stat'],source=item,delta=-1)
   if actor.spec.get('species'):
    from builder import record_allocation
-   record_allocation(e.r,actor.spec,'stat_suppression',source=buff['item'],item=buff['item'],
+   record_allocation(e.r,actor.spec,'stat_suppression',source=item,item=item,
                      actor_id=actor.entity_id,owner_id=owner_id,stat=effect['stat'],delta=-1,
                      applied_at=e.elapsed_seconds,buff_id=buff['id'],item_stock=receipt.get('item_stock'))
   result.update(stat=effect['stat'],delta=-1,owner_id=owner_id)
@@ -805,15 +891,25 @@ def _apply_immediate(e,actor,buff,effect,reason,receipt,result,owner_consent_by,
  return result
 
 
-def _apply_composite_rest(e,actor,buff,receipt,reason):
+def _apply_composite_rest(e,actor,buff,receipt,reason,owner_consent_by=None):
  """After a trigger-bound trade-in, the other Dumplings ingredient effects apply at once."""
  import chef_cooking as CHEF
  rows=[]
  for part in CHEF.immediate_components(buff):
   row={'item':part['item'],'kind':part['effect']['kind']}
-  _apply_immediate(e,actor,buff,part['effect'],reason,receipt,row,None,item=part['item'],effect_source=part['item'])
+  _apply_immediate(e,actor,buff,part['effect'],reason,receipt,row,owner_consent_by,item=part['item'],effect_source=part['item'])
   rows.append(row)
  return rows
+
+
+def _berry_composite_preflight(e,actor,buff,owner_consent_by=None):
+ if buff['effect'].get('kind')!='chef_composite':return None
+ import chef_cooking as CHEF
+ for part in CHEF.immediate_components(buff):
+  if part['effect']['kind'] in BERRY_IMMEDIATE:
+   pending=_immediate_part_preflight(e,actor,buff,part['effect'],item=part['item'],owner_consent_by=owner_consent_by)
+   if pending is not None:return pending
+ return None
 
 
 def immediate_commit(e,actor,buff,*,producer,reason,ignore_conditions=False,owner_consent_by=None):
@@ -872,16 +968,17 @@ def _chef_apply_dislike(e,actor,buff,disposition):
  return bool(e.apply_status(actor,'난동',source=buff['item'],applied_by=actor))
 
 
-def _chef_prepare(e,actor,buff):
+def _chef_prepare(e,actor,buff,owner_consent_by=None):
  effect=_chef_payload(buff);trigger=effect['trigger']
- if trigger=='self_activation':return _chef_activate_sweet(e,actor,buff)
+ if trigger=='self_activation':return _chef_activate_sweet(e,actor,buff,owner_consent_by)
  key=CHEF_ATTACK_CHOICE if trigger=='attack' else CHEF_RECEIVED_CHOICE
  if key in actor.spec:raise ValueError('one optional Chef Digestion Buff choice per attack role required')
  actor.spec[key]={'buff_id':buff['id'],'item':buff['item'],'trigger':trigger}
+ if _has_suppression(buff):actor.spec[key]['owner_id']=owner_consent_by.entity_id
  return {'status':'prepared_for_actual_'+trigger,'buff_id':buff['id'],'item':buff['item']}
 
 
-def _chef_activate_sweet(e,actor,buff):
+def _chef_activate_sweet(e,actor,buff,owner_consent_by=None):
  if not e.encounter_active:return C.PendingDecision("Chef next-turn modifiers require an actual encounter turn boundary")
  effect=_chef_payload(buff);benefit=effect['benefit']
  if effect['trigger']!='self_activation' or benefit.get('type')!='timed_modifiers':raise ValueError('selected Chef buff is not self-activated')
@@ -900,19 +997,20 @@ def _chef_activate_sweet(e,actor,buff):
  receipt['benefit']={'kind':'timed_modifiers','effect_id':effect_id,'evasion':benefit['evasion'],
                      'accuracy':benefit['liked_accuracy'] if disposition=='liked' else 0,
                      'disposition':disposition,'rampage_applied':rampage,'until':benefit['lifetime']}
- receipt['benefit']['composite']=_apply_composite_rest(e,actor,buff,receipt,'Chef self-activation')
+ receipt['benefit']['composite']=_apply_composite_rest(e,actor,buff,receipt,'Chef self-activation',owner_consent_by)
  return {'status':'consumed','buff_id':buff['id'],**receipt['benefit']}
 
 
 def _chef_choice(actor,key,trigger,move):
  choice=actor.spec.get(key)
  if choice is None:return None
- if not isinstance(choice,dict) or set(choice)!={'buff_id','item','trigger'} or choice.get('trigger')!=trigger:raise ValueError('typed Chef attack choice required')
+ if not isinstance(choice,dict) or set(choice) not in ({'buff_id','item','trigger'},{'buff_id','item','trigger','owner_id'}) or choice.get('trigger')!=trigger:raise ValueError('typed Chef attack choice required')
  buff=get_buff(actor,choice.get('buff_id'));payload=_chef_payload(buff)
  if choice['item']!=buff['item'] or payload.get('kind')!='chef_snack' or payload.get('trigger')!=trigger:raise ValueError('Chef attack choice changed before consumption')
+ if ('owner_id' in choice)!=_has_suppression(buff):raise ValueError('Chef composite owner choice differs from its Suppressant Berry')
  attack_class=payload.get('attack_class')
  if attack_class is not None and move.get('class')!=attack_class:return None
- return {'buff_id':buff['id'],'item':buff['item'],'trigger':trigger,
+ return {'buff_id':buff['id'],'item':buff['item'],'trigger':trigger,**({'owner_id':choice['owner_id']} if 'owner_id' in choice else {}),
          'benefit_type':payload['benefit']['type']}
 
 
@@ -924,6 +1022,11 @@ def chef_attack_preflight(e,attacker,target,move,*,temporary_hp_plans=None):
  for actor,plan in ((attacker,outgoing),(target,incoming)):
   if plan is None:continue
   buff=get_buff(actor,plan['buff_id']);consumption_allowed(e,actor,buff)
+  pending=_berry_composite_preflight(e,actor,buff,_suppression_choice_owner(e,actor,plan))
+  if pending is not None:raise ValueError(str(pending))
+  if _has_suppression(buff):
+   import vitamin_moves as V
+   if V.owner_consent(e,actor,_suppression_choice_owner(e,actor,plan)) is None:raise ValueError('Chef composite requires its actual current owner consent')
   value,disposition=_chef_value(actor,_chef_payload(buff))
   if plan['benefit_type']=='temporary_hp':
    import temporary_hp as TEMP_HP
@@ -941,6 +1044,7 @@ def chef_attack_preflight(e,attacker,target,move,*,temporary_hp_plans=None):
 def _chef_commit_one(e,actor,other,move,plan):
  buff=get_buff(actor,plan['buff_id']);effect=_chef_payload(buff);value,disposition=_chef_value(actor,effect)
  if value!=plan['value'] or disposition!=plan['disposition']:raise ValueError('Chef taste state changed during the attack')
+ owner=_suppression_choice_owner(e,actor,plan)
  receipt=remove_buff(e,actor,buff,producer='actual_attack')
  benefit={'kind':plan['benefit_type'],'amount':value,'disposition':disposition,'move_id':move['id'],
           'move_class':move['class'],'other_actor_id':other.entity_id}
@@ -953,7 +1057,7 @@ def _chef_commit_one(e,actor,other,move,plan):
    provenance={'source':buff['item'],'receipt_sequence':receipt['sequence'],'buff_id':buff['id']})
  rampage=_chef_apply_dislike(e,actor,buff,disposition);benefit['rampage_applied']=rampage
  receipt['benefit']=benefit
- benefit['composite']=_apply_composite_rest(e,actor,buff,receipt,'Chef attack trade-in')
+ benefit['composite']=_apply_composite_rest(e,actor,buff,receipt,'Chef attack trade-in',owner)
  import chef_cooking as CHEF
  benefit['taste_bonus']=CHEF.apply_taste_bonus(e,actor,buff,receipt)
  return benefit
@@ -988,17 +1092,35 @@ def validate_actor_state(actor):
  CSV.validate_actor(actor)
  import herb_mushroom_rules as HERB
  HERB.validate_power_herb_choice(actor)
+ choice=actor.spec.get(BERRY_CHOICE)
+ if choice is not None:
+  if type(choice) is not dict or set(choice)!={'buff_id','choices'}:raise ValueError('typed actual Berry choices required')
+  _berry_choices(get_buff(actor,choice['buff_id']),choice['choices'])
+ for key,kind in ((BERRY_HIT_CHOICE,'berry_reactive'),(BERRY_PRIORITY_CHOICE,'berry_priority')):
+  row=actor.spec.get(key)
+  if row is None:continue
+  allowed={'buff_id'} if key==BERRY_HIT_CHOICE else {'buff_id','move_id'}
+  if type(row) is not dict or set(row) not in (allowed,allowed|{'owner_id'}):raise ValueError('typed actual Berry event selection required')
+  buff=get_buff(actor,row['buff_id'])
+  if _consumer_effect(buff)['kind']!=kind:raise ValueError('Berry event selection changed its native payload')
+  if ('owner_id' in row)!=_has_suppression(buff):raise ValueError('Berry event owner selection differs from its actual Suppressant component')
+  if key==BERRY_PRIORITY_CHOICE and row['move_id'] not in actor.moves:raise ValueError('Custap selection needs an actual owned Move')
  chosen=[]
  for key,trigger in ((CHEF_ATTACK_CHOICE,'attack'),(CHEF_RECEIVED_CHOICE,'received_attack')):
   choice=actor.spec.get(key)
   if choice is None:continue
-  if not isinstance(choice,dict) or set(choice)!={'buff_id','item','trigger'} or choice.get('trigger')!=trigger:raise ValueError('typed Chef attack choice required')
+  if not isinstance(choice,dict) or set(choice) not in ({'buff_id','item','trigger'},{'buff_id','item','trigger','owner_id'}) or choice.get('trigger')!=trigger:raise ValueError('typed Chef attack choice required')
   buff=get_buff(actor,choice.get('buff_id'));payload=_chef_payload(buff)
   if choice['item']!=buff['item'] or payload.get('kind')!='chef_snack' or payload.get('trigger')!=trigger:raise ValueError('Chef choice and actual Digestion Buff disagree')
+  if ('owner_id' in choice)!=_has_suppression(buff):raise ValueError('Chef composite owner choice differs from its Suppressant Berry')
+  if 'owner_id' in choice:INSTANCES.text(choice['owner_id'],'Chef composite owner identity')
   if buff['id'] in chosen:raise ValueError('one Chef Digestion Buff cannot fill two attack roles')
   chosen.append(buff['id'])
  import combat_timing as TIMING
  for record in TIMING.records(actor):
+  if record.get('berry_critical'):
+   _validate_critical_berry(actor,record)
+   continue
   if record.get('csv_sweet'):
    _validate_csv_sweet(actor,record)
    continue
@@ -1017,6 +1139,36 @@ def validate_actor_state(actor):
  return True
 
 
+def _berry_choices(buff,choices):
+ if type(choices) is not dict:raise ValueError('explicit Berry choice mapping required')
+ effect=buff['effect'];parts=[p['effect'] for p in effect['components']] if effect.get('kind')=='chef_composite' else [effect]
+ allowed=set()
+ if any(p['kind']=='berry_cure_any' for p in parts):allowed.add('condition')
+ if any(p['kind']=='berry_scene_move' for p in parts):allowed.add('move_id')
+ if any(p['kind']=='berry_flavor' for p in parts):allowed.add('flavor_edition')
+ if set(choices)-allowed:raise ValueError('Berry choice has no corresponding actual ingredient effect')
+ for value in choices.values():INSTANCES.text(value,'selected actual Berry target')
+ if 'flavor_edition' in choices and choices['flavor_edition'] not in ('kr_book','core_en_1_05'):raise ValueError('exact printed Treat Berry edition required')
+ return deepcopy(choices)
+
+
+def _validate_critical_berry(actor,record):
+ allowed={'source','effect_contract','berry_critical','buff_id','receipt_sequence','grant_source','encounter_end','owned_statuses','installing'}
+ if set(record)-allowed or record.get('source')!='item/랑사열매' or record.get('effect_contract') is not True or record.get('berry_critical') is not True or record.get('encounter_end') is not True:raise ValueError('actual Lansat encounter lifetime required')
+ receipts=[r for r in actor.spec.get('food_consumption_receipts',[]) if r.get('buff_id')==record.get('buff_id') and r.get('sequence')==record.get('receipt_sequence')]
+ if len(receipts)!=1:raise ValueError('Lansat critical range needs its actual consumed parent')
+ receipt=receipts[0];benefit=receipt.get('benefit',{})
+ rows=[benefit,*benefit.get('components',[]),*benefit.get('composite',[])]
+ matching=[r for r in rows if r.get('grant_source')==record.get('grant_source') and r.get('delta')==1 and r.get('until')=='encounter_end']
+ if len(matching)!=1:raise ValueError('Lansat critical range differs from its actual receipt')
+ effects=[receipt['effect']] if receipt['effect'].get('kind')!='chef_composite' else [p['effect'] for p in receipt['effect']['components'] if p['item']==record['source']]
+ if snack_effect(actor.r,record['source']) not in effects:raise ValueError('Lansat receipt has another source payload')
+ import state_grants as G
+ source=record['grant_source'];row=G.state(actor)['sources'].get(source,{})
+ modifiers=[m for m in actor.modifiers if m.get(G.TAG)==source]
+ if row.get('rule_id')!=record['source'] or row.get('owner_id')!=actor.entity_id or row.get('lifetime')!='encounter_end' or modifiers!=[{'type':'crit_range','delta':1,G.TAG:source}]:raise ValueError('Lansat critical contribution lost its source ownership')
+
+
 def _validate_csv_sweet(actor,record):
  allowed={'source','effect_contract','csv_sweet','effect_id','buff_id','turn_owner','turn_deadline','encounter_end','evasion_modifier','owned_statuses','installing'}
  if set(record)-allowed or record.get('source')!='item/단맛-과자' or record.get('effect_contract') is not True or record.get('turn_owner') is not actor or record.get('encounter_end') is not True:raise ValueError('typed CSV Sweet lifetime required')
@@ -1033,16 +1185,28 @@ def _validate_csv_sweet(actor,record):
 def validate_world(engine,index):
  import csv_item_food_contracts as CSV
  CSV.validate_world(engine,index)
+ import chef_cooking as CHEF
+ CHEF.validate_world(engine,index)
  for actor in index.values():
   validate_actor_state(actor)
+  for key in (*CHEF_CHOICE_KEYS,'food_hit_choice','food_move_choice',BERRY_HIT_CHOICE,BERRY_PRIORITY_CHOICE):
+   choice=actor.spec.get(key,{})
+   if 'owner_id' in choice:
+    import vitamin_moves as V
+    if V.owner_consent(engine,actor,index.get(choice['owner_id'])) is None:raise ValueError('food choice needs its actual current owner')
   import combat_timing as TIMING
   for record in TIMING.records(actor):
    if record.get('chef_snack') and index.get(record['turn_owner'].entity_id) is not record['turn_owner']:raise ValueError('Chef timed effect turn owner is missing')
  return True
 
-def _suppression_choice_owner(e,actor):
+def _has_suppression(buff):
+ effect=buff['effect']
+ return effect.get('kind')=='stat_suppression' or effect.get('kind')=='chef_composite' and any(part['effect'].get('kind')=='stat_suppression' for part in effect['components'])
+
+
+def _suppression_choice_owner(e,actor,choice=None):
  import world_entities as W
- choice=actor.spec.get('food_move_choice',{})
+ choice=actor.spec.get('food_move_choice',{}) if choice is None else choice
  return W.actor_index(e).get(choice.get('owner_id'))
 
 
@@ -1070,34 +1234,59 @@ def move_consumption_commit(e,actor,move_id):
  return immediate_commit(e,actor,buff,producer=move_id,reason='source Move exchanges actual food buff',ignore_conditions=True,owner_consent_by=_suppression_choice_owner(e,actor))
 
 
-def consume_buff(e,actor,*,buff_id,action_kind=None,action_reason=None,save_condition=None,move_id=None,legacy_reason=None,owner_consent_by=None):
+def consume_buff(e,actor,*,buff_id,action_kind=None,action_reason=None,save_condition=None,move_id=None,legacy_reason=None,owner_consent_by=None,berry_choices=None):
  if legacy_reason is not None:
-  if any(v is not None for v in (action_kind,action_reason,save_condition,move_id,owner_consent_by)):raise ValueError('reconcile the observed legacy source before choosing its native consumer')
+  if any(v is not None for v in (action_kind,action_reason,save_condition,move_id,owner_consent_by,berry_choices)):raise ValueError('reconcile the observed legacy source before choosing its native consumer')
   import csv_item_food_contracts as CSV
   return CSV.adopt_legacy(e,actor,buff_id,reason=legacy_reason)
  buff=get_buff(actor,buff_id)
- if buff['effect'].get('kind')=='stat_suppression':
+ if _has_suppression(buff):
   import vitamin_moves as V,world_entities as W,state_grants as GRANTS
   owner_id=V.owner_consent(e,actor,owner_consent_by)
-  return GRANTS.transition(e,actor,lambda staged,a:_consume_buff(staged,a,buff_id=buff_id,action_kind=action_kind,action_reason=action_reason,save_condition=save_condition,move_id=move_id,owner_consent_by=W.actor_index(staged).get(owner_id)))
+  return GRANTS.transition(e,actor,lambda staged,a:_consume_buff(staged,a,buff_id=buff_id,action_kind=action_kind,action_reason=action_reason,save_condition=save_condition,move_id=move_id,owner_consent_by=W.actor_index(staged).get(owner_id),berry_choices=berry_choices))
  if owner_consent_by is not None:raise ValueError('owner suppression choice requires a Suppressant Berry')
- if buff['effect'].get('kind') not in ('chef_snack','chef_composite','herb_cure_volatile','herb_reset_lowered','herb_skip_setup'):return _consume_buff(e,actor,buff_id=buff_id,action_kind=action_kind,action_reason=action_reason,save_condition=save_condition,move_id=move_id)
+ if berry_choices is None and buff['effect'].get('kind') not in ('chef_snack','chef_composite','stage_change','herb_cure_volatile','herb_reset_lowered','herb_skip_setup','berry_reactive','berry_priority',*BERRY_IMMEDIATE):return _consume_buff(e,actor,buff_id=buff_id,action_kind=action_kind,action_reason=action_reason,save_condition=save_condition,move_id=move_id)
  import state_grants as GRANTS
- return GRANTS.transition(e,actor,lambda staged,a:_consume_buff(staged,a,buff_id=buff_id,action_kind=action_kind,action_reason=action_reason,save_condition=save_condition,move_id=move_id))
+ return GRANTS.transition(e,actor,lambda staged,a:_consume_buff(staged,a,buff_id=buff_id,action_kind=action_kind,action_reason=action_reason,save_condition=save_condition,move_id=move_id,berry_choices=berry_choices))
 
 
-def _consume_buff(e,actor,*,buff_id,action_kind=None,action_reason=None,save_condition=None,move_id=None,owner_consent_by=None):
+def _consume_buff(e,actor,*,buff_id,action_kind=None,action_reason=None,save_condition=None,move_id=None,owner_consent_by=None,berry_choices=None):
  import movement_actions as MOVEMENT
  MOVEMENT.boundary(e,'consume_food_buff')
  buff=get_buff(actor,buff_id);consumption_allowed(e,actor,buff)
  import chef_cooking as CHEF
  pending=CHEF.taste_bonus_preflight(e,actor,buff)
  if pending is not None:return pending
+ if berry_choices is not None:
+  choices=_berry_choices(buff,berry_choices)
+  prior=actor.spec.get(BERRY_CHOICE)
+  if prior is not None and prior['buff_id']!=buff_id:raise ValueError('one actual selected Berry buff at a time')
+  actor.spec[BERRY_CHOICE]={'buff_id':buff_id,'choices':choices}
  effect=_consumer_effect(buff)
+ if _has_suppression(buff):
+  import vitamin_moves as V
+  if V.owner_consent(e,actor,owner_consent_by) is None:return C.PendingDecision('Suppressant Berry needs the actual current owner choice before its effect')
+ if effect['kind']=='berry_ingredient':return C.PendingDecision('Poffin Ingredient is consumed as an actual physical cooking input, not a combat benefit')
+ if effect['kind'] in ('chef_snack','type_resistance','herb_skip_setup','berry_reactive','berry_priority'):
+  pending=_berry_composite_preflight(e,actor,buff,owner_consent_by)
+  if pending is not None:return pending
+ if effect['kind'] in ('berry_reactive','berry_priority'):
+  if any(v is not None for v in (action_kind,action_reason,save_condition)):raise ValueError('Berry event is exchanged only in its actual native hit or Priority Move')
+  key=BERRY_HIT_CHOICE if effect['kind']=='berry_reactive' else BERRY_PRIORITY_CHOICE
+  if key in actor.spec:raise ValueError('one selected actual Berry event buff at a time')
+  row={'buff_id':buff_id}
+  if effect['kind']=='berry_priority':
+   if move_id not in actor.moves:raise ValueError('Custap Berry requires one actual owned selected Move')
+   if actor.hp*4>actor.base_max_hp:raise ValueError('Custap Berry requires HP at most one quarter true maximum')
+   row['move_id']=move_id
+  elif move_id is not None:raise ValueError('reactive Berry has no chosen outgoing Move')
+  if _has_suppression(buff):row['owner_id']=owner_consent_by.entity_id
+  actor.spec[key]=row
+  return {'status':'prepared_for_actual_hit' if key==BERRY_HIT_CHOICE else 'prepared_for_actual_priority','buff_id':buff_id,**({'move_id':move_id} if move_id is not None else {})}
  if effect['kind']=='herb_skip_setup':
   if any(value is not None for value in (action_kind,action_reason,save_condition)):raise ValueError('Power Herb is exchanged within its actual Set-Up Move')
   import herb_mushroom_rules as HERB
-  return HERB.prepare_power_herb(e,actor,buff,move_id)
+  return HERB.prepare_power_herb(e,actor,buff,move_id,owner_consent_by)
  if effect['kind']=='csv_food':
   if effect.get('contract_kind')!='sweet_confection_homebrew':raise ValueError('this CSV Digestion Buff needs its actual designated native consumer')
   if any(value is not None for value in (action_kind,action_reason,save_condition,move_id)):raise ValueError('CSV Sweet uses its own self-activation consumer')
@@ -1105,7 +1294,7 @@ def _consume_buff(e,actor,*,buff_id,action_kind=None,action_reason=None,save_con
   return CSV.activate_sweet(e,actor,buff_id)
  if effect['kind']=='chef_snack':
   if any(value is not None for value in (action_kind,action_reason,save_condition,move_id)):raise ValueError('Chef Digestion Buff uses only its exact attack or self-activation consumer')
-  return _chef_prepare(e,actor,buff)
+  return _chef_prepare(e,actor,buff,owner_consent_by)
  if move_id is not None:
   if move_id!=STUFF_CHEEKS or action_kind is not None or action_reason is not None or save_condition is not None:raise ValueError('source Move choice adds no separate action or saving event')
   selected(e,move_id)
@@ -1113,7 +1302,7 @@ def _consume_buff(e,actor,*,buff_id,action_kind=None,action_reason=None,save_con
   pending=immediate_preflight(e,actor,buff,ignore_conditions=True,owner_consent_by=owner_consent_by)
   if isinstance(pending,C.PendingDecision):return pending
   actor.spec['food_move_choice']={'move_id':move_id,'buff_id':buff_id}
-  if effect['kind']=='stat_suppression':actor.spec['food_move_choice']['owner_id']=owner_consent_by.entity_id
+  if _has_suppression(buff):actor.spec['food_move_choice']['owner_id']=owner_consent_by.entity_id
   return {'status':'prepared_for_actual_move','move_id':move_id,'buff_id':buff_id}
  if effect['kind']=='save_bonus':
   if action_kind is not None or action_reason is not None:raise ValueError('exchange during an actual save adds no separate invented action')
@@ -1127,6 +1316,7 @@ def _consume_buff(e,actor,*,buff_id,action_kind=None,action_reason=None,save_con
   if action_kind is not None or action_reason is not None:raise ValueError('type berry is exchanged within an actual hit, with no separately invented action')
   if 'food_hit_choice' in actor.spec:raise ValueError('one selected actual-hit Digestion Buff choice required')
   actor.spec['food_hit_choice']={'buff_id':buff_id}
+  if _has_suppression(buff):actor.spec['food_hit_choice']['owner_id']=owner_consent_by.entity_id
   return {'status':'prepared_for_actual_hit','buff_id':buff_id,'type':effect['move_type']}
  pending=immediate_preflight(e,actor,buff,owner_consent_by=owner_consent_by)
  if isinstance(pending,C.PendingDecision):return pending
@@ -1199,7 +1389,22 @@ def extended_rest(e,actor):
  actor.spec.pop('herbal_restoratives',None)
 
 
+def _berry_en_source(rules):
+ import chef_cooking as CHEF
+ from source_context import verified_source
+ source=CHEF.definitions(rules)['berry_source']['core_en_source']
+ verified_source(rules,source,label='PTU Core 1.05 Treat Berries and Poffin Mixer',source_root='source-audit')
+ return deepcopy(source)
+
+
 def snack_effect(rules,uid):
+ if uid in BERRY_POLICY_ITEMS:
+  import chef_cooking as CHEF
+  source=CHEF.definitions(rules)['berry_source'];path=Path(rules.root)/source['file']
+  if hashlib.sha256(path.read_bytes()).hexdigest()!=source['sha256']:raise ValueError('reviewed Berry source file changed')
+  lo,hi=source['lines'];excerpt='\n'.join(path.read_text(encoding='utf-8').splitlines()[lo-1:hi])
+  if hashlib.sha256(excerpt.encode()).hexdigest()!=source['excerpt_sha256'] or rules._selected_rule(uid)!=uid:raise ValueError('reviewed Berry source table changed')
+  return deepcopy(source['effects'][uid])
  import vitamin_moves as V
  if uid in V.SUPPRESSANT_BERRIES:
   effects,_=rules.item_effects(uid);stat=V.SUPPRESSANT_BERRIES[uid]
@@ -1210,6 +1415,10 @@ def snack_effect(rules,uid):
  if uid in SNACKS:return deepcopy(SNACKS[uid])
  if uid in CHEF_SNACK_IDS:return chef_effect(rules,uid)
  if uid in BERRY_HEALS:return {'kind':'heal','amount':BERRY_HEALS[uid],'berry':True}
+ if uid in BERRY_STAGES:
+  effects,_=rules.item_effects(uid);stat=BERRY_STAGES[uid]
+  if rules._selected_rule(uid)!=uid or [x for x in effects if x.get('type')=='stage_change']!=[{'type':'stage_change','stat':stat,'delta':1,'target':'target'}] or any(x.get('type') not in ('stage_change','tag') for x in effects):raise ValueError('stage Berry needs its reviewed exact native stat effect')
+  return {'kind':'stage_change','stat':stat,'delta':1,'berry':True}
  if uid in BERRY_CURES:return {'kind':'cure','status':BERRY_CURES[uid],'berry':True}
  if uid in BERRY_TYPES:return {'kind':'type_resistance','move_type':BERRY_TYPES[uid],'requires_super_effective':uid!='item/카리열매','berry':True}
  return None
@@ -1246,9 +1455,106 @@ def hit_resistance(e,actor,move_type,multiplier,*,attacker):
  buff=_hit_resistance_buff(actor,move_type,multiplier,attacker=attacker)
  if buff is None:return 0
  consumption_allowed(e,actor,buff)
+ owner=_suppression_choice_owner(e,actor,choice)
+ pending=_berry_composite_preflight(e,actor,buff,owner)
+ if pending is not None:raise ValueError(str(pending))
+ if _has_suppression(buff):
+  import vitamin_moves as V
+  if V.owner_consent(e,actor,owner) is None:raise ValueError('type Berry composite needs its actual current owner consent')
  receipt=remove_buff(e,actor,buff,producer='actual_hit');receipt['benefit']={'move_type':move_type,'resistance_steps':1}
- receipt['benefit']['composite']=_apply_composite_rest(e,actor,buff,receipt,'type Berry hit')
+ receipt['benefit']['composite']=_apply_composite_rest(e,actor,buff,receipt,'type Berry hit',owner)
  return 1
+
+
+def berry_after_hit(e,attacker,target,move,event,damage_receipt):
+ """Observe only the native finalized application, never a damage preview.
+
+ The actual hit is already committed at this boundary. The selected trade-in,
+ its native response and every composite benefit form one atomic exchange.
+ """
+ choice=target.spec.get(BERRY_HIT_CHOICE)
+ if choice is None or attacker is target:return None
+ buff=get_buff(target,choice['buff_id']);effect=_consumer_effect(buff)
+ if effect['kind']!='berry_reactive':raise ValueError('actual hit Berry payload changed')
+ if event.get('attacker') is not attacker or event.get('target') is not target or event.get('move')!=move:raise ValueError('Berry reaction needs the actual native hit participants')
+ if damage_receipt.get('source')!=move['id'] or damage_receipt.get('damage_class')!=move['class']:raise ValueError('Berry reaction needs the actual finalized Move receipt')
+ actual_type=event.get('actual_damage_type')
+ multiplier=event.get('effective_type_multiplier',event.get('damage_formula',{}).get('multiplier'))
+ if effect.get('attack_class') is not None and effect['attack_class']!=move['class']:return None
+ if effect['trigger']=='super_effective_hit':
+  if not isinstance(actual_type,str) or multiplier is None:
+   e.log('    의문열매: 실제 효과배수 근거 없음, 미선택 버프 유지(중립 상성으로 추정하지 않음)','item/의문열매')
+   return None
+  if multiplier<=1:return None
+ if effect['trigger']=='received_damage':
+  if attacker.side==target.side:return None
+  native=damage_receipt.get('native_damage',{})
+  if max(0,native.get('amount_after_temporary_hp',damage_receipt.get('net_hp_loss',0)))+max(0,damage_receipt.get('net_temporary_hp_loss',0))<=0:return None
+ if target.dead or target.fainted:return None
+ import state_grants as G
+ def apply(staged,actor,foe):
+  current=actor.spec.get(BERRY_HIT_CHOICE)
+  if current!=choice:raise ValueError('actual hit Berry choice changed before exchange')
+  selected_buff=get_buff(actor,current['buff_id']);payload=_consumer_effect(selected_buff)
+  consumption_allowed(staged,actor,selected_buff)
+  owner=_suppression_choice_owner(staged,actor,current)
+  if _has_suppression(selected_buff):
+   import vitamin_moves as V
+   if V.owner_consent(staged,actor,owner) is None:raise ValueError('reactive Berry composite needs its actual current owner choice')
+  pending=_berry_composite_preflight(staged,actor,selected_buff,owner)
+  if pending is not None:raise ValueError(str(pending))
+  if payload.get('action')=='free':ACTION.triggered_free_action(staged,actor,selected_buff['item'])
+  receipt=remove_buff(staged,actor,selected_buff,producer='actual_berry_hit')
+  benefit={'kind':'berry_reactive','move_id':move['id'],'move_class':move['class'],'actual_damage_type':actual_type,
+           'multiplier':multiplier,'attacker_id':foe.entity_id,'damage_receipt':deepcopy(damage_receipt)}
+  if payload['benefit']=='temporary_hp':
+   import temporary_hp as TEMP
+   benefit.update(kind='temporary_hp',amount=M.ratio(actor.base_max_hp,payload['denominator']))
+   receipt['benefit']=benefit
+   benefit['gained']=TEMP.grant(staged,actor,benefit['amount'],
+    contribution_source=TEMP.food_source(actor,'food',receipt),
+    provenance={'source':selected_buff['item'],'receipt_sequence':receipt['sequence'],'buff_id':selected_buff['id']})
+  elif payload['benefit']=='attacker_hp_loss':
+   amount=M.ratio(foe.base_max_hp,payload['denominator']);before=foe.hp
+   staged.lose_hp(foe,amount,source=selected_buff['item'],loss_kind='loss')
+   benefit.update(requested_loss=amount,actual_hp_loss=before-foe.hp)
+  else:
+   before=actor.stages[payload['stat']];staged.change_stage(actor,payload['stat'],payload['delta'])
+   benefit.update(stat=payload['stat'],requested_delta=payload['delta'],actual_delta=actor.stages[payload['stat']]-before)
+  benefit['composite']=_apply_composite_rest(staged,actor,selected_buff,receipt,'actual Berry hit',owner)
+  receipt['benefit']=benefit
+  return deepcopy(benefit)
+ return G.transition(e,target,apply,participants=(attacker,))
+
+
+def priority_berry(e,actor,move_id,*,commit=False):
+ """Preflight the loan; exchange once inside its actual native Move."""
+ choice=actor.spec.get(BERRY_PRIORITY_CHOICE)
+ if choice is None or choice['move_id']!=move_id:return None
+ if commit:
+  import initiative_interrupts as INTERRUPTS
+  current=INTERRUPTS.frame(e)
+  if current is None:return None
+  loan=getattr(e,INTERRUPTS.KEY)['loans'].get(current['loan_id'])
+  if loan is None or loan['source']!='item/애슈열매':return None
+  if (not getattr(e,'_native_move_resolution_depth',0) or current['actor'] is not actor
+      or e._active_turn_actor is not actor or current['mode']!='borrow_turn'
+      or current['status']!='open' or loan['actor'] is not actor
+      or loan['status']!='owed' or loan['due_round']!=e.round_no):
+   raise ValueError('Custap exchange requires its actual current-round native Priority loan')
+ buff=get_buff(actor,choice['buff_id']);effect=_consumer_effect(buff)
+ if effect['kind']!='berry_priority' or move_id not in actor.moves:raise ValueError('Custap needs its actual selected owned Move')
+ if actor.hp*4>actor.base_max_hp:raise ValueError('Custap Berry requires HP at most one quarter true maximum')
+ consumption_allowed(e,actor,buff);owner=_suppression_choice_owner(e,actor,choice)
+ if _has_suppression(buff):
+  import vitamin_moves as V
+  if V.owner_consent(e,actor,owner) is None:raise ValueError('Custap composite needs its actual current owner choice')
+ pending=_berry_composite_preflight(e,actor,buff,owner)
+ if pending is not None:raise ValueError(str(pending))
+ if not commit:return 'item/애슈열매'
+ receipt=remove_buff(e,actor,buff,producer='actual_priority_move')
+ receipt['benefit']={'kind':'ordinary_priority','move_id':move_id,'composite':_apply_composite_rest(e,actor,buff,receipt,'actual ordinary Priority Move',owner)}
+ return 'item/애슈열매'
 
 def _prepare_baby(target,policy):
  if policy is None:return C.PendingDecision('Baby Food book and raw inventory source policies require explicit selection')
@@ -1410,7 +1716,7 @@ def transfer_live(e,recipient,holder,source):
    buff=get_buff(previous,plan['buff_id'])
    INSTANCES.transfer(engine,previous,receiver,buff,source=source,capacity=capacity_from_source(engine.r,source))
    previous.buffs.remove(buff);receiver.buffs.append(buff)
-   for key in ('food_save_choice','food_hit_choice','food_move_choice',*CHEF_CHOICE_KEYS):
+   for key in ('food_save_choice','food_hit_choice','food_move_choice',BERRY_CHOICE,BERRY_HIT_CHOICE,BERRY_PRIORITY_CHOICE,*CHEF_CHOICE_KEYS):
     if previous.spec.get(key,{}).get('buff_id')==plan['buff_id']:previous.spec.pop(key)
   else:
    import frequency as FREQ

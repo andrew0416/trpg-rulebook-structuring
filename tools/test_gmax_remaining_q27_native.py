@@ -39,7 +39,7 @@ class GMaxRemainingQ27Tests(unittest.TestCase):
         target=Combatant(self.r,build_pokemon(self.r,'Pikachu',50,abilities=[],
             moves=['move/몸통박치기','move/울음소리','move/도발'],side='foe',
             extra={'trainer_id':owner.entity_id,'pos':(6,5)}))
-        for c in (source_owner,actor,target,owner):e.gm.add_combatant(c)
+        for c in (source_owner,owner,actor,target):e.gm.add_combatant(c)
         e.gm.observe_loyalty(actor,6,reason='actual current-owner G-Max command willingness')
         e.gm.set_stat(target,'hp',value=300,reason='actual high-HP target for four residual ticks')
         e.gm.set_hp(target,value=target.max_hp,reason='actual initial full target HP')
