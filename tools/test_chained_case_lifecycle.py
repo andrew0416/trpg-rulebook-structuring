@@ -174,6 +174,7 @@ class ChainedCaseLifecycleTests(unittest.TestCase):
         self.assertEqual(published,[]);self.assertEqual(len(poison),1)
 
     def test_existing_59_body_meta_comparison_keeps_debug_contract_and_one_start(self):
+        import io
         from types import SimpleNamespace
         from unittest.mock import patch
         from test_reference_connection_equivalence import _compare_reference_modes
@@ -210,10 +211,9 @@ class ChainedCaseLifecycleTests(unittest.TestCase):
                 self.assertEqual(_compare_reference_modes(Case,names),{
                     'cold':{'main':59,'original_plain_comparator':36},
                     'connected':{'main':19,'original_plain_comparator':36}})
-        result=unittest.TestResult()
         original_start=unittest.TestResult.startTest
         with patch.object(unittest.TestResult,'startTest',autospec=True,side_effect=original_start) as starts:
-            Meta().run(result)
+            result=unittest.TextTestRunner(stream=io.StringIO(),verbosity=0).run(Meta())
         self.assertTrue(result.wasSuccessful(),result.errors+result.failures)
         self.assertEqual(result.testsRun,1);self.assertEqual(starts.call_count,1)
 

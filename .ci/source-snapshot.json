@@ -24,9 +24,9 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "repair130-prerequisites",
+  "active_repair": "repair133-prerequisites",
   "active_repair_scope": "Bounded fresh metadata prerequisites plus exact Root-reviewed affected methods: ordinary395 and typed1029, 1424 unique. Global13800 obligations and sole F118fullrun retained; no previousPASS reuse, no completion credit, phase2 metadata remains pending.",
-  "active_repair_candidate_sha256": "fe431c1eb371c9c0a9ff9b3a24e761fe125b514a5aa0f5e71b065ffd9cbd6c19",
+  "active_repair_candidate_sha256": "38f2bf42b29cba4621740dc2c2170c5f907572e99c53d758b6b05b83d38f1d12",
   "active_repair_required_tests": 395,
   "active_repair_groups": [
     "repair_revisions_01",
