@@ -14,16 +14,16 @@ import urllib.request
 import zipfile
 
 REPOSITORY = 'andrew0416/trpg-rulebook-structuring'
-SOURCE_RUN = 40348500975
+SOURCE_RUN = 40360233235
 SOURCE_ATTEMPT = 1
-SOURCE_HEAD = 'b07ced0943d2bcc51bbbdf4c1a4ce6828d4e85ea'
-ARTIFACT_ID = 12662693080
-ARTIFACT_NAME = 'diagnostics-changed_revisions-40348500975-1'
-ARTIFACT_SHA256 = '83dd561ce459b6de37051e0638275748106f5932f673f62382a8f06f22c207c0'
-ARTIFACT_SIZE = 837783
+SOURCE_HEAD = 'bbf93c891c332670613b73557b758e103898fbe4'
+ARTIFACT_ID = 12668490914
+ARTIFACT_NAME = 'diagnostics-changed_revisions-40360233235-1'
+ARTIFACT_SHA256 = 'f010d7a1bd71800ec94d6d9446a957dc6a6bdfc56aa16b290e1207c75f070488'
+ARTIFACT_SIZE = 810882
 API = 'https://api.github.com/repos/' + REPOSITORY
 PACKET = '.ci/suites/changed_revisions.json'
-STAGE = 'D:/trpg-rulebook-structuring/ci/40348500975-1-changed_revisions'
+STAGE = 'D:/trpg-rulebook-structuring/ci/40360233235-1-changed_revisions'
 STATUSES = {'pass', 'fail', 'error', 'skip', 'expected_failure', 'unexpected_success', 'unverified', 'not_run'}
 EXCEPTIONS = {'AssertionError', 'ValueError', 'TypeError', 'KeyError', 'NameError', 'AttributeError',
               'RuntimeError', 'IndexError', 'ZeroDivisionError', 'UnboundLocalError', 'ImportError',
@@ -103,7 +103,7 @@ def diagnose(root, private, key, token):
             and git(root, 'show', 'HEAD:' + PACKET) == packet_body)
     packet = json.loads(packet_body)
     ids = [uid for row in packet['completed'].values() for uid in row['tests']]
-    require(len(ids) == len(set(ids)) == packet['required_unique_count'] == 67)
+    require(len(ids) == len(set(ids)) == packet['required_unique_count'] == 10)
     require(all(isinstance(uid, str) and re.fullmatch(r'(?:tools|tests)(?:\.[A-Za-z_][A-Za-z0-9_]*){2,}\.test_[A-Za-z0-9_]+', uid) for uid in ids))
     allowed = set(ids)
     rows = {uid: {'id': uid, 'status': 'not_reported', 'exception_classes': [], 'public_frames': []} for uid in ids}
