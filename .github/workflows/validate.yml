@@ -4,13 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       suite:
-        description: Validation scope (changed_revisions is development-only)
+        description: Validation scope (diagnose_existing never reruns native tests)
         type: choice
         required: true
         default: changed_revisions
         options:
           - changed_revisions
           - prepare_reviewed_controls
+          - diagnose_existing
           - metadata_prerequisites
           - final_revisions
           - performance_probe
@@ -74,11 +75,59 @@ jobs:
           $env:TMPDIR = $taskTemp
           $env:RUNNER_TEMP = $taskTemp
           python -B -X utf8 tools/ci_prepare_reviewed_controls.py --root "$env:GITHUB_WORKSPACE" --expected-parent "$env:REVIEWED_PARENT"
+  diagnose_existing:
+    if: >-
+      github.repository == 'andrew0416/trpg-rulebook-structuring' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.suite == 'diagnose_existing' &&
+      startsWith(github.ref, 'refs/heads/codex/')
+    runs-on: windows-2022
+    timeout-minutes: 10
+    concurrency:
+      group: diagnose-fixed-40334904411-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUTF8: '1'
+      CI_SUITE: diagnose_existing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11'
+      - name: Read only the fixed failed run's authenticated small diagnostic
+        shell: pwsh
+        env:
+          PTK_FIXTURE_KEY: ${{ secrets.PTK_FIXTURE_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-existing-diagnostic' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT
+          New-Item -ItemType Directory -Path $taskTemp -Force -ErrorAction Stop | Out-Null
+          $env:TEMP = $taskTemp
+          $env:TMP = $taskTemp
+          $env:TMPDIR = $taskTemp
+          $env:RUNNER_TEMP = $taskTemp
+          python -B -X utf8 tools/ci_diagnose_existing.py --root "$env:GITHUB_WORKSPACE"
+      - name: Preserve only the allowlisted diagnostic summary
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: existing-diagnostic-40334904411-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/ci/existing-diagnostic/summary.json
+          if-no-files-found: warn
+          retention-days: 14
   validate:
     if: >-
       github.repository == 'andrew0416/trpg-rulebook-structuring' &&
       github.event_name == 'workflow_dispatch' &&
       inputs.suite != 'prepare_reviewed_controls' &&
+      inputs.suite != 'diagnose_existing' &&
       (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/codex/'))
     strategy:
       fail-fast: false
@@ -161,5 +210,3 @@ jobs:
             output/ci/remote-h/h-proof.json.enc
           if-no-files-found: warn
           retention-days: 14
-
-
