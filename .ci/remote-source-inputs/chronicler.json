@@ -1,11 +1,1 @@
-{
-  "required_test_ids": [
-    "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_playtest_perception_capped_registration_keeps_bonus_after_native_haze",
-    "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_playtest_choice_uses_actual_perception_evasion_and_preserves_source_cost",
-    "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_playtest_perception_bonus_tracks_owned_source_and_suppression",
-    "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_playtest_actual_ally_area_disengages_one_metre_free_without_opportunity_attack",
-    "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_bilingual_travel_choice_uses_core_perception_and_party_grants_without_frisk",
-    "tools.test_category2_state_grants.StateGrantTests.test_capped_sources_use_declared_contributions_not_observed_deltas",
-    "tools.test_category2_state_grants.StateGrantTests.test_negative_capped_sources_are_reversible"
-  ]
-}
+{"required_test_ids":[]}

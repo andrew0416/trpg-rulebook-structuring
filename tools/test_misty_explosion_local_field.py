@@ -52,7 +52,7 @@ class MistyExplosionLocalFieldTests(unittest.TestCase):
 
     def emit(self,e,a,t,second,*,hit=True):
         with patch.object(Engine,'d20',return_value=10 if hit else 1):
-            e.use_move_on(a,[t,second],MISTY.SOURCE,e.everyone,set_damage=True)
+            e.use_move_on(a,t,MISTY.SOURCE,e.everyone,set_damage=True)
 
     def restored(self,e):
         return Engine.import_state(HP.HPSettingSourceTests.make_rules('core'),

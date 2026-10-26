@@ -1,11 +1,1 @@
-{
-  "completed": [{"tests": [
-    "tools.test_snare_freefloat_source_revision.FreeFloatingApproachTests.test_public_approach_preserves_paid_sprint_rate_and_clears_it_for_later_movement",
-    "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_one_movement_sprint_keeps_paid_rate_across_segments_and_continuation",
-    "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_free_float_paid_path_cannot_reset_native_sky_allowance_each_step",
-    "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_weaker_native_sky_does_not_spend_free_float_speed_in_normal_gravity",
-    "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_approach_planning_uses_actual_owner_and_stays_inside_the_zero_gravity_route",
-    "tools.test_book_athlete_training_regime.TrainingRegimeTests.test_sprint_replaces_half_with_double_for_all_actual_capabilities_and_restore",
-    "tools.test_book_athlete_coaching.AthleteCoachingTests.test_sprint_coaching_doubles_the_actual_sprint_movement_instead_of_half"
-  ]}]
-}
+{"completed":[]}

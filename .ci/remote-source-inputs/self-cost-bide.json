@@ -1,12 +1,1 @@
-{
-  "affected_test_ids_from_156": [
-    "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_public_explosions_pay_one_unpreventable_self_cost_after_all_hits_or_misses",
-    "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_owned_sacrifice_requires_GM_loyalty_magnitude_before_cost_and_applies_once",
-    "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_prepared_sacrifice_choice_survives_native_target_wait_restore_and_tamper_rejection",
-    "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_misty_explosion_selected_negative_half_uses_signed_floor_and_same_marker_boundary",
-    "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_public_misty_explosion_pays_self_cost_after_actual_hit_or_miss",
-    "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_public_final_gambit_separates_capped_HP_loss_positive_faint_and_actual_damage",
-    "tools.test_post_damage_self_stage.PostDamageSelfStageTests.test_both_smite_misses_pay_one_self_drop_with_honest_miss_context"
-  ],
-  "affected_test_ids_from_168": []
-}
+{"affected_test_ids_from_156":[],"affected_test_ids_from_168":[]}
