@@ -1,90 +1,96 @@
 {
   "schema_version": 1,
   "id": "changed_revisions",
-  "purpose": "One reviewed affected ordinary subset; full obligation inventory and historical native/H evidence retained. No metadata65, typed, procedural, or full-scope acceptance claim.",
+  "purpose": "Root-reviewed bounded ordinary scope; no full-run or clause credit",
   "completion_credit": 0,
-  "required_unique_count": 34,
+  "required_unique_count": 36,
   "completed": {
     "tests.test_heavy_standard.Tests": {
       "tests": [
         "tests.test_heavy_standard.Tests.test_001_native_hit_is_one_actual_standard_and_one_loss"
       ]
     },
-    "tools.test_battle_contest_pending.BattleContestPendingTests": {
+    "tools.test_bide_accuracy_source.BideAccuracySourceTests": {
       "tests": [
-        "tools.test_battle_contest_pending.BattleContestPendingTests.test_failed_actual_intercept_credits_only_attackers_original_target_ko",
-        "tools.test_battle_contest_pending.BattleContestPendingTests.test_json_pending_restore_preserves_real_recipient_and_first_center_performance",
-        "tools.test_battle_contest_pending.BattleContestPendingTests.test_recoil_waits_for_real_intercept_and_cold_resume_charges_once",
-        "tools.test_battle_contest_pending.BattleContestPendingTests.test_successful_actual_intercept_credits_actual_recipient_once"
+        "tools.test_bide_accuracy_source.BideAccuracySourceTests.test_real_reaction_and_cold_release_succeed_on_natural_one_without_extra_payment",
+        "tools.test_bide_accuracy_source.BideAccuracySourceTests.test_unmarked_bide_keeps_ordinary_accuracy_and_forged_projection_has_no_native_authority"
       ]
     },
-    "tools.test_book_coordinator_full.CoordinatorFullTests": {
+    "tools.test_book_style_move_dependencies.StyleMoveDependencyTests": {
       "tests": [
-        "tools.test_book_coordinator_full.CoordinatorFullTests.test_tough_boon_prevents_actual_status_weather_recoil_only_that_turn"
+        "tools.test_book_style_move_dependencies.StyleMoveDependencyTests.test_bide_reaction_payments_shift_and_release_count_only_later_damage"
       ]
     },
-    "tools.test_category2_battle_contest.BattleContestTests": {
+    "tools.test_category2_gmax_moves.GMaxMoveTests": {
       "tests": [
-        "tools.test_category2_battle_contest.BattleContestTests.test_native_recoil_fraction_floor_and_completed_restore_do_not_repay",
-        "tools.test_category2_battle_contest.BattleContestTests.test_native_recoil_miss_has_no_loss_or_recall_window",
-        "tools.test_category2_battle_contest.BattleContestTests.test_native_recoil_respects_active_keyword_protection_and_suppression",
-        "tools.test_category2_battle_contest.BattleContestTests.test_native_smite_miss_recoil_uses_actual_positive_damage",
-        "tools.test_category2_battle_contest.BattleContestTests.test_recall_exception_multi_formats_round_limit_and_json_restore",
-        "tools.test_category2_battle_contest.BattleContestTests.test_recoil_knockout_also_marks_the_attackers_replacement"
+        "tools.test_category2_gmax_moves.GMaxMoveTests.test_bide_pending_scope_counts_later_smite_without_turning_miss_into_hit",
+        "tools.test_category2_gmax_moves.GMaxMoveTests.test_gold_rush_mixed_hit_and_smite_miss_keep_distinct_recipients",
+        "tools.test_category2_gmax_moves.GMaxMoveTests.test_printed_smite_half_damage_and_zero_damage_exception_are_native"
       ]
     },
-    "tools.test_frequencies.FrequencyTests": {
+    "tools.test_chronicler_lucky_consumer.ChroniclerLuckyConsumerTests": {
       "tests": [
-        "tools.test_frequencies.FrequencyTests.test_daily_move_cap_persists_across_scene_end",
-        "tools.test_frequencies.FrequencyTests.test_daily_move_once_per_scene_across_turns",
-        "tools.test_frequencies.FrequencyTests.test_scene_end_refreshes_scene_move",
-        "tools.test_frequencies.FrequencyTests.test_scene_move_cannot_repeat_consecutive_turns",
-        "tools.test_frequencies.FrequencyTests.test_scene_move_cannot_repeat_same_turn_even_when_free",
-        "tools.test_frequencies.FrequencyTests.test_scene_move_cap_and_no_action_cost_on_rejection"
+        "tools.test_chronicler_lucky_consumer.ChroniclerLuckyConsumerTests.test_native_lucky_pool_blocks_profiled_critical_damage_once"
       ]
     },
-    "tools.test_offer_frequency_revision.ChefEvasionResetTests": {
+    "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests": {
       "tests": [
-        "tools.test_offer_frequency_revision.ChefEvasionResetTests.test_sour_taste_joins_extra_evasion_cap_and_expires_at_native_stage_reset"
+        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_actual_mold_breaker_critical_bypass_is_selected_active_and_enemy_only",
+        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_bilingual_travel_choice_uses_core_perception_and_party_grants_without_frisk",
+        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_core_actual_ally_area_interrupt_moves_full_shift_and_pays_next_shift_once",
+        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_ordinary_and_suppressed_shell_critical_controls_preserve_source_identity",
+        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_playtest_actual_ally_area_disengages_one_metre_free_without_opportunity_attack",
+        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_playtest_choice_uses_actual_perception_evasion_and_preserves_source_cost",
+        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_playtest_perception_bonus_tracks_owned_source_and_suppression",
+        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_profiled_native_critical_ignores_shell_only_for_archived_target_next_turn",
+        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_selected_playtest_defensive_bypass_variants_keep_their_actual_move_type_limit"
       ]
     },
-    "tools.test_offer_frequency_revision.SceneMoveWorldClockTests": {
+    "tools.test_foe_side_contracts_revision.FoeSideContractTests": {
       "tests": [
-        "tools.test_offer_frequency_revision.SceneMoveWorldClockTests.test_scene_move_uses_world_seconds_and_cap_without_actor_turns_across_restore"
+        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_resistance_berry_live_hit_side_matrix_consumes_only_for_actual_foe",
+        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_resistance_berry_retains_real_grant_on_miss_then_restored_current_foe_hit_consumes_once",
+        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_super_effective_berry_native_wrong_type_neutral_and_foe_hit_boundaries"
       ]
     },
-    "tools.test_offer_frequency_revision.StyleFlourishFrequencyTests": {
+    "tools.test_foe_side_contracts_revision.ResistanceBerryPreparationFoeTests": {
       "tests": [
-        "tools.test_offer_frequency_revision.StyleFlourishFrequencyTests.test_acquired_flourish_branches_have_independent_target_scene_limits_after_restore"
+        "tools.test_foe_side_contracts_revision.ResistanceBerryPreparationFoeTests.test_real_salty_berry_on_ally_hit_does_not_require_foe_consumption_policy"
       ]
     },
-    "tools.test_offer_frequency_revision.TypeAceOfferFrequencyTests": {
+    "tools.test_gmax_protected_recipient.GoldRushProtectedRecipientTests": {
       "tests": [
-        "tools.test_offer_frequency_revision.TypeAceOfferFrequencyTests.test_chitin_exhausted_target_does_not_abort_other_status_move_and_other_target_remains_eligible",
-        "tools.test_offer_frequency_revision.TypeAceOfferFrequencyTests.test_clever_ruse_joins_extra_evasion_cap_and_native_haze_clears_only_its_evasion",
-        "tools.test_offer_frequency_revision.TypeAceOfferFrequencyTests.test_debilitate_native_haze_clears_evasion_but_preserves_accuracy_roll_penalty",
-        "tools.test_offer_frequency_revision.TypeAceOfferFrequencyTests.test_gale_exhaustion_rejects_before_dice_action_or_possible_free_result",
-        "tools.test_offer_frequency_revision.TypeAceOfferFrequencyTests.test_simple_improvements_exhausted_target_starts_turn_and_distinct_target_can_accept"
+        "tools.test_gmax_protected_recipient.GoldRushProtectedRecipientTests.test_substitute_receives_gold_rush_hit_without_new_confusion_or_lost_coins"
       ]
     },
-    "tools.test_post_damage_self_stage.PostDamageSelfStageTests": {
+    "tools.test_native_blessing_range.NativeBlessingRangeTests": {
       "tests": [
-        "tools.test_post_damage_self_stage.PostDamageSelfStageTests.test_additional_area_smite_sources_drop_once_after_all_hit_or_miss_damage",
-        "tools.test_post_damage_self_stage.PostDamageSelfStageTests.test_both_printed_blasts_calculate_all_damage_before_one_self_drop_and_do_not_replay",
-        "tools.test_post_damage_self_stage.PostDamageSelfStageTests.test_both_smite_misses_pay_one_self_drop_with_honest_miss_context",
-        "tools.test_post_damage_self_stage.PostDamageSelfStageTests.test_v_create_pays_each_printed_user_drop_once_after_hit_or_smite_miss",
-        "tools.test_post_damage_self_stage.PostDamageSelfStageTests.test_zero_net_smite_still_has_printed_cost_and_unrelated_normal_miss_has_no_self_boost"
+        "tools.test_native_blessing_range.NativeBlessingRangeTests.test_all_eight_printed_blessings_create_one_pool_and_pay_once_on_map",
+        "tools.test_native_blessing_range.NativeBlessingRangeTests.test_lucky_chant_rejects_foreign_caster_and_keeps_team_pool_after_recall",
+        "tools.test_native_blessing_range.NativeBlessingRangeTests.test_numeric_range_with_blessing_keyword_stays_numeric_and_self_field_stay_distinct"
+      ]
+    },
+    "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests": {
+      "tests": [
+        "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests.test_actual_mounted_dash_pass_applies_one_cost_after_both_recipients",
+        "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests.test_clanging_scales_burst_uses_original_defense_then_one_drop",
+        "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests.test_nonsmite_misses_do_not_gain_after_use_exception_but_substitute_hit_keeps_user_cost"
+      ]
+    },
+    "tools.test_snare_freefloat_source_revision.FreeFloatingTests": {
+      "tests": [
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_disengage_checks_float_destination_before_spending_its_native_action",
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_float_only_sky_cannot_cross_to_normal_or_unobserved_gravity_before_cost",
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_free_float_paid_path_cannot_reset_native_sky_allowance_each_step",
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_full_zero_gravity_keeps_four_speed_and_zero_endpoints_do_not_hide_normal_gap",
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_live_gravity_change_restore_and_unequip_preserve_stronger_native_movement",
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_one_movement_sprint_keeps_paid_rate_across_segments_and_continuation",
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_weaker_native_sky_does_not_spend_free_float_speed_in_normal_gravity"
       ]
     },
     "tools.test_substitute_damage_consumers.SubstituteDamageConsumerTests": {
       "tests": [
-        "tools.test_substitute_damage_consumers.SubstituteDamageConsumerTests.test_coat_damage_recoil_and_self_stage_keep_creature_prevention_and_restore",
-        "tools.test_substitute_damage_consumers.SubstituteDamageConsumerTests.test_intercept_coat_damage_pending_cold_resume_counts_actual_recipient_once"
-      ]
-    },
-    "tools.test_survivalist_traps_source_revision.SurvivalistTrapsSourceRevisionTests": {
-      "tests": [
-        "tools.test_survivalist_traps_source_revision.SurvivalistTrapsSourceRevisionTests.test_deployment_under_a_foe_waits_for_actual_entry_before_consuming_a_metre"
+        "tools.test_substitute_damage_consumers.SubstituteDamageConsumerTests.test_coat_damage_recoil_and_self_stage_keep_creature_prevention_and_restore"
       ]
     }
   }
