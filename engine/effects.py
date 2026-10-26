@@ -277,7 +277,14 @@ def h_hp_loss(engine, a, t, e, ctx):
         __import__('move_completion').apply_recoil_loss(engine,a,e,ctx)
         return
     if __import__('hex_maniac').skip_additional_self_cost(engine,a,e,ctx):return
-    for c in tgt_of(e, a, t):
+    if ctx.get('source_id')=='move/불꽃튀기기':
+        import attack_damage_history as DAMAGE_HISTORY
+        if DAMAGE_HISTORY.native_recipient(engine,a,t,ctx,error='Flame Burst needs its actual primary native hit') is None:
+            raise ValueError('Flame Burst needs its actual primary native hit')
+        recipients=tgt_of(e,a,t,ctx)
+    else:
+        recipients=tgt_of(e,a,t)
+    for c in recipients:
         v = _amount(e.get("value"), c, engine, ctx)
         if v is None:
             return f"value 미해석: {e.get('value')}"
