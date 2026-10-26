@@ -10,6 +10,7 @@ on:
         default: workflow_checks
         options:
           - workflow_checks
+          - ci_adapter_checks
 
 permissions:
   contents: read
@@ -19,6 +20,7 @@ jobs:
     if: >-
       github.repository == 'andrew0416/trpg-rulebook-structuring' &&
       github.event_name == 'workflow_dispatch' &&
+      inputs.suite == 'workflow_checks' &&
       startsWith(github.ref, 'refs/heads/codex/implementation-workflow-')
     runs-on: windows-2022
     timeout-minutes: 15
@@ -83,5 +85,67 @@ jobs:
           path: |
             workflow-checks.json
             workflow-checks.log
+          if-no-files-found: error
+          retention-days: 14
+
+  ci_adapter_checks:
+    if: >-
+      github.repository == 'andrew0416/trpg-rulebook-structuring' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.suite == 'ci_adapter_checks' &&
+      startsWith(github.ref, 'refs/heads/codex/implementation-workflow-')
+    runs-on: windows-2022
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
+      - name: Run retained adapter self-check with synthetic private-policy boundaries
+        shell: pwsh
+        run: |
+          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-adapter-checks' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT
+          New-Item -ItemType Directory -Path $taskTemp -ErrorAction Stop | Out-Null
+          $env:TEMP = $taskTemp
+          $env:TMP = $taskTemp
+          $env:TMPDIR = $taskTemp
+          $env:RUNNER_TEMP = $taskTemp
+          $taskPaths = @('tools/ci_validate.py', 'tools/ci_physical.py', 'tools/ci_physical_selfcheck.py', 'tools/ci_fixtures.mjs')
+          $taskBefore = [ordered]@{}
+          foreach ($taskPath in $taskPaths) { $taskBefore[$taskPath] = (Get-FileHash -Algorithm SHA256 -LiteralPath $taskPath).Hash.ToLowerInvariant() }
+          $taskClock = [Diagnostics.Stopwatch]::StartNew()
+          python -B -X utf8 tools/ci_validate.py --self-check 2>&1 | Tee-Object -FilePath ci-adapter-checks.log
+          $taskExit = $LASTEXITCODE
+          $taskClock.Stop()
+          $taskAfter = [ordered]@{}
+          foreach ($taskPath in $taskPaths) { $taskAfter[$taskPath] = (Get-FileHash -Algorithm SHA256 -LiteralPath $taskPath).Hash.ToLowerInvariant() }
+          $taskUnchanged = ($taskBefore | ConvertTo-Json -Compress) -ceq ($taskAfter | ConvertTo-Json -Compress)
+          $taskResult = [ordered]@{
+            scope = 'synthetic_ci_adapter_self_check_only'
+            clause_credit = 0
+            game_runs = 0
+            actual_private_policy_used = $false
+            git_sha = $env:GITHUB_SHA
+            exit_code = $taskExit
+            elapsed_seconds = $taskClock.Elapsed.TotalSeconds
+            input_sha256 = $taskBefore
+            inputs_unchanged = $taskUnchanged
+            passed = ($taskExit -eq 0 -and $taskUnchanged)
+          }
+          $taskResult | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath ci-adapter-checks.json -Encoding utf8NoBOM
+          if (-not $taskResult.passed) { exit 1 }
+      - name: Preserve synthetic adapter result and exact source pins
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: implementation-adapter-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ci-adapter-checks.json
+            ci-adapter-checks.log
           if-no-files-found: error
           retention-days: 14

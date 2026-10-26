@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -51,6 +53,8 @@ STAGE_PARENT = Path("D:/trpg-rulebook-structuring/ci")
 VERIFIER = "work/reuse-partials/verify_overlay_tests.py"
 BUNDLE = ".ci/fixtures.zip.enc"
 MANIFEST = ".ci/fixtures-manifest.json"
+PRIVATE_POLICY_PATH = "data/ability-exchange-policy.json"
+PRIVATE_POLICY_ENV = "PTK_ABILITY_EXCHANGE_POLICY_B64"
 CI_ENVIRONMENT = (
     "GITHUB_SHA", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT",
     "GITHUB_EVENT_NAME", "RUNNER_OS", "RUNNER_ARCH", "ImageOS", "ImageVersion",
@@ -182,6 +186,24 @@ def fixture_rows(manifest, tracked):
     return by_name
 
 
+def _fixture_destination(root, name, row, *, require_new=False):
+    destination = root / name
+    if not destination.resolve().is_relative_to(root):
+        raise ValueError("Fixture path leaves the checkout")
+    for candidate in (destination, *destination.parents):
+        if candidate == root:
+            break
+        if candidate.is_symlink():
+            raise ValueError("Fixture destination contains a symlink")
+    if require_new and destination.exists():
+        raise ValueError("Private fixture destination already exists")
+    if destination.exists() and (
+            not destination.is_file() or destination.stat().st_size != row["size"]
+            or file_hash(destination) != row["sha256"]):
+        raise ValueError("Existing fixture differs; refusing to overwrite it")
+    return destination
+
+
 def restore_fixtures(root, archive, manifest, tracked):
     rows = fixture_rows(manifest, tracked)
     with zipfile.ZipFile(archive) as bundle:
@@ -200,18 +222,7 @@ def restore_fixtures(root, archive, manifest, tracked):
             row = rows[name]
             if info.file_size != row["size"]:
                 raise ValueError("ZIP size differs from fixture manifest")
-            destination = root / name
-            if not destination.resolve().is_relative_to(root):
-                raise ValueError("Fixture path leaves the checkout")
-            for candidate in (destination, *destination.parents):
-                if candidate == root:
-                    break
-                if candidate.is_symlink():
-                    raise ValueError("Fixture destination contains a symlink")
-            if destination.exists() and (
-                    not destination.is_file() or destination.stat().st_size != row["size"]
-                    or file_hash(destination) != row["sha256"]):
-                raise ValueError("Existing fixture differs; refusing to overwrite it")
+            _fixture_destination(root, name, row)
         # ZIP contents are authenticated before this function is called.
         for name, info in entries.items():
             row = rows[name]
@@ -224,6 +235,41 @@ def restore_fixtures(root, archive, manifest, tracked):
                 with destination.open("xb") as stream:
                     stream.write(content)
     return {name: row["sha256"] for name, row in rows.items()}
+
+
+def private_policy_rows(manifest, bundled_manifest, tracked):
+    rows = fixture_rows(manifest, tracked)
+    if set(rows) != {PRIVATE_POLICY_PATH} or rows[PRIVATE_POLICY_PATH]["size"] > 16384:
+        raise ValueError("Private policy manifest must declare the one small policy input")
+    # Reuse the same case-insensitive collision rules across both private channels.
+    fixture_rows({"version": 1, "files": [*bundled_manifest["files"], *manifest["files"]]}, tracked)
+    return rows
+
+
+def restore_private_policy(root, encoded, manifest, bundled_manifest, tracked):
+    rows = private_policy_rows(manifest, bundled_manifest, tracked)
+    row = rows[PRIVATE_POLICY_PATH]
+    if not isinstance(encoded, str) or len(encoded) != 4 * ((row["size"] + 2) // 3):
+        raise ValueError("Private policy secret is missing or has an invalid encoded size")
+    try:
+        content = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError, UnicodeError):
+        raise ValueError("Private policy secret is not strict Base64") from None
+    if (base64.b64encode(content).decode("ascii") != encoded
+            or len(content) != row["size"]
+            or hashlib.sha256(content).hexdigest() != row["sha256"]):
+        raise ValueError("Private policy bytes differ from the tracked manifest")
+    try:
+        document = json.loads(content.decode("utf-8"))
+    except (UnicodeError, ValueError):
+        raise ValueError("Private policy must be a UTF-8 JSON object") from None
+    if not isinstance(document, dict):
+        raise ValueError("Private policy must be a UTF-8 JSON object")
+    destination = _fixture_destination(root, PRIVATE_POLICY_PATH, row, require_new=True)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with destination.open("xb") as stream:
+        stream.write(content)
+    return {PRIVATE_POLICY_PATH: row["sha256"]}
 
 
 def run_command(command, root, log, timeout=900, env=None):
@@ -430,6 +476,56 @@ def self_check():
             assert "--cases" not in command and "--mode" not in command
         rejects(lambda: verifier_command(root, "../outside; echo injected", root))
         from unittest.mock import patch
+        # Synthetic only: exact CRLF bytes survive the additional Secret channel.
+        private_content = b'{"synthetic":true}\r\n'
+        encoded = base64.b64encode(private_content).decode("ascii")
+        private_manifest = {"version": 1, "files": [{
+            "path": PRIVATE_POLICY_PATH, "size": len(private_content),
+            "sha256": hashlib.sha256(private_content).hexdigest(),
+        }]}
+        private_hashes = restore_private_policy(root, encoded, private_manifest, manifest, [])
+        private_path = root / PRIVATE_POLICY_PATH
+        assert private_path.read_bytes() == private_content
+        assert input_hashes(root, [PRIVATE_POLICY_PATH]) == private_hashes
+        rejects(lambda: restore_private_policy(root, encoded, private_manifest, manifest, []))
+        assert private_path.read_bytes() == private_content
+        private_path.unlink()
+        for bad in (None, "", encoded + "\n", "!" * len(encoded), encoded[:-1] + "!"):
+            rejects(lambda bad=bad: restore_private_policy(root, bad, private_manifest, manifest, []))
+            assert not private_path.exists()
+        wrong_hash = {"version": 1, "files": [{**private_manifest["files"][0], "sha256": "0" * 64}]}
+        rejects(lambda: restore_private_policy(root, encoded, wrong_hash, manifest, []))
+        wrong_size = {"version": 1, "files": [{**private_manifest["files"][0], "size": len(private_content) + 1}]}
+        rejects(lambda: restore_private_policy(root, encoded, wrong_size, manifest, []))
+        rejects(lambda: private_policy_rows(private_manifest, manifest, [PRIVATE_POLICY_PATH.upper()]))
+        duplicate_channel = {"version": 1, "files": [
+            {**private_manifest["files"][0], "path": PRIVATE_POLICY_PATH.upper()}]}
+        rejects(lambda: private_policy_rows(private_manifest, duplicate_channel, []))
+        duplicate_private = {"version": 1, "files": private_manifest["files"] * 2}
+        rejects(lambda: private_policy_rows(duplicate_private, manifest, []))
+        unsafe_private = {"version": 1, "files": [
+            {**private_manifest["files"][0], "path": "../policy.json"}]}
+        rejects(lambda: private_policy_rows(unsafe_private, manifest, []))
+        oversized = {"version": 1, "files": [{**private_manifest["files"][0], "size": 16385}]}
+        rejects(lambda: private_policy_rows(oversized, manifest, []))
+        for invalid_json in (b"not-json", b"[]", b"\xff"):
+            invalid_manifest = {"version": 1, "files": [{
+                "path": PRIVATE_POLICY_PATH, "size": len(invalid_json),
+                "sha256": hashlib.sha256(invalid_json).hexdigest(),
+            }]}
+            rejects(lambda invalid_json=invalid_json, invalid_manifest=invalid_manifest:
+                    restore_private_policy(root, base64.b64encode(invalid_json).decode("ascii"),
+                                           invalid_manifest, manifest, []))
+            assert not private_path.exists()
+        def assert_secret_environment_cleared():
+            assert "PTK_FIXTURE_KEY" not in os.environ
+            assert PRIVATE_POLICY_ENV not in os.environ
+        # main() must pop both values before even its first child or self-check callback.
+        with patch.dict(os.environ, {"PTK_FIXTURE_KEY": "a" * 64, PRIVATE_POLICY_ENV: encoded}), \
+             patch.object(sys, "argv", ["ci_validate.py", "--self-check"]), \
+             patch.dict(globals(), {"self_check": assert_secret_environment_cleared}):
+            assert main() == 0
+
         with patch.dict(os.environ, {"GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "2"}):
             assert execution_stage("next_revisions").name == "123-2-next_revisions"
             fixed = {"certification_stage_id": "39891250011-1-next_revisions"}
@@ -456,7 +552,8 @@ def self_check():
         assert b"raw failure" in (root / "failed.log").read_bytes()
         assert json.loads((root / "failed-raw.json").read_text()) == {"successful": False}
         passed = run_command(
-            [sys.executable, "-c", "import os; assert 'PTK_FIXTURE_KEY' not in os.environ"],
+            [sys.executable, "-c", "import os; assert 'PTK_FIXTURE_KEY' not in os.environ; "
+             "assert 'PTK_ABILITY_EXCHANGE_POLICY_B64' not in os.environ"],
             root, root / "passed.log",
         )
         assert passed["exit_code"] == 0 and passed["status"] == "pass"
@@ -577,6 +674,7 @@ def self_check():
 def main():
     # Keep the key local; only the two Node crypto children receive it.
     fixture_key = os.environ.pop("PTK_FIXTURE_KEY", None)
+    private_policy = os.environ.pop(PRIVATE_POLICY_ENV, None)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--suite", choices=SUITES, default="common_checks")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
@@ -584,6 +682,7 @@ def main():
     args = parser.parse_args()
     if args.self_check:
         fixture_key = None
+        private_policy = None
         self_check()
         return 0
 
@@ -645,6 +744,14 @@ def main():
         metadata["fixture_manifest_sha256"] = hashes[MANIFEST]
         manifest = json.loads((root / MANIFEST).read_text(encoding="utf-8"))
         fixture_rows(manifest, tracked)
+        private_manifest = None
+        if "private_policy" in manifest:
+            private_manifest = {"version": 1, "files": [manifest["private_policy"]]}
+            private_policy_rows(private_manifest, manifest, tracked)
+            if private_policy is None:
+                raise ValueError("The declared private policy Secret is required")
+        elif private_policy is not None:
+            raise ValueError("Private policy Secret requires Git-tracked manifest metadata")
         if fixture_key is None:
             raise ValueError("PTK_FIXTURE_KEY is required to authenticate the private fixtures")
         temp_root = Path(os.environ["RUNNER_TEMP"]).resolve()
@@ -664,6 +771,10 @@ def main():
             metadata["fixture_archive_sha256"] = file_hash(archive)
             hashes.update(restore_fixtures(stage, archive, manifest, tracked))
             metadata["fixture_file_count"] = len(manifest["files"])
+        if private_manifest is not None:
+            hashes.update(restore_private_policy(stage, private_policy, private_manifest, manifest, tracked))
+            metadata["fixture_file_count"] += 1
+        private_policy = None
         if args.suite.startswith('procedural_'):
             from ci_procedural_gate import prepare_stage
             prepare_stage(stage, selected_packet, hashes, output / 'procedural-preparation.log')
@@ -680,6 +791,7 @@ def main():
             raw_error += "\n" + exc.output.decode("utf-8", errors="replace")
         (output / "setup-error.log").write_text(raw_error, encoding="utf-8")
     finally:
+        private_policy = None
         if baseline is not None:
             try:
                 comparison = input_drift(stage, baseline, output)
