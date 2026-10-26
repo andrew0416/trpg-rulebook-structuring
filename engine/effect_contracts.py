@@ -103,11 +103,11 @@ def hit_recipients(engine,actor,target,effect,source):
   import hp_setting_moves as HP,body_state as BODY,world_entities as WORLD
   from source_context import verified_source
   content=verified_source(engine.r,HP.MOVE_REF,label='Flame Burst cardinal HP loss')
-  row=list(csv.reader(io.StringIO(content.decode('utf-8-sig'))))[266]
+  row=list(csv.reader(io.StringIO(content.decode('utf-8-sig'))))[246]
   origin=engine.r.selection.units[source]['source']
   expected={'type':'hp_loss','value':5,'target':'cardinally adjacent to target'}
   if (engine.r._selected_rule(source)!=source or row[0]!='불꽃튀기기'
-      or origin.get('file')!='db/moves.csv' or origin.get('record_span')!=[267,267]
+      or origin.get('file')!='db/moves.csv' or origin.get('record_span')!=[247,247]
       or engine.r.move(source).get('effect')!=row[7]
       or {k:v for k,v in effect.items() if k!='_src'}!=expected):
    raise ValueError('Flame Burst requires its exact selected cardinal HP-loss source')
