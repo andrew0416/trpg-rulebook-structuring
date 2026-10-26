@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
   "id": "changed_revisions",
-  "purpose": "First complete AA declaration on a source-rebased remote candidate: original55 retained, one native contact-boundary addition; CONTROL24 and two original musician impacts rerun because their complete runtime is newly integrated onto this different base. Three existing contact regressions and one unchanged Heavy sentinel preserve affected boundaries. No canonical publication or completion credit.",
+  "purpose": "Repair the failed remote AA batch without dropping any original86 IDs. Add five existing Musician native regressions for the shared atomic Move boundary: failed counter, unchanged no-accuracy pending, Playtest cancellation, explicit Core ruling resume and cancelled Move song rejection. No canonical publication or completion credit.",
   "completion_credit": 0,
-  "required_unique_count": 86,
+  "required_unique_count": 91,
   "provenance": {
     "remote_base": "26d67e33dea546ff013eaf8f2e2339bb902778d8",
     "aa_source": "csv-ability-transitions-finish-1026aa/source-integration03",
     "control_source": "csv-ability-traps-finish-1026r; control-musician-impact-1026ac",
-    "selection": "Exact source declarations, not locally imported or collected. Original tests and failures remain unchanged."
+    "selection": "Original86 declarations retained; source-repair06 adds five existing impact regressions. Not locally imported or collected. Original failed commit, tests and evidence are preserved separately."
   },
   "completed": {
     "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests": {
@@ -113,7 +113,12 @@
     },
     "tools.test_book_musician_full.MusicianTests": {
       "tests": [
-        "tools.test_book_musician_full.MusicianTests.test_core_drown_out_cancels_the_entire_actual_area_once"
+        "tools.test_book_musician_full.MusicianTests.test_core_drown_out_cancels_the_entire_actual_area_once",
+        "tools.test_book_musician_full.MusicianTests.test_failed_core_drown_out_pays_scene_use_and_does_not_cancel",
+        "tools.test_book_musician_full.MusicianTests.test_no_accuracy_core_drown_out_is_pending_before_any_game_action",
+        "tools.test_book_musician_full.MusicianTests.test_playtest_drown_out_cancels_no_accuracy_move_without_a_focus_check",
+        "tools.test_book_musician_full.MusicianTests.test_no_accuracy_core_drown_out_resumes_only_with_an_explicit_scoped_gm_dc",
+        "tools.test_book_musician_full.MusicianTests.test_cancelled_sonic_move_does_not_authorize_a_song"
       ]
     },
     "tools.test_control_musician_impact.ControlMusicianImpactTests": {

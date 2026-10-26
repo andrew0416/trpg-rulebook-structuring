@@ -3,6 +3,7 @@ from copy import deepcopy
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
@@ -20,8 +21,9 @@ class ControlMusicianImpactTests(unittest.TestCase):
         cls.rules = Rules(ROOT, ruleset='core')
 
     def test_actual_sonic_drown_out_respects_dazzling_owner_before_cost_and_allows_decline(self):
-        for same_attacker, accept in ((True, True), (False, True), (True, False)):
-            with self.subTest(same_attacker=same_attacker, accept=accept):
+        for same_attacker, accept, direct in ((True, True, False), (False, True, False), (True, False, False),
+                                            (True, True, True), (False, True, True), (True, False, True)):
+            with self.subTest(same_attacker=same_attacker, accept=accept, direct=direct):
                 scene = MUSIC.MusicianTests()
                 scene.rules = self.rules
                 scene.setUp()
@@ -51,6 +53,9 @@ class ControlMusicianImpactTests(unittest.TestCase):
                     hp = recipient.hp
 
                     def sonic_action():
+                        if direct:
+                            with patch.object(type(e), 'd20', return_value=2 if accept else 20):
+                                return e.use_move(attacker, recipient, move, aim=(3, 3))
                         return scene.use(attacker, recipient, move, face=2 if accept else 20, aim=(3, 3))
 
                     if same_attacker and accept:

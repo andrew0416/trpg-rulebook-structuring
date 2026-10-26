@@ -21,7 +21,7 @@ MOVES=['move/몸통박치기','move/물대포',X.ENTRAIN,'move/독가스','move/
 
 class AbilityExchangeContractsTests(unittest.TestCase):
     @classmethod
-    def setUpClass(cls):cls.r=Rules(ROOT,ruleset='core')
+    def setUpClass(cls):cls.r=Rules(ROOT,ruleset='all')
 
     def setUp(self):
         self.e=Engine(self.r,530);self.e.grid=Grid(30,30)
@@ -30,8 +30,9 @@ class AbilityExchangeContractsTests(unittest.TestCase):
         self.e.start_round(self.e.everyone);self.e.start_of_turn(self.a,initiative_count=20)
 
     def actor(self,name,abilities,pos,side,*,pokemon=False):
-        extra={'abilities':abilities,'size':'중형','pos':pos,'side':side,'moves':MOVES}
-        spec=(build_pokemon(self.r,'이상해씨',10,name=name,moves=MOVES,extra=extra) if pokemon else
+        moves=MOVES[:1] if pokemon else MOVES
+        extra={'abilities':abilities,'size':'중형','pos':pos,'side':side,'moves':moves}
+        spec=(build_pokemon(self.r,'이상해씨',10,name=name,moves=moves,extra=extra) if pokemon else
               build_trainer(self.r,name,10,dict.fromkeys(('hp','atk','def','spa','spd','spe'),10),extra=extra))
         c=Combatant(self.r,spec);self.e.gm.add_combatant(c)
         c.damage_cap={'value':1}
@@ -62,7 +63,7 @@ class AbilityExchangeContractsTests(unittest.TestCase):
 
     def fresh(self):
         saved=json.loads(json.dumps(self.e.export_state(),ensure_ascii=False))
-        e=Engine.import_state(Rules(ROOT,ruleset='core'),saved)
+        e=Engine.import_state(Rules(ROOT,ruleset='all'),saved)
         return e,{c.entity_id:c for c in e.everyone}
 
     def shield(self,c):
@@ -492,9 +493,9 @@ class AbilityExchangeContractsTests(unittest.TestCase):
         self.assertFalse(A.active(self.t,'ability/불면'))
         before=deepcopy(self.a.budget);observed=[];on_enter=EXT.on_enter_cell
 
-        def observe(engine,actor,position):
+        def observe(engine,actor,position,**options):
             observed.append((position,A.active(self.t,'ability/불면'),len(X._gas_sources(self.t))))
-            return on_enter(engine,actor,position)
+            return on_enter(engine,actor,position,**options)
 
         with patch.object(EXT,'on_enter_cell',side_effect=observe):
             self.assertTrue(self.e.disengage(self.a,(1,2)))

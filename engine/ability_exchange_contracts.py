@@ -244,6 +244,7 @@ def _grant(engine,app):
     TIME.install(engine,c,record)
     record[LIVE_PROOF]=_live_proof(c.spec[G.KEY]['sources'][key],record)
     G.materialize(c,'abilities');G.reconcile(engine,c)
+    refresh(engine)
 
 
 def _defensive_operation(engine,c):
@@ -299,7 +300,8 @@ def resolved_hit(engine,actor,target,move,completion_id,*,hit_prevented=False,co
 
 
 def before_faint(engine,c):
-    if c.fainted:return None
+    # HP is already zero before LIFE.faint installs the completed faint condition.
+    if '기절' in c.conditions:return None
     if not engine.encounter_active:return None
     candidates=[]
     for owner in W.actors(engine):
