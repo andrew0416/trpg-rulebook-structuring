@@ -1276,6 +1276,8 @@ def fire_event(engine, c, ev, other=None):
                 engine.log("    [보류] " + (action_problem or "재주 행동 종류 실행 미지원: " + str(action)), "trainer/action-points")
                 continue
         key = ab.get("usage_key") or ("feat/" if ab.get("_feat") else "ability/") + ab["name"]
+        if not ab.get('_feat') and not __import__('ability_exchange_contracts').admit_trigger(engine,c,key):
+            continue
         freq = ab.get("frequency") or ""
         import equipment_actions as EQUIPMENT
         if key in EQUIPMENT.REACTIONS:

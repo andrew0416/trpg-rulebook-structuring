@@ -4,13 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       suite:
-        description: Synthetic acceptance/publication tooling only; no clause credit
+        description: Reviewed synthetic tooling or frozen AA native validation; no clause credit
         type: choice
         required: true
         default: workflow_checks
         options:
           - workflow_checks
           - ci_adapter_checks
+          - aa_native
 
 permissions:
   contents: read
@@ -147,5 +148,72 @@ jobs:
           path: |
             ci-adapter-checks.json
             ci-adapter-checks.log
+          if-no-files-found: error
+          retention-days: 14
+
+  aa_native:
+    if: >-
+      github.repository == 'andrew0416/trpg-rulebook-structuring' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.suite == 'aa_native' &&
+      github.ref == 'refs/heads/codex/implementation-workflow-checks-1026ag'
+    runs-on: windows-2022
+    timeout-minutes: 105
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUTF8: '1'
+      CI_SUITE: changed_revisions
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
+      - name: Install retained hash-pinned dependency
+        shell: pwsh
+        run: |
+          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-aa-dependencies' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT
+          New-Item -ItemType Directory -Path $taskTemp -ErrorAction Stop | Out-Null
+          $env:TEMP = $taskTemp
+          $env:TMP = $taskTemp
+          $env:TMPDIR = $taskTemp
+          $env:RUNNER_TEMP = $taskTemp
+          python -B -m pip install --disable-pip-version-check --no-cache-dir --only-binary=:all: --require-hashes -r .ci/requirements.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run fixed verifier against authenticated AA inputs
+        shell: pwsh
+        env:
+          PTK_FIXTURE_KEY: ${{ secrets.PTK_FIXTURE_KEY }}
+          PTK_ABILITY_EXCHANGE_POLICY_B64: ${{ secrets.PTK_ABILITY_EXCHANGE_POLICY_B64 }}
+        run: |
+          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-aa-native' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT
+          New-Item -ItemType Directory -Path $taskTemp -ErrorAction Stop | Out-Null
+          $env:TEMP = $taskTemp
+          $env:TMP = $taskTemp
+          $env:TMPDIR = $taskTemp
+          $env:RUNNER_TEMP = $taskTemp
+          python -B -X utf8 tools/ci_validate.py --root "$env:GITHUB_WORKSPACE" --suite "$env:CI_SUITE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $taskSummaries = @(Get-ChildItem -Path output/ci/*/summary.json)
+          if ($taskSummaries.Count -ne 1) { throw 'One original native summary is required' }
+          $taskSummary = Get-Content -LiteralPath $taskSummaries[0].FullName -Raw | ConvertFrom-Json
+          $taskReport = @($taskSummary.reports)
+          if ($taskReport.Count -ne 1 -or -not $taskReport[0].successful -or $taskReport[0].tests_run -ne 86 -or $taskReport[0].collected_count -ne 86 -or $taskReport[0].status_counts.pass -ne 86) {
+            throw 'The whole 86-case AA and affected-boundary declaration did not pass'
+          }
+      - name: Preserve encrypted diagnostics and original physical evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: implementation-aa-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/ci/*/run.json
+            output/ci/*/summary.json
+            output/ci/*/input-sha256.json
+            output/ci/*/input-sha256-after.json
+            output/ci/*/input-comparison.json
+            output/ci/*/diagnostics.zip.enc
+            output/ci/*/evidence.zip.enc
           if-no-files-found: error
           retention-days: 14

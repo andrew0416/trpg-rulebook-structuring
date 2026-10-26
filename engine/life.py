@@ -33,7 +33,9 @@ def faint(engine,c):
     SETUP_MOVE.cancel(engine,c,'faint')
     import stat_exchange_state as STAT_EXCHANGE
     STAT_EXCHANGE.validate_actor(c)
+    snapshot=__import__('ability_exchange_contracts').before_faint(engine,c)
     c.conditions.add('기절')
+    __import__('ability_exchange_contracts').fainted(engine,c,snapshot)
     __import__('native_path_area_moves').end_fairy_source(engine,c)
     __import__('juggler').event(engine,'faint',c,source_id='condition/기절')
     __import__('perception_communicate').boundary(engine,'faint',c)

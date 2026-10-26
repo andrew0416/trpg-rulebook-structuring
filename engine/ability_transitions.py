@@ -22,6 +22,8 @@ def definition(rules,source):
  return row
 
 def registration(rules,name):
+ reg=__import__('ability_exchange_contracts').registration(rules,name)
+ if reg is not None:return reg
  sources=getattr(rules,'ability_transition_policy',{}).get('sources',{})
  for uid,row in sources.items():
   if row['manual'] and name in row['aliases']:
@@ -86,6 +88,7 @@ def registration_only(rules,uid):
 
 
 def native_passive(rules,uid):
+ if __import__('ability_exchange_contracts').handled(rules,uid):return True
  if uid in __import__('telepath').CONTRACTS:return __import__('telepath').registration(rules,uid) is not None
  if uid==__import__('sage').TOUCH:return __import__('sage').registration(rules,uid) is not None
  if uid in __import__('oracle').CORE_CONTRACTS:return __import__('oracle').registration(rules,uid) is not None
@@ -119,6 +122,7 @@ def _component_projection(actor,values,*,include_suppressed=False,ignored_source
    if mode is None:
     import duelist as DUELIST
     mode='replace' if not check_producer and source==DUELIST.MANUAL else DUELIST.operation_mode(actor,source)
+   if mode is None:mode=__import__('ability_exchange_contracts').operation_mode(rules,source)
    if mode is None:raise ValueError('ability operation requires its reviewed producer')
   else:mode=source_row['mode']
   for uid in op['remove']:
@@ -184,7 +188,11 @@ def known(actor):
 def key(source,target):
  return source+'@'+target.entity_id
 
-def select(engine,actor,target,source,*,ability=None,allies=(),reason):
+def select(engine,actor,target,source,*,ability=None,allies=(),reason,edition=None):
+ import ability_exchange_contracts as X
+ if X.source(engine.r,source) is not None:
+  return X.select(engine,actor,target,source,ability=ability,allies=allies,reason=reason,edition=edition)
+ if edition is not None:raise ValueError('edition belongs only to its reviewed exchange source')
  row=definition(engine.r,source)
  if row is None:raise ValueError('reviewed ability-transition source required')
  if not isinstance(reason,str) or not reason.strip():raise ValueError('actual choice reason required')
@@ -288,6 +296,9 @@ def apply(engine,actor,target,effect,ctx):
  return G.transition(engine,actor,staged,participants=(target,*allies))
 
 def activate(engine,actor,name,target):
+ import ability_exchange_contracts as X
+ if X.registration(engine.r,name) is not None:return X.activate(engine,actor,name,target)
+ if not X.admit_trigger(engine,actor,name):raise ValueError('Neutralizing Gas prohibits this triggered ability')
  reg=registration(engine.r,name)
  if reg is None:raise ValueError('reviewed manual copy source required')
  source=reg['source_id'];row=definition(engine.r,source)
@@ -314,10 +325,11 @@ def end(engine,actor,event):
   if TAG in record and event in record['ends']:TIME.expire(engine,actor,record)
  import reactive_ability_events as REACTIVE
  REACTIVE.end(engine,actor,event)
+ __import__('ability_exchange_contracts').end(engine,actor,event)
 
 def validate_world(engine,index):
  for actor in index.values():
-  expected={k for k,v in actor.spec.get(G.KEY,{}).get('sources',{}).items() if 'ability_operation' in v and 'reactive_ability' not in v and 'duelist_manual' not in v};seen=set()
+  expected={k for k,v in actor.spec.get(G.KEY,{}).get('sources',{}).items() if 'ability_operation' in v and 'reactive_ability' not in v and 'duelist_manual' not in v and 'ability_exchange' not in v};seen=set()
   for record in TIME.records(actor):
    if TAG not in record:continue
    source=record['source'];definition_row=definition(engine.r,source)
@@ -365,4 +377,4 @@ def validate_world(engine,index):
    if result.get('applied') is not True or result.get('selected')!=copied or result.get('pool')!=pool or result.get('random_index')!=random_index or result.get('component_contract')!=expected_components:raise ValueError('ability choice differs from completed native result')
   if expected!=seen:raise ValueError('ability contribution lacks its end-event record')
   if expected and actor.abilities!=G.effective(actor,'abilities'):raise ValueError('ability projection differs from source-owned state')
- return True
+ return __import__('ability_exchange_contracts').validate_world(engine,index)

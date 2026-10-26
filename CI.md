@@ -114,6 +114,30 @@ node tools/ci_fixtures.mjs encrypt "<private ZIP path>" .ci/fixtures.zip.enc
 
 The key must already be in the process environment through an approved secret mechanism. Output files must be new. The format is the ASCII header `PTKFX001`, a fresh 12-byte IV, a 16-byte authentication tag, then ciphertext. The header is authenticated as additional data. The JSON manifest format is `{"version":1,"files":[{"path":"input/example.md","sha256":"<64 lowercase hex>","size":123}]}`; the ZIP must contain exactly those files, without directory entries.
 
+## AA implementation branch private-policy channel
+
+On `codex/implementation-workflow-checks-1026ag`, the manual `aa_native`
+job selects the reviewed `changed_revisions` packet (86 exact declarations).
+It retains all original 55 AA declarations, adds one native Mummy/contact
+regression, and includes the newly rebased CONTROL24, two original musician
+impacts, three existing contact tests, and one unchanged Heavy sentinel.
+These declarations and any test success are not clause acceptance/publication.
+
+The original encrypted fixture bundle and its `files` manifest rows remain
+unchanged. One additional 1,384-byte policy is delivered through the repository
+Secret `PTK_ABILITY_EXCHANGE_POLICY_B64`, bound only to the adapter step.
+The tracked `private_policy` metadata fixes its exact destination, size and
+SHA-256. It is not part of the old encrypted ZIP and is never tracked plaintext.
+The adapter consumes both Secrets before launching the native child, validates
+canonical base64, size, SHA-256 and a UTF-8 JSON object, refuses collisions or
+overwrites, then includes the restored policy in normal input capture and drift
+checks. Raw logs and inputs retain the existing encrypted evidence channel.
+Missing metadata/Secret or a payload mismatch fails closed.
+
+No original40 upload, plaintext private ledger/source-review, original bundle
+repack, key retrieval, other-chat branch change, canonical ledger update, or
+local game execution is authorized by this channel.
+
 ## Pinned GitHub Actions
 
 Official release tags and immutable commits were checked against GitHub's release and Git-ref APIs on 2026-10-23:

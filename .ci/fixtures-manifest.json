@@ -1,5 +1,10 @@
 {
   "version": 1,
+  "private_policy": {
+    "path": "data/ability-exchange-policy.json",
+    "size": 1384,
+    "sha256": "1ddcc31c5ec4bea6f50c098acad70d93326a093be77d8b373ab94b6009f227e9"
+  },
   "files": [
     {
       "path": "WORK_SELECTION.md",

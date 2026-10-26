@@ -228,6 +228,8 @@ def disengage(engine, c, destination, *, movement_mode=None, _telepathy_source=N
     c.airborne = mode == "공중/부유"
     if diagonal:
         c._diagonal_steps = getattr(c, "_diagonal_steps", 0) + 1
+    __import__('ability_exchange_contracts').refresh(engine)
+    __import__('ability_control_contracts').refresh(engine)
     EXT.on_enter_cell(engine, c, destination,previous_position=origin if origin_altitude==c.spec.get('_movement_altitude',0) and origin_contact==FIELD.touches_ground(c) else None)
     engine.log(f"    {c.name}: 이탈 1m → {destination} (기회공격 유발 없음)", "maneuver/이탈")
     return True

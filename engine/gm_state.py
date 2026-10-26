@@ -432,7 +432,7 @@ class GMState:
     def set_hp(self, c, value=None, delta=None, reason="", unpreventable=True):
         import keep_fighting as KEEP,state_grants as GRANTS
         nonpositive=(M.floor(value) if value is not None else c.hp+M.floor(delta))<=0
-        if KEEP.interested(self.e,c) or nonpositive:
+        if KEEP.interested(self.e,c) or nonpositive or __import__('ability_exchange_contracts').interested(self.e,c,c):
             return GRANTS.transition(self.e,c,lambda e,actor:e.gm._set_hp(actor,value=value,delta=delta,reason=reason,unpreventable=unpreventable),include_rulings=True,include_grid=self.e.grid is not None)
         return self._set_hp(c,value=value,delta=delta,reason=reason,unpreventable=unpreventable)
 
@@ -457,6 +457,8 @@ class GMState:
             import life
             life.clear_recovery(c)
             self.e.log(f"    {c.name} 기절 해제 (GM 조정)", "gm/state")
+        __import__('ability_exchange_contracts').refresh(self.e)
+        __import__('ability_control_contracts').refresh(self.e)
         return c.hp
 
     def set_temp_hp(self, c, value, reason="", *, duration_seconds=None, round_offset_seconds=None):
@@ -569,6 +571,8 @@ class GMState:
         BODY_MODES.sync_shadows(self.e)
         import effect_lifetime_policy as LIFETIMES
         LIFETIMES.reconcile(self.e)
+        __import__('ability_exchange_contracts').refresh(self.e)
+        __import__('ability_control_contracts').refresh(self.e)
         self._rec("위치", before, copy.deepcopy(c.location), reason, c)
 
     def set_item(self, c, item, reason="", *, selection=None, source_instance_id=None):
@@ -694,7 +698,7 @@ class GMState:
 
     def faint(self, c, reason=""):
         import keep_fighting as KEEP,state_grants as GRANTS
-        if KEEP.interested(self.e,c):
+        if KEEP.interested(self.e,c) or __import__('ability_exchange_contracts').interested(self.e,c,c):
             return GRANTS.transition(self.e,c,lambda e,actor:e.gm._faint(actor,reason=reason),include_rulings=True,include_grid=self.e.grid is not None)
         return self._faint(c,reason=reason)
 
@@ -752,6 +756,8 @@ class GMState:
             if c in roster:
                 roster.remove(c)
         c.on_field = False
+        __import__('ability_exchange_contracts').refresh(self.e)
+        __import__('ability_control_contracts').refresh(self.e)
         self._rec("참가자 제거", c.name, None, reason)
 
     # ---------- 전장 상태 ----------

@@ -309,7 +309,7 @@ def drown_out(e, attacker, target, move, total, shared_roll=None):
         answer = True if owner.spec.get('drown_out_request',{}).get('source')==source else e.decide({'type': 'drown_out', 'owner': owner, 'attacker': attacker, 'source': source, 'move_id': move['id'], 'accuracy_total': total})
         if answer is not True:
             continue
-        INTERRUPTS.pay_free(e, owner, source, frequency)
+        INTERRUPTS.pay_free(e, owner, source, frequency, trigger={'owner': attacker})
         check = e.skill_check(owner, '집중', dc)[1] if source == DROWN else None
         cancelled = source == DROWN_PLAYTEST or check >= dc
         result['attempts'].append({'owner_id': owner.entity_id, 'source': source, 'check': check, 'dc': dc, 'ruling': deepcopy(ruling), 'cancelled': cancelled})

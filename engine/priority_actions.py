@@ -97,6 +97,7 @@ def _prepare(engine, actor, target, move_id, trainer, stat_trainer=None, chronic
     if engine.r._selected_rule('action_type/우선-행동') != 'action_type/우선-행동':
         raise ValueError('selected Priority action source required')
     INTERRUPTS.between_trigger(engine)
+    __import__('ability_control_contracts').admit(engine,actor,'priority')
     import vision_impairment as VISION
     if VISION.accuracy_level(engine, actor) == 'total':
         raise ValueError('Total Blindness prohibits declared Priority Moves')

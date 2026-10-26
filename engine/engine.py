@@ -184,6 +184,7 @@ class Rules:
         EXAMPLES.install(self)
         import ability_transitions as ABILITY_TRANSITIONS
         ABILITY_TRANSITIONS.install(self)
+        __import__('ability_exchange_contracts').install(self)
         import ability_state_projection as ABILITY_STATE_PROJECTION
         ABILITY_STATE_PROJECTION.install(self)
         REACTIVE_ABILITIES.install(self)
@@ -1513,6 +1514,7 @@ class Engine:
             if selected_id is None:
                 selected_id = self.r.selection.resolve_name(name, ("ability/",))
             selected_id = self.r._selected_rule(selected_id)
+        if __import__('ability_control_contracts').register(self,c,selected_id or name):return
         import field_effects as FIELD
         if __import__('type_ace').ability_registration(self,c,selected_id):return
         if selected_id == FIELD.LOCAL_SOURCE:
@@ -1733,6 +1735,8 @@ class Engine:
         LEAGUE.check_boundary(self,'activate_ability')
         if pickup_expiry_choice is not None and ability not in ('픽업','ability/픽업'):
             raise ValueError('Pickup expiry choice requires the actual copying Pickup source')
+        if not __import__('ability_exchange_contracts').admit_trigger(self,actor,ability):
+            raise ValueError('Neutralizing Gas prohibits this triggered ability')
         import hex_maniac as HEX_MANIAC
         if HEX_MANIAC.ability_registration(self.r,ability):return HEX_MANIAC.activate_ability(self,actor,ability,target,event_id=trigger_event_id)
         if trigger_event_id is not None:raise ValueError('hit trigger belongs only to its reviewed Ability')
@@ -3227,6 +3231,7 @@ class Engine:
             dice_part, rolls = self.roll_expr(entry["dice"], times,actor=attacker,purpose='damage')
             self.log(f"    DB {db} → {entry['dice']}{' ×2(치명타)' if crit else ''} 눈 {rolls} = {dice_part}", "combat/critical-hit" if crit else "combat/damage-chart")
         dice_part+=__import__('multi_strike').critical_dice(self,attacker,move,set_damage)
+        dice_part+=__import__('ability_control_contracts').damage_dice(self,attacker,move,set_damage)
         long_order_bonus = __import__('commander_orders').long_damage(self,attacker,target,move,dice_part,crit)
         EVENTS.record_damage(self,attacker,target,move,event_effects,db)
         component_roll_mod=ROLLS.use(self,attacker,target,move,'damage',{'damage_base':db,'roll_value':dice_part,'mode':'set' if set_damage else 'fixed_dice' if fixed_dice is not None else 'random'})
@@ -3693,7 +3698,7 @@ class Engine:
         import taskmaster as TASK
         if TASK.defer_faint(self,c) or __import__('conquerors_march').defer_faint(self,c):return
         import keep_fighting as KEEP,state_grants as GRANTS
-        if c.hp<=0 and KEEP.interested(self,c):
+        if c.hp<=0 and (KEEP.interested(self,c) or __import__('ability_exchange_contracts').interested(self,c,c)):
             return GRANTS.transition(self,c,lambda e,actor:e._check_fainted(actor),include_rulings=True,include_grid=self.grid is not None)
         return self._check_fainted(c)
 
@@ -3706,6 +3711,8 @@ class Engine:
         HOME.on_faint(c)
         import grapple_state as GRAPPLE
         GRAPPLE.boundary(self)
+        __import__('ability_exchange_contracts').refresh(self)
+        __import__('ability_control_contracts').refresh(self)
 
     @TRACE.operation('healing','c','amount','source_kind','round_offset_seconds')
     def heal(self, c, amount, *, source_kind='unspecified', round_offset_seconds=None):

@@ -38,6 +38,8 @@ def _object(engine, uid):
     obj=getattr(engine,'_physical_objects',{}).get(uid)
     if not isinstance(obj,dict) or obj.get('kind') not in ('physical_object','item_instance'):
         raise ValueError('actual ordinary physical object required; specialized bodies keep their own damage owner')
+    if not __import__('ability_control_contracts').object_targetable(obj):
+        raise ValueError('source-owned control token cannot be targeted as an ordinary object')
     if any(key in obj for key in ('hp','max_hp','breaches','integrity')):
         raise ValueError('object already has a separate damage owner')
     import physical_materials as MATERIALS

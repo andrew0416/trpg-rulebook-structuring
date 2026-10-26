@@ -259,6 +259,7 @@ def queue(engine,candidates,*,trigger,order=None):
         ids.add(uid)
         actor = index.get(raw['actor_id'])
         WORLD.require_actors(engine,actor)
+        if raw['mode']!='borrow_turn':__import__('ability_control_contracts').admit(engine,actor,'interrupt',trigger=evidence)
         DERIVE.selected(engine.r,raw['source'])
         absent = [key for key in ('priority','mode','payment','clock') if raw[key] is None]
         if absent:
@@ -368,6 +369,7 @@ def begin(engine,window_id,request_id):
                 raw['closure_sequence']=len(staged._turn_closures)
             _trigger(staged,raw)
         actor = row['actor']; WORLD.require_actors(staged,actor)
+        if row['mode']!='borrow_turn':__import__('ability_control_contracts').admit(staged,actor,'interrupt',trigger=window['trigger'])
         if actor.dead or actor.fainted or not actor.on_field or actor.captured:
             raise ValueError('reaction owner no longer eligible')
         if 'move_id' in row:_move_request(staged,actor,row,window['trigger'])

@@ -94,7 +94,8 @@ def choose(engine, owner, source, *, ability=None, reason):
 
 def interested(engine, actor, target):
     subjects = [actor, target, *getattr(engine, 'everyone', ())]
-    return any(subject is not None and subject.spec.get(CHOICES) for subject in subjects)
+    return (any(subject is not None and subject.spec.get(CHOICES) for subject in subjects)
+            or __import__('ability_exchange_contracts').interested(engine,actor,target))
 
 
 def atomic_move(engine, actor, target, callback):
@@ -127,6 +128,13 @@ def atomic_move(engine, actor, target, callback):
 
 
 def preflight_move(engine, actor, target, move, mm, *, ordinary_action='standard'):
+    import ability_exchange_contracts as X
+    mm=X.preflight_move(engine,actor,target,move,mm)
+    if move['id']==X.ENTRAIN:
+        raw={'type':'grant_ability','grant_ability':"one of user's abilities",'on':'target','turns':3}
+        if mm.get('effects_exec',[]).count(raw)!=1:
+            raise ValueError('Entrainment requires its exact reviewed legacy grant declaration')
+        mm=deepcopy(mm);mm['effects_exec'].remove(raw)
     request = _choice(actor, PROTEAN)
     if request is not None:
         if not _eligible(actor, PROTEAN):
@@ -152,6 +160,8 @@ def _completion(engine, actor, target, move, token):
 
 
 def _pay(engine, owner, source):
+    if not __import__('ability_exchange_contracts').admit_trigger(engine,owner,source):
+        raise ValueError('Neutralizing Gas prohibits this triggered ability')
     import turn as TURN
     row = definition(engine.r, source)
     if not FREQUENCY.activation_allowed(owner, source, row['frequency'], engine=engine,action_actor=owner if row['action'] is not None else None):

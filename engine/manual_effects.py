@@ -9,6 +9,8 @@ SEQUENCE='manual_effect_activation_sequence'
 
 
 def registration(rules,name):
+ selected=__import__('ability_control_contracts').registration(rules,name)
+ if selected is not None:return selected
  selected=__import__('warper').registration(rules,name)
  if selected is not None:return selected
  selected=__import__('telepath').registration(rules,name)
@@ -36,6 +38,7 @@ def registration(rules,name):
 
 
 def deferred_registration(rules,effect):
+ if __import__('ability_control_contracts').registration(rules,effect.get('_rule_id') or effect.get('_ability')):return True
  if __import__('warper').registration(rules,effect.get('_rule_id') or effect.get('_ability')):return True
  if __import__('telepath').registration(rules,effect.get('_rule_id') or effect.get('_ability')):return True
  if __import__('telekinetic').ability_registration(rules,effect.get('_rule_id') or effect.get('_ability')):return True
@@ -71,6 +74,7 @@ def validate_effect(actor,record):
 
 
 def validate_world(engine,index):
+ __import__('ability_control_contracts').validate_world(engine,index)
  import ability_native_actions as NATIVE
  NATIVE.validate_world(engine,index)
  import ability_reveals as REVEALS
@@ -106,6 +110,7 @@ def validate_world(engine,index):
 
 
 def activate(engine,actor,ability,target):
+ if __import__('ability_control_contracts').registration(engine.r,ability):return __import__('ability_control_contracts').activate(engine,actor,ability,target)
  if __import__('telepath').registration(engine.r,ability):return __import__('telepath').gentle(engine,actor,ability,target)
  if __import__('telekinetic').ability_registration(engine.r,ability):return __import__('telekinetic').activate_interference(engine,actor,ability,target)
  if __import__('sage').registration(engine.r,ability):return __import__('sage').activate_ability(engine,actor,ability,target)

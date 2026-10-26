@@ -6,7 +6,7 @@ restrictions. A declaration is never a completed hit or an opportunity attack.
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
-import hashlib,json
+import hashlib,json,re
 import common_checks as C
 import frequency as F
 import state_grants as G
@@ -35,7 +35,7 @@ def install(rules):
  # This is the selected Ability's printed keyword, not a category invented
  # from damage reduction or the name of a defensive maneuver.
  rows=json.loads((Path(rules.root)/'output/entities/abilities.json').read_text(encoding='utf-8'))
- rules.trickster_defensive={r['id'] for r in rows if '방어적' in r.get('effect','') or 'Defensive' in r.get('effect','')}
+ rules.trickster_defensive={r['id'] for r in rows if re.search(r'(?<!\w)(?:\[)?(?:방어적|Defensive)(?:\]|[.!]|\s*$)',r.get('effect',''))}
 
 
 def records(actor,feature=None,active=False):

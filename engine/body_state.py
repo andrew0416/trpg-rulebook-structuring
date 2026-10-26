@@ -159,6 +159,9 @@ def bind_origin(engine,actor,move,part_id):
 
 
 def attack_cells(engine,actor,move=None,*,position=None):
+    import ability_control_contracts as CONTROL
+    anchor=CONTROL.attack_origin(engine,actor,move)
+    if anchor is not None:return {anchor}
     part=(move or {}).get('_body_origin_part')
     return {part_cell(engine,actor,part,position=position)} if part is not None else at_position(actor,position)
 
@@ -379,6 +382,9 @@ def adjacent(left,right,*,cardinal=False,left_position=None,right_position=None)
 
 def in_range(engine,left,right,reach,*,left_position=None,move=None):
     from grid import cheb
+    import ability_control_contracts as CONTROL
+    CONTROL.require_target(engine,left,right,move)
+    if CONTROL.ignores_range(engine,left,move):reach=float('inf')
     a=attack_cells(engine,left,move,position=left_position);b=at_position(right)
     import body_modes as MODES
     return any(cheb(x,y)<=reach and not engine.grid.blocked(x,y) and not MODES.blocks_line(engine,x,y,ignored=(left,right)) for x in a for y in b)
@@ -386,6 +392,8 @@ def in_range(engine,left,right,reach,*,left_position=None,move=None):
 
 def can_place(engine,actor,position,*,origin=None,altitude=None,ignore_actors=(),underground=None):
     """Known body fits the map and clears other bodies/blocking cells."""
+    import ability_control_contracts as CONTROL
+    if not CONTROL.can_place(engine,actor,position,altitude=altitude):return False
     proposed=at_position(actor,position)
     import actor_templates as TEMPLATES
     if not TEMPLATES.multipart_can_place(engine,actor,position):return False

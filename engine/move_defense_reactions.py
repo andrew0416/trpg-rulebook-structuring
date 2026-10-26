@@ -509,7 +509,7 @@ def _attempt(e, event, state, request, choice):
             raise ValueError('this actual Move prohibits Dodge reactions')
         frequency = e.r.move_defense_policy['sources'][DODGE]['frequency']
         import ability_interrupt_choices as ABILITY_INTERRUPTS
-        ABILITY_INTERRUPTS.pay_free(e,actor,DODGE,frequency)
+        ABILITY_INTERRUPTS.pay_free(e,actor,DODGE,frequency,trigger={'owner':attacker})
         state['recipients'] = [{'actor_id':target.entity_id,'hit':False,'intercepted':False}]
         return {'source':source,'actor_id':actor.entity_id,'outcome':'avoided','paid':True}
     if source in PERCEPTIONS:
@@ -592,7 +592,7 @@ def _begin_perception(e,event,state,actor,source,choice):
             if not TURN.spend(e,actor,'shift',source,movement=True):raise ValueError('Perception Shift action unavailable')
         finally:del e._defense_attempt
     else:
-        __import__('ability_interrupt_choices').pay_free(e,actor,source,{'kind':'at_will','uses':1})
+        __import__('ability_interrupt_choices').pay_free(e,actor,source,{'kind':'at_will','uses':1},trigger={'owner':event['actor']})
     payment={'source':source,'owner_id':actor.entity_id,'action':cost['action'],'round':e.round_no,
              'at':e.elapsed_seconds,'history_index':history}
     facts={'source':source,'actor_id':actor.entity_id,'paid':True,'window_id':window_id,'request_id':request_id,
@@ -1412,7 +1412,7 @@ def native_dodge(e,event,origin):
  choice=e.rulings.decide({'type':'native_attack_dodge','unit':DODGE,'actor':actor.name,'attacker':event['actor'].name,'source':event['source'],'event_id':event['id'],'text':'Use Dodge against this actual damaging Attack?'})
  if choice is None or choice is False:return False
  if choice is not True:raise ValueError('Dodge requires explicit use or decline')
- CHOICES.pay_free(e,actor,DODGE,frequency)
+ CHOICES.pay_free(e,actor,DODGE,frequency,trigger={'owner':event['actor']})
  facts=_native_facts(event,origin)
  event['native_dodge']={'facts':facts,'fingerprint':ROOT.fingerprint(facts),'source':DODGE}
  event.update(result='hit_prevented',hit_prevented=True,nullification='Dodge',resolved_damage=0)

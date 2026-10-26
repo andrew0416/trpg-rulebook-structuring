@@ -28,6 +28,10 @@ def owned(actor,name):
 
 
 def prepare(engine,actor,move,choice=None):
+ import ability_control_contracts as CONTROL
+ move=CONTROL.prepare_move(engine,actor,move)
+ selected=CONTROL.prepare_struggle(engine,actor,move,choice)
+ if selected is not None:return selected
  created=move.get('innovation_instance')
  if created and created['template']==3 and move.get('id')!='struggle':
   import coordinator as COORDINATOR

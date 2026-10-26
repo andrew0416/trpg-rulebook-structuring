@@ -507,6 +507,7 @@ def refresh(e,token=None):
         __import__('juggler').after_move(e,row)
         __import__('conquerors_march').after_move(e,row)
         __import__('native_switch_transfer').observe_move(e,row)
+        __import__('ability_control_contracts').after_move(e,row['actor'],row['move'])
         return refresh(e,token)
     profile=ACTIVATION._profile(e)
     if row['profile']!=profile or e.r._selected_rule(row['move_id'])!=row['move_id']:

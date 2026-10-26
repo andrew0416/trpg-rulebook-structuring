@@ -414,6 +414,8 @@ def _paid_entry(e,c,progress,*,surface,reconcile=False,previous_position=None):
  if reconcile:
   import effect_lifetime_policy as LIFETIMES
   LIFETIMES.reconcile(e)
+ __import__('ability_exchange_contracts').refresh(e)
+ __import__('ability_control_contracts').refresh(e)
  if surface and c.pos==position and c.spec.get('_movement_altitude',0)==altitude:
   import effects_ext as EXT
   EXT.on_enter_cell(e,c,c.pos,previous_position=previous_position)
@@ -604,12 +606,15 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
    consume_sprint(c)
   MOUNT.sync(e,c)
   LIVING.shifted(e,c,cost)
+  __import__('ability_exchange_contracts').refresh(e)
+  __import__('ability_control_contracts').crossing(e,c,origin,q)
   spent+=cost;physical_distance+=physical_cost;moved+=1
   TA.moved(c,cost)
   if progress is not None:
    progress.update(next=moved,distance=physical_distance,position=c.pos,altitude=c.spec.get('_movement_altitude',0),
                    diagonals=c._diagonal_steps,phase='entering')
    if spent!=physical_distance:progress['charged_distance']=spent
+  if c.pos!=q or c.spec.get('_movement_altitude',0)!=height or c.fainted or not c.on_field or c.captured:break
   if not _paid_entry(e,c,progress,surface=not aerial or height==0 or mode=='shadow_surface',reconcile=aerial,previous_position=origin if altitude==height and origin_contact==FIELD.touches_ground(c) else None):break
  if progress is not None and moved==len(path) and progress['phase']=='ready':progress['phase']='complete'
  result={'distance':physical_distance,'steps':moved,'position':c.pos,'mode':mode}

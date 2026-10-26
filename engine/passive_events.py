@@ -174,6 +174,8 @@ def _finish_recipient_return(e,frame):
         substitute_damage_receipt=result.get('substitute_damage'))
     REACTIVE.resolved_hit(e,args['attacker'],args['target'],args['move'],args['completion_id'],
         hit_prevented=result['hit_prevented'],contact=result.get('melee_contact'))
+    __import__('ability_exchange_contracts').resolved_hit(e,args['attacker'],args['target'],args['move'],args['completion_id'],
+        hit_prevented=result['hit_prevented'],contact=result.get('melee_contact'))
     COMPLETE.record_return(e,event_id,hit_prevented=result['hit_prevented'])
     if event_id is not None:e._passive_events[event_id].pop('continuation')
     if event_id is not None:

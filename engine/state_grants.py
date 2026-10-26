@@ -1359,6 +1359,8 @@ def _transition(engine,c,apply,*,participants=(),include_rulings=False,include_g
     import effect_lifetime_policy as LIFETIMES
     LIFETIMES.reconcile(staged_engine)
     if completion is not None:completion(staged_engine,staged_c,*staged_participants)
+    __import__('ability_exchange_contracts').refresh(staged_engine)
+    __import__('ability_control_contracts').refresh(staged_engine)
     if len(staged_engine.gm_prompts)!=before_prompts:
         raise ValueError("state transition needs unresolved source input before commit")
     # Validate the resulting current world before exposing any staged mutation.
