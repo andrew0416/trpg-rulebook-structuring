@@ -3,7 +3,7 @@ from copy import deepcopy
 from pathlib import Path
 import csv,hashlib,json,sys,unittest
 STAGE=Path(__file__).resolve().parents[1]
-ROOT=Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
+ROOT=STAGE
 sys.path[:0]=[str(STAGE/'engine'),str(ROOT/'engine'),str(ROOT/'tools')]
 import ability_control_contracts as CONTROL
 import body_state as BODY

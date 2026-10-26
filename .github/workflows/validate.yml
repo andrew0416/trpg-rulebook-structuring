@@ -12,6 +12,7 @@ on:
           - workflow_checks
           - ci_adapter_checks
           - aa_native
+          - aa_diagnostics
 
 permissions:
   contents: read
@@ -215,5 +216,176 @@ jobs:
             output/ci/*/input-comparison.json
             output/ci/*/diagnostics.zip.enc
             output/ci/*/evidence.zip.enc
+          if-no-files-found: error
+          retention-days: 14
+
+  aa_diagnostics:
+    if: >-
+      github.repository == 'andrew0416/trpg-rulebook-structuring' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.suite == 'aa_diagnostics' &&
+      github.ref == 'refs/heads/codex/implementation-workflow-checks-1026ag'
+    permissions:
+      contents: read
+      actions: read
+    runs-on: windows-2022
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
+      - name: Download only the bound original failure artifact
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-aa-diagnostics' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT
+          New-Item -ItemType Directory -Path $taskTemp -ErrorAction Stop | Out-Null
+          $taskHeaders = @{ Authorization = 'Bearer ' + $env:GH_TOKEN; Accept = 'application/vnd.github+json'; 'X-GitHub-Api-Version' = '2022-11-28' }
+          $taskApi = 'https://api.github.com/repos/andrew0416/trpg-rulebook-structuring'
+          $taskRun = Invoke-RestMethod -Uri ($taskApi + '/actions/runs/40418653432') -Headers $taskHeaders
+          if ($taskRun.head_sha -cne 'a1da20e44f2a5701eeacd81eb0245c44f1d57115' -or $taskRun.status -cne 'completed' -or $taskRun.conclusion -cne 'failure' -or $taskRun.run_attempt -ne 1) { throw 'Original run binding differs' }
+          $taskArtifact = Invoke-RestMethod -Uri ($taskApi + '/actions/artifacts/12697176527') -Headers $taskHeaders
+          if ($taskArtifact.name -cne 'implementation-aa-40418653432-1' -or $taskArtifact.size_in_bytes -ne 214563513 -or $taskArtifact.expired -or $taskArtifact.workflow_run.id -ne 40418653432 -or $taskArtifact.workflow_run.head_sha -cne $taskRun.head_sha -or $taskArtifact.digest -cne 'sha256:a82bf0501b937f2f48175856c84b7216a25269f971ebd114b52590f827330c0a') { throw 'Original artifact binding differs' }
+          $taskZip = Join-Path $taskTemp 'original-artifact.zip'
+          Invoke-WebRequest -Uri ($taskApi + '/actions/artifacts/12697176527/zip') -Headers $taskHeaders -OutFile $taskZip
+          if ((Get-Item -LiteralPath $taskZip).Length -ne 214563513) { throw 'Original artifact size differs' }
+          $taskArchive = [IO.Compression.ZipFile]::OpenRead($taskZip)
+          try {
+            $taskEntries = @($taskArchive.Entries | Where-Object { $_.FullName -ceq '975dc9e146374a5387565077cdeb28c6/diagnostics.zip.enc' })
+            if ($taskEntries.Count -ne 1 -or $taskEntries[0].Length -ne 858468) { throw 'One bound encrypted diagnostic is required' }
+            $taskInput = $taskEntries[0].Open()
+            $taskOutput = [IO.File]::Open((Join-Path $taskTemp 'diagnostics.zip.enc'), [IO.FileMode]::CreateNew)
+            try { $taskInput.CopyTo($taskOutput) } finally { $taskOutput.Dispose(); $taskInput.Dispose() }
+          } finally { $taskArchive.Dispose() }
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $taskTemp 'diagnostics.zip.enc')).Hash.ToLowerInvariant() -cne 'a8c327af22a378dd5e6b96788d864105f9f56dc5b590ff6dbf1c88ceab5a71f2') { throw 'Encrypted diagnostic digest differs' }
+      - name: Reduce authenticated diagnostics to public IDs and source frames only
+        shell: pwsh
+        env:
+          PTK_FIXTURE_KEY: ${{ secrets.PTK_FIXTURE_KEY }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-aa-diagnostics' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT
+          $env:TEMP = $taskTemp
+          $env:TMP = $taskTemp
+          $env:TMPDIR = $taskTemp
+          $env:RUNNER_TEMP = $taskTemp
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath tools/ci_fixtures.mjs).Hash.ToLowerInvariant() -cne 'd885b3bd8947b7a66ba4146b49d210b24dde1fdb1fa3c415c0ac1f24182d2f90') { throw 'Retained crypto helper changed' }
+          try {
+            node tools/ci_fixtures.mjs decrypt (Join-Path $taskTemp 'diagnostics.zip.enc') (Join-Path $taskTemp 'diagnostics.zip')
+            if ($LASTEXITCODE -ne 0) { throw 'Authenticated diagnostic decryption failed' }
+          } finally { Remove-Item Env:PTK_FIXTURE_KEY -ErrorAction SilentlyContinue }
+          $taskCode = @'
+          import json, os, re, subprocess, zipfile
+          from pathlib import Path
+
+          def main():
+              root = Path(os.environ['GITHUB_WORKSPACE']).resolve()
+              temporary = Path(os.environ['RUNNER_TEMP']).resolve()
+              if root.drive.upper() != 'D:' or temporary.drive.upper() != 'D:':
+                  raise ValueError('D-only diagnostic paths required')
+              head = 'a1da20e44f2a5701eeacd81eb0245c44f1d57115'
+              def git(*args):
+                  return subprocess.check_output(['git', *args], cwd=root, stderr=subprocess.DEVNULL)
+              if git('rev-parse', 'HEAD^').decode().strip() != head:
+                  raise ValueError('The diagnostic proposal must directly follow its bound source')
+              packet = json.loads(git('show', head + ':.ci/suites/changed_revisions.json'))
+              public_ids = {name for row in packet['completed'].values() for name in row['tests']}
+              if len(public_ids) != 86 or packet['required_unique_count'] != 86:
+                  raise ValueError('Original public declaration differs')
+              tracked = {name for name in git('ls-tree', '-rz', '--name-only', head).decode('utf-8').split('\0') if name.endswith('.py')}
+              prefix = 'D:/trpg-rulebook-structuring/ci/40418653432-1-changed_revisions/'
+              error_types = {'AssertionError', 'AttributeError', 'FileNotFoundError', 'ImportError',
+                             'IndexError', 'KeyError', 'LookupError', 'ModuleNotFoundError',
+                             'NotImplementedError', 'OSError', 'OverflowError', 'PermissionError',
+                             'RecursionError', 'RuntimeError', 'StopIteration', 'TypeError',
+                             'UnboundLocalError', 'UnicodeDecodeError', 'ValueError', 'ZeroDivisionError'}
+              lines = {}
+              def line_count(path):
+                  if path not in lines:
+                      lines[path] = len(git('show', head + ':' + path).splitlines())
+                  return lines[path]
+              def reduce(label, trace, sources, count):
+                  ids = sorted(name for name in public_ids if label == name or label.startswith((name + ' (', name + ' [')))
+                  fixture = re.fullmatch(r'(setUpClass|tearDownClass|setUpModule|tearDownModule) \(([A-Za-z0-9_.]+)\)', label)
+                  if fixture:
+                      ids = sorted(name for name in public_ids if name.startswith(fixture[2] + '.'))
+                  frames = []
+                  for filename, number in re.findall(r'^  File "([^"]+)", line ([0-9]+), in .+$', trace, re.MULTILINE):
+                      filename = filename.replace('\\', '/')
+                      if filename.startswith(prefix):
+                          path = filename[len(prefix):]
+                          number = int(number)
+                          if path in sources and 0 < number <= count(path):
+                              frames.append({'path': path, 'line': number})
+                  error = next((line.split(':', 1)[0] for line in reversed(trace.splitlines())
+                                if line.split(':', 1)[0] in error_types), 'unclassified')
+                  return {'test_ids': ids, 'exception_type': error, 'frames': frames[-80:],
+                          'omitted_frame_count': max(0, len(frames) - 80)}
+
+              marker = 'PRIVATE_VALUE_MUST_NOT_LEAVE'
+              case = sorted(public_ids)[0]
+              synthetic = ('Traceback (most recent call last):\n  File "' + prefix +
+                           'engine/engine.py", line 80, in ' + marker +
+                           '\n  File "' + prefix + marker + '.py", line 1, in secret\nValueError: ' + marker)
+              sample = reduce(case + ' (value=' + marker + ')', synthetic, {'engine/engine.py'}, lambda path: 100)
+              assert sample['test_ids'] == [case] and sample['frames'] == [{'path': 'engine/engine.py', 'line': 80}]
+              assert marker not in json.dumps(sample) and sample['exception_type'] == 'ValueError'
+              assert not reduce(marker, synthetic, set(), lambda path: 0)['test_ids']
+              holder = 'tools.test_csv_ability_control_contracts.CsvAbilityControlTests'
+              assert len(reduce('setUpClass (' + holder + ')', '', set(), lambda path: 0)['test_ids']) == 24
+              assert not reduce(case, synthetic, {'engine/engine.py'}, lambda path: 79)['frames']
+
+              # shortcut: one retained failure artifact; review a new binding before another run.
+              with zipfile.ZipFile(temporary / 'diagnostics.zip') as archive:
+                  if len(archive.infolist()) != 9 or sum(item.file_size for item in archive.infolist()) > 33554432:
+                      raise ValueError('Bounded diagnostic archive required')
+                  reports = [item for item in archive.infolist() if re.fullmatch(r'verifier/tests-[0-9a-f-]+\.json', item.filename)]
+                  if len(reports) != 1 or reports[0].file_size > 8388608:
+                      raise ValueError('One bounded original verifier report required')
+                  report = json.loads(archive.read(reports[0]))
+              if set(report['collected']) != public_ids or len(report['collected']) != 86 or report['tests_run'] != 62:
+                  raise ValueError('Original verifier scope differs')
+              if len(report['failures']) != 7 or len(report['errors']) != 37:
+                  raise ValueError('Original failure counts differ')
+              reduced = []
+              for kind in ('failures', 'errors'):
+                  for row in report[kind]:
+                      if not isinstance(row['id'], str) or not isinstance(row['traceback'], str) or len(row['traceback']) > 2097152:
+                          raise ValueError('Bounded original failure row required')
+                      item = reduce(row['id'], row['traceback'], tracked, line_count)
+                      if not item['test_ids']:
+                          raise ValueError('Failure row has no original public test mapping')
+                      reduced.append(dict(kind=kind, **item))
+              result = dict(kind='redacted_original_failure_diagnostic_only', source_run=40418653432,
+                            source_commit=head, diagnostic_commit=os.environ['GITHUB_SHA'],
+                            evidence_id='975dc9e146374a5387565077cdeb28c6', game_runs=0, clause_credit=0,
+                            self_check_passed=True, physical_acceptance=False, failures=reduced)
+              with (root / 'aa-diagnostics.json').open('x', encoding='utf-8') as stream:
+                  json.dump(result, stream, ensure_ascii=False, indent=2)
+
+          try:
+              main()
+          except BaseException:
+              print('Bounded diagnostic reduction failed; raw evidence remains private.')
+              raise SystemExit(1)
+          print('Redacted original diagnostics saved; game runs=0, clause credit=0.')
+          '@
+          python -I -B -X utf8 -c $taskCode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve only redacted public diagnostic frames
+        if: ${{ success() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: implementation-aa-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: aa-diagnostics.json
           if-no-files-found: error
           retention-days: 14
