@@ -132,6 +132,28 @@ class ChroniclerSourceCritTests(unittest.TestCase):
         self.restore();self.valid()
         self.assertEqual((self.t.evasion_mod,self.p.evasion_mod),(0,0))
 
+    def test_playtest_perception_capped_registration_keeps_bonus_after_native_haze(self):
+        self.select_profile('playtest')
+        for actor in (self.t,self.p):
+            self.e.gm.set_stage(actor,'eva',value=6,reason='actual pre-existing capped evasion before Travel grant')
+        self.travel(profile='playtest')
+        for actor in (self.t,self.p):
+            self.assertEqual(actor.evasion_mod,6)
+            self.e.register_abilities_one(actor,'감지 [Playtest]')
+            self.assertEqual(actor.evasion_mod,6)
+        self.combat(self.b,count=20)
+        self.use(self.b,self.b,'move/흑안개',face=20)
+        for actor in (self.t,self.p):
+            self.assertEqual(actor.evasion_mod,1)
+            self.assertEqual(actor.evasion('물리',engine=self.e,attacker=self.b,ignore_stats=True),1)
+        self.restore();self.valid()
+        self.assertEqual((self.t.evasion_mod,self.p.evasion_mod),(1,1))
+        CH.observe_place(self.e,self.p,None,reason='actual Pokemon leaves the archived place after capped registration')
+        self.assertEqual((self.t.evasion_mod,self.p.evasion_mod),(1,0))
+        CH.observe_place(self.e,self.t,None,reason='actual trainer leaves the archived place after capped registration')
+        self.assertEqual((self.t.evasion_mod,self.p.evasion_mod),(0,0))
+        self.valid()
+
     def test_all_profile_allows_both_explicit_perception_sources_and_excludes_frisk(self):
         self.select_profile('all')
         self.assertEqual(CH._travel_ability(self.rules,CH.PERCEPTION_ABILITY),'감지')

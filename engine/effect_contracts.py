@@ -320,6 +320,8 @@ def condition(engine,effect,ctx,*,source=None):
   checks.append(ROOT.TRUE if COMPLETE.authorized_field(engine,ctx,effect) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual field activation completion'))
  elif __import__('declarative_move_contracts').after_all(engine.r,effect):
   checks.append(ROOT.TRUE if COMPLETE.authorized(engine,ctx) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual all-target completion'))
+ elif __import__('hp_setting_moves').after_all(engine.r,ctx.get('move') or {},effect):
+  checks.append(ROOT.TRUE if ctx.get('after_all_targets') and COMPLETE.authorized(engine,ctx) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual sacrifice completion'))
  elif COMPLETE.after_damage_self_stage(engine.r,ctx.get('move'),effect):
   checks.append(ROOT.TRUE if COMPLETE.authorized_after_damage_self_stage(engine,ctx,effect,source) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual after-damage self-stage completion'))
  elif 'native_action' in ctx:

@@ -24,6 +24,8 @@ import items as ITEMS
 import special_entities as SPECIAL
 import state_grants as GRANTS
 import world_entities as WORLD
+import test_book_athlete_acquisition as ATHLETE_FIX
+import athlete as ATHLETE
 
 
 class SnareReflectionTests(unittest.TestCase):
@@ -473,6 +475,44 @@ class FreeFloatingTests(unittest.TestCase):
                     later=MOVEMENT.follow_paid_path(engine,actor,fresh,mode='sky',maximum_distance=2,progress={})
                     self.assertEqual((later['distance'],later['steps'],actor.pos),(2,2,(2,7)))
 
+
+
+class FreeFloatingApproachTests(ATHLETE_FIX.AthleteScene, unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.rules = Rules(str(ROOT), ruleset='all')
+
+    def test_public_approach_preserves_paid_sprint_rate_and_clears_it_for_later_movement(self):
+        for enhanced in (False, True):
+            for source_policy in ('ch06_once', 'ch07_turn'):
+                for free_float in (0, 4):
+                    with self.subTest(enhanced=enhanced, policy=source_policy, free_float=free_float):
+                        self.setup(positions={'t': (2, 2), 'p': (2, 10), 'q': (12, 2)})
+                        if enhanced:
+                            self.acquire()
+                            self.acquire(ATHLETE.REGIME)
+                            self.exercise(('atk', 'spe'))
+                        self.e.gm.set_movement_capabilities(
+                            self.t, {'land': 6, 'sky': 2, 'free_float': free_float},
+                            basis='current', reason='actual native Sky with independently declared Free Floating')
+                        source = json.loads((ROOT / 'data/examples/environment-derive.json').read_text(encoding='utf-8'))['source']
+                        self.e.observe_environment(
+                            'approach-normal', dict(gravity=1, pressure=1, air_available=True, medium='air'),
+                            source=source, reason='actual normal-gravity approach route')
+                        self.combat(self.t)
+                        self.assertTrue(self.e.sprint(self.t, source_policy=source_policy))
+                        expected = 4 if enhanced else 3
+                        self.assertEqual(ATHLETE.sprint_rate(self.e, self.t), '1' if enhanced else '0.5')
+                        self.assertEqual(MOVEMENT.distance_budget(self.e, self.t, 'sky'), expected)
+                        result = self.e.approach(self.t, self.q, movement_mode='sky')
+                        self.assertEqual(result['distance'], expected)
+                        self.assertEqual((self.t.budget['standard'], self.t.budget['shift']), (0, 0))
+                        self.assertEqual('질주' in self.t.custom_conditions, source_policy == 'ch07_turn')
+                        self.next_turn(self.t)
+                        self.assertNotIn('질주', self.t.custom_conditions)
+                        self.assertEqual(MOVEMENT.distance_budget(self.e, self.t, 'sky'), 2)
+                        later = self.e.approach(self.t, self.q, movement_mode='sky')
+                        self.assertEqual(later['distance'], 2)
 
 
 if __name__ == '__main__':

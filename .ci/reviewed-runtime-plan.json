@@ -2,23 +2,14 @@
   "schema_version": 1,
   "status": "ROOT_REVIEWED_SOURCE_SELECTION_NOT_PASS",
   "branch": "codex/source-contract-revisions",
-  "reviewed_base_commit": "eed33fefff2c1c86764db498d9dd0b73b360f5d2",
+  "reviewed_base_commit": "245509d37c2632868d17bddd0b3a9c5964ba825a",
   "reviewed_python_paths": [
-    "engine/effects.py",
     "engine/engine.py",
-    "engine/food_effects.py",
-    "engine/gmax_moves.py",
-    "engine/move_completion.py",
-    "engine/movement_actions.py",
-    "engine/taskmaster.py",
-    "engine/weapon_actions.py",
-    "tools/test_bide_accuracy_source.py",
-    "tools/test_chronicler_lucky_consumer.py",
+    "engine/state_grants.py",
+    "engine/effect_contracts.py",
     "tools/test_chronicler_source_crit_revision.py",
-    "tools/test_gmax_protected_recipient.py",
-    "tools/test_native_blessing_range.py",
-    "tools/test_nonsmite_self_cost.py",
-    "tools/test_snare_freefloat_source_revision.py"
+    "tools/test_snare_freefloat_source_revision.py",
+    "tools/test_hp_setting_source_boundaries.py"
   ],
   "selection_input_paths": [
     ".ci/remote-source-inputs/chronicler.json",
@@ -27,10 +18,8 @@
     ".ci/remote-source-inputs/freefloat.json",
     ".ci/remote-source-inputs/self-cost-bide.json"
   ],
-  "extra_selected_method_ids": [
-    "tests.test_heavy_standard.Tests.test_001_native_hit_is_one_actual_standard_and_one_loss"
-  ],
+  "extra_selected_method_ids": [],
   "new_class_shard": ".ci/suites/final_revisions_16.json",
   "completion_credit": 0,
-  "root_review_note": "Source-only integration of the reviewed runtime packets and Free Float revision02. The latter and the combined source require remote validation. The original encrypted fixtures are unchanged. The five public selection inputs contain test IDs only; local provenance and private evidence are not published. No local verification, hashing, compilation or packaging is authorized. Control preparation and native/H verification execute in GitHub Actions; preparing controls alone earns no PASS or clause credit."
+  "root_review_note": "Reviewed caller-level sprint propagation, exact Playtest Perception ownership at the evasion cap, and sacrifice completion conditions. Only changed behavior and causally affected ordinary methods are selected. Previously completed runs are not repeated. Original assertions, full obligations, class owners, independent H, private fixtures and frequency contracts remain unchanged. No local execution or hashing. Control preparation and native/H validation run only in Actions; neither source publication nor preparation awards acceptance."
 }

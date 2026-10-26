@@ -5804,8 +5804,10 @@ class Engine:
         tunnel_walk = mode in ('land','육상') and TUNNELS.can_pass(self,c,c.pos)
         if movement_mode == "burrow" or (c.spec.get("_burrow",{}).get("underground") and not tunnel_walk):
             raise ValueError("Burrow needs an explicit diggable path and surface/underground destination")
+        sprint_rate = False
         if "질주" in c.custom_conditions:
-            budget = M.increase(budget,__import__('athlete').sprint_rate(self,c),quantity='movement',base_id='current_capability',stage='sprint')
+            sprint_rate = __import__('athlete').sprint_rate(self,c)
+            budget = M.increase(budget,sprint_rate,quantity='movement',base_id='current_capability',stage='sprint')
         budget=CAPABILITIES.movement_limit(c,budget)
         if maximum_distance is not None:budget=min(budget,maximum_distance)
         occ = self.occupied(c)
@@ -5860,7 +5862,12 @@ class Engine:
         if blind_plan:
             SURVIVALIST.begin_approach(self,c,target,blind_plan,blindness_options)
             return
-        movement=MOVEMENT.follow_paid_path(self,c,path,mode=mode,maximum_distance=budget,action_owner=action_owner,movement_mode=movement_mode)
+        movement_progress=None
+        if sprint_rate is not False and (movement_mode or mode) in ('sky','공중/부유') and MOVEMENT.capabilities(self,c,environment=False).get('free_float',0)>0:
+            movement_progress={}
+            MOVEMENT._paid_progress(c,[tuple(node[:2]) for node in path],movement_progress)
+            movement_progress['free_float_sprint_rate']=sprint_rate
+        movement=MOVEMENT.follow_paid_path(self,c,path,mode=mode,maximum_distance=budget,action_owner=action_owner,movement_mode=movement_mode,progress=movement_progress)
         moved,spent=movement['steps'],movement['distance']
         if moved:
             c.airborne = (mode == "공중/부유")

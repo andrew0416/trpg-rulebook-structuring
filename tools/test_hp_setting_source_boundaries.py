@@ -304,6 +304,20 @@ class HPSettingSourceTests(unittest.TestCase):
         self.assertEqual((actor.hp,actor.temp_hp,actor.injuries),(-42,100,3))
         self.assertTrue(actor.fainted)
 
+    def test_public_misty_explosion_pays_self_cost_after_actual_hit_or_miss(self):
+        for hit in (True,False):
+            with self.subTest(hit=hit):
+                e,actor,target,_=self.world();self.temp(e,actor,100)
+                self.start(e,actor,target,'move/미스트버스트',hit=hit)
+                e.use_move_on(actor,target,'move/미스트버스트',[actor,target],set_damage=True)
+                self.assertEqual((actor.hp,actor.temp_hp,actor.injuries),(-42,100,3))
+                self.assertTrue(actor.fainted)
+                self.assertEqual(actor.move_uses['move/미스트버스트'],1)
+                rows=[row for row in e._effect_dispatch_receipts.values()
+                      if row['source_id']=='move/미스트버스트' and row['effect'].get('type')=='self_hp_set']
+                self.assertEqual(len(rows),1)
+                self.assertEqual(rows[0]['status'],'completed')
+
     def test_public_final_gambit_keeps_self_cost_when_substitute_receives_target_damage(self):
         import substitute as SUB
         e,actor,target,_=self.world()

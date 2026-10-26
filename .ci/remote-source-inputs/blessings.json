@@ -1,8 +1,1 @@
-{
-  "selected_test_ids": [
-    "tools.test_native_blessing_range.NativeBlessingRangeTests.test_all_eight_printed_blessings_create_one_pool_and_pay_once_on_map",
-    "tools.test_native_blessing_range.NativeBlessingRangeTests.test_lucky_chant_rejects_foreign_caster_and_keeps_team_pool_after_recall",
-    "tools.test_native_blessing_range.NativeBlessingRangeTests.test_numeric_range_with_blessing_keyword_stays_numeric_and_self_field_stay_distinct",
-    "tools.test_chronicler_lucky_consumer.ChroniclerLuckyConsumerTests.test_native_lucky_pool_blocks_profiled_critical_damage_once"
-  ]
-}
+{"selected_test_ids": []}

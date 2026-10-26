@@ -1,14 +1,12 @@
 {
   "affected_test_ids_from_156": [
-    "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests.test_actual_mounted_dash_pass_applies_one_cost_after_both_recipients",
-    "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests.test_clanging_scales_burst_uses_original_defense_then_one_drop",
-    "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests.test_nonsmite_misses_do_not_gain_after_use_exception_but_substitute_hit_keeps_user_cost",
-    "tools.test_substitute_damage_consumers.SubstituteDamageConsumerTests.test_coat_damage_recoil_and_self_stage_keep_creature_prevention_and_restore"
+    "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_public_explosions_pay_one_unpreventable_self_cost_after_all_hits_or_misses",
+    "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_owned_sacrifice_requires_GM_loyalty_magnitude_before_cost_and_applies_once",
+    "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_prepared_sacrifice_choice_survives_native_target_wait_restore_and_tamper_rejection",
+    "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_misty_explosion_selected_negative_half_uses_signed_floor_and_same_marker_boundary",
+    "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_public_misty_explosion_pays_self_cost_after_actual_hit_or_miss",
+    "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_public_final_gambit_separates_capped_HP_loss_positive_faint_and_actual_damage",
+    "tools.test_post_damage_self_stage.PostDamageSelfStageTests.test_both_smite_misses_pay_one_self_drop_with_honest_miss_context"
   ],
-  "affected_test_ids_from_168": [
-    "tools.test_category2_gmax_moves.GMaxMoveTests.test_bide_pending_scope_counts_later_smite_without_turning_miss_into_hit",
-    "tools.test_bide_accuracy_source.BideAccuracySourceTests.test_real_reaction_and_cold_release_succeed_on_natural_one_without_extra_payment",
-    "tools.test_bide_accuracy_source.BideAccuracySourceTests.test_unmarked_bide_keeps_ordinary_accuracy_and_forged_projection_has_no_native_authority",
-    "tools.test_book_style_move_dependencies.StyleMoveDependencyTests.test_bide_reaction_payments_shift_and_release_count_only_later_damage"
-  ]
+  "affected_test_ids_from_168": []
 }
