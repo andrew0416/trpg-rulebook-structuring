@@ -7,6 +7,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import subprocess
+import traceback
 
 PLAN = '.ci/reviewed-runtime-plan.json'
 FULL = [f'.ci/suites/final_revisions_{n:02d}.json' for n in range(1, 19)]
@@ -220,8 +221,11 @@ def main():
 if __name__ == '__main__':
     try:
         raise SystemExit(main())
-    except Exception:
-        print('{"status":"CONTROL_PREPARATION_REJECTED","native_runs":0,"completion_credit":0}')
+    except Exception as exc:
+        lines=[frame.lineno for frame in traceback.extract_tb(exc.__traceback__) if frame.filename==__file__]
+        assert all(type(line) is int and line>0 for line in lines)
+        print(json.dumps(dict(status='CONTROL_PREPARATION_REJECTED', public_helper_lines=lines,
+            exception_type=type(exc).__name__, native_runs=0, completion_credit=0)))
         raise SystemExit(1)
 
 
