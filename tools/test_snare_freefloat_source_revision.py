@@ -383,5 +383,97 @@ class FreeFloatingTests(unittest.TestCase):
             dump_engine(engine)
 
 
+    def test_weaker_native_sky_does_not_spend_free_float_speed_in_normal_gravity(self):
+        for restored in (False,True):
+            with self.subTest(restored=restored):
+                engine,actor,_,_=self.fixture()
+                self.equip(engine,actor,'item/우주복','weak-sky')
+                engine.gm.set_movement_capabilities(actor,{'land':6,'sky':1},basis='current',reason='actual independent Sky1')
+                source=json.loads((ROOT/'data/examples/environment-derive.json').read_text(encoding='utf8'))['source']
+                for name,gravity,cells in [('origin',0,[[2,2]]),('corridor',1,[[2,y] for y in range(3,7)])]:
+                    engine.observe_environment(name,dict(gravity=gravity,pressure=1,air_available=True,medium='air'),cells=cells,source=source,reason='actual gravity along the whole selected Sky path')
+                if restored:
+                    engine=self.restored(engine);actor=WORLD.actor_index(engine)[actor.entity_id]
+                engine.start_round(engine.everyone);engine.start_of_turn(actor)
+                assert_rejected_unchanged(engine,lambda:engine.aerial_move(actor,(2,6),mode='sky',altitude=0,reason_text='four metre normal-gravity flight'),reason_pattern='independent native Sky allowance')
+                result=engine.aerial_move(actor,(2,3),mode='sky',altitude=0,reason_text='one metre actual native Sky')
+                self.assertEqual((result['distance'],actor.pos,actor.budget['shift']),(1,(2,3),0))
+                self.assertEqual(MOVEMENT.capabilities(engine,actor)['sky'],1)
+
+        # Existing aerial geometry accepts an explicitly measured fractional path.
+        engine,actor,_,_=self.fixture();self.equip(engine,actor,'item/우주복','fractional-native-sky')
+        engine.gm.set_movement_capabilities(actor,{'land':6,'sky':2},basis='current',reason='actual independent Sky2')
+        source=json.loads((ROOT/'data/examples/environment-derive.json').read_text(encoding='utf8'))['source']
+        for name,gravity,cells in [('origin',0,[[2,2]]),('destination',1,[[2,3]])]:
+            engine.observe_environment(name,dict(gravity=gravity,pressure=1,air_available=True,medium='air'),cells=cells,source=source,reason='actual fractional aerial path gravity')
+        engine.start_round(engine.everyone);engine.start_of_turn(actor)
+        result=engine.aerial_move(actor,(2,3),mode='sky',altitude=0.5,gm_distance=1.5,reason_text='observed native Sky2 path')
+        self.assertEqual((result['distance'],actor.pos,actor.spec['_movement_altitude'],actor.budget['shift']),(1.5,(2,3),0.5,0))
+
+    def test_free_float_paid_path_cannot_reset_native_sky_allowance_each_step(self):
+        import turn as TURN
+        engine,actor,_,_=self.fixture();self.equip(engine,actor,'item/우주복','paid-weak-sky')
+        engine.gm.set_movement_capabilities(actor,{'land':6,'sky':1},basis='current',reason='actual native Sky1')
+        source=json.loads((ROOT/'data/examples/environment-derive.json').read_text(encoding='utf8'))['source']
+        engine.observe_environment('origin',dict(gravity=0,pressure=1,air_available=True,medium='air'),cells=[[2,2]],source=source,reason='zero-gravity departure')
+        engine.observe_environment('corridor',dict(gravity=1,pressure=1,air_available=True,medium='air'),cells=[[2,y] for y in range(3,7)],source=source,reason='normal-gravity native Sky path')
+        engine.start_round(engine.everyone);engine.start_of_turn(actor)
+        self.assertTrue(TURN.spend(engine,actor,'shift','actual paid Sky movement',movement=True))
+        path=[{'position':(2,y),'altitude':0} for y in range(3,7)];progress={}
+        result=MOVEMENT.follow_paid_path(engine,actor,path,mode='sky',maximum_distance=4,progress=progress)
+        self.assertEqual((result['distance'],result['steps'],actor.pos,actor.budget['shift']),(1,1,(2,3),0))
+        before=(actor.pos,progress.copy(),engine.rng.getstate())
+        again=MOVEMENT.follow_paid_path(engine,actor,path,mode='sky',maximum_distance=4,progress=progress)
+        self.assertEqual((again['distance'],again['steps']),(1,1));self.assertEqual((actor.pos,progress,engine.rng.getstate()),before)
+
+    def test_full_zero_gravity_keeps_four_speed_and_zero_endpoints_do_not_hide_normal_gap(self):
+        for gap in (False,True):
+            with self.subTest(normal_gap=gap):
+                engine,actor,_,_=self.fixture();self.equip(engine,actor,'item/우주복','float-corridor')
+                source=json.loads((ROOT/'data/examples/environment-derive.json').read_text(encoding='utf8'))['source']
+                zeros=[[2,y] for y in range(2,7) if not gap or y in (2,6)]
+                engine.observe_environment('zero',dict(gravity=0,pressure=1,air_available=True,medium='air'),cells=zeros,source=source,reason='actual complete zero-gravity cells')
+                if gap:engine.observe_environment('gap',dict(gravity=1,pressure=1,air_available=True,medium='air'),cells=[[2,y] for y in (3,4,5)],source=source,reason='actual normal-gravity gap')
+                engine.start_round(engine.everyone);engine.start_of_turn(actor)
+                call=lambda:engine.aerial_move(actor,(2,6),mode='sky',altitude=0,reason_text='four metre Free Floating path')
+                if gap:assert_rejected_unchanged(engine,call,reason_pattern='observed zero gravity')
+                else:
+                    result=call();self.assertEqual((result['distance'],actor.pos,actor.budget['shift']),(4,(2,6),0))
+
+
+
+    def test_one_movement_sprint_keeps_paid_rate_across_segments_and_continuation(self):
+        import turn as TURN
+        for scenario in ('whole','continuation','live_capacity_loss'):
+            with self.subTest(scenario=scenario):
+                engine,actor,_,_=self.fixture();self.equip(engine,actor,'item/우주복','paid-sprint')
+                engine.gm.set_movement_capabilities(actor,{'land':6,'sky':2},basis='current',reason='actual native Sky2 with dormant Free Floating4')
+                self.region(engine,gravity=1)
+                if scenario!='whole':engine.gm.set_terrain((2,4),'blocking',reason='actual temporary obstacle pauses the paid path')
+                engine.start_round(engine.everyone);engine.start_of_turn(actor)
+                self.assertTrue(MOVEMENT.sprint(engine,actor,source_policy='ch06_once'))
+                allowance=MOVEMENT.distance_budget(engine,actor,'sky');self.assertEqual(allowance,3)
+                self.assertTrue(TURN.spend(engine,actor,'shift','actual paid Sprint Sky path',movement=True))
+                path=[{'position':(2,y),'altitude':0} for y in range(3,6)];progress={}
+                result=MOVEMENT.follow_paid_path(engine,actor,path,mode='sky',maximum_distance=allowance,progress=progress)
+                if scenario!='whole':
+                    self.assertEqual((result['distance'],result['steps'],actor.pos),(1,1,(2,3)))
+                    self.assertNotIn('질주',actor.custom_conditions)
+                    engine.gm.set_terrain((2,4),'blocking',on=False,reason='actual obstacle removed before resuming same paid path')
+                    if scenario=='live_capacity_loss':engine.gm.set_movement_capabilities(actor,{'land':6,'sky':1},basis='current',reason='actual reduced native Sky before continuation')
+                    result=MOVEMENT.follow_paid_path(engine,actor,path,mode='sky',maximum_distance=allowance,progress=progress)
+                expected=1 if scenario=='live_capacity_loss' else 3
+                self.assertEqual((result['distance'],result['steps'],actor.pos),(expected,expected,(2,2+expected)))
+                self.assertEqual((actor.budget['standard'],actor.budget['shift']),(0,0));self.assertNotIn('질주',actor.custom_conditions)
+                if scenario=='whole':
+                    engine.end_of_turn(actor);engine.end_round();engine.start_round(engine.everyone);engine.start_of_turn(actor)
+                    self.assertEqual(MOVEMENT.distance_budget(engine,actor,'sky'),2)
+                    self.assertTrue(TURN.spend(engine,actor,'shift','distinct later Sky movement',movement=True))
+                    fresh=[{'position':(2,y),'altitude':0} for y in range(6,9)]
+                    later=MOVEMENT.follow_paid_path(engine,actor,fresh,mode='sky',maximum_distance=2,progress={})
+                    self.assertEqual((later['distance'],later['steps'],actor.pos),(2,2,(2,7)))
+
+
+
 if __name__ == '__main__':
     unittest.main()

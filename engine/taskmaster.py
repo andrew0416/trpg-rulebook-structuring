@@ -458,7 +458,9 @@ def critical_damage(engine,attacker,target,move,critical):
     if not critical:return False
     if gambit_side(engine,attacker,target,move)=='incoming':return True
     import ability_transitions as AB,enduring_resilience as RESILIENCE
-    if AB.active(target,'ability/조가비갑옷-전투무장'):return False
+    if (AB.active(target,'ability/조가비갑옷-전투무장')
+            and not __import__('trickster').ignores_defensive(engine,target,'ability/조가비갑옷-전투무장')
+            and not __import__('chronicler').defensive_ignored(engine,attacker,target,move)):return False
     return not RESILIENCE.prevent(engine,target,critical=True,source=move['id'],attacker=attacker)
 
 

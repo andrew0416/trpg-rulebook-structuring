@@ -2816,6 +2816,11 @@ class Engine:
         import event_effects as EVENTS
         EVENTS.validate_for_use(self,attacker,move=move)
         mm, conf = ENVIRON.read(self,move,attacker)
+        bide_automatic = None
+        if move.get('id') == 'move/참기' and '_retrospective_hp_loss' in move:
+            # Accuracy re-reads retain the native phase's policy, not a recalculated damage amount.
+            bide_automatic = __import__('bide').project(self,attacker,move,mm)[1]['never_miss']
+            mm = dict(mm, never_miss=bide_automatic)
         import class_passive_combat as CLASS_PASSIVE
         CLASS_PASSIVE.preflight(self,attacker,target,move,mm)
         import move_accuracy as MOVE_ACCURACY
@@ -2838,6 +2843,7 @@ class Engine:
         if shared_roll is not None and roll_id is not None:
             raise ValueError('identified shared accuracy needs a sourced multi-target AP policy')
         mm, conf = ENVIRON.read(self,move,attacker)
+        if bide_automatic is not None:mm = dict(mm, never_miss=bide_automatic)
         no_hit_reason = EXT.blocks_hit(self,attacker,target,move,mm)
         import combat_social_edges as SOCIAL
         SOCIAL.preflight(self,attacker,target,move,mm)
@@ -4086,8 +4092,9 @@ class Engine:
         move = __import__('martial_artist').prepare(self,attacker,move)
         move = EXT.prepare_versatile_move(self,move,versatile_stat)
         VISION.require_move(self,attacker,move)
-        if WEAPONS.is_field(WEAPONS.range_spec(self,move,attacker)):
-            # Field Moves have no creature primary. Keep one actual user anchor
+        activation_range = WEAPONS.range_spec(self,move,attacker)
+        if WEAPONS.is_field(activation_range) or WEAPONS.is_blessing(activation_range):
+            # Field and Blessing Moves have no creature primary. Keep one actual user anchor
             # so action/frequency/effect lifecycles execute exactly once.
             primary=attacker
         import native_area_hit_effects as AREA_HIT
@@ -5295,7 +5302,7 @@ class Engine:
         if WEAPONS.is_field(rng):
             WEAPONS.field_members(self)
             return [attacker]
-        if WEAPONS.is_self_only(rng):
+        if WEAPONS.is_self_only(rng) or WEAPONS.is_blessing(rng):
             return [attacker]
         selected=WEAPONS.selected_targets(self,attacker,move,candidates,primary)
         if selected is not None:return selected

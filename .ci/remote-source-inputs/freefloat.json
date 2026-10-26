@@ -1,0 +1,19 @@
+{
+  "completed": {
+    "freefloat_sprint_revision02": {
+      "tests": [
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_one_movement_sprint_keeps_paid_rate_across_segments_and_continuation"
+      ]
+    },
+    "freefloat_existing_boundaries": {
+      "tests": [
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_weaker_native_sky_does_not_spend_free_float_speed_in_normal_gravity",
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_free_float_paid_path_cannot_reset_native_sky_allowance_each_step",
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_full_zero_gravity_keeps_four_speed_and_zero_endpoints_do_not_hide_normal_gap",
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_float_only_sky_cannot_cross_to_normal_or_unobserved_gravity_before_cost",
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_disengage_checks_float_destination_before_spending_its_native_action",
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_live_gravity_change_restore_and_unequip_preserve_stronger_native_movement"
+      ]
+    }
+  }
+}

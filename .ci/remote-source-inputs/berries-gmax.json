@@ -1,0 +1,19 @@
+{
+  "packets": [
+    {
+      "selected_test_ids": [
+        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_resistance_berry_live_hit_side_matrix_consumes_only_for_actual_foe",
+        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_resistance_berry_retains_real_grant_on_miss_then_restored_current_foe_hit_consumes_once",
+        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_super_effective_berry_native_wrong_type_neutral_and_foe_hit_boundaries",
+        "tools.test_foe_side_contracts_revision.ResistanceBerryPreparationFoeTests.test_real_salty_berry_on_ally_hit_does_not_require_foe_consumption_policy"
+      ]
+    },
+    {
+      "selected_test_ids": [
+        "tools.test_gmax_protected_recipient.GoldRushProtectedRecipientTests.test_substitute_receives_gold_rush_hit_without_new_confusion_or_lost_coins",
+        "tools.test_category2_gmax_moves.GMaxMoveTests.test_gold_rush_mixed_hit_and_smite_miss_keep_distinct_recipients",
+        "tools.test_category2_gmax_moves.GMaxMoveTests.test_printed_smite_half_damage_and_zero_damage_exception_are_native"
+      ]
+    }
+  ]
+}

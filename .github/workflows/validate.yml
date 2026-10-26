@@ -10,6 +10,7 @@ on:
         default: changed_revisions
         options:
           - changed_revisions
+          - prepare_reviewed_controls
           - metadata_prerequisites
           - final_revisions
           - performance_probe
@@ -25,14 +26,59 @@ on:
           - retraining
           - next_revisions
 
+      expected_parent:
+        description: Exact current codex branch head for prepare_reviewed_controls only
+        type: string
+        required: false
 permissions:
   contents: read
 
 jobs:
+  prepare_controls:
+    if: >-
+      github.repository == 'andrew0416/trpg-rulebook-structuring' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.suite == 'prepare_reviewed_controls' &&
+      startsWith(github.ref, 'refs/heads/codex/')
+    runs-on: windows-2022
+    timeout-minutes: 15
+    concurrency:
+      group: prepare-reviewed-controls-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    outputs:
+      prepared_commit: ${{ steps.controls.outputs.prepared_commit }}
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.expected_parent }}
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11'
+      - name: Prepare and commit only reviewed CI controls
+        id: controls
+        shell: pwsh
+        env:
+          REVIEWED_PARENT: ${{ inputs.expected_parent }}
+        run: |
+          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-control-preparation' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT
+          New-Item -ItemType Directory -Path $taskTemp -Force -ErrorAction Stop | Out-Null
+          $env:TEMP = $taskTemp
+          $env:TMP = $taskTemp
+          $env:TMPDIR = $taskTemp
+          $env:RUNNER_TEMP = $taskTemp
+          python -B -X utf8 tools/ci_prepare_reviewed_controls.py --root "$env:GITHUB_WORKSPACE" --expected-parent "$env:REVIEWED_PARENT"
   validate:
     if: >-
       github.repository == 'andrew0416/trpg-rulebook-structuring' &&
       github.event_name == 'workflow_dispatch' &&
+      inputs.suite != 'prepare_reviewed_controls' &&
       (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/codex/'))
     strategy:
       fail-fast: false
@@ -75,6 +121,19 @@ jobs:
           $env:TMPDIR = $taskTemp
           $env:RUNNER_TEMP = $taskTemp
           python -B -X utf8 tools/ci_validate.py --root "$env:GITHUB_WORKSPACE" --suite "$env:CI_SUITE"
+      - name: Check original ordinary evidence with unchanged independent H
+        if: ${{ always() && matrix.suite == 'changed_revisions' }}
+        shell: pwsh
+        env:
+          PTK_FIXTURE_KEY: ${{ secrets.PTK_FIXTURE_KEY }}
+        run: |
+          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-independent-h' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT
+          New-Item -ItemType Directory -Path $taskTemp -Force -ErrorAction Stop | Out-Null
+          $env:TEMP = $taskTemp
+          $env:TMP = $taskTemp
+          $env:TMPDIR = $taskTemp
+          $env:RUNNER_TEMP = $taskTemp
+          python -B -X utf8 tools/ci_remote_h.py --root "$env:GITHUB_WORKSPACE"
       - name: Preserve small encrypted diagnostics
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -98,5 +157,9 @@ jobs:
             output/ci/*/input-sha256-after.json
             output/ci/*/input-comparison.json
             output/ci/*/evidence.zip.enc
+            output/ci/remote-h/h-summary.json
+            output/ci/remote-h/h-proof.json.enc
           if-no-files-found: warn
           retention-days: 14
+
+

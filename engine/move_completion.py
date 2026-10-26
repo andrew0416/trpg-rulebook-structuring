@@ -234,7 +234,7 @@ def require_recipient_hit_return(e,event_id,recipient):
 
 
 def after_damage_self_stage(rules,move,effect):
-    """Exact printed Smite user stat costs, once after all recipient damage."""
+    """Exact printed user stat costs, once after the applicable recipient damage."""
     if rules is None or not isinstance(move,dict) or not isinstance(effect,dict):return False
     sources={
         'move/용성군':('피해량 계산이후 사용자의 특수공격 전투단계를 -2만큼 하락시킵니다.',{'spa':-2}),
@@ -243,6 +243,9 @@ def after_damage_self_stage(rules,move,effect):
         'move/플뢰르캐논':('피해량 계산 이후 사용자의 특수공격 전투단계가 -2만큼 하락합니다.',{'spa':-2}),
         'move/사이코부스트':('피해량 처리한 후사용자의 특수공격 전투단계가 -2만큼 하락한다.',{'spa':-2}),
         'move/v제너레이트':('사용자의 방어, 특수방어, 스피드 전투단계 모두 -1만큼 하락합니다.',{'def':-1,'spd':-1,'spe':-1}),
+        'move/인파이트':('피해량 계산 이후 사용자의 방어, 특수방어 전투단계가 모두 -1씩 하락합니다.',{'def':-1,'spd':-1}),
+        'move/엄청난힘':('엄청난힘을 사용하면 사용자의 공격과 방어 전투단계가 모두 -1만큼 하락합니다.',{'atk':-1,'def':-1}),
+        'move/스케일노이즈':('스케일노이즈의 피해 굴림에 방어 스탯의 절반만큼 더합니다. 기술이 처리된 이후 사용자의 방어 전투단계가 -1만큼 하락합니다.',{'def':-1}),
     }
     mid=move.get('id')
     if mid not in sources:return False
@@ -377,6 +380,17 @@ def authorized(e,ctx):
                 all(t.entity_id in row['results'] for t in row['targets']))
 
 
+def self_stage_damage_ready(e,row):
+    """Non-Smite effects require a hit; a real Substitute hit keeps user costs."""
+    hit_only=row['move_id'] in ('move/인파이트','move/엄청난힘','move/스케일노이즈')
+    for target in actual_recipients(row):
+        result=recipient_result(row,target)
+        if observed_damage(e,row,target,result) is None:continue
+        if hit_only and not (result['hit'] or result.get('substitute_damage')):continue
+        return True
+    return False
+
+
 def authorized_after_damage_self_stage(e,ctx,effect,source):
     row=getattr(e,KEY,{}).get(ctx.get('move_completion'))
     return bool(ctx.get('after_all_targets') and authorized(e,ctx) and
@@ -384,8 +398,7 @@ def authorized_after_damage_self_stage(e,ctx,effect,source):
                 any(ctx.get('target') is target for target in row['targets']) and
                 after_damage_self_stage(e.r,row['move'],effect) and
                 effect in row['post_effects'] and
-                any(observed_damage(e,row,target,recipient_result(row,target)) is not None
-                    for target in actual_recipients(row)))
+                self_stage_damage_ready(e,row))
 
 
 def authorized_field(e,ctx,effect):
@@ -512,7 +525,7 @@ def refresh(e,token=None):
     if row['profile']!=profile or e.r._selected_rule(row['move_id'])!=row['move_id']:
         raise ValueError('selected move completion policy changed')
     hit=any(x['hit'] and not x['cancelled'] for x in row['results'].values())
-    after_damage=any(observed_damage(e,row,target,recipient_result(row,target)) is not None for target in actual_recipients(row))
+    after_damage=self_stage_damage_ready(e,row)
     all_cancelled=all(x['cancelled'] for x in row['results'].values())
     # Ordinary self effects preserve their hit requirement; an explicitly
     # after-use counter also advances on a genuine miss, never a refusal.

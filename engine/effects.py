@@ -1004,6 +1004,14 @@ def apply_passives(engine, c, ability_effects):
         import taskmaster as TASK
         TASK.cruelty_definition(engine.r)
         return
+    if any(isinstance(e,dict) and e.get('_rule_id')=='ability/감지-playtest' for e in ability_effects):
+        import chronicler as CHRONICLER
+        CHRONICLER.perception_definition(engine.r, CHRONICLER.PERCEPTION_PLAYTEST)
+        raw = [{k:v for k,v in e.items() if not k.startswith('_')} for e in ability_effects]
+        if raw != engine.r.ability_effects['감지 [Playtest]']:
+            raise ValueError('exact Playtest Perception passive and native reaction required')
+        # Its always-on bonus is independent; the selected native area reaction owns the Shift.
+        ability_effects = [e for e in ability_effects if e['type']=='evasion_mod']
     for e in ability_effects:   # 연결(connection): 특정 기술을 쓸 때 발동 → on_move_use 트리거로 등록 (effect 가 dict 면 실행, 문장이면 로그만)
         if isinstance(e, dict) and e.get("type") == "connection" and e.get("move"):
             import food_effects as FOOD

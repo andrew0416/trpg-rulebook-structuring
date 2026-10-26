@@ -263,14 +263,33 @@ def _travel_geometry(e,c,destination,altitude,gm_distance,*,require_los=True,ign
   raise ValueError('destination body is blocked, outside map or occupied at this altitude')
  return destination,distance
 
-def free_float_destination(e,c,destination,mode,*,origin=None):
+def free_float_destination(e,c,destination,mode,*,origin=None,distance=None,sprint_rate=None):
  if mode not in ('sky','공중/부유'):return True
  ordinary=capabilities(e,c,environment=False)
  if ordinary.pop('free_float',0)<=0:return True
  import environment_derive as ED
+ # Conditional Sky can fund only the actually observed zero-gravity segment.
+ origin=c.pos if origin is None else origin
+ points=[origin,destination] if e.grid is None else [origin,*e.grid.line_cells(origin,destination),destination]
+ if all(ED.zero_gravity(e,c,position=point) for point in points):return True
  ordinary=ED.movement(e,c,ordinary)
- if ordinary.get('sky',0)>0 or (mode=='공중/부유' and ordinary.get('levitate',0)>0 and c.spec.get('_movement_altitude',0)<=ordinary['levitate']/2):return True
- return ED.zero_gravity(e,c,position=origin) and ED.zero_gravity(e,c,position=destination)
+ sky=ordinary.get('sky',0)
+ lev=ordinary.get('levitate',0) if mode=='공중/부유' and c.spec.get('_movement_altitude',0)<=ordinary.get('levitate',0)/2 else 0
+ if max(sky,lev)<=0:return False
+ if distance is None:return True
+ from physical_limits import number
+ number(distance,'actual Free Floating boundary distance',minimum=0)
+ # Reuse the chosen native mode's ordinary stage/Slowed/Sprint/load consumers;
+ # two sources of Sky do not invent a mixed-capability averaging decision.
+ import effects_ext as EXT
+ native_mode='levitate' if lev>sky else 'sky'
+ limit,_=EXT.movement_profile(e,c,ordinary.get('land',c.movement),max(sky,lev),movement_mode=native_mode,capabilities=ordinary)
+ limit=LOAD.movement_limit(c,limit)
+ if sprint_rate is None:sprint_rate=__import__('athlete').sprint_rate(e,c) if '질주' in c.custom_conditions else False
+ if sprint_rate is not False:
+  if type(sprint_rate)is not str or sprint_rate not in ('0.5','1'):raise ValueError('actual paid Free Floating Sprint rate required')
+  limit=M.increase(limit,sprint_rate,quantity='movement',base_id='current_capability',stage='sprint',source='maneuver/질주')
+ return distance<=LOAD.movement_limit(c,limit)
 
 
 def _aerial_height(e,c,mode,altitude,*,destination=None,capability_actor=None):
@@ -294,6 +313,8 @@ def aerial_move(e,c,destination,*,mode,altitude,reason_text,gm_distance=None):
  boundary(e,'aerial_move');reason(reason_text)
  _aerial_height(e,c,mode,altitude,destination=destination)
  destination,distance=_travel_geometry(e,c,destination,altitude,gm_distance)
+ if not free_float_destination(e,c,destination,mode,origin=c.pos,distance=distance):
+  raise ValueError('Free Floating boundary exceeds independent native Sky allowance')
  allowance=distance_budget(e,c,mode)
  if distance>allowance:raise ValueError('aerial destination exceeds movement allowance')
  if not c.on_field or c.captured or not TURN.spend(e,c,'shift','공중/부유 이동',movement=True):return False
@@ -556,6 +577,14 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
   _,cost=_travel_geometry(e,c,q,height,measured)
   return q,height,cost,diagonals+min(dx,dy)
  _paid_receipts(e,progress);_paid_progress(c,path,progress)
+ free_float_sprint=None
+ if (movement_mode or mode) in ('sky','공중/부유') and capabilities(e,c,environment=False).get('free_float',0)>0:
+  # consume_sprint removes the one-movement flag after entry, not its paid rate.
+  # Keep only that rate with this path; capabilities and gravity remain live.
+  if progress is not None and 'free_float_sprint_rate' in progress:free_float_sprint=progress['free_float_sprint_rate']
+  else:
+   free_float_sprint=__import__('athlete').sprint_rate(e,c) if '질주' in c.custom_conditions else False
+   if progress is not None:progress['free_float_sprint_rate']=free_float_sprint
  import electro_shot as ELECTRO
  active_exits={} if progress is None else ELECTRO.restore_exits(e,c,progress)
  physical_distance=0 if progress is None else progress['distance']
@@ -576,6 +605,7 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
   exit_candidate=ELECTRO.exit_step(e,c,path,moved,active_exits,movement_mode=shared_mode,progress=progress)
   if exit_candidate is not None:cost=0
   if spent+cost>maximum_distance:break
+  if not free_float_destination(e,c,q,movement_mode or mode,origin=origin,distance=spent+cost,sprint_rate=free_float_sprint):break
   if not LIVING.can_shift(e,c,cost,movement_mode=shared_mode):break
   if not _paid_departure(e,c,q,height,progress,pass_scope=pass_scope,chain_scope=chain_scope,disengage_scope=disengage_scope):break
   # Reactions can move the actor or change the destination body/terrain.
@@ -588,6 +618,7 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
   exit_candidate=ELECTRO.exit_step(e,c,path,moved,active_exits,movement_mode=shared_mode,progress=progress)
   if exit_candidate is not None:cost=0
   if spent+cost>maximum_distance:break
+  if not free_float_destination(e,c,q,movement_mode or mode,origin=origin,distance=spent+cost,sprint_rate=free_float_sprint):break
   if not LIVING.can_shift(e,c,cost,movement_mode=shared_mode):break
   if action_owner is not c and action_owner.spec.get('mount_id')!=c.entity_id:break
   departure_distance=physical_cost if aerial else step_cost(origin,q,getattr(c,'_diagonal_steps',0))[0]
