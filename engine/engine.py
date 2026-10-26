@@ -3431,7 +3431,7 @@ class Engine:
     @TRACE.operation('attack_damage_application','attacker','target','move','crit','set_damage')
     @__import__('cheerleader').native_action
     @__import__('conquerors_march').damage_scope
-    def resolve_attack_damage(self, attacker, target, move, crit=False, set_damage=False, intercepted=False, _heavy_context=None, _passive_event=None, _precision_event=None, _damage_observation=None, _defense_token=None):
+    def resolve_attack_damage(self, attacker, target, move, crit=False, set_damage=False, intercepted=False, _heavy_context=None, _passive_event=None, _precision_event=None, _damage_observation=None, _defense_token=None, _completion_id=None):
         """Apply one hit and its responses. intercepted means a successful maneuver already resolved by the caller."""
         if __import__('defense_curl').critical_immune(target):crit=False
         if _damage_observation is not None and not isinstance(_damage_observation, dict):
@@ -3475,7 +3475,12 @@ class Engine:
             actual_multiplier = REACTIONS.resistance_multiplier(self,actual_multiplier)
         substitute=__import__('substitute').receive_damage(self,attacker,target,move,damage)
         if substitute is not None:
-            if _damage_observation is not None:_damage_observation['substitute']=substitute
+            if _damage_observation is not None:
+                _damage_observation['substitute']=substitute
+                if _completion_id is not None:
+                    _damage_observation['substitute_damage']=__import__('move_completion').record_substitute_damage(
+                        self,attacker,target,_completion_id,_passive_event,substitute,
+                        native_context=_heavy_context,move=move)
             return damage
         if not lean_deferred:PASSIVE_EVENTS.note_damage_request(self,_passive_event,damage)
         passive_before = PASSIVE_EVENTS.capture(target) if _passive_event is not None else None
@@ -4972,7 +4977,7 @@ class Engine:
                 dealt = self.resolve_attack_damage(attacker, target, move, crit, set_damage,
                                                    _heavy_context=heavy_context, _passive_event=passive_event, _precision_event=precision_event,
                                                    _damage_observation=reactive_damage_observation,
-                                                   _defense_token=_defense_token)
+                                                   _defense_token=_defense_token,_completion_id=completion_id)
             finally:
                 self._heavy_native_receipts.pop(heavy_context,None)
         if reactive_damage_observation.get('channeler_pain'):
@@ -5051,10 +5056,13 @@ class Engine:
         if target.fainted:
             FX.fire_event(self, attacker, {"event": "enemy_faint_by_user", "move": move}, target)
             FX.fire_event(self, target, {"event": "self_faint", "move": move}, attacker)
-        return dict(hit=True,dealt=0 if substitute is not None else dealt,held=held,
+        result=dict(hit=True,dealt=0 if substitute is not None else dealt,held=held,
             hit_prevented=substitute is not None or bool(reactive_damage_observation.get('hit_prevented')),
             melee_contact=reactive_contact,
             effects=[key for key in getattr(self,'_effect_dispatch_receipts',{}) if key not in completion_receipts])
+        receipt=reactive_damage_observation.get('substitute_damage')
+        if receipt is not None:result['substitute_damage']=receipt
+        return result
 
     def resolve_maneuver_grant(self, actor, grant_id, **choices):
         import maneuver_grants as MG

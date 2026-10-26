@@ -182,7 +182,8 @@ class BattleContestTests(unittest.TestCase):
         self.state(engine, cid)["pokemon"][outgoing.entity_id]["excitement"] = 4
         engine.start_of_turn(outgoing)
         BATTLE.perform_move(engine, contest, cid, outgoing, teams[1][0],
-                            "move/유턴", combat_options={"set_damage": True})
+                            "move/유턴", combat_options={"set_damage": True, "situational": 100})
+        self.assertFalse(outgoing.on_field)
         excitement = self.state(engine, cid)["pokemon"][outgoing.entity_id]["excitement"]
         receipt = BATTLE.switch(engine, cid, trainers[0], outgoing, incoming,
                                 source="move/유턴")
@@ -252,6 +253,78 @@ class BattleContestTests(unittest.TestCase):
         self.assertIn(user.entity_id, self.state(engine, cid)["sides"][0]["replacement_center_due"])
         BATTLE.switch(engine, cid, trainers[0], user, teams[0][1])
         self.assertTrue(self.state(engine, cid)["pokemon"][teams[0][1].entity_id]["center_pending"])
+
+    def test_native_recoil_fraction_floor_and_completed_restore_do_not_repay(self):
+        import move_completion as COMPLETE
+        for move,denominator in (("move/이판사판태클",3),("move/와일드볼트",4),("move/파멸의빛",2)):
+            with self.subTest(move=move):
+                engine,contest,trainers,teams,cid=self.fixture(moves=[move])
+                actor,target=teams[0][0],teams[1][0]
+                BATTLE.begin_round(engine,cid);BATTLE.start_turn(engine,cid,actor)
+                hp=actor.hp
+                with patch.object(Engine,"d20",return_value=12):
+                    out=BATTLE.perform_move(engine,contest,cid,actor,target,move,
+                        combat_options={"set_damage":True,"situational":100})
+                self.assertGreater(out['combat'],0)
+                self.assertEqual(actor.hp,hp-out['combat']//denominator)
+                completion=out['completion_id'];before=engine.export_state()
+                COMPLETE.refresh(engine,completion);COMPLETE.refresh(engine,completion)
+                self.assertEqual(engine.export_state(),before)
+                cold=CODEC.load_engine(self.rules,json.loads(json.dumps(CODEC.dump_engine(engine))))
+                restored=next(a for a in cold.everyone if a.entity_id==actor.entity_id)
+                after=restored.hp;COMPLETE.refresh(cold,completion)
+                self.assertEqual(restored.hp,after)
+
+    def test_native_recoil_respects_active_keyword_protection_and_suppression(self):
+        with patch.object(self,'rules',Rules(str(ROOT),ruleset='all')):
+            for name in ('돌머리 [Playtest]','매직가드/영구동토'):
+                for suppressed in (False,True):
+                    with self.subTest(ability=name,suppressed=suppressed):
+                        engine,contest,trainers,teams,cid=self.fixture(moves=['move/이판사판태클'])
+                        actor,target=teams[0][0],teams[1][0]
+                        engine.gm.set_ability(actor,name,reason='actual owned Recoil protection')
+                        actor.abilities_suppressed=suppressed
+                        BATTLE.begin_round(engine,cid);BATTLE.start_turn(engine,cid,actor)
+                        hp=actor.hp
+                        with patch.object(Engine,'d20',return_value=12):
+                            out=BATTLE.perform_move(engine,contest,cid,actor,target,'move/이판사판태클',
+                                combat_options={'set_damage':True,'situational':100})
+                        self.assertGreater(out['combat'],0)
+                        self.assertEqual(actor.hp,hp-(out['combat']//3 if suppressed else 0))
+
+    def test_native_smite_miss_recoil_uses_actual_positive_damage(self):
+        import move_completion as COMPLETE
+        engine,contest,trainers,teams,cid=self.fixture(moves=['move/파멸의빛'])
+        actor,target=teams[0][0],teams[1][0]
+        BATTLE.begin_round(engine,cid);BATTLE.start_turn(engine,cid,actor)
+        hp,target_hp=actor.hp,target.hp
+        with patch.object(Engine,'d20',return_value=1):
+            out=BATTLE.perform_move(engine,contest,cid,actor,target,'move/파멸의빛',
+                combat_options={'set_damage':True})
+        row=engine._move_completions[out['completion_id']]
+        actual=COMPLETE.recipient_result(row,target)
+        self.assertFalse(actual['hit']);self.assertFalse(actual.get('cancelled'))
+        self.assertGreater(actual['dealt'],0)
+        self.assertEqual(target.hp,target_hp-actual['dealt'])
+        self.assertEqual(actor.hp,hp-actual['dealt']//2,
+                         'Smite miss dealt '+str(actual['dealt'])+' and still owes printed Recoil')
+        before=engine.export_state();COMPLETE.refresh(engine,out['completion_id'])
+        self.assertEqual(engine.export_state(),before)
+
+    def test_native_recoil_miss_has_no_loss_or_recall_window(self):
+        from native_scenario_fixture import assert_rejected_unchanged
+        for move in ("move/이판사판태클","move/유턴"):
+            with self.subTest(move=move):
+                engine,contest,trainers,teams,cid=self.fixture(moves=[move])
+                actor,target=teams[0][0],teams[1][0]
+                BATTLE.begin_round(engine,cid);BATTLE.start_turn(engine,cid,actor)
+                hp=actor.hp
+                with patch.object(Engine,"d20",return_value=1):
+                    out=BATTLE.perform_move(engine,contest,cid,actor,target,move,combat_options={"set_damage":True})
+                self.assertEqual(out['combat'],0);self.assertEqual(actor.hp,hp)
+                self.assertTrue(actor.on_field)
+                if move=="move/유턴":
+                    assert_rejected_unchanged(engine,lambda:BATTLE.switch(engine,cid,trainers[0],actor,teams[0][1],source=move),reason_pattern='native action boundary')
 
     def test_grace_expires_and_unspent_prepare_expires_after_its_next_round(self):
         for move, flag in (("move/고속이동", "immune_fumble"), ("move/손톱갈기", "double_next")):

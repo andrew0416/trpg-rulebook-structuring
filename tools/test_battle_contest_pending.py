@@ -226,6 +226,26 @@ class BattleContestPendingTests(unittest.TestCase):
         self.assertFalse(self.state()["pokemon"][self.a.entity_id]["center_pending"])
         self.assert_committed(token, plan, self.r)
 
+    def test_recoil_waits_for_real_intercept_and_cold_resume_charges_once(self):
+        from unittest.mock import patch
+        import move_completion as COMPLETE
+        with patch.dict(globals(),MOVE="move/이판사판태클"):
+            self.fixture()
+            hp=self.a.hp
+            event,token,plan=self.pending()
+            self.assertEqual(self.a.hp,hp)
+            ids=[self.a.entity_id,self.t.entity_id,self.r.entity_id]
+            self.e=CODEC.load_engine(self.rules,json.loads(json.dumps(CODEC.dump_engine(self.e))))
+            actors={a.entity_id:a for a in self.e.everyone}
+            self.a,self.t,self.r=[actors[uid] for uid in ids]
+            self.choose(event)
+            row=self.e._move_completions[token]
+            dealt=sum(COMPLETE.recipient_result(row,a)['dealt'] for a in COMPLETE.actual_recipients(row))
+            self.assertGreater(dealt,0);self.assertEqual(self.a.hp,hp-dealt//3)
+            self.assertEqual(self.a.move_uses[MOVE],1)
+            before=self.e.export_state();COMPLETE.refresh(self.e,token)
+            self.assertEqual(self.e.export_state(),before)
+
     def test_saved_pending_choice_and_completion_binding_tampering_are_rejected(self):
         self.fixture()
         event, token, plan = self.pending()

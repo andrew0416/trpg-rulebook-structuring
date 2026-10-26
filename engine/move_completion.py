@@ -42,6 +42,79 @@ def actual_recipients(row):
     return list(result.values())
 
 
+def _substitute_application(target,receipt):
+    import substitute as SUB
+    rows=[(r,False) for r in target.coats]+[(r,True) for r in target.spec.get('effect_instance_history',[])]
+    found=[(r,terminal) for r,terminal in rows if r.get('id')==receipt['coat_id'] and r.get('source')==SUB.SOURCE]
+    if len(found)!=1:raise ValueError('actual Substitute damage coat required')
+    coat,terminal=found[0];SUB.validate(target,coat,terminal=terminal)
+    index=receipt['application_index']
+    if type(index) is not int or not 0<=index<len(coat['applications']):
+        raise ValueError('actual Substitute damage application required')
+    return coat['applications'][index]
+
+
+def record_substitute_damage(e,actor,target,completion_id,event_id,observation,*,native_context,move):
+    """Keep the native coat damage separately from the prevented creature hit."""
+    row=getattr(e,KEY,{}).get(completion_id);event=getattr(e,'_passive_events',{}).get(event_id)
+    if row is None or row['phase']!='targets' or row['actor'] is not actor or native_context is None:
+        raise ValueError('actual native Substitute damage producer required')
+    __import__('heavy_injury_adapter').validate_native_receipt(e,native_context,actor,target,move)
+    if event_id is not None:
+        if (event is None or event['actor'] is not actor or event['target'] is not target
+                or event['completion_id']!=completion_id or event['move_id']!=row['move_id']):
+            raise ValueError('actual native Substitute event required')
+    elif target not in row['targets'] or target.entity_id not in row['started']:
+        raise ValueError('actual started Substitute recipient required')
+    if type(observation.get('damage')) is not int or observation['damage']<0:
+        raise ValueError('actual nonnegative Substitute damage required')
+    import substitute as SUB
+    coats=[r for r in [*target.coats,*target.spec.get('effect_instance_history',[])]
+           if r.get('id')==observation['coat_id'] and r.get('source')==SUB.SOURCE]
+    if len(coats)!=1:raise ValueError('actual native Substitute damage coat required')
+    number=len(coats[0]['applications'])-1
+    application=coats[0]['applications'][number]
+    if (application['actor_id']!=actor.entity_id or application['holder_id']!=target.entity_id
+            or application['move_id']!=row['move_id'] or application['damage']!=observation['damage']
+            or application['after']!=observation['remaining_hp']):
+        raise ValueError('actual just-applied Substitute damage required')
+    receipt={'completion_id':completion_id,'event_id':event_id,'coat_id':observation['coat_id'],
+             'application_index':number,'application':deepcopy(application)}
+    records=row.setdefault('substitute_damage_receipts',{})
+    previous=records.get(target.entity_id)
+    if previous is not None and previous!=receipt:raise ValueError('native Substitute damage changed')
+    records[target.entity_id]=deepcopy(receipt)
+    if event is not None:event['substitute_damage']=deepcopy(receipt)
+    return receipt
+
+
+def substitute_damage(e,row,target,result):
+    receipt=result.get('substitute_damage')
+    if receipt is None:return 0
+    if (type(receipt) is not dict or set(receipt)!={'completion_id','event_id','coat_id','application_index','application'}
+            or receipt['completion_id']!=row['id'] or result['dealt']!=0 or result.get('hit_prevented') is not True):
+        raise ValueError('separate prevented-hit Substitute damage receipt required')
+    if row.get('substitute_damage_receipts',{}).get(target.entity_id)!=receipt:
+        raise ValueError('Substitute damage receipt belongs to another native recipient')
+    if receipt['event_id'] is not None:
+        event=getattr(e,'_passive_events',{}).get(receipt['event_id'])
+        if (event is None or event['actor'] is not row['actor'] or event['target'] is not target
+                or event['completion_id']!=row['id'] or event['move_id']!=row['move_id']
+                or event.get('substitute_damage')!=receipt):
+            raise ValueError('Substitute damage receipt belongs to another native event')
+    application=_substitute_application(target,receipt)
+    if (application!=receipt['application'] or application['actor_id']!=row['actor'].entity_id
+            or application['holder_id']!=target.entity_id or application['move_id']!=row['move_id']):
+        raise ValueError('actual Substitute damage application changed')
+    return application['damage']
+
+
+def observed_damage(e,row,target,result):
+    if result.get('cancelled'):return None
+    if result.get('substitute_damage') is not None:return substitute_damage(e,row,target,result)
+    return None if result.get('hit_prevented') else result['dealt']
+
+
 def record_return(e,event_id,*,hit_prevented):
     """Native producer tail, after recipient listeners and reactive effects."""
     if event_id is None:return
@@ -160,6 +233,28 @@ def require_recipient_hit_return(e,event_id,recipient):
     return require_hit_return(e,event_id,recipient,_recipient_only=True)
 
 
+def after_damage_self_stage(rules,move,effect):
+    """Exact printed Smite user stat costs, once after all recipient damage."""
+    if rules is None or not isinstance(move,dict) or not isinstance(effect,dict):return False
+    sources={
+        'move/용성군':('피해량 계산이후 사용자의 특수공격 전투단계를 -2만큼 하락시킵니다.',{'spa':-2}),
+        'move/오버히트':('피해량 계산이후 사용자의 특수공격 전투단계가 -2만큼 하락합니다.',{'spa':-2}),
+        'move/리프스톰':('피해량 계산이후 사용자의 특수공격 전투단계를 -2만큼 하락시킵니다.',{'spa':-2}),
+        'move/플뢰르캐논':('피해량 계산 이후 사용자의 특수공격 전투단계가 -2만큼 하락합니다.',{'spa':-2}),
+        'move/사이코부스트':('피해량 처리한 후사용자의 특수공격 전투단계가 -2만큼 하락한다.',{'spa':-2}),
+        'move/v제너레이트':('사용자의 방어, 특수방어, 스피드 전투단계 모두 -1만큼 하락합니다.',{'def':-1,'spd':-1,'spe':-1}),
+    }
+    mid=move.get('id')
+    if mid not in sources:return False
+    text,changes=sources[mid];stat=effect.get('stat')
+    if stat not in changes:return False
+    expected={'type':'stage_change','stat':stat,'delta':changes[stat],'target':'self'}
+    if {key:value for key,value in effect.items() if not key.startswith('_')}!=expected:return False
+    if rules._selected_rule(mid)!=mid or rules.move(mid).get('effect')!=text:
+        raise ValueError('printed after-damage self-stage source changed')
+    return True
+
+
 def after_all(effect,rules=None,move=None):
     post_stage=False
     if rules is not None and move is not None:
@@ -167,7 +262,7 @@ def after_all(effect,rules=None,move=None):
         post_stage=POST_STAGE.owns(rules,move,effect)
     focus_after=rules is not None and __import__('declarative_move_contracts').after_all(rules,effect)
     sacrifice=rules is not None and move is not None and __import__('hp_setting_moves').after_all(rules,move,effect)
-    return (sacrifice or focus_after or post_stage or field_effect(effect) or
+    return (sacrifice or focus_after or post_stage or after_damage_self_stage(rules,move,effect) or field_effect(effect) or
             (effect.get('type') in ('counter','stage_change') and effect.get('on')=='after use' and effect.get('target','self')=='self') or
             (effect.get('type')=='type_change' and effect.get('target','self')=='self'))
 
@@ -227,7 +322,7 @@ def start_target(e,actor,target,move,mm,scope):
     return token
 
 
-def finish_target(e,token,actor,target,*,hit,dealt,effects=(),cancelled=False,hit_prevented=False):
+def finish_target(e,token,actor,target,*,hit,dealt,effects=(),cancelled=False,hit_prevented=False,substitute_damage_receipt=None):
     if token is None:return
     row=getattr(e,KEY)[token]
     if row['actor'] is not actor or target.entity_id not in row['started']:
@@ -235,6 +330,9 @@ def finish_target(e,token,actor,target,*,hit,dealt,effects=(),cancelled=False,hi
     cancelled=cancelled or row.get('drown_out',{}).get('cancelled',False)
     result={'hit':bool(hit) and not hit_prevented,'dealt':dealt,'cancelled':bool(cancelled)}
     if hit_prevented:result['hit_prevented']=True
+    if substitute_damage_receipt is not None:
+        result['substitute_damage']=deepcopy(substitute_damage_receipt)
+        substitute_damage(e,row,target,result)
     old=row['results'].get(target.entity_id)
     if old is not None:
         if old!=result:raise ValueError('completed target observation changed')
@@ -277,6 +375,17 @@ def authorized(e,ctx):
     return bool(row and row['phase']=='applying' and row['sealed'] and
                 row['actor'] is ctx.get('attacker') and
                 all(t.entity_id in row['results'] for t in row['targets']))
+
+
+def authorized_after_damage_self_stage(e,ctx,effect,source):
+    row=getattr(e,KEY,{}).get(ctx.get('move_completion'))
+    return bool(ctx.get('after_all_targets') and authorized(e,ctx) and
+                source==row['move_id'] and ctx.get('move',{}).get('id')==source and
+                any(ctx.get('target') is target for target in row['targets']) and
+                after_damage_self_stage(e.r,row['move'],effect) and
+                effect in row['post_effects'] and
+                any(observed_damage(e,row,target,recipient_result(row,target)) is not None
+                    for target in actual_recipients(row)))
 
 
 def authorized_field(e,ctx,effect):
@@ -403,12 +512,13 @@ def refresh(e,token=None):
     if row['profile']!=profile or e.r._selected_rule(row['move_id'])!=row['move_id']:
         raise ValueError('selected move completion policy changed')
     hit=any(x['hit'] and not x['cancelled'] for x in row['results'].values())
+    after_damage=any(observed_damage(e,row,target,recipient_result(row,target)) is not None for target in actual_recipients(row))
     all_cancelled=all(x['cancelled'] for x in row['results'].values())
     # Ordinary self effects preserve their hit requirement; an explicitly
     # after-use counter also advances on a genuine miss, never a refusal.
     import post_resolution_stage_effects as POST_STAGE
     post=[x for x in row['post_effects'] if not all_cancelled and
-          (hit or __import__('hp_setting_moves').after_all(e.r,row['move'],x) or field_effect(x) or POST_STAGE.owns(e.r,row['move'],x) or
+          (hit or after_damage and after_damage_self_stage(e.r,row['move'],x) or __import__('hp_setting_moves').after_all(e.r,row['move'],x) or field_effect(x) or POST_STAGE.owns(e.r,row['move'],x) or
            __import__('declarative_move_contracts').after_all(e.r,x) or
            x.get('on')=='after use' or x.get('on_miss'))]
     stage_post=[x for x in post if POST_STAGE.owns(e.r,row['move'],x)]
@@ -421,11 +531,60 @@ def refresh(e,token=None):
             'hit':hit,'nat':None,'dealt':sum(x['dealt'] for x in row['results'].values()),
             'move':row['move'],'crit':False},row['move_id'])
         POST_STAGE.apply_completion(e,row,stage_post)
+        recoil=recoil_effect(e,row)
+        if recoil is not None:
+            FX.run_effects(e,actor,target,[recoil],{'move_completion':token,
+                'native_recoil':token,'after_all_targets':True,'hit':True,'nat':None,
+                'attacker':actor,'target':target,'engine':e,
+                'move':row['move'],'crit':False},row['move_id'])
     except Exception:
         row['phase']='interrupted';raise
     row['effects'].extend(x for x in getattr(e,'_effect_dispatch_receipts',{}) if x not in before and x not in row['effects'])
     row['phase']='completion_effects'
     return refresh(e,token)
+
+
+def recoil_effect(e,row):
+    """Printed Recoil multiplies damage dealt, once after all native recipients."""
+    import re
+    import arithmetic_policy as M
+    text=str(e.r.move(row['move_id']).get('range',''))
+    matches=re.findall(r'(?:반동|Recoil)\s+(\d+)\s*/\s*(\d+)',text,re.I)
+    if not matches:return None
+    if len(matches)!=1:raise ValueError('one exact printed Recoil fraction required')
+    numerator,denominator=map(int,matches[0])
+    if numerator<=0 or denominator<=0:raise ValueError('positive printed Recoil fraction required')
+    if e.r._selected_rule('keyword/반동')!='keyword/반동':
+        raise ValueError('selected Recoil keyword needs its own numeric policy')
+    M.validate_source(e.r)
+    # Smite misses deal damage; Recoil is not a target on-hit effect.
+    damage=sum(amount for actor in actual_recipients(row)
+               if (amount:=observed_damage(e,row,actor,recipient_result(row,actor))) is not None)
+    amount=M.ratio(damage*numerator,denominator)
+    return {'type':'hp_loss','target':'self','value':amount} if amount else None
+
+
+def apply_recoil_loss(e,actor,effect,context):
+    row=getattr(e,KEY,{}).get(context.get('native_recoil'))
+    if (row is None or row['actor'] is not actor or row['phase']!='applying'
+            or not authorized(e,context) or effect!=recoil_effect(e,row)
+            or context.get('source_id')!=row['move_id']):
+        raise ValueError('actual native all-recipient Recoil required')
+    import effect_contracts as EC
+    EC.validate_receipt(e,context['effect_receipt'],row['move_id'],
+        context['effect_occurrence'],actor,context['target'],effect)
+    import ability_transitions as ABILITIES
+    passives=[*actor.modifiers,*actor.registry]
+    for passive in passives:
+        ignored=passive.get('type')=='ignore_effects' and passive.get('ignore_keyword') in ('반동','Recoil')
+        immune=passive.get('type')=='immunity' and any(x in ('반동','Recoil') for x in
+            (passive.get('to',[]) if isinstance(passive.get('to'),list) else [passive.get('to')]))
+        if (ignored or immune) and ABILITIES.effect_active(actor,passive):
+            source=passive.get('_rule_id')
+            if not isinstance(source,str) or e.r._selected_rule(source)!=source:
+                raise ValueError('selected native Recoil protection required')
+            return
+    e.lose_hp(actor,effect['value'],source='keyword/반동')
 
 
 def validate_return_continuation(e,event):
@@ -486,8 +645,23 @@ def validate_world(e,index):
         for result in row['results'].values():
             if type(result['hit']) is not bool or type(result['cancelled']) is not bool or type(result['dealt']) is not int or result['dealt']<0:
                 raise ValueError('actual move target result required')
+        for uid,receipt in row.get('substitute_damage_receipts',{}).items():
+            target=index.get(uid)
+            if target is None:raise ValueError('actual Substitute recipient missing')
+            result=recipient_result(row,target)
+            if result is not None:
+                if result.get('substitute_damage')!=receipt:raise ValueError('Substitute damage receipt missing from native result')
+                substitute_damage(e,row,target,result)
+            elif row['phase']=='complete':raise ValueError('completed Substitute damage lost its result')
     for event in getattr(e,'_passive_events',{}).values():
         validate_return_continuation(e,event)
+        if event.get('substitute_damage') is not None:
+            row=rows.get(event['completion_id'])
+            result=None if row is None else recipient_result(row,event['target'])
+            if result is not None:
+                if result.get('substitute_damage')!=event['substitute_damage']:raise ValueError('Substitute damage receipt missing from native result')
+                substitute_damage(e,row,event['target'],result)
+            elif row is None or row['phase']=='complete':raise ValueError('completed Substitute damage lost its recipient result')
     pending_counts={}
     for pending in getattr(e,'delayed',[]):
         if not isinstance(pending,dict) or pending.get('kind')!='attack' or pending.get('src')!='delayed_attack':

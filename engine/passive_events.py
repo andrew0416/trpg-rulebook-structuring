@@ -170,7 +170,8 @@ def _finish_recipient_return(e,frame):
                 DEFENSE._move_facts(COMPLETE.event_move(e,ev))!=DEFENSE._move_facts(args['move'])):
             raise ValueError('native recipient prepared Move changed')
     COMPLETE.finish_target(e,args['completion_id'],args['attacker'],args['target'],
-        hit=result['hit'],dealt=result['dealt'],effects=result['effects'],hit_prevented=result['hit_prevented'])
+        hit=result['hit'],dealt=result['dealt'],effects=result['effects'],hit_prevented=result['hit_prevented'],
+        substitute_damage_receipt=result.get('substitute_damage'))
     REACTIVE.resolved_hit(e,args['attacker'],args['target'],args['move'],args['completion_id'],
         hit_prevented=result['hit_prevented'],contact=result.get('melee_contact'))
     COMPLETE.record_return(e,event_id,hit_prevented=result['hit_prevented'])

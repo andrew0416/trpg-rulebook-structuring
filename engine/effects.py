@@ -270,6 +270,9 @@ def h_heal(engine, a, t, e, ctx):
 
 
 def h_hp_loss(engine, a, t, e, ctx):
+    if ctx.get('native_recoil'):
+        __import__('move_completion').apply_recoil_loss(engine,a,e,ctx)
+        return
     if __import__('hex_maniac').skip_additional_self_cost(engine,a,e,ctx):return
     for c in tgt_of(e, a, t):
         v = _amount(e.get("value"), c, engine, ctx)

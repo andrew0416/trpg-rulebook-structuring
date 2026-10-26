@@ -156,6 +156,9 @@ class SurvivalistTrapsSourceRevisionTests(unittest.TestCase):
         self.assertEqual(foe.pos, (8, 2))
         self.assertFalse({'둔화', '실명'} & foe.conditions)
         self.assertEqual(len(self.instances(engine)), 8)
+        # Fix the actual route: equal-cost diagonal paths need not cross (7, 2).
+        for cell in ((7, 1), (7, 3)):
+            engine.gm.set_terrain(cell, 'blocking', reason='observed corridor into the tested trap metre')
         FIX.next_turn(engine, trainer, foe, count=15)
         engine.approach(foe, trainer)
         self.assertTrue({'둔화', '실명'} <= foe.conditions)

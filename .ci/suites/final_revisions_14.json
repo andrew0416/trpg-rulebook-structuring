@@ -3,7 +3,7 @@
   "id": "final_revisions_14",
   "purpose": "repair118 complete retained method scope; no old unaffected-PASS reuse. Typed1029/three modes/sentinel, phase1 procedural21 plus phase2 procedural22, mandatory metadata65+audit1 remain distinct.",
   "completion_credit": 0,
-  "required_unique_count": 674,
+  "required_unique_count": 678,
   "completed": {
     "tools.test_audit_items_f41_f43.AuditItemBoundaryTests": {
       "tests": [
@@ -188,7 +188,11 @@
         "tools.test_category2_battle_contest.BattleContestTests.test_shared_intro_spend_is_explicit_single_balance_and_survives_restore",
         "tools.test_category2_battle_contest.BattleContestTests.test_switch_source_substitution_wrong_native_recipient_and_later_action_are_atomic",
         "tools.test_category2_battle_contest.BattleContestTests.test_tag_in_actual_recall_transfers_stages_and_charges_only_its_real_costs",
-        "tools.test_category2_battle_contest.BattleContestTests.test_two_equal_three_to_six_rosters_create_exact_two_n_round_lifetime"
+        "tools.test_category2_battle_contest.BattleContestTests.test_two_equal_three_to_six_rosters_create_exact_two_n_round_lifetime",
+        "tools.test_category2_battle_contest.BattleContestTests.test_native_recoil_fraction_floor_and_completed_restore_do_not_repay",
+        "tools.test_category2_battle_contest.BattleContestTests.test_native_recoil_miss_has_no_loss_or_recall_window",
+        "tools.test_category2_battle_contest.BattleContestTests.test_native_recoil_respects_active_keyword_protection_and_suppression",
+        "tools.test_category2_battle_contest.BattleContestTests.test_native_smite_miss_recoil_uses_actual_positive_damage"
       ]
     },
     "tools.test_category2_bleed_repeats.BleedRepeatTests": {

@@ -3,7 +3,7 @@
   "id": "final_revisions_16",
   "purpose": "repair118 complete retained method scope; no old unaffected-PASS reuse. Typed1029/three modes/sentinel, phase1 procedural21 plus phase2 procedural22, mandatory metadata65+audit1 remain distinct.",
   "completion_credit": 0,
-  "required_unique_count": 900,
+  "required_unique_count": 907,
   "completed": {
     "tests.test_heavy_production.Tests": {
       "tests": [
@@ -1147,6 +1147,21 @@
         "tools.test_verifier_metrics.VerifierMetricsTests.test_required_skip_remains_unverified_and_retryable",
         "tools.test_verifier_metrics.VerifierMetricsTests.test_runtime_fields_keep_failure_retry_and_exact_selection",
         "tools.test_verifier_metrics.VerifierMetricsTests.test_subtest_failure_and_cleanup_still_use_original_result_contract"
+      ]
+    },
+    "tools.test_post_damage_self_stage.PostDamageSelfStageTests": {
+      "tests": [
+        "tools.test_post_damage_self_stage.PostDamageSelfStageTests.test_additional_area_smite_sources_drop_once_after_all_hit_or_miss_damage",
+        "tools.test_post_damage_self_stage.PostDamageSelfStageTests.test_both_printed_blasts_calculate_all_damage_before_one_self_drop_and_do_not_replay",
+        "tools.test_post_damage_self_stage.PostDamageSelfStageTests.test_both_smite_misses_pay_one_self_drop_with_honest_miss_context",
+        "tools.test_post_damage_self_stage.PostDamageSelfStageTests.test_v_create_pays_each_printed_user_drop_once_after_hit_or_smite_miss",
+        "tools.test_post_damage_self_stage.PostDamageSelfStageTests.test_zero_net_smite_still_has_printed_cost_and_unrelated_normal_miss_has_no_self_boost"
+      ]
+    },
+    "tools.test_substitute_damage_consumers.SubstituteDamageConsumerTests": {
+      "tests": [
+        "tools.test_substitute_damage_consumers.SubstituteDamageConsumerTests.test_coat_damage_recoil_and_self_stage_keep_creature_prevention_and_restore",
+        "tools.test_substitute_damage_consumers.SubstituteDamageConsumerTests.test_intercept_coat_damage_pending_cold_resume_counts_actual_recipient_once"
       ]
     }
   }

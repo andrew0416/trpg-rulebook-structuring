@@ -3,7 +3,7 @@
   "id": "final_revisions_06",
   "purpose": "repair118 complete retained method scope; no old unaffected-PASS reuse. Typed1029/three modes/sentinel, phase1 procedural21 plus phase2 procedural22, mandatory metadata65+audit1 remain distinct.",
   "completion_credit": 0,
-  "required_unique_count": 725,
+  "required_unique_count": 726,
   "completed": {
     "tools.test_acquired_feature_name_index.AcquiredFeatureNameIndexTests": {
       "tests": [
@@ -32,7 +32,8 @@
         "tools.test_battle_contest_pending.BattleContestPendingTests.test_native_preflight_refusal_creates_no_performance_spend_or_rng_change",
         "tools.test_battle_contest_pending.BattleContestPendingTests.test_saved_pending_choice_and_completion_binding_tampering_are_rejected",
         "tools.test_battle_contest_pending.BattleContestPendingTests.test_successful_actual_intercept_credits_actual_recipient_once",
-        "tools.test_battle_contest_pending.BattleContestPendingTests.test_synchronous_native_completion_spends_and_scores_once"
+        "tools.test_battle_contest_pending.BattleContestPendingTests.test_synchronous_native_completion_spends_and_scores_once",
+        "tools.test_battle_contest_pending.BattleContestPendingTests.test_recoil_waits_for_real_intercept_and_cold_resume_charges_once"
       ]
     },
     "tools.test_body_locality_source_revision.NicoletteBodyTests": {

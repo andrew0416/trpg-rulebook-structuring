@@ -4048,13 +4048,13 @@
     },
     {
       "path": "tools/frequency_current_binding_review.json",
-      "sha256": "1d69d08ef1d5d9a3a54b2ff3398098cc137d337d4706d57c7f7ae3ac18956049",
-      "size": 104833
+      "sha256": "8318ee15eb08646ad0dc9f086f79e6e8a5143a5a284cf57955b80c74210c5479",
+      "size": 2810
     },
     {
       "path": "tools/frequency_source_connection_contract.json",
-      "sha256": "ecbcf0bbdc90c6e7331abf680ba25175ffe4c10721b9bacdd0d7aec702d00113",
-      "size": 17791
+      "sha256": "4f01380e968498ae1975d97e6aac66040d760d06e353340c11325c5d73a458be",
+      "size": 20361
     },
     {
       "path": "tools/inject_vault_entrypoint.ps1",

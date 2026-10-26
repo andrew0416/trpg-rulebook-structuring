@@ -66,18 +66,23 @@ class TypeAceOfferFrequencyTests(unittest.TestCase):
             self.native(self.b, self.p, 'move/거짓울음', face=19)
         self.assertEqual(self.p.stages['spd'], -2)
         self.assertEqual(self.b.budget['standard'], 0)
-        self.next_turn(self.b)
+        self.next_turn(self.b);self.next_turn(self.b)  # Fake Tears is EOT: complete its intervening turn.
         self.native(self.b, self.q, 'move/거짓울음', face=19)
+        self.assertEqual(self.b.budget['standard'],0)
+        self.assertTrue(any(r.get('ace_chitin_move')=='move/거짓울음' for r in TIME.records(self.q)))
         self.assertEqual(self.q.stages['spd'], 0)
         self.assertFalse(F.activation_allowed(self.p, TA.uid('Chitin Shield'), {'kind':'scene','uses':1}, engine=self.e))
         self.assertTrue(F.activation_allowed(self.t, TA.uid('Chitin Shield'), {'kind':'daily','uses':3}, engine=self.e))
         self.e.end_of_turn(self.b); self.e.end_round(); self.e.end_scene(self.e.everyone)
+        self.assertFalse(any(a['key']=='type_ace_choice' for a in self.e.rulings.answers))
+        self.answer('type_ace_choice', True)  # A new Scene needs its own actual player choice.
         self.combat(self.b)
         self.native(self.b, self.p, 'move/거짓울음', face=19)
         self.assertTrue(any(r.get('ace_chitin_move') == 'move/거짓울음' for r in TIME.records(self.p)))
         with self.no_offer('Chitin Shield'):
-            self.next_turn(self.b)
+            self.next_turn(self.b);self.next_turn(self.b)
             self.native(self.b, self.q, 'move/거짓울음', face=19)
+        self.assertEqual(self.b.budget['standard'],0)
         self.assertEqual(self.q.stages['spd'], -2)
         self.valid()
 
@@ -96,6 +101,8 @@ class TypeAceOfferFrequencyTests(unittest.TestCase):
         self.next_turn(self.q)
         self.assertEqual((TA.all_rolls(self.q), self.q.temp_hp), (6, 12))
         self.e.end_of_turn(self.q); self.e.end_round(); self.e.end_scene(self.e.everyone)
+        self.assertFalse(any(a['key']=='type_ace_choice' for a in self.e.rulings.answers))
+        self.answer('type_ace_choice', True)  # Preserve Scene-scoped decisions and the daily use cap.
         self.combat(self.p)
         self.assertEqual(TA.all_rolls(self.p), 6)
         with self.no_offer('Simple Improvements'):
@@ -138,17 +145,33 @@ class TypeAceOfferFrequencyTests(unittest.TestCase):
         self.valid()
 
     def test_debilitate_native_haze_clears_evasion_but_preserves_accuracy_roll_penalty(self):
+        import effects_ext as EXT
+        def accuracy_penalty(expected):
+            observed=[];native=EXT.accuracy_hook
+            def observe(engine,actor,target,move,mechanics,context):
+                result=native(engine,actor,target,move,mechanics,context)
+                if actor is self.b:observed.append(result[2])
+                return result
+            with patch.object(EXT,'accuracy_hook',side_effect=observe):
+                self.e.accuracy_check(self.b,self.p,self.e.r.move('move/몸통박치기'),fixed_roll=10)
+            self.assertEqual(observed,[expected])
         self.family('독', 'Potent Venom', 'Debilitate')
         self.e.gm.add_condition(self.b, '독', reason='actual poisoned foe')
         self.sustain('Debilitate')
         self.native(self.p, self.b, 'move/독침', face=10)
-        self.assertEqual((TA.evasion_extra(self.b), LIFETIMES.numeric(self.b, 'accuracy_modifier')), (-2, -2))
+        self.assertEqual((TA.evasion_extra(self.b), TIME.accuracy_modifier(self.b, include_effect_contract=False)), (-2, -2))
+        accuracy_penalty(-2)
         self.e.end_of_turn(self.p)
         self.e.start_of_turn(self.b, initiative_count=20)
         self.native(self.b, self.b, 'move/흑안개')
-        self.assertEqual((TA.evasion_extra(self.b), LIFETIMES.numeric(self.b, 'accuracy_modifier')), (0, -2))
+        self.assertEqual((TA.evasion_extra(self.b), TIME.accuracy_modifier(self.b, include_effect_contract=False)), (0, -2))
+        accuracy_penalty(-2)
         self.restore()
-        self.assertEqual(LIFETIMES.numeric(self.b, 'accuracy_modifier'), -2)
+        self.assertEqual(TIME.accuracy_modifier(self.b, include_effect_contract=False), -2)
+        accuracy_penalty(-2)
+        self.e.end_of_turn(self.b);self.e.end_round();self.combat(self.p)
+        self.assertEqual((TA.evasion_extra(self.b),TIME.accuracy_modifier(self.b, include_effect_contract=False)),(0,0))
+        accuracy_penalty(0)
         self.valid()
 
 

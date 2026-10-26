@@ -889,7 +889,7 @@ def _finish(e, args):
             PRECISE.accuracy(precision,recipient_plan['hit'])
             options.update(hit=recipient_plan['hit'],passive_event=child['id'],defense_token=token,precision_event=precision)
             result = e._resolve_move_recipient(args['attacker'],recipient,**options)
-        receipt = dict(result,actor=recipient,original_id=event['target'].entity_id,
+        receipt = dict(result,hit=result['hit'] and not result['hit_prevented'],actor=recipient,original_id=event['target'].entity_id,
                        event_id=event['id'],child_event=child['id'],intercepted=recipient_plan['intercepted'],
                        cancelled=False)
         completion.setdefault('received',{})[uid] = receipt
