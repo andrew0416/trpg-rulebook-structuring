@@ -135,23 +135,25 @@ def effect_loss(engine, attacker, target, recipient, effect, context, amount):
         entry['substitute_hp_loss']=deepcopy(substitute)
         return
     def apply(staged,actual,source_actor):
+        # Native Move payloads retain actor bindings; use this staged world's actors.
+        staged_move=G._stage_transition_payload(engine,staged,move)
         before=DAMAGE.observe(actual)
         is_damage=effect.get('as')=='damage'
         if is_damage:
             import heavy_injury_adapter as HEAVY
-            HEAVY.apply_attack_damage(staged,source_actor,actual,amount,move,
+            HEAVY.apply_attack_damage(staged,source_actor,actual,amount,staged_move,
                 producer=HEAVY.Producer.EFFECT_DAMAGE, remainder='remaining native fixed-damage effect continuation',
-                actual_damage_type=context.get('actual_damage_type',move['type']))
+                actual_damage_type=context.get('actual_damage_type',staged_move['type']))
         else:
-            staged.lose_hp(actual,amount,source=move['id'],unpreventable=effect.get('unpreventable') is True)
+            staged.lose_hp(actual,amount,source=staged_move['id'],unpreventable=effect.get('unpreventable') is True)
         receipt=DAMAGE.application(requested=amount,before=before,after=DAMAGE.observe(actual),
-                                   source=move['id'],damage_class=move['class'])
-        woke=wake_after_loss(staged,actual,move,before)
-        _record(staged,source_actor,actual,receipt,context.get('actual_damage_type',move['type']),application_kind='damage' if is_damage else 'hp_loss')
+                                   source=staged_move['id'],damage_class=staged_move['class'])
+        woke=wake_after_loss(staged,actual,staged_move,before)
+        _record(staged,source_actor,actual,receipt,context.get('actual_damage_type',staged_move['type']),application_kind='damage' if is_damage else 'hp_loss')
         staged._effect_dispatch_receipts[token]['attack_damage' if is_damage else 'attack_hp_loss']={
             'kind':'native_attack_damage' if is_damage else 'native_attack_hp_loss','completion_id':completion,'receipt':deepcopy(receipt),
             'woke_sleep':woke,'unpreventable':effect.get('unpreventable') is True}
-        __import__('food_effects').berry_after_hit(staged,source_actor,actual,move,{'attacker':source_actor,'target':actual,'move':move},receipt)
+        __import__('food_effects').berry_after_hit(staged,source_actor,actual,staged_move,{'attacker':source_actor,'target':actual,'move':staged_move},receipt)
     G.transition(engine,recipient,apply,participants=(attacker,))
 
 

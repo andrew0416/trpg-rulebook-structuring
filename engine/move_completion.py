@@ -265,7 +265,8 @@ def after_all(effect,rules=None,move=None):
         post_stage=POST_STAGE.owns(rules,move,effect)
     focus_after=rules is not None and __import__('declarative_move_contracts').after_all(rules,effect)
     sacrifice=rules is not None and move is not None and __import__('hp_setting_moves').after_all(rules,move,effect)
-    return (sacrifice or focus_after or post_stage or after_damage_self_stage(rules,move,effect) or field_effect(effect) or
+    local_mist=rules is not None and move is not None and __import__('misty_explosion').after_all(rules,move,effect)
+    return (sacrifice or local_mist or focus_after or post_stage or after_damage_self_stage(rules,move,effect) or field_effect(effect) or
             (effect.get('type') in ('counter','stage_change') and effect.get('on')=='after use' and effect.get('target','self')=='self') or
             (effect.get('type')=='type_change' and effect.get('target','self')=='self'))
 
@@ -531,7 +532,7 @@ def refresh(e,token=None):
     # after-use counter also advances on a genuine miss, never a refusal.
     import post_resolution_stage_effects as POST_STAGE
     post=[x for x in row['post_effects'] if not all_cancelled and
-          (hit or after_damage and after_damage_self_stage(e.r,row['move'],x) or __import__('hp_setting_moves').after_all(e.r,row['move'],x) or field_effect(x) or POST_STAGE.owns(e.r,row['move'],x) or
+          (hit or after_damage and after_damage_self_stage(e.r,row['move'],x) or __import__('hp_setting_moves').after_all(e.r,row['move'],x) or __import__('misty_explosion').after_all(e.r,row['move'],x) or field_effect(x) or POST_STAGE.owns(e.r,row['move'],x) or
            __import__('declarative_move_contracts').after_all(e.r,x) or
            x.get('on')=='after use' or x.get('on_miss'))]
     stage_post=[x for x in post if POST_STAGE.owns(e.r,row['move'],x)]
@@ -637,7 +638,8 @@ def validate_world(e,index):
         if index.get(row['actor'].entity_id) is not row['actor']:
             raise ValueError('actual move completion actor required')
         if row.get('activation')=='empty_area_field':
-            if (row['phase'] not in ('completion_effects','complete') or not row['sealed'] or row['targets'] or
+            misty_applying=__import__('misty_explosion').empty_applying(e,row)
+            if (row['phase'] not in ('completion_effects','complete') and not misty_applying or not row['sealed'] or row['targets'] or
                     row['started'] or row['results'] or not row.get('field_cells') or
                     (not row.get('post_effects') and not row.get('_ice_lake')) or
                     any(not field_effect(effect) for effect in row['post_effects'])):

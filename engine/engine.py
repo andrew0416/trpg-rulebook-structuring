@@ -4114,6 +4114,10 @@ class Engine:
         import linked_move_conditions as LINKED
         LINKED.check_move(self,attacker,move_id)
         native_mm = LINKED.project(self,move,native_mm)
+        native_mm = __import__('misty_explosion').mechanics(self.r,move,native_mm)
+        if move_id == 'move/미스트버스트' and aim is None:
+            aim = attacker.pos
+            move = AREA.bind(self,attacker,move,aim)
         import five_strike as FIVE_STRIKE
         FIVE_STRIKE.preflight(self,attacker,move)
         # An explicit area aim, rather than the legacy primary placeholder, owns
@@ -4513,8 +4517,11 @@ class Engine:
             move = dict(move,_effect_area_cells=AREA.cells(self,attacker,move))
             if move_id=="move/일렉트로빔":move=__import__("electro_shot").capture_geometry(self,attacker,move)
         __import__('telepath').capture_area(self,attacker,target,move)
+        mm = __import__('misty_explosion').mechanics(self.r,move,mm)
         field_scope = (MOVE_ACTIVATION.verify_empty_field(self,attacker,move,mm,_field_activation)
                        if _field_activation is not None else None)
+        if move_id == 'move/미스트버스트':
+            mm = {k:v for k,v in mm.items() if k not in ('_native_empty_field_activation','_native_empty_field_kind')}
         import field_effects as FIELD
         field_block=FIELD.move_block_reason(self,attacker,target,move,mm,targetless=field_scope is not None)
         if field_block:

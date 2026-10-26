@@ -577,6 +577,9 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
   _,cost=_travel_geometry(e,c,q,height,measured)
   return q,height,cost,diagonals+min(dx,dy)
  _paid_receipts(e,progress);_paid_progress(c,path,progress)
+ # A producer may own several cell-local receipts within one paid movement.
+ free_float_distance_offset=0 if progress is None else progress.get('free_float_distance_offset',0)
+ C.integer(free_float_distance_offset,'actual parent movement charged prefix',0)
  free_float_sprint=None
  if (movement_mode or mode) in ('sky','공중/부유') and capabilities(e,c,environment=False).get('free_float',0)>0:
   # consume_sprint removes the one-movement flag after entry, not its paid rate.
@@ -605,7 +608,7 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
   exit_candidate=ELECTRO.exit_step(e,c,path,moved,active_exits,movement_mode=shared_mode,progress=progress)
   if exit_candidate is not None:cost=0
   if spent+cost>maximum_distance:break
-  if not free_float_destination(e,c,q,movement_mode or mode,origin=origin,distance=spent+cost,sprint_rate=free_float_sprint):break
+  if not free_float_destination(e,c,q,movement_mode or mode,origin=origin,distance=free_float_distance_offset+spent+cost,sprint_rate=free_float_sprint):break
   if not LIVING.can_shift(e,c,cost,movement_mode=shared_mode):break
   if not _paid_departure(e,c,q,height,progress,pass_scope=pass_scope,chain_scope=chain_scope,disengage_scope=disengage_scope):break
   # Reactions can move the actor or change the destination body/terrain.
@@ -618,7 +621,7 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
   exit_candidate=ELECTRO.exit_step(e,c,path,moved,active_exits,movement_mode=shared_mode,progress=progress)
   if exit_candidate is not None:cost=0
   if spent+cost>maximum_distance:break
-  if not free_float_destination(e,c,q,movement_mode or mode,origin=origin,distance=spent+cost,sprint_rate=free_float_sprint):break
+  if not free_float_destination(e,c,q,movement_mode or mode,origin=origin,distance=free_float_distance_offset+spent+cost,sprint_rate=free_float_sprint):break
   if not LIVING.can_shift(e,c,cost,movement_mode=shared_mode):break
   if action_owner is not c and action_owner.spec.get('mount_id')!=c.entity_id:break
   departure_distance=physical_cost if aerial else step_cost(origin,q,getattr(c,'_diagonal_steps',0))[0]

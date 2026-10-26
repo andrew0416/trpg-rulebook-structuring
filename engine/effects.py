@@ -97,6 +97,9 @@ def cond_ok(engine, e, ctx):
             return False, "target status"
     cond = e.get("if")
     if isinstance(cond, str):
+        import misty_explosion as MISTY
+        if cond == MISTY.CONDITION and MISTY.conditional(engine.r,ctx.get('move'),e):
+            return (True,'') if MISTY.affected(engine,ctx['attacker']) else (False,'outside Misty Terrain')
         if cond in ("user holds no item","user holds nothing"):
             import equipment_protection as PROTECTION
             return (True, "") if PROTECTION.itemless_for_move(engine,ctx["attacker"],ctx.get("move")) else (False,"condition: held item")
@@ -331,6 +334,10 @@ def h_set_weather(engine, a, t, e, ctx):
 
 
 def h_field_effect(engine, a, t, e, ctx):
+    import misty_explosion as MISTY
+    if MISTY.handles(ctx.get('source_id'),e):
+        MISTY.install(engine,a,t,e,ctx)
+        return None
     import field_effects as FIELD
     FIELD.install(engine, a, e, ctx.get("source_id"))
 

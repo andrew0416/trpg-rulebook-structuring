@@ -69,6 +69,8 @@ class HPSettingSourceTests(unittest.TestCase):
         e.gm.set_temp_hp(actor,value,reason='actual observed temporary HP source',duration_seconds=300)
 
     def restored(self,e,variant):
+        # The fixture's fixed accuracy callback is not saved gameplay state.
+        vars(e).pop('d20',None)
         state=json.loads(json.dumps(e.export_state(),ensure_ascii=False))
         return Engine.import_state(self.make_rules(variant),state)
 

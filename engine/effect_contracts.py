@@ -122,6 +122,15 @@ def inspect(engine,actor,target,effect,source,index=0):
  if effect.get('type')=='self_hp_set' and 'loyalty' in effect and (source not in ('move/대폭발','move/자폭') or type(effect['loyalty']) is not int or effect['loyalty']!=-1):
   return Issue('unsupported_execution','loyalty','reviewed sacrifice decrease with explicit GM amount required')
  kind=effect['type']
+ import misty_explosion as MISTY
+ if MISTY.handles(source,effect):
+  try:MISTY.prepare(engine,actor,effect)
+  except (ValueError,TypeError,KeyError) as ex:return Issue('unresolved_source','local_misty',str(ex))
+  return None
+ if source==MISTY.SOURCE and kind=='conditional_damage_base':
+  try:MISTY.conditional(engine.r,engine.r.move(source),effect)
+  except (ValueError,TypeError,KeyError) as ex:return Issue('unresolved_source','misty_damage_base',str(ex))
+  return None
  if kind=='oracle_mark':
   try:__import__('oracle').mark_payload(engine,actor,target,effect,source,preflight=True)
   except ValueError as ex:return Issue('unsupported_execution','oracle_mark',str(ex))
@@ -322,6 +331,8 @@ def condition(engine,effect,ctx,*,source=None):
   checks.append(ROOT.TRUE if COMPLETE.authorized(engine,ctx) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual all-target completion'))
  elif __import__('hp_setting_moves').after_all(engine.r,ctx.get('move') or {},effect):
   checks.append(ROOT.TRUE if ctx.get('after_all_targets') and COMPLETE.authorized(engine,ctx) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual sacrifice completion'))
+ elif __import__('misty_explosion').after_all(engine.r,ctx.get('move'),effect):
+  checks.append(ROOT.TRUE if source==__import__('misty_explosion').SOURCE and __import__('misty_explosion').authorized(engine,ctx,effect) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual Misty Explosion completion'))
  elif COMPLETE.after_damage_self_stage(engine.r,ctx.get('move'),effect):
   checks.append(ROOT.TRUE if COMPLETE.authorized_after_damage_self_stage(engine,ctx,effect,source) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual after-damage self-stage completion'))
  elif 'native_action' in ctx:
@@ -408,6 +419,10 @@ def condition_text(engine,actor,target,text,ctx):
  import effects as FX
  import re
  import equipment_protection as PROTECTION
+ import misty_explosion as MISTY
+ if text==MISTY.CONDITION and ctx.get('move',{}).get('id')==MISTY.SOURCE:
+  MISTY.definition(engine.r)
+  return MISTY.affected(engine,actor)
  if text=='terastallized':return __import__('homebrew_state').tera_active(actor)
  if text=='stellar':
   import stellar_tera_blast as STELLAR
