@@ -26,7 +26,7 @@
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
   "active_repair": "remote-reviewed-runtime",
   "active_repair_scope": "One reviewed affected ordinary subset; full obligation inventory and historical native/H evidence retained. No metadata65, typed, procedural, or full-scope acceptance claim.",
-  "active_repair_required_tests": 7,
+  "active_repair_required_tests": 2,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -77,15 +77,15 @@
   "phase2_metadata_methods_mandatory": 0,
   "phase2_additional_procedural_runners": 0,
   "unaffected_previous_PASS_reused": 0,
-  "selected_method_obligations": 7,
+  "selected_method_obligations": 2,
   "partial_prerequisite_refresh": true,
   "full_method_scope_executed": false,
   "source_fresh_native_prerequisites": 1404,
   "native_prerequisite_run": "40241811271",
   "activation_current_evidence_current": false,
   "previous_activation_evidence": "historical_only_not_current",
-  "active_repair_source_commit": "518a70c3c544743eaf149ca2b428cd310e03374c",
-  "active_repair_source_plan_sha256": "3429dd3ec53ab3217683d6e99ef55b6995d8262b5780466f27b560152441060e",
+  "active_repair_source_commit": "2f8975c41bd76cf48c904df85cf92a489430dbbc",
+  "active_repair_source_plan_sha256": "eb6cdccd59875a4ccd9bea9b1bb93f7c4c1d8ce8f85b3479920eebb14377f1ec",
   "remote_control_preparation": {
     "status": "PREPARED_NOT_EXECUTED",
     "added_method_count": 0,
