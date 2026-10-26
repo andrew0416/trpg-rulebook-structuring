@@ -1,51 +1,30 @@
-name: Validate revisions
+name: Validate implementation workflow
 
 on:
   workflow_dispatch:
     inputs:
       suite:
-        description: Validation scope (changed_revisions is development-only)
+        description: Synthetic acceptance/publication tooling only; no clause credit
         type: choice
         required: true
-        default: changed_revisions
+        default: workflow_checks
         options:
-          - changed_revisions
-          - metadata_prerequisites
-          - final_revisions
-          - performance_probe
-          - repair_revisions
-          - all_revisions
-          - metadata_revisions
-          - typed_revisions
-          - frequency_equivalence
-          - procedural_runners
-          - common_checks
-          - move_revisions
-          - rank_revisions
-          - retraining
-          - next_revisions
+          - workflow_checks
 
 permissions:
   contents: read
 
 jobs:
-  validate:
+  workflow_checks:
     if: >-
       github.repository == 'andrew0416/trpg-rulebook-structuring' &&
       github.event_name == 'workflow_dispatch' &&
-      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/codex/'))
-    strategy:
-      fail-fast: false
-      max-parallel: 9
-      matrix:
-        suite: ${{ fromJSON(inputs.suite == 'metadata_prerequisites' && '["repair_revisions_01","frequency_equivalence"]' || inputs.suite == 'changed_revisions' && '["changed_revisions"]' || inputs.suite == 'performance_probe' && '["performance_probe"]' || inputs.suite == 'metadata_revisions' && '["metadata_revisions","procedural_22"]' || inputs.suite == 'all_revisions' && '["final_revisions_01","final_revisions_02","final_revisions_03","final_revisions_04","final_revisions_05","final_revisions_06","final_revisions_07","final_revisions_08","final_revisions_09","final_revisions_10","final_revisions_11","final_revisions_12","final_revisions_13","final_revisions_14","final_revisions_15","final_revisions_16","final_revisions_17","final_revisions_18","frequency_equivalence","procedural_01","procedural_02","procedural_03","procedural_04","procedural_05","procedural_06","procedural_07","procedural_08","procedural_09","procedural_10","procedural_11","procedural_12","procedural_13","procedural_14","procedural_15","procedural_16","procedural_17","procedural_18","procedural_19","procedural_20","procedural_21"]' || inputs.suite == 'typed_revisions' && '["frequency_equivalence","procedural_01","procedural_02","procedural_03","procedural_04","procedural_05","procedural_06","procedural_07","procedural_08","procedural_09","procedural_10","procedural_11","procedural_12","procedural_13","procedural_14","procedural_15","procedural_16","procedural_17","procedural_18","procedural_19","procedural_20","procedural_21"]' || inputs.suite == 'frequency_equivalence' && '["frequency_equivalence"]' || inputs.suite == 'procedural_runners' && '["procedural_01","procedural_02","procedural_03","procedural_04","procedural_05","procedural_06","procedural_07","procedural_08","procedural_09","procedural_10","procedural_11","procedural_12","procedural_13","procedural_14","procedural_15","procedural_16","procedural_17","procedural_18","procedural_19","procedural_20","procedural_21"]' || inputs.suite == 'repair_revisions' && '["repair_revisions_01", "repair_revisions_02", "repair_revisions_03", "repair_revisions_04", "repair_revisions_05", "repair_revisions_06", "repair_revisions_07", "repair_revisions_08", "repair_revisions_09"]' || inputs.suite == 'common_checks' && '["common_checks"]' || inputs.suite == 'move_revisions' && '["move_revisions"]' || inputs.suite == 'rank_revisions' && '["rank_revisions"]' || inputs.suite == 'retraining' && '["retraining"]' || inputs.suite == 'next_revisions' && '["next_revisions"]' || '["final_revisions_01", "final_revisions_02", "final_revisions_03", "final_revisions_04", "final_revisions_05", "final_revisions_06", "final_revisions_07", "final_revisions_08", "final_revisions_09", "final_revisions_10", "final_revisions_11", "final_revisions_12", "final_revisions_13", "final_revisions_14", "final_revisions_15", "final_revisions_16", "final_revisions_17", "final_revisions_18"]') }}
-    name: ${{ matrix.suite }}
+      startsWith(github.ref, 'refs/heads/codex/implementation-workflow-')
     runs-on: windows-2022
-    timeout-minutes: 105
+    timeout-minutes: 15
     env:
       PYTHONDONTWRITEBYTECODE: '1'
       PYTHONUTF8: '1'
-      CI_SUITE: ${{ matrix.suite }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -53,50 +32,56 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.11'
-      - name: Install hash-pinned test dependency
+      - name: Run unchanged synthetic tooling regressions
         shell: pwsh
         run: |
-          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-{2}-dependencies' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT, $env:CI_SUITE
-          New-Item -ItemType Directory -Path $taskTemp -Force -ErrorAction Stop | Out-Null
+          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-workflow-checks' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT
+          New-Item -ItemType Directory -Path $taskTemp -ErrorAction Stop | Out-Null
           $env:TEMP = $taskTemp
           $env:TMP = $taskTemp
           $env:TMPDIR = $taskTemp
-          $env:RUNNER_TEMP = $taskTemp
-          python -B -m pip install --disable-pip-version-check --no-cache-dir --only-binary=:all: --require-hashes -r .ci/requirements.txt
-      - name: Restore authenticated fixtures and run existing verifier
-        shell: pwsh
-        env:
-          PTK_FIXTURE_KEY: ${{ secrets.PTK_FIXTURE_KEY }}
-        run: |
-          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-{2}' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT, $env:CI_SUITE
-          New-Item -ItemType Directory -Path $taskTemp -Force -ErrorAction Stop | Out-Null
-          $env:TEMP = $taskTemp
-          $env:TMP = $taskTemp
-          $env:TMPDIR = $taskTemp
-          $env:RUNNER_TEMP = $taskTemp
-          python -B -X utf8 tools/ci_validate.py --root "$env:GITHUB_WORKSPACE" --suite "$env:CI_SUITE"
-      - name: Preserve small encrypted diagnostics
+          $taskCode = @'
+          from hashlib import sha256
+          import json, os
+          from pathlib import Path
+          import sys, unittest
+          root = Path(os.environ['GITHUB_WORKSPACE']).resolve()
+          if root.drive.upper() != 'D:':
+              raise RuntimeError('Synthetic test outputs must remain on D:')
+          names = ['acceptance_evidence.py', 'reconcile_batch.py', 'audit_vault_quality.py',
+                   'verify_ordered_core.py', 'test_acceptance_capture.py',
+                   'test_reconcile_csv_core.py', 'test_verify_ordered_publication.py']
+          paths = ['work/reuse-partials/' + name for name in names] + ['tools/report_category2_progress.py']
+          before = {name: sha256((root/name).read_bytes()).hexdigest() for name in paths}
+          sys.path.insert(0, str(root/'work/reuse-partials'))
+          import reconcile_batch
+          reconcile_batch.R = root
+          suite = unittest.defaultTestLoader.loadTestsFromNames([
+              'test_acceptance_capture', 'test_reconcile_csv_core', 'test_verify_ordered_publication'])
+          declared = suite.countTestCases()
+          if declared != 75:
+              raise RuntimeError(f'Expected the retained 74 plus one module-name regression, got {declared}')
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          after = {name: sha256((root/name).read_bytes()).hexdigest() for name in paths}
+          passed = result.wasSuccessful() and result.testsRun == declared and before == after
+          evidence = dict(scope='synthetic_tooling_only', clause_credit=0, game_runs=0,
+                          git_sha=os.environ['GITHUB_SHA'], declared=declared, ran=result.testsRun,
+                          failures=len(result.failures), errors=len(result.errors),
+                          skipped=len(result.skipped), passed=passed,
+                          input_sha256=before, inputs_unchanged=before == after)
+          with (root/'workflow-checks.json').open('x', encoding='utf-8') as stream:
+              json.dump(evidence, stream, ensure_ascii=False, indent=2)
+          raise SystemExit(0 if passed else 1)
+          '@
+          python -B -X utf8 -c $taskCode 2>&1 | Tee-Object -FilePath workflow-checks.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve synthetic checks and exact source pins
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: diagnostics-${{ matrix.suite }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: implementation-workflow-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            output/ci/*/run.json
-            output/ci/*/summary.json
-            output/ci/*/diagnostics.zip.enc
-          if-no-files-found: warn
-          retention-days: 14
-      - name: Preserve this run's evidence
-        if: ${{ always() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: validation-${{ matrix.suite }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            output/ci/*/run.json
-            output/ci/*/summary.json
-            output/ci/*/input-sha256.json
-            output/ci/*/input-sha256-after.json
-            output/ci/*/input-comparison.json
-            output/ci/*/evidence.zip.enc
-          if-no-files-found: warn
+            workflow-checks.json
+            workflow-checks.log
+          if-no-files-found: error
           retention-days: 14
