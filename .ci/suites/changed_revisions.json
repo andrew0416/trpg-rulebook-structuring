@@ -3,94 +3,59 @@
   "id": "changed_revisions",
   "purpose": "Root-reviewed bounded ordinary scope; no full-run or clause credit",
   "completion_credit": 0,
-  "required_unique_count": 36,
+  "required_unique_count": 21,
   "completed": {
-    "tests.test_heavy_standard.Tests": {
+    "tools.test_book_athlete_coaching.AthleteCoachingTests": {
       "tests": [
-        "tests.test_heavy_standard.Tests.test_001_native_hit_is_one_actual_standard_and_one_loss"
+        "tools.test_book_athlete_coaching.AthleteCoachingTests.test_sprint_coaching_doubles_the_actual_sprint_movement_instead_of_half"
       ]
     },
-    "tools.test_bide_accuracy_source.BideAccuracySourceTests": {
+    "tools.test_book_athlete_training_regime.TrainingRegimeTests": {
       "tests": [
-        "tools.test_bide_accuracy_source.BideAccuracySourceTests.test_real_reaction_and_cold_release_succeed_on_natural_one_without_extra_payment",
-        "tools.test_bide_accuracy_source.BideAccuracySourceTests.test_unmarked_bide_keeps_ordinary_accuracy_and_forged_projection_has_no_native_authority"
+        "tools.test_book_athlete_training_regime.TrainingRegimeTests.test_sprint_replaces_half_with_double_for_all_actual_capabilities_and_restore"
       ]
     },
-    "tools.test_book_style_move_dependencies.StyleMoveDependencyTests": {
+    "tools.test_category2_state_grants.StateGrantTests": {
       "tests": [
-        "tools.test_book_style_move_dependencies.StyleMoveDependencyTests.test_bide_reaction_payments_shift_and_release_count_only_later_damage"
-      ]
-    },
-    "tools.test_category2_gmax_moves.GMaxMoveTests": {
-      "tests": [
-        "tools.test_category2_gmax_moves.GMaxMoveTests.test_bide_pending_scope_counts_later_smite_without_turning_miss_into_hit",
-        "tools.test_category2_gmax_moves.GMaxMoveTests.test_gold_rush_mixed_hit_and_smite_miss_keep_distinct_recipients",
-        "tools.test_category2_gmax_moves.GMaxMoveTests.test_printed_smite_half_damage_and_zero_damage_exception_are_native"
-      ]
-    },
-    "tools.test_chronicler_lucky_consumer.ChroniclerLuckyConsumerTests": {
-      "tests": [
-        "tools.test_chronicler_lucky_consumer.ChroniclerLuckyConsumerTests.test_native_lucky_pool_blocks_profiled_critical_damage_once"
+        "tools.test_category2_state_grants.StateGrantTests.test_capped_sources_use_declared_contributions_not_observed_deltas",
+        "tools.test_category2_state_grants.StateGrantTests.test_negative_capped_sources_are_reversible"
       ]
     },
     "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests": {
       "tests": [
-        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_actual_mold_breaker_critical_bypass_is_selected_active_and_enemy_only",
         "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_bilingual_travel_choice_uses_core_perception_and_party_grants_without_frisk",
-        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_core_actual_ally_area_interrupt_moves_full_shift_and_pays_next_shift_once",
-        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_ordinary_and_suppressed_shell_critical_controls_preserve_source_identity",
         "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_playtest_actual_ally_area_disengages_one_metre_free_without_opportunity_attack",
         "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_playtest_choice_uses_actual_perception_evasion_and_preserves_source_cost",
         "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_playtest_perception_bonus_tracks_owned_source_and_suppression",
-        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_profiled_native_critical_ignores_shell_only_for_archived_target_next_turn",
-        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_selected_playtest_defensive_bypass_variants_keep_their_actual_move_type_limit"
+        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_playtest_perception_capped_registration_keeps_bonus_after_native_haze"
       ]
     },
-    "tools.test_foe_side_contracts_revision.FoeSideContractTests": {
+    "tools.test_hp_setting_source_boundaries.HPSettingSourceTests": {
       "tests": [
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_resistance_berry_live_hit_side_matrix_consumes_only_for_actual_foe",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_resistance_berry_retains_real_grant_on_miss_then_restored_current_foe_hit_consumes_once",
-        "tools.test_foe_side_contracts_revision.FoeSideContractTests.test_super_effective_berry_native_wrong_type_neutral_and_foe_hit_boundaries"
+        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_misty_explosion_selected_negative_half_uses_signed_floor_and_same_marker_boundary",
+        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_owned_sacrifice_requires_GM_loyalty_magnitude_before_cost_and_applies_once",
+        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_prepared_sacrifice_choice_survives_native_target_wait_restore_and_tamper_rejection",
+        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_public_explosions_pay_one_unpreventable_self_cost_after_all_hits_or_misses",
+        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_public_final_gambit_separates_capped_HP_loss_positive_faint_and_actual_damage",
+        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_public_misty_explosion_pays_self_cost_after_actual_hit_or_miss"
       ]
     },
-    "tools.test_foe_side_contracts_revision.ResistanceBerryPreparationFoeTests": {
+    "tools.test_post_damage_self_stage.PostDamageSelfStageTests": {
       "tests": [
-        "tools.test_foe_side_contracts_revision.ResistanceBerryPreparationFoeTests.test_real_salty_berry_on_ally_hit_does_not_require_foe_consumption_policy"
+        "tools.test_post_damage_self_stage.PostDamageSelfStageTests.test_both_smite_misses_pay_one_self_drop_with_honest_miss_context"
       ]
     },
-    "tools.test_gmax_protected_recipient.GoldRushProtectedRecipientTests": {
+    "tools.test_snare_freefloat_source_revision.FreeFloatingApproachTests": {
       "tests": [
-        "tools.test_gmax_protected_recipient.GoldRushProtectedRecipientTests.test_substitute_receives_gold_rush_hit_without_new_confusion_or_lost_coins"
-      ]
-    },
-    "tools.test_native_blessing_range.NativeBlessingRangeTests": {
-      "tests": [
-        "tools.test_native_blessing_range.NativeBlessingRangeTests.test_all_eight_printed_blessings_create_one_pool_and_pay_once_on_map",
-        "tools.test_native_blessing_range.NativeBlessingRangeTests.test_lucky_chant_rejects_foreign_caster_and_keeps_team_pool_after_recall",
-        "tools.test_native_blessing_range.NativeBlessingRangeTests.test_numeric_range_with_blessing_keyword_stays_numeric_and_self_field_stay_distinct"
-      ]
-    },
-    "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests": {
-      "tests": [
-        "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests.test_actual_mounted_dash_pass_applies_one_cost_after_both_recipients",
-        "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests.test_clanging_scales_burst_uses_original_defense_then_one_drop",
-        "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests.test_nonsmite_misses_do_not_gain_after_use_exception_but_substitute_hit_keeps_user_cost"
+        "tools.test_snare_freefloat_source_revision.FreeFloatingApproachTests.test_public_approach_preserves_paid_sprint_rate_and_clears_it_for_later_movement"
       ]
     },
     "tools.test_snare_freefloat_source_revision.FreeFloatingTests": {
       "tests": [
-        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_disengage_checks_float_destination_before_spending_its_native_action",
-        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_float_only_sky_cannot_cross_to_normal_or_unobserved_gravity_before_cost",
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_approach_planning_uses_actual_owner_and_stays_inside_the_zero_gravity_route",
         "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_free_float_paid_path_cannot_reset_native_sky_allowance_each_step",
-        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_full_zero_gravity_keeps_four_speed_and_zero_endpoints_do_not_hide_normal_gap",
-        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_live_gravity_change_restore_and_unequip_preserve_stronger_native_movement",
         "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_one_movement_sprint_keeps_paid_rate_across_segments_and_continuation",
         "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_weaker_native_sky_does_not_spend_free_float_speed_in_normal_gravity"
-      ]
-    },
-    "tools.test_substitute_damage_consumers.SubstituteDamageConsumerTests": {
-      "tests": [
-        "tools.test_substitute_damage_consumers.SubstituteDamageConsumerTests.test_coat_damage_recoil_and_self_stage_keep_creature_prevention_and_restore"
       ]
     }
   }

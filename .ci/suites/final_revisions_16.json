@@ -3,7 +3,7 @@
   "id": "final_revisions_16",
   "purpose": "repair118 complete retained method scope; no old unaffected-PASS reuse. Typed1029/three modes/sentinel, phase1 procedural21 plus phase2 procedural22, mandatory metadata65+audit1 remain distinct.",
   "completion_credit": 0,
-  "required_unique_count": 917,
+  "required_unique_count": 919,
   "completed": {
     "tests.test_heavy_production.Tests": {
       "tests": [
@@ -1192,6 +1192,16 @@
         "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests.test_actual_mounted_dash_pass_applies_one_cost_after_both_recipients",
         "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests.test_clanging_scales_burst_uses_original_defense_then_one_drop",
         "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests.test_nonsmite_misses_do_not_gain_after_use_exception_but_substitute_hit_keeps_user_cost"
+      ]
+    },
+    "tools.test_book_athlete_training_regime.TrainingRegimeTests": {
+      "tests": [
+        "tools.test_book_athlete_training_regime.TrainingRegimeTests.test_sprint_replaces_half_with_double_for_all_actual_capabilities_and_restore"
+      ]
+    },
+    "tools.test_snare_freefloat_source_revision.FreeFloatingApproachTests": {
+      "tests": [
+        "tools.test_snare_freefloat_source_revision.FreeFloatingApproachTests.test_public_approach_preserves_paid_sprint_rate_and_clears_it_for_later_movement"
       ]
     }
   }

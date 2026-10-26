@@ -26,7 +26,7 @@
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
   "active_repair": "remote-reviewed-runtime",
   "active_repair_scope": "One reviewed affected ordinary subset; full obligation inventory and historical native/H evidence retained. No metadata65, typed, procedural, or full-scope acceptance claim.",
-  "active_repair_required_tests": 36,
+  "active_repair_required_tests": 21,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -44,7 +44,7 @@
   "ordinary_shard_count": 18,
   "active_repair_phase": "runtime_corrections",
   "active_repair_procedural_runners": 0,
-  "full_method_obligations": 13827,
+  "full_method_obligations": 13831,
   "ordinary_methods_separate_run": 40141538702,
   "ordinary_methods": 12144,
   "ci_overlay_manifest_refs": [
@@ -77,18 +77,20 @@
   "phase2_metadata_methods_mandatory": 0,
   "phase2_additional_procedural_runners": 0,
   "unaffected_previous_PASS_reused": 0,
-  "selected_method_obligations": 36,
+  "selected_method_obligations": 21,
   "partial_prerequisite_refresh": true,
   "full_method_scope_executed": false,
   "source_fresh_native_prerequisites": 1404,
   "native_prerequisite_run": "40241811271",
   "activation_current_evidence_current": false,
   "previous_activation_evidence": "historical_only_not_current",
-  "active_repair_source_commit": "f19628168911a345041254bdc96b2fa605fa4b3d",
-  "active_repair_source_plan_sha256": "e4d0e579eed74d929e837dfafff2a2ab9ec4b7d821d38bc7f1152d504bbcb6c3",
+  "active_repair_source_commit": "f5755321ba582779b0b489760ac89a8c27b8ceb6",
+  "active_repair_source_plan_sha256": "a4ad5545554283799aa856e329338a51c96bf0a0bf3c23192564d9f2da544f6b",
   "remote_control_preparation": {
     "status": "PREPARED_NOT_EXECUTED",
-    "added_method_count": 15,
+    "added_method_count": 4,
+    "added_source_method_count": 3,
+    "added_existing_method_count": 1,
     "existing_class_owners_preserved": true,
     "fixture_cipher_sha256": "5d5dcecfbc08ace8a7e7f93a1433186282b903c065ad86674b4a6fc34733ada9",
     "fixture_manifest_sha256": "32f3b6b64b44afec5e32657a08efba1046434543080fa218426fd80155e7f6b4"
