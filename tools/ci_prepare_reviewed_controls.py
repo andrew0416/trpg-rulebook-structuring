@@ -64,6 +64,10 @@ def packet_ids(packet):
     return result
 
 
+assert methods('tools/test_control_selection.py', b'class Checks:\n def test_present(self): pass\n def helper(self): pass\n') == {'tools.test_control_selection.Checks.test_present'}
+assert not all(part.isidentifier() for part in 'tools..outside'.split('.'))
+
+
 def selected_ids(root, plan):
     paths = plan['selection_input_paths']
     require(len(paths) == len(SOURCE_INPUTS) and set(paths) == SOURCE_INPUTS)
@@ -112,6 +116,7 @@ def main():
     require(re.fullmatch(r'[0-9a-f]{40}', base) is not None)
     git(root, 'merge-base', '--is-ancestor', base, parent)
     private = {row['path'] for row in read(root/'.ci/fixtures-manifest.json')['files']}
+    private_folded={path.casefold() for path in private}
     for path in ('.ci/fixtures.zip.enc', '.ci/fixtures-manifest.json'):
         require(git(root, 'show', base+':'+path) == (root/path).read_bytes())
     cipher_sha = digest((root/'.ci/fixtures.zip.enc').read_bytes())
@@ -145,6 +150,20 @@ def main():
             require(cls not in owners and all(uid.rsplit('.', 1)[0] == cls for uid in row['tests']))
             owners[cls] = path
     require(len(original) == len(set(original)) and not additions & set(original))
+    typed = set(packet_ids(read(root/'.ci/suites/frequency_equivalence.json')))
+    metadata = set(packet_ids(read(root/'.ci/suites/metadata_revisions.json')))
+    selected = selected_ids(root, plan)
+    source_additions=set(additions)
+    existing_additions=set(selected)-set(original)-typed-metadata-additions
+    if existing_additions:
+        require(plan.get('include_reviewed_existing_methods') is True)
+        for uid in sorted(existing_additions):
+            module=uid.rsplit('.',2)[0]
+            require(all(part.isidentifier() for part in module.split('.')))
+            path=module.replace('.','/')+'.py'
+            require(path.casefold() not in private_folded and uid in methods(path,git(root,'show',parent+':'+path)))
+        additions.update(existing_additions)
+    require(not {uid.rsplit('.',1)[0] for uid in additions} & {uid.rsplit('.',1)[0] for uid in typed|metadata})
     new_classes = {uid.rsplit('.', 1)[0] for uid in additions} - set(owners)
     require(plan['new_class_shard'] in FULL)
     for uid in sorted(additions):
@@ -155,11 +174,8 @@ def main():
     require(len(resulting) == len(set(resulting)) and set(resulting) == set(original) | additions)
     for cls, owner in owners.items():
         require(cls in packets[owner]['completed'] and sum(cls in p['completed'] for p in packets.values()) == 1)
-    typed = set(packet_ids(read(root/'.ci/suites/frequency_equivalence.json')))
-    metadata = set(packet_ids(read(root/'.ci/suites/metadata_revisions.json')))
     require(len(typed) == 1029 and len(metadata) == 65 and not set(resulting) & (typed | metadata) and not typed & metadata)
     full = set(resulting) | typed | metadata
-    selected = selected_ids(root, plan)
     require(selected and selected == sorted(set(selected)) and set(selected) <= full and not set(selected) & metadata)
     require(additions <= set(selected))
     groups = {}
@@ -183,7 +199,8 @@ def main():
         completion_credit=0, active_repair_source_commit=parent,
         active_repair_source_plan_sha256=digest(plan_body),
         remote_control_preparation=dict(status='PREPARED_NOT_EXECUTED',
-            added_method_count=len(additions), existing_class_owners_preserved=True,
+            added_method_count=len(additions), added_source_method_count=len(source_additions),
+            added_existing_method_count=len(existing_additions), existing_class_owners_preserved=True,
             fixture_cipher_sha256=cipher_sha, fixture_manifest_sha256=manifest_sha))
     replacement['.ci/source-snapshot.json'] = snapshot
     require(set(replacement) <= WRITABLE)
@@ -208,6 +225,7 @@ def main():
     summary = dict(status='CONTROLS_PREPARED_NO_TESTS', parent=parent, commit=child,
         branch=branch, changed_control_paths=sorted(actual), selected_methods=len(selected),
         full_method_obligations=len(full), additive_methods=len(additions),
+        added_source_methods=len(source_additions), added_existing_methods=len(existing_additions),
         fixture_cipher_sha256=cipher_sha, fixture_manifest_sha256=manifest_sha,
         native_runs=0, completion_credit=0)
     print(json.dumps(summary))

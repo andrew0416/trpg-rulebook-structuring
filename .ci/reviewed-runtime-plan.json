@@ -19,6 +19,7 @@
     ".ci/remote-source-inputs/self-cost-bide.json"
   ],
   "extra_selected_method_ids": [],
+  "include_reviewed_existing_methods": true,
   "new_class_shard": ".ci/suites/final_revisions_16.json",
   "completion_credit": 0,
   "root_review_note": "Reviewed caller-level sprint propagation, exact Playtest Perception ownership at the evasion cap, and sacrifice completion conditions. Only changed behavior and causally affected ordinary methods are selected. Previously completed runs are not repeated. Original assertions, full obligations, class owners, independent H, private fixtures and frequency contracts remain unchanged. No local execution or hashing. Control preparation and native/H validation run only in Actions; neither source publication nor preparation awards acceptance."
