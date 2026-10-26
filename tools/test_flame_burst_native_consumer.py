@@ -91,7 +91,7 @@ class FlameBurstNativeConsumerTests(unittest.TestCase):
         self.assertEqual([(c.hp,c.temp_hp,HISTORY.records(c)) for c in e.everyone],before)
         self.assertEqual((a.move_uses[MOVE],a.budget['standard']),(1,0))
         self.assertFalse(any(row['source_id']==MOVE and row['status']=='completed'
-            and row['effect'].get('type')=='hp_loss' for row in e._effect_dispatch_receipts.values()))
+            and row['effect'].get('type')=='hp_loss' for row in getattr(e,'_effect_dispatch_receipts',{}).values()))
 
     def test_unbound_hit_label_cannot_forge_the_native_primary_producer(self):
         e,a,t,*_=self.scene()
@@ -117,6 +117,8 @@ class FlameBurstNativeConsumerTests(unittest.TestCase):
     def test_unknown_remote_body_and_mapless_contact_do_not_silently_narrow_the_splash(self):
         e,a,t,east,diagonal,remote,south,trainer,weapon=self.scene()
         remote.spec.pop('footprint')
+        remote.spec['size']=None
+        self.assertFalse(BODY.projection(remote)['geometry_complete'])
         assert_rejected_unchanged(e,lambda:e.use_move_on(a,t,MOVE,e.everyone,weapon_id=weapon,set_damage=True),
             reason_pattern='full observed body geometry')
         e,a,t,*_=self.scene();e.grid=None

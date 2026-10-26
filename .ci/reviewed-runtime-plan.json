@@ -2,21 +2,16 @@
   "schema_version":1,
   "status":"ROOT_REVIEWED_SOURCE_SELECTION_NOT_PASS",
   "branch":"codex/source-contract-revisions",
-  "reviewed_base_commit":"492dadffc6cf304b9ba8ddddbd5534b8a3e0e2ce",
-  "reviewed_python_paths":["engine/effect_contracts.py"],
+  "reviewed_base_commit":"40f1c9589db6fb6e71d4b092af2c8e11d758c94e",
+  "reviewed_python_paths":["tools/test_flame_burst_native_consumer.py"],
   "selection_input_paths":[".ci/remote-source-inputs/chronicler.json",".ci/remote-source-inputs/berries-gmax.json",".ci/remote-source-inputs/blessings.json",".ci/remote-source-inputs/freefloat.json",".ci/remote-source-inputs/self-cost-bide.json"],
   "extra_selected_method_ids":[
-    "tools.test_fantasy_weapon_revision.FantasyWeaponRevisionTests.test_crafted_ranges_keep_native_shapes_and_printed_numeric_distance",
-    "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_actual_crafted_hit_splashes_cardinal_trainers_pokemon_and_adjacent_user_once",
     "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_actual_primary_miss_spends_one_move_without_any_splash",
-    "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_changed_selected_payload_or_source_is_rejected_before_any_native_payment",
-    "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_primary_and_adjacent_user_faint_do_not_cancel_the_remaining_actual_splash",
-    "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_unbound_hit_label_cannot_forge_the_native_primary_producer",
     "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_unknown_remote_body_and_mapless_contact_do_not_silently_narrow_the_splash"
   ],
   "added_method_ids":[],
   "include_reviewed_existing_methods":true,
   "new_class_shard":".ci/suites/final_revisions_16.json",
   "completion_credit":0,
-  "root_review_note":"Correct only the new Flame Burst guard's two source-record constants. The CSV physical line267 is logical record247, explicitly preserved in the actual Move entity _source.record_span; the authenticated csv.reader uses zero-based246. Do not change source quantities, exact-match guard, native frame, geometry, HP-loss owner or any assertion. Original failed40360233235 and safe original-artifact diagnostic40361620989 remain preserved. Select the six nonpassing methods plus the source-tamper method whose former early rejection could mask the intended checks. Three unaffected shared checks retain their prior native observations and are not repeated merely for bookkeeping. Full declarations/private bytes/checker remain unchanged; this is source review, not PASS, global acceptance or original-range credit."
+  "root_review_note":"After authenticated original failure40363272171 and diagnostic-only40364890333, correct exactly two new fixture premises: no on-hit dispatch means a lazy receipt store may be absent; deleting an observed footprint alone leaves catalog size's complete default body, so explicitly unknown size is needed and its projection is asserted. Do not change runtime, source quantities, geometry policy, exact rejection reason, entire-state/RNG rollback, one move/action payment or miss no-splash requirements. Five unaffected native PASS observations remain preserved without repetition. Preserve full13847 declarations, private contracts/cipher and H. Source preparation/test-only corrections have no original finding or rule-correction credit."
 }
