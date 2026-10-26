@@ -3,7 +3,7 @@
   "id": "final_revisions_16",
   "purpose": "repair118 complete retained method scope; no old unaffected-PASS reuse. Typed1029/three modes/sentinel, phase1 procedural21 plus phase2 procedural22, mandatory metadata65+audit1 remain distinct.",
   "completion_credit": 0,
-  "required_unique_count": 929,
+  "required_unique_count": 935,
   "completed": {
     "tests.test_heavy_production.Tests": {
       "tests": [
@@ -1220,6 +1220,16 @@
         "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests.test_relative_cold_restore_keeps_cell_prefix_and_rejects_forged_offsets_or_discounts",
         "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests.test_relative_measured_step_keeps_actual_paid_sprint_rate_for_both_source_policies",
         "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests.test_relative_parent_prefix_uses_actual_zero_charged_exit_not_physical_distance"
+      ]
+    },
+    "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests": {
+      "tests": [
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_actual_crafted_hit_splashes_cardinal_trainers_pokemon_and_adjacent_user_once",
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_actual_primary_miss_spends_one_move_without_any_splash",
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_changed_selected_payload_or_source_is_rejected_before_any_native_payment",
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_primary_and_adjacent_user_faint_do_not_cancel_the_remaining_actual_splash",
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_unbound_hit_label_cannot_forge_the_native_primary_producer",
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_unknown_remote_body_and_mapless_contact_do_not_silently_narrow_the_splash"
       ]
     }
   }
