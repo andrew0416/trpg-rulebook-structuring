@@ -3,7 +3,7 @@
   "id": "final_revisions_16",
   "purpose": "repair118 complete retained method scope; no old unaffected-PASS reuse. Typed1029/three modes/sentinel, phase1 procedural21 plus phase2 procedural22, mandatory metadata65+audit1 remain distinct.",
   "completion_credit": 0,
-  "required_unique_count": 919,
+  "required_unique_count": 929,
   "completed": {
     "tests.test_heavy_production.Tests": {
       "tests": [
@@ -1202,6 +1202,24 @@
     "tools.test_snare_freefloat_source_revision.FreeFloatingApproachTests": {
       "tests": [
         "tools.test_snare_freefloat_source_revision.FreeFloatingApproachTests.test_public_approach_preserves_paid_sprint_rate_and_clears_it_for_later_movement"
+      ]
+    },
+    "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests": {
+      "tests": [
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_actual_empty_burst_pays_one_cost_and_installs_one_field_without_hit_or_rng",
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_actual_hit_and_miss_install_one_centered_blast_after_faint_and_restore",
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_actual_local_status_damage_and_field_exclusion_expire_after_five_rounds",
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_airborne_global_mist_is_not_affected_but_local_mist_treats_every_occupant_as_affected",
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_native_volatile_delay_survives_restore_and_original_geometry_tamper_is_rejected",
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_owned_empty_burst_preserves_unresolved_or_disobedient_permission_without_cost"
+      ]
+    },
+    "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests": {
+      "tests": [
+        "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests.test_relative_cells_share_native_sky_boundary_across_observed_gravity_regions",
+        "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests.test_relative_cold_restore_keeps_cell_prefix_and_rejects_forged_offsets_or_discounts",
+        "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests.test_relative_measured_step_keeps_actual_paid_sprint_rate_for_both_source_policies",
+        "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests.test_relative_parent_prefix_uses_actual_zero_charged_exit_not_physical_distance"
       ]
     }
   }

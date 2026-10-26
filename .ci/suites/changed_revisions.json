@@ -3,8 +3,15 @@
   "id": "changed_revisions",
   "purpose": "Root-reviewed bounded ordinary scope; no full-run or clause credit",
   "completion_credit": 0,
-  "required_unique_count": 21,
+  "required_unique_count": 67,
   "completed": {
+    "tools.test_attack_loss_provenance.AttackLossTests": {
+      "tests": [
+        "tools.test_attack_loss_provenance.AttackLossTests.test_gm_and_json_restore_preserve_actual_loss_history_without_reapplying",
+        "tools.test_attack_loss_provenance.AttackLossTests.test_late_wake_failure_rolls_back_damage_and_loss_with_its_history",
+        "tools.test_attack_loss_provenance.AttackLossTests.test_native_direct_loss_preserves_class_amount_and_one_actual_application"
+      ]
+    },
     "tools.test_book_athlete_coaching.AthleteCoachingTests": {
       "tests": [
         "tools.test_book_athlete_coaching.AthleteCoachingTests.test_sprint_coaching_doubles_the_actual_sprint_movement_instead_of_half"
@@ -15,10 +22,37 @@
         "tools.test_book_athlete_training_regime.TrainingRegimeTests.test_sprint_replaces_half_with_double_for_all_actual_capabilities_and_restore"
       ]
     },
+    "tools.test_category2_global_terrain.GlobalTerrainTests": {
+      "tests": [
+        "tools.test_category2_global_terrain.GlobalTerrainTests.test_damage_consumers_use_actual_type_and_ground_contact",
+        "tools.test_category2_global_terrain.GlobalTerrainTests.test_electric_immunity_and_misty_status_lifecycle",
+        "tools.test_category2_global_terrain.GlobalTerrainTests.test_five_round_expiry_snapshot_restore_and_tamper_rejection"
+      ]
+    },
+    "tools.test_category2_reactive_ability_boundaries.ReactiveAbilityBoundaryTests": {
+      "tests": [
+        "tools.test_category2_reactive_ability_boundaries.ReactiveAbilityBoundaryTests.test_empty_area_actual_use_spends_swift_and_projects_type"
+      ]
+    },
+    "tools.test_category2_smoke_regions.SmokeTests": {
+      "tests": [
+        "tools.test_category2_smoke_regions.SmokeTests.test_another_empty_area_move_cannot_bypass_target_activation",
+        "tools.test_category2_smoke_regions.SmokeTests.test_authoring_field_marker_cannot_issue_target_free_authority",
+        "tools.test_category2_smoke_regions.SmokeTests.test_empty_whirlwind_consumes_once_and_completes_field_without_target_result",
+        "tools.test_category2_smoke_regions.SmokeTests.test_empty_whirlwind_gm_and_json_restore_preserve_completion_and_live_actors",
+        "tools.test_category2_smoke_regions.SmokeTests.test_injured_empty_whirlwind_pending_survives_atomic_transition",
+        "tools.test_category2_smoke_regions.SmokeTests.test_post_adapter_effect_patch_cannot_expand_target_free_authority"
+      ]
+    },
     "tools.test_category2_state_grants.StateGrantTests": {
       "tests": [
         "tools.test_category2_state_grants.StateGrantTests.test_capped_sources_use_declared_contributions_not_observed_deltas",
         "tools.test_category2_state_grants.StateGrantTests.test_negative_capped_sources_are_reversible"
+      ]
+    },
+    "tools.test_category2_total_blindness_relative.TotalBlindnessRelativeTests": {
+      "tests": [
+        "tools.test_category2_total_blindness_relative.TotalBlindnessRelativeTests.test_real_opportunity_stamina_wait_cold_restore_resumes_same_shift_and_check_once"
       ]
     },
     "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests": {
@@ -30,19 +64,91 @@
         "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_playtest_perception_capped_registration_keeps_bonus_after_native_haze"
       ]
     },
+    "tools.test_confusion_attacks.ConfusionTests": {
+      "tests": [
+        "tools.test_confusion_attacks.ConfusionTests.test_empty_field_move_uses_real_activation_without_inventing_accuracy"
+      ]
+    },
+    "tools.test_core_ice_lake.IceLakeTests": {
+      "tests": [
+        "tools.test_core_ice_lake.IceLakeTests.test_empty_selected_area_pays_one_native_activation_without_accuracy_or_damage"
+      ]
+    },
+    "tools.test_electro_shot_source_zone.ElectroShotZoneTests": {
+      "tests": [
+        "tools.test_electro_shot_source_zone.ElectroShotZoneTests.test_claimed_discount_or_changed_native_step_cannot_waive_paid_suffix",
+        "tools.test_electro_shot_source_zone.ElectroShotZoneTests.test_fractional_aerial_exit_distance_survives_actual_prefix_restore",
+        "tools.test_electro_shot_source_zone.ElectroShotZoneTests.test_free_exit_keeps_remaining_normal_movement_and_one_shift"
+      ]
+    },
+    "tools.test_heavy_target_binding_contracts.HeavyTargetBindingTests": {
+      "tests": [
+        "tools.test_heavy_target_binding_contracts.HeavyTargetBindingTests.test_native_target_attack_keeps_one_loss_and_consumes_receipt"
+      ]
+    },
     "tools.test_hp_setting_source_boundaries.HPSettingSourceTests": {
       "tests": [
+        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_actual_single_attack_caps_damage_while_core_sturdy_does_not_cap_self_setting",
+        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_damage_only_cap_does_not_reduce_HP_setting_and_unknown_scope_is_atomic",
+        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_explicit_true_bypasses_cap_and_replacement_but_keeps_markers_and_faint",
         "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_misty_explosion_selected_negative_half_uses_signed_floor_and_same_marker_boundary",
+        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_nontrue_flags_keep_selected_loss_cap_and_setting_does_not_consume_temp_HP",
+        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_original_cold_factory_and_adapted_warm_cache_use_independent_native_worlds",
         "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_owned_sacrifice_requires_GM_loyalty_magnitude_before_cost_and_applies_once",
         "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_prepared_sacrifice_choice_survives_native_target_wait_restore_and_tamper_rejection",
         "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_public_explosions_pay_one_unpreventable_self_cost_after_all_hits_or_misses",
+        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_public_final_gambit_does_not_activate_an_actual_held_item",
+        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_public_final_gambit_keeps_self_cost_when_substitute_receives_target_damage",
         "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_public_final_gambit_separates_capped_HP_loss_positive_faint_and_actual_damage",
-        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_public_misty_explosion_pays_self_cost_after_actual_hit_or_miss"
+        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_public_misty_explosion_pays_self_cost_after_actual_hit_or_miss",
+        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_selected_cap_corruption_and_conflicting_R492_reject_before_resources",
+        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_selected_damage_and_all_HP_loss_kinds_share_the_correct_rounding",
+        "tools.test_hp_setting_source_boundaries.HPSettingSourceTests.test_unknown_as_damage_and_truthy_faint_fields_are_rejected_before_action"
+      ]
+    },
+    "tools.test_independent_field_slots_revision.IndependentFieldSlotsRevisionTests": {
+      "tests": [
+        "tools.test_independent_field_slots_revision.IndependentFieldSlotsRevisionTests.test_native_five_fields_coexist_in_both_orders_and_expire_independently",
+        "tools.test_independent_field_slots_revision.IndependentFieldSlotsRevisionTests.test_native_steel_roller_pass_ends_terrain_without_ending_magic_room"
+      ]
+    },
+    "tools.test_localized_grass_field.LocalGrassTests": {
+      "tests": [
+        "tools.test_localized_grass_field.LocalGrassTests.test_both_restores_and_original_receipt_tamper_are_atomic",
+        "tools.test_localized_grass_field.LocalGrassTests.test_native_grass_heal_damage_and_target_specific_global_shadow"
+      ]
+    },
+    "tools.test_localized_grass_field_independent.LocalGrassIndependentTests": {
+      "tests": [
+        "tools.test_localized_grass_field_independent.LocalGrassIndependentTests.test_body_intersection_and_paid_field_survives_source_loss_and_recall"
+      ]
+    },
+    "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests": {
+      "tests": [
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_actual_empty_burst_pays_one_cost_and_installs_one_field_without_hit_or_rng",
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_actual_hit_and_miss_install_one_centered_blast_after_faint_and_restore",
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_actual_local_status_damage_and_field_exclusion_expire_after_five_rounds",
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_airborne_global_mist_is_not_affected_but_local_mist_treats_every_occupant_as_affected",
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_native_volatile_delay_survives_restore_and_original_geometry_tamper_is_rejected",
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_owned_empty_burst_preserves_unresolved_or_disobedient_permission_without_cost"
+      ]
+    },
+    "tools.test_native_recipient_owner.NativeRecipientOwnerTests": {
+      "tests": [
+        "tools.test_native_recipient_owner.NativeRecipientOwnerTests.test_valid_frame_does_not_bypass_domain_effect_receipt"
       ]
     },
     "tools.test_post_damage_self_stage.PostDamageSelfStageTests": {
       "tests": [
         "tools.test_post_damage_self_stage.PostDamageSelfStageTests.test_both_smite_misses_pay_one_self_drop_with_honest_miss_context"
+      ]
+    },
+    "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests": {
+      "tests": [
+        "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests.test_relative_cells_share_native_sky_boundary_across_observed_gravity_regions",
+        "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests.test_relative_cold_restore_keeps_cell_prefix_and_rejects_forged_offsets_or_discounts",
+        "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests.test_relative_measured_step_keeps_actual_paid_sprint_rate_for_both_source_policies",
+        "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests.test_relative_parent_prefix_uses_actual_zero_charged_exit_not_physical_distance"
       ]
     },
     "tools.test_snare_freefloat_source_revision.FreeFloatingApproachTests": {
