@@ -171,6 +171,16 @@ def _local_seal(row):
 
 
 def validate_local(engine, index=None):
+    # The existing World callback supplies its complete actor index.
+    if index is not None:
+        validate(engine)
+    rows = _validate_local(engine, index)
+    if index is not None:
+        validate_pending_world(engine, index)
+    return rows
+
+
+def _validate_local(engine, index=None):
     state = getattr(engine, LOCAL_KEY, None)
     if state is None:
         return []

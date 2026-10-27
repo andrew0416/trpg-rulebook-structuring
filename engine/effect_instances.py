@@ -277,4 +277,6 @@ def validate_world(engine,index):
     FOOD.validate_transfer_world(engine,index)
     import declarative_move_contracts as DECLARATIVE_MOVES
     DECLARATIVE_MOVES.validate_world(engine,index)
+    import native_switch_transfer as SWITCH
+    SWITCH.validate_world(engine,index)
     return True
