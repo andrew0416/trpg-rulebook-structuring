@@ -37,6 +37,9 @@ class MusicianTests(unittest.TestCase):
         self.e = Engine(self.rules, seed=2345)
         self.e.grid = Grid(18, 12)
         self.t = self.add('Musician', 'trainer', (3, 3), speed=30, classes=[], feats=[], edges=[], moves=[], items={}, exp_bank=50)
+        self.e.pokemon_activity(self.t, 'configure_intelligence',
+            portrayal='Pokemon use their assigned performance skills', discussed_with=['Musician scene participants'],
+            social=True, education=True, reason='explicit campaign permission for actual Song skill checks')
 
     def add(self, name, kind, pos, speed=20, side='party', **extra):
         spec = dict(deepcopy(fixture.COMMON), name=name, kind=kind)
@@ -192,6 +195,15 @@ class MusicianTests(unittest.TestCase):
         self.rejected(lambda:M.play(self.e,self.t,['life']),'encounter')
         self.combat(self.t);AP.spend(self.t,AP.available(self.t))
         self.rejected(lambda:M.play(self.e,self.t,['life']),'one AP')
+
+    def test_noop_keyword_projection_preserves_absent_and_explicit_source_shape(self):
+        native=self.rules.move('struggle');self.assertNotIn('keywords',native)
+        for source in (native,dict(native,keywords=[]),dict(native,keywords=['소리'])):
+            with self.subTest(keywords=source.get('keywords')):
+                before=deepcopy(source);projected=M.project_move(self.e,self.t,source)
+                self.assertEqual(projected,before);self.assertIsNot(projected,source)
+                self.assertEqual(source,before)
+        self.assertNotIn('keywords',self.rules.move('struggle'))
 
     def test_voice_lessons_projects_only_current_owner_sound_moves_except_perish(self):
         self.musician(M.VOICE);own=self.pokemon();other=self.add('Other','trainer',(10,3),feats=[],classes=[])

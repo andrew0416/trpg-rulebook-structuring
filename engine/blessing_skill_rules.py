@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 import arithmetic_policy as M
+import action_points as AP
 import common_checks as C
 import frequency as FREQ
 import roll_pools as POOLS
@@ -229,6 +230,16 @@ def _scene(actor):
     return FREQ.state(actor)["scene"]
 
 
+def sign_cost_source(actor):
+    """The selected Sign source supplies AP and frequency for every Blessing."""
+    import blessing_skill_features as BLESSINGS
+
+    source = BLESSINGS._source(actor, BLESSINGS.SIGNER)
+    if source.get("file") != "supp-blessings.md" or source.get("lines") != [248, 270]:
+        raise ValueError("reviewed Contractor Sign cost source required")
+    return source
+
+
 def activate(engine, actor, gift, *, reason):
     """Pay the exact Contractor action and commit its bounded activation."""
     _text(reason, "Blessing activation reason")
@@ -239,6 +250,12 @@ def activate(engine, actor, gift, *, reason):
         record = _record(staged_engine, staged_actor, gift)
         if record is None or record["values"].get("role") != "contractor":
             raise ValueError("actual acquired Contractor Blessing required")
+        cost_source = sign_cost_source(staged_actor)
+        frequency_key = "blessing-sign:" + gift
+        if not FREQ.activation_allowed(staged_actor, frequency_key, "장면", engine=staged_engine):
+            raise ValueError("Contractor Sign already used this scene")
+        if AP.available(staged_actor) < 1:
+            raise ValueError("Contractor Sign requires one available AP")
         state = _state(staged_actor)
         previous = state["activations"].get(gift)
         if gift == ANCIENT_WISDOM:
@@ -254,18 +271,21 @@ def activate(engine, actor, gift, *, reason):
             lifetime = "scene"
         if not TURN.spend(staged_engine, staged_actor, action, gift):
             raise ValueError("required Blessing action is unavailable")
+        AP.charge(staged_actor, 1, mode="spend")
+        FREQ.consume_activation(staged_actor, frequency_key, "장면", engine=staged_engine)
         activation = {
             "id": gift + ":" + str(len(state["history"]) + 1),
             "gift": gift,
             "source": RULES[gift]["clause_id"],
+            "cost_source": cost_source,
+            "ap": 1,
+            "scene": _scene(staged_actor),
             "action": action,
             "lifetime": lifetime,
             "at": staged_engine.elapsed_seconds,
             "reason": reason,
             "status": "pending" if gift == ANCIENT_WISDOM else "active",
         }
-        if gift == PARAGON:
-            activation["scene"] = _scene(staged_actor)
         state["activations"][gift] = activation
         state["history"].append(deepcopy(activation))
         staged_engine.log("  " + staged_actor.name + ": 축복 스킬 규칙 활성화", gift)
@@ -296,10 +316,17 @@ def _purpose(context):
 
 
 def shared_context(context):
-    """Remove only this adapter's modifier declaration for older consumers."""
-    if not isinstance(context, dict) or "modifier_basis" not in context:
+    """Keep location observations separate from older purpose-only consumers."""
+    if not isinstance(context, dict):
         return context
-    remaining = {key: value for key, value in context.items() if key != "modifier_basis"}
+    if "region" in context:
+        region = context["region"]
+        if (not isinstance(region, dict) or set(region) != {"kind", "reason"}
+                or not isinstance(region["kind"], str)
+                or region["kind"] not in {"mountain", "volcanic", "other"}):
+            raise ValueError("explicit observed mountain, volcanic or other region required")
+        _text(region["reason"], "GM region observation reason")
+    remaining = {key: value for key, value in context.items() if key not in {"modifier_basis", "region"}}
     return remaining or None
 
 

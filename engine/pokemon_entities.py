@@ -28,6 +28,19 @@ def loyalty_value(actor, *, required=False):
     return value
 
 
+def effective_loyalty_value(actor, *, engine, required=False):
+    """Source-owned effective rank; the observed current-owner baseline stays 0..6."""
+    value=loyalty_value(actor,required=required)
+    if engine is None:return value
+    if value is None:return None
+    W.require_actors(engine,actor)
+    owner=W.actor_index(engine).get(actor.spec.get('trainer_id'))
+    if owner is None:return value
+    import mentor
+    row=mentor.acquired(owner,mentor.EGG_TUTOR)
+    return value+(1 if row and row['snapshot']['source']['variant']=='local_csv' else 0)
+
+
 def _loyalty_relations(actor):
     rows=actor.spec.get('loyalty_relations',{})
     if not isinstance(rows,dict):raise ValueError('loyalty relations must be an owner identity mapping')
@@ -43,12 +56,13 @@ def _loyalty_relations(actor):
     return rows
 
 
-def loyalty_projection(actor, *, viewer='player'):
+def loyalty_projection(actor, *, viewer='player',engine=None):
     if viewer not in ('player','gm'):raise ValueError('explicit player or GM projection required')
     value=loyalty_value(actor);rows=_loyalty_relations(actor);owner=actor.spec.get('trainer_id')
     row=rows.get(owner,{})
     if viewer=='player':return {'hint':row.get('hint')} if row.get('hint') is not None else {}
     return {'trainer_id':owner,'value':value,'known':value is not None,'meaning':LOYALTY_MEANINGS.get(value),
+        **({'effective_value':effective_loyalty_value(actor,engine=engine)} if engine is not None else {}),
         'source':LOYALTY_SOURCE,'observation':deepcopy(row) if row else None,
         'change_authority':'GM judgment; elapsed time, food and isolated kindness never automatically change the rank'}
 
@@ -92,13 +106,74 @@ def prepare_loyalty_transfer(actor,old_owner,new_owner,*,reason,at):
     return {'loyalty':rows.get(new_owner,{}).get('value'),'loyalty_relations':rows}
 
 
+def _origin_basis(actor):
+    """Observed individual facts, not a guessed definition of 'special'."""
+    basis={key:deepcopy(actor.spec.get(key)) for key in (
+        'species','types','abilities','nature',*F.DESCRIPTION_FIELDS,
+        'regional_variant','example_definition')}
+    basis.update(types=list(actor.types),abilities=list(actor.abilities))
+    return basis
+
+
+def _origin_observation(actor):
+    row=actor.spec.get('pokemon_origin_observation')
+    if row is None:return None
+    fields={'source','pokemon_id','basis','special','original_species','original_reference','changes','reason','revision'}
+    if type(row)is not dict or set(row)!=fields or row['source']!='gm/pokemon-origin-observation' or row['pokemon_id']!=actor.entity_id:raise ValueError('actual Pokemon origin observation identity required')
+    if type(row['special'])is not bool:raise ValueError('explicit GM special Pokemon observation required')
+    if type(row['changes'])is not list or any(type(x)is not str or not x.strip() for x in row['changes']):raise ValueError('explicit observed original-species changes required')
+    W._text(row['original_species'],'actual original species identity')
+    if type(row['basis'])is not dict or type(row['original_reference'])is not dict or row['original_reference'].get('id')!=row['original_species']:raise ValueError('actual selected original species reference required')
+    W._text(row['reason'],'GM origin observation reason');F.integer(row['revision'],'origin observation revision',1)
+    return row
+
+
+def observe_origin(engine,actor,*,special,original_species,changes,reason):
+    """Record explicit GM facts against the actual selected species template.
+
+    A regional/custom/legendary marker does not decide special status, and no
+    mechanical differences are synthesized from text or numerical comparison.
+    """
+    from builder import species_lookup
+    W.require_actors(engine,actor)
+    if actor.kind!='pokemon':raise ValueError('actual Pokemon target required')
+    W._text(reason,'GM origin observation reason')
+    if type(special)is not bool:raise ValueError('explicit GM special Pokemon observation required')
+    if type(changes)is not list or any(type(x)is not str or not x.strip() for x in changes):raise ValueError('explicit observed original-species changes required')
+    original=species_lookup(engine.r,original_species)
+    previous=_origin_observation(actor)
+    row={'source':'gm/pokemon-origin-observation','pokemon_id':actor.entity_id,
+         'basis':_origin_basis(actor),'special':special,'original_species':original['id'],
+         'original_reference':deepcopy(original),'changes':deepcopy(changes),'reason':reason,
+         'revision':1 if previous is None else previous['revision']+1}
+    actor.spec['pokemon_origin_observation']=row
+    return deepcopy(row)
+
+
+def origin_information(engine,actor):
+    import common_checks as C
+    from builder import species_lookup
+    W.require_actors(engine,actor)
+    if actor.kind!='pokemon':raise ValueError('actual Pokemon target required')
+    row=_origin_observation(actor)
+    if row is None:return C.PendingDecision('GM special Pokemon and original-species changes are unknown')
+    if row['basis']!=_origin_basis(actor):return C.PendingDecision('GM Pokemon origin observation needs renewal for changed individual facts')
+    try:original=species_lookup(engine.r,row['original_species'])
+    except KeyError:return C.PendingDecision('GM original species reference is no longer selected')
+    if row['original_reference']!=original:return C.PendingDecision('GM original species reference changed; renewed observation required')
+    return deepcopy(row)
+
+
 def validate_actor(actor):
     spec = actor.spec
     import legendary_commands as LEGENDARY
     LEGENDARY.validate_actor(actor)
+    import mentor
+    mentor.validate_actor(actor)
     import pokemon_activities as ACTIVITIES
     ACTIVITIES.validate_disobedience_actor(actor)
     _loyalty_relations(actor)
+    _origin_observation(actor)
     validate_dispositions(actor)
     if spec.get("loyalty") is not None:
         F.integer(spec["loyalty"], "GM-secret loyalty", 0, 6)
@@ -135,6 +210,7 @@ def actor_projection(actor, *, viewer="player"):
     result["loyalty_state"] = loyalty_projection(actor, viewer=viewer)
     if viewer == "gm":
         result["loyalty"] = actor.spec.get("loyalty")
+        result["origin_observation"] = deepcopy(_origin_observation(actor))
     return result
 
 

@@ -8,6 +8,47 @@ import common_checks as C
 import equipment_item_contracts as EQUIPMENT
 
 SOURCE='ch09-equipment/제작-키트'
+CSV_SOURCE='C2TAB/tm/r109c4-5'
+CSV_SHA='dd06395776044c0c13e698420aead38907d6969f475caf8485ec2cd1a2259f44'
+MATERIAL_KINDS={'음식':'음식 재료','약':'의학 재료','스프레이':'화학 재료','몬스터볼':'기계 재료','패션 도구':'장비 재료',
+ '기계':'기계 재료','기계 파편':'기계 재료','mechanical':'기계 재료','차량':'기계 재료','장비':'장비 재료'}
+
+
+def csv_materials(rules):
+ """Explicit S-001 choice; never replace the book's default scrap contract."""
+ edition=rules.rulings.mech.get(SOURCE,{}).get('materials_edition','book')
+ if edition not in ('book','csv-homebrew'):raise ValueError('reviewed materials edition required')
+ if edition=='csv-homebrew':
+  __import__('source_context').verified_source(rules,{'file':'input/db/tm.csv','sha256':CSV_SHA},label='CSV materials rows109-110')
+ return edition=='csv-homebrew'
+
+
+def material_kind(kind):
+ kind=MATERIAL_KINDS.get(kind,kind)
+ if kind not in MATERIAL_KINDS.values():raise ValueError('one of the five CSV material categories required')
+ return kind
+
+
+def material_shop(value):
+ if type(value)is not dict or set(value)!={'source','reason'}:raise ValueError('actual nearby Friendly Shop observation required')
+ for text in value.values():_name(text,'Friendly Shop observation')
+ return deepcopy(value)
+
+
+def csv_item_kind(header,*,declared=None,reason=None):
+ known=SOURCE_ITEM_KINDS.get(header['id'])
+ if known is None and header.get('category') in ('음식','약','몬스터볼'):known=header['category']
+ choices={material_kind(known)} if known else set()
+ if header['id'] in {'item/'+n for n in ('플러스파워','디펜드업','스페셜업','스페셜가드','스피드업','이펙트가드','크리티컬커터','명중업')}:choices={'의학 재료','화학 재료'}
+ if header['id'] in ('item/땅콩캡슐','item/접착캡슐','item/네트캡슐'):choices={'화학 재료','기계 재료'}
+ if header['id'] in ('item/캡슐캐논','item/포켓붓'):choices={'기계 재료'}
+ if declared is None:
+  if len(choices)!=1:raise ValueError('explicit CSV material category and related-item judgment required')
+  return next(iter(choices))
+ declared=material_kind(declared)
+ if choices and declared not in choices:raise ValueError('CSV material category contradicts the item source')
+ if not choices:_name(reason,'explicit item-to-material suitability judgment')
+ return declared
 SHARDS={'빨강':('불꽃','페어리','에스퍼'),'주황':('노말','격투','드래곤'),
  '노랑':('전기','바위','강철'),'초록':('벌레','풀','땅'),'파랑':('물','얼음','비행'),'보라':('독','악','고스트')}
 EXAMPLE_KINDS=EQUIPMENT.SCRAP_EXAMPLE_KINDS
@@ -42,7 +83,7 @@ def validate(actor):
  if not isinstance(history,list):raise ValueError('resource transformation history must be a list')
  for index,record in enumerate(history,1):
   if not isinstance(record,dict) or record.get('id')!='transform-'+str(index):raise ValueError('resource transformation sequence is inconsistent')
-  if record.get('operation') not in ('cook_poffins','dismantle','craft_item','craft_gem','harvest_berry','cook_chef_food'):raise ValueError('unsupported transformation operation')
+  if record.get('operation') not in ('cook_poffins','dismantle','craft_item','craft_gem','harvest_berry','cook_chef_food','trade_materials'):raise ValueError('unsupported transformation operation')
   if record.get('actor_id')!=actor.entity_id:raise ValueError('transformation belongs to another actor')
   sources=record.get('sources')
   if not isinstance(sources,list) or not sources:raise ValueError('transformation needs its actual rule sources')
@@ -95,19 +136,24 @@ class ValueCost:
  total:int
  scrap:int
  money:int
+ shop:object=None
 
 
-def prepare_cost(actor,kind,total,scrap):
+def prepare_cost(actor,kind,total,scrap,*,shop=None):
  validate(actor);EQUIPMENT.validate_scrap_balance_kind(kind)
  C.integer(total,'source recipe cost',0);C.integer(scrap,'selected scrap value',0,total)
+ if csv_materials(actor.r):
+  kind=material_kind(kind)
+  if total>scrap:shop=material_shop(shop)
+ elif shop is not None:raise ValueError('shop purchase requires the selected CSV materials edition')
  money=C.integer(actor.spec.get('money',0),'owned money',0)
  if actor.spec.get('crafting_scrap',{}).get(kind,0)<scrap or money<total-scrap:raise ValueError('insufficient matching scrap or money')
- return ValueCost(kind,total,scrap,total-scrap)
+ return ValueCost(kind,total,scrap,total-scrap,shop)
 
 
 def pay_cost(actor,plan):
  if not isinstance(plan,ValueCost):raise ValueError('prepared material value cost required')
- checked=prepare_cost(actor,plan.kind,plan.total,plan.scrap)
+ checked=prepare_cost(actor,plan.kind,plan.total,plan.scrap,shop=plan.shop)
  if checked!=plan:raise ValueError('material cost changed after admission')
  wallet=actor.spec.setdefault('crafting_scrap',{});wallet[plan.kind]=wallet.get(plan.kind,0)-plan.scrap
  actor.spec['money']=actor.spec.get('money',0)-plan.money

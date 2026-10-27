@@ -5,9 +5,15 @@ import json
 _POLICY=json.loads((Path(__file__).resolve().parents[1]/'data/native-area-hit-effects.json').read_text(encoding='utf-8'))['moves']
 
 def manages(e,mid):
-    return mid in _POLICY
+    return mid=='move/일렉트로빔' or mid in _POLICY
 
 def selected(e,mid):
+    if mid=='move/일렉트로빔':
+        import electro_shot as ELECTRO,area_targets as AREA
+        row=ELECTRO.policy(e.r);mechanics=e.r.move_mech(mid)[0]
+        if AREA.empty_field_effects(mechanics)!=[dict(row['effect'],_activation_scope='field')]:
+            raise ValueError('actual Electro Shot field adapter required')
+        return dict(definition=row['definition'],mechanics=mechanics,mapless_observed_area=False)
     row=_POLICY[mid]
     mechanics=e.r.move_mech(mid)[0]
     if mid=='move/소란피기':
@@ -38,8 +44,11 @@ def preflight(e,actor,target,effect,mid):
     if not owns(e,mid,effect):raise ValueError('selected area-hit source/effect required')
     import weapon_actions as WEAPONS
     import pass_moves as PASS
-    if PASS.converted_scope(e,actor,mid):
-        PASS.require_native_target(e,actor,target,mid)
+    if PASS.is_pass(e.r.move(mid)) or PASS.converted_scope(e,actor,mid):
+        scope=getattr(e,'_pass_move_scope',None)
+        if scope is None:raise ValueError('area-hit Pass needs its actual path producer')
+        PASS.require_scope(e,actor,scope)
+        if scope['move_id']!=mid or target not in scope['creatures']:raise ValueError('actual planned Pass recipient required')
         return (target,)
     if not WEAPONS.range_spec(e,e.r.move(mid),actor).get('shape'):
         raise ValueError('this selected area needs an actual GM mapless target ruling')
@@ -82,6 +91,8 @@ def recipients(e,actor,target,effect,ctx):
     import effect_contracts as CONTRACTS
     CONTRACTS.validate_receipt(e,ctx.get('effect_receipt'),mid,
         ctx.get('effect_occurrence'),actor,target,effect)
+    import pass_moves as PASS
+    if PASS.is_pass(e.r.move(mid)):PASS.require_native_target(e,actor,target,mid)
     # The activation dispatches the effect once for each hit member. Returning
     # the full group here would apply every effect N times to every member.
     return (target,)

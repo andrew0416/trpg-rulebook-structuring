@@ -63,7 +63,7 @@ class ChefTasteTests(unittest.TestCase):
         self.assertEqual(receipt['taste_bonus'], {'kind': 'temporary_hp', 'taste': '짠맛', 'disposition': 'liked', 'value': 5, 'gained': 5, 'stack': True})
         self.assertEqual(partner.temp_hp, 15)
         events = partner.custom_conditions[TEMP_HP.STATE]['grant_events']
-        self.assertEqual([(row['amount'], row['stack'], row['provenance']['source']) for row in events], [(5, True, CHEF.ACCENTUATED)])
+        self.assertEqual([(row['amount'], row['stack'], row['provenance']['source']) for row in events], [(10, False, 'item/짠맛-서프라이즈'), (5, True, CHEF.ACCENTUATED)])
         hits = FIX.pending(engine, chef, CHEF.HITS)[0]
         self.assertEqual(hits['payload']['receipt_sequence'], receipt['sequence'])
         result = engine.resolve_class_actor_state_action(chef, hits['id'], use=True)

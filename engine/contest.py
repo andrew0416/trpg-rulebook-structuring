@@ -96,6 +96,11 @@ class ContestRules:
         return deepcopy(self.ruleset.mech_version(selected, self._units[selected]["mech"]["data"]))
 
     def move(self, identity_or_name):
+        import coordinator as COORD
+        row=COORD.innovation_instance(self,identity_or_name)
+        if row is not None:return COORD.definition(self,identity_or_name,row)
+        row=COORD.adaptable_instance(self,identity_or_name)
+        if row is not None:return COORD.adaptable_definition(self,identity_or_name,row)
         self.selection.require_current_filter(self.ruleset)
         if identity_or_name in self.selection.units or identity_or_name.startswith("move/"):
             selected = self.selection.resolve(identity_or_name)
@@ -189,6 +194,7 @@ class ContestEngine:
         self._flourish_used = set()
         self._performance_observations = {}
         self._coordinator_used = set()  # Native (engine, trainer ID), once in this contest.
+        self._adaptable_uses = {}
         self._fashion_used = set()      # (Pokemon, physical item, rule), once in this contest.
         self._paired_run = None
         self._paired_busy = False
@@ -308,6 +314,7 @@ class ContestEngine:
         owner = trainer.spec.get("id")
         if not owner or pokemon.spec.get("trainer_id") != owner:
             raise ValueError("Contest Pokemon ownership must be established")
+        skill = __import__('hobbyist').direct_skill(trainer,'edge/우아함',skill)
         n = rank(engine.r, trainer, skill)[2]
         edges = set()
         import poffin_state as POFFINS
@@ -319,6 +326,9 @@ class ContestEngine:
                 engine.r._selected_rule(source)
                 if source not in choices:
                     raise ValueError("Equipped introduction bonus needs a chosen contest stat")
+                assignments = {__import__('fashionista').contest_assignment(engine, getattr(engine, '_physical_objects', {}).get(row.get('instance_id'))) for row in actor._item_reg.values() if row.get('item_id') == source}
+                if assignments - {None, choices[source]}:
+                    raise ValueError('Introduction stat differs from the actual crafted assigned stat')
                 sources.add(source)
                 bonuses.append({"source_id": source, "stat": choices[source]})
         grooming = pokemon.spec.get("grooming", {})
@@ -380,8 +390,10 @@ class ContestEngine:
                     raise ValueError("Native introduction state changed; rebuild the declaration")
             if c.intro_skill not in rule["skill_to_stat"]:
                 raise ValueError("Introduction requires one of the five contest skills")
-            if type(c.intro_rank_dice) is not int or not 1 <= c.intro_rank_dice <= 6:
-                raise ValueError("Introduction requires an ordinary skill rank from 1 to 6")
+            if type(c.intro_rank_dice) is not int or c.intro_rank_dice < 1:
+                raise ValueError("Introduction requires an explicitly declared positive skill rank")
+            if c.intro_rank_dice > 6 and c not in self._native_intro_bindings:
+                raise ValueError("Seven-plus introduction rank needs its actual declared native skill source")
             stat = c.intro_stat or rule["skill_to_stat"][c.intro_skill]
             if stat not in stats:
                 raise ValueError("Unknown introduction stat")
@@ -548,8 +560,28 @@ class ContestEngine:
     def perform(self, c, move_name, contest_type, adjacent, center, spend_stat_dice=0,
                 reroll_ok=False, fixed_rolls=None, *, reroll_decision=None, flourish_decision=None,
                 fashion_decision=None, fashion_instance_id=None, reliable_performance=False, attempt_id=None,
-                feature_sponsor=None, style_ranked=None, style_effect=None, voice_lessons=True):
+                feature_sponsor=None, style_ranked=None, style_effect=None, voice_lessons=True,
+                spend_intro_dice=0, adaptable=None):
         import observed_resolution as OBS
+        import coordinator as COORD
+        if COORD.contest_skip(self,c):return
+        adaptable_plan=None
+        requested_move=self.r.move(move_name)['id']
+        if adaptable is not None:
+            _,prior=OBS.locate(self._performance_observations,'contest.performance',(c,),attempt_id)
+            saved=getattr(self,'_adaptable_plan',None)
+            if prior is not None and saved is not None:
+                adaptable_plan=saved
+                if list(adaptable_plan['moves']) != [self.r.move(m)['id'] for m in adaptable]:raise ValueError('observed Adaptable constituents are locked')
+            else:
+                adaptable_plan=COORD.adaptable_plan(self,c,adaptable)
+                self._stage_feature_cost(adaptable_plan['engine'],adaptable_plan['trainer'],0,COORD.ADAPTABLE)
+                self._adaptable_plan=adaptable_plan
+            move_name=adaptable_plan['move_id']
+        COORD.contest_preflight(self,c,self.r.move(move_name)['id'])
+        if (type(spend_intro_dice) is not int or type(spend_stat_dice) is not int
+                or not 0 <= spend_intro_dice <= spend_stat_dice):
+            raise ValueError("Introduction dice must select part of the total stat-die spend")
         if type(voice_lessons) is not bool:raise ValueError('Voice Lessons Contest choice must be boolean')
         performance_binding=self._native_intro_bindings.get(c)
         import style_expert as STYLE
@@ -572,6 +604,8 @@ class ContestEngine:
               else 'fashion' if fashion_decision is not None else None)
         declaration={'move':self.r.move(move_name)['id'],'contest_type':contest_type,'adjacent':tuple(adjacent),'center':center,'spend_stat_dice':spend_stat_dice,'fixed_rolls':None if fixed_rolls is None else tuple(fixed_rolls),'feature':kind,'fashion_instance_id':fashion_instance_id,'reliable_performance':reliable_performance}
         declaration['voice_lessons']=voice_lessons
+        if adaptable_plan is not None:declaration.update(requested_move=requested_move,adaptable=tuple(adaptable_plan['moves']))
+        if spend_intro_dice:declaration['spend_intro_dice']=spend_intro_dice
         if style_ranked is not None or style_effect is not None:declaration.update(style_ranked=style_ranked,style_effect=style_effect)
         if feature_sponsor is not None:declaration['feature_sponsor']=feature_sponsor
         if observed is not None:OBS.verify(observed,declaration)
@@ -621,23 +655,25 @@ class ContestEngine:
             # No public callback: the entire private calculation may remain atomic.
             def resolve(actors,rng):
                 staged=copy(self);staged.rng,staged.log_lines=rng,[]
-                used=staged._perform(actors[0],move_name,contest_type,actors[1:],center,spend_stat_dice,False,fixed_rolls,reliable_performance=reliable_performance,style_ranked=style_ranked,style_effect=style_effect,voice_lessons=voice_lessons,_native_binding=performance_binding)
+                used=staged._perform(actors[0],move_name,contest_type,actors[1:],center,spend_stat_dice,False,fixed_rolls,reliable_performance=reliable_performance,style_ranked=style_ranked,style_effect=style_effect,voice_lessons=voice_lessons,_native_binding=performance_binding,spend_intro_dice=spend_intro_dice)
                 cost=STYLE.contest_cost(staged,style_plan,costs.get(used)) if style_plan else (staged._stage_feature_cost(binding[0],binding[2],*costs[used]) if used else None)
                 return staged.log_lines,cost
             logs,cost=resolve_transaction([c,*adjacent],self.rng,resolve);self.log_lines.extend(logs);commit_cost(cost)
             if style_plan and style_plan['key'] is not None:self._flourish_used.add(style_plan['key'])
+            COORD.contest_commit(self,c,adaptable_plan)
             return
         if observed is None:
             # Validate known feature permission before any speculative public roll.
             if kind in costs:self._stage_feature_cost(binding[0],binding[2],*costs[kind])
             def first_roll(actors,rng):
                 staged=copy(self);staged.rng,staged.log_lines=rng,[]
-                frame=staged._perform(actors[0],move_name,contest_type,actors[1:],center,spend_stat_dice,False,fixed_rolls,observe_only=True,style_ranked=style_ranked,style_effect=style_effect,voice_lessons=voice_lessons,_native_binding=performance_binding)
+                frame=staged._perform(actors[0],move_name,contest_type,actors[1:],center,spend_stat_dice,False,fixed_rolls,observe_only=True,style_ranked=style_ranked,style_effect=style_effect,voice_lessons=voice_lessons,_native_binding=performance_binding,spend_intro_dice=spend_intro_dice)
                 return staged.log_lines,frame,STYLE.contest_cost(staged,style_plan,None)
             logs,frame,style_cost=resolve_transaction([c,*adjacent],self.rng,first_roll)
             commit_cost(style_cost)
             if style_plan and style_plan['key'] is not None:self._flourish_used.add(style_plan['key'])
             self.log_lines.extend(logs)
+            COORD.contest_commit(self,c,adaptable_plan)
             if frame is None:return
             # Stat dice, move choice, pre-roll effects and RNG are now committed.
             references=tuple(adjacent)+(() if feature_sponsor is None else (feature_sponsor,))
@@ -674,7 +710,7 @@ class ContestEngine:
         elif used=='fashion':self._fashion_used.add(fashion)
         OBS.complete(observed,{'attempt_id':key,'rerolled':used or False})
 
-    def _perform(self, c, move_name, contest_type, adjacent, center, spend_stat_dice=0, reroll_ok=False, fixed_rolls=None, *, reliable_performance=False, observe_only=False,style_ranked=None,style_effect=None,voice_lessons=True,_native_binding=None):
+    def _perform(self, c, move_name, contest_type, adjacent, center, spend_stat_dice=0, reroll_ok=False, fixed_rolls=None, *, reliable_performance=False, observe_only=False,style_ranked=None,style_effect=None,voice_lessons=True,_native_binding=None,spend_intro_dice=0):
         if len({id(a) for a in adjacent}) != len(adjacent) or any(a is c for a in adjacent):
             raise ValueError("Adjacent contestants must be distinct other actors")
         if any(type(a.excitement) is not int or not 0 <= a.excitement <= 5 for a in [c, *adjacent]):
@@ -685,7 +721,8 @@ class ContestEngine:
         eff = rules["effects"][eff_name]
         # Resolve learned and saved identities through the same selected profile.
         learned = {self.r.move(move)["id"] for move in c.moves}
-        if selected_move["id"] not in learned and style_ranked is None:
+        mixed=__import__('coordinator').contest_preflight(self,c,selected_move['id'])
+        if selected_move["id"] not in learned and style_ranked is None and mixed is None:
             raise ValueError(f"{c.name} has not learned {selected_move['name']}")
         last_id = self.r.move(c.last_move)["id"] if c.last_move else None
         repeated = last_id == selected_move["id"]
@@ -695,7 +732,12 @@ class ContestEngine:
             raise ValueError("Stat dice spending must be a non-negative integer")
         if spend_stat_dice > rules["stat-dice"]["max_spend_per_move"]:
             raise ValueError("Stat dice spending exceeds the per-move limit")
-        if spend_stat_dice > c.stat_dice.get(stat, 0):
+        if type(spend_intro_dice) is not int or not 0 <= spend_intro_dice <= spend_stat_dice:
+            raise ValueError("Introduction dice must select part of the total stat-die spend")
+        intro_pool = getattr(c, '_intro_stat_dice', {})
+        if spend_intro_dice > intro_pool.get(stat, 0):
+            raise ValueError("Not enough remaining shared introduction dice")
+        if spend_stat_dice - spend_intro_dice > c.stat_dice.get(stat, 0):
             raise ValueError("Not enough remaining contest stat dice")
         if fixed_rolls is not None:
             self.validate_d6(fixed_rolls)
@@ -733,7 +775,8 @@ class ContestEngine:
             self.clamp_ex(c, eff["then"]["self_excitement"])
             for a in adjacent:
                 self.clamp_ex(a, eff["then"]["adjacent_excitement"])
-        if c.double_next:
+        doubled = c.double_next
+        if doubled:
             n *= 2; c.double_next = False
             self.log("    준비하기: 기술 주사위 두 배", "contest/effects")
         if isinstance(eff.get("self_excitement"), int) and eff_name not in ("더블 타임",):
@@ -758,8 +801,12 @@ class ContestEngine:
         if style_effect is not None:
             matching=self.type_mod(contest_type,contest_type)[0]
             tmod=min(matching,tmod+matching);why+=' / Style alignment'
+        if doubled:
+            tmod *= 2  # The source calls both type adjustments part of the Move's dice.
         spend = spend_stat_dice
-        c.stat_dice[stat] = c.stat_dice.get(stat, 0) - spend
+        c.stat_dice[stat] = c.stat_dice.get(stat, 0) - spend + spend_intro_dice
+        if spend_intro_dice:
+            intro_pool[stat] -= spend_intro_dice
         voice=0
         binding=_native_binding if _native_binding is not None else self._native_intro_bindings.get(c)
         if voice_lessons and binding is not None:
@@ -836,7 +883,7 @@ class ContestEngine:
         options = {}
         if len(declaration) == 3:
             options = declaration[2] if isinstance(declaration[2], dict) else {"reroll_decision": declaration[2]}
-            if set(options) - {"reroll_decision", "flourish_decision", "fashion_decision", "fashion_instance_id", "reliable_performance", "style_ranked", "style_effect"}:
+            if set(options) - {"reroll_decision", "flourish_decision", "fashion_decision", "fashion_instance_id", "reliable_performance", "style_ranked", "style_effect", "adaptable", "spend_intro_dice"}:
                 raise ValueError("Unsupported contest feature choice")
         self.perform(actor, move, round_type, adjacent, center, spend_stat_dice=spend, **options)
 
@@ -922,7 +969,7 @@ class ContestEngine:
             pins.update({id(native):native,id(native.r):native.r})
             for binding in self._native_intro_bindings.values():
                 pins.update({id(binding[1]):binding[1],id(binding[2]):binding[2]})
-        fields=('_native_intro_bindings','_trainer_partners','_flourish_used','_fashion_used','_performance_observations','_coordinator_used','_paired_run','_standard_run','_festival_run','_trainer_interactions','log_lines','last_standings')
+        fields=('_native_intro_bindings','_trainer_partners','_flourish_used','_fashion_used','_performance_observations','_coordinator_used','_adaptable_uses','_adaptable_plan','_paired_run','_standard_run','_festival_run','_trainer_interactions','log_lines','last_standings')
         state={'actors':{c:vars(c) for c in actors},'engine':{k:getattr(self,k) for k in fields if hasattr(self,k)},'rng':self.rng}
         copied=deepcopy(state,dict(pins))
         native_names={native:'contest:'+str(id(self))+':'+name for native in natives}
@@ -946,7 +993,7 @@ class ContestEngine:
         if not isinstance(value,(list,tuple)) or len(value) not in (2,3):raise ValueError('choose a learned Move, stat dice and optional feature choices')
         move,spend=value[:2]
         options={} if len(value)==2 else (dict(value[2]) if isinstance(value[2],dict) else {'reroll_decision':value[2]})
-        if set(options)-{'reroll_decision','flourish_decision','fashion_decision','fashion_instance_id','reliable_performance','pair_interaction','feature_sponsor','style_ranked','style_effect'}:raise ValueError('unsupported participant performance choice')
+        if set(options)-{'reroll_decision','flourish_decision','fashion_decision','fashion_instance_id','reliable_performance','pair_interaction','feature_sponsor','style_ranked','style_effect','adaptable','spend_intro_dice'}:raise ValueError('unsupported participant performance choice')
         interaction=options.pop('pair_interaction',False)
         if type(interaction) is not bool:raise ValueError('optional pair interaction must be boolean')
         locked={k:v for k,v in options.items() if k not in ('reroll_decision','flourish_decision','fashion_decision')}
@@ -1006,7 +1053,7 @@ class ContestEngine:
             if state['phase']=='complete':raise ValueError('contest already completed; no duplicate rewards or performances')
         else:
             table=self.r.mech('contest/position-tables')[str(len(contestants))]
-            state={'id':contest_id or 'trainer-contest:1','contract':contract,'phase':'intro','pairs':pairs,'table':table,'round':0,'selections':{},'previous':{},'slot':0,'performer':0,'pending':None,'model':model,'round_type':None}
+            state={'id':contest_id or 'trainer-contest:'+str(uuid.uuid4()),'contract':contract,'phase':'intro','pairs':pairs,'table':table,'round':0,'selections':{},'previous':{},'slot':0,'performer':0,'pending':None,'model':model,'round_type':None}
             self._paired_run=state
         self._paired_busy=True
         try:
@@ -1067,7 +1114,8 @@ class ContestEngine:
             scores={c:(c.appeal+pairs[c].appeal,c.fumble+pairs[c].fumble) for c in contestants}
             final=sorted(contestants,key=lambda c:-(scores[c][0]-scores[c][1]))
             self.last_standings=[{'name':c.name,'trainer':pairs[c].name,'appeal':scores[c][0],'fumble':scores[c][1],'net':scores[c][0]-scores[c][1]} for c in final]
-            state.update(phase='complete',result=tuple(final))
+            state.update(phase='complete',result=tuple(final),
+                         terminal_scores=tuple((c,scores[c][0]-scores[c][1]) for c in contestants))
             for result in self.last_standings:self.log(str(result),'contest/appeal-scoring')
             high=self.last_standings[0]['net'];leaders=[r for r in self.last_standings if r['net']==high]
             self.log(('우승: ' if len(leaders)==1 else '최고점 동률 (단독 우승 판정 미확정): ')+', '.join(r['name'] for r in leaders),'contest/performance-stage')
@@ -1146,7 +1194,7 @@ class ContestEngine:
         else:
             ROTATION.bind_shared_state(proposed)
             table = self.r.mech("contest/position-tables")[str(len(anchors))]
-            state = {"id": contest_id or "rotation-contest:1", "contract": contract,
+            state = {"id": contest_id or "rotation-contest:"+str(uuid.uuid4()), "contract": contract,
                      "phase": "intro", "table": table, "round": 0, "slot": 0,
                      "round_type": None, "pending": None, "rotation": proposed}
             self._standard_run = state
@@ -1158,7 +1206,9 @@ class ContestEngine:
         self._standard_busy = True
         try:
             if state["phase"] == "intro":
+                before_intro = {rep: dict(rep.stat_dice) for rep in anchors}
                 self.intro_stage(anchors, contest_type)
+                ROTATION.share_introduction(rotation, before_intro)
                 self.log("# 로테이션 콘테스트 참가 팀 " + str(len(anchors)),
                          "contest/performance-stage")
                 self.log("## 소개 단계: 팀별 대표 " + ", ".join(c.name for c in anchors),
@@ -1238,7 +1288,8 @@ class ContestEngine:
                  "spent_stat_dice": rotation["spent"][c]}
                 for c in final
             ]
-            state.update(phase="complete", result=tuple(final))
+            state.update(phase="complete", result=tuple(final),
+                         terminal_scores=tuple((c, totals[c][0]-totals[c][1]) for c in anchors))
             ROTATION.validate(rotation, state=state, valid_types=types,
                               move_validator=self.r.move_contest,
                               native_bindings=self._native_intro_bindings)
@@ -1254,6 +1305,15 @@ class ContestEngine:
             return final
         finally:
             self._standard_busy = False
+
+    def experience_quote(self, contestant, *, significance=None):
+        import contest_experience as EXPERIENCE
+        return EXPERIENCE.quote(self, contestant, significance=significance)
+
+    def award_experience(self, contestant, *, significance=None, stat_choices=None):
+        import contest_experience as EXPERIENCE
+        return EXPERIENCE.award(self, contestant, significance=significance,
+                                stat_choices=stat_choices)
 
     def run(self, contestants, contest_type, chooser, *, variant="standard",
             trainer_model=None, trainer_order=None, contest_id=None,
@@ -1319,7 +1379,7 @@ class ContestEngine:
             # Existing callers may reuse a host with entirely new participants.
             # Preserve old observation receipts; use a distinct occurrence scope.
             contest_id=contest_id or state['id']+':next'
-            self._coordinator_used=set();self._flourish_used=set();self._fashion_used=set()
+            self._coordinator_used=set();self._flourish_used=set();self._fashion_used=set();self._adaptable_uses={};self.__dict__.pop('_adaptable_plan',None)
             self.__dict__.pop('last_standings',None)
             state=None
         if state is not None:
@@ -1329,7 +1389,7 @@ class ContestEngine:
                 raise ValueError('resume the original Contest Hall')
             HALLS.validate_hall(self, state)
         else:
-            state={'id':contest_id or 'standard-contest:1','contract':contract,
+            state={'id':contest_id or 'standard-contest:'+str(uuid.uuid4()),'contract':contract,
                    'phase':'intro','table':table,'round':0,'slot':0,
                    'round_type':None,'pending':None}
             if hall is not None:state['hall'] = hall
@@ -1384,7 +1444,8 @@ class ContestEngine:
                 state.update(round=state['round']+1,slot=0,round_type=None,phase='round')
             final=sorted(contestants,key=lambda c:-(c.appeal-c.fumble))
             self.last_standings=[{'name':c.name,'appeal':c.appeal,'fumble':c.fumble,'net':c.appeal-c.fumble} for c in final]
-            state.update(phase='complete',result=tuple(final))
+            state.update(phase='complete',result=tuple(final),
+                         terminal_scores=tuple((c,c.appeal-c.fumble) for c in contestants))
             self.log("## 결과")
             for c in final:
                 self.log(f"  {c.name}: 어필 {c.appeal} - 펌블 {c.fumble} = {c.appeal-c.fumble}", "contest/appeal-scoring")

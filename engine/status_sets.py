@@ -40,6 +40,7 @@ def can_apply(engine,actor,condition):
 
 def on_cure(engine,actor,condition):
     """Cascade only explicit cure dependencies; unrelated states remain."""
+    __import__('trickster').condition_ended(engine,actor,condition)
     for name in tuple(sorted(actor.conditions)):
         if actor.r.condition_class(name) is None:continue
         if any(e.get('type')=='cured_by' and 'cure:'+condition in e.get('any_of',[])

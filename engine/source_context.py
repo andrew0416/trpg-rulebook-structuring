@@ -8,6 +8,21 @@ and explicit table rulings retain their separate, existing execution paths.
 from copy import deepcopy
 from contextlib import contextmanager
 from contextvars import ContextVar
+from functools import lru_cache
+from types import BuiltinFunctionType
+
+try:
+ from _hashlib import openssl_sha256 as _NATIVE_SHA256
+except ImportError:
+ _NATIVE_SHA256=None
+if (type(_NATIVE_SHA256) is not BuiltinFunctionType or
+    _NATIVE_SHA256.__name__!='openssl_sha256' or _NATIVE_SHA256.__module__!='_hashlib'):
+ _NATIVE_SHA256=None
+
+@lru_cache(maxsize=8)
+def _content_sha256(content):
+ # Only exact current bytes enter this cache; no path or freshness is cached.
+ return _NATIVE_SHA256(content).hexdigest()
 
 _READ_SCOPES = ContextVar("source_read_scopes", default=())
 
@@ -132,6 +147,10 @@ def verified_source(rules, reference, *, label='policy', source_root='input'):
  if not path.is_relative_to(root.joinpath(source_root).resolve()):
   raise ValueError(label+' source must be inside '+source_root)
  content=path.read_bytes()
- if sha256(content).hexdigest()!=reference['sha256']:
+ # At most 8 MiB of exact content is retained. Custom hashers/bytes preserve
+ # their original callbacks, and every call still resolves and reads the path.
+ digest=(_content_sha256(content) if sha256 is _NATIVE_SHA256 and type(content) is bytes
+         and len(content)<=1024*1024 else sha256(content).hexdigest())
+ if digest!=reference['sha256']:
   raise ValueError(label+' source changed; review required')
  return content

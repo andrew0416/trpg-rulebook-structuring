@@ -39,7 +39,10 @@ class Tests(unittest.TestCase):
   for rank in range(1,7):
    self.assertEqual(C.SkillRoll(rank,(6,)*rank).total,6*rank)
    with self.assertRaises(ValueError):C.SkillRoll(rank,(6,)*(rank+1))
-  e,a,b=self.pair();a.spec['skills']={};self.assertEqual(e.skill_roll(a,'unset',fixed=[2,3]).rank,2)
+  e,a,b=self.pair();a.spec['skills']={};self.assertEqual(e.skill_roll(a,'육상',fixed=[2,3]).rank,2)
+  before=e.rng.getstate()
+  with self.assertRaisesRegex(ValueError,'unknown PTK skill'):e.skill_roll(a,'unset',fixed=[2,3])
+  self.assertEqual(e.rng.getstate(),before)
  def test_ROOT_26_penalty_separate_subtraction(self):
   r=C.SkillRoll(2,(2,3),penalties=(6,6));self.assertEqual((r.rank,r.faces,r.total),(2,(2,3),-7))
  def test_AE_C09_swift_funded_by_standard(self):

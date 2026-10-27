@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "id": "repair_revisions_02",
+  "purpose": "Source-backed core Suction Cups and fossil/egg correction; selected Cleanse inventory source; lawful BattleContest/Juggler fixtures; full-state rollback diagnostics; explicit runtime source retention on custom loading; first11existing state-reuse test revisions with independent builders and blocked dependencies. Exact372 changed-impact methods including12new. All original4115 and later obligations retained; full repository13130methods+21procedural test revision remains partial.",
+  "completion_credit": 0,
+  "required_unique_count": 33,
+  "completed": {
+    "tools.test_category3_batch14_pokemon.Tests": {
+      "tests": [
+        "tools.test_category3_batch14_pokemon.Tests.test_actual_request_requires_scoped_understanding_before_native_execution",
+        "tools.test_category3_batch14_pokemon.Tests.test_campaign_settings_require_informed_explicit_choices",
+        "tools.test_category3_batch14_pokemon.Tests.test_each_explicit_communication_capability_is_optional_language_only",
+        "tools.test_category3_batch14_pokemon.Tests.test_each_outside_water_action_kind_is_independent",
+        "tools.test_category3_batch14_pokemon.Tests.test_experience_is_individual_scoped_and_does_not_invent_xp_or_global_iq",
+        "tools.test_category3_batch14_pokemon.Tests.test_failed_native_precondition_ends_request_without_sprint_or_replay",
+        "tools.test_category3_batch14_pokemon.Tests.test_fixed_source_scopes_are_unchanged",
+        "tools.test_category3_batch14_pokemon.Tests.test_functional_policy_and_return_to_water_do_not_create_capabilities",
+        "tools.test_category3_batch14_pokemon.Tests.test_humanlike_setting_is_permission_guidance_not_numeric_or_task_success",
+        "tools.test_category3_batch14_pokemon.Tests.test_json_restores_informed_water_policy_and_actual_native_permission",
+        "tools.test_category3_batch14_pokemon.Tests.test_language_exception_needs_actual_capability_and_never_grants_education",
+        "tools.test_category3_batch14_pokemon.Tests.test_lost_language_capability_and_selected_source_are_rechecked",
+        "tools.test_category3_batch14_pokemon.Tests.test_ordinary_command_comprehension_never_grants_obedience_or_ownership",
+        "tools.test_category3_batch14_pokemon.Tests.test_profile_has_separate_domains_baselines_and_social_organization",
+        "tools.test_category3_batch14_pokemon.Tests.test_profile_or_request_change_invalidates_unconsumed_assessment",
+        "tools.test_category3_batch14_pokemon.Tests.test_regional_definition_custom_source_must_remain_selected",
+        "tools.test_category3_batch14_pokemon.Tests.test_regional_factory_separates_base_and_actual_native_skill_move_capability",
+        "tools.test_category3_batch14_pokemon.Tests.test_regional_factory_snapshot_restores_roster_and_allows_unconsumed_identity",
+        "tools.test_category3_batch14_pokemon.Tests.test_regional_native_known_move_and_selected_ability_effect",
+        "tools.test_category3_batch14_pokemon.Tests.test_regional_requires_concrete_choice_not_region_wide_automatic_bonus",
+        "tools.test_category3_batch14_pokemon.Tests.test_regional_source_selection_and_definition_change_reject_before_cost",
+        "tools.test_category3_batch14_pokemon.Tests.test_registered_aquatic_outside_water_missing_policy_blocks_before_rng",
+        "tools.test_category3_batch14_pokemon.Tests.test_request_options_cannot_be_replaced_behind_assessment",
+        "tools.test_category3_batch14_pokemon.Tests.test_restricted_aquatic_request_refusal_is_allowed_but_execution_is_not",
+        "tools.test_category3_batch14_pokemon.Tests.test_restricted_outside_water_blocks_native_move_skill_movement_sprint",
+        "tools.test_category3_batch14_pokemon.Tests.test_restricted_outside_water_blocks_no_roll_jump_before_shift_and_position",
+        "tools.test_category3_batch14_pokemon.Tests.test_snapshot_before_configuration_removes_later_setting_policy",
+        "tools.test_category3_batch14_pokemon.Tests.test_snapshot_restores_policy_profile_body_and_request_consumption",
+        "tools.test_category3_batch14_pokemon.Tests.test_source_change_refuses_settings_body_profile_and_native_action_before_mutation",
+        "tools.test_category3_batch14_pokemon.Tests.test_understood_request_still_uses_actual_native_skill_check",
+        "tools.test_category3_batch14_pokemon.Tests.test_unknown_or_false_facet_is_not_automatic_success",
+        "tools.test_category3_batch14_pokemon.Tests.test_water_type_does_not_infer_fish_body_or_forbid_actual_movement"
+      ]
+    },
+    "tools.test_mentor_owned_slots_f34.MentorOwnedSlotTests": {
+      "tests": [
+        "tools.test_mentor_owned_slots_f34.MentorOwnedSlotTests.test_actual_gift_and_hatch_projects_both_policies_without_changing_birth_history"
+      ]
+    }
+  }
+}

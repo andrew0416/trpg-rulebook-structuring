@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "execution_kind": "procedural_runner",
+  "unit_id": "script:engine/test_downtime.py",
+  "unit_kind": "procedural_script_runner",
+  "required_runner_ids": [
+    "script:engine/test_downtime.py"
+  ],
+  "completed": {},
+  "original_contract_sha256": "8567f29733dffb421374a7fd02841657261bee248b6dffc44c742cfe4b7a1121",
+  "inventory_sha256": "46c04e8eb8efa90c96a5ca21864b44e0112a7b0b9d78f77c31aad5bafe36caf5",
+  "runner": {
+    "source_path": "engine/test_downtime.py",
+    "argv": [
+      "python",
+      "-B",
+      "-X",
+      "utf8",
+      "-I",
+      "{stage}/engine/test_downtime.py",
+      "{stage}"
+    ],
+    "cwd": "{stage}",
+    "environment": {
+      "TEMP": "{stage}/.tmp",
+      "TMP": "{stage}/.tmp"
+    },
+    "report": {
+      "path": "output/downtime-tests.md",
+      "kind": "markdown_result_table"
+    },
+    "additional_outputs": [],
+    "mutations": {
+      "temporarily_modified_restored": [],
+      "generated_retained": []
+    },
+    "result_buffer": "res",
+    "entry_function": "run",
+    "sort_results_by_id": false,
+    "source_sha256": "acf54762efd6c06d60b70a03677fb573fa438f8c876c3e74d784e8fb446e1db8"
+  }
+}

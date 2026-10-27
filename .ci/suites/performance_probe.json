@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "performance_probe",
+  "purpose": "Local performance diagnosis of unchanged C89 original tests; not a replacement for full revision obligations",
+  "diagnostic_profile": true,
+  "completion_credit": 0,
+  "required_unique_count": 3,
+  "completed": {
+    "tools.test_book_rogue.RogueTests": {
+      "tests": [
+        "tools.test_book_rogue.RogueTests.test_seven_independent_acquisitions_and_attack_tags",
+        "tools.test_book_rogue.RogueTests.test_class_rank_count_and_parent_selection_rejections_are_atomic",
+        "tools.test_book_rogue.RogueTests.test_pursuit_requires_observed_enemy_for_actual_recall_and_flee"
+      ]
+    }
+  }
+}

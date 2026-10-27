@@ -20,8 +20,7 @@ KEY = 'musician'
 
 def _records(actor, feature, active=True):
     import trainer_feature_acquisition as TFA
-    return [row['static_acquisition'] for _, row, live in TFA._static_records(actor)
-            if row['static_acquisition']['feature_id'] == feature and (live or not active)]
+    return [record for _, record in TFA.static_acquisitions(actor, feature, active=active)]
 
 
 def owns(actor, feature):
@@ -108,7 +107,9 @@ def sonic(actor, move):
 
 def project_move(e, actor, move):
     import effects_ext as EXT
-    move=dict(move,keywords=sorted(EXT.keywords_for(actor,move)))
+    keywords=sorted(EXT.keywords_for(actor,move))
+    move=dict(move)
+    if keywords or 'keywords' in move:move['keywords']=keywords
     if move['id'] != 'move/멸망의노래' and sonic(actor, move) and voice_owner(e, actor) is not None:
         return dict(move, keywords=sorted(set(move.get('keywords', [])) | {'친화'}))
     return move
@@ -308,8 +309,8 @@ def drown_out(e, attacker, target, move, total, shared_roll=None):
         answer = True if owner.spec.get('drown_out_request',{}).get('source')==source else e.decide({'type': 'drown_out', 'owner': owner, 'attacker': attacker, 'source': source, 'move_id': move['id'], 'accuracy_total': total})
         if answer is not True:
             continue
-        INTERRUPTS.pay_free(e, owner, source, frequency)
-        check = e.skill_roll(owner, '집중').total if source == DROWN else None
+        INTERRUPTS.pay_free(e, owner, source, frequency, trigger={'owner': attacker})
+        check = e.skill_check(owner, '집중', dc)[1] if source == DROWN else None
         cancelled = source == DROWN_PLAYTEST or check >= dc
         result['attempts'].append({'owner_id': owner.entity_id, 'source': source, 'check': check, 'dc': dc, 'ruling': deepcopy(ruling), 'cancelled': cancelled})
         if cancelled:

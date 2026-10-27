@@ -92,11 +92,12 @@ def _feature(owner, source, aliases):
         raise ValueError('selected Priority feature variant required')
 
 
-def _prepare(engine, actor, target, move_id, trainer, stat_trainer=None, chronicler=None):
+def _prepare(engine, actor, target, move_id, trainer, stat_trainer=None, chronicler=None, ambush=None, weapon_id=None, signature_technique=False):
     WORLD.require_actors(engine, actor, target)
     if engine.r._selected_rule('action_type/우선-행동') != 'action_type/우선-행동':
         raise ValueError('selected Priority action source required')
     INTERRUPTS.between_trigger(engine)
+    __import__('ability_control_contracts').admit(engine,actor,'priority')
     import vision_impairment as VISION
     if VISION.accuracy_level(engine, actor) == 'total':
         raise ValueError('Total Blindness prohibits declared Priority Moves')
@@ -107,6 +108,12 @@ def _prepare(engine, actor, target, move_id, trainer, stat_trainer=None, chronic
         raise ValueError('actual eligible Priority participants required')
     move = _owned_move(engine, actor, move_id)
     policy = definition(engine.r)
+    if signature_technique:
+        import ace_trainer as ACE
+        authority=ACE.bloodied_authority(engine,actor,move_id)
+        if authority is None:
+            raise ValueError('actual Bloodied Speed investment required')
+        return move,authority['source']
     if chronicler is not None:
         # Situational Awareness: the ally's next action is Priority (Advanced);
         # an acted ally forgoes its next-round turn through the ordinary loan location.
@@ -123,19 +130,25 @@ def _prepare(engine, actor, target, move_id, trainer, stat_trainer=None, chronic
             if due!=engine.round_no:raise ValueError('ordinary Stat Maneuver Priority requires this-round unacted right')
         elif found['variant']!='plain':raise ValueError('Stat Maneuver upgrades only ordinary or plain Priority Moves')
         return move,STAT.MANEUVER
+    if ambush is not None:
+        prepared=__import__('weapon_actions').prepare(engine,actor,move,weapon_id)
+        return prepared,__import__('rogue').prepare_ambush(engine,actor,prepared,ambush)
     if trainer is None:
+        berry_source = __import__('food_effects').priority_berry(engine, actor, move_id)
         found = classify(engine.r, move_id)
-        if found is None or found['variant'] != 'plain':
+        if berry_source is None and (found is None or found['variant'] != 'plain'):
             raise ValueError('actual unconditional plain Priority header required; source producer needed for variants')
         # A closed actual schedule slot, not an old budget or a caller flag,
         # determines whether this round's ordinary right has already been used.
         _, _, due = INTERRUPTS._loan_location(engine, actor)
         if due != engine.round_no:
             raise ValueError('ordinary Priority requires this round unacted turn right')
-        return move, move_id
+        return move, berry_source or move_id
     WORLD.require_actors(engine, trainer)
     if trainer.kind != 'trainer':
         raise ValueError('Shocking Speed requires its actual trainer feature owner')
+    if WORLD.identity_field(engine, actor, 'owner_id') != trainer.entity_id:
+        raise ValueError('Shocking Speed requires the feature owner\'s actual owned Pokemon')
     _feature(trainer, SHOCKING, ('쇼킹 스피드', 'Shocking Speed'))
     _feature(trainer, 'feat/락다운', ('락다운', 'Lockdown'))
     import class_passive_combat as CLASSES
@@ -153,7 +166,7 @@ def _prepare(engine, actor, target, move_id, trainer, stat_trainer=None, chronic
     return move, SHOCKING
 
 
-def use(engine, actor, target, move_id, *, shocking_speed=None, stat_maneuver=None, situational_awareness=None):
+def use(engine, actor, target, move_id, *, shocking_speed=None, stat_maneuver=None, situational_awareness=None, ambush=None, weapon_id=None, signature_technique=False):
     """Use the declared Move now and keep its whole native turn open.
 
     Remaining actions and ending the turn use the existing Engine APIs. Native
@@ -161,7 +174,9 @@ def use(engine, actor, target, move_id, *, shocking_speed=None, stat_maneuver=No
     """
     WORLD.require_actors(engine, actor, target)
     producers=[x for x in (shocking_speed,stat_maneuver,situational_awareness) if x is not None]
-    if len(producers)>1:raise ValueError('one actual Priority producer required')
+    if type(signature_technique)is not bool:raise ValueError('actual Signature Technique choice required')
+    if len(producers)+int(ambush is not None)+int(signature_technique)>1:raise ValueError('one actual Priority producer required')
+    if weapon_id is not None and ambush is None:raise ValueError('weapon choice requires its actual Ambush producer')
     if shocking_speed is not None:
         WORLD.require_actors(engine, shocking_speed)
     if situational_awareness is not None:
@@ -172,7 +187,7 @@ def use(engine, actor, target, move_id, *, shocking_speed=None, stat_maneuver=No
         trainer = owners[0] if owners and shocking_speed is not None else None
         stat_trainer=owners[0] if owners and stat_maneuver is not None else None
         chronicler=owners[0] if owners and situational_awareness is not None else None
-        move, source = _prepare(e, a, t, move_id, trainer,stat_trainer,chronicler)
+        move, source = _prepare(e, a, t, move_id, trainer,stat_trainer,chronicler,ambush,weapon_id,signature_technique)
         if stat_trainer is not None:
             import stat_ace as STAT
             STAT._consume(e,stat_trainer,a,'spe',move_id)
@@ -184,19 +199,17 @@ def use(engine, actor, target, move_id, *, shocking_speed=None, stat_maneuver=No
                    'budget': None, 'clock': 'owner_turn', 'settlement_clock': 'none'}
         queued = INTERRUPTS.queue(e, [request], trigger=INTERRUPTS.between_trigger(e))
         INTERRUPTS.begin(e, queued['window_id'], request['id'])
+        if ambush is not None:
+            ACTION.triggered_free_action(e,a,ambush)
+            FREQUENCY.consume_activation(a,ambush,{'kind':'scene','uses':1},engine=e)
         before = set(getattr(e, '_move_completions', {}))
         try:
-            result = e.use_move_on(a, t, move_id, e.everyone)
+            if ambush is not None:e._rogue_ambush={'actor':a,'move_id':move_id,'ability':ambush}
+            try:result = e.use_move_on(a, t, move_id, e.everyone,weapon_id=weapon_id)
+            finally:
+                if hasattr(e,'_rogue_ambush'):del e._rogue_ambush
         except Exception as error:
-            import passive_events as PASSIVE
-            import heavy_injury_adapter as HEAVY
-            if (type(error) is PASSIVE.PassiveEventPending and
-                    e._passive_pending == error.event_id and error.event_id in e._passive_events):
-                pending.append((PASSIVE.PassiveEventPending, error.event_id))
-                return None
-            if (type(error) is HEAVY.HeavyPending and
-                    e._heavy_pending == error.event_id and error.event_id in e._heavy_events):
-                pending.append((HEAVY.HeavyPending, error.event_id))
+            if GRANTS.record_native_pending(e, error, pending):
                 return None
             raise
         completions = [row for key, row in e._move_completions.items() if key not in before

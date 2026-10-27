@@ -5,6 +5,7 @@ from pathlib import Path
 
 STATE = "stellar_blast_radiation"
 POLICY = "data/stellar-tera-blast-policy.json"
+CHOICE = "_stellar_radiation_choice"
 
 
 def _policy(rules):
@@ -237,12 +238,137 @@ def active_radiation(engine, actor):
     return record["active"]
 
 
+def _choice(engine, actor, move):
+    choice = move.get(CHOICE)
+    if choice is None or choice is False:
+        return None
+    required = {"actor_id", "move_id", "encounter_epoch", "radiation_id",
+                "radiated_type", "base_type", "use_radiated_type"}
+    record = _record(engine, actor)
+    if (not isinstance(choice, dict) or set(choice) != required
+            or choice["actor_id"] != actor.entity_id or choice["move_id"] != move["id"]
+            or type(choice["use_radiated_type"]) is not bool or record is None
+            or type(choice["encounter_epoch"]) is not int
+            or choice["encounter_epoch"] != record["encounter_epoch"]
+            or choice["encounter_epoch"] != getattr(engine, "_party_encounter_epoch", 0)
+            or not any(row["id"] == choice["radiation_id"]
+                       and row["radiated_type"] == choice["radiated_type"]
+                       for row in record["history"])):
+        raise ValueError("Tera Blast choice requires its actual actor and radiation receipt")
+    import type_state as TYPES
+    TYPES.validate_attack(engine.r, choice["base_type"])
+    return choice
+
+
+def prepare(engine, actor, move, use_radiated_type=None, *, activation=None):
+    """One native use; omitted choices decline by an explicit authored default."""
+    if use_radiated_type is not None and type(use_radiated_type) is not bool:
+        raise ValueError("use_radiated_type must be an explicit boolean")
+    if not owns_move(engine.r, move):
+        if use_radiated_type is not None:
+            raise ValueError("radiation type choice belongs only to Tera Blast")
+        return move
+    if activation is not None:
+        scopes = [scope for scope in getattr(engine, "_move_activation_scopes", ())
+                  if scope["activation"] is activation and scope["actor"] is actor
+                  and scope["move_id"] == move["id"]]
+        if len(scopes) != 1:
+            raise ValueError("radiation type choice needs its actual native activation")
+        if CHOICE in scopes[0]:
+            frozen = scopes[0][CHOICE]
+            if frozen is False:
+                if use_radiated_type is not None:
+                    raise ValueError("activation began without a radiation option")
+                return dict(move, **{CHOICE: False})
+            if frozen["use_radiated_type"] != bool(use_radiated_type):
+                raise ValueError("one frozen radiation choice per native activation")
+            result = dict(move, **{CHOICE: deepcopy(frozen)})
+            _choice(engine, actor, result)
+            return result
+        old = getattr(engine, "_move_completions", {}).get(scopes[0].get("completion_id"))
+        if (activation.get("started") and old is not None and old["actor"] is actor
+                and old["move_id"] == move["id"] and old["phase"] == "targets"
+                and old["started"] and CHOICE not in old["move"]):
+            if use_radiated_type is not None:
+                raise ValueError("an already-paid legacy activation cannot acquire a new choice")
+            # Its original unmarked completion, not a new raw omission, owns it.
+            return move
+    active = active_radiation(engine, actor)
+    if active is None:
+        if use_radiated_type is not None:
+            raise ValueError("current owned Stellar Blast radiation required")
+        # Every new eligible use is marked, including an unpaid/default decline.
+        return dict(move, **{CHOICE: False})
+    import world_entities as WORLD
+    WORLD.require_actors(engine, actor)
+    source = _policy(engine.r)["ability"]["source_id"]
+    if (move["id"] not in actor.moves or engine.r._selected_rule(move["id"]) != move["id"]
+            or engine.r._selected_rule(source) != source):
+        raise ValueError("actual known Tera Blast and selected owned ability required")
+    import homebrew_state as HOME
+    choice = {"actor_id": actor.entity_id, "move_id": move["id"],
+              "encounter_epoch": getattr(engine, "_party_encounter_epoch", 0),
+              "radiation_id": active["id"], "radiated_type": active["radiated_type"],
+              "base_type": HOME.tera_type(actor) if HOME.tera_active(actor) else move["type"],
+              "use_radiated_type": bool(use_radiated_type)}
+    return dict(move, **{CHOICE: choice})
+
+
+def bind_activation(engine, actor, activation, move):
+    """The existing producer scope carries this prepared decision on resume."""
+    _choice(engine, actor, move)
+    if CHOICE not in move:
+        return
+    scopes = [scope for scope in getattr(engine, "_move_activation_scopes", ())
+              if scope["activation"] is activation and scope["actor"] is actor
+              and scope["move_id"] == move["id"]]
+    if len(scopes) != 1:
+        raise ValueError("actual Tera Blast target-group producer required")
+    scopes[0][CHOICE] = deepcopy(move[CHOICE])
+
+
+def _legacy_radiation(engine, actor, move):
+    """Read the former forced behavior only inside its actual paid producer."""
+    if CHOICE in move:
+        return None
+    stack = getattr(engine, "_native_action_stack", ())
+    if not stack:
+        return None
+    frame = stack[-1]
+    if (frame["actor"] is not actor or frame["source"] != move["id"]
+            or frame["kind"] != "move"):
+        return None
+    # start_target is after payment and binds the real native frame.
+    # A restored accuracy/paid suffix reopens that frame. Completed history and
+    # an ordinary raw preview cannot authorize a new forced projection.
+    paid = [row for row in getattr(engine, "_move_completions", {}).values()
+            if row["actor"] is actor and row["move_id"] == move["id"]
+            and row.get("native_action_frame") is frame and row["phase"] == "targets"
+            and row["started"] and CHOICE not in row["move"]
+            and (row["move"] == move or any(value == move for value in row.get("target_moves", {}).values()))]
+    if not paid:
+        return None
+    import world_entities as WORLD
+    WORLD.require_actors(engine, actor)
+    source = _policy(engine.r)["ability"]["source_id"]
+    if (move["id"] not in actor.moves or engine.r._selected_rule(move["id"]) != move["id"]
+            or engine.r._selected_rule(source) != source):
+        raise ValueError("legacy pending Tera Blast lost its actual selected source")
+    active = active_radiation(engine, actor)
+    return active if active is not None and any(
+        active["activated_at"] <= row["seconds"] and active["round"] <= row["round"]
+        for row in paid) else None
+
+
 def effective_type(engine, actor, target, move):
     if not owns_move(engine.r, move):
         return None
-    active = active_radiation(engine, actor)
-    if active is not None:
-        return active["radiated_type"]
+    choice = _choice(engine, actor, move)
+    if choice is not None and choice["use_radiated_type"]:
+        return choice["radiated_type"]
+    legacy = _legacy_radiation(engine, actor, move)
+    if legacy is not None:
+        return legacy["radiated_type"]
     import homebrew_state as HOME
     if HOME.tera_active(actor):
         return HOME.tera_type(actor)
@@ -250,9 +376,25 @@ def effective_type(engine, actor, target, move):
 
 
 def grants_stab(engine, actor, move):
+    import homebrew_state as HOME
     row = rows(engine.r).get(move.get("id"))
     return bool(row and row["force_stab_when_type_projected"]
-                and effective_type(engine, actor, actor, move) is not None)
+                and HOME.tera_active(actor))
+
+
+def stab_membership_type(engine, actor, target, move, actual_type):
+    choice = _choice(engine, actor, move) if owns_move(engine.r, move) else None
+    legacy = _legacy_radiation(engine, actor, move) if owns_move(engine.r, move) else None
+    if (choice is not None and choice["use_radiated_type"]) or legacy is not None:
+        import declarative_move_contracts as DECLARATIVE
+        # The native activation scope retains Plasma's type after consumption.
+        if DECLARATIVE.effective_type(engine, actor, target, move, preview=True) is not None:
+            return actual_type
+        if choice is not None:
+            return choice["base_type"]
+        import homebrew_state as HOME
+        return HOME.tera_type(actor) if HOME.tera_active(actor) else move['type']
+    return actual_type
 
 
 def _within_aura(owner, attacker):
@@ -286,12 +428,20 @@ def _form_changed(engine, target):
     return bool(getattr(target, "custom_conditions", {}).get("transformed"))
 
 
+def stellar_move_active(engine,actor,target,move,*,actual_type):
+    """The same actual Move/type/form condition for damage and post-hit dispatch."""
+    if not owns_move(engine.r,move):return False
+    import homebrew_state as HOME
+    return (HOME.tera_active(actor) and HOME.tera_type(actor)=='스텔라'
+            and actual_type=='스텔라' and HOME.tera_active(target))
+
+
 def effectiveness(engine, actor, target, move, multiplier, ctx):
     if not owns_move(engine.r, move) or multiplier == 0:
         return multiplier
     import homebrew_state as HOME
     active = active_radiation(engine, actor)
-    stellar_move = HOME.tera_type(actor) == "스텔라" and HOME.tera_active(target)
+    stellar_move = stellar_move_active(engine,actor,target,move,actual_type=ctx.get('actual_damage_type'))
     stellar_ability = active is not None and _form_changed(engine, target)
     if not (stellar_move or stellar_ability):
         return multiplier
@@ -299,6 +449,7 @@ def effectiveness(engine, actor, target, move, multiplier, ctx):
     current = steps.get(multiplier)
     if current is None:
         raise ValueError("Stellar effectiveness needs a canonical multiplier")
+    # The approved Stellar interpretation coalesces the overlapping anti-form step.
     desired = min(2, current + _policy(engine.r)["ability"]["tera_blast_effectiveness_steps"])
     result = engine.r.mech("combat/type-effectiveness")["multiplier_by_net_steps"][str(desired)]
     ctx["stellar_tera_blast"] = {
@@ -306,5 +457,7 @@ def effectiveness(engine, actor, target, move, multiplier, ctx):
         "before": multiplier,
         "after": result,
         "cap": _policy(engine.r)["ability"]["effectiveness_cap"],
+        "sources": ([rows(engine.r)[move["id"]]["clause_id"]] if stellar_move else [])
+                   + ([_policy(engine.r)["ability"]["source_id"]] if stellar_ability else []),
     }
     return result

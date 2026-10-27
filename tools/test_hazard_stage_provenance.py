@@ -5,7 +5,7 @@ import json
 import sys
 import unittest
 
-ROOT = Path(r"D:/trpg-rulebook-structuring/ptk-structure-experiment")
+ROOT = Path(__file__).resolve().parents[1]
 STAGE = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(STAGE / "engine"), str(ROOT / "engine"), str(ROOT / "tools")]
 

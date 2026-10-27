@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "execution_kind": "procedural_runner",
+  "unit_id": "script:tools/test_root_runtime_io_independent.py",
+  "unit_kind": "procedural_script_runner",
+  "required_runner_ids": [
+    "script:tools/test_root_runtime_io_independent.py"
+  ],
+  "completed": {},
+  "original_contract_sha256": "605a69d30ab8e0bfff62fbbc61e51bacf961d9781b276d378f5907a25a106432",
+  "inventory_sha256": "46c04e8eb8efa90c96a5ca21864b44e0112a7b0b9d78f77c31aad5bafe36caf5",
+  "runner": {
+    "source_path": "tools/test_root_runtime_io_independent.py",
+    "argv": [
+      "python",
+      "-B",
+      "-X",
+      "utf8",
+      "-I",
+      "{stage}/tools/test_root_runtime_io_independent.py"
+    ],
+    "cwd": "{stage}",
+    "environment": {
+      "TEMP": "{stage}/.tmp",
+      "TMP": "{stage}/.tmp"
+    },
+    "report": {
+      "path": "output/root-runtime-io-independent-tests.json",
+      "kind": "json_results_array"
+    },
+    "additional_outputs": [],
+    "mutations": {
+      "temporarily_modified_restored": [],
+      "generated_retained": []
+    },
+    "result_buffer": "results",
+    "entry_function": null,
+    "sort_results_by_id": false,
+    "source_sha256": "e60147eb7171b0617a75562bffed6c06d020933f411b0b7efd45bed7772ba927"
+  }
+}

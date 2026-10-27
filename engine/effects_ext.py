@@ -157,6 +157,9 @@ def h_copy_item(engine, a, t, e, ctx):
 
 
 def h_item_restore(engine, a, t, e, ctx):
+    if ctx.get('source_id')=='move/리사이클':
+        __import__('recycle_move').apply(engine,a,t,e,ctx)
+        return None
     a.counters["item_restore"] = a.counters.get("item_restore", 0) + 1
     engine.log(f"    {a.name}: 소모한 도구 효과 1회 재사용 가능")
 
@@ -267,14 +270,13 @@ def h_injury(engine, a, t, e, ctx):
         import ice_lake as ICE_LAKE
         ice_observation = ICE_LAKE.injury_effect(engine,a,c,ctx)
         n = int(e.get("value", 1))
-        c.injuries += n
         import precise_actions as PRECISE
-        PRECISE.injury(engine,c,n,"effect/injury")
+        retained=PRECISE.gain_injury(engine,c,n,"effect/injury")
         if ice_observation is not None:
             event_id, before, contact = ice_observation
             ICE_LAKE.note_injury(engine,event_id,c.injuries-before,contact=contact)
         engine.check_fainted(c)
-        engine.log(f"    {c.name} 부상 +{n} (총 {c.injuries}) → 최대 체력 {c.max_hp}")
+        engine.log(f"    {c.name} 부상 +{retained} (총 {c.injuries}) → 최대 체력 {c.max_hp}")
 
 
 def h_heal_injury(engine, a, t, e, ctx):
@@ -326,6 +328,7 @@ def h_hp_share(engine, a, t, e, ctx):
 
 
 def h_delayed_heal(engine, a, t, e, ctx):
+    if ctx.get('source_id')=='move/희망사항':return __import__('wish_move').schedule(engine,a,t,e,ctx)
     engine.delayed.append({"kind": "heal", "who": t, "turns": 1, "effect": e, "src": "delayed_heal", "healing_source_kind": ctx.get("healing_source_kind","unspecified")})
     engine.log(f"    {t.name}: 다음 턴 끝에 회복 예약 ({e.get('fraction_of_max')})")
 
@@ -352,19 +355,23 @@ def h_execute(engine, a, t, e, ctx):
     if ok:
         import attack_damage_history as HISTORY
         HISTORY.received_loss(engine,t,max(0,t.hp),source="일격",move=ctx.get('move'),loss_kind="hp_setting")
+        __import__("life").faint(engine,t)
 
 
 def h_transform(engine, a, t, e, ctx):
     import state_grants as GRANTS
-    source=GRANTS.effect_source(a,ctx,"transform")
-    row=GRANTS._source(a,source,"effect",owner_id=a.spec.get("id"),lifetime=e.get("duration") or e.get("until") or "legacy_unspecified",rule_id=ctx.get("source_id"))
-    row["copied_actor_id"]=t.spec.get("id")
-    GRANTS.overlay(a,source,moves=list(t.moves),abilities=list(t.abilities))
-    GRANTS.scalar(a,"_types",list(t.types),source)
-    GRANTS.scalar(a,"_weight_class",t.weight_class,source)
-    a.custom_conditions["transformed"]={"source":source,"copied_actor_id":t.spec.get("id"),"lifetime":row["lifetime"]}
-    GRANTS.reconcile(engine,a)
-    engine.log(f"    {a.name} → {t.name}으로 변신 (타입 {a.types}, 기술 {len(a.moves)}개, 스탯 불변)")
+    def apply(staged,actor,donor):
+        context=GRANTS._stage_transition_payload(engine,staged,ctx)
+        source=GRANTS.effect_source(actor,context,"transform")
+        row=GRANTS._source(actor,source,"effect",owner_id=actor.spec.get("id"),lifetime=e.get("duration") or e.get("until") or "legacy_unspecified",rule_id=context.get("source_id"))
+        row["copied_actor_id"]=donor.spec.get("id")
+        GRANTS.overlay(actor,source,moves=list(donor.moves),abilities=list(donor.abilities))
+        GRANTS.scalar(actor,"_types",list(donor.types),source)
+        GRANTS.scalar(actor,"_weight_class",donor.weight_class,source)
+        actor.custom_conditions["transformed"]={"source":source,"copied_actor_id":donor.spec.get("id"),"lifetime":row["lifetime"]}
+        GRANTS.reconcile(staged,actor)
+        staged.log(f"    {actor.name} → {donor.name}으로 변신 (타입 {actor.types}, 기술 {len(actor.moves)}개, 스탯 불변)")
+    return GRANTS.transition(engine,a,apply,participants=(t,),include_rulings=True)
 
 
 def h_free_maneuver(engine, a, t, e, ctx):
@@ -388,21 +395,17 @@ def h_forced_movement(engine, a, t, e, ctx):
 def h_switch_out(engine, a, t, e, ctx):
     if e.get("if") == "hit" and not ctx.get("hit", True):
         return None
-    import condition_recovery as RECOVERY
-    if not RECOVERY.permits_recall(a) and not e.get("ignore_trapped"):
-        engine.log(f"    {a.name}: 수렁 상태여서 몬스터볼로 복귀 불가", "condition/수렁")
-        return "수렁 상태로 복귀 불가"
-    replacement = None
-    if e.get("pass"):
-        import coat_effects as COATS
-        if "coats" in e.get("pass",[]) and COATS.live(a):
-            replacement = COATS.transfer(engine,a,ctx.get('source_id'))
-        a.passed = {"stages": dict(a.stages), "coats": [r.get('id') for r in a.coats if isinstance(r,dict)]}
-    position=a.pos
-    engine.gm.recall(a,reason='source-specific switch-out effect')
-    if replacement is not None:
-        engine.gm.send_out(replacement,pos=position,reason='actual Baton Pass replacement')
-    engine.log(f"    {a.name} 몬스터볼로 복귀" + (" (수렁 무시)" if e.get("ignore_trapped") else "") + (f", {e['pass']} 인계" if e.get("pass") else ""))
+    if 'effect_receipt' not in ctx:
+        # Existing low-level recall callers have no paid source occurrence.
+        if e.get('pass') or ctx.get('source_id') in ('move/배턴터치','feat/왕복-여행'):
+            raise ValueError('source transfer requires its native dispatcher occurrence')
+        import condition_recovery as RECOVERY
+        if not RECOVERY.permits_recall(a) and not e.get('ignore_trapped'):
+            return '수렁 상태로 복귀 불가'
+        engine.gm.recall(a,reason='explicit low-level recall')
+        return None
+    import native_switch_transfer as SWITCH
+    SWITCH.execute(engine,a,t,e,ctx)
 
 
 def h_ally_struggle(engine, a, t, e, ctx):
@@ -453,6 +456,7 @@ def h_repeat_last_move(engine, a, t, e, ctx):
 
 
 def h_attack(engine, a, t, e, ctx):
+    __import__('condition_instances').require_target(a,t)
     from ruleset import UnresolvedRuleSelection
     origin = e.get("_rule_id")
     if not origin:
@@ -480,6 +484,7 @@ def h_attack(engine, a, t, e, ctx):
             return None
         import duelist as DUELIST
         DUELIST.ability_hit(engine,a,t,uid,ctx.get('effect_occurrence',str(ctx.get('effect_receipt'))))
+        __import__('channeler').hit(engine,a,t,'ability:'+uid+':'+str(ctx.get('effect_occurrence',ctx.get('effect_receipt'))))
         ELDRITCH.after_hit(engine,a,t,move,nat,effect_receipt=ctx.get('effect_receipt'))
         on = e.get("on_hit")
         if isinstance(on, dict):
@@ -575,6 +580,7 @@ def h_random(engine, a, t, e, ctx):
         sides = max(2, int(match[1]) if match else len(keys))
         import duelist as DUELIST
         roll = 11 if sides==20 and DUELIST.choose_eleven(engine,a,'effect') else POOLS.die(engine.rng, sides)
+        if sides==20:roll=__import__('oracle').replace_d20(engine,a,roll,'random_table')
         pick = None
         for k, v in tbl.items():
             m = re.match(r"(\d+)(?:-(\d+))?", str(k))
@@ -596,6 +602,7 @@ def h_random(engine, a, t, e, ctx):
     if isinstance(e.get("then"), (dict, list)):
         import duelist as DUELIST
         roll = 11 if DUELIST.choose_eleven(engine,a,'effect') else POOLS.die(engine.rng, 20)
+        roll=__import__('oracle').replace_d20(engine,a,roll,'random_effect')
         cond = str(e.get("if", ""))
         m = re.search(r"<=\s*(\d+)", cond)
         if m and roll <= int(m.group(1)):
@@ -733,8 +740,8 @@ def h_destroy_hazards(engine, a, t, e, ctx):
         import hazard_state as HAZARDS
         n = HAZARDS.remove_cells(engine,gone)
         if e.get("also") == "smoke":
-            for c in [c for c in engine.zone_cells if cheb(c, a.pos) <= rad]:
-                engine.zone_cells.pop(c, None)
+            import smoke_regions as SMOKE
+            SMOKE.remove_cells(engine,[c for c in engine.zone_cells if cheb(c,a.pos)<=rad])
     engine.log(f"    함정 {n}개 파괴 ({e.get('area', '')})")
 
 
@@ -774,18 +781,19 @@ def h_clear_field(engine, a, t, e, ctx):
         HAZARDS.clear(engine)
         done.append("함정")
     if any("field" in x or "terrain" in x for x in rm):
-        engine.field = None
+        import field_effects as FIELD
+        FIELD.clear(engine, terrain_only=any("terrain" in x for x in rm))
         done.append("필드")
     if any("연막" in x for x in rm) or ctx.get('source_id') == 'move/안개제거':
         if any('연막' in x and 'line' in x for x in rm):
             cells = ctx.get('move', {}).get('_effect_area_cells')
             if cells is None:
                 return '직선 연막 제거에는 실제 기술 영역이 필요하다'
-            for cell in cells:
-                engine.zone_cells.pop(cell, None)
+            import smoke_regions as SMOKE
+            SMOKE.disperse_intersecting(engine,cells)
         else:
-            engine.zone_cells.clear()
-            engine.zones.clear()
+            import smoke_regions as SMOKE
+            SMOKE.clear(engine)
         done.append("연막")
     engine.log(f"    필드 정리: {', '.join(done) or rm}")
 
@@ -1011,9 +1019,14 @@ def register_ability_extras(engine, c, effs):
 
 
 def _move_matches(e, move, actor=None):
+    if e.get('ability_native') == 'ability/예지몽':
+        revealed = e.get('moves')
+        return move.get('id') in revealed if isinstance(revealed, list) else move.get('id') == revealed
     f = str(e.get("moves", "all"))
     if f in ("all", "None"):
         return True
+    if f == "water moves and melee attacks":
+        return move["class"] in ("물리", "특수") and (move["type"] == "물" or "근접" in str(move.get("range", "")))
     if "STAB" in f:
         import homebrew_state as HOME
         return actor is not None and move["type"] in HOME.effect_stab_types(actor, e) and ("damaging" not in f or move["class"] in ("물리", "특수"))
@@ -1038,6 +1051,10 @@ def keywords_for(c, move):
             kws.add(e.get("keyword"))
         elif e.get("type") == "gain_keyword" and e.get("if") == "single target":
             kws.add(e.get("keyword"))
+    import optional_physical_equipment as OPTIONAL_EQUIPMENT
+    crafted = OPTIONAL_EQUIPMENT.marker(move)
+    if crafted and crafted["kind"] == "spread_needle" and move["id"] == "move/구슬던지기":
+        kws.difference_update(("오단타격", "Five Strike"))
     return kws
 
 
@@ -1053,6 +1070,7 @@ def validate_combat_edges(engine, actor):
 
 def validate_combat_move(engine, actor, move):
     """Do not execute an unsupported combined-damage producer as two attacks."""
+    revelation_dance_type(engine, actor, move)
     import eldritch_magic as ELDRITCH
     ELDRITCH.preflight(engine,actor,move)
     import csv_item_capability_contracts as CSV_CAP
@@ -1065,6 +1083,7 @@ def validate_combat_move(engine, actor, move):
 
 def entry_move_allowed(engine, actor, move, mm):
     """Existing actual-turn counter is reset only by real field/encounter entry."""
+    __import__('declarative_move_contracts').require_defensive_move(actor,move)
     effects=mm.get('effects_exec',[])+actor.registry
     if not any(e.get('type')=='usage_restriction' and 'first turn after entering' in str(e.get('only_if','')) for e in effects):
         return True
@@ -1126,7 +1145,7 @@ def pre_use(engine, a, t, move, mm, *, targetless=False):
                 if not FOOD.consumed_this_scene(engine,a):
                     engine.log(f"  {a.name} {move['name']}: 이번 장면에 음식 버프를 소비하지 않음 → 실패", "effect/usage_restriction")
                     return False
-            if "중력" in cond and engine.field and "왜곡" in str(engine.field.get("name", "")):
+            if "중력" in cond and __import__('field_effects').airborne_move_fields(engine, a):
                 engine.log(f"  {a.name} {move['name']}: 중력(왜곡) 중 사용 불가", "effect/usage_restriction")
                 return False
             if "stockpile" in cond and a.counters.get("stockpile", 0) <= 0:
@@ -1160,8 +1179,11 @@ def accuracy_hook(engine, a, t, move, mm, ctx):
     import combat_timing as TIMING
     import status_sets as STATUS
     import vision_impairment as VISION
+    import living_weapon as LIVING
     ac_override, waive, bonus, never = None, False, TIMING.accuracy_modifier(a, include_effect_contract=False), False
+    bonus += __import__('defense_curl').accuracy(a,move)
     for status in a.conditions:
+        if __import__('blessing_effects').ignored(a,status):continue
         # Use one derived contribution: Total Blindness replaces ordinary
         # Blindness and observed darkness enters the same accuracy consumer.
         if STATUS.normalize(status) in (VISION.BLIND, VISION.TOTAL):
@@ -1172,6 +1194,7 @@ def accuracy_hook(engine, a, t, move, mm, ctx):
     bonus += VISION.accuracy_penalty(engine, a, t)
     for e in mm.get("effects_exec", []) + a.registry:
         ty = e.get("type")
+        if LIVING.ignore_no_guard(engine,a,t,e,effect_owner=a):continue
         if ty == "accuracy_override" and (FX.cond_ok(engine, e, ctx)[0] or _eval_cond(engine, a, t, e.get("if", ""), ctx)):
             ac_override = e.get("ac")
         elif ty == "never_miss":
@@ -1185,7 +1208,6 @@ def accuracy_hook(engine, a, t, move, mm, ctx):
                 waive = True
         elif ty == "accuracy_mod" and e.get("moves") and _move_matches(e, move, a) and isinstance(e.get("value"), int):
             bonus += e["value"]
-    import living_weapon as LIVING
     # The native passive producer keeps No Guard's enemy contribution in
     # modifiers; other existing target effects continue to use registry.
     no_guard_modifiers = [e for e in t.modifiers if LIVING.no_guard(e)
@@ -1194,20 +1216,26 @@ def accuracy_hook(engine, a, t, move, mm, ctx):
         no_guard_enemy = (LIVING.no_guard(e) and e.get("target") == "enemies vs user"
                           and getattr(a,"side",None) != getattr(t,"side",None))
         if e.get("type") == "accuracy_mod" and (str(e.get("target", "")).startswith("attacks against") or no_guard_enemy) and isinstance(e.get("value"), int):
-            if LIVING.ignore_no_guard(engine,a,t,e):continue
+            if LIVING.ignore_no_guard(engine,a,t,e,effect_owner=t):continue
             bonus += e["value"]
     waive = waive or __import__("roughneck").vulnerable(engine,a,t,move)
+    never = never or __import__('juggler').lock_on(engine,a,t)
     return ac_override, waive, bonus, never
 
 
 def crit_hook(engine, a, t, move, hit, crit, *, natural=None, crit_min=20):
     """Owned Demoralize permits status criticals; existing blessings follow."""
+    if __import__('declarative_move_contracts').defensive_critical_immunity(t):return False
     import ability_transitions as ABILITIES,taskmaster as TASK
-    if hit and TASK.gambit_side(engine,a,t,move)!='incoming' and ABILITIES.active(t,'ability/조가비갑옷-전투무장'):
+    if (hit and TASK.gambit_side(engine,a,t,move)!='incoming'
+            and ABILITIES.active(t,'ability/조가비갑옷-전투무장')
+            and not __import__('trickster').ignores_defensive(engine,t,'ability/조가비갑옷-전투무장')
+            and not __import__('chronicler').defensive_ignored(engine,a,t,move)):
         return False
     import combat_precision_features as CPF
     if hit and move["class"] == "변화" and natural is not None and CPF.status_can_critical(engine, a, t, move):
-        crit = natural >= __import__("provocateur").demoralize_threshold(a,crit_min)
+        threshold = __import__("provocateur").demoralize_threshold(a,crit_min) if CPF.owns(engine,a,CPF.DEMORALIZE) else crit_min
+        crit = natural >= threshold
     import blessing_effects as BLESSINGS
     crit,handled = BLESSINGS.critical(engine,a,t,move,hit,crit)
     if handled:return crit
@@ -1228,13 +1256,34 @@ def crit_hook(engine, a, t, move, hit, crit, *, natural=None, crit_min=20):
     return crit
 
 
+def prepare_versatile_move(engine, move, selected=None):
+    """ch10:440: explicit attack-stat choice; only Variable class changes class."""
+    selected = move.get('_versatile_attack_stat') if selected is None else selected
+    if '가변' not in (move.get('keywords') or []):
+        if selected is not None:raise ValueError('attack-stat choice requires the Versatile keyword')
+        return move
+    if selected is None:
+        if move.get('class') == '가변':raise ValueError('Versatile Move requires an explicit atk or spa choice')
+        return move
+    if selected not in ('atk','spa'):raise ValueError('Versatile attack stat must be atk or spa')
+    if move.get('prime_unown_instance') or move.get('_unown_use'):
+        raise ValueError('existing Unown instance owns its damage-class selection')
+    from source_context import verified_source
+    verified_source(engine.r,{'file':'input/ch10-index-reference.md',
+        'sha256':'c3a1d783b4f649f0f6e25a9443a90ca8079a6e036c42c6f8797e100127157abe'},label='Versatile keyword')
+    result=dict(move,_versatile_attack_stat=selected)
+    if move.get('class') == '가변':result['class']='물리' if selected=='atk' else '특수'
+    return result
+
+
 def grants_stab(engine, a, move):
+    if __import__('type_expertise').grants_stab(engine, a, move):
+        return True
     import stellar_tera_blast as STELLAR_TERA
     if STELLAR_TERA.grants_stab(engine,a,move):
         return True
-    active = {engine.r.ability_alias.get(n,n) for n in a.abilities}
     return any(e.get("type") == "stab_grant" and e.get("move_type") == move["type"]
-               and e.get("form") == a.form and e.get("_ability") in active
+               and e.get("form") == a.form and __import__('ability_transitions').effect_active(a,e)
                for e in a.registry)
 
 
@@ -1278,20 +1327,24 @@ def db_hook(engine, a, move, mm):
 
 def keyword_block_reason(engine,a,t,move):
     """Only selected keyword immunity, shared by hit and non-hit field recipients."""
-    blocked_keywords = set(getattr(t, "keyword_immune", ())) & keywords_for(a, move)
+    if '풀' in t.types and keywords_for(a,move).intersection(('가루','Powder')):
+        return 'type/풀:Powder immunity'
+    blocked_keywords = {k for k in keywords_for(a,move) if __import__('trickster').set_contains(engine,t,'keyword_immune',k)}
     if blocked_keywords:
         return "state/keyword_immunity:" + ",".join(sorted(blocked_keywords))
     if not t.abilities_suppressed:
-        owned={engine.r.ability_alias.get(name,name) for name in t.abilities}
         for effect in t.modifiers:
-            if (effect.get('type')=='immunity' and effect.get('keyword') in keywords_for(a,move) and effect.get('_ability') in owned):
+            if (effect.get('type')=='immunity' and effect.get('keyword') in keywords_for(a,move)
+                    and __import__('ability_transitions').effect_active(t,effect)):
                 source=effect.get('_rule_id')
                 if not isinstance(source,str) or engine.r._selected_rule(source)!=source:raise ValueError('selected keyword immunity source required')
+                if __import__('trickster').ignores_defensive(engine,t,source):continue
                 return source
     return None
 
 
 def blocks_hit(engine,a,t,move,mm):
+    if __import__('oracle').sight(t) and set(keywords_for(a,move)).intersection(('Illusion','환영')):return __import__('oracle').SIGHT
     ace=__import__('type_ace').blocks_hit(engine,a,t,move)
     if ace:return ace
     """PTU p336 Wonder Guard prevents hitting, unlike ordinary damage immunity.
@@ -1305,7 +1358,7 @@ def blocks_hit(engine,a,t,move,mm):
     if ground_flight_block:return ground_flight_block
     import body_modes as BODY_MODES
     import marsupial_state as MARSUPIAL
-    if MARSUPIAL.attack_blocked(a,t,move):return MARSUPIAL.SOURCE
+    if MARSUPIAL.attack_blocked(a,t,move,engine=engine):return MARSUPIAL.SOURCE
     if not BODY_MODES.targetable(t,attack=False):return BODY_MODES.DEFINITIONS['phasing']['source']
     import mindlock as MINDLOCK
     mindlock_block=MINDLOCK.move_block(engine,a,t,move)
@@ -1314,6 +1367,7 @@ def blocks_hit(engine,a,t,move,mm):
     if move_id=='move/카운터' and engine.type_multiplier('격투',t)[0]==0:return 'move/카운터:Fighting immunity'
     blocked_moves=[]
     for value in getattr(t,"move_immune",()):
+        if not __import__('trickster').set_contains(engine,t,'move_immune',value):continue
         if value==move_id:
             blocked_moves.append(value);continue
         try:resolved=engine.r.move_id(value)
@@ -1324,8 +1378,10 @@ def blocks_hit(engine,a,t,move,mm):
     keyword_reason=keyword_block_reason(engine,a,t,move)
     if keyword_reason:return keyword_reason
     if move.get("class") not in ("물리","특수") or t.abilities_suppressed:return None
-    owned={engine.r.ability_alias.get(name,name) for name in t.abilities}
-    guards=[x for x in t.modifiers if x.get("type")=="immunity" and x.get("to")=="non-super-effective damage" and x.get("_ability") in owned]
+    import commander_orders as COMMANDER
+    if COMMANDER.perfect(engine,a,move) is not None:return None
+    guards=[x for x in t.modifiers if x.get("type")=="immunity" and x.get("to")=="non-super-effective damage"
+            and __import__('ability_transitions').effect_active(t,x)]
     if not guards:return None
     import blessing_effects as BLESSINGS
     shared_offense=[record for _,record in BLESSINGS.beneficiaries(engine,a,'team_damage_effectiveness')
@@ -1361,10 +1417,33 @@ def blocks_hit(engine,a,t,move,mm):
     return uid if mult<=1 else None
 
 
+def revelation_dance_type(engine, actor, move):
+    """R559 uses the selected species registration, never mutable actor typing."""
+    if move.get('id') != 'move/잠재댄스':
+        return None
+    if engine.r._selected_rule(move['id']) != move['id']:
+        raise ValueError('selected Revelation Dance source required')
+    species = engine.r.species.get(actor.spec.get('species'))
+    if actor.kind != 'pokemon' or species is None:
+        raise ValueError('Revelation Dance requires a registered Pokemon species')
+    if engine.r._selected_rule(species['id']) != species['id']:
+        raise ValueError('Revelation Dance requires the selected registered species')
+    types = species.get('types')
+    if not isinstance(types, list) or not types:
+        raise ValueError('Revelation Dance requires an ordered registered first type')
+    import type_state as TYPE_STATE
+    TYPE_STATE.validate_attack(engine.r, types[0])
+    return types[0]
+
+
 def effective_type(engine, a, t, move, mm, *, consume=True):
     """타입 치환: 집단구타 등 1회 치환, 레지스트리 type_override_moves, alternate_type(사용자 선택 → 유리한 쪽)."""
+    registered_type = revelation_dance_type(engine, a, move)
+    if registered_type is not None:
+        move = dict(move, type=registered_type)
+    move = __import__('weather_state').prepare_weather_ball(engine,a,move)
     import declarative_move_contracts as DECLARATIVE_MOVES
-    declarative=DECLARATIVE_MOVES.effective_type(engine,a,t,move)
+    declarative=DECLARATIVE_MOVES.effective_type(engine,a,t,move,preview=not consume)
     if declarative is not None:
         return declarative
     import stellar_tera_blast as STELLAR_TERA
@@ -1385,9 +1464,14 @@ def effective_type(engine, a, t, move, mm, *, consume=True):
             if cheb(a.pos, zr["center"]) <= zr["radius"]:
                 return r["normal_moves_become"]
     import alternate_move_modes as ALTERNATE
-    explicit=ALTERNATE.effective_type(engine,a,t,move)
+    explicit=ALTERNATE.effective_type(engine,a,t,move,preview=not consume)
     if explicit is not None:
         return explicit
+    # Fistful's paid shard choice owns Judgment's otherwise optional 'any' type.
+    if move.get('_researcher_fistful') is not None:
+        return move['_researcher_fistful']['type']
+    if registered_type is not None:
+        return registered_type
     counters=a.counters if consume else dict(a.counters)
     best = move["type"]
     best_mult = engine.type_multiplier(move["type"], t)[0]
@@ -1423,26 +1507,40 @@ def effective_type(engine, a, t, move, mm, *, consume=True):
 
 
 def effectiveness_hook(engine, a, t, move, mm, mult, ctx):
-    """상성 치환·단계 보정·축복(공격 측)·코트(타르샷)·땅에 떨어짐."""
+    """상성 치환·단계 보정·축복(공격 측)·코트(타르샷)·부유 면역."""
     import cleanse_tags as CLEANSE
     if 'actual_damage_type' not in ctx:
         ctx['actual_damage_type']=effective_type(engine,a,t,move,mm,consume=False)
+    import catalog_move_states as CATALOG
+    actual_move = dict(move, type=ctx['actual_damage_type'])
+    arrows_policy = CATALOG.thousand_arrows_policy(engine, move, mm)
+    mult = CATALOG.thousand_arrows_base(engine, t, actual_move, arrows_policy, mult)
     mult = CLEANSE.weapon_effectiveness(engine,a,t,move,ctx['actual_damage_type'],mult,ctx)
+    import optional_physical_equipment as OPTIONAL_EQUIPMENT
+    crafted_ground = OPTIONAL_EQUIPMENT.bypass_ability_immunity(actual_move, actual_move["type"])
+    if crafted_ground:
+        mult = OPTIONAL_EQUIPMENT.effectiveness(engine, t, actual_move, mult)
     te = engine.r.mech("combat/type-effectiveness")["multiplier_by_net_steps"]
     step_of = {1.0: 0, 1.5: 1, 2.0: 2, 3.0: 3, 0.5: -1, 0.25: -2, 0.125: -3}
     steps = step_of.get(mult, 0)
+    immune = mult == 0
     changed = False
     import stellar_tera_blast as STELLAR_TERA
     for e in mm.get("effects_exec", []) + a.registry:
         if e.get("type") != "type_effectiveness_override":
+            continue
+        if (arrows_policy is not None and any(e is own for own in mm.get("effects_exec", []))
+                and CATALOG._semantic(e) == arrows_policy["legacy_effect"]):
             continue
         if STELLAR_TERA.owns_effect(engine.r,move,e):
             continue
         if e.get("if_target_type") and e.get("as_if_attack_type"):
             if e["if_target_type"] in t.types:
                 m2 = engine.type_multiplier(e["as_if_attack_type"], t)[0]
-                steps = max(steps, step_of.get(m2, 0))
-                changed = True
+                if m2:
+                    steps = step_of[m2] if immune else max(steps, step_of[m2])
+                    immune = False
+                    changed = True
         elif e.get("steps"):
             ok = _eval_cond(engine, a, t, e.get("if", ""), ctx) if e.get("if") else True
             if ok is None:
@@ -1462,21 +1560,21 @@ def effectiveness_hook(engine, a, t, move, mm, mult, ctx):
             changed = True
             engine.log(f"    축복 {b['name']} 발동: 한 단계 더 효과적 (남은 {b['left']})", "effect/blessing")
     import damage_coats as DAMAGE_COATS
-    coat_steps=DAMAGE_COATS.steps(engine,t,move)
+    coat_steps=DAMAGE_COATS.steps(engine,t,dict(move,type=ctx["actual_damage_type"]))
     if coat_steps:steps+=coat_steps;changed=True
     for c in list(t.coats):
         if 'effect_instance' in c:continue
         eff = c.get("effect") if isinstance(c.get("effect"), dict) else {}
-        if eff.get("extra_weakness_step") == move["type"]:
+        if eff.get("extra_weakness_step") == ctx["actual_damage_type"]:
             steps += 1
             changed = True
             t.coats.remove(c)
-            engine.log(f"    코트 {c.get('coat')} 발동: {move['type']}에 한 단계 더 취약 후 소멸", "effect/apply_coat")
-        elif eff.get("resist_once") == move["type"]:
+            engine.log(f"    코트 {c.get('coat')} 발동: {ctx['actual_damage_type']}에 한 단계 더 취약 후 소멸", "effect/apply_coat")
+        elif eff.get("resist_once") == ctx["actual_damage_type"]:
             steps -= 1
             changed = True
             t.coats.remove(c)
-            engine.log(f"    코트 {c.get('coat')} 발동: {move['type']} 1회 저항 후 소멸", "effect/apply_coat")
+            engine.log(f"    코트 {c.get('coat')} 발동: {ctx['actual_damage_type']} 1회 저항 후 소멸", "effect/apply_coat")
     for b in t.blessings:
         if 'effect_instance' in b:continue
         if b["left"] > 0 and "resistance" in b["effect"] and (("physical" in b["on"] and move["class"] == "물리") or ("special" in b["on"] and move["class"] == "특수") or ("damage" in b["on"] and "physical" not in b["on"] and "special" not in b["on"])):
@@ -1484,26 +1582,21 @@ def effectiveness_hook(engine, a, t, move, mm, mult, ctx):
             steps -= 1
             changed = True
             engine.log(f"    축복 {b['name']} 발동: 한 단계 저항 (남은 {b['left']})", "effect/blessing")
-    import catalog_move_states as CATALOG
-    grounded = CATALOG.grounded(t)
     import field_effects as FIELD
-    actual_move = dict(move, type=ctx['actual_damage_type'])
     import csv_item_physical_contracts as CSV_ITEMS
-    if CSV_ITEMS.ground_immunity(engine,t,actual_move):
+    if not crafted_ground and CSV_ITEMS.ground_immunity(engine,t,actual_move):
         engine.log(f"    {t.name} 풍선으로 땅 기술 무효", "item/풍선")
         return 0.0
-    if (CATALOG.levitate_blocks(engine,t,actual_move,mm,attacker=a)
+    if (not crafted_ground and CATALOG.levitate_blocks(engine,t,actual_move,mm,attacker=a)
             and not FIELD.suppresses_ground_immunity(engine,t,{"_ability":"부유"})):
         engine.log(f"    {t.name} 부유 특성으로 땅 기술 무효", "ability/부유")
         return 0.0
-    if grounded and move["type"] == "땅" and mult == 0:
-        steps = 0
-        changed = True
-        engine.log(f"    {t.name}은(는) 땅에 떨어진 상태 → 땅 기술 무효 아님", "effect/grounding")
-    resolved = te[str(max(-3, min(3, steps)))] if changed else mult
+    # Resistance/weakness steps cannot turn immunity into a damaging matchup.
+    resolved = te[str(max(-3, min(3, steps)))] if changed and not immune else mult
     resolved = STELLAR_TERA.effectiveness(engine,a,t,move,resolved,ctx)
+    resolved = __import__('typed_defensive_bypass').effectiveness(engine,a,t,move,resolved,actual_type=ctx['actual_damage_type'])
     import optional_physical_equipment as OPTIONAL_EQUIPMENT
-    return OPTIONAL_EQUIPMENT.effectiveness(engine, t, move, resolved)
+    return resolved if crafted_ground else OPTIONAL_EQUIPMENT.effectiveness(engine, t, actual_move, resolved)
 
 
 def reduction_after_ignore(reduction, effects):
@@ -1532,7 +1625,7 @@ def defense_hook(engine, a, t, move, mm, def_stat, *, stage_override=None):
         stage=stage_override
         staged=max(FIELDS.stat_minimum(t.spec,def_stat),OPTIONAL.staged_value(t,def_stat,
             M.stage_stat(t.stats[def_stat],stage,engine.r.mech('combat/combat-stage-multipliers')['multiplier_by_stage'])))
-    dr = t.damage_reduction + LIFETIMES.numeric(t,"damage_reduction")
+    dr = t.damage_reduction + LIFETIMES.numeric(t,"damage_reduction") + __import__('sage').reduction(t) + __import__('ace_trainer').damage_reduction(t,a) + __import__('defense_curl').reduction(t) + __import__('declarative_move_contracts').defensive_reduction(t)
     if not t.abilities_suppressed:
         for e in t.modifiers:
             if e.get("type") == "damage_reduction" and e.get("if_weather") and isinstance(e.get("value"), int) and not any(e.get(k) for k in ("if", "vs", "duration")) and FX.weather_matches(engine, e["if_weather"],t):
@@ -1554,17 +1647,26 @@ def multiplier_hook(engine, a, move, mm, ctx):
     return 1.0
 
 
-def cap_damage(engine, c, amount):
+def cap_damage(engine, c, amount, *, loss_kind='damage'):
     cap = c.damage_cap
     if not cap:
         return amount
-    v = FX._amount(cap.get("value"), c, engine, {"attacker": c})
+    if loss_kind not in ('damage', 'loss', 'percentage', 'hp_setting'):
+        raise ValueError('known damage or HP-loss kind required')
+    scope = cap.get('applies_to')
+    if scope not in (None, 'damage', 'damage and hp loss'):
+        raise ValueError('unsupported damage-cap scope')
+    if loss_kind != 'damage' and scope == 'damage':
+        return amount
+    if not __import__('hp_setting_moves').cap_active(engine, c, cap):
+        return amount
+    v = FX._amount(cap.get('value'), c, engine, {'attacker': c})
     if v is None:
         return amount
-    if cap.get("round") == "up" and str(cap.get("value", "")).endswith("/2"):
-        v = M.ceil_ratio(c.base_max_hp,2)
+    if cap.get('round') == 'up' and str(cap.get('value', '')).endswith('/2'):
+        v = M.ceil_ratio(c.base_max_hp, 2)
     if amount > v:
-        engine.log(f"    피해 상한 {v} 적용 ({amount} → {v})", "effect/damage_cap")
+        engine.log(f"    피해 상한 {v} 적용 ({amount} → {v})", 'effect/damage_cap')
         return v
     return amount
 
@@ -1691,7 +1793,7 @@ def movement_profile(engine, c, land, sky, movement_mode=None, capabilities=None
         if value <= 0:
             return 0
         value = max(min(value, 2), value + delta) if delta < 0 else value + delta
-        if "둔화" in c.conditions or as_slowed:
+        if "둔화" in __import__('blessing_effects').effective_conditions(c) or as_slowed or __import__('setup_move_state').liquefied(c):
             value = max(1, M.ratio(value,2))
         value += OPTIONAL_STATE.movement_addition(c)
         return OPTIONAL_STATE.movement_limit(c,value)
@@ -1736,8 +1838,10 @@ def end_of_turn(engine, c):
     __import__('type_ace').end_turn(engine,c)
     __import__('type_ace').fire_boundary(engine,c)
     HEAVY.ensure_clear(engine)
+    __import__('wish_move').end_turn(engine,c)
     VORTEX.turn_end(engine,c)
     for d in list(engine.delayed):
+        if d['kind']=='wish':continue
         if d["who"] is not c:
             continue
         d["turns"] -= 1
@@ -1759,21 +1863,23 @@ def end_of_turn(engine, c):
                 continue
             import precise_actions as PRECISE
             precision_event=PRECISE.attacked(engine,a,c,move,producer="effects_ext.delayed_attack")
-            precision_facts={}
-            dealt = engine.roll_damage(a, c, move, False, _precision_observation=precision_facts)
+            precision_facts={};damage_event={}
+            dealt = engine.roll_damage(a, c, move, False, _precision_observation=precision_facts,_reaction_event=damage_event)
             PRECISE.damage_hit(engine,a,c,move,precision_event,precision_facts,dealt)
             if precision_facts.get("hit_prevented"):
                 COMPLETE.finish_target(engine,completion_id,a,c,hit=False,dealt=0)
                 continue
-            HEAVY.apply_attack_damage(engine, a, c, dealt, move,
+            application=HEAVY.apply_attack_damage(engine, a, c, dealt, move,
                 producer=HEAVY.Producer.DELAYED_HIT,
-                remainder="remaining delayed queue and outer turn-end effects have not run; current delayed record already removed")
+                remainder="remaining delayed queue and outer turn-end effects have not run; current delayed record already removed",
+                actual_damage_type=precision_facts.get("actual_damage_type"))
+            if isinstance(application,dict) and application.get('source')==__import__('channeler').PAIN:dealt=0
             COMPLETE.finish_target(engine,completion_id,a,c,hit=True,dealt=dealt)
     import declarative_move_contracts as DECLARATIVE_MOVES
     DECLARATIVE_MOVES.end_turn(engine,c)
 
 
-def on_enter_cell(engine, c, cell):
+def on_enter_cell(engine, c, cell, *, previous_position=None):
     __import__('type_ace').enter_cell(engine,c,cell)
     import nicolette_gym as NICOLETTE
     NICOLETTE.enter_cell(engine, c, 'walk')
@@ -1784,7 +1890,9 @@ def on_enter_cell(engine, c, cell):
     import marsupial_state as MARSUPIAL
     MARSUPIAL.sync(engine)
     import hazard_state as HAZARDS
-    return HAZARDS.on_enter_cell(engine,c,cell)
+    result=HAZARDS.on_enter_cell(engine,c,cell,previous_position=previous_position)
+    pending=__import__('marksman').moved(engine,c)
+    return pending if isinstance(pending,__import__('common_checks').PendingDecision) else result
 
 
 def save_dc(engine, c, cond, dc):
@@ -1797,4 +1905,4 @@ def save_dc(engine, c, cond, dc):
     import effect_lifetimes as LIFETIMES
     import training_features as TRAINING
     import eldritch_magic as ELDRITCH
-    return dc + int(p.get("escape_dc_bonus", 0)) - c.save_mod - LIFETIMES.numeric(c,"save_modifier") - SOCIAL.save_bonus(engine,c,cond) - AWARENESS.bonus(engine,c) - TRAINING.bonus(c,"save") - ELDRITCH.save_modifier(c)
+    return dc + int(p.get("escape_dc_bonus", 0)) - c.save_mod - LIFETIMES.numeric(c,"save_modifier") - SOCIAL.save_bonus(engine,c,cond) - AWARENESS.bonus(engine,c) - TRAINING.bonus(c,"save") - ELDRITCH.save_modifier(c) - __import__('ace_trainer').save_bonus(c)

@@ -110,6 +110,7 @@ class SceneFeatureAbilityGrantTests(unittest.TestCase):
 
     def open_style_priority(self, engine, trainer, target):
         engine.start_round(engine.everyone)
+        engine.at_initiative_count(30)
         engine.gm.observe_sensory_environment(
             trainer, target, paths={"auditory": True}, present=True,
             reason="observed audible Style Entrainment path",
@@ -296,7 +297,7 @@ class SceneFeatureAbilityGrantTests(unittest.TestCase):
         forged = deepcopy(SCENE.records(target)[0]["source_policy_binding"]["definition"])
         forged["values"]["priority_limited"] = False
         next(pair for pair in binding["items"] if pair[0] == "definition_hash")[1] = R.fingerprint(forged)
-        fresh = Rules(str(ROOT), ruleset="all")
+        fresh = self.source_rules(Rules(str(ROOT), ruleset="all"), "book")
         with self.assertRaisesRegex(ValueError, "known producing source policy"):
             load_engine(fresh, payload)
 
@@ -362,6 +363,30 @@ class SceneFeatureAbilityGrantTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Swift action"):
             engine.activate_scene_feature_ability(trainer, target, SCENE.STAT_FEATURE, "def", "전투무장")
         self.assertEqual(self.snapshot(engine, trainer, target), before)
+
+        for kind in ("stat", "style"):
+            with self.subTest(priority_rejection=kind):
+                if kind == "stat":
+                    engine, trainer, target = self.stat_fixture("atk", authority="book")
+                    source, branch = SCENE.STAT_FEATURE, "atk"
+                else:
+                    engine, trainer, targets = self.style_fixture()
+                    target = targets[0]
+                    source, branch = SCENE.STYLE_FEATURE, "근사함"
+                self.open_style_priority(engine, trainer, target)
+                engine.apply_status(trainer, "넘어짐", source="condition/넘어짐")
+                self.assertIn("넘어짐", trainer.conditions)
+                before = dump_engine(engine)
+                with self.assertRaisesRegex(ValueError, "actual printed Priority action permission required"):
+                    engine.activate_scene_feature_ability(trainer, target, source, branch, "오기")
+                self.assertEqual(dump_engine(engine), before)
+                engine.cure_status(trainer, "넘어짐")
+                before_ap = AP.available(trainer)
+                result = engine.activate_scene_feature_ability(trainer, target, source, branch, "오기")
+                self.assertEqual((AP.available(trainer), trainer.pending_action_loss), (before_ap - 1, {"swift": 1}))
+                self.assertEqual(result["priority_receipt"]["payment"]["phase"], "reserved")
+                self.assertEqual(ABILITIES.known(target), ["ability/오기"])
+                self.assertTrue(engine.validate_state()["valid"])
 
     def test_style_priority_limited_reserves_and_pays_swift_without_expiring_grant(self):
         engine, trainer, pokemon = self.style_fixture()

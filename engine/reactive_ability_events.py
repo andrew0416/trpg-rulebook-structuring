@@ -94,7 +94,8 @@ def choose(engine, owner, source, *, ability=None, reason):
 
 def interested(engine, actor, target):
     subjects = [actor, target, *getattr(engine, 'everyone', ())]
-    return any(subject is not None and subject.spec.get(CHOICES) for subject in subjects)
+    return (any(subject is not None and subject.spec.get(CHOICES) for subject in subjects)
+            or __import__('ability_exchange_contracts').interested(engine,actor,target))
 
 
 def atomic_move(engine, actor, target, callback):
@@ -113,15 +114,7 @@ def atomic_move(engine, actor, target, callback):
         try:
             return callback(e, a, t)
         except Exception as error:
-            import passive_events as PASSIVE
-            import heavy_injury_adapter as HEAVY
-            if (type(error) is PASSIVE.PassiveEventPending and
-                    e._passive_pending == error.event_id and error.event_id in e._passive_events):
-                pending.append((PASSIVE.PassiveEventPending, error.event_id))
-                return None
-            if (type(error) is HEAVY.HeavyPending and
-                    e._heavy_pending == error.event_id and error.event_id in e._heavy_events):
-                pending.append((HEAVY.HeavyPending, error.event_id))
+            if GRANTS.record_native_pending(e, error, pending):
                 return None
             raise
         finally:
@@ -135,6 +128,13 @@ def atomic_move(engine, actor, target, callback):
 
 
 def preflight_move(engine, actor, target, move, mm, *, ordinary_action='standard'):
+    import ability_exchange_contracts as X
+    mm=X.preflight_move(engine,actor,target,move,mm)
+    if move['id']==X.ENTRAIN:
+        raw={'type':'grant_ability','grant_ability':"one of user's abilities",'on':'target','turns':3}
+        if mm.get('effects_exec',[]).count(raw)!=1:
+            raise ValueError('Entrainment requires its exact reviewed legacy grant declaration')
+        mm=deepcopy(mm);mm['effects_exec'].remove(raw)
     request = _choice(actor, PROTEAN)
     if request is not None:
         if not _eligible(actor, PROTEAN):
@@ -160,9 +160,11 @@ def _completion(engine, actor, target, move, token):
 
 
 def _pay(engine, owner, source):
+    if not __import__('ability_exchange_contracts').admit_trigger(engine,owner,source):
+        raise ValueError('Neutralizing Gas prohibits this triggered ability')
     import turn as TURN
     row = definition(engine.r, source)
-    if not FREQUENCY.activation_allowed(owner, source, row['frequency'], engine=engine):
+    if not FREQUENCY.activation_allowed(owner, source, row['frequency'], engine=engine,action_actor=owner if row['action'] is not None else None):
         raise ValueError('reactive ability frequency exhausted')
     if row['action'] == 'free':
         import action_lifecycle as ACTION
@@ -172,7 +174,7 @@ def _pay(engine, owner, source):
         ACTION.record_action(engine, owner, 'free')
     elif not TURN.spend(engine, owner, row['action'], source):
         raise ValueError('reactive ability action unavailable')
-    FREQUENCY.consume_activation(owner, source, row['frequency'], engine=engine)
+    FREQUENCY.consume_activation(owner, source, row['frequency'], engine=engine,action_actor=owner if row['action'] is not None else None)
 
 
 def _reaction_allowed(engine, owner):
@@ -259,6 +261,12 @@ def _melee(move):
     return '근접' in value or 'melee' in value
 
 
+def native_contact(engine, actor, move):
+    """Snapshot this actual recipient's contact before its hit effects."""
+    import equipment_variant_contracts as EQUIPMENT
+    return _melee(move) and not EQUIPMENT.suppresses_melee_hit_reactions(engine, actor, move)
+
+
 def _abilities(engine, row, source, owner, donor, target):
     pool = ABILITIES.known(donor)
     for uid in pool:
@@ -304,7 +312,7 @@ def _abilities(engine, row, source, owner, donor, target):
             end(engine, recipient, 'faint')
 
 
-def resolved_hit(engine, actor, target, move, completion_id, *, hit_prevented=False):
+def resolved_hit(engine, actor, target, move, completion_id, *, hit_prevented=False, contact=None):
     row = _completion(engine, actor, target, move, completion_id)
     relevant = row.get(TAG) or any(_choice(target, source) for source in (COLOR, SPIRIT, AROMA))
     if not relevant:
@@ -317,13 +325,17 @@ def resolved_hit(engine, actor, target, move, completion_id, *, hit_prevented=Fa
     result = DEFENSE.received_result(row, target)
     if result is None or type(hit_prevented) is not bool:
         raise ValueError('completed native target result required')
+    # Older already-produced return frames have no contact observation field.
+    contact = _melee(move) if contact is None else contact
+    if type(contact) is not bool or (contact and not _melee(move)):
+        raise ValueError('reactive contact must belong to its actual melee hit')
     evidence['hits'][target.entity_id] = {'hit_prevented': hit_prevented}
     if not result['hit'] or result['cancelled'] or hit_prevented:
         return
     for source in (COLOR, SPIRIT, AROMA):
         if not _choice(target, source) or not _eligible(target, source) or not _reaction_allowed(engine, target):
             continue
-        if source != COLOR and not _melee(move):
+        if source != COLOR and not contact:
             continue
         if not FREQUENCY.activation_allowed(target, source, definition(engine.r, source)['frequency'], engine=engine):
             continue

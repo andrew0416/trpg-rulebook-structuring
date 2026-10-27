@@ -67,6 +67,7 @@ def _geometry(e,actor,target,gm_distance):
 
 @ACTION.resolved_native("actor",NET,"net_capsule")
 def fire(e,actor,*,target,fixed_accuracy=None,accuracy_roll_id=None,gm_distance=None):
+ __import__('condition_instances').require_target(actor,target)
  import pokemon_activities as P
  import ap_roll_bonus as AP
  import effects_ext as EXT
@@ -138,6 +139,7 @@ def _remove(e,actor,*,method='standard',fixed=None,minutes=None,reason=None):
  if not TURN.spend(e,actor,'standard','네트 제거'):return False
  import duelist as DUELIST
  natural=11 if DUELIST.choose_eleven(e,actor,'net_escape') else fixed if fixed is not None else e.d20()
+ natural=__import__('oracle').replace_d20(e,actor,natural,'net_escape')
  food_bonus=FOOD.save_bonus(e,actor,'네트')
  import fashion_items as FASHION
  fashion_bonus=FASHION.consume_save_bonus(e,actor)
@@ -155,7 +157,7 @@ def _remove(e,actor,*,method='standard',fixed=None,minutes=None,reason=None):
 def capture_bonus(e,target):
  if active(target) is None:return 0
  _selected(e)
- if target.kind!='pokemon' or target.captured or target.spec.get('trainer_id') or target.spec.get('trainer') or not target.spec.get('wild',target.side=='wild'):return 0
+ if target.kind!='pokemon' or target.captured or target.spec.get('trainer_id') or target.spec.get('trainer') or not target.spec.get('wild',getattr(target,'side',None)=='wild'):return 0
  # +20 to the former target rate eases capture: modern target DC -20/5,
  # equivalently +4 to the modern roll (not a ball's -20 roll modifier).
  if e.r._selected_rule('supp-errata/포획-메커니즘-변경')!='supp-errata/포획-메커니즘-변경':raise ValueError('selected modern capture conversion needs its own adapter')

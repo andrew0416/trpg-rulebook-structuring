@@ -19,10 +19,12 @@ COMBATANT_FIELDS = ["airborne","weapon", "_ap_bound_effects", "last_target", "_t
                     "_diagonal_steps", "_regular_shift_movement_used", "_item_reg", "_passive_acc", "_passive_eva", "movement", "budget", "pending_action_loss", "aoo_used", "_round_marker",
                     "status_immune", "weather_immune", "keyword_immune", "move_immune"]
 ENGINE_FIELDS = ["_roll_policy_requests", "_roll_context_requests", "_execution_trace_enabled", "_execution_trace_sequence", "_execution_traces", "_source_policy_requests", "_source_policy_executions", "_source_policy_sequence", "_weather_templates","_weather_state","_mega_state","_encounter_actors", "_partial_entities", "_world_facts", "_world_relation_receipts", "_campaign_reward_policy","_campaign_reward_events","_league_outcomes","_pokemon_setting_policy","_pokemon_intelligence_policy","_effect_dispatch_receipts","_effect_dispatch_sequence","_skill_sequences","_precision_events","_precision_sequence","_initiative_cursor","_burrow_tunnels","ground_items", "_physical_objects", "_ap_rolls", "_extended_checks", "_root_common_receipts", "_passive_driver_result", "_passive_sequence", "_passive_listeners", "_passive_events", "_passive_receipts", "_passive_pending", "_league_runtime", "_turn_closures", "everyone", "_heavy_native_receipts", "_heavy_activation_sequence", "_heavy_driver_result", "_heavy_standard_receipts", "_heavy_standard_sequence", "_heavy_sequence", "_heavy_events", "_heavy_pending", "_heavy_resolution_history", "_active_turn_actor", "_ordinary_turn_rounds", "_action_grants", "session_frequency", "defer_session_refresh", "session_id", "pending_session_id", "session_ids_seen", "session_epoch", "encounter_active", "round_no", "elapsed_seconds", "round_start_seconds", "unresolved_time_intervals", "_time_actors", "death_enabled", "friendly_battle", "weather", "weather_rounds", "field", "hazards", "hazards_nogrid", "zone_cells", "zones", "taunt", "delayed", "zone_rules", "condition_params"]
-ENGINE_FIELDS.extend(("_initiative_schedule", "_initiative_interrupts"))
+ENGINE_FIELDS.extend(("_initiative_schedule", "_initiative_interrupts", "_initiative_extra_turns"))
 ENGINE_FIELDS.append("_campaign_injury_policy")
 ENGINE_FIELDS.append('_ground_flight_option')
 ENGINE_FIELDS.append('_hp_loss_policy')
+ENGINE_FIELDS.append('_session_move_policy')
+ENGINE_FIELDS.append('_marksman_attack')
 ENGINE_FIELDS.extend(('_clock_invocations','_active_clock_invocation'))
 ENGINE_FIELDS.extend(('_native_action_stack','_native_action_resolutions','_native_action_sequence'))
 ENGINE_FIELDS.append('_breather_attempts')
@@ -44,11 +46,18 @@ ENGINE_FIELDS.append("_scene_lighting")
 ENGINE_FIELDS.append("_mapless_space")
 ENGINE_FIELDS.append("_enemy_accuracy_sheet")
 ENGINE_FIELDS.append("_local_grass_occurrences")
+ENGINE_FIELDS.append("_independent_field_effects")
 ENGINE_FIELDS.append("_environment_changes")
 ENGINE_FIELDS.append("_grapple_state")
 ENGINE_FIELDS.append("_pass_moves")
 ENGINE_FIELDS.append('_taskmaster_gambit')
+ENGINE_FIELDS.extend(('_rider_lean_pair','_rider_resuming_partner'))
 ENGINE_FIELDS.append('_free_order_scope')
+ENGINE_FIELDS.append('_let_me_help_offers')
+ENGINE_FIELDS.append('_commander_order_scope')
+ENGINE_FIELDS.extend(('_trickster_trigger','_trickster_maneuver','_trickster_sleight',
+    '_trickster_escape','_trickster_impromptu','_trickster_aoo_transaction','_trickster_hazard_entry'))
+ENGINE_FIELDS.extend(('_smoke_regions','_smoke_region_sequence'))
 COMBATANT_FIELDS.extend(("_mounted_riders","_mount_movement"))
 COMBATANT_FIELDS.append('_equipment_transport_body')
 STAT_KO = {"공격": "atk", "방어": "def", "특공": "spa", "특수공격": "spa", "특방": "spd", "특수방어": "spd", "스피드": "spe", "명중": "acc", "회피": "eva",
@@ -146,6 +155,11 @@ class GMState:
         import smoke_balls as SMOKE
         return SMOKE.observe_use(self.e, actor, center, **observation)
 
+    def observe_smoke_region(self, cells, *, reason):
+        """Observe actual surviving legacy smoke membership, without old history."""
+        import smoke_regions as SMOKE
+        return SMOKE.observe_region(self.e,cells,reason=reason)
+
     def observe_cleanse_burn(self, c, instance_id, **options):
         return self.e.burn_cleanse_tag(c, instance_id, **options)
 
@@ -233,6 +247,14 @@ class GMState:
     def observe_melee_reach(self, c, value, **options):
         import body_state as BODY
         return BODY.observe_melee_reach(self.e, c, value, **options)
+
+    def observe_melee_reach_source(self, c, choice=None):
+        import body_state as BODY
+        return BODY.observe_melee_reach_source(self.e, c, choice)
+
+    def observe_elemental_connection_source(self, c, choice):
+        import elemental_connection as ELEMENTAL
+        return ELEMENTAL.observe_source(self.e, c, choice)
 
     def observe_trainer_weight(self, c, value, **options):
         import body_state as BODY
@@ -410,7 +432,8 @@ class GMState:
 
     def set_hp(self, c, value=None, delta=None, reason="", unpreventable=True):
         import keep_fighting as KEEP,state_grants as GRANTS
-        if KEEP.interested(self.e,c):
+        nonpositive=(M.floor(value) if value is not None else c.hp+M.floor(delta))<=0
+        if KEEP.interested(self.e,c) or nonpositive or __import__('ability_exchange_contracts').interested(self.e,c,c):
             return GRANTS.transition(self.e,c,lambda e,actor:e.gm._set_hp(actor,value=value,delta=delta,reason=reason,unpreventable=unpreventable),include_rulings=True,include_grid=self.e.grid is not None)
         return self._set_hp(c,value=value,delta=delta,reason=reason,unpreventable=unpreventable)
 
@@ -424,17 +447,19 @@ class GMState:
         import taskmaster as TASK
         press=TASK.faint_boundary(self.e,c)
         if c.hp <= 0 and not press:
-            import csv_item_physical_contracts as CSV_ITEMS,core_weather_abilities as WEATHER_ABILITIES
-            CSV_ITEMS.switched_or_fainted(c)
+            import life as LIFE,core_weather_abilities as WEATHER_ABILITIES
+            # A GM-observed knockout owns the same source endings as native HP loss.
+            # The existing Press decision above still owns remaining conscious.
+            newly_fainted=LIFE.faint(self.e,c)
             WEATHER_ABILITIES.refresh(c)
-        if c.hp <= 0 and not press and "기절" not in c.conditions:
-            c.conditions.add("기절")
-            self.e.log(f"    {c.name} 기절 (GM 조정)", "gm/state")
+            if newly_fainted:self.e.log(f"    {c.name} 기절 (GM 조정)", "gm/state")
         elif c.hp > 0 and "기절" in c.conditions:
             c.conditions.discard("기절")
             import life
             life.clear_recovery(c)
             self.e.log(f"    {c.name} 기절 해제 (GM 조정)", "gm/state")
+        __import__('ability_exchange_contracts').refresh(self.e)
+        __import__('ability_control_contracts').refresh(self.e)
         return c.hp
 
     def set_temp_hp(self, c, value, reason="", *, duration_seconds=None, round_offset_seconds=None):
@@ -547,6 +572,9 @@ class GMState:
         BODY_MODES.sync_shadows(self.e)
         import effect_lifetime_policy as LIFETIMES
         LIFETIMES.reconcile(self.e)
+        __import__('ability_exchange_contracts').refresh(self.e)
+        __import__('ability_control_contracts').refresh(self.e)
+        __import__('marksman').watch_state(self.e,c)
         self._rec("위치", before, copy.deepcopy(c.location), reason, c)
 
     def set_item(self, c, item, reason="", *, selection=None, source_instance_id=None):
@@ -672,7 +700,7 @@ class GMState:
 
     def faint(self, c, reason=""):
         import keep_fighting as KEEP,state_grants as GRANTS
-        if KEEP.interested(self.e,c):
+        if KEEP.interested(self.e,c) or __import__('ability_exchange_contracts').interested(self.e,c,c):
             return GRANTS.transition(self.e,c,lambda e,actor:e.gm._faint(actor,reason=reason),include_rulings=True,include_grid=self.e.grid is not None)
         return self._faint(c,reason=reason)
 
@@ -692,23 +720,16 @@ class GMState:
         self._rec("퇴장(볼 복귀)", before, False, reason, c)
 
     def send_out(self, c, pos=None, reason=""):
-        import csv_item_form_contracts as CSV_FORMS
-        CSV_FORMS.require_independent(self.e,c)
-        before = c.on_field
-        if self.e.encounter_active:
-            import combat_state_lifecycle as COMBAT_STATE
-            COMBAT_STATE.join(self.e,[c])
-        c.on_field = True
-        if not before:c.turns_taken=0
-        if pos is not None:
-            c.pos = tuple(pos)
-        self._rec("등장", before, True, reason, c)
+        import combat_state_lifecycle as COMBAT_STATE,state_grants as GRANTS
+        before=c.on_field
+        GRANTS.transition(self.e,c,lambda staged,actual:COMBAT_STATE.send_out(staged,actual,pos=pos,source_id='gm/send-out'),include_grid=self.e.grid is not None)
+        self._rec("등장",before,True,reason,c)
 
     def add_combatant(self, c, pos=None, side=None, reason=""):
         import world_entities as WORLD
         import state_grants as GRANTS
         WORLD.actor_index(self.e, (c,))
-        STATE_FIELDS.validate_actor(c)
+        STATE_FIELDS.validate_base(c.spec)
         if side is not None and (not isinstance(side, str) or not side.strip()):
             raise ValueError("side requires explicit nonempty text")
         def apply(staged_engine, staged_c):
@@ -720,6 +741,8 @@ class GMState:
                 if staged_c not in roster:
                     roster.append(staged_c)
             staged_engine.register_abilities(staged_c)
+            # A newly imported sheet gets its while-owned projections here.
+            STATE_FIELDS.validate_actor(staged_c)
         GRANTS.transition(self.e, c, apply)
         for roster in (self.everyone, self.e.everyone):
             if c not in roster:
@@ -735,6 +758,8 @@ class GMState:
             if c in roster:
                 roster.remove(c)
         c.on_field = False
+        __import__('ability_exchange_contracts').refresh(self.e)
+        __import__('ability_control_contracts').refresh(self.e)
         self._rec("참가자 제거", c.name, None, reason)
 
     # ---------- 전장 상태 ----------
@@ -753,7 +778,14 @@ class GMState:
 
     def set_field(self, name, rounds=5, reason=""):
         before = (self.e.field or {}).get("name")
-        self.e.field = {"name": name, "rounds": rounds, "effect": "GM"} if name else None
+        import field_effects as FIELD
+        if name:
+            FIELD.validate(self.e)
+            FIELD._store(self.e, {"name": name, "rounds": rounds, "effect": "GM"})
+            import items as ITEMS
+            ITEMS.synchronize_field_suppression(self.e)
+        else:
+            FIELD.clear(self.e)
         self._rec("필드", before, name, reason)
 
     def place_hazard(self, cell, name, effects=None, reason=""):
@@ -857,9 +889,11 @@ class GMState:
             # receive the restored dictionaries only after validation succeeds.
             staged={identity:copy.copy(c) for identity,c in actors.items() if identity in restored["combatants"]}
             candidate_engine=copy.copy(self.e)
+            # Live check authority is not saved state and belongs only to this host.
+            candidate_engine.__dict__.pop('_root_common_binding',None)
             # Native transient attribution (for example _inflictor) can also
             # refer to actors. Validate it against the candidate actor graph.
-            transient={key:value for key,value in vars(self.e).items() if key not in ENGINE_FIELDS and key not in ('r','gm','rulings','rng')}
+            transient={key:value for key,value in vars(self.e).items() if key not in ENGINE_FIELDS and key not in ('r','gm','rulings','rng','_root_common_binding')}
             candidate_engine.__dict__.update(copy.deepcopy(transient,{**staged,id(self.e):candidate_engine,id(self.e.r):self.e.r,id(self):self}))
             checked=copy.deepcopy(restored,{**staged,id(self.e):candidate_engine,id(self.e.r):self.e.r})
             candidate_engine.rng=copy.deepcopy(self.e.rng)

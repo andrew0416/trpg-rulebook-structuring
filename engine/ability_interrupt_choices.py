@@ -17,9 +17,13 @@ import world_entities as WORLD
 WATCH='_ability_interrupt_watch'
 KEY='ability_interrupts'
 SOURCE='ability/테라셸'
+SOURCES=(SOURCE,'feat/예견')
 
 
 def _adapter(e,source):
+    if source=='feat/예견':
+        if e.r._selected_rule(source)!=source:raise ValueError('selected Prescience required')
+        return __import__('oracle')
     import tera_shell as TS
     if source!=SOURCE or e.r._selected_rule(source)!=source or not TS.registration(e.r,source):
         raise ValueError('exact selected recipient Interrupt source required')
@@ -34,18 +38,23 @@ def _eligible(e,actor,source):
     import reactive_ability_events as REACTIVE
     import vision_impairment as VISION
     WORLD.require_actors(e,actor)
-    if (actor.dead or actor.captured or not actor.on_field or not ABILITIES.active(actor,source)
-            or not REACTIVE._reaction_allowed(e,actor) or VISION.accuracy_level(e,actor)=='total'):
+    owned=bool(__import__('oracle').acquired(actor,source)) if source=='feat/예견' else ABILITIES.active(actor,source)
+    if (actor.dead or actor.captured or not actor.on_field or not owned
+            or not REACTIVE._reaction_allowed(e,actor) or source!='feat/예견' and VISION.accuracy_level(e,actor)=='total'):
         raise ValueError('actual available source owner and Interrupt permission required')
 
 
-def pay_free(e,actor,source,frequency):
+def pay_free(e,actor,source,frequency,*,trigger):
     """Pay only inside an authenticated source caller's native atomic scope."""
+    __import__('skirmisher').require_keyword(actor,'interrupt')
+    if not __import__('ability_exchange_contracts').admit_trigger(e,actor,source):
+        raise ValueError('Neutralizing Gas prohibits this triggered ability Interrupt')
+    __import__('ability_control_contracts').admit(e,actor,'interrupt',trigger=trigger)
     import reactive_ability_events as REACTIVE
-    if not REACTIVE._reaction_allowed(e,actor) or not FREQUENCY.activation_allowed(actor,source,frequency,engine=e):
+    if not REACTIVE._reaction_allowed(e,actor) or not FREQUENCY.activation_allowed(actor,source,frequency,engine=e,action_actor=actor):
         raise ValueError('Free reaction action or source frequency unavailable')
     ACTION.record_action(e,actor,'free')
-    FREQUENCY.consume_activation(actor,source,frequency,engine=e)
+    FREQUENCY.consume_activation(actor,source,frequency,engine=e,action_actor=actor)
 
 
 def watch(e,owner,source,*,reason):
@@ -120,7 +129,7 @@ def _validate(e,event,row,index):
     expected=[{'owner_id':r['actor_id'],'source':source}
               for r in facts['recipients'] if r['hit']
               for source in facts['watch'].get(r['actor_id'],{})]
-    if offers!=expected or any(o['source']!=SOURCE or o['owner_id'] not in index for o in offers):
+    if offers!=expected or any(o['source'] not in SOURCES or o['owner_id'] not in index for o in offers):
         raise ValueError('recipient Interrupt offers differ from actual watched recipients')
     if type(row['cursor'])is not int or not 0<=row['cursor']<=len(offers) or len(row['attempts'])!=row['cursor']:
         raise ValueError('recipient Interrupt attempted prefix changed')
@@ -147,7 +156,8 @@ def _validate(e,event,row,index):
                     attempt['plan_fingerprint']!=ROOT.fingerprint(attempt['plan'])):
                 raise ValueError('Interrupt lacks its actual Free action or effect plan')
             plan=attempt['plan']
-            if (set(decision['options'])!={'chosen_type'} or plan['chosen_type']!=decision['options']['chosen_type']
+            wrong_options=(bool(decision['options']) if offer['source']=='feat/예견' else set(decision['options'])!={'chosen_type'} or plan['chosen_type']!=decision['options']['chosen_type'])
+            if (wrong_options
                     or plan['move']!=facts['move'] or plan['event_id']!=facts['event_id']
                     or plan['completion_id']!=facts['completion_id'] or plan['attacker_id']!=facts['attacker_id']
                     or plan['owner_id']!=offer['owner_id'] or plan['source']!=offer['source']):
@@ -209,22 +219,25 @@ def deliver_boundary(e,event,args):
     while row['cursor']<len(row['offers']):
         number=row['cursor'];offer=row['offers'][number];owner=WORLD.actor_index(e)[offer['owner_id']]
         source=offer['source'];decision=row['decisions'].get(str(number))
+        decoy=source=='feat/예견' and __import__('substitute').intercept(e,event['actor'],owner,args['move']) is not None
         if decision is None:
-            if EXT.blocks_hit(e,event['actor'],owner,args['move'],args['mm']):
+            if decoy or EXT.blocks_hit(e,event['actor'],owner,args['move'],args['mm']):
                 row['decisions'][str(number)]={'use':False,'options':{},'reason':'actual Move cannot hit recipient'}
                 row['attempts'].append(dict(offer,outcome='unavailable',paid=False));row['cursor']+=1;continue
             return PASSIVE._pending(e,event,'actual_ability_interrupt_choice')
         if not decision['use']:
             row['attempts'].append(dict(offer,outcome='declined',paid=False));row['cursor']+=1;continue
-        if set(decision['options'])!={'chosen_type'}:raise ValueError('exact type choice required for this source')
-        if EXT.blocks_hit(e,event['actor'],owner,args['move'],args['mm']):
+        if source=='feat/예견':
+            if decision['options']:raise ValueError('Prescience has no type choice')
+        elif set(decision['options'])!={'chosen_type'}:raise ValueError('exact type choice required for this source')
+        if decoy or EXT.blocks_hit(e,event['actor'],owner,args['move'],args['mm']):
             raise ValueError('actual Move no longer hits recipient')
         adapter=_adapter(e,source)
         with _scope(e,event['id'],owner,source):
-            plan=adapter.prepare(e,owner,event['id'],decision['options']['chosen_type'])
+            plan=adapter.prepare(e,owner,event['id']) if source=='feat/예견' else adapter.prepare(e,owner,event['id'],decision['options']['chosen_type'])
             json.dumps(plan,ensure_ascii=False,allow_nan=False)
             history=len(getattr(owner,'_action_history',[]))
-            pay_free(e,owner,source,adapter.definition(e.r)['frequency'])
+            pay_free(e,owner,source,adapter.definition(e.r)['frequency'],trigger={'owner':event['actor']})
             payment={'actions':getattr(owner,'_action_history',[])[history:history+1],
                 'frequency':deepcopy(owner.spec['frequency_state']['activations'][source]),
                 'owner_turn':owner.turns_taken,'round':e.round_no}
@@ -265,6 +278,10 @@ def choose(e,event_id,owner,*,use,options=None,reason):
     row=event[KEY];_validate(e,event,row,WORLD.actor_index(e))
     if row['phase']!='choices' or row['cursor']>=len(row['offers']) or row['offers'][row['cursor']]['owner_id']!=owner.entity_id:
         raise ValueError('this actual recipient is not the next Interrupt choice')
+    if use:__import__('ability_control_contracts').admit(e,owner,'interrupt',trigger={'owner':event['actor']})
+    if use:__import__('skirmisher').require_keyword(owner,'interrupt')
+    if use and not __import__('ability_exchange_contracts').admit_trigger(e,owner,row['offers'][row['cursor']]['source']):
+        raise ValueError('Neutralizing Gas prohibits this triggered ability Interrupt')
     def apply(staged,actor):
         row=staged._passive_events[event_id][KEY]
         row['decisions'][str(row['cursor'])]={'use':use,'options':options,'reason':reason}
@@ -283,7 +300,7 @@ def validate_world(e,index):
         watches=actor.spec.get(WATCH,{})
         if type(watches)is not dict:raise ValueError('recipient Interrupt watches required')
         for source,watch in watches.items():
-            if source!=SOURCE or set(watch)!={'source','reason'} or watch['source']!=source:
+            if source not in SOURCES or set(watch)!={'source','reason'} or watch['source']!=source:
                 raise ValueError('recipient Interrupt watch source changed')
             _reason(watch['reason'])
     for event in getattr(e,'_passive_events',{}).values():

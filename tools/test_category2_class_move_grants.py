@@ -114,17 +114,15 @@ class ClassMoveTests(unittest.TestCase):
   e,c=self.load();c.spec['feat_ranks'][uid]=1;c.spec['feature_choices'][uid]=[['블록','괴력']];ITEMS.register_feats(e,c)
   self.expect(c,['블록','괴력']);self.assertNotIn(self.rules.move_id('메가톤킥'),c.moves)
   c.spec['feats']=[];ITEMS.register_feats(e,c);self.assertEqual(c.moves,['struggle'])
- def test_weightless_step_unfinished_ability_suffix_refuses_scene_end_atomically(self):
+ def test_weightless_step_complete_dynamic_ability_consumers_allow_scene_end(self):
   uid='feat/무중력-스텝';name='틈새포착';aid=ABILITY.ability_id(self.rules,name)
   self.register();self.assertNotIn(aid,ABILITY.known(self.c))
   self.c.spec.update(classes=['class/닌자'],feats=[uid]);self.register();self.register()
   self.assertEqual(ABILITY.known(self.c).count(aid),1)
   source=self.source(uid);row=self.c.spec[G.KEY]['sources'][source]
   self.assertEqual((row['rule_id'],row['owner_id'],row['grants']['abilities']),(uid,self.c.entity_id,[name]))
-  # The full source clause stays incomplete until this actual pending suffix has a consumer.
-  before=deepcopy((self.c.spec,self.c.abilities,self.e.elapsed_seconds,self.e.rng.getstate()))
-  with self.assertRaisesRegex(ValueError,'unfinished required effect suffix'):self.e.end_encounter()
-  self.assertEqual((self.c.spec,self.c.abilities,self.e.elapsed_seconds,self.e.rng.getstate()),before)
+  self.e.end_encounter();self.assertIn(name,self.c.abilities)
+  self.assertEqual(self.e.skill_roll(self.c,'은신',fixed=[1]*6).total,8)
  def test_available_athletic_table_moves_restore_and_missing_source_is_atomic(self):
   # All printed choices are learned; static Bind is excluded from active use.
   printed={1:['조이기','블록','힘껏치기','괴력'],2:['누르기','돌진','신속'],3:['메가톤킥','객기','원수갚기']}

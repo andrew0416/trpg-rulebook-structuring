@@ -161,7 +161,7 @@ class TrainingClauseExactTests(unittest.TestCase):
         rows = {row["source_clause_id"]: row for row in self.ledger["entries"]}
         pending = {clause for clause in CLAUSES if rows[clause]["status"] == "incomplete"}
         self.assertIn(len(pending), (0, 7))
-        with tempfile.TemporaryDirectory(prefix="training-clauses-", dir=ROOT / "tmp") as tmp:
+        with tempfile.TemporaryDirectory(prefix="training-clauses-") as tmp:
             shadow = Path(tmp)
             for tree in ("input", "data/verification"):
                 for source in (ROOT / tree).rglob("*"):
@@ -191,3 +191,4 @@ class TrainingClauseExactTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

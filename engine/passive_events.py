@@ -112,6 +112,10 @@ def _continuation_facts(e,ev,frame):
     # Preserve native next-use contribution data independently of live stack refs.
     facts['contributions']=[{k:v for k,v in scope.items() if k not in ('actor','target')}
                             for scope in frame['scopes']]
+    if 'source_choices' in frame:
+        facts['source_choices']=frame['source_choices']
+    telekinetic=__import__('telekinetic').continuation_choice(e,ev)
+    if telekinetic is not None:facts['telekinetic_overload']=telekinetic
     if frame.get('kind')=='recipient_return':
         import action_lifecycle as ACTION
         action=ACTION.move_frame(e,e._move_completions[args['completion_id']])
@@ -170,11 +174,17 @@ def _finish_recipient_return(e,frame):
                 DEFENSE._move_facts(COMPLETE.event_move(e,ev))!=DEFENSE._move_facts(args['move'])):
             raise ValueError('native recipient prepared Move changed')
     COMPLETE.finish_target(e,args['completion_id'],args['attacker'],args['target'],
-        hit=result['hit'],dealt=result['dealt'],effects=result['effects'])
+        hit=result['hit'],dealt=result['dealt'],effects=result['effects'],hit_prevented=result['hit_prevented'],
+        substitute_damage_receipt=result.get('substitute_damage'))
     REACTIVE.resolved_hit(e,args['attacker'],args['target'],args['move'],args['completion_id'],
-        hit_prevented=result['hit_prevented'])
+        hit_prevented=result['hit_prevented'],contact=result.get('melee_contact'))
+    __import__('ability_exchange_contracts').resolved_hit(e,args['attacker'],args['target'],args['move'],args['completion_id'],
+        hit_prevented=result['hit_prevented'],contact=result.get('melee_contact'))
     COMPLETE.record_return(e,event_id,hit_prevented=result['hit_prevented'])
     if event_id is not None:e._passive_events[event_id].pop('continuation')
+    if event_id is not None:
+        __import__('conquerors_march').after_move(e,e._move_completions[args['completion_id']],event_id=event_id)
+        __import__('conquerors_march').flush_pair_wait(e,event_id,result['dealt'])
     return result['dealt']
 
 
@@ -206,10 +216,15 @@ def after_accuracy(e,**args):
     if ev is not None:
         ev.update(hit=args['hit'],natural_roll=args['nat'],critical=args['crit'])
     import ability_interrupt_choices as ABILITY_INTERRUPTS
-    if ev is None or not (DEFENSE.wants_boundary(ev) or ABILITY_INTERRUPTS.wants_boundary(ev) or any(p.get('event')=='accuracy_resolved' for p in ev['listener_profiles'].values())):
+    if ev is None or not (__import__('conquerors_march').lean_interested(e,args['target']) or __import__('coordinator').damage_offer(e,args['attacker']) is not None or DEFENSE.wants_boundary(ev) or ABILITY_INTERRUPTS.wants_boundary(ev) or __import__('warper').switch_interested(e,args['attacker'],args['target']) or __import__('tumbler').acquired(args['attacker'],__import__('tumbler').QUICK) or any(p.get('event')=='accuracy_resolved' for p in ev['listener_profiles'].values())):
         return e._finish_move_resolution(**args)
     from root_resolution import fingerprint as request_fingerprint
     frame={'args':args,'scopes':list(getattr(e,'_event_use_scopes',()))}
+    import wish_move as WISH, recycle_move as RECYCLE
+    if args['move_id']==WISH.SOURCE:
+        frame['source_choices']={'wish':WISH.continuation_choice(e,args)}
+    elif args['move_id']==RECYCLE.SOURCE:
+        frame['source_choices']={'recycle':RECYCLE.continuation_choice(e,args)}
     frame['fingerprint']=request_fingerprint(_continuation_facts(e,ev,frame))
     ev['continuation']=frame
     ev.update(phase='accuracy_boundary',hit=args['hit'],natural_roll=args['nat'],critical=args['crit'])
@@ -222,6 +237,19 @@ def _deliver_accuracy(e,event_id):
     ev=e._passive_events[event_id];frame=ev.get('continuation')
     if frame is None or request_fingerprint(_continuation_facts(e,ev,frame))!=frame['fingerprint']:
         raise ValueError('native continuation changed')
+    import wish_move as WISH, recycle_move as RECYCLE
+    choices=frame.get('source_choices',{})
+    if type(choices)is not dict or set(choices)-{'wish','recycle'} or ('wish' in choices and 'recycle' in choices):
+        raise ValueError('native continuation source selection changed')
+    required='wish' if frame['args']['move_id']==WISH.SOURCE else 'recycle' if frame['args']['move_id']==RECYCLE.SOURCE else None
+    if required is not None and (set(choices)!={required} or choices[required] is None):
+        raise ValueError('native continuation requires its actual stored source choice')
+    with WISH.resume_choice(e,frame['args'],choices.get('wish')), RECYCLE.resume_choice(e,frame['args'],choices.get('recycle')):
+        return _deliver_selected_accuracy(e,event_id)
+
+
+def _deliver_selected_accuracy(e,event_id):
+    ev=e._passive_events[event_id];frame=ev['continuation']
     for key,profile in ev['listener_profiles'].items():
         if profile.get('event')!='accuracy_resolved':continue
         receipt=(ev['actor'],key,ev['activation_id'])
@@ -244,6 +272,8 @@ def _deliver_accuracy(e,event_id):
     if not cancelled:
         DEFENSE.deliver_boundary(e,ev)
         ABILITY_INTERRUPTS.deliver_boundary(e,ev,frame['args'])
+        import warper as WARPER
+        if WARPER.switch_interested(e,args['attacker'],args['target']):WARPER.reaction(e,args)
     if cancelled or not DEFENSE.routed(e,event_id):
         del ev['continuation'];ev['phase']='activated'
     ev.pop('reason',None)
@@ -257,7 +287,12 @@ def _deliver_accuracy(e,event_id):
             COMPLETE.finish_target(e,args.get('completion_id'),args['attacker'],args['target'],
                                    hit=args['hit'],dealt=0,cancelled=True)
             return 0
-        return e._finish_move_resolution(**args)
+        try:return e._finish_move_resolution(**args)
+        except PassiveEventPending as pending:
+            current=e._passive_events[event_id]
+            if (pending.event_id==event_id and current.get('reason') in ('quick_gymnastics_movement_pending','coordinator_damage_pending')) or __import__('conquerors_march').pair_checkpoint(e,event_id,pending.event_id):
+                current['continuation']=frame;current['phase']='accuracy_boundary'
+            raise
     finally:
         if previous is None:del e._event_use_scopes
         else:e._event_use_scopes=previous
@@ -342,7 +377,7 @@ def begin(e,actor,target,move,*,ordinary_single,move_mechanics=None,completion_i
     import gleeful_interference as GLEEFUL
     import style_expert as STYLE
     import roughneck as ROUGHNECK,endure as ENDURE
-    if not ROUGHNECK.owns(actor,ROUGHNECK.CLASS) and ENDURE.known(e,target) is None and not GLEEFUL.interested(e,actor,move) and not ICE_LAKE.interested(e) and not ABILITY_REACTIONS.interested(e) and not interested(e,actor) and not ABILITY_INTERRUPTS.interested(e) and not DEFENSE.watch_interested(target,move) and not warning_interested and not STYLE.reaction_interested(e,target):
+    if not __import__('fortress').event_interested(e,actor,target,move) and not __import__('arcanist').event_interested(e,actor,target,move) and not __import__('conquerors_march').event_interested(e,actor,target) and not __import__('type_ace').close_quarters_interested(e,actor,move) and __import__('coordinator').innovation_instance(e.r,move['id']) is None and __import__('coordinator').damage_offer(e,actor) is None and not ROUGHNECK.owns(actor,ROUGHNECK.CLASS) and ENDURE.known(e,target) is None and not GLEEFUL.interested(e,actor,move) and not ICE_LAKE.interested(e) and not ABILITY_REACTIONS.interested(e) and not interested(e,actor) and not ABILITY_INTERRUPTS.interested(e) and not DEFENSE.watch_interested(target,move) and not warning_interested and not STYLE.reaction_interested(e,target) and not __import__('tumbler').acquired(actor,__import__('tumbler').QUICK) and not __import__('hex_maniac').attack_interested(e,actor,target,move) and not __import__('warper').switch_interested(e,actor,target):
         return None
     e._passive_sequence+=1
     uid="passive-move-"+str(e._passive_sequence)
@@ -424,6 +459,24 @@ def _bind_intent(e, ev):
                'intent_fingerprint'}
     intent = {key:value for key,value in ev.items() if key not in mutable}
     intent.update(actor_id=W.actor_id(ev['actor']), target_id=W.actor_id(ev['target']))
+    # Coordinator stores its full native reaction graph separately. Bind its
+    # verified observation seal and stable receipt facts, not runtime objects.
+    if 'coordinator_damage' in intent:
+        import coordinator as C
+        row=intent['coordinator_damage']
+        if row.get('sha256')!=C._damage_seal(row):raise ValueError('Coordinator damage observation changed')
+        intent['coordinator_damage']={'sha256':row['sha256']}
+    if 'coordinator_recipient_prefix' in intent:
+        import coordinator as C
+        from root_resolution import fingerprint
+        row=intent['coordinator_recipient_prefix'];facts=C._prefix_facts(e,row)
+        if row.get('sha256')!=fingerprint(facts):raise ValueError('Coordinator native recipient prefix changed')
+        intent['coordinator_recipient_prefix']=facts
+    if 'rider_damage_selection' in intent:
+        import coordinator as C
+        row=intent['rider_damage_selection']
+        if row.get('sha256')!=C._damage_seal(row):raise ValueError('Rider selected damage observation changed')
+        intent['rider_damage_selection']={'sha256':row['sha256']}
     bind_request_intent(ev, intent)
 
 
@@ -461,6 +514,7 @@ def deliver(e,event_id,*,_resume_activation=True):
     if ev is None:raise ValueError('no actual source event')
     if e._passive_pending not in (None,event_id):
         raise PassiveEventPending(e._passive_pending)
+    pending=[]
     def attempt(staged,actor):
         # Retrying re-evaluates real source eligibility; it does not accept a
         # caller assertion that an unsupported choice has become implemented.
@@ -469,7 +523,9 @@ def deliver(e,event_id,*,_resume_activation=True):
             event=staged._passive_events[event_id]
             import pass_moves as PASS, action_lifecycle as ACTION, move_completion as COMPLETE
             COMPLETE.validate_return_continuation(staged,event)
-            with ACTION.resume_move(staged,event,enabled=_resume_activation), PASS.restored_scope(staged,event):
+            with ACTION.resume_move(staged,event,enabled=_resume_activation), PASS.restored_scope(staged,event), __import__('telekinetic').restored_scope(staged,event):
+                paired=__import__('conquerors_march').resume_pair_wait(staged,event)
+                if paired is not None:return paired['result']
                 if event['phase']=='accuracy_boundary':
                     result=_deliver_accuracy(staged,event_id)
                 else:
@@ -488,11 +544,14 @@ def deliver(e,event_id,*,_resume_activation=True):
                     result=ACTIVATION.resume_after_event(staged,event,result)
             if _resume_activation:
                 result=__import__('combat_move_reactions').resume_after_event(staged,event,result)
+                result=__import__('conquerors_march').resume_counter(staged,event,result)
             return result
-        except PassiveEventPending as pending:
-            if staged._passive_pending!=pending.event_id or pending.event_id not in staged._passive_events:raise
-            return None
+        except Exception as error:
+            if G.record_native_pending(staged,error,pending):return None
+            raise
     result=G.transition(e,ev['actor'],attempt,include_grid=e.grid is not None,include_rulings=True)
+    if pending:
+        exception,pending_id=pending[0];raise exception(pending_id)
     if e._passive_pending is not None:raise PassiveEventPending(e._passive_pending)
     return result
 

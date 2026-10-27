@@ -136,6 +136,28 @@ class CsvFoodCommonIntake(unittest.TestCase):
         self.assertEqual(len(actor.spec['food_consumption_receipts']), 1)
         self.restored(e)
 
+    def test_core_confusion_actual_turn_save_consumes_recovery_choice_and_cures_once(self):
+        e, actor, other = self.fixture('item/회복허브')
+        self.intake(e, actor, 'item/회복허브')
+        buff = self.buff(actor, 'item/회복허브')
+        e.apply_status(actor, '혼란', source='move/이상한빛', applied_by=other)
+        e.consume_food_buff(actor, buff_id=buff['id'], save_condition='혼란')
+        e = self.restored(e); actor = WORLD.actor_index(e)[actor.entity_id]
+        e.start_round(e.gm.everyone)
+        with patch.object(Engine, 'd20', return_value=14):
+            e.start_of_turn(actor, initiative_count=20)
+        observation = actor.custom_conditions['core_confusion_turns'][-1]
+        self.assertEqual(observation['outcome'], 'cured')
+        self.assertEqual((observation['save']['natural'], observation['save']['base_dc'], observation['save']['food_bonus']), (14, 16, 2))
+        self.assertNotIn('혼란', actor.conditions);self.assertFalse(actor.buffs)
+        receipts = actor.spec['food_consumption_receipts']
+        self.assertEqual(len(receipts), 1)
+        self.assertEqual((receipts[0]['buff_id'], receipts[0]['producer']), (buff['id'], 'saving_check'))
+        self.assertEqual(receipts[0]['benefit'], {'save_condition':'혼란', 'bonus':2})
+        self.assertEqual(actor.spec['items']['item/회복허브'], 1)
+        self.assertEqual(RECOVERY.saving_check(e, actor, '혼란', 16, fixed=14)['food_bonus'], 0)
+        self.assertEqual(len(actor.spec['food_consumption_receipts']), 1);self.restored(e)
+
     def test_dynamax_actual_public_form_entry_spends_protected_buff_and_no_string_forgery(self):
         e, actor, other = self.fixture('item/다이버섯')
         self.intake(e, actor, 'item/다이버섯')

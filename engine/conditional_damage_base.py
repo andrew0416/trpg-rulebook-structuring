@@ -48,6 +48,8 @@ def execution_mechanics(move, mechanics):
     for effect in mechanics.get("effects_exec", []):
         if effect.get("type") == "conditional_damage_base":
             continue
+        if effect in row.get("consumed_execution_effects", []):
+            continue
         if (contract == "forced_move_damage_streak"
                 and effect.get("type") == "escalating_damage_base"):
             continue
@@ -175,6 +177,10 @@ def override_base(engine, attacker, target, move, base):
     if row is None or target is None:
         return base
     contract = row.get("contract")
+    if contract == 'damaging_hit_previous_full_turn':
+        return row['replacement'] if hit_previous_turn(engine,target,attacker) else base
+    if contract == 'damaged_target_same_round_per_target_scene':
+        return row['replacement'] if predicate(engine,attacker,target,move,{'if':ASSURANCE_CONDITION}) else base
     if contract == "same_target_damage_streak":
         current = _streak(attacker, move)
         successes = current.get("successes", 0) if current.get("target_id") == _identity(target) else 0
@@ -185,7 +191,9 @@ def override_base(engine, attacker, target, move, base):
                      else _streak(attacker, move).get("successes", 0))
         return min(row["cap"], row["base"] + row["increment"] * successes)
     if contract == "scene_once_afflicted_target":
-        if not attacker.counters.get(_scene_key(move), 0) and _afflicted(target):
+        if row.get("optional"):
+            return base
+        if not attacker.counters.get(_scene_key(move), 0) and _afflicted(target) and __import__('hex_maniac').choose_boost(engine,attacker,target,move):
             return row["replacement"]
         return base
     if contract == "external_stage_loss_since_turn_end_per_target_scene":
@@ -228,10 +236,14 @@ def prepare(engine, attacker, target, move):
     row = policy(move)
     if row is not None:
         contract = row.get("contract")
-        if contract in {"same_target_damage_streak", "forced_move_damage_streak"}:
+        if contract == 'damaging_hit_previous_full_turn':
+            if hit_previous_turn(engine,target,attacker):applied.append({'contract':contract})
+        elif contract == 'damaged_target_same_round_per_target_scene':
+            if predicate(engine,attacker,target,move,{'if':ASSURANCE_CONDITION}):applied.append({'condition':ASSURANCE_CONDITION})
+        elif contract in {"same_target_damage_streak", "forced_move_damage_streak"}:
             applied.append({"contract": contract})
-        elif contract == "scene_once_afflicted_target" and target is not None:
-            if not attacker.counters.get(_scene_key(move), 0) and _afflicted(target):
+        elif contract == "scene_once_afflicted_target" and target is not None and not row.get("optional"):
+            if not attacker.counters.get(_scene_key(move), 0) and _afflicted(target) and __import__('hex_maniac').choose_boost(engine,attacker,target,move):
                 applied.append({"contract": contract})
         elif contract == "external_stage_loss_since_turn_end_per_target_scene" and target is not None:
             import stage_change_history as STAGE_HISTORY
@@ -395,3 +407,18 @@ def clear_scene(actor):
     state.pop("pending_setup", None)
     if not state.get("damaged_by") and state.get("damage_round") is None:
         actor.custom_conditions.pop(STATE, None)
+
+
+def hit_previous_turn(engine,attacker,recipient):
+ """Payback's printed previous turn; source derivation is in source-audit/payback-turn-review.json."""
+ import move_completion as COMPLETE
+ closures=getattr(engine,'_turn_closures',[])
+ if not closures or 'turn_serial' not in closures[-1]:return False
+ previous=closures[-1]
+ boundary={key:previous[key] for key in ('actor','round','turn_serial')}
+ for row in reversed(list(getattr(engine,COMPLETE.KEY,{}).values())):
+  if row['phase']!='complete' or row['actor'] is not attacker or row.get('full_turn')!=boundary or row['move'].get('class') not in ('물리','특수'):continue
+  if row['move_id']=='struggle' or row['move'].get('source')=='weapon':continue
+  result=COMPLETE.recipient_result(row,recipient)
+  if result and result['hit'] and not result.get('cancelled') and not result.get('hit_prevented'):return True
+ return False

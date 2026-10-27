@@ -6,6 +6,7 @@ acquired sources; branch choices determine distinct class-slot instances.
 import acquisition_qualification as Q
 import json
 import re
+from functools import lru_cache
 
 BRANCH_CLASSES={
     "class/스타일-전문가":("아름다움","근사함","귀여움","슬기로움","강인함"),
@@ -14,12 +15,44 @@ BRANCH_CLASSES={
     "class/연구원":None,
 }
 STAT_ALIASES=dict(zip(("공격","방어","특수공격","특수방어","스피드"),("atk","def","spa","spd","spe")))
+RUNE_CLASS='supp-fantasy/룬마스터'
+BERSERKER_CLASS='supp-fantasy/버서커'
+ARCANIST_CLASS='supp-fantasy/아케니스트'
+MARKSMAN_CLASS='supp-fantasy/명사수'
+FORTRESS_CLASS='supp-fantasy/포트리스'
+SKIRMISHER_CLASS='supp-fantasy/척후'
+
+
+@lru_cache(maxsize=16)
+def _prefix_ids(keys,prefix,rune_class,berserker_class,arcanist_class=ARCANIST_CLASS,marksman_class=MARKSMAN_CLASS,fortress_class=FORTRESS_CLASS,skirmisher_class=SKIRMISHER_CLASS):
+    """Index immutable IDs, preserving the local supplemental class routing."""
+    return tuple(uid for uid in keys if (prefix=='class/' if uid in (rune_class,berserker_class,arcanist_class,marksman_class,fortress_class,skirmisher_class) else uid.startswith(prefix)))
 
 
 def _names(actor,prefix):
+    units=actor.r.selection.units
+    # Re-snapshot keys on every call: additions, removals and order changes are
+    # immediately visible. Exact builtins make this path free of user callbacks;
+    # custom mappings/strings retain the original iteration and error behavior.
+    if type(units) is dict and type(prefix) is str and all(type(value)is str for value in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS)):
+        keys=tuple(units)
+        if set(map(type,keys)) <= {str}:
+            result={}
+            for uid in _prefix_ids(keys,prefix,RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS):
+                unit=units[uid]
+                if type(unit) is not dict:break
+                title,eng=unit.get("title"),unit.get("eng")
+                if not (title is None or type(title) is str):break
+                if not (eng is None or type(eng) is str):break
+                for name in (uid,title,eng):
+                    if name:result.setdefault(name,[]).append(uid)
+            else:
+                return result
     result={}
-    for uid,unit in actor.r.selection.units.items():
-        if not uid.startswith(prefix):continue
+    for uid,unit in units.items():
+        if uid in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS):
+            if prefix!='class/':continue
+        elif not uid.startswith(prefix):continue
         for name in (uid,unit.get("title"),unit.get("eng")):
             if name:result.setdefault(name,[]).append(uid)
     return result
@@ -31,7 +64,11 @@ def _resolve(actor,value,prefix,names=None):
     matches=names.get(value,[])
     if len(matches)!=1:raise ValueError("unambiguous acquired feature source required: "+value)
     uid=matches[0]
-    if actor.r._selected_rule(uid)!=uid:raise ValueError("selected feature variant needs its own instance policy")
+    supported=uid in ('feat/훈련-상황','feat/작열','feat/패싱-왈츠')
+    if actor.r._selected_rule(uid,supports_versions=supported)!=uid:raise ValueError("selected feature variant needs its own instance policy")
+    if uid=='feat/훈련-상황':__import__('athlete').regime_source(actor.r)
+    if uid=='feat/작열':__import__('pokemon_move_edges').incandescence_source(actor.r)
+    if uid=='feat/패싱-왈츠':__import__('dancer').waltz_source(actor.r)
     return uid
 
 
@@ -60,12 +97,16 @@ def _branch_values(actor,uid):
 
 def class_instances(actor):
     if actor.kind!="trainer":return ()
+    import native_acquisition_adapters as NATIVE
+    synthetic=NATIVE.class_instances(actor)
+    synthetic_aliases={value for definition in NATIVE.DEFINITIONS.values() if definition.get('class_slot') for value in definition['owned_aliases']}
     names=_names(actor,"class/");selected=[]
     for field in ("classes","feats"):
         values=actor.spec.get(field,[])
         if not isinstance(values,(list,tuple)):raise ValueError("acquired classes/features must be lists")
         local=set()
         for value in values:
+            if value in synthetic_aliases:continue
             if field=="feats" and value not in names:continue
             uid=_resolve(actor,value,"class/",names)
             if uid in local:raise ValueError("duplicate class reference needs one explicit acquired branch list")
@@ -76,6 +117,7 @@ def class_instances(actor):
         branches=_branch_values(actor,uid) if uid in BRANCH_CLASSES else (None,)
         for branch in branches:
             result.append({"source_id":uid,"branch":branch,"instance_key":uid+":"+json.dumps(branch,ensure_ascii=False,sort_keys=True)})
+    result.extend(synthetic)
     Q.require("class/instances","native","owned",[Q.check("capacity","capacity",len(result)<=4,"acquired class instances exceed four slots")])
     return tuple(result)
 
@@ -87,6 +129,7 @@ def validate_class_slots(actor):
     RETRAINING.validate_actor(actor)
     import trainer_feature_acquisition as TRAINER_FEATURES
     TRAINER_FEATURES.validate_actor(actor)
+    __import__('skirmisher').validate_actor(actor)
     return True
 
 
@@ -110,7 +153,8 @@ def feature_rank(actor,source_id):
         if value in names:acquired.append(_resolve(actor,value,"feat/",names))
     if uid not in acquired:raise ValueError("actual acquired ranked feature required")
     tags=actor.r.selection.units[uid].get("tags",[])
-    maxima=[int(match.group(1)) for tag in tags if (match:=re.fullmatch(r"랭크\s*(\d+)",tag))]
+    maxima=[int(match[1] or match[2]) for tag in tags if (match:=re.fullmatch(r"(?:랭크\s*(\d+)|(\d+)\s*랭크)",tag))]
+    if uid==__import__('arcanist').SIGNATURE:maxima=[2]
     ranks=actor.spec.get("feat_ranks",{})
     if not isinstance(ranks,dict):raise ValueError("acquired feature ranks must be a mapping")
     rank=ranks.get(uid,1)
@@ -183,11 +227,15 @@ def owned_rule_count(actor,source_id):
     """
     if type(source_id) is not str:
         raise ValueError('exact trainer Edge/Feature/Class source required')
-    supplemental = not source_id.startswith(('edge/','feat/','class/'))
+    supplemental = source_id not in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS) and not source_id.startswith(('edge/','feat/','class/'))
     if supplemental and actor.r.selection.units.get(source_id,{}).get('kind')!='entity:feat':
         raise ValueError('exact trainer Edge/Feature/Class source required')
-    if actor.r._selected_rule(source_id)!=source_id:
+    supported=source_id in ('feat/훈련-상황','feat/작열','feat/패싱-왈츠')
+    if actor.r._selected_rule(source_id,supports_versions=supported)!=source_id:
         raise ValueError('selected acquisition source needs its own ownership query')
+    if source_id=='feat/훈련-상황':__import__('athlete').regime_source(actor.r)
+    if source_id=='feat/작열':__import__('pokemon_move_edges').incandescence_source(actor.r)
+    if source_id=='feat/패싱-왈츠':__import__('dancer').waltz_source(actor.r)
     if actor.kind!='trainer':return 0
     if supplemental:
         entries=actor.spec.get('feats',[])
@@ -195,7 +243,7 @@ def owned_rule_count(actor,source_id):
         prefix=source_id.rsplit('/',1)[0]+'/'
         names=_names(actor,prefix)
         return sum(_resolve(actor,value,prefix,names)==source_id for value in entries if value in names)
-    if source_id.startswith('class/'):
+    if source_id.startswith('class/') or source_id in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS):
         return sum(row['source_id']==source_id for row in class_instances(actor))
     if source_id.startswith('feat/'):
         return sum(row['source_id']==source_id for row in feature_instances(actor))

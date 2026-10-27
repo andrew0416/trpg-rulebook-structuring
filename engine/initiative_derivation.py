@@ -127,6 +127,9 @@ def collect(rules, actor, *, engine=None):
     hardened=_native(TASK.bonus,actor,'initiative')
     if hardened:add('taskmaster:hardened',TASK.CLASS,dict(operation='add',value=hardened))
     if engine is not None:
+        import channeler as CHANNEL
+        channel_bonus=CHANNEL.spirit_bonus(engine,actor,'initiative')
+        if channel_bonus:add('channeler:spirit',CHANNEL.SPIRIT,dict(operation='add',value=channel_bonus))
         import type_ace as TA
         ace=TA.initiative(engine,actor)
         if ace:add('type_ace:celerity',TA.uid('Celerity'),dict(operation='add',value=ace))
@@ -169,7 +172,7 @@ def collect(rules, actor, *, engine=None):
         for index, record in enumerate(_native(BLESSINGS.initiative_contributions, engine, actor)):
             add('team:'+str(index), record['source'], dict(operation='add', value=record['amount']))
     flinch = _native(CONDITIONS.flinch_penalty, actor)
-    for record in CONDITIONS.records(actor, '풀죽음'):
+    for record in CONDITIONS.records(actor, '풀죽음') if flinch else ():
         add('flinch:'+record['id'], record['source'], dict(operation='flinch', value=-5))
     for condition in sorted(actor.conditions):
         for index, effect in enumerate(rules.condition_effects(condition)):
@@ -200,6 +203,16 @@ def collect(rules, actor, *, engine=None):
         for index, effect in enumerate(getattr(actor, field, ())):
             if effect.get('type') not in ('initiative','initiative_multiplier'):
                 continue
+            if (effect.get('_rule_id')=='ability/엽록소-playtest'
+                    and effect.get('type')=='initiative_multiplier'
+                    and effect.get('value')==2 and effect.get('if')=='sunny or hp < half'):
+                import ability_transitions as ABILITIES
+                if not ABILITIES.active(actor,'ability/엽록소-playtest'):continue
+                if actor.hp*2>=actor.base_max_hp:
+                    if engine is None:raise InitiativePending('Playtest Chlorophyll needs actual weather')
+                    import effects as FX
+                    if not FX.weather_matches(engine,'sunny',actor):continue
+                effect={key:value for key,value in effect.items() if key!='if'}
             unknown = {k for k in effect if not k.startswith('_')}-{'type','delta','multiplier','set_to','value','priority','source'}
             if unknown:
                 raise InitiativePending('registered initiative extension has unresolved qualifiers')
@@ -302,7 +315,8 @@ def validate_world(engine, index):
                 raise ValueError('initiative requires its actual completed producer')
             CONTRACTS.validate_receipt(engine, receipt, source, occurrence,
                                       producer['actor'], producer['target'], producer['effect'])
-            if actor not in CONTRACTS.recipients(producer['actor'], producer['target'], producer['effect']):
+            import native_order_transfer as TRANSFER
+            if TRANSFER.origin(engine,actor,record) not in CONTRACTS.recipients(producer['actor'], producer['target'], producer['effect']):
                 raise ValueError('initiative recipient differs from its producer')
             if op != operation(producer['effect']):
                 raise ValueError('initiative operation differs from its actual producer')

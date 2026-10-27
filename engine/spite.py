@@ -6,7 +6,15 @@ SOURCE='move/원한'
 def trigger(engine,actor,event_id):
  import move_completion as COMPLETE
  import initiative_interrupts as I
- I._trigger(engine,{'kind':'move','event_id':event_id})
+ event=getattr(engine,'_passive_events',{}).get(event_id)
+ if event is None:raise ValueError('actual completed native hit event required')
+ receipt=COMPLETE.require_returned_event(engine,event_id)
+ row=engine._move_completions[event['completion_id']]
+ # An actual AoO/reaction may hit Spite's user during that user's own turn.
+ # Its existing full-turn witness supplies timing without changing shared I._trigger.
+ import action_lifecycle as ACTION
+ own_turn=(engine._active_turn_actor is actor and row.get('full_turn')==ACTION.current_full_turn(engine))
+ if not own_turn:I._trigger(engine,{'kind':'move','event_id':event.get('defense_parent',event_id)})
  event=engine._passive_events.get(event_id)
  if not event or event['phase']!='producer_return_boundary' or event['round']!=engine.round_no or event['status'] not in ('applied','inapplicable'):
   raise ValueError('Spite requires its actual completed native hit event')
@@ -21,7 +29,7 @@ def project(engine,actor,target,move,mechanics):
  frame=getattr(engine,'_spite_trigger',None)
  if frame is None or frame[0] is not actor:raise ValueError('Spite requires its actual authenticated hit trigger')
  _,row=trigger(engine,actor,frame[1])
- if target is not row['actor']:raise ValueError('Spite targets the attacker of its actual triggering Move')
+ if target is not row['actor'] and not __import__('hex_maniac').diffuse_spite_authority(engine,actor,target):raise ValueError('Spite targets the attacker of its actual triggering Move')
  return move,{'effects_exec':[{'type':'apply_status','status':'사슬묶기','target':'target','parameters':{'move_id':row['move_id']}}]}
 
 

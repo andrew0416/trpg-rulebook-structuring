@@ -39,7 +39,8 @@ def assisted_options(engine, actor, skill, options):
     if 'helper_rank' in options or 'helper_bonus' in options:
         raise ValueError('provide a helper actor or a pre-resolved rank, not both')
     _text(helper_skill, 'GM-selected helper skill')
-    plan=engine.plan_skill_check(helper,helper_skill,purpose='assistance',target=actor,provider=helper)
+    actual_skill=__import__('hobbyist').direct_skill(helper,'edge/설명',helper_skill)
+    plan=engine.plan_skill_check(helper,actual_skill,purpose='assistance',target=actor,provider=helper)
     rank=plan['effective_rank']
     minimum = engine.r.mech('gameplay/skill-check')['assist_min_rank']
     if rank < minimum:
@@ -48,8 +49,10 @@ def assisted_options(engine, actor, skill, options):
     options['helper_bonus'] = skills.assistance_bonus(engine.r,helper,helper_skill,rank)
     return options
 
-def _staged_rolls(engine, resolve):
+def _staged_rolls(engine, resolve, *, actors=()):
     """Only valid resolution commits RNG/logs; skill rolls read actor state."""
+    # An observed helper reaction owns real action/frequency state, not just RNG.
+    if any(c.entity_id in getattr(engine,'_let_me_help_offers',{}) for c in actors):return resolve(engine)
     def run(_subjects, rng):
         staged = copy(engine)
         staged.rng, staged.log_lines = rng, []
@@ -116,7 +119,7 @@ def team_action(engine, skill, dc, options, adjudication):
         prepared.append(opts)
     def resolve(staged, rolls=None):
         if rolls is None:rolls = [staged.skill_roll(c, skill, **opts) for c, opts in zip(participants, prepared)]
-        result = checks.team(rolls, dc, required) if weights is None else checks.weighted_team(rolls,dc,required,weights)
+        result,rolls = SF.resolve_team(staged,[(c,skill,opts) for c,opts in zip(participants,prepared)],rolls,dc,required,weights)
         staged.log(f'  팀 판정: 합계 {result.total} vs DC {dc} × 필요 인원 {required} = {result.dc}', 'gameplay/skill-check')
         outcome=checks.adjudicate(result, **adjudication)
         if weights is not None:
@@ -127,7 +130,7 @@ def team_action(engine, skill, dc, options, adjudication):
         basis={'kind':'team','dc':dc,'required':required,'weights':weights,'reason':reason}
         plans=[(actor,skill,opts) for actor,opts in zip(participants,prepared)]
         return SF.sequence(engine,'team:'+action_id,basis,plans,lambda rolls:resolve(engine,rolls))
-    return _staged_rolls(engine, resolve)
+    return _staged_rolls(engine, resolve,actors=participants)
 
 def extended_action(engine, actor, skill, dc, options, adjudication):
     options = dict(options)
@@ -193,6 +196,13 @@ def extended_action(engine, actor, skill, dc, options, adjudication):
             roll = observed[0] if observed is not None else staged.skill_roll(actual, skill, **native_options)
             recorded, intervals = (*rolls, roll), (*ids, interval_id)
             result = checks.extended(recorded, dc, complexity, rank, limited, effective_rank=effect_rank)
+            if result.status=='exhausted' and actual.entity_id in getattr(staged,'_let_me_help_offers',{}):
+                roll_id=SF._observed(staged,actual,roll,native_options)[0]
+                SF.resolve_check(staged,actual,skill,result.dc-sum(r.total for r in rolls),roll,native_options)
+                observed_roll=SF.event(staged,actual,roll_id)
+                if observed_roll is not None and observed_roll.final is not None:
+                    recorded=(*rolls,observed_roll.final)
+                    result=checks.extended(recorded,dc,complexity,rank,limited,effective_rank=effect_rank)
         staged.log(f'  연장 판정 {task_id}: {result.total}/{result.dc}, {result.attempts_used}회, {result.status}', 'gameplay/skill-check')
         if result.status == 'in_progress':
             outcome = checks.PendingDecision('next GM-confirmed interval')
@@ -314,9 +324,14 @@ def ordinary_action(engine,actor,skill,dc,options,adjudication):
     options=assisted_options(engine,actor,skill,options)
     def finish(rolls,executor=None):
         executor=engine if executor is None else executor
-        result=checks.against_dc(rolls[0],dc)
+        result=SF.check_with_help(executor,actor,skill,dc,options,lambda:rolls[0])
         SF.finish(executor,actor,options.get('roll_id'))
         return checks.adjudicate(result,**adjudication)
+    if actor.entity_id in getattr(engine,'_let_me_help_offers',{}):
+        roll_id=options.get('roll_id')
+        old=None if roll_id is None else SF.event(engine,actor,roll_id)
+        first=(old.final or old.first) if old is not None else engine.skill_roll(actor,skill,**options)
+        return finish([first])
     if options.get('feature') is not None:
         roll_id=options.get('roll_id')
         if not isinstance(roll_id,str) or not roll_id.strip():raise ValueError('feature action requires actual roll ID')

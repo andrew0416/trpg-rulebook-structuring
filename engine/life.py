@@ -29,9 +29,16 @@ def clear_recovery(c):
 
 def faint(engine,c):
     if '기절' in c.conditions:return False
+    import setup_move_state as SETUP_MOVE
+    SETUP_MOVE.cancel(engine,c,'faint')
     import stat_exchange_state as STAT_EXCHANGE
     STAT_EXCHANGE.validate_actor(c)
+    snapshot=__import__('ability_exchange_contracts').before_faint(engine,c)
     c.conditions.add('기절')
+    __import__('ability_exchange_contracts').fainted(engine,c,snapshot)
+    __import__('native_path_area_moves').end_fairy_source(engine,c)
+    __import__('juggler').event(engine,'faint',c,source_id='condition/기절')
+    __import__('perception_communicate').boundary(engine,'faint',c)
     import bide as BIDE
     BIDE.clear(engine,c)
     import duelist as DUELIST
@@ -47,6 +54,8 @@ def faint(engine,c):
     STATUS_SETS.cure_group(engine,c,'persistent')
     import combat_state_lifecycle as COMBAT_STATE
     COMBAT_STATE.cure_volatile(engine,c)
+    import linked_move_conditions as LINKED
+    LINKED.boundary(engine,c,'faint')
     __import__('type_ace').faint_boundary(engine,c)
     engine.log(f'    {c.name} 기절; 지속성/휘발성 상태 치료', 'condition/기절')
     return True
@@ -65,6 +74,11 @@ def sync(engine,c):
         dying=(c.injuries+CSV_CAP.essence_base_injuries(c)>=d['injuries'] or (not engine.friendly_battle and c.hp<=threshold))
     import taskmaster as TASK
     press=False if dying else TASK.faint_boundary(engine,c)
+    if c.hp>0:__import__('berserker').faint_boundary(engine,c)
+    if c.hp<=0 and not dying and not press:
+        press=__import__('berserker').faint_boundary(engine,c)
+    if c.hp<=0 and not dying and not press:
+        press=__import__('enduring_soul').faint_boundary(engine,c)
     if c.hp<=0 and not press:
         faint(engine,c)
         if c.faint_recovery_seconds is not None:
@@ -95,6 +109,7 @@ def heal(engine,c,amount,source_kind='unspecified'):
     if c.hp>0:
         import taskmaster as TASK
         for row in TASK.records(c):row['press_on']=False
+        __import__('berserker').faint_boundary(engine,c)
     if '기절' in c.conditions and c.hp>0 and gained>0:
         import optional_physical_equipment as OPTIONAL_EQUIPMENT
         if OPTIONAL_EQUIPMENT.awakening_blocked(engine,c):

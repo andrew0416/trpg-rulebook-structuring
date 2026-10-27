@@ -90,7 +90,7 @@ class AceTrainingTests(unittest.TestCase):
         self.assertEqual(self.state(),before)
 
     def test_invalid_source_stats_duration_ownership_AP_and_qualification_are_atomic(self):
-        invalid=[{'minutes':29},{'safe':False},{'source':'C2CSV/input/db/feats.csv:R55:main'},
+        invalid=[{'minutes':29},{'safe':False},{'source':'C04-010'},
             {'stats':{}},{'stats':{p.entity_id:'hp' for p in self.ps}},
             {'stats':{**{p.entity_id:'atk' for p in self.ps},'unknown':'spe'}},
             {'targets':[self.ps[0],self.ps[0]],'stats':{self.ps[0].entity_id:'atk'}},

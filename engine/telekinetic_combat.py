@@ -83,7 +83,7 @@ def _options(engine,actor,target,source,skill,supplied,*,weapon_defense=False):
     return result
 
 
-def _native(engine,actor,target,kind,*,defender_skill,fixed_accuracy,challenger_options,defender_options,item_name,prevent_with_ap,follow_steps):
+def _native(engine,actor,target,kind,*,defender_skill,fixed_accuracy,challenger_options,defender_options,item_name,prevent_with_ap,follow_steps,action_cost='standard'):
     import turn as TURN, forced_movement as FORCED
     LOAD.require(engine,actor);W.require_actors(engine,actor,target)
     source,ac,defenders,resist=KINDS[kind]
@@ -92,7 +92,7 @@ def _native(engine,actor,target,kind,*,defender_skill,fixed_accuracy,challenger_
     if kind!='disarm' and (item_name is not None or prevent_with_ap is not None):
         raise ValueError('equipment selections belong to actual Disarm')
     import optional_weapon_framework as FRAMEWORK
-    weapon_defense=FRAMEWORK.disarm_skills(engine,target) if kind=='disarm' else set()
+    weapon_defense=FRAMEWORK.disarm_skills(engine,target,item_name) if kind=='disarm' else set()
     if kind=='disarm':defenders=tuple(dict.fromkeys((*defenders,*weapon_defense)))
     if (S.skill_id(engine.r.skill_policy,defender_skill)==S.skill_id(engine.r.skill_policy,'집중')
             and S.skill_id(engine.r.skill_policy,defender_skill) not in weapon_defense):
@@ -120,7 +120,7 @@ def _native(engine,actor,target,kind,*,defender_skill,fixed_accuracy,challenger_
     config={'geometry':{'range':8,'remote':True,'vertical':False},
             'requirements':[{'id':'current-telekinetic','who':'actor','condition':{'kind':'capability','names':['염력','Telekinetic','capability/염력']},'reason':'actual source-owned Telekinetic maneuver'}],
             'challenger_skills':['집중'],'defender_skills':list(defenders),'challenger_purpose':PURPOSE,
-            'resistance_purpose':resist,'action_cost':'standard','accuracy':'ordinary','opposed':'required',
+            'resistance_purpose':resist,'action_cost':action_cost,'accuracy':'ordinary','opposed':'required',
             'success':'check','accuracy_class':'변화','opportunity':'other_adjacent'}
     basis={'telekinetic_source':SOURCE,'distance':distance,'direction':direction,'chosen':chosen,
            'prevention':prevention,'defense_bonus':defense_bonus,'focus_rank':MASTERY.focus(actor)}

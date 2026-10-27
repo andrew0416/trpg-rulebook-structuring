@@ -116,7 +116,10 @@ def acquired_source(trainer, rule_id):
     source = matches[0]
     if trainer.r._selected_rule(source) != source:
         raise ValueError("selected feature variant requires its own state-action policy")
-    if rule_id in BOOK_CLAUSE_BY_RULE:
+    if rule_id==TOP_PERCENTAGE and __import__('ace_trainer').acquired(trainer,TOP_PERCENTAGE):
+        from source_context import verified_source
+        verified_source(trainer.r,__import__('ace_trainer').policy(trainer.r)['body'],label='actual Top Percentage body')
+    elif rule_id in BOOK_CLAUSE_BY_RULE:
         import chef_cooking as CHEF
         CHEF.definitions(trainer.r)
     else:
@@ -146,7 +149,11 @@ def _state(actor, create=False):
         if event["id"] in identities or not isinstance(event["id"], str) or not event["id"]:
             raise ValueError("class state event identities must be distinct nonempty text")
         identities.add(event["id"])
-        if event["source"] not in TRIGGERED_RULES or event["clause_id"] != _clause(event["source"]):
+        allowed_clause=event["clause_id"]==_clause(event["source"])
+        if event['source']==TOP_PERCENTAGE and event['clause_id']=='input/ch04-trainer-classes.md:334-338':
+            import ace_trainer as ACE
+            allowed_clause=any(r['request_id']==event['payload'].get('acquisition_request') for r in ACE.records(actor,TOP_PERCENTAGE))
+        if event["source"] not in TRIGGERED_RULES or not allowed_clause:
             raise ValueError("class state event source identity changed")
         for field in ("owner_id", "target_id", "trigger"):
             if not isinstance(event[field], str) or not event[field]:
@@ -197,10 +204,17 @@ def _offer(engine, owner, target, source, trigger, payload):
     state = _state(owner, create=True)
     state["serial"] += 1
     event_id = "class-state-action:" + owner.entity_id + ":" + str(state["serial"])
+    clause=_clause(source)
+    if source==TOP_PERCENTAGE:
+        import ace_trainer as ACE
+        actual=ACE.acquired(owner,TOP_PERCENTAGE)
+        if actual:
+            clause=ACE.top_source(owner)
+            payload=dict(payload,acquisition_request=actual['request_id'])
     event = {
         "id": event_id,
         "source": source,
-        "clause_id": _clause(source),
+        "clause_id": clause,
         "owner_id": owner.entity_id,
         "target_id": target.entity_id,
         "trigger": trigger,
@@ -285,6 +299,8 @@ def offer_top_percentage_at_max_level(engine, trainer, pokemon):
         raise ValueError("Top Percentage requires your actual Pokemon")
     if acquired_source(trainer, TOP_PERCENTAGE) is None:
         raise ValueError("Top Percentage acquisition required")
+    if __import__('ace_trainer').acquired(trainer,TOP_PERCENTAGE):
+        raise ValueError('Core body Top Percentage requires an actual fifth-level trigger; maximum-level exception belongs to CSV59')
     return _offer(engine, trainer, pokemon, TOP_PERCENTAGE, "maximum_level_exception", {"level": 100})
 
 
@@ -350,8 +366,10 @@ def _apply_top_percentage(engine, owner, target, event):
     result = {"tutor_points_granted": 1, "target_uses": used + 1}
     import state_grants as GRANTS
     source_id = "top-percentage:" + target.entity_id
+    prior=target.spec.get(GRANTS.KEY,{}).get('sources',{}).get(source_id,{})
+    clause=prior.get('clause_id',event['clause_id'])
     source = GRANTS._source(target, source_id, KIND, lifetime="permanent_fourth_use",
-        rule_id=TOP_PERCENTAGE, clause_id=CLAUSE_BY_RULE[TOP_PERCENTAGE], tutor_points=0)
+        rule_id=TOP_PERCENTAGE, clause_id=clause, tutor_points=0)
     source['top_percentage_uses'] = used + 1
     if used + 1 == 4:
         GRANTS._source(
@@ -361,7 +379,7 @@ def _apply_top_percentage(engine, owner, target, event):
             owner_id=owner.entity_id,
             lifetime="permanent_fourth_use",
             rule_id=TOP_PERCENTAGE,
-            clause_id=CLAUSE_BY_RULE[TOP_PERCENTAGE],
+            clause_id=clause,
             tutor_points=0,
         )
         for stat in ("hp", "atk", "def", "spa", "spd", "spe"):
@@ -390,13 +408,19 @@ def _apply_triggered(engine, owner, target, event):
             target,
             rank * 2,
             stack=True,
+            contribution_source=TEMP_HP.food_source(target, 'chef_hits',
+                target.spec['food_consumption_receipts'][event['payload']['receipt_sequence'] - 1]),
             provenance={
                 "source": source,
                 "event_id": event["id"],
                 "food_receipt_sequence": event["payload"]["receipt_sequence"],
             },
         )
-        return {"intuition_rank": rank, "temporary_hp_granted": granted, "ap_spent": 1}
+        result = {"intuition_rank": rank, "temporary_hp_granted": granted, "ap_spent": 1}
+        blocked = TEMP_HP.blocked_reason(target)
+        if blocked is not None:
+            result["temporary_hp_blocked_reason"] = blocked
+        return result
     if source == MEDICAL_TECHNIQUE:
         import skill_modifiers as SKILL
         rank = SKILL.effective_rank(engine.r, owner, "의학")
@@ -443,20 +467,23 @@ def _target_daily_key(engine, owner, target):
     )
 
 
-def emergency_care(engine, trainer, target):
+def emergency_care(engine, trainer, target, *, book_provider=False):
     """Use the exact tool-backed Daily x3 Extended recovery atomically."""
     index = _actor_index(engine)
     if index.get(trainer.entity_id) is not trainer or index.get(target.entity_id) is not target:
         raise ValueError("actual registered trainer and target required")
-    if acquired_source(trainer, EMERGENCY_CARE) is None:
+    book=book_provider is True and __import__('study_books').active(trainer,'first_aid',2)
+    if book_provider and not book:raise ValueError('actual rank-two First Aid Manual required')
+    if not book and acquired_source(trainer, EMERGENCY_CARE) is None:
         raise ValueError("Emergency Care Expertise acquisition required")
     if target.kind not in ("trainer", "pokemon") or target.dead:
         raise ValueError("Emergency Care Expertise requires a living trainer or Pokemon")
     import item_stock as STOCK
     STOCK.prepare(engine, trainer, "item/응급치료키트", allow_empty=False)
-    frequency = {"kind": "daily", "uses": 3}
+    provider_source=__import__('study_books').ITEMS['first_aid'] if book else EMERGENCY_CARE
+    frequency = {"kind": "daily", "uses": 1 if book else 3}
     target_frequency = {"kind": "daily", "uses": 1}
-    if not FREQUENCY.activation_allowed(trainer, EMERGENCY_CARE, frequency, engine=engine):
+    if not FREQUENCY.activation_allowed(trainer, provider_source, frequency, engine=engine):
         raise ValueError("Emergency Care Expertise Daily x3 exhausted")
     target_key = _target_daily_key(engine, trainer, target)
     medical = acquired_source(trainer, MEDICAL_TECHNIQUE) is not None
@@ -465,10 +492,10 @@ def emergency_care(engine, trainer, target):
     import state_grants as GRANTS
 
     def apply(staged_engine, staged_trainer, staged_target):
-        if acquired_source(staged_trainer, EMERGENCY_CARE) is None:
+        if not (book and __import__('study_books').active(staged_trainer,'first_aid',2)) and acquired_source(staged_trainer, EMERGENCY_CARE) is None:
             raise ValueError("Emergency Care Expertise acquisition ended before use")
         STOCK.prepare(staged_engine, staged_trainer, "item/응급치료키트", allow_empty=False)
-        if not FREQUENCY.activation_allowed(staged_trainer, EMERGENCY_CARE, frequency, engine=staged_engine):
+        if not FREQUENCY.activation_allowed(staged_trainer, provider_source, frequency, engine=staged_engine):
             raise ValueError("Emergency Care Expertise Daily x3 exhausted")
         staged_target_key = _target_daily_key(staged_engine, staged_trainer, staged_target)
         medical_now = acquired_source(staged_trainer, MEDICAL_TECHNIQUE) is not None
@@ -485,7 +512,7 @@ def emergency_care(engine, trainer, target):
         healed = staged_engine.heal(staged_target, staged_target.base_max_hp, source_kind="feature")
         before = STATUS.afflictions(staged_target)
         STATUS.cure_group(staged_engine, staged_target)
-        FREQUENCY.consume_activation(staged_trainer, EMERGENCY_CARE, frequency, engine=staged_engine)
+        FREQUENCY.consume_activation(staged_trainer, provider_source, frequency, engine=staged_engine)
         if not medical_now:
             FREQUENCY.consume_activation(staged_trainer, staged_target_key, target_frequency, engine=staged_engine)
         return {

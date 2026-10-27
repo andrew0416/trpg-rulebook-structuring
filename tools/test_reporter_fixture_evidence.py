@@ -22,6 +22,77 @@ def load_file(name, path):
 
 
 class ReporterFixtureEvidenceTests(unittest.TestCase):
+    def test_described_whole_success_preserves_ids_and_rejects_forged_results(self):
+        class Described(unittest.TestCase):
+            __module__ = 'test_reporter_described'
+            __qualname__ = 'Described'
+
+            def test_a(self):
+                """실제 설명 ... with an ellipsis."""
+                pass
+
+        case = Described('test_a')
+        stream = io.StringIO()
+        result = unittest.TextTestRunner(stream=stream, verbosity=2).run(unittest.TestSuite([case]))
+        self.assertTrue(result.wasSuccessful())
+        body = stream.getvalue()
+        self.assertIn(case.id() + ')\n실제 설명 ... with an ellipsis. ... ok', body)
+        for raw in (body, body.replace('\n', '\r\n')):
+            self.assertEqual(P._verified_test_ids(raw), {case.id()})
+            self.assertEqual(P._verified_test_ids(raw, [case.id()]), {case.id()})
+        for changed in (
+            body.replace('Ran 1 test', 'Ran 2 tests'),
+            body.replace(' ... ok', ' ...'),
+            body.replace(' ... ok', ' ... FAIL'),
+            body.replace('test_a)', 'test_other)'),
+            body.replace('test_a (', 'test_other ('),
+            body + 'arbitrary tail\n',
+        ):
+            with self.subTest(log=changed):
+                self.assertIsNone(P._verified_test_ids(changed, [case.id()]))
+
+    def test_described_fail_error_and_subtest_keep_only_actual_named_successes(self):
+        class Mixed(unittest.TestCase):
+            __module__ = 'test_reporter_described'
+            __qualname__ = 'Mixed'
+
+            def test_a(self):
+                """An actual described PASS."""
+                pass
+
+            def test_b(self):
+                """An actual described assertion failure."""
+                self.fail('original assertion')
+
+            def test_c(self):
+                """An actual described ERROR."""
+                raise RuntimeError('original error')
+
+            def test_d(self):
+                """An actual described subTest failure."""
+                with self.subTest(value=1):
+                    self.fail('original subtest')
+
+        cases = [Mixed('test_' + letter) for letter in 'abcd']
+        stream = io.StringIO()
+        result = unittest.TextTestRunner(stream=stream, verbosity=2).run(unittest.TestSuite(cases))
+        self.assertEqual((result.testsRun, len(result.failures), len(result.errors)), (4, 2, 1))
+        body = stream.getvalue()
+        good = cases[0].id()
+        self.assertEqual(P._verified_test_ids(body, [good]), {good})
+        self.assertIsNone(P._verified_test_ids(body))
+        for case in cases[1:]:
+            self.assertIsNone(P._verified_test_ids(body, [case.id()]))
+        for changed in (
+            body.replace('FAILED (failures=2, errors=1)', 'OK'),
+            body.replace('failures=2', 'failures=1'),
+            body.replace('errors=1', 'errors=2'),
+            body.replace('Ran 4 tests', 'Ran 5 tests'),
+            body.replace('  test_d (' + cases[3].id(), '  test_b (' + cases[1].id()),
+        ):
+            with self.subTest(log=changed):
+                self.assertIsNone(P._verified_test_ids(changed, [good]))
+
     def test_existing_case_scoped_proof_regressions(self):
         source = EVIDENCE / 'tools/test_category2_progress.py'
         if not source.is_file():

@@ -25,11 +25,58 @@ def definitions(rules):
     result = {}
     expected = {'type':'conditional_combat_stage','weather':'sunny','stat':'spe','delta':4}
     for row in payload['abilities']:
+        if row.get('id') == 'ability/흡반':
+            __import__('core_suction_cups').validate_core_ability(rules, row)
+            if row['id'] in result:raise ValueError('duplicate core Suction Cups identity')
+            result[row['id']] = row
+            continue
+        if row.get('id') in __import__('telepath').CONTRACTS:
+            __import__('telepath').validate_core_ability(rules,row)
+            if row['id'] in result:raise ValueError('duplicate Telepathy Ability identity')
+            result[row['id']]=row;continue
+        if row.get('id')==__import__('telekinetic').INTERFERENCE:
+            __import__('telekinetic').validate_core_ability(rules,row)
+            if row['id'] in result:raise ValueError('duplicate core ability identity')
+            result[row['id']]=row;continue
+        if row.get('id')==__import__('sage').TOUCH:
+            __import__('sage').validate_core_ability(rules,row)
+            if row['id'] in result:raise ValueError('duplicate core ability identity')
+            result[row['id']]=row;continue
+        if row.get('id') in __import__('oracle').CORE_CONTRACTS:
+            __import__('oracle').validate_core_ability(rules,row)
+            if row['id'] in result:raise ValueError('duplicate core ability identity')
+            result[row['id']]=row
+            continue
+        if row.get('id') == 'ability/파동바람':
+            __import__('aura_guardian').validate_core_ability(rules,row)
+            if row['id'] in result:raise ValueError('duplicate core ability identity')
+            result[row['id']]=row
+            continue
+        if row.get('id') == 'ability/도주':
+            __import__('tumbler').validate_core_ability(rules,row)
+            if row['id'] in result:raise ValueError('duplicate core ability identity')
+            result[row['id']]=row
+            continue
+        if row.get('id') == 'ability/먹보':
+            __import__('capacity_abilities').validate_core_gluttony(rules,row)
+            if row['id'] in result:raise ValueError('duplicate core ability identity')
+            result[row['id']]=row
+            continue
+        if row.get('id') == 'ability/감지':
+            __import__('chronicler').validate_core_perception(rules,row)
+            if row['id'] in result:raise ValueError('duplicate core ability identity')
+            result[row['id']]=row
+            continue
         import martial_artist_ability_identities as MARTIAL
         if row.get('id') in MARTIAL.DERIVED:
             MARTIAL.validate_core_definition(rules,row)
             if row['id'] in result:raise ValueError('duplicate core ability identity')
             result[row['id']]=row;continue
+        if row.get('id')=='ability/매복':
+            __import__('rogue').validate_core_ability(rules,row)
+            if row['id'] in result:raise ValueError('duplicate core ability identity')
+            result[row['id']]=row
+            continue
         if row.get('id') == 'ability/소리묻히기':
             __import__('musician').validate_core_ability(rules,row)
             if row['id'] in result:raise ValueError('duplicate core ability identity')

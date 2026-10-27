@@ -158,7 +158,7 @@ def modifier(e,a,skill,context=None):
   import telekinetic_combat as TK
   if isinstance(context,dict) and context.get('purpose')==TK.PURPOSE:
    TK.roll_bonus(e,a,skill,context)
-  elif not isinstance(context,dict) or set(context)!={'purpose','reason'} or context['purpose'] not in PURPOSES|BLESSING_PURPOSES|{'telekinetic_carry','resist_grapple','resist_disarm','glitch_phenomenon'}:raise ValueError('known GM skill purpose and reason required')
+  elif not isinstance(context,dict) or set(context)!={'purpose','reason'} or context['purpose'] not in PURPOSES|BLESSING_PURPOSES|{'telekinetic_carry','resist_grapple','resist_disarm','glitch_phenomenon','capability/추적자','pokemon_obedience'}:raise ValueError('known GM skill purpose and reason required')
   text(context['reason'],'GM skill context reason')
  if not F.owned(a,SURVIVALIST):
   if any(k in a.spec for k in ('_survivalist_terrains','_survivalist_talents')):raise ValueError('Survivalist records require actual class')
@@ -273,7 +273,7 @@ def prepare_approach(e,a,target,reach,movement_mode,mode,budget,path,options):
   cost=step+MOVEMENT.slow_terrain_penalty(e,a,q,mode,step=step)
   if spent+cost>budget:break
   selected_path.append((q,cost,diagonal));spent+=cost;parity=next_diagonals%2;previous=q
- hazards=[i for i,(q,_,_) in enumerate(selected_path) if (q in e.grid.rough or q in e.grid.slow) and not MOVEMENT.ordinary_terrain(e,a,q)]
+ hazards=[i for i,(q,_,_) in enumerate(selected_path) if (q in e.grid.rough or q in e.grid.slow) and not MOVEMENT.ordinary_terrain(e,a,q,movement=True)]
  if not hazards:return False
  plans=_traversal_options(e,a,options)
  indices=hazards[:1] if options['frequency']=='once_per_shift' else hazards
@@ -318,9 +318,9 @@ def continue_approach(e,a,target,options):
    ordinal=r['check_indices'].index(index);skill,opts=plans[ordinal]
    basis={'origin':r['origin'],'path':r['path'],'check_cell':q,'source':'condition/실명','frequency':r['frequency'],'reason':r['reason']}
    if opts.get('feature') is not None:
-    result=SF.sequence(e,'blind:'+r['movement_id']+':'+str(ordinal),basis,[(a,skill,opts)],lambda rolls:C.against_dc(rolls[0],10))
+    result=SF.sequence(e,'blind:'+r['movement_id']+':'+str(ordinal),basis,[(a,skill,opts)],lambda rolls:SF.resolve_check(e,a,skill,10,rolls[0],opts))
    else:
-    result=C.against_dc(e.skill_roll(a,skill,**opts),10);SF.finish(e,a,opts.get('roll_id'))
+    result=SF.resolve_check(e,a,skill,10,e.skill_roll(a,skill,**opts),opts);SF.finish(e,a,opts.get('roll_id'))
    r=a.spec['_survivalist_shift'];progress=r['entry_progress'];r['checks'].append({'skill':skill,'result':result,'cell':q});passed=result.passed
   if a.pos!=origin or a.spec.get('_movement_altitude',0)!=altitude or not TURN.can_act(e,a) or not TURN.movement_permission(e,a):break
   if diagonal:a._diagonal_steps=getattr(a,'_diagonal_steps',0)+1

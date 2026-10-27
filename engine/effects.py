@@ -40,12 +40,13 @@ KNOWN_IF = {
 
 
 def tgt_of(e, attacker, target, ctx=None):
+    import effect_contracts as CONTRACTS
     if ctx is not None:
         import native_area_hit_effects as AREA_HIT
         engine=ctx['engine']
         if AREA_HIT.owns(engine,ctx.get('source_id'),e):
             return AREA_HIT.recipients(engine,attacker,target,e,ctx)
-    import effect_contracts as CONTRACTS
+        return CONTRACTS.hit_recipients(engine,attacker,target,e,ctx.get('source_id'))
     return CONTRACTS.recipients(attacker,target,e)
 
 
@@ -78,7 +79,7 @@ def cond_ok(engine, e, ctx):
     if "on_natural_roll_min" in e:
         m = __import__("combat_modifiers").incoming_status_threshold(ctx["target"],e.get("status"),e["on_natural_roll_min"])
         import combat_precision_features as CPF
-        effect_face = CPF.effect_natural(engine, ctx["attacker"], ctx.get("move"), nat)
+        effect_face = CPF.effect_natural(engine, ctx["attacker"], ctx.get("move"), nat, actual_damage_type=ctx.get("actual_damage_type"))
         if not isinstance(m, int) or effect_face is None or effect_face < m:
             return False, f"natural<{m}"
     if e.get("on_natural_roll") == "even" and (nat is None or nat % 2):
@@ -96,6 +97,9 @@ def cond_ok(engine, e, ctx):
             return False, "target status"
     cond = e.get("if")
     if isinstance(cond, str):
+        import misty_explosion as MISTY
+        if cond == MISTY.CONDITION and MISTY.conditional(engine.r,ctx.get('move'),e):
+            return (True,'') if MISTY.affected(engine,ctx['attacker']) else (False,'outside Misty Terrain')
         if cond in ("user holds no item","user holds nothing"):
             import equipment_protection as PROTECTION
             return (True, "") if PROTECTION.itemless_for_move(engine,ctx["attacker"],ctx.get("move")) else (False,"condition: held item")
@@ -146,7 +150,7 @@ def apply_stage_changes(engine, source_actor, target, changes, *, source_id, con
         if delta < 0 and STATIC_EQUIPMENT.blocks_stage_loss(engine, target, source_actor, ctx, origin_source_id=origin_source_id, source_side=source_side):
             engine.log(f"    {target.name} {st} 단계 하락 차단 (클리어참)", "item/클리어참")
             continue
-        if delta < 0 and target is not source_actor and (st in target.stage_loss_immune or "all" in target.stage_loss_immune):
+        if delta < 0 and target is not source_actor and any(__import__('trickster').set_contains(engine,target,'stage_loss_immune',key) for key in (st,'all')):
             engine.log(f"    {target.name} {st} 단계 하락 면역 (특성)", "ability/immune_stage_loss")
             continue
         if st in target.stages:
@@ -166,6 +170,7 @@ def apply_stage_changes(engine, source_actor, target, changes, *, source_id, con
 
 
 def h_stage_change(engine, a, t, e, ctx):
+    if __import__('catalog_move_states').install_rage_stage(engine,a,e,ctx.get('source_id')):return None
     if e.get('linked_to'):
         import counter_effects as COUNTERS
         if COUNTERS.linked(a,e['linked_to'],ctx.get('source_id')):return None
@@ -173,11 +178,7 @@ def h_stage_change(engine, a, t, e, ctx):
         return "delta 비정수(보류)"
     if not isinstance(e.get("stat"), str) or e.get("stat") not in {"atk", "def", "spa", "spd", "spe", "acc", "eva", "all"}:
         return "스탯 선택/해석 필요: " + str(e.get("stat"))
-    if (ctx.get('source_id')=='move/천둥차기'
-            and e=={'type':'stage_change','stat':'def','delta':-1,'target':'all_targets'}):
-        targets=(t,)
-    else:
-        targets=tgt_of(e,a,t,ctx)
+    targets=tgt_of(e,a,t,ctx)
     changes = dict.fromkeys(
         ["atk", "def", "spa", "spd", "spe"] if e["stat"] == "all" else [e["stat"]], e["delta"])
     for c in targets:
@@ -225,7 +226,9 @@ def h_cure_status(engine, a, t, e, ctx):
     sts = e["status"] if isinstance(e["status"], list) else [e["status"]]
     known = {u["mech"]["data"]["name"] for u in engine.r.units.values()
              if (u.get("mech") or {}).get("schema") == "condition"}
-    if any(s not in known | {"all", "all persistent", "독", "맹독", "기절"} for s in sts):
+    import linked_move_conditions as LINKED
+    if any(s not in known | {"all", "all persistent", "독", "맹독", "기절"}
+           and not LINKED.explicit_cure_name(engine.r,s) for s in sts):
         return "상태 선택/해석 필요: " + str(e["status"])
     for c in tgt_of(e, a, t, ctx):
         for s in sts:
@@ -271,24 +274,58 @@ def h_heal(engine, a, t, e, ctx):
 
 
 def h_hp_loss(engine, a, t, e, ctx):
-    for c in tgt_of(e, a, t):
+    if ctx.get('native_recoil'):
+        __import__('move_completion').apply_recoil_loss(engine,a,e,ctx)
+        return
+    if __import__('hex_maniac').skip_additional_self_cost(engine,a,e,ctx):return
+    if ctx.get('source_id')=='move/불꽃튀기기':
+        import attack_damage_history as DAMAGE_HISTORY
+        if DAMAGE_HISTORY.native_recipient(engine,a,t,ctx,error='Flame Burst needs its actual primary native hit') is None:
+            raise ValueError('Flame Burst needs its actual primary native hit')
+        recipients=tgt_of(e,a,t,ctx)
+    else:
+        recipients=tgt_of(e,a,t)
+    for c in recipients:
         v = _amount(e.get("value"), c, engine, ctx)
         if v is None:
             return f"value 미해석: {e.get('value')}"
         tick_match=re.fullmatch(r'tick(?:\s*\*\s*([0-9]+))?',str(e.get('value')))
         if tick_match:v=engine.tick_loss(c,int(tick_match.group(1) or 1))
         import attack_damage_history as DAMAGE_HISTORY
-        DAMAGE_HISTORY.effect_loss(engine,a,t,c,e,ctx,v)
+        if not __import__('coordinator').prevent_effect_loss(engine,a,c,e,ctx):DAMAGE_HISTORY.effect_loss(engine,a,t,c,e,ctx,v)
 
 
 def h_self_hp_set(engine, a, t, e, ctx):
-    v = e.get("self_hp")
+    import hp_setting_moves as SETTING
+    source = ctx.get('source_id') or e.get('_rule_id')
+    loyalty = SETTING.prepare_loyalty(engine, a, e, source, completion=ctx.get('move_completion'))
+    if 'faint' in e and type(e['faint']) is not bool:
+        raise ValueError('self HP-setting faint must be an explicit boolean')
+    v = e.get('self_hp')
     if v == 0:
-        engine.lose_hp(a, max(0, a.hp), source="체력 0", unpreventable=e.get("unpreventable") is True, loss_kind="hp_setting")
-    elif isinstance(v, str) and "-50%" in v:
-        engine.lose_hp(a, a.hp + M.ratio(a.base_max_hp,2), source="체력 -50%", unpreventable=e.get("unpreventable") is True, loss_kind="hp_setting")
+        amount = max(0, a.hp)
+    elif isinstance(v, str) and '-50%' in v:
+        # The source sets a negative final value. Floor -83/2 to -42,
+        # rather than subtracting floor(+83/2) and incorrectly ending at -41.
+        amount = a.hp - M.ratio(-a.base_max_hp, 2)
     else:
         return f"self_hp 미해석: {v}"
+    before = a.hp
+    token = ctx.get('effect_receipt')
+    if token is not None:
+        engine._effect_dispatch_receipts[token]['hp_setting'] = {
+            'before_hp': before, 'prepared_loyalty': dict(loyalty) if loyalty is not None else None,
+            'unpreventable': e.get('unpreventable') is True, 'completion_id':ctx.get('move_completion')}
+    engine.lose_hp(a, amount, source=source or ('체력 0' if v == 0 else '체력 -50%'),
+                   unpreventable=e.get('unpreventable') is True, loss_kind='hp_setting')
+    ctx['hp_lost'] = max(0, before - a.hp)
+    if e.get('faint') is True:
+        import life as LIFE
+        LIFE.faint(engine, a)
+        engine.check_fainted(a)
+    SETTING.apply_loyalty(engine, a, loyalty, source, ctx.get('move_completion'))
+    if token is not None:
+        engine._effect_dispatch_receipts[token]['hp_setting'].update(after_hp=a.hp,actual_hp_lost=ctx['hp_lost'])
 
 
 def h_temp_hp(engine, a, t, e, ctx):
@@ -305,6 +342,10 @@ def h_set_weather(engine, a, t, e, ctx):
 
 
 def h_field_effect(engine, a, t, e, ctx):
+    import misty_explosion as MISTY
+    if MISTY.handles(ctx.get('source_id'),e):
+        MISTY.install(engine,a,t,e,ctx)
+        return None
     import field_effects as FIELD
     FIELD.install(engine, a, e, ctx.get("source_id"))
 
@@ -350,11 +391,17 @@ def h_type_change(engine, a, t, e, ctx):
     import type_state as TYPES
     TYPES.validate_types(c.r,[value],label="type-changing effect")
     if e.get("fallback") is not None:TYPES.validate_types(c.r,[e["fallback"]],label="type-changing fallback")
+    import personal_type_settings as PERSONAL
+    personal_loss=PERSONAL.neutral_burn_up(c.r,ctx.get('source_id'),mode,[value])
+    fallback=None if personal_loss else e.get('fallback')
     import state_grants as GRANTS
     source=getattr(c,"_state_registration_source",None) or GRANTS.effect_source(c,ctx,"type-change")
     if source not in GRANTS.state(c)["sources"]:
         GRANTS._source(c,source,"effect",owner_id=a.spec.get("id"),lifetime=e.get("duration") or e.get("until") or "legacy_unspecified",rule_id=ctx.get("source_id"))
-    GRANTS.type_operation(c,mode,[value],source,fallback=e.get("fallback"))
+    if personal_loss:
+        GRANTS.state(c)['sources'][source]['personal_type_setting']={
+            'source':PERSONAL.NEUTRAL_SOURCE,'identity':PERSONAL.TYPELESS,'fallback':None}
+    GRANTS.type_operation(c,mode,[value],source,fallback=fallback)
     import csv_item_capability_contracts as CSV_CAP
     CSV_CAP.sync_essence(engine,c)
     engine.log(f"    {c.name} 타입 → {c.types}")
@@ -458,7 +505,7 @@ def h_create_terrain(engine, a, t, e, ctx):
 
 def h_push(engine, a, t, e, ctx):
     import coat_effects as COATS
-    if COATS.blocks_displacement(engine,t):return None
+    if COATS.blocks_displacement(engine,t) or __import__('type_ace').push_immunity(engine,t,attacker=a,move=ctx.get('move')):return None
     m = e.get("meters")
     if m == "to outside blast range":m=__import__("native_area_hit_effects").push_outside(engine,a,t,e,ctx)
     if not isinstance(m, int):
@@ -592,7 +639,7 @@ HANDLERS = {
     "never_miss": h_noop_static, "crit_range": h_noop_static, "grant_capability": h_noop_static, "weapon_restriction": h_noop_static,
     "usage_restriction": h_noop_static, "bonus_damage": h_noop_static, "damage_base_formula": h_noop_static, "conditional_damage_base": h_noop_static,
     "skill_check_mod": h_noop_static,
-    "damage_formula_override": h_noop_static, "damage_floor": h_noop_static, "damage_roll_mod": h_noop_static,
+    "oracle_mark": h_noop_static, "channel_imprint": h_noop_static, "damage_formula_override": h_noop_static, "damage_floor": h_noop_static, "damage_roll_mod": h_noop_static,
     "declarative_move_contract": h_declarative_move_contract,
 }
 # 판정 시점(명중/데미지)에 engine 이 직접 읽는 유형
@@ -628,6 +675,7 @@ def preflight_effects(engine, attacker, target, effects, src, *, consumer=None):
     # effect can matter. The native hit gate still records the paid miss.
     if MINDLOCK.move_block(engine,attacker,target,{'id':CONTRACTS.source_id(engine,src)}):return None
     identity=CONTRACTS.require(engine,attacker,target,effects,src,consumer=consumer)
+    __import__("hp_setting_moves").preflight(engine,attacker,effects,identity)
     import move_coins as COINS
     COINS.preflight(engine,attacker,identity)
     import declarative_move_contracts as DECLARATIVE_MOVES
@@ -796,7 +844,7 @@ def run_effects(engine, attacker, target, effects, ctx, src, *, _resume_receipt=
                     import initiative_derivation as INITIATIVE
                     INITIATIVE.install_temporary(engine,attacker,target,e,identity,receipt,occurrence)
                 else:
-                    for recipient in CONTRACTS.recipients(attacker,target,e):LIFE.install(engine,attacker,recipient,e,identity,receipt,occurrence)
+                    for recipient in tgt_of(e,attacker,target,ctx):LIFE.install(engine,attacker,recipient,e,identity,receipt,occurrence)
                 note=None
             else:
                 note=handler(engine,attacker,target,e,ctx)
@@ -961,12 +1009,24 @@ def resume_effects(engine, completed_receipt):
 def apply_passives(engine, c, ability_effects):
     """특성 effect 목록을 Combatant.modifiers 로 등록 (전투 시작 시 한 번)."""
     name = next((e.get("_ability") for e in ability_effects if isinstance(e, dict) and e.get("_ability")), "?")
+    if __import__('hex_maniac').ability_registration(engine.r,name):return
+    if name in ('매복','매복 [Playtest]','ability/매복','ability/매복-playtest'):
+        # Ambush is an explicit native Priority activation, never an always-on Flinch.
+        return
     if name in ('잔인','ability/잔인'):
         # The extracted optional-purchase list is not an automatic on-hit Slow.
         # Actual damaging hits are offered once by Taskmaster's Cruelty adapter.
         import taskmaster as TASK
         TASK.cruelty_definition(engine.r)
         return
+    if any(isinstance(e,dict) and e.get('_rule_id')=='ability/감지-playtest' for e in ability_effects):
+        import chronicler as CHRONICLER
+        CHRONICLER.perception_definition(engine.r, CHRONICLER.PERCEPTION_PLAYTEST)
+        raw = [{k:v for k,v in e.items() if not k.startswith('_')} for e in ability_effects]
+        if raw != engine.r.ability_effects['감지 [Playtest]']:
+            raise ValueError('exact Playtest Perception passive and native reaction required')
+        # Its always-on bonus is independent; the selected native area reaction owns the Shift.
+        ability_effects = [e for e in ability_effects if e['type']=='evasion_mod']
     for e in ability_effects:   # 연결(connection): 특정 기술을 쓸 때 발동 → on_move_use 트리거로 등록 (effect 가 dict 면 실행, 문장이면 로그만)
         if isinstance(e, dict) and e.get("type") == "connection" and e.get("move"):
             import food_effects as FOOD
@@ -1020,13 +1080,13 @@ def passive_status_immunity(engine, actor, condition):
     """Read the existing owned passive records; suppression never rewrites them."""
     if actor.abilities_suppressed:
         return None
-    owned = {engine.r.ability_alias.get(name, name) for name in actor.abilities}
     for effect in actor.modifiers:
         source = effect.get("_rule_id")
-        if effect.get("type") != "immunity" or effect.get("_ability") not in owned:
+        if effect.get("type") != "immunity" or not __import__('ability_transitions').effect_active(actor,effect):
             continue
         if not isinstance(source, str) or not source.startswith("ability/"):
             continue
+        if __import__('trickster').ignores_defensive(engine,actor,source):continue
         statuses = effect.get("status")
         if statuses == condition or isinstance(statuses, list) and condition in statuses:
             return source
@@ -1100,7 +1160,7 @@ EXPR_VARS = {
     "user.weight_class": lambda c: c["attacker"].weight_class,
     "target.weight_class": lambda c: c["target"].weight_class,
     "user.injuries": lambda c: c["attacker"].injuries, "target.injuries": lambda c: c["target"].injuries,
-    "user.loyalty": lambda c: __import__("pokemon_entities").loyalty_value(c["attacker"], required=True),
+    "user.loyalty": lambda c: __import__("pokemon_entities").effective_loyalty_value(c["attacker"],engine=c.get("engine"), required=True),
     "max_hp": lambda c: c["who"].base_max_hp, "current_hp": lambda c: max(0, c["who"].hp), "tick": lambda c: c["engine"].tick(c["who"]),
     "sum(positive stages of user)": lambda c: sum(v for v in c["attacker"].stages.values() if v > 0),
     "sum(positive stages of target)": lambda c: sum(v for v in c["target"].stages.values() if v > 0),
@@ -1239,12 +1299,14 @@ def fire_event(engine, c, ev, other=None):
                 engine.log("    [보류] " + (action_problem or "재주 행동 종류 실행 미지원: " + str(action)), "trainer/action-points")
                 continue
         key = ab.get("usage_key") or ("feat/" if ab.get("_feat") else "ability/") + ab["name"]
+        if not ab.get('_feat') and not __import__('ability_exchange_contracts').admit_trigger(engine,c,key):
+            continue
         freq = ab.get("frequency") or ""
         import equipment_actions as EQUIPMENT
         if key in EQUIPMENT.REACTIONS:
             EQUIPMENT.offer_reaction(engine,c,ev,other,key)
             continue
-        if not FREQ.activation_allowed(c, key, freq,engine=engine):
+        if not FREQ.activation_allowed(c, key, freq,engine=engine,action_actor=c if ab.get('_feat') else None):
             continue
         # Trigger admission precedes frequency/AP/action consumption. Unknown
         # source controls cannot consume an activation merely by being logged.
@@ -1282,7 +1344,7 @@ def fire_event(engine, c, ev, other=None):
         if ab.get("_feat"):
             if accepted:
                 AP.spend(c, ap_cost, header, ab.get("cost_effects", ab["effects"]))
-                FREQ.consume_activation(c, key, freq,engine=engine)
+                FREQ.consume_activation(c, key, freq,engine=engine,action_actor=c)
             else:
                 c.budget = budget_before
                 c.took_standard, c._action_history, c._restricted_action_taken, c._standard_action_round = action_before

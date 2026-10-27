@@ -27,7 +27,22 @@ TRAVEL_ABILITY='chronicler_travel_ability'  # trainer.spec: printed Keen Eye or 
 PLACE='chronicler_place'              # actor.spec: GM observed current place
 PRIORITY='chronicler_priority'        # ally.spec: pending Situational Awareness entitlement
 TRAVEL_PREFIX='chronicler-travel:'
+PERCEPTION_ABILITY='ability/감지'
+PERCEPTION_PLAYTEST='ability/감지-playtest'
 ARCHIVE_OF_KIND={kind:name for name,row in ARCHIVES.items() for kind in row['record_kinds']}
+CSV_RECORD='C2CSV/input/db/feats.csv:R308:main'
+CSV_TUTOR='C2CSV/input/db/feats.csv:R311:main'
+CSV_SHA='4435ff1c462a211564c85d2c1c9a2ac6e7c790c7545e1ad7056d32888b2367bd'
+
+
+def _edition(rules,value,expected):
+ if value is None:return None
+ if value!=expected:raise ValueError('exact reviewed Chronicler source edition required')
+ from source_context import verified_source
+ number=308 if expected==CSV_RECORD else 311
+ rules.ruleset.require({'id':value,'source':{'file':'db/feats.csv','record_span':[number,number]}})
+ verified_source(rules,{'file':'input/db/feats.csv','sha256':CSV_SHA,'record_span':[number,number]},label='Chronicler CSV')
+ return value
 
 
 def uid(name):
@@ -46,8 +61,7 @@ def _text(value,label):
 # ---------------------------------------------------------------- acquisition
 def records(actor,feature=None,active=False):
  import trainer_feature_acquisition as T
- return [r['static_acquisition'] for _,r,live in T._static_records(actor)
-  if r['static_acquisition']['feature_id'] in FEATURES and (feature is None or r['static_acquisition']['feature_id']==feature) and (not active or live)]
+ return [record for _, record in T.static_family_acquisitions(actor, FEATURES, feature, active=active)]
 
 
 def acquired(actor,feature,rank=None):
@@ -74,19 +88,60 @@ def owned_archives(actor,*,exclude=(),active=True):
 
 def _travel_ability(rules,name):
  """Printed Keen Eye/Perception choice resolved against the selected Ability catalog."""
- if name not in ARCHIVES['travel']['abilities']:raise ValueError('choose the printed Keen Eye or Perception Ability for the Travel Archive')
+ # The class's bilingual 통찰 (Perception) is not the CSV's 통찰 (Frisk).
+ perception_names={'통찰','Perception','감지','감지 [Playtest]',PERCEPTION_ABILITY,PERCEPTION_PLAYTEST}
+ if name not in (*ARCHIVES['travel']['abilities'],*perception_names):raise ValueError('choose the printed Keen Eye or Perception Ability for the Travel Archive')
+ requested='감지' if name in ('통찰','Perception') else name
  import move_state as M
- registration=M.ability_registration(rules,name)
+ registration=M.ability_registration(rules,requested)
  if registration is not None:return registration['name']
  from ruleset import UnresolvedRuleSelection,ExcludedRuleSelection
  try:
-  selected=rules.selection.resolve_name(name,('ability/',))
+  selected=rules.selection.resolve(requested) if requested.startswith('ability/') else rules.selection.resolve_name(requested,('ability/',))
   rules.selection.require_supported_version(selected)
  except (UnresolvedRuleSelection,ExcludedRuleSelection,ValueError,KeyError) as error:
   raise ValueError('selected '+name+' Ability variant required in the current ruleset for the Travel Archive: '+str(error)) from error
  title=rules.selection.units[selected].get('title')
  if not isinstance(title,str) or not title.strip():raise ValueError('selected Travel Archive Ability has no catalog title')
+ if name in perception_names:perception_definition(rules,selected)
  return title
+
+
+def validate_core_perception(rules,row):
+ """The bilingual class reference supplies identity; the core excerpt supplies its full effect."""
+ from source_context import verified_source
+ contract={'type':'ally_area_shift','action':'shift','payment':'next','damaging_only':False}
+ if (row.get('id')!=PERCEPTION_ABILITY or row.get('name')!='감지' or row.get('eng')!='Perception'
+     or row.get('frequency')!='임의' or row.get('native_contract')!=contract or row.get('effects')!=[]):
+  raise ValueError('reviewed core Perception definition required')
+ source=row['source'];official=row['official_source']
+ if (source.get('file')!='ch04-trainer-classes.md' or source.get('lines')!=[1945,1947]
+     or source.get('sha256')!=_data['source_sha256']
+     or source.get('additional_snapshots')!={official['extract']:official['sha256']}
+     or official.get('extract')!='source-audit/core-perception.txt'):
+  raise ValueError('core Perception exact bilingual source boundary required')
+ verified_source(rules,{'file':'input/'+source['file'],'sha256':source['sha256']},label='Chronicler Perception reference')
+ text=verified_source(rules,{'file':official['extract'],'sha256':official['sha256']},label='core Perception',source_root='source-audit').decode('utf8')
+ if text!='Ability: Perception\nAt-Will – Shift Action, Interrupt Trigger: An ally uses an area-of-effect attack that would hit you Effect: You may Shift to remove yourself from the areaof-effect.\n':
+  raise ValueError('complete core Perception excerpt required')
+
+
+def perception_definition(rules,source):
+ """Keep the explicit core and Playtest Perception identities and costs separate."""
+ if source not in (PERCEPTION_ABILITY,PERCEPTION_PLAYTEST) or rules._selected_rule(source)!=source:
+  raise ValueError('exact selected Perception Ability source required')
+ if source==PERCEPTION_ABILITY:
+  row=rules.core_abilities[source];validate_core_perception(rules,row)
+  return row['native_contract']
+ from source_context import verified_source
+ verified_source(rules,{'file':'input/db/abilities.csv','sha256':'87efebd17b0a5fe09c9db060a16a8844cf41be53d65eb35716cf62f80a177fae'},label='Playtest Perception')
+ unit=rules.selection.units[source]
+ expected=[{'type':'evasion_mod','value':1,'target':'self'},
+           {'type':'reaction','trigger':"about to be hit by ally's damaging AoE",'effect':'free shift out before resolution'}]
+ if (unit.get('eng')!='Perception' or unit.get('title')!='감지 [Playtest]'
+     or unit['source'].get('record_span')!=[10,10] or rules.ability_effects.get(unit['title'])!=expected):
+  raise ValueError('complete exact Playtest Perception source and effects required')
+ return {'type':'ally_area_shift','action':'free','payment':None,'damaging_only':True}
 
 
 def acquisition_snapshot(engine,actor,feature,rank=None):
@@ -228,20 +283,20 @@ def _subject(engine,trainer,kind,target):
  return target
 
 
-def _preflight_record(engine,trainer,kind,target,reason,request_id):
+def _preflight_record(engine,trainer,kind,target,reason,request_id,edition):
  import action_points as AP
  require(engine,trainer);_text(reason,'record reason');_text(request_id,'record request')
  subject=_subject(engine,trainer,kind,target)
  st=state(trainer)
  prior=None if st is None else next((row for row in st['records'].values() if row['request_id']==request_id),None)
  if prior is not None:
-  if (prior['kind'],prior['subject'])!=(kind,subject):raise ValueError('record replay cannot change its intent')
+  if (prior['kind'],prior['subject'],prior.get('edition'))!=(kind,subject,edition):raise ValueError('record replay cannot change its intent')
   return subject,prior
- if AP.available(trainer)<DEFINITIONS[CLASS]['ap']:raise ValueError('Record requires one available AP')
+ if edition is None and AP.available(trainer)<DEFINITIONS[CLASS]['ap']:raise ValueError('Record requires one available AP')
  return subject,None
 
 
-def _commit_record(e,t,kind,subject,reason,request_id):
+def _commit_record(e,t,kind,subject,reason,request_id,edition):
  import action_points as AP,turn as TURN,action_lifecycle as A
  action=DEFINITIONS[CLASS]['action']
  if e.encounter_active:
@@ -250,29 +305,32 @@ def _commit_record(e,t,kind,subject,reason,request_id):
   # Outside an encounter the Swift Record is an ordinary action; a stale round budget does not constrain it.
   if not TURN.can_act(e,t) or not A.ordinary_permission(e,t) or not A.status_permission(e,t,action):raise ValueError('Record Swift action unavailable')
   A.record_action(e,t,action)
- AP.spend(t,DEFINITIONS[CLASS]['ap'])
+ if edition is None:AP.spend(t,DEFINITIONS[CLASS]['ap'])
  st=state(t,create=True);st['sequence']+=1
  row={'id':'chronicler-record:'+t.entity_id+':'+str(st['sequence']),'kind':kind,'subject':subject,'at':e.elapsed_seconds,
   'round':e.round_no,'reason':reason,'request_id':request_id,'status':'provisional','archive':None,'archived_at':None,
   'source':CLASS,'clause_id':clause(CLASS),'acquisition':acquired(t,CLASS)['request_id']}
+ if edition is not None:row['edition']=edition
  st['records'][row['id']]=row
  e.log('  '+t.name+': 기록 '+kind+' '+str(subject),CLASS)
  return deepcopy(row)
 
 
-def record(engine,trainer,target,*,kind,reason,request_id):
+def record(engine,trainer,target,*,kind,reason,request_id,edition=None):
  """1 AP Swift Record of an actual subject on the Chronicler's own turn or outside combat."""
- subject,prior=_preflight_record(engine,trainer,kind,target,reason,request_id)
+ edition=_edition(engine.r,edition,CSV_RECORD)
+ subject,prior=_preflight_record(engine,trainer,kind,target,reason,request_id,edition)
  if prior is not None:return deepcopy(prior)
  participants=(target,) if kind in ('pokemon','trainer') else ()
- def apply(e,t,*_):return _commit_record(e,t,kind,subject,reason,request_id)
+ def apply(e,t,*_):return _commit_record(e,t,kind,subject,reason,request_id,edition)
  return G.transition(engine,trainer,apply,participants=participants,include_rulings=True)
 
 
-def record_interrupt(engine,trainer,target,*,kind,reason,request_id,trigger,payment='next',priority=0):
+def record_interrupt(engine,trainer,target,*,kind,reason,request_id,trigger,payment='next',priority=0,edition=None):
  """Off-turn Record through the native reaction window, paying its Swift now or next turn."""
  import initiative_interrupts as I
- subject,prior=_preflight_record(engine,trainer,kind,target,reason,request_id)
+ edition=_edition(engine.r,edition,CSV_RECORD)
+ subject,prior=_preflight_record(engine,trainer,kind,target,reason,request_id,edition)
  if prior is not None:return deepcopy(prior)
  if payment not in ('current','next'):raise ValueError('explicit native Swift Interrupt payment required')
  request={'id':'chronicler-record:'+trainer.entity_id+':'+request_id,'actor_id':trainer.entity_id,'source':CLASS,'priority':priority,
@@ -283,7 +341,7 @@ def record_interrupt(engine,trainer,target,*,kind,reason,request_id,trigger,paym
   queued=I.queue(e,[request],trigger=trigger)
   if queued.get('status') not in ('queued','already_queued'):raise ValueError('Record Interrupt declaration pending: '+str(queued))
   I.begin(e,queued['window_id'],request['id'])
-  row=_commit_record(e,t,kind,subject,reason,request_id)
+  row=_commit_record(e,t,kind,subject,reason,request_id,edition)
   I.finish(e)
   return row
  return G.transition(engine,trainer,apply,participants=participants,include_rulings=True)
@@ -393,7 +451,7 @@ def after_acquire(engine,trainer):
 
 # ---------------------------------------------------------------- Archive Tutor
 def learning_routes(engine,pokemon,mid):
- """Printed routes the Pokemon could use: current-level Level Up, species TM list, species Tutor list."""
+ """Current Level Up plus species TM/Tutor routes, with native Type Sync permissions."""
  import move_state as M
  from builder import species_lookup
  routes=[]
@@ -404,6 +462,13 @@ def learning_routes(engine,pokemon,mid):
    match=re.fullmatch(r'\s*([A-Za-z]?)([0-9]+)\s+(.+?)\s*',str(raw))
    if match and engine.r.move_id(match.group(3))==mid:routes.append('tm');break
   if any(engine.r.move_id(re.sub(r'\s*\(N\)','',str(name),flags=re.I))==mid for name in ls.get('tutor',[])):routes.append('tutor')
+ import type_sync as SYNC,pokemon_teaching as TEACH
+ for method in ('tm','tutor'):
+  permission=SYNC.learning_permission(engine.r,pokemon.spec,mid,method)
+  if permission is False:routes=[route for route in routes if route!=method]
+  elif permission is True and method not in routes:
+   if method=='tutor' or any(engine.r.move_id(row['move_name'])==mid for row in TEACH.catalog(engine.r)['machines'].values()):
+    routes.append(method)
  return routes
 
 
@@ -415,9 +480,10 @@ def _technique_record(engine,trainer,pokemon,mid):
  return next(rid for rid in st['archives']['technique'] if st['records'][rid]['subject']==mid),routes
 
 
-def tutor(engine,trainer,pokemon,move_id,*,seconds,reason,replace=None):
+def tutor(engine,trainer,pokemon,move_id,*,seconds,reason,replace=None,tutoring_policy=None,edition=None):
  """Daily Extended teaching of an archived Move for two Tutor Points."""
  import frequency as F,pokemon_activities as P,pokemon_teaching as TEACH,world_entities as W
+ edition=_edition(engine.r,edition,CSV_TUTOR)
  require(engine,trainer,TUTOR);W.require_actors(engine,pokemon);P._trainer(trainer);P._pokemon(pokemon)
  d=DEFINITIONS[TUTOR];C.integer(seconds,'actual Extended teaching seconds',1);_text(reason,'teaching reason')
  if not pokemon.spec.get('trainer_id'):raise ValueError('Archive Tutor targets an owned Pokemon')
@@ -427,8 +493,9 @@ def tutor(engine,trainer,pokemon,move_id,*,seconds,reason,replace=None):
  if TEACH._balance(pokemon.spec)<d['tutor_points']:raise ValueError('target needs two actual Tutor Points')
  st=state(trainer)
  other=pokemon.spec['trainer_id']!=trainer.entity_id
- if other and sum(row['pokemon_id']==pokemon.entity_id for row in st['tutoring'])>=d['other_owner_targets']:
-  raise ValueError("another user's Pokemon may be targeted by Archive Tutor only once")
+ previous=[row for row in st['tutoring'] if row['pokemon_id']==pokemon.entity_id]
+ if previous and (other or edition is not None or any(row.get('edition')==CSV_TUTOR for row in previous)):
+  raise ValueError('this Pokemon may be targeted by the selected Archive Tutor source only once')
  P._outside(engine)
  def apply(e,t,q):
   import move_state as M,learning_grant as LEARNING,turn as TURN,activity_jobs as JOBS,trainer_retraining as RETRAINING
@@ -438,17 +505,19 @@ def tutor(engine,trainer,pokemon,move_id,*,seconds,reason,replace=None):
   old=e.r.move_id(replace) if replace is not None else None;baseline=M.known(e.r,q.spec)
   if mid in baseline:raise ValueError('Pokemon already learned that move')
   if replace is not None and old not in baseline:raise ValueError('explicit replacement must name an actually learned permanent move')
-  admission=TEACH.tutor_admission(e.r,mid,q.level)
+  admission=TEACH.tutor_admission(e.r,mid,q.level,policy=tutoring_policy)
   candidate=deepcopy(q.spec)
   if old is not None:
    import move_type_sync as MOVE_SYNC
    MOVE_SYNC.forget_spec(e.r,candidate,old,at=e.elapsed_seconds,reason=reason)
   candidate['moves']=[m for m in candidate.get('moves',[]) if e.r.move_id(m)!=old]
+  details={'archive_record':record_id,'learning_routes':routes,'archive_tutor_admission':admission,'seconds':seconds}
+  if edition is not None:details['archive_tutor_edition']={'source':edition,'teacher_id':t.entity_id,'pokemon_id':q.entity_id,'owner_id':q.spec['trainer_id']}
   LEARNING.learn_moves(e.r,candidate,candidates=[mid],selected=[mid],method='feature',source=TUTOR,reason=reason,provider=t.entity_id,
-   paid_tp=d['tutor_points'],replaced=old,details={'archive_record':record_id,'learning_routes':routes,'archive_tutor_admission':admission,'seconds':seconds})
+   paid_tp=d['tutor_points'],replaced=old,details=details)
   moves=candidate['moves']
   M.record_natural_opportunities(e.r,candidate,reason='completed Archive Tutor teaching')
-  M.validate_spec(e.r,candidate,require_routes=True)   # printed TM/Tutor pool limit remains in force
+  M.validate_spec(e.r,candidate,require_routes=True)   # only CSV311's own permanent lesson is outside the taught quota
   if not TURN.spend(e,t,'extended',TUTOR):raise ValueError('Archive Tutor Extended action unavailable')
   JOBS.run_fixed(e,t,(q,),seconds=seconds,source=TUTOR,context={'move_id':mid,'record_id':record_id})
   F.consume_activation(t,TUTOR,d['frequency'],engine=e)
@@ -457,11 +526,31 @@ def tutor(engine,trainer,pokemon,move_id,*,seconds,reason,replace=None):
   G.set_baseline(q,'moves',moves);TEACH._debit_points(q.spec,d['tutor_points'])
   row={'pokemon_id':q.entity_id,'owner_id':q.spec['trainer_id'],'other_owner':other,'move_id':mid,'record_id':record_id,'routes':routes,
    'point_cost':d['tutor_points'],'at':e.elapsed_seconds,'reason':reason,'acquisition':acquired(t,TUTOR)['request_id'],'clause_id':clause(TUTOR)}
+  if edition is not None:row['edition']=edition
   state(t)['tutoring'].append(row)
   RETRAINING.irreversible(e,t,TUTOR,event_id='archive-tutor:'+t.entity_id+':'+q.entity_id+':'+mid+':'+str(e.elapsed_seconds),reason='completed permanent Archive Tutor teaching: '+mid)
   return {'activity':'archive_tutor','move':mid,'replaced':old,'point_cost':d['tutor_points'],'routes':routes,'seconds':seconds,
    'classification':M.describe(e.r,q.spec)['classifications'][mid]}
  return G.transition(engine,trainer,apply,participants=(pokemon,))
+
+
+def tutor_pool_exempt(rules,spec,mid):
+ """CSV311 exempts this permanent own-Pokemon lesson from the taught quota, not six known Moves."""
+ record=spec.get('move_learning',{}).get(mid,{})
+ if type(record)is not dict:return False
+ proof=record.get('archive_tutor_edition')
+ if proof is None:return False
+ if (type(proof)is not dict or set(proof)!={'source','teacher_id','pokemon_id','owner_id'}
+     or record.get('source')!=TUTOR or record.get('method')!='feature' or record.get('paid_tp')!=2
+     or record.get('lifetime')!='permanent' or record.get('learning_contract')!=1
+     or not record.get('archive_record') or proof.get('teacher_id')!=record.get('teacher_id')
+     or proof.get('pokemon_id')!=spec.get('id')
+     or not all(type(proof.get(key))is str and proof[key] for key in ('teacher_id','pokemon_id','owner_id'))):
+  raise ValueError('CSV Archive Tutor exemption requires actual permanent learning provenance')
+ _edition(rules,proof['source'],CSV_TUTOR)
+ # A forgotten receipt cannot exempt a later unrelated source-owned grant.
+ permanent=list(spec.get('moves',[]))+list(spec.get('state_grants',{}).get('legacy',{}).get('moves',[]))
+ return proof['teacher_id']==proof['owner_id'] and any(rules.move_id(raw)==mid for raw in permanent)
 
 
 # ---------------------------------------------------------------- Targeted Profiling
@@ -480,17 +569,23 @@ def profiling_record(pokemon):
  return next((r for r in T.records(pokemon) if r.get('source')==PROFILING),None)
 
 
-def profile_order(engine,trainer,pokemon):
+def profile_order(engine,trainer,pokemon,*,communication=None):
  """2 AP Standard Order: the Pokemon's next turn treats archived Profile subjects as Mold Breaker targets with +2 Accuracy."""
  import action_points as AP,turn as TURN,combat_timing as T,cheerleader as CHEER
- require(engine,trainer,PROFILING);_owned_pokemon(engine,trainer,pokemon)
+ require(engine,trainer,PROFILING)
+ import commander as COMMANDER
+ if not (COMMANDER.transformed_target(engine,trainer,pokemon) or COMMANDER.leadership_target(engine,trainer,pokemon)):
+  _owned_pokemon(engine,trainer,pokemon)
  d=DEFINITIONS[PROFILING]
  @CHEER.order_activation(PROFILING)
  def apply(e,t,q):
-  order_delivery(e,t,q,PROFILING)
+  if not e.encounter_active or not q.on_field or q.fainted or q.captured:raise ValueError('available actual Order recipient required')
+  import order_actions as ORDERS
+  delivery=order_delivery(e,t,q,PROFILING) if communication is None else ORDERS.delivery(e,t,q,PROFILING,communication=communication)
   if profiling_record(q) is not None:raise ValueError('Targeted Profiling is already pending for this Pokemon')
   if AP.available(t)<d['ap']:raise ValueError('Targeted Profiling requires two available AP')
-  if not TURN.spend(e,t,d['action'],PROFILING):raise ValueError('Targeted Profiling Standard action unavailable')
+  import order_actions as ORDERS
+  ORDERS.spend(e,t,PROFILING,action=d['action'],subject=q.entity_id,communication=delivery)
   AP.spend(t,d['ap'])
   serial=q.custom_conditions.get('combat_turn_serial',0)
   if e._active_turn_actor is q:raise ValueError('an Order targets a Pokemon outside its own open turn')
@@ -503,11 +598,11 @@ def profile_order(engine,trainer,pokemon):
 
 
 def _profiling_owner(engine,attacker,target):
- if attacker is None or target is None or getattr(attacker,'kind',None)!='pokemon':return None
+ if attacker is None or target is None:return None
  row=profiling_record(attacker)
  if row is None:return None
  facts=row['chronicler_profiling']
- if attacker.custom_conditions.get('combat_turn_serial',0)!=facts['active_serial']:return None
+ if not __import__('native_order_transfer').on_eligible_turn(engine,attacker,row,facts['active_serial']):return None
  import world_entities as W
  owner=W.actor_index(engine).get(facts['owner_id'])
  if owner is None or getattr(target,'entity_id',None) not in archived(owner,'profile'):return None
@@ -518,9 +613,32 @@ def accuracy_bonus(engine,attacker,target,move):
  return DEFINITIONS[PROFILING]['accuracy_bonus'] if _profiling_owner(engine,attacker,target) is not None else 0
 
 
-def defensive_ignored(engine,attacker,target):
- """Mold Breaker projection: the target's Ability-sourced immunity, absorption, resistance and Levitate are ignored."""
- return _profiling_owner(engine,attacker,target) is not None
+def defensive_ignored(engine,attacker,target,move=None):
+ """Shared selected native defensive-Ability bypass, including Targeted Profiling."""
+ if _profiling_owner(engine,attacker,target) is not None or __import__('commander_orders').ignore_defensive(engine,attacker,target):return True
+ if attacker is None or target is None:return False
+ if __import__('typed_defensive_bypass').active_sources(engine,attacker,target,move):return True
+ attacker_side,target_side=getattr(attacker,'side',None),getattr(target,'side',None)
+ if not attacker_side or not target_side or attacker_side==target_side:return False
+ import ability_transitions as ABILITIES
+ for effect in attacker.registry:
+  if effect.get('type')!='ignore_effects' or effect.get('ignore_abilities') not in ('defensive','defensive (all enemies)'):continue
+  source=effect.get('_rule_id','')
+  if __import__('typed_defensive_bypass').handles(source):continue
+  if not source.startswith('ability/'):continue
+  if engine.r._selected_rule(source)!=source:continue
+  raw={k:v for k,v in effect.items() if not k.startswith('_')}
+  title=engine.r.selection.units[source]['title']
+  if not ABILITIES.active(attacker,title):continue
+  if raw not in engine.r.ability_effects.get(title,[]):continue
+  restriction=effect.get('moves')
+  if restriction is not None:
+   if move is None:continue
+   import effects_ext as EXT
+   mechanics,_=engine.r.move_mech(move['id'])
+   if EXT.effective_type(engine,attacker,target,move,mechanics,consume=False)!=restriction:continue
+  return True
+ return False
 
 
 # ---------------------------------------------------------------- Cinematic Analysis
@@ -580,7 +698,11 @@ def character_study(engine,trainer,*,record_id,actor,target,skill,dc,purpose,rea
  def apply(e,t,a,other):
   analysis=_consume_analysis(e,t,'character_study',record_id,actor_id=a.entity_id,target_id=other.entity_id,skill=triggered['requested_skill'],purpose=purpose,dc=dc,reason=reason)
   roll=e.skill_roll(t,PERCEPTION,skill_target=other,roll_id=roll_options.get('roll_id'),fixed=perception_fixed)
-  result=C.against_dc(roll,dc)
+  sf=__import__('skill_feature_actions');identity=sf._observed(e,t,roll,roll_options)[0] if t.entity_id in getattr(e,'_let_me_help_offers',{}) else roll_options.get('roll_id')
+  result=__import__('skill_feature_actions').resolve_check(e,t,PERCEPTION,dc,roll,roll_options)
+  if identity is not None:
+   observed=sf.event(e,t,identity)
+   if observed is not None and observed.final is not None:roll=observed.final
   analysis.update(perception_total=roll.total,passed=result.passed)
   return {'triggered':{'actor_id':a.entity_id,'skill':triggered['requested_skill'],'purpose':purpose,'dc':dc,'rolled':False},
    'replacement':{'actor_id':t.entity_id,'skill':PERCEPTION,'total':roll.total,'faces':list(roll.faces),'passed':result.passed,'margin':result.margin}}
@@ -660,6 +782,16 @@ def validate(engine):
  import world_entities as W,combat_timing as T
  index=W.actor_index(engine)
  for actor in index.values():
+  for mid,lesson in actor.spec.get('move_learning',{}).items():
+   if type(lesson)is not dict or 'archive_tutor_edition' not in lesson:continue
+   tutor_pool_exempt(engine.r,actor.spec,mid)
+   proof=lesson['archive_tutor_edition'];teacher=index.get(proof['teacher_id'])
+   if teacher is not None:
+    history=(state(teacher) or {}).get('tutoring',[])
+    matches=[row for row in history if row.get('pokemon_id')==actor.entity_id and row.get('move_id')==mid
+     and row.get('record_id')==lesson.get('archive_record') and row.get('edition')==proof['source']
+     and row.get('owner_id')==proof['owner_id'] and row.get('other_owner')==(proof['owner_id']!=proof['teacher_id'])]
+    if len(matches)!=1:raise ValueError('CSV Archive Tutor learning differs from actual teacher history')
   st=actor.spec.get(KEY)
   if st is not None:
    # A retrained class keeps its record history; the acquisition provenance below still binds each record.
@@ -668,7 +800,8 @@ def validate(engine):
    C.integer(st['sequence'],'Chronicler record sequence',0)
    archives=owned_archives(actor)
    for rid,row in st['records'].items():
-    if type(row) is not dict or set(row)-{'archive_source','archival_reason'}!={'id','kind','subject','at','round','reason','request_id','status','archive','archived_at','source','clause_id','acquisition'} or row['id']!=rid:raise ValueError('exact Chronicler record required')
+    if type(row) is not dict or set(row)-{'archive_source','archival_reason','edition'}!={'id','kind','subject','at','round','reason','request_id','status','archive','archived_at','source','clause_id','acquisition'} or row['id']!=rid:raise ValueError('exact Chronicler record required')
+    if 'edition' in row:_edition(engine.r,row['edition'],CSV_RECORD)
     if row['kind'] not in RECORD_KINDS or row['source']!=CLASS or row['clause_id']!=clause(CLASS) or row['status'] not in ('provisional','archived'):raise ValueError('invalid Chronicler record')
     C.integer(row['at'],'record time',0,engine.elapsed_seconds);_text(row['reason'],'record reason');_text(row['request_id'],'record request')
     if not any(r['request_id']==row['acquisition'] for r in records(actor,CLASS)):raise ValueError('record acquisition provenance changed')
@@ -683,6 +816,9 @@ def validate(engine):
     if len(subjects)!=len(ids) or len(set(subjects))!=len(subjects):raise ValueError('archive lists an unknown or repeated record')
    for row in st['tutoring']:
     if type(row) is not dict or row.get('clause_id')!=clause(TUTOR) or type(row.get('other_owner')) is not bool:raise ValueError('invalid Archive Tutor history')
+    if 'edition' in row:_edition(engine.r,row['edition'],CSV_TUTOR)
+   for target in {row['pokemon_id'] for row in st['tutoring'] if row.get('edition')==CSV_TUTOR}:
+    if sum(row['pokemon_id']==target for row in st['tutoring'])!=1:raise ValueError('CSV Archive Tutor target can be taught only once across source editions')
    for row in st['analyses']:
     if type(row) is not dict or row.get('kind') not in ANALYSES or row.get('clause_id')!=ANALYSES[row.get('kind')]['clause_id']:raise ValueError('invalid Cinematic Analysis history')
   if PLACE in actor.spec:current_place(actor)
@@ -697,7 +833,7 @@ def validate(engine):
   for row in T.records(actor):
    if row.get('source')==PROFILING:
     facts=row.get('chronicler_profiling')
-    if type(facts) is not dict or facts.get('owner_id') not in index or row.get('turn_owner') is not actor or row.get('turn_deadline')!=facts.get('active_serial'):raise ValueError('invalid Targeted Profiling record')
+    if type(facts) is not dict or facts.get('owner_id') not in index or row.get('turn_owner') is not __import__('native_order_transfer').clock_owner(engine,actor,row) or row.get('turn_deadline')!=facts.get('active_serial'):raise ValueError('invalid Targeted Profiling record')
     if acquired(index[facts['owner_id']],PROFILING) is None:raise ValueError('Targeted Profiling lost its Chronicler owner')
    if row.get('source')==CINEMATIC:
     facts=row.get('chronicler_recreation')

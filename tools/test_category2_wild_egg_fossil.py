@@ -169,7 +169,8 @@ class Tests(_fixture_test_category3_pokemon_activities.PokemonActivityTests):
   f.e.pokemon_activity(f.t,'party_policy',mode='unlimited',reason='GM carrying policy',roster=[f.p])
   f.e.pokemon_activity(receiver,'party_policy',mode='unlimited',reason='GM carrying policy',roster=[])
   f.e.gm.transfer_egg(f.t,receiver,egg['entity_id'],reason='egg gifted',request_id='gift')
-  child=f.e.pokemon_activity(receiver,'hatch_fossil',egg_id=egg['id'],name='child',ready=True,reason='GM readiness',details=dict(gender='female',nature='노력',abilities=[],moves=[],special_appearance=False,inheritance_moves=[]))['pokemon']
+  child=f.e.pokemon_activity(receiver,'hatch_fossil',egg_id=egg['id'],name='child',ready=True,reason='GM readiness',details=dict(gender='female',nature='노력',abilities=['아이스실드'],moves=[],special_appearance=False,inheritance_moves=[]))['pokemon']
+  self.assertEqual(child.abilities,['아이스실드'])
   before=f.e.elapsed_seconds
   with self.assertRaisesRegex(ValueError,'this trainer restored'):f.e.craft_relic_crown(receiver,child,minutes=10)
   self.assertEqual(f.e.elapsed_seconds,before);self.assertNotIn('relic_items',receiver.spec)

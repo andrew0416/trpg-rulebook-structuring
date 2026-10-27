@@ -10,17 +10,30 @@ import common_checks as C
 import effect_lifetime_policy as POLICY
 
 FIELDS={'skill_check_mod':'skill_modifier','accuracy_mod':'accuracy_modifier','evasion_mod':'evasion_modifier','damage_reduction':'damage_reduction','save_mod':'save_modifier'}
-KINDS=set(FIELDS)|{'apply_status','initiative','initiative_multiplier','type_change','size_change','forbid','swap_stats','move_lock','damage_roll_mod'}
+KINDS=set(FIELDS)|{'oracle_mark','channel_imprint','apply_status','initiative','initiative_multiplier','type_change','size_change','forbid','swap_stats','move_lock','damage_roll_mod','type_override_moves'}
 class TimingUnsupported(ValueError):pass
 class TimingAmbiguous(ValueError):pass
 
 def declared(effect):return any(k in effect for k in ('duration','until','while','repeat'))
 
 def prepare(engine,actor,target,effect,source):
+ if source=='move/페어리록':return __import__('native_path_area_moves').fairy_prepare(engine,actor,target,effect,source)
  structured=any(type(effect.get(k)) is dict for k in ('duration','until','while','repeat'))
  if 'while' in effect and type(effect['while']) is not dict:raise TimingUnsupported('continuous predicate needs an explicit state declaration: '+str(effect['while']))
  if 'repeat' in effect and type(effect['repeat']) is not dict:raise TimingUnsupported('repeat needs an explicit event declaration: '+str(effect['repeat']))
  if not declared(effect):return None
+ if source=='move/일렉트로빔' and effect['type']=='zone_rule':
+  return __import__('electro_shot').prepare(engine,actor,target,effect,source)
+ if effect['type']=='transform':
+  raw={'type':'transform','target':'target','copy':['types','moves','abilities','capabilities','weight','height'],
+       'until':'switch, faint or encounter_end','range':'10m'}
+  if (source!='move/변신' or engine.r._selected_rule(source)!=source
+      or {k:v for k,v in effect.items() if not k.startswith('_')}!=raw):
+   raise TimingUnsupported('Transform requires its exact selected source-owned lifetime')
+  return {'source':source,'transform_owned':True}
+ if effect['type']=='oracle_mark':
+  if effect.get('until')!='target_ends':raise TimingUnsupported('Mark ends through its actual target consent boundary')
+  return {'source':source,'manual_end':True,'effect_contract':True,'oracle_mark':__import__('oracle').mark_payload(engine,actor,target,effect,source)}
  if effect.get('type')=='pledge' and 'rainbow_observed' in effect:
   import pledge_state as PLEDGE
   return PLEDGE.prepare(engine,actor,target,effect,source)
@@ -51,6 +64,11 @@ def prepare(engine,actor,target,effect,source):
   C.integer(effect.get('value'),'timed damage modifier')
   if set(effect)-{'type','value','move_type','target','until','duration','while','note','confidence'} or ('move_type' in effect and type(effect['move_type'])is not str):
    raise TimingUnsupported('timed damage modifier needs an exact supported passive payload')
+ if effect['type']=='type_override_moves':
+  if (source!='move/송전' or effect.get('moves')!='water moves and melee attacks'
+      or effect.get('as_type')!='전기' or effect.get('until')!="end of user's next turn"
+      or set(effect)-{'type','moves','as_type','target','until','note','confidence'}):
+   raise TimingUnsupported('timed move-type override needs the reviewed Electrify payload')
  if effect['type']=='apply_status' and not isinstance(effect.get('status'),str):raise TimingUnsupported('one sourced status required for timed application')
  if 'duration' in effect and 'until' in effect:raise TimingAmbiguous('multiple lifetime declarations require an explicit composition rule')
  raw=effect.get('until',effect.get('duration'))
@@ -79,7 +97,9 @@ def prepare(engine,actor,target,effect,source):
  elif 'next turn' in raw or '다음 턴' in raw:
   raise TimingAmbiguous('lifetime must identify whose turn and start or end: '+raw)
  else:raise TimingUnsupported('unimplemented explicit lifetime: '+raw)
- if effect['type']=='damage_roll_mod':pass
+ if effect['type']=='channel_imprint':record['channel_imprint']=__import__('channeler').imprint_payload(engine,actor,target,effect,source)
+ elif effect['type']=='damage_roll_mod':pass
+ elif effect['type']=='type_override_moves':record['move_type_override']={key:effect[key] for key in ('type','moves','as_type')}
  elif effect['type']=='size_change':
   import body_state as BODY,body_modes as MODES
   if source!='move/작아지기' or effect.get('to')!='Small' or raw not in ('encounter_end','encounter','인카운터 끝까지'):
@@ -91,7 +111,7 @@ def prepare(engine,actor,target,effect,source):
   # Shared storage does not certify an area Move's whole-activation timing.
   if source in engine.r.moves and not engine.r.moves_reviewed.get(source,{}).get('type_lifetime_ready'):
    raise TimingUnsupported('native type-change source needs reviewed activation timing: '+source)
-  record['type_operation']=type_operation(engine.r,effect)
+  record['type_operation']=type_operation(engine.r,effect,source=source)
   import type_state as TYPES
   TYPES.validate_actor(target)
  elif effect['type'] in ('initiative','initiative_multiplier'):
@@ -106,6 +126,13 @@ def prepare(engine,actor,target,effect,source):
 def install(engine,actor,target,effect,source,receipt,occurrence):
  record=prepare(engine,actor,target,effect,source)
  if record is None:return False
+ if record.get('electro_shot_owned'):
+  __import__('electro_shot').install(engine,actor,target,effect,source,receipt,occurrence)
+  return True
+ if record.get('transform_owned'):
+  __import__('effects_ext').h_transform(engine,actor,target,effect,
+      {'source_id':source,'effect_occurrence':occurrence,'effect_receipt':receipt})
+  return True
  if record.get('local_weather_owned'):
   import field_effects as FIELD
   FIELD.install_local_snow(engine,actor,target,effect,source,receipt,occurrence)
@@ -124,6 +151,13 @@ def install(engine,actor,target,effect,source,receipt,occurrence):
   passive={k:effect[k] for k in ('type','value','move_type') if k in effect}
   GRANTS.apply_owned(engine,target,grant,lambda:FX.apply_passives(engine,target,[passive]),effects=[passive])
   record['grant_source']=grant
+ if 'move_type_override' in record:
+  import state_grants as GRANTS
+  grant=GRANTS.effect_source(target,{'source_id':source,'effect_occurrence':occurrence},'timed-move-type')
+  GRANTS._source(target,grant,'effect',owner_id=actor.entity_id,rule_id=source,lifetime=record['timing_text'])
+  passive=record['move_type_override']
+  GRANTS.apply_owned(engine,target,grant,lambda:target.registry.append(passive),effects=[passive])
+  record['grant_source']=grant
  if 'size_value' in record:
   import state_grants as GRANTS
   grant=GRANTS.effect_source(target,{'source_id':source,'effect_occurrence':occurrence},'timed-size')
@@ -141,6 +175,10 @@ def install(engine,actor,target,effect,source,receipt,occurrence):
                  lifetime=record['timing_text'],timed_type_contract={
                   'operation':dict(operation),'boundary':type_boundary(record),
                   'occurrence':occurrence})
+  import personal_type_settings as PERSONAL
+  if PERSONAL.neutral_burn_up(engine.r,source,operation['mode'],operation['values']):
+   GRANTS.state(target)['sources'][grant]['personal_type_setting']={
+    'source':PERSONAL.NEUTRAL_SOURCE,'identity':PERSONAL.TYPELESS,'fallback':None}
   GRANTS.type_operation(target,operation['mode'],operation['values'],grant,fallback=operation['fallback'])
   record['grant_source']=grant
  if POLICY.KEY in record:
@@ -153,6 +191,8 @@ def install(engine,actor,target,effect,source,receipt,occurrence):
   import stat_exchange_state as STAT_EXCHANGE
   stat_plan=STAT_EXCHANGE.prepare_install(target,record)
  TIMING.install(engine,target,record)
+ if source=='move/페어리록' and not any(status in target.conditions for status in record['statuses']):
+  TIMING.expire(engine,target,record)
  if stat_plan is not None:STAT_EXCHANGE.commit_install(target,stat_plan)
  return True
 
@@ -188,11 +228,13 @@ def end_encounter(engine,actors):
    if record.get('effect_contract') and record.get('encounter_end'):
     TIMING.expire(engine,actor,record,
                   event={'kind':'encounter_end'} if 'stat_exchange' in record else None)
+  import ability_transitions as ABILITIES
+  ABILITIES.end(engine,actor,'encounter')
  import ability_native_actions as NATIVE
  NATIVE.end_encounter(engine,actors)
 
 
-def type_operation(rules,effect):
+def type_operation(rules,effect,*,source=None):
  """Lossless data contract shared by timed addition, removal and replacement."""
  import type_state as TYPES
  keys=[key for key in ('add_type','lose_type','set_type') if key in effect]
@@ -207,6 +249,8 @@ def type_operation(rules,effect):
  if fallback is not None:
   if mode!='remove':raise TimingUnsupported('fallback belongs only to type removal')
   TYPES.validate_types(rules,[fallback],label='timed type fallback')
+ import personal_type_settings as PERSONAL
+ if PERSONAL.neutral_burn_up(rules,source,mode,[value]):fallback=None
  return {'mode':mode,'values':[value],'fallback':fallback}
 
 
@@ -252,7 +296,7 @@ def validate_type_world(engine,index):
    CONTRACTS.validate_receipt(engine,receipt,record['source'],record['effect_occurrence'],row['actor'],row['target'],row['effect'])
    if source.get('owner_id')!=row['actor'].entity_id or not any(x is actor for x in CONTRACTS.recipients(row['actor'],row['target'],row['effect'])):
     raise ValueError('timed type recipient or producer differs from its receipt')
-   if row['effect'].get('type')!='type_change' or type_operation(engine.r,row['effect'])!=record['type_operation']:
+   if row['effect'].get('type')!='type_change' or type_operation(engine.r,row['effect'],source=row['source_id'])!=record['type_operation']:
     raise ValueError('timed type receipt carries a different operation')
   if seen!=expected:raise ValueError('timed type source has no live expiration record')
  import catalog_move_states as CATALOG

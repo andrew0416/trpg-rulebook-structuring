@@ -15,9 +15,15 @@ class RollResourceTests(unittest.TestCase):
         self.e=Engine(self.r,seed=716)
         self.a=self.actor('trainer','trainer');self.p=self.actor('pokemon','pokemon')
     def actor(self,name,kind):
-        return Combatant(self.r,{'name':name,'kind':kind,'level':20,'stats':{'hp':20,'atk':5,'def':5,'spa':5,'spd':5,'spe':5},'skills':{'육상':'달인','명령':'달인'},'moves':['move/화염방사']})
+        actor=Combatant(self.r,{'name':name,'kind':kind,'level':20,'stats':{'hp':20,'atk':5,'def':5,'spa':5,'spd':5,'spe':5},'skills':{'육상':'달인','명령':'달인'},'moves':['move/화염방사']})
+        self.e.gm.add_combatant(actor)
+        return actor
     def prepare(self,actor=None,kind='skill',rid='one'):
-        return self.e.boost_roll(self.a,actor or self.a,roll_id=rid,kind=kind)
+        actor=actor or self.a
+        if actor is not self.a:
+            # ch06:85, Core 1.05 p.221: the bonus reaches only the payer's own current, registered Pokemon.
+            actor.spec['trainer_id']=self.a.entity_id
+        return self.e.boost_roll(self.a,actor,roll_id=rid,kind=kind)
     def test_source_before_once_free_self_or_pokemon(self):
         line=(ROOT/'input/ch06-gameplay.md').read_text(encoding='utf-8').splitlines()[84]
         for phrase in ['하기 전에 1 액션 포인트','프리 액션','굴림당 두 번 이상','포켓몬의 명중 또는 스킬']:self.assertIn(phrase,line)
@@ -37,6 +43,8 @@ class RollResourceTests(unittest.TestCase):
         class FixedRng:
             def randint(self,a,b):return 2
         self.e.rng=FixedRng();self.prepare(self.p,'accuracy','attack')
+        # The now trainer-owned attacker is a commanded Pokemon; its loyalty is an observed fact.
+        self.e.gm.observe_loyalty(self.p,6,reason='observed relationship of the payer-owned Pokemon')
         self.assertGreater(self.e.use_move(self.p,target,'move/화염방사',set_damage=True,roll_id='attack'),0)
         self.assertEqual(self.e._ap_rolls['attack']['state'],'resolved')
         self.prepare(self.p,'accuracy','miss')
@@ -117,7 +125,7 @@ class RollResourceTests(unittest.TestCase):
         self.assertEqual(self.a.spec,before);self.assertEqual(self.e.rng.getstate(),rng)
         self.a.spec['skills']['직감']='숙련'
         original=self.r._selected_rule
-        self.r._selected_rule=lambda uid:'alternate' if uid=='edge/타고난-적성' else original(uid)
+        self.r._selected_rule=lambda uid, *args, **kwargs: 'alternate' if uid == 'edge/타고난-적성' else original(uid, *args, **kwargs)
         try:
             before=AP.available(self.a)
             with self.assertRaises(ValueError):self.prepare()
@@ -149,7 +157,7 @@ class RollResourceTests(unittest.TestCase):
     def test_instruction_selected_variant_or_pokemon_ownership_does_not_apply(self):
         self.a.spec['edges']=['edge/설명'];self.a.spec['skills']['일반지식']='초보'
         original=self.r._selected_rule
-        self.r._selected_rule=lambda uid:'alternate' if uid=='edge/설명' else original(uid)
+        self.r._selected_rule=lambda uid, *args, **kwargs: 'alternate' if uid == 'edge/설명' else original(uid, *args, **kwargs)
         try:
             with self.assertRaises(ValueError):self.e.common_action(self.p,'육상',10,mode='skill',helper=self.a,helper_skill='일반지식')
         finally:self.r._selected_rule=original

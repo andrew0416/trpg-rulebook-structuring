@@ -202,6 +202,8 @@ def _level_up(rules, spec, log=None, auto_evolve=False, strategy=None, stat_choi
         log.append(f"  기술 {rules.move(mid)['name']} 습득")
     import pokemon_teaching as TEACHING
     TEACHING.on_level(rules, spec)
+    import growth_milestones as MILESTONES
+    MILESTONES.offer_inheritance(rules,spec)
     # 특성 슬롯
     ls = rules.learnsets.get(sp["name"], {})
     for slot in rule["ability_slots"]:
@@ -420,6 +422,12 @@ def gain_exp_combatant(engine, c, amount, *, stat_choices=None):
 
 
 def _gain_exp_combatant(engine, c, amount, *, stat_choices=None):
+    split=__import__('csv_item_form_contracts').experience_split(engine,c,amount,stat_choices=stat_choices)
+    if split is not None:return split
+    return _gain_exp_unsplit_combatant(engine,c,amount,stat_choices=stat_choices)
+
+
+def _gain_exp_unsplit_combatant(engine, c, amount, *, stat_choices=None):
     """전투 중 경험치(이상한사탕 등): 'to next level' 이면 다음 레벨 경험치까지. Combatant 의 spec·level·stats 를 갱신한다."""
     r = engine.r
     M.validate_source(r)
@@ -454,6 +462,8 @@ def _gain_exp_combatant(engine, c, amount, *, stat_choices=None):
     BANDAGES.on_hp_change(engine,c,hp_before,c.hp)
     import state_grants as GRANTS
     GRANTS.reconcile(engine, c, activate_existing=False)
+    import ability_state_projection as ABILITY_PROJECTION
+    ABILITY_PROJECTION.level_changed(engine,c,old_level)
     import class_actor_state_actions as CLASS_STATE_ACTIONS
     CLASS_STATE_ACTIONS.observe_level_up(engine, c, old_level, c.level)
     import marsupial_state as MARSUPIAL
@@ -648,6 +658,7 @@ def _extended_rest_benefits(engine,c,log):
     import resolution_transaction as REQUESTS
     parent='rest:'+REQUESTS.request_fingerprint({'owner':c.entity_id,'interval':c.spec.get('rest_interval')})
     AP.extended_rest(c,request_id=parent)
+    __import__('study_books').after_extended_rest(engine,c)
     FREQ.restore_daily_moves(engine,c,request_id=parent)
     log.append(f'{c.name}: 연속4시간 휴식 → 지속 상태 {len(cured)}개 치료, 제거된 AP 및 조건을 충족한 하루 기술 복원')
 
@@ -734,6 +745,17 @@ def _rest_many(engine,combatants,minutes,log=None,*,rest_id=None):
         healing=BANDAGES.rest_healing(engine,c,previous=previous,rest_id=rest_id,blocks=blocks,
             block_minutes=heal_rule['per_minutes'],fraction=heal_rule['fraction'],heavy_threshold=heavy)
         plans.append((c,record,blocks,spent,before_total,healing))
+    import study_books as BOOKS
+    with BOOKS.rest_scope(engine,plans,minutes,rest_id):
+        plans=[(c,record,blocks,spent,before,BANDAGES.rest_healing(engine,c,previous=c.spec.get('rest_interval'),rest_id=rest_id,
+            blocks=blocks,block_minutes=heal_rule['per_minutes'],fraction=heal_rule['fraction'],heavy_threshold=heavy,
+            caretaker=BOOKS.care_owner(engine,c,rest_id) is not None)) for c,record,blocks,spent,before,healing in plans]
+        return _commit_rest_many(engine,actors,plans,minutes,log)
+
+
+def _commit_rest_many(engine,actors,plans,minutes,log):
+    """The admitted shared interval remains one atomic native rest operation."""
+    rule=engine.r.mech('combat/resting')
     engine.advance_time(minutes*60,actors)
     gains=[]
     for c,record,blocks,spent,before_total,healing in plans:
@@ -743,18 +765,17 @@ def _rest_many(engine,combatants,minutes,log=None,*,rest_id=None):
         c.spec['rested_minutes_today']=spent+minutes
         before=c.hp
         import actor_templates as TEMPLATES
-        if minutes > 0 and TEMPLATES.soulless(c):
+        milestone=rule['extended_rest']['min_hours']*60
+        if TEMPLATES.soulless(c):
             import life as LIFE
-            # Preserve the exact Soulless recovery-to-one rule while routing
-            # the gain through the shared revival prohibition.
-            if LIFE.revive(engine,c,1):
-                engine.log(f"    {c.name}: 연장 휴식 행동으로 HP 1 회복", "capability/영혼없음")
+            if TEMPLATES.soulless_rest_recovery(engine,c,record,before_total,milestone):
+                if LIFE.revive(engine,c,1):
+                    engine.log(f"    {c.name}: 선택한 영혼없음 휴식 완료로 HP 1 회복", "capability/영혼없음")
         else:
             engine.heal(c,healing,source_kind='rest')
         record['context']['injuries']=c.injuries
         gains.append(c.hp-before)
         log.append(f'{c.name}: 휴식 {minutes}분 (오늘 {spent+minutes}분) → 체력 {before} → {c.hp}')
-        milestone=rule['extended_rest']['min_hours']*60
         if before_total<milestone<=record['total_minutes']:
             _extended_rest_benefits(engine,c,log)
     return gains

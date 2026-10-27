@@ -5,6 +5,9 @@ remain in spec; an equipment or temporary source never becomes that baseline.
 All receipts under spec are JSON-compatible; runtime rows carry source tokens.
 """
 from copy import deepcopy
+from contextvars import ContextVar
+
+_TRANSITION_MOVE_ALIASES = ContextVar("transition_move_aliases", default=())
 
 KEY = "state_grants"
 LIST_FIELDS = ("moves", "abilities", "capabilities")
@@ -63,15 +66,23 @@ def effective(c, field, *, include_suppressed=False, only=None):
         if field!='capabilities' or not isinstance(only,(list,tuple,set,frozenset)) or any(type(v)is not str or not v for v in only):
             raise ValueError('named capability query needs exact capability identities')
     st = c.spec.get(KEY, {}) if field == "capabilities" else state(c)
-    result = list(c.spec.get(field, [])) + st.get("legacy", {}).get(field, [])
+    result = list(c.spec.get(field, []))
+    if field == 'capabilities' and c.spec.get('csv_remaining_form_state', {}).get('weapon_union'):
+        import csv_item_form_contracts as CSV_FORMS
+        result = CSV_FORMS.capability_baseline(c, result)
+    result += st.get("legacy", {}).get(field, [])
     import move_state as MOVES_STATE
     for row in st.get("sources", {}).values():
         if not MOVES_STATE.source_active(c.spec,row):continue
         result.extend(row["grants"].get(field, []))
+    if field=='moves':
+        for equipped in c.custom_conditions.get('equipped_weapons',{}).values():
+            result.extend(equipped['available_moves'])
     if field=='capabilities':
         import move_capabilities as MOVE_CAPABILITIES
         result.extend(row['capability'] for row in MOVE_CAPABILITIES.contributions(c))
         result.extend(__import__('survivalist_class').capability_contributions(c))
+        result=__import__('pokemon_capability_edges').named_capabilities(c,result)
     overlays = [r[field] for r in st.get("overlays", {}).values() if field in r]
     if overlays:
         result = overlays[-1]
@@ -330,9 +341,12 @@ def _weight_value(row,base):
     value=row["base"]
     if row["sources"]:
         if value is None:value=base
-        if type(value)is not int:raise ValueError("weight modification requires known base weight")
+        if value is not None and type(value)is not int:raise ValueError("weight modification requires known base weight")
         for op in row["sources"].values():
-            value=op["value"] if op["mode"]=="set" else max(op["minimum"],value+op["value"])
+            if op["mode"]=="set":value=op["value"]
+            else:
+                if type(value)is not int:raise ValueError("weight modification requires known base weight")
+                value=max(op["minimum"],value+op["value"])
     return value
 
 
@@ -738,6 +752,7 @@ def ensure_ability(e,c,name):
     if registration is None and name in getattr(e.r,'unresolved_abilities',{}):
         from ruleset import UnresolvedRuleSelection
         raise UnresolvedRuleSelection(name,e.r.unresolved_abilities[name])
+    selected=registration['source_id'] if registration else None
     if hasattr(e.r,'selection'):
         e.r.selection.require_current_filter(e.r.ruleset)
         selected=registration['source_id'] if registration else e.r.selection.resolve_name(canonical,('ability/',))
@@ -747,7 +762,12 @@ def ensure_ability(e,c,name):
     st=state(c)
     if canonical in st["ability_receipts"]:return False
     source_id="ability:"+canonical
-    effects=getattr(e.r,"ability_effects",{}).get(canonical,[])
+    import typed_defensive_bypass as TYPED
+    effects=TYPED.effects(e.r,selected) if TYPED.handles(selected) else getattr(e.r,"ability_effects",{}).get(canonical,[])
+    if selected=='ability/감지-playtest':
+        import chronicler as CHRONICLER
+        CHRONICLER.perception_definition(e.r,selected)
+        effects=[effect for effect in effects if effect['type']=='evasion_mod']
     callback=(lambda:e._register_abilities_one(c,registration['name'],selected_id=registration['source_id'])) if registration else (lambda:e._register_abilities_one(c,name))
     apply_owned(e,c,source_id,callback,effects=effects)
     st["ability_receipts"][canonical]=source_id
@@ -879,6 +899,14 @@ def _revoke_sources(c,source_ids,engine,*,_settled_payment_ids=()):
     preflight_revoke(c,source_ids)
     old=list(c.abilities)
     sources=_revocation_sources(c,source_ids)
+    if engine is not None:__import__('fortress').before_revoke(engine,c,sources)
+    if engine is not None and c.spec.get(__import__('arcanist').BIND):
+        __import__('arcanist').before_revoke(engine,c,sources)
+    if engine is not None and any(st['sources'].get(key,{}).get('rune_alarms') for key in sources):
+        __import__('rune_master').before_revoke(engine,c,sources)
+    if engine is not None:__import__('telekinetic').before_revoke(engine,c,sources)
+    if engine is not None:__import__('telepath').before_revoke(engine,c,sources)
+    if engine is not None:__import__('skirmisher').before_revoke(engine,c,sources)
     groups={st['sources'][key]['payment_id'] for key in sources if key in st['sources'] and st['sources'][key].get('payment_id')}
     if groups-set(_settled_payment_ids):raise ValueError('group payment settlement required before withdrawal')
     found=any(key in st["sources"] or key in st["overlays"] or key in st["effects"] for key in sources)
@@ -891,6 +919,8 @@ def _revoke_sources(c,source_ids,engine,*,_settled_payment_ids=()):
         __import__("provocateur").before_revoke(c,st["sources"].get(key,{}))
         if engine is not None:remove_owned(engine,c,key)
         _forget_source(c,key);st["overlays"].pop(key,None)
+    if engine is not None:
+        __import__('ace_trainer').forget_missing(c.r,c.spec,at=engine.elapsed_seconds,reason='actual learned source withdrawal')
     for field in LIST_FIELDS:materialize(c,field)
     if engine is not None:
         for name in list(st["ability_receipts"]):remove_ability(engine,c,name)
@@ -1182,17 +1212,57 @@ def _stage_transition_payload(engine,staged_engine,payload):
         if any(staged[key]!=event[key] for key in ('id','round','kind','source')):
             raise ValueError('native precision observation identity changed during staging')
         memo[id(event)]=staged
-    if engine is staged_engine:
-        # Reusing the same native transaction must retain its issued live group.
-        # Unissued/look-alike payloads and ordinary snapshots still get copied.
-        for scope in getattr(engine,'_move_activation_scopes',()):
+    issued_aliases=None
+    for original, staged, aliases in reversed(_TRANSITION_MOVE_ALIASES.get()):
+        if original is engine and staged is staged_engine:
+            issued_aliases=aliases
+            break
+    if issued_aliases is not None:
+        # These aliases came from the actual validated deepcopy graph.
+        memo.update(issued_aliases)
+    else:
+        # Join issued groups to their existing staged counterparts, including a
+        # resumed recipient that starts a new atomic move transaction. Look-alike
+        # caller dictionaries are not keys in this memo and still get copied.
+        source_scopes=getattr(engine,'_move_activation_scopes',())
+        staged_scopes=getattr(staged_engine,'_move_activation_scopes',())
+        if len(source_scopes)!=len(staged_scopes):raise ValueError('staged native group stack changed')
+        for scope,staged in zip(source_scopes,staged_scopes):
+            if (staged['actor'] is not staged_actors[scope['actor'].entity_id] or
+                    any(scope.get(key)!=staged.get(key) for key in ('move_id','index','completion_id','profile')) or
+                    tuple(staged['targets'])!=tuple(staged_actors[a.entity_id] for a in scope['targets'])):
+                raise ValueError('staged native group identity changed')
             for field in ('activation','accuracy'):
                 value=scope.get(field)
-                if value is not None:memo[id(value)]=value
+                if value is not None:memo[id(value)]=staged[field]
     return deepcopy(payload,memo)
 
 
+def record_native_pending(engine, error, pending):
+    """Keep only exact, registered native waits across a committed transition."""
+    import passive_events as PASSIVE
+    import heavy_injury_adapter as HEAVY
+    if (type(error) is PASSIVE.PassiveEventPending and
+            engine._passive_pending == error.event_id and error.event_id in engine._passive_events):
+        pending.append((PASSIVE.PassiveEventPending, error.event_id))
+        return True
+    if (type(error) is HEAVY.HeavyPending and
+            engine._heavy_pending == error.event_id and error.event_id in engine._heavy_events):
+        pending.append((HEAVY.HeavyPending, error.event_id))
+        return True
+    return False
+
+
 def transition(engine,c,apply,*,participants=(),include_rulings=False,include_grid=False,completion=None):
+    # Native equipment can publish derived Move definitions into shared Rules.
+    # Keep those publications inside the same outer failure boundary as the graph.
+    from ruleset import generated_weapon_transaction
+    with generated_weapon_transaction(engine.r):
+        return _transition(engine,c,apply,participants=participants,include_rulings=include_rulings,
+                           include_grid=include_grid,completion=completion)
+
+
+def _transition(engine,c,apply,*,participants=(),include_rulings=False,include_grid=False,completion=None):
     """Stage a state graph; preserve actors and surviving mutable-container aliases.
 
     A None primary permits world-only transitions such as an empty-world clock.
@@ -1212,6 +1282,9 @@ def transition(engine,c,apply,*,participants=(),include_rulings=False,include_gr
         raise ValueError('native state transition requires actual combatant subjects')
     WORLD.entity_index(engine, extra=subjects)
     fields=set(gm_state.ENGINE_FIELDS)|{"log_lines","gm_prompts"}
+    # Preserve an existing move stack even when it becomes empty during delivery.
+    if hasattr(engine,'_move_activation_scopes'):fields.add('_move_activation_scopes')
+    if getattr(engine,'_setup_move_scopes',()):fields.add('_setup_move_scopes')
     # Keep original container identities before staging. These include spec,
     # runtime registries and aliases reached through different actor/engine paths.
     originals={}
@@ -1246,18 +1319,41 @@ def transition(engine,c,apply,*,participants=(),include_rulings=False,include_gr
     sync_capability_losses(staged_engine)
     before_prompts=len(staged_engine.gm_prompts)
     import event_trace as TRACE
-    with TRACE.staged_scope(engine,staged_engine):
-        result=apply(staged_engine,staged_c,*staged_participants)
+    # Only the actual deepcopy graph can identify a native group's staged
+    # dictionaries. Matching contents or external IDs cannot issue authority.
+    move_aliases={}
+    staged_scopes=getattr(staged_engine,"_move_activation_scopes",())
+    for scope in getattr(engine,"_move_activation_scopes",()):
+        copied_scope=memo.get(id(scope))
+        if not any(copied_scope is actual for actual in staged_scopes):
+            raise ValueError("native move scope missing from staged graph")
+        for field in ("activation","accuracy"):
+            value=scope.get(field)
+            if value is None:continue
+            copied=memo.get(id(value))
+            if type(value) is not dict or type(copied) is not dict or copied_scope.get(field) is not copied:
+                raise ValueError("native move group alias changed during graph staging")
+            move_aliases[id(value)]=copied
+    context=_TRANSITION_MOVE_ALIASES.set((*_TRANSITION_MOVE_ALIASES.get(),
+                                        (engine,staged_engine,move_aliases)))
+    try:
+        with TRACE.staged_scope(engine,staged_engine):
+            result=apply(staged_engine,staged_c,*staged_participants)
+        if any(row.get('rule_id')=='supp-fantasy/룬마스터' for actor in WORLD.actor_index(staged_engine).values()
+               for row in actor.spec.get(KEY,{}).get('sources',{}).values()):
+            __import__('rune_master').reconcile_unown(staged_engine)
+    finally:
+        _TRANSITION_MOVE_ALIASES.reset(context)
     import ranged_struggle as RANGED
-    for staged_actor in staged_actors.values():
+    for original_key,staged_actor in staged_actors.items():
         import csv_item_capability_contracts as CSV_CAP
         CSV_CAP.sync_essence(staged_engine,staged_actor)
         import ability_mastery as ABILITY_MASTERY
         ABILITY_MASTERY.reconcile(staged_engine,staged_actor,reason='completed native state transition')
         import advanced_connection as CONNECTION
-        CONNECTION.reconcile(staged_actor,reason='completed native state transition')
+        CONNECTION.reconcile(staged_actor,reason='completed native state transition',engine=staged_engine,before=actors[original_key])
         import capability_parameter_edges as PARAMETERS
-        PARAMETERS.reconcile(staged_actor,reason='completed native state transition')
+        PARAMETERS.reconcile(staged_actor,reason='completed native state transition',engine=staged_engine)
         RANGED.reconcile(staged_actor,reason='completed native state transition')
         import tk_mastery as TK_MASTERY
         TK_MASTERY.reconcile(staged_actor,reason='completed native state transition')
@@ -1283,6 +1379,8 @@ def transition(engine,c,apply,*,participants=(),include_rulings=False,include_gr
     import effect_lifetime_policy as LIFETIMES
     LIFETIMES.reconcile(staged_engine)
     if completion is not None:completion(staged_engine,staged_c,*staged_participants)
+    __import__('ability_exchange_contracts').refresh(staged_engine)
+    __import__('ability_control_contracts').refresh(staged_engine)
     if len(staged_engine.gm_prompts)!=before_prompts:
         raise ValueError("state transition needs unresolved source input before commit")
     # Validate the resulting current world before exposing any staged mutation.
@@ -1347,6 +1445,17 @@ def replace_baseline(engine,c,field,values):
     """Atomic permanent-list transition including every passive registration."""
     def apply(staged_engine,staged_c):
         before=list(staged_c.spec.get(field,[]))
+        if field=='moves':
+            import ace_trainer as ACE
+            # Only this native permanent-list transition can forget a Move;
+            # overlays and codec restore never refund an investment.
+            proposed=deepcopy(staged_c.spec);proposed[field]=list(values)
+            legacy=proposed.get(KEY,{}).get('legacy',{})
+            legacy[field]=[v for v in legacy.get(field,[]) if v not in values and v not in before]
+            retained=ACE._known(staged_c.r,proposed)
+            for row in ACE._history(staged_c.spec):
+                if row['status']=='active' and row['move_id'] not in retained:
+                    ACE.forget_spec(staged_c.r,staged_c.spec,row['move_id'],at=staged_engine.elapsed_seconds,reason='actual permanent Move forgetting')
         set_baseline(staged_c,field,values)
         reconcile(staged_engine,staged_c)
         return {"field":field,"before":before,"after":list(staged_c.spec[field])}

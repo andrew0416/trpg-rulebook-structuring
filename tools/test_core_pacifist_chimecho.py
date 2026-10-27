@@ -56,7 +56,33 @@ class PacifistChimechoTests(unittest.TestCase):
     self.assertEqual(X.harmful_move(self.r,'move/희망사항'),expected)
   with patch.object(self.r,'move_mech',return_value=({'effects_exec':[{'type':'opaque_callback','target':'self','then':[{'type':'apply_status','status':'혼란'}]}]},'authored')):
    with self.assertRaisesRegex(ValueError,'reviewed effect harm'):X.harmful_move(self.r,'move/희망사항')
-  with self.assertRaisesRegex(ValueError,'reviewed custom-condition harm'):X.harmful_move(self.r,'move/텔레키네시스')
+  self.assertTrue(X.harmful_move(self.r,'move/텔레키네시스'))
+
+ def test_native_telekinetic_harm_uses_selected_source_and_policy_not_partial_marker(self):
+  import telekinetic as TK,priority_actions as PRIORITY
+  self.assertTrue(TK.harm_semantics(self.r,TK.LIFT))
+  self.assertFalse(TK.harm_semantics(self.r,TK.BARRIER))
+  self.assertFalse(X.harmful_move(self.r,TK.BARRIER))
+  # Other Moves retain their own reviewed classifier, including benign partial
+  # mechanics. This is not a partial-coverage ban or a name blacklist.
+  with patch.object(PRIORITY,'_move',side_effect=AssertionError('unrelated owner')):
+   self.assertIsNone(TK.harm_semantics(self.r,'move/희망사항'))
+   self.assertFalse(X.harmful_move(self.r,'move/희망사항'))
+  original=self.r._selected_rule
+  with patch.object(self.r,'_selected_rule',side_effect=lambda key:'move/희망사항' if key==TK.LIFT else original(key)):
+   with self.assertRaisesRegex(ValueError,'exact selected active Move'):TK.harm_semantics(self.r,TK.LIFT)
+  row=self.r.moves[TK.LIFT]
+  try:
+   self.r.moves[TK.LIFT]=dict(row,_source={'file':'unknown/custom.csv','record_span':[1,1]})
+   with self.assertRaisesRegex(ValueError,'actual selected CSV Move source'):X.harmful_move(self.r,TK.LIFT)
+  finally:self.r.moves[TK.LIFT]=row
+  policy=deepcopy(PRIORITY.definition(self.r));policy['moves_csv_sha256']='0'*64
+  with patch.object(PRIORITY,'definition',return_value=policy):
+   with self.assertRaisesRegex(ValueError,'source corpus changed'):X.harmful_move(self.r,TK.LIFT)
+  p=self.pokemon();before=self.before()
+  with self.assertRaisesRegex(ValueError,'pacifist'):self.teach(p,'텔레키네시스')
+  self.assertEqual(self.before(),before)
+  self.assertNotIn(TK.LIFT,p.moves)
 
  def test_native_level_growth_skips_harmful_offers_and_learns_healing(self):
   for level,forbidden in [(3,'move/울음소리'),(9,'move/염동력'),(12,'move/하품')]:
@@ -145,12 +171,39 @@ class PacifistChimechoTests(unittest.TestCase):
   declaration['species']['allowed']=[PACIFIST]
   row=self.e.create_declared_egg(self.a,parents,declaration,request_id='pacifist-egg',compatible=True,species=PACIFIST,
    inheritance_moves=['move/맹독'],reason='GM adopts actual example child species')
-  choices={'gender':'female','nature':'노력','abilities':[],'moves':BIRTH+['move/맹독'],'inheritance_moves':['move/맹독'],'special_appearance':False}
+  import pokemon_entities as EGGS,growth_milestones as MILESTONES
+  # One legal Basic Ability; inheritance is a future list, not birth knowledge.
+  choices={'gender':'female','nature':'노력','abilities':['부유'],'moves':BIRTH,'inheritance_moves':['move/맹독'],'special_appearance':False}
+  before=self.before()
+  with self.assertRaisesRegex(ValueError,'birth known move is outside natural level-up candidates'):
+   self.e.hatch_declared_egg(self.a,row['entity_id'],name='child',ready=True,reason='actual observed hatch',
+    choices=dict(choices,moves=BIRTH+['move/맹독']))
+  self.assertEqual(self.before(),before)
+  self.assertFalse(EGGS.egg_index(self.e)[row['entity_id']][1]['hatched'])
+  child=self.e.hatch_declared_egg(self.a,row['entity_id'],name='child',ready=True,
+   reason='actual birth with only the printed initial Moves',choices=choices)['pokemon']
+  actual_egg=EGGS.egg_index(self.e)[row['entity_id']][1]
+  self.assertTrue(actual_egg['hatched']);self.assertEqual(actual_egg['pokemon_id'],child.entity_id)
+  self.assertEqual(child.abilities,['부유']);self.assertEqual(child.moves,BIRTH+['struggle'])
+  self.assertEqual(child.spec['inheritance_moves'],['move/맹독'])
+  self.assertNotIn('move/맹독',child.spec.get('move_learning',{}))
+  # ch05:654 defers inheritance learning until the actual level20 milestone.
+  self.e.gm.set_level(child,19,reason='observed current level before native twentieth growth')
+  D.gain_exp_combatant(self.e,child,'to next level')
+  self.assertEqual(child.level,20)
+  slot=child.spec[MILESTONES.KEY]['inheritance:20']
+  self.assertEqual(slot['offered']['options'],['move/맹독']);self.assertIsNone(slot['selection'])
   before=self.before()
   with self.assertRaisesRegex(ValueError,'pacifist'):
-   self.e.hatch_declared_egg(self.a,row['entity_id'],name='child',ready=True,reason='actual observed hatch',choices=choices)
+   self.e.choose_growth_inheritance(child,20,'move/맹독',reason='actual inherited Move learning attempt')
   self.assertEqual(self.before(),before)
-  self.assertFalse(row['hatched'])
+  self.assertIsNone(child.spec[MILESTONES.KEY]['inheritance:20']['selection'])
+  saved=json.loads(json.dumps(CODEC.dump_engine(self.e),ensure_ascii=False))
+  restored=CODEC.load_engine(self.r,saved)
+  loaded=next(actor for actor in restored.everyone if actor.entity_id==child.entity_id)
+  self.assertEqual(loaded.spec,child.spec);self.assertEqual(loaded.moves,child.moves)
+  self.assertNotIn('move/맹독',loaded.moves)
+  self.assertNotIn('move/맹독',loaded.spec.get('move_learning',{}))
 
  def test_source_provenance_and_saved_learned_state_are_enforced(self):
   p=self.pokemon();self.teach(p,'치료방울');self.e.gm.snapshot('pacifist')

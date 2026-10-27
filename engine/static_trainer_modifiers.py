@@ -5,6 +5,7 @@ class/feature nor certifies its prerequisites.  Each contribution retains its
 owner, target lifetime, exact source clause and formula so withdrawal, growth,
 transactions and JSON restoration use the existing state-grant machinery.
 """
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 import hashlib
 import json
@@ -85,7 +86,7 @@ def _install_stat(engine,trainer,target,*,rule_id,branch,field,clause_id):
     existing=row['grants'].get('static_modifiers')
     if existing is not None and existing!=[declaration]:raise ValueError('Static modifier declaration collision')
     row['grants']['static_modifiers']=[deepcopy(declaration)]
-    GRANTS.reconcile_stat(target,field,1+target.level//10,key,operation_id='level_formula')
+    GRANTS.reconcile_stat(target,field,1+NUMERIC.ratio(target.level,10),key,operation_id='level_formula')
     return key
 
 
@@ -118,7 +119,7 @@ def register_all(engine,trainer,pokemon=None):
     instances=ACQUIRED.class_instances(trainer)
     targets=_targets(engine,trainer,pokemon)
     count=0
-    if any(row['source_id']==ENDURING for row in instances):
+    if any(row['source_id']==ENDURING for row in instances) and __import__('breather').class_edition(trainer)=='local_csv':
         for target in targets:
             _install_stat(engine,trainer,target,rule_id=ENDURING,branch='hp',field='hp',
                           clause_id='C2CSV/input/db/feats.csv:R125:main');count+=1
@@ -149,7 +150,7 @@ def refresh_level(actor):
         if declaration.get('contract')!='level_scaled_base_stat':continue
         field=declaration.get('field')
         _clause(actor.r,declaration.get('clause_id'))
-        GRANTS.reconcile_stat(actor,field,1+actor.level//10,key,operation_id='level_formula')
+        GRANTS.reconcile_stat(actor,field,1+NUMERIC.ratio(actor.level,10),key,operation_id='level_formula')
 
 
 def range_spec(actor,move,spec):
@@ -194,7 +195,7 @@ def validate(actor):
             raise ValueError('Static trainer modifier target ownership changed without withdrawal')
         if declaration.get('contract')=='level_scaled_base_stat':
             field=declaration.get('field');operations=state.get('stat_sources',{}).get(field,{}).get('sources',{}).get(key,{})
-            expected={'delta':1+actor.level//10,'minimum':None}
+            expected={'delta':1+NUMERIC.ratio(actor.level,10),'minimum':None}
             if operations.get('level_formula')!=expected:raise ValueError('Static level formula is stale or forged')
         elif declaration.get('contract')=='move_range':
             if declaration!={'contract':'move_range','clause_id':clause['id'],'move_class':'특수','non_melee':True,'origin_delta':2,'area_size_delta':0}:

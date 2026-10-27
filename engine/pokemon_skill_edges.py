@@ -41,12 +41,14 @@ def validate(rules,spec):
     for row in rows:
         if row.get('source')!=SOURCE:continue
         import poke_edge_variants as VARIANTS
-        VARIANTS.validate_receipt(rules,row)
+        VARIANTS.validate_receipt(rules,row,history=True)
         if spec.get('kind')!='pokemon':raise ValueError('Skill Improvement investment requires an actual Pokemon')
         if rules._selected_rule(SOURCE)!=SOURCE:raise ValueError('selected Skill Improvement source needs its own policy')
         sid=S.skill_id(rules.skill_policy,row.get('skill'),required=True)
         if sid!=row['skill']:raise ValueError('canonical invested skill required')
-        F.integer(row.get('point_cost'),'Skill Improvement investment',1,1)
+        lesson=bool(row.get('mentor_source_id'))
+        if lesson:__import__('mentor').validate_edge_origin(rules,row)
+        F.integer(row.get('point_cost'),'Skill Improvement investment',0 if lesson else 1,0 if lesson else 1)
         F.integer(row.get('rank_before'),'skill rank before investment',1)
         status=row.get('status','active')
         if status not in ('active','refunded'):raise ValueError('invalid Skill Improvement lifecycle')
@@ -57,7 +59,7 @@ def validate(rules,spec):
         else:
             refund=row.get('refund',{})
             if not isinstance(refund,dict) or refund.get('source')!=SOURCE or not refund.get('reason'):raise ValueError('ended Skill Improvement needs its actual refund receipt')
-            F.integer(refund.get('points'),'refunded Skill Improvement points',1,1)
+            F.integer(refund.get('points'),'refunded Skill Improvement points',0 if lesson else 1,1)
 
 
 def refund_excess(rules,spec,*,reason):
@@ -65,18 +67,35 @@ def refund_excess(rules,spec,*,reason):
     ended=[]
     for row in active(spec):
         if rules._selected_rule(SOURCE)!=SOURCE:raise ValueError('selected Skill Improvement source needs its own refund policy')
-        F.integer(row.get('point_cost'),'refundable Skill Improvement investment',1,1)
+        F.integer(row.get('point_cost'),'refundable Skill Improvement investment',0 if row.get('mentor_source_id') else 1,1)
         sid=S.skill_id(rules.skill_policy,row['skill'],required=True)
         rank,flat=skill_pool(rules,spec,sid)
         if rank<=6:continue
         F.integer(spec.get('tutor_points'),'actual Tutor Point balance for refund',0)
         set_pool(rules,spec,sid,rank-1,flat)
-        spec['tutor_points']+=1
-        row.update(status='refunded',refund={'source':SOURCE,'points':1,'reason':reason,
+        amount=__import__('mentor').refund_edge_spec(rules,spec,row,reason) if row.get('mentor_source_id') else 1
+        if not row.get('mentor_source_id'):spec['tutor_points']+=amount
+        row.update(status='refunded',refund={'source':SOURCE,'points':amount,'reason':reason,
                                             'permanent_rank_before_refund':rank,'permanent_rank_after_refund':rank-1})
         ended.append(sid)
     validate(rules,spec)
     return ended
+
+
+def lesson_acquire(engine,teacher,pupil,skill,source_id):
+    """Apply the native skill contribution; the lesson owns prerequisites and payment."""
+    validate(engine.r,pupil.spec)
+    sid=S.skill_id(engine.r.skill_policy,skill,required=True)
+    if any(row['skill']==sid for row in active(pupil.spec)):
+        raise ValueError('Skill Improvement requires a different skill on each acquisition')
+    rank,flat=skill_pool(engine.r,pupil.spec,sid)
+    if rank>=6:raise ValueError('Skill Improvement cannot exceed permanent Master rank')
+    set_pool(engine.r,pupil.spec,sid,rank+1,flat)
+    row={'source':SOURCE,'status':'active','trainer_id':teacher.entity_id,'skill':sid,'rank_before':rank,
+         'point_cost':0,'training_source':'feat/수업','completed_at':engine.elapsed_seconds,
+         'acquired_level':pupil.level,'mentor_source_id':source_id}
+    pupil.spec.setdefault('learned_poke_edges',[]).append(row)
+    return row
 
 
 def species_change(rules,spec,old_species,new_species):

@@ -180,15 +180,19 @@ def begin_move_use(engine,actor,target,move,mechanics,*,targetless=False):
  return row['alternate_type']
 
 
-def effective_type(engine,actor,target,move):
+def effective_type(engine,actor,target,move,*,preview=False):
  if move.get('id') not in policy(engine.r)['moves']:return None
  scopes=getattr(engine,'_event_use_scopes',())
- if not scopes:return None
- current=scopes[-1]
- if current.get('actor') is not actor or current.get('target') is not target or current.get('move_id')!=move['id']:
-  return None
- mode=current.get('alternate_move_mode')
- return None if mode is None else mode['actual_type']
+ if scopes:
+  current=scopes[-1]
+  if current.get('actor') is actor and current.get('target') is target and current.get('move_id')==move['id']:
+   mode=current.get('alternate_move_mode')
+   if mode is not None:return mode['actual_type']
+ if preview:
+  validate_actor(actor)
+  pending=next((record for record in history(actor) if record['move_id']==move['id'] and record['scene']==_scene(actor) and record['use'] is None),None)
+  if pending is not None:return pending['alternate_type']
+ return None
 
 
 def status(actor,move_id):

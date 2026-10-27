@@ -34,6 +34,7 @@ def actors(engine, extra=()):
     from state_codec import native_data_types, native_batch_type, _types
     pure_records = native_data_types();batch_type=native_batch_type();actor_type=_types()[1]
     found = {}; seen = set()
+    scalar_types = (str, int, float, bool, bytes, type(None))
     def visit(value):
         key = id(value)
         if key in seen:
@@ -42,7 +43,7 @@ def actors(engine, extra=()):
         if type(value) is actor_type:
             found[key] = value
             for field, child in vars(value).items():
-                if field != 'r':
+                if field != 'r' and type(child) not in scalar_types:
                     visit(child)
         elif type(value) is batch_type:
             visit(value.outcomes)
@@ -51,10 +52,11 @@ def actors(engine, extra=()):
                 visit(getattr(value, field.name))
         elif isinstance(value, dict):
             for k, v in value.items():
-                visit(k); visit(v)
+                if type(k) not in scalar_types:visit(k)
+                if type(v) not in scalar_types:visit(v)
         elif isinstance(value, (list, tuple, set, frozenset)):
             for child in value:
-                visit(child)
+                if type(child) not in scalar_types:visit(child)
     visit(getattr(getattr(engine, 'gm', None), 'everyone', []))
     for field, value in vars(engine).items():
         if field not in ('r', 'gm', 'rulings', 'rng'):
@@ -454,6 +456,7 @@ def finish_physical_use(engine, obj, terminal, evidence):
     import physical_incubator as INCUBATOR
     INCUBATOR.finish_body(engine,obj,actor_id=evidence[actor_key],reason='actual body '+terminal)
     obj[terminal] = deepcopy(evidence)
+    __import__('telekinetic').sync_barrier(engine,obj)
     if terminal == 'consumed':
         _set_object_location(obj, {'kind':'unknown'})
     return deepcopy(obj[terminal])
@@ -668,6 +671,7 @@ def validate_world(engine):
     try:
         import perception_communicate as COMM
         COMM.validate_world(engine,index)
+        __import__('channeler').validate_world(engine,index)
     except ValueError as exc:
         issue('communication',None,str(exc))
     for rider in index.values():
@@ -727,7 +731,9 @@ def validate_world(engine):
         issue('environment_changes',None,str(exc))
     try:
         import field_effects as FIELD
+        FIELD.validate(engine)
         FIELD.validate_local(engine,index)
+        FIELD.validate_pending_world(engine,index)
     except (ValueError,KeyError,TypeError) as exc:
         issue('local_grass_field',None,str(exc))
     try:
@@ -760,6 +766,10 @@ def validate_world(engine):
         PERISH_BODY.validate_world(engine,index)
         import move_activation as ACTIVATION
         ACTIVATION.validate_continuations(engine,index)
+        __import__('training_features').validate_core_payments(engine,index)
+        __import__('commander').validate_world(engine,index)
+        __import__('focused_command').validate_world(engine,index)
+        __import__('commander_orders').validate_world(engine,index)
     except ValueError as exc:
         issue('timed_type_contract',None,str(exc))
     try:
@@ -837,6 +847,8 @@ def validate_world(engine):
     try:
         import effect_instances as INSTANCES
         INSTANCES.validate_world(engine,index)
+        import native_switch_transfer as SWITCH
+        SWITCH.validate_world(engine,index)
     except ValueError as exc:
         issue('effect_instance',None,str(exc))
     try:
@@ -870,6 +882,10 @@ def validate_world(engine):
     except (ValueError,KeyError,TypeError) as exc:
         issue('repel',None,str(exc))
     try:
+        __import__('study_books').validate_world(engine,index)
+    except (ValueError,KeyError,TypeError) as exc:
+        issue('study_books',None,str(exc))
+    try:
         import optional_physical_equipment as OPTIONAL_EQUIPMENT
         OPTIONAL_EQUIPMENT.validate_world(engine,index)
     except ValueError as exc:
@@ -886,6 +902,9 @@ def validate_world(engine):
     try:
         import optional_weapon_framework as OPTIONAL_WEAPONS
         OPTIONAL_WEAPONS.validate_world(engine,index)
+        __import__('telekinetic').validate_world(engine,index)
+        __import__('telepath').validate_world(engine,index)
+        __import__('warper').validate_world(engine,index)
         import living_weapon as LIVING
         LIVING.validate_world(engine,index)
     except ValueError as exc:
@@ -959,7 +978,12 @@ def validate_world(engine):
             if oid in equipment and equipment[oid] != uid:
                 issue('duplicate_equipment_instance',oid,'One physical weapon has multiple equipment holders.')
             equipment[oid] = uid
-            if registration.get('instance_id') != oid or oid not in objects or objects[oid].get('equipped_by') != uid:
+            remote=bool(registration['weapon'].get('telekinetic'))
+            holder=objects.get(oid,{}).get('telekinetic_holder_id' if remote else 'equipped_by')
+            if remote:
+                try:__import__('telekinetic').remote(engine,actor,objects.get(oid,{}))
+                except (ValueError,KeyError,TypeError) as exc:issue('equipment_instance_mismatch',oid,str(exc))
+            if registration.get('instance_id') != oid or oid not in objects or holder != uid:
                 issue('equipment_instance_mismatch',oid,'Weapon registration and physical instance holder disagree.')
         for row in actor.spec.get('_carried_load', {}).get('objects', []):
             oid = row.get('id')
@@ -1041,7 +1065,10 @@ def validate_world(engine):
         PARTIAL.validate_world(engine)
     except ValueError as exc:
         issue('partial_entity_state',None,str(exc))
-    for module_name,code in (('weather_state','weather_state'),('weather_templates','weather_template_state'),('type_ace','type_ace_state'),('chronicler','chronicler_state'),('fashionista','fashionista_state'),('researcher_fields','researcher_fields_state'),('dancer','dancer_state'),('musician','musician_state'),('athlete','athlete_state'),('hunter','hunter_state'),('martial_artist','martial_artist_state'),('multi_strike','multi_strike_state'),('combat_move_reactions','combat_move_reaction_state')):
+    try:
+        __import__('jump_move_actions').validate_world(engine,index)
+    except (TypeError,ValueError,KeyError,AttributeError) as exc:issue('jump_move_actions',None,str(exc))
+    for module_name,code in (('weather_state','weather_state'),('weather_templates','weather_template_state'),('type_ace','type_ace_state'),('chronicler','chronicler_state'),('fashionista','fashionista_state'),('researcher_fields','researcher_fields_state'),('dancer','dancer_state'),('musician','musician_state'),('athlete','athlete_state'),('hunter','hunter_state'),('martial_artist','martial_artist_state'),('multi_strike','multi_strike_state'),('combat_move_reactions','combat_move_reaction_state'),('walk_it_off','walk_it_off_state')):
         try:
             import importlib
             importlib.import_module(module_name).validate(engine)
@@ -1076,6 +1103,10 @@ def validate_world(engine):
         __import__('provocateur').validate(engine,index)
     except (TypeError,ValueError,KeyError,AttributeError) as exc:
         issue('provocateur_state',None,str(exc))
+    try:
+        __import__('type_sync').validate(engine)
+    except (TypeError,ValueError,KeyError,AttributeError) as exc:
+        issue('type_sync_feature_state',None,str(exc))
     return {'valid':not issues, 'actors':len(roster), 'objects':len(objects), 'issues':issues,
             'scope':'Current identity/location/relation integrity only; not category-2 or creation legality certification.'}
 

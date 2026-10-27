@@ -15,7 +15,10 @@ import control_mount as MOUNT
 
 
 class ConfusionTests(unittest.TestCase):
-    setUpClass=classmethod(FIX.AttackLossTests.setUpClass.__func__)
+    @classmethod
+    def setUpClass(cls):
+        from engine import Rules
+        cls.r=Rules(str(FIX.ROOT),ruleset='core-confusion-feb2016')
     def setUp(self):
         self.e=Engine(self.r,1);self.e.everyone=self.e.gm.everyone=[]
         self.a=self.actor('attacker');self.b=self.actor('target');TURN.reset_budget(self.e,self.a)
@@ -35,7 +38,8 @@ class ConfusionTests(unittest.TestCase):
     def test_actual_physical_special_and_no_accuracy_status_use_correct_loss_once(self):
         for mid,stat in (('move/분노의앞니','atk'),('move/스피드스타','spa'),('move/칼춤',None)):
             with self.subTest(move=mid):
-                self.setUp();expected=self.a.staged(stat)//2 if stat else 2*self.e.tick(self.a)
+                self.setUp();self.e.start_round(self.e.everyone);self.e.start_of_turn(self.a,initiative_count=20)
+                expected=self.a.staged(stat)//2 if stat else 2*self.e.tick(self.a)
                 TEMP.grant(self.e,self.a,5);hp=self.a.hp
                 self.use(mid,self.a if stat is None else self.b)
                 row=self.latest();self.assertEqual(row['phase'],'complete');self.assertEqual(row['confusion']['face'],1)
@@ -168,7 +172,7 @@ class ConfusionTests(unittest.TestCase):
 
     def test_native_mounted_attack_self_hit_uses_existing_retention_once(self):
         from test_foundation_control_mount import MountTests
-        MountTests.setUpClass();f=MountTests();f.setUp();f.native();f.begin(f.a)
+        MountTests.setUpClass();f=MountTests();f.r=self.r;f.setUp();f.native();f.begin(f.a)
         f.t.pos=(3,3);f.e.apply_status(f.a,'혼란');f.e.rng.seed(1);hp=f.a.hp
         f.e.use_move_on(f.a,f.t,'struggle',f.e.everyone)
         row=list(f.e._move_completions.values())[-1]

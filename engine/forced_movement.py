@@ -7,6 +7,7 @@ import common_checks as C
 def can_step(engine,target,destination):
     if engine.grid is None:return False
     if type(target)is dict:
+        if not __import__('ability_control_contracts').object_movable(target):return False
         origin=WORLD.grid_cell(target)
         if not engine.grid.inside(destination) or engine.grid.blocked(origin,destination):return False
         for other in WORLD.actors(engine):
@@ -84,10 +85,15 @@ def _along_path(engine,actor,target,*,points,source,stop_cells=(),allow_fainted=
                 WORLD.observe_location(engine,target,dict(WORLD.location_of(target),cell=destination),reason='source-owned forced object displacement',source=source)
             else:
                 target.pos=destination
+                __import__('ability_exchange_contracts').refresh(engine)
+                __import__('ability_control_contracts').crossing(engine,target,path[-1],destination)
             path.append(destination)
             if not is_object:
+                if (target.fainted and not allow_fainted) or not target.on_field or target.captured:stop='interrupted';break
+                if tuple(target.pos)!=destination:stop='relocated';break
                 import effects_ext as EXT
-                EXT.on_enter_cell(engine,target,destination)
+                entered=EXT.on_enter_cell(engine,target,destination,previous_position=path[-2])
+                if isinstance(entered,C.PendingDecision):stop='pending';break
                 if (target.fainted and not allow_fainted) or not target.on_field or target.captured:stop='interrupted';break
                 if tuple(target.pos)!=destination:stop='relocated';break
             if destination in stops:stop='declared_stop';break

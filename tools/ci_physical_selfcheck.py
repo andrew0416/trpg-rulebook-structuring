@@ -36,6 +36,31 @@ class Check(unittest.TestCase):
         self.assertNotIn("PTK_FIXTURE_KEY", os.environ)
         self.assertEqual((ROOT / "input.txt").read_text(encoding="utf-8"), "synthetic input")
 '''
+    nested = '''        import io, types, sys
+        for fixture in ('class_setup','class_teardown','module_setup','module_teardown'):
+            with self.subTest(fixture=fixture):
+                def bad_fixture(*args): raise RuntimeError('synthetic fixture error')
+                module = types.ModuleType('synthetic_nested_' + fixture)
+                sys.modules[module.__name__] = module
+                attributes = {'__module__':module.__name__, 'test_inner':lambda self:None}
+                if fixture.startswith('class'):
+                    attributes['setUpClass' if fixture.endswith('setup') else 'tearDownClass'] = classmethod(bad_fixture)
+                else:
+                    setattr(module, 'setUpModule' if fixture.endswith('setup') else 'tearDownModule', bad_fixture)
+                inner = type('Inner', (unittest.TestCase,), attributes)
+                result = unittest.TextTestRunner(stream=io.StringIO()).run(unittest.TestSuite([inner('test_inner')]))
+                self.assertEqual(result.testsRun, 0 if fixture.endswith('setup') else 1)
+                self.assertEqual(len(result.errors), 1)
+                self.assertEqual(result.failures, [])
+'''
+    wrong_origin = '''        import importlib.util, sys
+        outside = ROOT.parent / "outside.py"
+        spec = importlib.util.spec_from_file_location("outside_project", outside)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        self.assertEqual(module.VALUE, 7)
+'''
     body += {
         "pass": "",
         "failure": '        self.fail("synthetic raw failure")\n',
@@ -58,6 +83,8 @@ class Check(unittest.TestCase):
         import time
         time.sleep(30)
 ''',
+        "nested": nested,
+        "nested_wrong_origin": nested + wrong_origin,
     }[variant]
     (stage / "tools/test_ci_physical_synthetic.py").write_text(body, encoding="utf-8")
     (home / "outside.py").write_text("VALUE = 7\n", encoding="utf-8")
@@ -114,6 +141,197 @@ class Check(unittest.TestCase):
     return {"stage": stage, "cases": cases, "first": first, "second": second}
 
 
+def chaining_runs(project, home):
+    prefix = "tools.test_ci_chain.Check."
+    order = [prefix + name for name in ("test_a", "test_b", "test_c")]
+    body = '''import unittest
+
+class Check(unittest.TestCase):
+    builds = []
+    @classmethod
+    def prepare_chained_cases(cls, cases):
+        by_name = {case._testMethodName: case for case in cases}
+        if not {"test_a", "test_b", "test_c"} <= by_name.keys():
+            return None
+        context = {}
+        ordered = [by_name[name] for name in ("test_a", "test_b", "test_c")]
+        for case in ordered:
+            case.context = context
+        return ordered  # HOOK_RESULT
+
+    def build_o(self):
+        self.builds.append("O")
+        return {"phase": "O"}
+
+    def build_o_a(self):
+        self.builds.append("O_A")
+        return {"phase": "A"}
+
+    def build_o_ab(self):
+        self.builds.append("O_AB")
+        return {"phase": "B"}
+
+    def test_a(self):
+        state = self.build_o()
+        self.assertEqual(state["phase"], "O")
+        state["phase"] = "A"
+        self.assertTrue(True)  # FIRST_STAGE
+        if hasattr(self, "context"):
+            self.context["state"] = state
+            self.context["object_id"] = id(state)
+
+    def test_b(self):
+        state = self.context["state"] if hasattr(self, "context") else self.build_o_a()
+        self.assertEqual(state["phase"], "A")
+        if hasattr(self, "context"):
+            self.assertEqual(id(state), self.context["object_id"])
+            self.assertEqual(self.builds, ["O"])
+        else:
+            self.assertEqual(self.builds, ["O_A"])
+        state["phase"] = "B"
+
+    def test_c(self):
+        state = self.context["state"] if hasattr(self, "context") else self.build_o_ab()
+        self.assertEqual(state["phase"], "B")
+        if hasattr(self, "context"):
+            self.assertEqual(id(state), self.context["object_id"])
+            self.assertEqual(self.builds, ["O"])
+        else:
+            self.assertEqual(self.builds, ["O_AB"])
+        state["phase"] = "C"
+'''
+    runs = {}
+    for mode in ("whole", "only_b", "only_c", "failed_a", "omitted_case"):
+        stage = home / mode / "stage"
+        (stage / "tools").mkdir(parents=True)
+        for name in ("tools/ci_physical.py", "work/reuse-partials/verify_overlay_tests.py"):
+            destination = stage / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(project / name, destination)
+        selected = order[1:2] if mode == "only_b" else order[2:] if mode == "only_c" else order[::-1]
+        code = body
+        if mode == "failed_a":
+            code = code.replace("self.assertTrue(True)  # FIRST_STAGE", "self.fail('upstream stage failed')")
+        if mode == "omitted_case":
+            code = code.replace("return ordered  # HOOK_RESULT", "return ordered[:-1]")
+        (stage / "tools/test_ci_chain.py").write_text(code, encoding="utf-8")
+        (stage / "packet.json").write_text(json.dumps({"completed": {"chain": {"tests": selected}}}), encoding="utf-8")
+        run = runs[mode] = capture(stage, home / mode / "evidence", selected[0])
+        meta = run["metadata"]
+        assert meta is not None and meta["stable_hashes"] and meta["complete_pre_input_capture"]
+        details = json.loads(Path(meta["original_cli_report"]).read_text(encoding="utf-8"))
+        if mode == "omitted_case":
+            assert meta["actual_test_ids"] == [] and meta["tests"] == 0
+            assert details["discovery_errors"] and run["outcome"]["exit_code"] != 0
+            continue
+        expected = selected if mode in ("only_b", "only_c") else order
+        assert meta["test_ids"] == meta["actual_test_ids"] == expected
+        assert details["selected_case_ids"] == selected
+        assert bool(details["chained_cases"]) == (mode not in ("only_b", "only_c"))
+        assert meta["tests"] == len(expected)
+        assert [row["id"] for row in meta["method_timings"]] == expected
+        if mode == "failed_a":
+            assert meta["failure_ids"] == order[:1] and meta["error_ids"] == order[1:]
+            assert run["outcome"]["exit_code"] != 0
+        else:
+            assert meta["successful"] and run["outcome"]["exit_code"] == 0
+    return runs
+
+
+def engine_namespace_runs(project, home):
+    """Exercise the shared loader using only generated engine/test modules."""
+    runs = {}
+    for variant in ('api_first', 'tests_first', 'inputs_first', 'qualified_first',
+                    'sparse_fallback', 'sparse_override', 'missing'):
+        run_home = home / variant
+        stage = run_home / 'stage'
+        canonical = run_home / 'canonical' if variant.startswith('sparse_') else stage
+        for root in dict.fromkeys((stage, canonical)):
+            (root / 'engine').mkdir(parents=True)
+            (root / 'tools').mkdir()
+        verifier = stage / 'work/reuse-partials/verify_overlay_tests.py'
+        verifier.parent.mkdir(parents=True)
+        shutil.copyfile(project / 'work/reuse-partials/verify_overlay_tests.py', verifier)
+        api_body = 'class Rules: pass\nclass Engine: pass\nclass Combatant: pass\nORIGIN = '
+        (canonical / 'engine/engine.py').write_text(api_body + repr('canonical') + '\n', encoding='utf-8')
+        (canonical / 'engine/root_inputs.py').write_text("ORIGIN = 'canonical'\n", encoding='utf-8')
+        expected_api = expected_inputs = 'canonical'
+        if variant == 'sparse_fallback':
+            (stage / 'engine/root_inputs.py').write_text("ORIGIN = 'stage'\n", encoding='utf-8')
+            expected_inputs = 'stage'
+        elif variant == 'sparse_override':
+            (stage / 'engine/engine.py').write_text(api_body + repr('stage') + '\n', encoding='utf-8')
+            expected_api = 'stage'
+        source = stage if expected_api == 'stage' else canonical
+        modules = [('tools.test_ci_api', 'Check'),
+                   ('engine.test_playthrough', 'PlaythroughTests'),
+                   ('engine.test_maintenance', 'MaintenanceTests'),
+                   ('tools.test_root_inputs_independent', 'Independent')]
+        for module, cls in modules:
+            # The root-input consumer deliberately imports its helper first.
+            imports = ('from engine import root_inputs\nfrom engine import Rules, Engine, Combatant\n'
+                       if cls == 'Independent' else
+                       'from engine import Rules, Engine, Combatant\nfrom engine import root_inputs\n')
+            if variant == 'qualified_first':
+                imports = 'from engine.engine import Rules, Engine, Combatant\nfrom engine import root_inputs\n'
+            body = 'import unittest\n' + imports + f'''
+class {cls}(unittest.TestCase):
+    def test_identity(self):
+        import engine
+        import importlib
+        qualified = importlib.import_module('engine.engine')
+        self.assertIs(qualified, engine)
+        self.assertIs(engine.engine, engine)
+        self.assertIs(qualified.Engine, engine.Engine)
+        self.assertIs(qualified.Combatant, engine.Combatant)
+        self.assertIs(qualified.Rules, engine.Rules)
+        self.assertEqual(qualified.__file__, engine.__file__)
+        self.assertIs(Rules, engine.Rules)
+        self.assertIs(Engine, engine.Engine)
+        self.assertIs(Combatant, engine.Combatant)
+        self.assertIs(root_inputs, engine.root_inputs)
+        self.assertEqual(engine.ORIGIN, {expected_api!r})
+        self.assertEqual(root_inputs.ORIGIN, {expected_inputs!r})
+        self.assertEqual(engine.__file__, {str(source / 'engine/engine.py')!r})
+'''
+            # Cover a staged qualified module as well as canonical fallbacks.
+            root = stage if variant.startswith('sparse_') and cls == 'PlaythroughTests' else canonical
+            (root.joinpath(*module.split('.')).with_suffix('.py')).write_text(body, encoding='utf-8')
+        order = [0, 1, 2, 3]
+        if variant == 'tests_first':
+            order = [1, 2, 0, 3]
+        elif variant == 'inputs_first':
+            order = [3, 0, 1, 2]
+        cases = [modules[index][0] + '.' + modules[index][1] + '.test_identity' for index in order]
+        if variant == 'missing':
+            cases = ['engine.test_absent.Check.test_one', 'engine.test_absent.Check.test_two']
+        packet = stage / 'packet.json'
+        packet.write_text(json.dumps({'completed': {'synthetic': {'tests': cases}}}), encoding='utf-8')
+        record = run_home / 'record'
+        environment = dict(os.environ, PYTHONDONTWRITEBYTECODE='1',
+                           TEMP=str(run_home), TMP=str(run_home), TMPDIR=str(run_home))
+        outcome = subprocess.run(
+            [sys.executable, '-B', '-X', 'utf8', str(verifier), '--auto', str(packet),
+             '--stage', str(stage), '--canonical', str(canonical), '--record', str(record)],
+            cwd=stage, env=environment, capture_output=True, text=True, encoding='utf-8', timeout=20)
+        reports = list(record.glob('*.json'))
+        assert len(reports) == 1, (variant, outcome.stdout, outcome.stderr)
+        details = json.loads(reports[0].read_text(encoding='utf-8'))
+        assert details['requested'] == cases
+        if variant == 'missing':
+            assert outcome.returncode != 0 and not details['successful']
+            assert details['tests_run'] == 0 and len(details['collected']) == 2
+            assert len(set(details['collected'])) == 1
+            assert any('duplicate test IDs' in error for error in details['discovery_errors'])
+        else:
+            assert outcome.returncode == 0, (variant, details, outcome.stdout, outcome.stderr)
+            assert details['successful'] and not details['discovery_errors']
+            assert details['selected_case_ids'] == details['collected'] == cases
+            assert details['tests_run'] == len(cases) and not details['skipped']
+        runs[variant] = details
+    return runs
+
+
 def self_check(project):
     assert "PTK_FIXTURE_KEY" not in os.environ
     # The unchanged verifier rejects C: stages. Tests only copy its source and
@@ -121,7 +339,7 @@ def self_check(project):
     with tempfile.TemporaryDirectory(prefix="ci-physical-self-check-", dir=project.parent) as directory:
         home = Path(directory).resolve()
         runs = {}
-        for variant in ("pass", "failure", "changed", "missing", "wrong_origin", "timeout", "timeout_failure"):
+        for variant in ("pass", "failure", "changed", "missing", "wrong_origin", "timeout", "timeout_failure", "nested", "nested_wrong_origin"):
             run = runs[variant] = synthetic_run(
                 project, home / variant, variant, timeout=1.5 if variant.startswith("timeout") else 20)
             meta = run["metadata"]
@@ -152,8 +370,8 @@ def self_check(project):
             original = Path(meta["original_cli_log"])
             assert original.read_bytes() == (physical / "ci-native.log").read_bytes()
             assert original.read_text(encoding="utf-8") == (physical / "ci-native-partial.log").read_text(encoding="utf-8")
-            assert (run["outcome"]["exit_code"] == 0) == (variant == "pass")
-            if variant == "pass":
+            assert (run["outcome"]["exit_code"] == 0) == (variant in ("pass", "nested"))
+            if variant in ("pass", "nested"):
                 assert meta["successful"] and meta["stable_hashes"]
                 assert meta["complete_pre_input_capture"] and meta["complete_loaded_input_capture"]
                 assert meta["runtime_test_data_sha256_before"] == meta["runtime_test_data_sha256_after"]
@@ -164,8 +382,10 @@ def self_check(project):
                 assert not meta["stable_hashes"]
             elif variant == "missing":
                 assert not meta["complete_pre_input_capture"]
-            elif variant == "wrong_origin":
+            elif variant in ("wrong_origin", "nested_wrong_origin"):
                 assert any(row["module"] == "outside_project" for row in meta["changed_origin_errors"])
+        engine_namespace_runs(project, home / "engine-namespace")
+        chaining_runs(project, home / "chaining")
         continuity = continuity_runs(project, home / "continuity")
         first, second = continuity["first"], continuity["second"]
         assert first["outcome"]["exit_code"] == 1 and second["outcome"]["exit_code"] == 0
@@ -193,7 +413,7 @@ def self_check(project):
         duplicate = capture(continuity["stage"], home / "duplicate/run-second", continuity["cases"][1])
         assert duplicate["outcome"]["exit_code"] != 0 and duplicate["metadata"] is None
         assert destination.read_bytes() == saved
-    print("CI physical self-check passed: synthetic boundaries and same-stage failure/subset continuity.")
+    print("CI physical self-check passed: synthetic boundaries, engine namespace/order, stage builders/chaining and same-stage failure/subset continuity.")
 
 
 if __name__ == "__main__":

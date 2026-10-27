@@ -183,3 +183,25 @@ def prepare_scene(root, *, ruleset, seed, grid, actors):
         prepare_body(engine, actor, size=body['size'], offsets=body['offsets'], reason=body['reason'])
         prepared[row['key']] = actor
     return engine, prepared
+
+
+def assert_logged_refusal_unchanged(engine, operation, *, expected_result, expected_logs):
+    """Ordinary return-value refusal only: exact declared diagnostics, no other change.
+
+    Exceptions propagate; this never normalizes an exception-rollback assertion.
+    Callers supply complete expected messages derived from the actual refusal source.
+    """
+    from unittest.mock import patch
+    if not isinstance(expected_logs, list) or not expected_logs or any(type(line) is not str for line in expected_logs):
+        raise ValueError('explicit nonempty exact refusal diagnostic sequence required')
+    before = engine.export_state()
+    prefix = list(engine.log_lines)
+    result = operation()
+    if result != expected_result:
+        raise AssertionError('unexpected native refusal result')
+    if engine.log_lines != prefix + expected_logs:
+        raise AssertionError('unexpected native refusal diagnostic sequence')
+    with patch.object(engine, 'log_lines', prefix):
+        if engine.export_state() != before:
+            raise AssertionError('refusal changed native world or RNG beyond its exact diagnostic')
+    return result

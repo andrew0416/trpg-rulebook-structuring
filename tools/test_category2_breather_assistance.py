@@ -152,8 +152,8 @@ class AssistedBreatherTests(unittest.TestCase):
   self.assertEqual(self.e.take_breather(self.t,**options),result)
  def test_late_departure_obstacle_stops_before_cell_and_keeps_assisted_attempt_unresolved(self):
   original=MOVEMENT.departure
-  def changed(e,c,destination,altitude):
-   allowed=original(e,c,destination,altitude)
+  def changed(e,c,destination,altitude,**kwargs):
+   allowed=original(e,c,destination,altitude,**kwargs)
    if c is self.t:e.grid.blocking.add(destination)
    return allowed
   with patch.object(MOVEMENT,'departure',side_effect=changed),self.assertRaisesRegex(ValueError,'path interrupted'):
@@ -162,8 +162,8 @@ class AssistedBreatherTests(unittest.TestCase):
   self.assertEqual(getattr(self.e,B.FIELD)['assisted:one']['observed_resolution']['state'],'pending')
  def test_late_departure_obstacle_cannot_complete_ordinary_breather_or_award_stamina(self):
   self.own(self.h);TEMP.grant(self.e,self.h,9);original=MOVEMENT.departure
-  def changed(e,c,destination,altitude):
-   allowed=original(e,c,destination,altitude);e.grid.blocking.add(destination);return allowed
+  def changed(e,c,destination,altitude,**kwargs):
+   allowed=original(e,c,destination,altitude,**kwargs);e.grid.blocking.add(destination);return allowed
   with patch.object(MOVEMENT,'departure',side_effect=changed),self.assertRaisesRegex(ValueError,'path interrupted'):
    self.e.take_breather(self.h,request_id='ordinary:changed',path=[(2,2),(2,3),(2,4),(2,5),(2,6)],
     retreat_reason='GM observes maximal actual vertical retreat before the late world change',

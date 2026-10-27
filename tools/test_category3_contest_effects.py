@@ -100,7 +100,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(any('시작 어필' in x for x in self.e.log_lines))
     def test_festival_unresolved_reset_does_not_silently_choose(self):
         from ruleset import UnresolvedRuleSelection
-        with self.assertRaises(UnresolvedRuleSelection):self.e.run([self.actor(str(i)) for i in range(3)],'근사함',lambda *a:None,variant='festival')
+        with self.assertRaises(UnresolvedRuleSelection):self.e.run([self.actor(str(i)) for i in range(3)],'근사함',lambda *a:None,variant='festival',contest_id='unresolved-festival-reset')
         self.assertEqual(self.e.log_lines,[])
 if __name__=='__main__':
     class Result(unittest.TextTestResult):
@@ -113,3 +113,4 @@ if __name__=='__main__':
     report={'generated_at':datetime.now(timezone.utc).isoformat(),'successful':result.wasSuccessful(),'scope':'Partial DOMAIN-038/045; all 22 effects exercised, unresolved combinations and festival resets not certified.','results':result.rows,'input_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in paths}}
     (ROOT/'output/category3-contest-effects-tests.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     raise SystemExit(not result.wasSuccessful())
+

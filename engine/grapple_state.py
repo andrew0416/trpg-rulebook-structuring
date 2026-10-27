@@ -186,25 +186,11 @@ def _turn(e,actor,row):
     return eligibility['dominant'] and row['dominant']==actor.entity_id
 
 
-def _skills(e,actor,other,row,skill,other_skill,ao,do):
-    import skill_modifiers as SKILLS
-    allowed={SKILLS.skill_id(e.r.skill_policy,x,required=True) for x in ('전투','육상')}
-    for value in (skill,other_skill):
-        if SKILLS.skill_id(e.r.skill_policy,value,required=True) not in allowed:raise ValueError('Combat or Athletics grapple check required')
-    ao=dict(ao or {});do=dict(do or {})
-    if ao.get('roll_id') is not None and ao.get('roll_id')==do.get('roll_id'):raise ValueError('distinct grapple roll identities required')
-    for owner,chosen,options in ((actor,skill,ao),(other,other_skill,do)):
-        _,skill_bonus=_bind_bonuses(e,owner)
-        options['mods']=options.get('mods',0)+row['secure'].get(owner.entity_id,0)+skill_bonus
-        e._prepare_skill_roll(owner,chosen,**options)
-    return ao,do
-
-
 class _AwaitContestDecision(Exception):
     def __init__(self,pending):self.pending=pending
 
 
-def _multipart_contest(e,actor,row,checks,choices,tie_winner,request_id,intent):
+def _multipart_contest(e,actor,row,checks,choices,tie_winner,request_id,intent,*,cost='full'):
     import skill_modifiers as SKILLS
     if request_id is None:raise ValueError('identified all-participant grapple contest required')
     if type(checks) is not dict or set(checks)!=set(row['participants']):raise ValueError('each actual grapple participant must choose a check')
@@ -216,25 +202,39 @@ def _multipart_contest(e,actor,row,checks,choices,tie_winner,request_id,intent):
     actors=_actors(e,row);plans=[]
     for owner in (actor,*(c for c in actors if c is not actor)):
         check=checks[owner.entity_id];Q._fields(check,('skill','options'))
-        if SKILLS.skill_id(e.r.skill_policy,check['skill'],required=True) not in allowed:raise ValueError('Combat or Athletics grapple check required')
+        slipped=OP.slippery_skill(e,owner,check['skill'],SOURCE+'/contest')
+        if SKILLS.skill_id(e.r.skill_policy,check['skill'],required=True) not in allowed and slipped is None:raise ValueError('Combat or Athletics, or actual Slippery defending grapple check required')
+        if slipped is not None and (choices or {}).get(owner.entity_id) not in (None,'end'):raise ValueError('successful Slippery grapple defense may end the grapple, never gain dominance')
         if type(check['options']) is not dict:raise ValueError('actual participant skill options required')
         options=dict(check['options']);_,bind_bonus=_bind_bonuses(e,owner)
         options['mods']=options.get('mods',0)+row['secure'].get(owner.entity_id,0)+bind_bonus
-        plans.append((owner,check['skill'],options))
+        plans.append((owner,slipped or check['skill'],options))
     anchor=next(c for c in actors if c.entity_id==row['dominant'])
     signature=row['sha256'];uid=row['id']
     prepared=SM.prepare(e,actor,anchor,SOURCE+'/contest',dict(relation_id=uid,relation_sha256=signature,request_id=request_id),plans,observe=True)
-    def resolve(rolls):
+    def resolve(rolls,helped=False):
         totals={owner.entity_id:roll.total for (owner,_,_),roll in zip(plans,rolls)}
         highest=max(totals.values());leaders=[identity for identity,total in totals.items() if total==highest]
         # The existing defender keeps a tied highest check (ch06:33-34).
         winner=row['dominant'] if row['dominant'] in leaders else leaders[0] if len(leaders)==1 else None
-        if tie_winner is not None:
+        if tie_winner is not None and (not helped or winner is None):
             if winner is not None or tie_winner['actor_id'] not in leaders:raise ValueError('GM may choose only among unresolved actual highest participants')
             winner=tie_winner['actor_id']
         basis=dict(relation_id=uid,request_id=request_id,check_totals=totals,highest_ids=leaders)
         if winner is None:raise _AwaitContestDecision(C.PendingDecision('GM resolves the observed highest grapple tie',basis=basis))
+        if not helped:
+            import skill_feature_actions as SF
+            offered=[i for i,(member,_,_) in enumerate(plans) if member.entity_id in getattr(e,'_let_me_help_offers',{})]
+            if len(offered)>1:raise ValueError('multiple Let Me Help reactions need explicit native reaction ordering')
+            if offered:
+                index=offered[0];member,skill,options=plans[index]
+                dc=rolls[index].total if member.entity_id==winner else max(r.total for i,r in enumerate(rolls) if i!=index)+int(member.entity_id!=row['dominant'])
+                SF.resolve_check(e,member,skill,dc,rolls[index],options)
+                rolls=list(rolls);rolls[index]=SF.event(e,member,options['roll_id']).final or rolls[index]
+                return resolve(rolls,True)
         choice=(choices or {}).get(winner)
+        winner_check=checks[winner]['skill'];winner_actor=next(c for c in actors if c.entity_id==winner)
+        if OP.slippery_skill(e,winner_actor,winner_check,SOURCE+'/contest') is not None:choice='end'
         if choice is None:raise _AwaitContestDecision(C.PendingDecision('actual grapple winner chooses keep or end',basis=dict(basis,winner_id=winner)))
         return winner,choice,totals
     def outcome(resolved):
@@ -252,7 +252,7 @@ def _multipart_contest(e,actor,row,checks,choices,tie_winner,request_id,intent):
             return result
         return G.transition(e,actor,apply,participants=tuple(c for c in actors if c is not actor))
     try:
-        result=SM.run(e,actor,prepared,spend=lambda:TURN.spend(e,actor,'full',SOURCE+'/contest'),
+        result=SM.run(e,actor,prepared,spend=lambda:TURN.spend(e,actor,cost,SOURCE+'/contest'),
             aoo=lambda:None,can_continue=lambda:TURN.can_act(e,actor),accuracy=lambda:True,outcome=outcome,resolve_rolls=resolve)
     except _AwaitContestDecision as decision:return decision.pending
     if result is False:_state(e)['requests'][request_id]=_sign(dict(intent=intent,result=False))
@@ -299,6 +299,8 @@ def action(e,actor,kind,*,challenger_skill=None,defender_skill=None,challenger_o
     if type(intent.get('participant_checks')) is dict:
         for check in intent['participant_checks'].values():
             if type(check) is dict and type(check.get('options')) is dict:check['options'].pop('feature_options',None)
+    for key in ('challenger_options','defender_options'):
+        if type(intent[key]) is dict:intent[key].pop('feature_options',None)
     if type(intent['escape']) is dict and type(intent['escape'].get('cleanse_checks')) is dict:
         # A UI callback may change while resuming the same observed Focus.
         # It is not serializable intent or a fresh permission token.
@@ -329,9 +331,22 @@ def action(e,actor,kind,*,challenger_skill=None,defender_skill=None,challenger_o
         if multipart:
             if any(x is not None for x in (challenger_skill,defender_skill,challenger_options,defender_options,winner_choice)):raise ValueError('multi-participant contest requires each actual participant declaration')
             return _multipart_contest(e,actor,row,participant_checks,winner_choices,tie_winner,request_id,intent)
-        if any(x is not None for x in (participant_checks,winner_choices,tie_winner)):raise ValueError('paired contest uses its original challenger and defender declaration')
-        if winner_choice not in ('keep','end'):raise ValueError('winner must choose to keep/dominance or end')
-        _skills(e,actor,other,row,challenger_skill,defender_skill,challenger_options,defender_options)
+        if participant_checks is not None or tie_winner is not None:raise ValueError('paired contest uses its original challenger and defender declaration')
+        if winner_choice is not None and winner_choice not in ('keep','end'):raise ValueError('winner must choose to keep/dominance or end')
+        if winner_choices is not None and type(winner_choices) is not dict:raise ValueError('actual participant winner choices must be keep or end')
+        choices=dict(winner_choices or {})
+        # The scalar is only this challenger's conditional preference.
+        if winner_choice is not None:
+            if actor.entity_id in choices and choices[actor.entity_id]!=winner_choice:raise ValueError('challenger winner choices disagree')
+            choices[actor.entity_id]=winner_choice
+        if request_id is None:
+            request_id=SOURCE+'/contest:'+row['id']+':'+actor.entity_id+':'+str(actor.custom_conditions['combat_turn_serial'])+':'+str(len(row['history']))
+        checks={}
+        for owner,skill,options in ((actor,challenger_skill,challenger_options),(other,defender_skill,defender_options)):
+            options=dict(options or {});options.setdefault('roll_id',request_id+':'+owner.entity_id)
+            checks[owner.entity_id]=dict(skill=skill,options=options)
+        return _multipart_contest(e,actor,row,checks,choices,None,request_id,intent,
+            cost=__import__('martial_artist').grapple_action_cost(e,actor))
     if multipart and kind=='attack' and target is None:raise ValueError('multi-participant grapple attack needs its actual target')
     if kind=='secure' and row['secure'].get(actor.entity_id) and row['policy']['secure_stacking'] is None:return C.PendingDecision('declare repeated Secure stacking policy')
     if kind=='drag':
@@ -377,51 +392,71 @@ def action(e,actor,kind,*,challenger_skill=None,defender_skill=None,challenger_o
                 if isinstance(result,C.PendingDecision) or result is False:return result
             else:
                 if max(abs(destination[i]-a.pos[i]) for i in range(2))>staged.move_profile(a,movement_mode='land')[0]:raise ValueError('Phasing escape exceeds native movement')
-                if not TURN.spend(staged,a,escape['cost'],SOURCE+'/escape'):return False
-                a.pos=destination
+                staged._grapple_motion_actor=a
+                try:
+                    if not TURN.spend(staged,a,escape['cost'],SOURCE+'/escape'):return False
+                finally:vars(staged).pop('_grapple_motion_actor',None)
+                origin=a.pos;a.pos=destination
                 import effects_ext as EXT
-                EXT.on_enter_cell(staged,a,destination)
+                EXT.on_enter_cell(staged,a,destination,previous_position=origin)
             _end(staged,current,'capability_escape');result=dict(success=True,ended=True)
         else:
-            if not TURN.spend(staged,a,__import__('martial_artist').grapple_action_cost(staged,a),SOURCE+'/'+kind):return False
+            if not (kind=='attack' and current.get('native_attack')) and not TURN.spend(staged,a,__import__('martial_artist').grapple_action_cost(staged,a),SOURCE+'/'+kind):return False
             result=dict(success=True,relation_id=uid,action=kind)
             if kind=='end':_end(staged,current,'dominant_release')
             elif kind=='secure':
                 old=current['secure'].get(a.entity_id,0)
                 current['secure'][a.entity_id]=current['policy']['secure_bonus']+(old if current['policy']['secure_stacking']=='add' else 0);_save(current)
-            elif kind=='contest':
-                ao,do=_skills(staged,a,b,current,challenger_skill,defender_skill,challenger_options,defender_options)
-                won=staged.opposed_check(a,challenger_skill,b,defender_skill,challenger_options=ao,defender_options=do)
-                winner=a if won else b
-                current['secure'].clear();current['dominant']=winner.entity_id;_save(current);result['winner_id']=winner.entity_id
-                if winner_choice=='end':_end(staged,current,'contest_winner_release')
             elif kind=='attack':
                 import precise_actions as PRECISE
-                move=staged.r.move('struggle');event=PRECISE.attacked(staged,a,b,move,producer='combat_maneuver')
-                PRECISE.accuracy(event,True)
+                move=staged.r.move('struggle');pending=current.get('native_attack')
+                if pending is None:
+                    event=PRECISE.attacked(staged,a,b,move,producer='combat_maneuver');PRECISE.accuracy(event,True)
+                    current['native_attack']={'actor_id':a.entity_id,'target_id':b.entity_id,'precision_id':event['id'],'history_index':len(current['history']),'round':staged.round_no,'phase':'defense','intent':deepcopy(intent)}
+                    _save(current)
+                else:
+                    if pending['intent']!=intent or pending['round']!=staged.round_no or pending['actor_id']!=a.entity_id or pending['target_id']!=b.entity_id:raise ValueError('actual paid grapple Attack intent changed')
+                    event=next(row for row in staged._precision_events if row['id']==pending['precision_id'])
+                # Only an actually armed defense needs its selected native adapter.
+                dodge_watch=any(request['source']=='ability/회피' for request in b.spec.get('move_defense_watch',{}).get('requests',[]))
+                if dodge_watch:__import__('move_defense_reactions').native_dodge(staged,event,{'kind':'grapple','relation_id':uid,'history_index':len(current['history'])})
+                current=_state(staged)['relations'][uid];current['native_attack']['phase']='damage';_save(current)
                 import gleeful_interference as GLEEFUL
                 gleeful=GLEEFUL.snapshot(staged,a,b,move)
-                observation={}
-                result['damage']=staged.resolve_attack_damage(a,b,move,crit=False,_precision_event=event,_damage_observation=observation)
+                observation={'hit_prevented':True} if event['result']=='hit_prevented' else {}
+                result['damage']=0 if event['result']=='hit_prevented' else staged.resolve_attack_damage(a,b,move,crit=False,_precision_event=event,_damage_observation=observation)
+                result['attack']={'event_id':event['id'],'source':'struggle','actor_id':a.entity_id,'target_id':b.entity_id,'hit_prevented':bool(observation.get('hit_prevented')),'damage':result['damage']}
                 # An actual atomic damage delivery can replace relation dictionaries.
                 current=_state(staged)['relations'][uid]
                 if not observation.get('hit_prevented'):
+                    # Automatic Struggle has a hit, but no natural face or Iron Fist Move activation.
+                    __import__('martial_artist')._retain_tag_hit(a,b)
                     result['roughneck']=__import__('roughneck').attack_hit(staged,a,b,origin={'kind':'grapple','relation_id':uid,'history_index':len(current['history']),'event_id':event['id']})
                 if gleeful is not None and not observation.get('hit_prevented'):
                     origin={'kind':'grapple','relation_id':uid,'history_index':len(current['history'])}
                     result['gleeful']=GLEEFUL.issue(staged,gleeful,origin)
-                staged.check_fainted(b)
             elif kind=='drag':
                 import effects_ext as EXT
                 for pa,pb in plan:
+                    old_a,old_b=a.pos,b.pos
                     a.pos=pa;b.pos=pb
-                    EXT.on_enter_cell(staged,a,pa);EXT.on_enter_cell(staged,b,pb)
+                    EXT.on_enter_cell(staged,a,pa,previous_position=old_a);EXT.on_enter_cell(staged,b,pb,previous_position=old_b)
                     if current['status']!='active' or a.pos!=pa or b.pos!=pb:break
                 result.update(actor_position=a.pos,partner_position=b.pos)
+            current=_state(staged)['relations'][uid]
             entry=dict(action=kind,actor=a.entity_id,seconds=staged.elapsed_seconds)
             if 'roughneck' in result:entry['roughneck']=deepcopy(result['roughneck'])
             if 'gleeful' in result:entry['gleeful']=deepcopy(result['gleeful'])
-            current['history'].append(entry);_save(current)
+            if 'attack' in result:entry['attack']=deepcopy(result['attack'])
+            current['history'].append(entry);current.pop('native_attack',None);_save(current)
+            if kind=='attack':
+                history_index=len(current['history'])-1
+                import acquired_features as ACQUIRED,combat_timing as TIMING
+                if ACQUIRED.owned_rule_count(a,'feat/빠른-체조'):
+                    __import__('tumbler').after_grapple_attack(staged,uid,history_index)
+                if any(record.get('rogue_cruelty') for record in TIMING.records(b)):
+                    __import__('rogue').after_grapple_attack(staged,uid,history_index)
+                staged.check_fainted(b)
         boundary(staged)
         if request_id is not None:_state(staged)['requests'][request_id]=_sign(dict(intent=intent,result=deepcopy(result)))
         return result
@@ -454,3 +489,45 @@ def validate_world(e,index=None):
     for identity,actor in index.items():
         if actor.custom_conditions.get(MARK)!=active.get(identity):raise ValueError('orphaned grapple restriction')
     for request in state['requests'].values():_verify(request)
+
+
+def completed_attack_event(e,relation_id,history_index):
+    """Read one real automatic Struggle hit from the existing signed relation history."""
+    row=_state(e)['relations'].get(relation_id)
+    if row is None:raise ValueError('actual grapple relation required')
+    _verify(row);C.integer(history_index,'actual grapple history index',0,len(row['history'])-1)
+    entry=row['history'][history_index];proof=entry.get('attack')
+    if entry.get('action')!='attack' or not isinstance(proof,dict):raise ValueError('actual completed grapple Attack entry required')
+    event=next((record for record in e._precision_events if record['id']==proof['event_id']),None)
+    index=W.actor_index(e)
+    if (event is None or event.get('producer')!='combat_maneuver' or event['source']!='struggle' or proof['source']!='struggle'
+        or index.get(proof['actor_id']) is not event['actor'] or index.get(proof['target_id']) is not event['target']
+        or entry['actor']!=proof['actor_id'] or not {proof['actor_id'],proof['target_id']}<=set(row['participants'])
+        or event['result'] not in ('damaging_hit','hit_prevented') or bool(event.get('hit_prevented'))!=proof['hit_prevented']):
+        raise ValueError('grapple Attack history lost its actual native precision hit')
+    return event
+
+def record_attack_followup(e,relation_id,history_index,key,result):
+    """The same signed history owns per-consumer once-only results, not another attack ledger."""
+    completed_attack_event(e,relation_id,history_index)
+    if type(key)is not str or not key:raise ValueError('source followup identity required')
+    row=_state(e)['relations'][relation_id];entry=row['history'][history_index];records=entry.setdefault('attack_followups',{})
+    if key in records:
+        if records[key]!=result:raise ValueError('completed grapple followup cannot change')
+        return deepcopy(records[key])
+    records[key]=deepcopy(result);_save(row);return deepcopy(result)
+
+
+def ensure_attack_clear(e):
+    import initiative_interrupts as I
+    state=getattr(e,'_grapple_state',None)
+    if state is None:return
+    for row in state['relations'].values():
+        pending=row.get('native_attack')
+        if not pending or pending['phase']!='defense' or getattr(e,'_native_attack_defense_scope',None)==pending['precision_id']:continue
+        frame=I.frame(e)
+        if frame:
+            window=getattr(e,I.KEY)['windows'][frame['window_id']]
+            if window['trigger'].get('kind')=='native_accuracy' and window['trigger'].get('event_id')==pending['precision_id']:continue
+        if getattr(e,'_grapple_attack_resume',None)==(row['id'],pending['precision_id']):continue
+        raise ValueError('unfinished actual grapple Attack response must finish before another action')

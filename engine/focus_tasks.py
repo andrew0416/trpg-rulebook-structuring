@@ -35,10 +35,12 @@ def perform(e,actor,skill,dc,options,adjudication):
  basis={'source':SOURCE,'source_lines':[272,274],'context':deepcopy(context),'task_skill':skill,'task_dc':dc,'focus_dc':focus_dc,'combination':'separate_checks_with_explicit_GM_world_response'}
  def resolve(staged,observed=None):
   ordinary,concentration=observed if observed is not None else (staged.skill_roll(actor,skill,**task),staged.skill_roll(actor,'집중',**focus))
-  task_check=C.against_dc(ordinary,dc);focus_check=C.against_dc(concentration,focus_dc)
+  identities=[SF._observed(staged,actor,roll,opts)[0] if actor.entity_id in getattr(staged,'_let_me_help_offers',{}) else opts.get('roll_id') for roll,opts in ((ordinary,task),(concentration,focus))]
+  task_check=SF.resolve_check(staged,actor,skill,dc,ordinary,task);focus_check=SF.resolve_check(staged,actor,'집중',focus_dc,concentration,focus)
+  ordinary,concentration=[(SF.event(staged,actor,uid).final or roll) if uid is not None else roll for uid,roll in zip(identities,(ordinary,concentration))]
   record=dict(basis,task_roll=ordinary,focus_roll=concentration,task_check=task_check,focus_check=focus_check)
   SF.finish(staged,actor,task.get('roll_id'));SF.finish(staged,actor,focus.get('roll_id'))
   staged.log(f'  추가 집중: 원작업 {ordinary.total} vs DC {dc}, 집중 {concentration.total} vs DC {focus_dc}',SOURCE)
   return replace(C.adjudicate(**adjudication),basis=record)
  if featured:return SF.sequence(e,'focus_task:'+ids[0],basis,[(actor,skill,task),(actor,'집중',focus)],lambda rolls:resolve(e,rolls))
- return COMMON._staged_rolls(e,resolve)
+ return COMMON._staged_rolls(e,resolve,actors=(actor,))

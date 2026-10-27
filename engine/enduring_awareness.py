@@ -66,10 +66,12 @@ def confirm(e,trainer,defenders,*,reason):
         p=row['pokemon'];ability=row['ability'];why=row['defensive_reason']
         if p.kind!='pokemon' or actors.get(p.spec.get('id')) is not p or p.spec.get('trainer_id')!=tid:raise ValueError('acquisition evidence must be an actual owned Pokemon')
         if not isinstance(ability,str) or not ability or not isinstance(why,str) or not why.strip():raise ValueError('GM classification of the actual defensive ability required')
-        name=ability.removeprefix('ability/')
-        if name not in p.abilities or name not in e.r.ability_effects:raise ValueError('Pokemon does not have this actual sourced ability')
-        _selected(e,'ability/'+name)
-        checked.append({'pokemon_id':p.spec['id'],'ability_id':'ability/'+name,'defensive_reason':why})
+        import ability_transitions as AB
+        uid=AB.ability_id(e.r,ability);name=AB.label(e.r,uid)
+        if uid not in {AB.ability_id(e.r,current) for current in p.abilities} or name not in e.r.ability_effects:
+            raise ValueError('Pokemon does not have this actual sourced ability')
+        _selected(e,uid)
+        checked.append({'pokemon_id':p.spec['id'],'ability_id':uid,'defensive_reason':why})
     if len({row['pokemon_id'] for row in checked})!=3:raise ValueError('one Pokemon cannot fill several prerequisite slots')
     if trainer.spec.get('_awareness_acquisition') is not None:raise ValueError('Awareness acquisition already confirmed')
     record={'trainer_id':tid,'source':source,'prerequisite_source':ENDURING,'defenders':checked,'reason':reason}

@@ -72,13 +72,19 @@ class SmokeTests(unittest.TestCase):
         for removal in ('move/안개제거', 'move/날려버리기'):
             with self.subTest(removal=removal):
                 e, a, b = self.fixture()
+                e.gm.set_move(a,removal,reason='actual known native smoke-removal Move')
+                e.start_round(e.everyone);e.start_of_turn(a,initiative_count=20)
                 cells = self.smoke(e, a, b)
-                e.use_move_on(a, b, removal, e.everyone, **({'aim': (5, 5)} if removal.endswith('날려버리기') else {}))
+                self.assertEqual(a.budget['standard'],0)
+                e.end_of_turn(a);e.end_round();e.start_round(e.everyone);e.start_of_turn(a,initiative_count=20)
+                with patch.object(Engine,'d20',return_value=18):
+                    e.use_move_on(a, b, removal, e.everyone, **({'aim': (5, 5)} if removal.endswith('날려버리기') else {}))
+                self.assertEqual(a.budget['standard'],0)
                 if removal.endswith('안개제거'):
                     self.assertFalse(e.zone_cells)
                 else:
                     line = e.grid.line((1, 5), (1, 0), 6)
-                    self.assertEqual(set(e.zone_cells), cells - line)
+                    self.assertFalse(e.zone_cells)
                     row = next(row for row in reversed(list(e._move_completions.values()))
                                if row['move_id'] == removal)
                     self.assertEqual([target.entity_id for target in row['targets']], [b.entity_id])
@@ -189,7 +195,7 @@ class SmokeTests(unittest.TestCase):
                 patch.object(Engine, 'accuracy_check', side_effect=AssertionError('target-free accuracy')) as accuracy:
             e.use_move_on(a, a, 'move/날려버리기', e.everyone, aim=(5, 5))
         line = e.grid.line((1, 5), (1, 0), 6)
-        self.assertEqual(set(e.zone_cells), smoke_cells - line)
+        self.assertFalse(e.zone_cells)
         self.assertTrue(smoke_cells - line)
         self.assertEqual(a.move_uses['move/날려버리기'], uses + 1)
         self.assertEqual((a.budget['standard'], a._action_history.count('standard')), (0, 1))
@@ -234,7 +240,7 @@ class SmokeTests(unittest.TestCase):
         packet = e._heavy_events['heavy-standard-1']
         self.assertEqual((packet['status'], packet['action_target'],
                           packet['heavy_consequence']['amount']), ('applied', None, 5))
-        self.assertEqual(set(e.zone_cells), smoke_cells - set(packet['move']['_effect_area_cells']))
+        self.assertFalse(e.zone_cells)
 
     def test_injured_empty_whirlwind_pending_survives_atomic_transition(self):
         import heavy_injury_adapter as HEAVY
@@ -439,7 +445,7 @@ class SmokeTests(unittest.TestCase):
         e.start_round(e.everyone)
         e.start_of_turn(a, initiative_count=20)
         e.use_move_on(a, a, 'move/날려버리기', e.everyone, aim=(5, 5))
-        remaining = smoke_cells - e.grid.line((1, 5), (1, 0), 6)
+        remaining = set()
         completion_id = list(e._move_completions)[-1]
         e.gm.snapshot('empty-whirlwind')
         e.end_encounter()
@@ -466,6 +472,54 @@ class SmokeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'actual mapped line before action cost'):
             e.use_move(a, b, 'move/날려버리기')
         self.assertEqual((a.move_uses, e.rng.getstate(), b.pos), before)
+
+    def test_whirlwind_disperses_only_the_actual_intersecting_smoke_occurrence(self):
+        e, a, b = self.fixture()
+        first_aim, second_aim = (5, 5), (15, 13)
+        first_cells = e.grid.ranged_blast(first_aim, 3)
+        second_cells = e.grid.ranged_blast(second_aim, 3)
+        self.assertTrue(first_cells.isdisjoint(second_cells))
+        e.gm.set_move(a, 'move/날려버리기', True, reason='actual known native dispersal Move')
+        e.gm.set_move(b, 'move/연막', True, reason='actual second Smokescreen producer')
+        e.start_round(e.everyone);e.start_of_turn(a, initiative_count=20)
+        self.smoke(e, a, b, aim=first_aim)
+        self.assertEqual(a.budget['standard'], 0)
+        e.end_of_turn(a)
+        e.gm.set_position(b, second_aim, reason='observed independent second smoke location')
+        e.start_of_turn(b, initiative_count=10)
+        e.use_move_on(b, b, 'move/연막', e.everyone, aim=second_aim)
+        self.assertEqual(b.budget['standard'], 0)
+        self.assertEqual(b.move_uses['move/연막'], 1)
+        regions = e._smoke_regions['regions']
+        self.assertEqual(len(regions), 2)
+        first_id = next(key for key, row in regions.items() if row['cells'] == first_cells)
+        second_id = next(key for key, row in regions.items() if row['cells'] == second_cells)
+        self.assertNotEqual(first_id, second_id)
+        self.assertEqual(set(e.zone_cells), first_cells | second_cells)
+        e.end_of_turn(b);e.end_round();e.start_round(e.everyone)
+        e.start_of_turn(a, initiative_count=20)
+        with patch.object(Engine, 'accuracy_check', side_effect=AssertionError('empty actual line cannot invent a recipient accuracy roll')):
+            e.use_move_on(a, a, 'move/날려버리기', e.everyone, aim=first_aim)
+        completion = list(e._move_completions.values())[-1]
+        line = set(completion['move']['_effect_area_cells'])
+        self.assertTrue(line & first_cells)
+        self.assertTrue(first_cells - line)
+        self.assertTrue(line.isdisjoint(second_cells))
+        self.assertEqual((completion['move_id'], completion['phase']), ('move/날려버리기', 'complete'))
+        self.assertEqual(completion['targets'], [])
+        self.assertEqual(completion['results'], {})
+        self.assertEqual((a.budget['standard'], a.move_uses['move/날려버리기']), (0, 1))
+        self.assertNotIn(first_id, e._smoke_regions['regions'])
+        self.assertEqual(set(e._smoke_regions['regions']), {second_id})
+        self.assertEqual(e._smoke_regions['regions'][second_id]['cells'], second_cells)
+        self.assertEqual(set(e.zone_cells), second_cells)
+        self.assertTrue(first_cells.isdisjoint(e.zone_cells))
+        self.assertTrue(e.validate_state()['valid'])
+        restored = Engine.import_state(e.r, json.loads(json.dumps(e.export_state(), ensure_ascii=False)))
+        self.assertEqual(set(restored.zone_cells), second_cells)
+        self.assertEqual(set(restored._smoke_regions['regions']), {second_id})
+        self.assertTrue(restored.validate_state()['valid'])
+
 
 
 if __name__ == '__main__':

@@ -172,7 +172,12 @@ def _node_end(e,row):
 
 
 def _damage(e,actor,avatar,target,value,amount,request):
-    effect=value['effect'];total,derivation=_damage_amount(e,target,effect,amount);before={'integrity':target['integrity'],'temporary_integrity':target.get('temp_integrity',0)}
+    effect=value['effect'];snare=target if target.get('node_type')=='data_snare' and effect['data_outcome'] is not None else None
+    if snare is not None:
+        target=avatar
+        # The false core returns the roll, retaining the recipient's Technology defense.
+        effect=dict(effect,minimum=0,multiplier=[1,1])
+    total,derivation=_damage_amount(e,target,effect,amount);before={'integrity':target['integrity'],'temporary_integrity':target.get('temp_integrity',0)}
     if effect['damage_kind']=='physical_hp':
         body=W.actor_index(e)[target['actor_id']];old=body.hp;e.lose_hp(body,total,source=value['source'])
         return {'kind':'damage','damage_kind':'physical_hp','requested':total,'physical_before':old,'physical_after':body.hp,'before':before,'after':before,'derivation':derivation,'ejected':[]}
@@ -196,8 +201,9 @@ def _damage(e,actor,avatar,target,value,amount,request):
                 if effect['data_outcome'] is not None:target['data_state']=effect['data_outcome']
     S.validate_record(e,target)
     result={'kind':'damage','damage_kind':effect['damage_kind'],'requested':total,'before':before,'after':{'integrity':target['integrity'],'temporary_integrity':target.get('temp_integrity',0)},'derivation':derivation,'ejected':ended,'data_state':target.get('data_state')}
-    if target.get('node_type')=='data_snare' and effect['data_outcome'] is not None:
-        result.update(false_core_revealed=True,attempted_data_outcome=effect['data_outcome'])
+    if snare is not None:
+        result.update(false_core_revealed=True,attempted_data_outcome=effect['data_outcome'],
+                      damage_target_id=avatar['id'],data_state=snare['data_state'])
     return result
 
 
@@ -233,7 +239,7 @@ def execute(e,actor,avatar_id,target_id,value,*,request_id,reason,roll_options=N
         program=_program(staged,c,avatar,value)
         if program is not None and value['program']['consume']:
             W.finish_physical_use(staged,program,'consumed',{'source':program['item_rule_id'],'by_actor_id':c.entity_id,'at':staged.elapsed_seconds,'request_id':request_id,'consumer':'digital_program'})
-        result.update(actor_id=c.entity_id,avatar_id=avatar_id,target_id=target_id,source=value['source'],at=staged.elapsed_seconds,action=value['action'],check=None if roll is None else asdict(roll),program_id=None if program is None else program['id'])
+        result.update(actor_id=c.entity_id,avatar_id=avatar_id,target_id=target_id,source=value['source'],at=staged.elapsed_seconds,action=value['action'],check=None if roll is None else dict(asdict(roll),total=roll.total),program_id=None if program is None else program['id'])
         state['policies'].setdefault(key,_sign({'actor_id':c.entity_id,'source':value['source'],'operation_id':value['id'],'body':_body(value)}));state['requests'][request_id]=_sign({'intent':deepcopy(intent),'fingerprint':TX.request_fingerprint(intent),'result':deepcopy(result)});setattr(staged,FIELD,state)
         validate_world(staged,W.actor_index(staged));return result
     return G.transition(e,actor,apply)
@@ -296,6 +302,13 @@ def validate_world(e,index):
                     or result.get('attempted_data_outcome')!=effect['data_outcome']
                     or result.get('data_state')!='not_applicable'):
                 raise ValueError('false-core recognition needs its actual Technology intrusion producer')
+            # Old paid receipts describe historical Snare damage; never rewrite or refund them.
+            if 'damage_target_id' in result and (
+                    result['damage_target_id']!=intent['avatar_id']
+                    or registry[intent['avatar_id']].get('kind')!='digital_avatar'
+                    or result.get('derivation',{}).get('total')!=max(0,result['check']['total'])
+                    or result.get('derivation',{}).get('multiplier')!=[1,1]):
+                raise ValueError('reflected false-core damage needs its actual attacking avatar')
     for field in ('temporary','recovery','data_permissions'):
         for uid,row in state[field].items():
             _verify(row)

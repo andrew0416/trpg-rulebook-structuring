@@ -95,7 +95,7 @@ class Tests(unittest.TestCase):
  def test_native_push_moves_onto_actual_enter_cell_consumer_once(self):
   import effects_ext as EXT
   with patch.object(EXT,'on_enter_cell',wraps=EXT.on_enter_cell) as entered:
-   self.assertTrue(self.push());entered.assert_called_once_with(self.e,self.b,(3,1))
+   self.assertTrue(self.push());entered.assert_called_once_with(self.e,self.b,(3,1),previous_position=(2,1))
  def test_heavy_standard_and_nonadjacent_geometry_do_not_silently_execute(self):
   self.a.injuries=5;before=self.state()
   with self.assertRaises(ValueError):self.trip()

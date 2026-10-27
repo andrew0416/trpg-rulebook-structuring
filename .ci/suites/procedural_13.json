@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "execution_kind": "procedural_runner",
+  "unit_id": "script:tools/test_root_admission_independent.py",
+  "unit_kind": "procedural_script_runner",
+  "required_runner_ids": [
+    "script:tools/test_root_admission_independent.py"
+  ],
+  "completed": {},
+  "original_contract_sha256": "5902ed9e2e561f281041de5a4425721342b7002e3d1f77d9d736cc9cd540144b",
+  "inventory_sha256": "46c04e8eb8efa90c96a5ca21864b44e0112a7b0b9d78f77c31aad5bafe36caf5",
+  "runner": {
+    "source_path": "tools/test_root_admission_independent.py",
+    "argv": [
+      "python",
+      "-B",
+      "-X",
+      "utf8",
+      "-I",
+      "{stage}/tools/test_root_admission_independent.py"
+    ],
+    "cwd": "{stage}",
+    "environment": {
+      "TEMP": "{stage}/.tmp",
+      "TMP": "{stage}/.tmp"
+    },
+    "report": {
+      "path": "output/admission-independent-tests.json",
+      "kind": "json_results_array"
+    },
+    "additional_outputs": [],
+    "mutations": {
+      "temporarily_modified_restored": [
+        "tools/root_admission_synthetic_evidence.txt"
+      ],
+      "generated_retained": []
+    },
+    "result_buffer": "results",
+    "entry_function": null,
+    "sort_results_by_id": false,
+    "source_sha256": "61c4f39da4a25a48cee098da57b05de1023e5adea7b29acb4c427599f009aefc"
+  }
+}

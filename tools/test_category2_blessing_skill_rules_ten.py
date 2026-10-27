@@ -211,22 +211,33 @@ class BlessingSkillRuleTests(unittest.TestCase):
         self.assertEqual(len(self.e.skill_roll(self.a, "오컬트학", fixed=[2, 2, 2]).faces), 3)
 
     def test_paragon_original_swift_cost_native_budget_atomicity_and_both_restores(self):
+        self.rules=Rules(ROOT,ruleset="fantasy");self.setUp()
         self.own(B.PARAGON, configuration={"role": "messiah", "category": "mental"})
         self.assertEqual(self.e.skill_roll(self.a, "기술학", fixed=[1, 1, 1]).modifier, 2)
         self.assertEqual(self.e.skill_roll(self.a, "매력", fixed=[1, 1, 1]).modifier, 0)
         self.assertEqual(B.RULES[B.PARAGON]["action"], {"messiah": None, "contractor": "swift"})
         actor = self.b
         self.own(B.PARAGON, actor=actor, configuration={"role": "contractor", "category": "mental"})
-        turn.reset_budget(self.e, actor)
+        def next_actual_turn():
+            if self.e._active_turn_actor is not None:self.e.end_of_turn(self.e._active_turn_actor)
+            if self.e.round_start_seconds is not None:self.e.end_round()
+            self.e.start_round(self.e.everyone);self.e.start_of_turn(actor,initiative_count=20)
         for shift in (0, 1):
             with self.subTest(unavailable_swift_with_shift=shift):
-                actor.budget.update({"standard": 0, "shift": shift, "swift": 0})
+                next_actual_turn()
+                self.assertTrue(turn.spend(self.e,actor,'standard','actual earlier Standard'))
+                self.assertTrue(turn.spend(self.e,actor,'swift','actual earlier Swift'))
+                if shift==0:self.assertTrue(turn.spend(self.e,actor,'shift','actual earlier Shift'))
+                self.assertEqual(actor.budget,{"standard":0,"shift":shift,"swift":0})
                 self.rejected(
                     lambda: self.e.activate_blessing_skill_rule(actor, B.PARAGON, reason="no Swift remains"),
                     actor=actor,
                 )
                 self.assertNotIn(B.STATE, actor.spec)
-        actor.budget.update({"standard": 0, "shift": 0, "swift": 1})
+        next_actual_turn()
+        self.assertTrue(turn.spend(self.e,actor,'standard','actual earlier Standard'))
+        self.assertTrue(turn.spend(self.e,actor,'shift','actual earlier Shift'))
+        self.assertEqual(actor.budget,{'standard':0,'shift':0,'swift':1})
         before_history = list(getattr(actor, "_action_history", []))
         activation = self.e.activate_blessing_skill_rule(
             actor, B.PARAGON, reason="activate category with only the printed Swift action"
@@ -238,7 +249,9 @@ class BlessingSkillRuleTests(unittest.TestCase):
         self.assertEqual(actor._action_history, before_history + ["swift"])
         self.assertEqual(self.e.skill_roll(actor, "기술학", fixed=[1, 1, 1]).modifier, 1)
         self.assertEqual(self.e.skill_roll(actor, "매력", fixed=[1, 1, 1]).modifier, 0)
-        actor.budget["swift"] = 1
+        next_actual_turn()
+        self.assertTrue(turn.spend(self.e,actor,'standard','actual next-turn Standard'))
+        self.assertTrue(turn.spend(self.e,actor,'shift','actual next-turn Shift'))
         self.rejected(
             lambda: self.e.activate_blessing_skill_rule(actor, B.PARAGON, reason="already active scene"),
             actor=actor,
@@ -250,7 +263,10 @@ class BlessingSkillRuleTests(unittest.TestCase):
         self.assertEqual(actor.budget["swift"], 1)
         self.assertEqual(self.e.skill_roll(actor, "기술학", fixed=[1, 1, 1]).modifier, 1)
         payload = json.loads(json.dumps(dump_engine(self.e), ensure_ascii=False))
-        loaded = load_engine(Rules(ROOT, ruleset="fantasy"), payload)
+        import state_codec as CODEC
+        fresh=Rules(ROOT,ruleset='fantasy')
+        self.assertEqual(CODEC.rules_fingerprint(fresh),CODEC.rules_fingerprint(self.e.r))
+        loaded = load_engine(fresh, payload)
         restored = next(value for value in loaded.everyone if value.entity_id == actor.entity_id)
         self.assertEqual(restored.spec[B.STATE], saved)
         self.assertEqual(restored.budget, actor.budget)

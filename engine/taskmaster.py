@@ -3,6 +3,7 @@
 Hardened is a result of the Class trigger, not another Training regime.  The
 printed Class gives it no rest deadline; its source is the actual owning Class.
 """
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 from functools import wraps
 import common_checks as C
@@ -36,8 +37,7 @@ KIND='taskmaster_hardened'
 
 def acquisitions(actor,feature,active=False):
     import trainer_feature_acquisition as T
-    return [row['static_acquisition'] for _,row,live in T._static_records(actor)
-            if row['static_acquisition']['feature_id']==feature and (live or not active)]
+    return [record for _, record in T.static_acquisitions(actor, feature, active=active)]
 
 
 def acquired(actor,feature=CLASS):
@@ -119,8 +119,7 @@ def _injury(engine,target,amount,source):
     import actor_templates as TEMPLATES,precise_actions as PRECISE
     if TEMPLATES.injuries_immune(target):return 0
     before=target.injuries
-    target.injuries+=amount
-    if amount:PRECISE.injury(engine,target,amount,source)
+    if amount:PRECISE.gain_injury(engine,target,amount,source)
     return target.injuries-before
 
 
@@ -173,19 +172,21 @@ def bonus(actor,field):
     return amount*(2 if doubled else 1)
 
 
-def injury_ceiling(actor):return min(actor.injuries,5) if active(actor) else actor.injuries
+def injury_ceiling(actor):return min(actor.injuries,5) if active(actor) or __import__('berserker').lessons(actor) else actor.injuries
 def ignores_acting_loss(actor):
     import style_expert as STYLE
-    return active(actor) is not None or STYLE.endurance_active(actor)
+    return active(actor) is not None or STYLE.endurance_active(actor) or __import__('berserker').lessons(actor)
 def immune_loss(actor):return actor.injuries>=7 and active(actor) is not None
 
 
-def conscious(actor):
+def conscious(actor, *, hp=None):
     """An actual paid Press On changes the native faint threshold, never death."""
     if actor.dead or '기절' in actor.conditions:return False
-    if actor.hp>0:return True
+    current_hp=actor.hp if hp is None else hp
+    if current_hp>0:return True
+    if (hp is None or hp==actor.hp) and __import__('berserker').conscious(actor):return True
     rows=records(actor)
-    if not rows or rows[0].get('press_on') is not True or 100*actor.hp<=DEFINITIONS[PRESS]['parameters']['faint_percent']*actor.base_max_hp:return False
+    if not rows or rows[0].get('press_on') is not True or 100*current_hp<=DEFINITIONS[PRESS]['parameters']['faint_percent']*actor.base_max_hp:return False
     import actor_templates as T
     return not T.soulless(actor) and active(actor) is not None and acquired(rows[0]['owner'],PRESS) is not None
 
@@ -312,18 +313,18 @@ def press(engine,owner,target,*,stats,obedience=False,whip=None):
     def apply(e,trainer,pupil):
         import action_lifecycle as ACTION
         P._trainer(trainer);P._pokemon(pupil);P._owner(trainer,pupil)
-        if not A.owned_rule_count(trainer,PRESS_ACTION) or S.rank(e.r,trainer,'협박')[2]<4:
+        if not A.owned_rule_count(trainer,PRESS_ACTION) or (not __import__('hobbyist').skill_waived(trainer,PRESS_ACTION) and S.rank(e.r,trainer,'협박')[2]<4):
             raise ValueError('actual Press and Adept Intimidate required')
         if pupil.fainted:raise ValueError('conscious Press target required')
         parent=None
         with ACTION.resolution(e,trainer,PRESS_ACTION,kind='feature'):
             if not TURN.spend(e,trainer,'standard',PRESS_ACTION):raise ValueError('Press requires Standard action permission')
-            e.lose_hp(pupil,max(1,pupil.base_max_hp//6),PRESS_ACTION)
+            e.lose_hp(pupil,max(1,NUMERIC.ratio(pupil.base_max_hp,6)),PRESS_ACTION)
             if '잠듦' in pupil.conditions:e.cure_status(pupil,'잠듦')
             for stat in stats:e.change_stage(pupil,stat,1)
             if obedience:
                 TIMING.install(e,trainer,{'source':PRESS_ACTION,'press_target':pupil.entity_id,
-                    'press_obedience':S.rank(e.r,trainer,'협박')[2]//2,'round_end_deadline':e.round_no})
+                    'press_obedience':NUMERIC.ratio(__import__('hobbyist').direct_rank(trainer,PRESS_ACTION,'협박',effective=True),2),'round_end_deadline':e.round_no})
             if whip is not None and whip.get('order') is not None:
                 order=whip['order'];feature=order if isinstance(order,str) else order['feature']
                 if feature not in e.r.selection.units:feature=e.r.selection.resolve_name(feature,('feat/',))
@@ -352,9 +353,20 @@ def press(engine,owner,target,*,stats,obedience=False,whip=None):
     return G.transition(engine,owner,apply,participants=(target,),include_rulings=True)
 
 
+def is_obedience_context(context):
+    """Recognize the native check purpose without granting a Press bonus."""
+    if not isinstance(context,dict) or context.get('purpose')!='pokemon_obedience':return False
+    if set(context) not in ({'purpose'},{'purpose','reason'}):
+        raise ValueError('Press obedience context requires purpose and optional reason')
+    if 'reason' in context:G._text(context['reason'],'Press obedience observation reason')
+    return True
+
+
 def obedience_bonus(engine,actor,context,target):
-    import combat_timing as TIMING
-    if not isinstance(context,dict) or context.get('purpose')!='pokemon_obedience' or target is None:return 0
+    import combat_timing as TIMING,world_entities as WORLD
+    if not is_obedience_context(context) or target is None:return 0
+    WORLD.require_actors(engine,actor,target)
+    if target.kind!='pokemon':raise ValueError('Press obedience checks require an actual Pokemon target')
     return max([r['press_obedience'] for r in TIMING.records(actor)
         if r.get('source')==PRESS_ACTION and r.get('press_target')==target.entity_id]+[0])
 
@@ -369,11 +381,14 @@ def cruelty_definition(rules):
         'lifetime':{'boundary':'explicit_healing_block_end','ends_on':['replacement','breather','encounter_end']}}
 
 
+def _side(actor):return getattr(actor,'side',None)
+
+
 def prepare_gambit(engine,attacker,target,move):
     """Native selected target occurrence, before its accuracy is resolved."""
     if getattr(engine,'_taskmaster_gambit',None) is not None:return
     import weapon_actions as WEAPONS,world_entities as W,frequency as F,action_lifecycle as ACTION
-    if target.kind!='pokemon' or target.fainted or attacker.side==target.side or move['class'] not in ('물리','특수'):
+    if target.kind!='pokemon' or target.fainted or _side(attacker) is None or _side(target) is None or _side(attacker)==_side(target) or move['class'] not in ('물리','특수'):
         return
     if WEAPONS.range_spec(engine,move,attacker).get('origin')!='melee':return
     owner=W.actor_index(engine).get(target.spec.get('trainer_id'))
@@ -386,7 +401,7 @@ def prepare_gambit(engine,attacker,target,move):
         raise ValueError('explicit Deadly Gambit counter and effect-roll choices required')
     counter=choice['move']
     options=choice.get('options',{})
-    if type(options) is not dict or set(options)-{'weapon_id','struggle_choice','appendage_id','origin_part','set_damage'}:
+    if type(options) is not dict or set(options)-{'weapon_id','struggle_choice','appendage_id','origin_part','set_damage','versatile_stat'}:
         raise ValueError('native Deadly Gambit attack options required')
     if counter is not None:
         import move_state as MOVES
@@ -394,6 +409,8 @@ def prepare_gambit(engine,attacker,target,move):
         import struggle_capabilities as STRUGGLE
         prepared=WEAPONS.prepare(engine,target,engine.r.move(counter),options.get('weapon_id'))
         prepared=STRUGGLE.prepare(engine,target,prepared,options.get('struggle_choice'))
+        import effects_ext as EXT
+        prepared=EXT.prepare_versatile_move(engine,prepared,options.get('versatile_stat'))
         if prepared['class'] not in ('물리','특수') or (counter!='struggle' and WEAPONS.range_spec(engine,prepared,target).get('targets')!=1):
             raise ValueError('Deadly Gambit requires a damaging 1 Target counterattack')
         allowed,reason=F.move_allowed(engine,target,counter,outside_combat=False)
@@ -442,11 +459,13 @@ def critical_damage(engine,attacker,target,move,critical):
     if not critical:return False
     if gambit_side(engine,attacker,target,move)=='incoming':return True
     import ability_transitions as AB,enduring_resilience as RESILIENCE
-    if AB.active(target,'ability/조가비갑옷-전투무장'):return False
+    if (AB.active(target,'ability/조가비갑옷-전투무장')
+            and not __import__('trickster').ignores_defensive(engine,target,'ability/조가비갑옷-전투무장')
+            and not __import__('chronicler').defensive_ignored(engine,attacker,target,move)):return False
     return not RESILIENCE.prevent(engine,target,critical=True,source=move['id'],attacker=attacker)
 
 
-def apply_gambit_damage(engine,attacker,target,move,damage,context,before):
+def apply_gambit_damage(engine,attacker,target,move,damage,context,before,*,actual_damage_type=None):
     """Two pre-damage calculations, then both native HP applications before sync.
 
     The counter retains its actual Move activation and completion. Its damage
@@ -461,14 +480,16 @@ def apply_gambit_damage(engine,attacker,target,move,damage,context,before):
         row['counter_context']=context
         row['batch']=True
         try:
-            HEAVY.apply_attack_damage(engine,incoming['attacker'],incoming['target'],incoming['damage'],incoming['move'],
-                producer=HEAVY.Producer.RESOLVED_HIT,remainder='paired hit native continuations remain',native_context=incoming['context'])
+            incoming_application=HEAVY.apply_attack_damage(engine,incoming['attacker'],incoming['target'],incoming['damage'],incoming['move'],
+                producer=HEAVY.Producer.RESOLVED_HIT,remainder='paired hit native continuations remain',native_context=incoming['context'],actual_damage_type=incoming['actual_damage_type'])
             row['incoming_receipt']=DAMAGE.application(requested=incoming['damage'],before=incoming['before'],
                 after=DAMAGE.observe(incoming['target']),source=incoming['move']['id'],damage_class=incoming['move']['class'])
-            HEAVY.apply_attack_damage(engine,attacker,target,damage,move,producer=HEAVY.Producer.RESOLVED_HIT,
-                remainder='paired hit native continuations remain',native_context=context)
+            counter_application=HEAVY.apply_attack_damage(engine,attacker,target,damage,move,producer=HEAVY.Producer.RESOLVED_HIT,
+                remainder='paired hit native continuations remain',native_context=context,actual_damage_type=actual_damage_type)
             counter_receipt=DAMAGE.application(requested=damage,before=before,after=DAMAGE.observe(target),
                 source=move['id'],damage_class=move['class'])
+            if isinstance(incoming_application,dict) and incoming_application.get('source')==__import__('channeler').PAIN:row['incoming_receipt']['channeler_pain']=incoming_application
+            if isinstance(counter_application,dict) and counter_application.get('source')==__import__('channeler').PAIN:counter_receipt['channeler_pain']=counter_application
         finally:
             row['batch']=False
             row.pop('counter_context',None)
@@ -478,7 +499,7 @@ def apply_gambit_damage(engine,attacker,target,move,damage,context,before):
         row['applied']=True
         return counter_receipt
     if row['counter_id'] is None:return None
-    row['prepared']={'attacker':attacker,'target':target,'move':move,'damage':damage,'context':context,'before':before}
+    row['prepared']={'attacker':attacker,'target':target,'move':move,'damage':damage,'context':context,'before':before,'actual_damage_type':actual_damage_type}
     row['phase']='counter'
     with ACTION.move_grant(engine,target,attacker,row['counter_id'],source=GAMBIT,kind='free') as grant:
         engine.use_move(target,attacker,row['counter_id'],count_use=True,free_action=True,_action_grant=grant,**row['counter_options'])
@@ -506,7 +527,7 @@ def defer_faint(engine,actor):
 
 def after_attack(engine,attacker,target,move,*,critical,damage):
     """Actual damaging hit only. Choices spend virtual injury budget, never injuries."""
-    if move.get('class') not in ('물리','특수') or attacker.side==target.side:return
+    if move.get('class') not in ('물리','특수') or _side(attacker) is None or _side(target) is None or _side(attacker)==_side(target):return
     import frequency as F,world_entities as W,action_lifecycle as ACTION,turn as TURN
     import ability_transitions as ABILITIES
     owner=W.actor_index(engine).get(attacker.spec.get('trainer_id'))

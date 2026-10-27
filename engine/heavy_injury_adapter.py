@@ -10,6 +10,7 @@ import heavy_injury_kernel as K
 
 class Producer(Enum):
     RESOLVED_HIT = "Engine.resolve_attack_damage"
+    EFFECT_DAMAGE = "HISTORY.effect_loss.fixed_damage"
     SECOND_HIT = "EXT.after_move.second_hit"
     DELAYED_HIT = "EXT.end_of_turn.delayed_attack"
 
@@ -57,7 +58,8 @@ def _kernel_state(state):
     return K.State(**{k:state[k] for k in
         ("hp","temporary_hp","injuries","real_max_hp","actor_kind")})
 
-def apply_attack_damage(engine, attacker, target, amount, move, *, producer, remainder, native_context=None):
+@__import__('channeler').native_move
+def apply_attack_damage(engine, attacker, target, amount, move, *, producer, remainder, native_context=None, actual_damage_type=None):
     """Retain the original hit and halt before caller's remaining effects.
 
     take_damage's existing own primitive/hook behavior is observed, not certified
@@ -83,10 +85,13 @@ def apply_attack_damage(engine, attacker, target, amount, move, *, producer, rem
         certified = not certificate.failures and not diagnostic.failures
     else:
         certified = False
+    import channeler as CHANNEL
+    replacement=CHANNEL.replace_attack(engine,attacker,target,amount,move,actual_damage_type)
+    if replacement is not None:return replacement
     before = observe(target)
     cap = copy.deepcopy(getattr(target,"damage_cap",None))
     import attack_damage_history as HISTORY
-    with HISTORY.damage_source(engine,target,move):
+    with HISTORY.damage_source(engine,target,move), __import__('focus_punch').damage_scope(engine,target) as focus_damage:
         if receipt is None:
             original_result = engine.take_damage(target, amount)
         else:
@@ -101,7 +106,7 @@ def apply_attack_damage(engine, attacker, target, amount, move, *, producer, rem
         hardened_loss=target.injuries
         engine.lose_hp(target,hardened_loss,source='heavily_injured_attack')
     import persistent_conditions as PERSISTENT
-    PERSISTENT.attack_hit(engine,target,move)
+    PERSISTENT.attack_hit(engine,target,move if actual_damage_type is None else dict(move,type=actual_damage_type))
     after = observe(target)
     engine._heavy_sequence += 1
     event_id = f"heavy-attack-{engine._heavy_sequence}"
@@ -124,7 +129,7 @@ def apply_attack_damage(engine, attacker, target, amount, move, *, producer, rem
                            and 2*amount >= before["real_max_hp"]
                            and not same_massive_basis)
     import taskmaster as TASK
-    relevant = (max(before["injuries"],after["injuries"]) >= 5 or potential_threshold) and not hardened
+    relevant = (max(before["injuries"],after["injuries"]) >= 5 or potential_threshold) and not hardened and not __import__('berserker').lessons(target)
     issues = []
     if relevant:
         if not certified:issues.append("production_effect_interactions_not_proven")
@@ -145,6 +150,7 @@ def apply_attack_damage(engine, attacker, target, amount, move, *, producer, rem
                   kernel_reason=proposal.reason, issues=list(dict.fromkeys(issues)),
                   unexecuted_remainder=remainder, continuation_reified=False,
                   status="pending" if relevant else "not_applicable")
+    if focus_damage is not None:packet['focus_punch_damage']=copy.deepcopy(focus_damage)
     engine._heavy_events[event_id] = packet
     if hardened:
         packet['status']='applied'
@@ -157,7 +163,9 @@ def apply_attack_damage(engine, attacker, target, amount, move, *, producer, rem
         # boundary. Caps/interactions are absent by the concrete certificate.
         # This typed HP-loss consequence is not another attack-damage event.
         final = proposal.snapshot.state
-        target.hp, target.temp_hp = final.hp, final.temporary_hp
+        import temporary_hp as TEMP_HP
+        TEMP_HP.absorb(engine, target, target.temp_hp - final.temporary_hp)
+        target.hp = final.hp
         import bandages as BANDAGES
         BANDAGES.on_hp_change(engine,target,after["hp"],target.hp)
         packet["status"] = "applied"
@@ -251,9 +259,11 @@ def passive_prefix_failures(engine,actor,target,*,require_actor_budget=False):
   if budget is not None and (type(budget) is not dict or any(type(k) is not str or type(v) is not int for k,v in budget.items())):
    failures.append(label+':nonplain_budget')
   if require_actor_budget and label=='actor' and type(budget) is not dict:failures.append('actor:missing_native_budget')
+  if hasattr(c,'_ap_bound_effects') and not __import__('bound_ap').inert_history(c):
+   failures.append(label+':bound_effect_not_inert_history')
  # These containers are read by native use, accuracy, damage and no-effect
  # after_move/fire_event paths. Token/identity ledgers remain trusted internals.
- for field in ('zones','zone_cells','weather','field','taunt','effect_stats','gm_prompts',
+ for field in ('zones','zone_cells','_smoke_regions','weather','field','taunt','effect_stats','gm_prompts',
                'delayed','hazards','hazards_nogrid','_hazard_sequence','_hazard_region_sequence','zone_rules','condition_params',
                'session_frequency','session_epoch','encounter_active','round_no',
                'round_start_seconds','death_enabled','friendly_battle'):
@@ -270,6 +280,76 @@ def passive_prefix_failures(engine,actor,target,*,require_actor_budget=False):
   if field not in ('rulings','ruleset','selection') and not _passive(value):
    failures.append('rules:nonpassive_state:'+field)
  return failures
+
+def inert_turn_bookkeeping(engine,actor):
+    """Only reviewed turn markers and a certain ordinary barrier are passive."""
+    import temporary_hp as TEMP_HP
+    value=getattr(actor,'custom_conditions',None)
+    if type(value) is not dict or set(value)-{'combat_turn_serial','blessing_ignore_turn_open',TEMP_HP.STATE}:return False
+    serial=value.get('combat_turn_serial',0)
+    if type(serial) is not int or serial<0:return False
+    if 'blessing_ignore_turn_open' in value:
+        if value['blessing_ignore_turn_open'] is not True:return False
+        if engine._active_turn_actor is not actor:
+            import initiative_interrupts as INTERRUPTS,enduring_soul as ENDURING
+            try:
+                active=engine._active_turn_actor
+                if active is None or not ENDURING.conscious(active):return False
+                selected=INTERRUPTS.selected_move_frame(engine,active)
+                if selected is None:return False
+                INTERRUPTS.validate_world(engine,__import__('world_entities').actor_index(engine))
+                current,request=selected
+                window=getattr(engine,INTERRUPTS.KEY)['windows'][current['window_id']]
+                trigger=window['trigger']
+                if (current['mode']!='reaction' or current['parent'] is not actor or
+                        current['request_id']!=request['id'] or request['status']!='open' or
+                        request['source']!=ENDURING.SOURCE or window['id']!=current['window_id'] or
+                        type(window['cursor']) is not int or window['cursor']!=0 or len(window['requests'])!=1 or
+                        window['parent'] is not actor or window['round']!=engine.round_no or
+                        window['signature']!=INTERRUPTS._signature(trigger,window['requests'])):return False
+                actual=ENDURING.authorize_trigger(engine,{key:trigger[key] for key in ('kind','actor_id','request_id')})
+                if actual!=trigger or actual['owner'] is not actor:return False
+                ENDURING.authorize_request(engine,active,request,trigger)
+            except (ValueError,TypeError,KeyError,IndexError):return False
+    state=value.get(TEMP_HP.STATE)
+    if state is None:
+        if type(actor.temp_hp) is not int or actor.temp_hp!=0:return False
+    else:
+        # A label alone is not expiry evidence; sourced/stacked/GM pools stay held.
+        fields={'kind','source','clock_basis','minimum_seconds','maximum_seconds',
+                'birth_round','uncertain_birth','contributions'}
+        if type(state) is not dict or set(state) not in (fields,fields|{'grant_events'}):return False
+        if 'grant_events' in state and (type(state['grant_events']) is not list or not _passive(state['grant_events'])):return False
+        if (state['kind']!='rule_grant' or state['clock_basis']!=TEMP_HP.CLOCK
+                or state['uncertain_birth'] is not False):return False
+        rows=state['contributions']
+        if (type(rows) is not list or len(rows)!=1 or type(rows[0]) is not dict
+                or set(rows[0])!={'amount','source','minimum_seconds','maximum_seconds'}
+                or rows[0]['source'] is not None):return False
+        birth=state['birth_round']
+        if birth is not None and (type(birth) is not int or not 0<=birth<=engine.round_no):return False
+        try:
+            TEMP_HP.validate(actor)
+            duration=TEMP_HP._policy(engine)
+        except (ValueError,TypeError,KeyError):return False
+        if not 0<state['minimum_seconds']==state['maximum_seconds']<=duration:return False
+    # These exact flags gain behavior only with the corresponding live source.
+    return not actor.spec.get('blessing_status_ignores')
+
+
+def single_target_move_data(move,target):
+    """Separate one native target binding from the source Move definition.
+
+    Engine.use_move retains live actors in this field. It is not rule data or
+    a receipt to ignore: only the exact current single target is reviewed here.
+    A raw source Move remains usable for diagnostics, never occurrence authority.
+    """
+    if type(move) is not dict or any(type(key) is not str for key in move):return None
+    if '_actual_targets' in move:
+        targets=move['_actual_targets']
+        if type(targets) is not tuple or len(targets)!=1 or targets[0] is not target:return None
+    return {key:value for key,value in move.items() if key!='_actual_targets'}
+
 
 def certify_native_context(engine, attacker, target, move, mm, *, ordinary_single):
     failures=[]
@@ -309,7 +389,9 @@ def certify_native_context(engine, attacker, target, move, mm, *, ordinary_singl
     if type(engine.log_lines) is not list or any(type(line) is not str for line in engine.log_lines):
         failures.append("noncanonical_log_sink")
     if ordinary_single is not True:failures.append("not_ordinary_single_activation")
-    if move.get("id")!="struggle" or move != engine.r.move("struggle") or mm != {}:
+    source_move=single_target_move_data(move,target)
+    if (source_move is None or not _passive(source_move)
+            or source_move.get("id")!="struggle" or source_move != engine.r.move("struggle") or mm != {}):
         failures.append("not_empty_mech_native_struggle")
     if not engine.encounter_active or engine._active_turn_actor is not attacker or engine.round_start_seconds is None:
         failures.append("ordinary_active_combat_context_missing")
@@ -331,16 +413,17 @@ def certify_native_context(engine, attacker, target, move, mm, *, ordinary_singl
             if (type(values) is not dict or any(type(k) is not str or type(v) is not int for k,v in values.items())):
                 failures.append(label+":nonplain_"+field)
         for field in ("registry","ability_triggers","abilities","modifiers","conditions",
-                      "buffs","coats","blessings","custom_conditions","counters",
+                      "buffs","coats","blessings","counters",
                       "item","shield","next_attack","reflect","damage_cap","form_rule",
                       "form","type_override_next","setup_move","locked_move"):
             if getattr(c,field,None):failures.append(label+":"+field)
+        if not inert_turn_bookkeeping(engine,c):failures.append(label+':custom_conditions')
         for field in ("feats","edges","abilities","item"):
             if c.spec.get(field):failures.append(label+":spec."+field)
         if c.dead or c.hp<=0 or c.captured or not c.on_field:
             failures.append(label+":not_ordinary_conscious_on_field")
         checked.append(label+":registered-effects/statuses/items/reactions-empty")
-    for field in ("weather","field","grid","zones","zone_cells","hazards","hazards_nogrid","_hazard_sequence","_hazard_region_sequence",
+    for field in ("weather","field","grid","zones","zone_cells","_smoke_regions","hazards","hazards_nogrid","_hazard_sequence","_hazard_region_sequence",
                   "delayed","zone_rules","taunt","condition_params","_action_grants"):
         if getattr(engine,field,None):failures.append("engine:"+field)
     for rules in (engine.rulings,engine.r.rulings):
@@ -366,7 +449,8 @@ def validate_native_receipt(engine, token, attacker, target, move):
     if receipt is None:raise ValueError("native receipt is absent, expired or consumed")
     import taskmaster as TASK
     epoch_current=(receipt["activation_epoch"]==engine._heavy_activation_sequence
-                   or TASK.paired_receipt_current(engine,token))
+                   or TASK.paired_receipt_current(engine,token)
+                   or __import__('conquerors_march').paired_receipt_current(engine,token))
     if (receipt["attacker"] is not attacker or receipt["target"] is not target
         or not epoch_current
         or receipt["move_id"]!=move.get("id") or receipt["round"]!=engine.round_no

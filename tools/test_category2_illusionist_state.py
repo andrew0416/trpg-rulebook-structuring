@@ -4,7 +4,7 @@ from pathlib import Path
 import json,sys,unittest
 
 STAGE=Path(__file__).resolve().parents[1]
-CANON=Path(r'D:\trpg-rulebook-structuring\ptk-structure-experiment')
+CANON=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(STAGE/'engine'),str(CANON/'engine')]
 
 from builder import build_pokemon,build_trainer

@@ -170,6 +170,8 @@ def modifiers(rules, actor, skill, additional, *, skill_context=None):
         if not counts[uid]:raise ValueError('skill bonus choice requires acquired edge')
         chosen[uid]=value
     sources=[]
+    if target=='stealth' and __import__('ability_transitions').active(actor,'ability/틈새포착'):
+        sources.append(('ability/틈새포착',2,'active Infiltrator'))
     for uid,record in policy['edges'].items():
         count=counts[uid]
         if not count:continue
@@ -228,8 +230,20 @@ def modifiers(rules, actor, skill, additional, *, skill_context=None):
             if canonical!=entry['skill']:raise ValueError('canonical skill modifier required')
             if canonical==target:sources.append((source_id,entry['delta'],canonical))
     import equipment_variant_contracts as EQUIPMENT_VARIANTS
-    sources.extend(EQUIPMENT_VARIANTS.skill_modifiers(rules,actor,target,skill_context))
+    equipment=list(EQUIPMENT_VARIANTS.skill_modifiers(rules,actor,target,skill_context))
+    import study_books as BOOKS
+    book=BOOKS.manual_bonus(actor,skill)
+    if book>sum(value for _,value,_ in equipment if value>0):
+        # Study Manual replaces this nonstacking equipment group, not feat bonuses.
+        sources.extend(row for row in equipment if row[1]<=0)
+        sources.append((BOOKS.ITEMS['study_manual'],book,'Books/Equipment nonstacking Skill bonus'))
+    else:sources.extend(equipment)
     sources.extend(glitch_modifier(rules,actor,skill_context))
+    frenzy=__import__('berserker').frenzy_bonus(actor)
+    if frenzy and target in ('acrobatics','athletics','combat','intimidate'):
+        sources.append((__import__('berserker').FRENZY,frenzy,'current Frenzy turn'))
+    import capability_parameter_edges as PARAMETERS
+    sources.extend(PARAMETERS.tracker_modifiers(rules,actor,target,skill_context))
     import body_modes as BODY_MODES
     shadow_bonus=BODY_MODES.stealth(actor,target)
     if shadow_bonus:sources.append((BODY_MODES.DEFINITIONS['shadow']['source'],shadow_bonus,'active Shadow Meld'))
@@ -281,12 +295,13 @@ def procedural_edge(rules,actor,uid):
     if count!=1 or actor.kind!='trainer':raise ValueError('single trainer edge acquisition required')
     if rules._selected_rule(uid)!=uid:raise ValueError('selected procedural edge needs its own policy')
     need=record['prerequisite']
-    if rank(rules,actor,need['skill'])[2]<need['minimum_rank']:raise ValueError('procedural edge prerequisite is not established')
+    if not __import__('hobbyist').skill_waived(actor,uid) and rank(rules,actor,need['skill'])[2]<need['minimum_rank']:raise ValueError('procedural edge prerequisite is not established')
     return record
 
 def assistance_bonus(rules,helper,skill,rank_value):
     record=procedural_edge(rules,helper,'edge/설명')
     if record and skill_id(rules.skill_policy,skill,required=True) in record['education_skills']:
-        if rank_value<3:raise ValueError('Instruction needs at least Novice in the helping Education skill')
-        return rank_value
+        substituted=__import__('hobbyist').direct_rank(helper,'edge/설명',skill,effective=False)
+        if substituted<3:raise ValueError('Instruction needs at least Novice in the helping Education skill')
+        return substituted
     return M.ratio(rank_value,2)

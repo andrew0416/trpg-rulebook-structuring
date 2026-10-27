@@ -89,4 +89,5 @@ def retreat(engine,actor,target):
 
 def effect(engine,actor,target,effect,context):
  if context.get('source_id')!=SOURCE:raise ValueError('native Roar Move effect required')
+ if __import__('core_suction_cups').active(engine,target,attacker=actor,move=context.get('move')):return None
  return retreat(engine,actor,target)

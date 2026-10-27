@@ -10,6 +10,63 @@ from copy import deepcopy
 import combat_timing as TIMING
 import common_checks as CHECKS
 
+RAGE='move/분노'
+RAGE_STATUS={'type':'apply_status','status':'난동','target':'self','until':"end of user's next turn"}
+RAGE_STAGE={'type':'stage_change','stat':'atk','delta':1,'target':'self',
+            'trigger':'each time user takes damage from an attack while 난동'}
+
+
+def _rage_source(rules):
+    from source_context import verified_source
+    verified_source(rules,{'file':'input/db/moves.csv',
+        'sha256':'ab83f872e5eca67a41db7d126b842f0165437e0fa70bb77ddad832a0b7396c93'},label='selected Korean Rage')
+    if rules._selected_rule(RAGE)!=RAGE:raise ValueError('selected Rage variant needs its own reaction adapter')
+
+
+def reviewed_effects(rules,source,effects):
+    """Resolve the old self-target Rage declaration's implicit turn owner."""
+    if source!=RAGE:return effects
+    legacy=[dict(RAGE_STATUS,until='end of next turn'),RAGE_STAGE]
+    if [_semantic(e) for e in effects]!=legacy:return effects
+    _rage_source(rules)
+    normalized=deepcopy(effects)
+    normalized[0]['until']=RAGE_STATUS['until']
+    return normalized
+
+
+def rage_declaration(engine,source,effect):
+    """Only the selected Korean Rage declaration owns this deferred reaction."""
+    if source!=RAGE or _semantic(effect)!=RAGE_STAGE:return False
+    _rage_source(engine.r)
+    effects=engine.r.move_mech(RAGE)[0].get('effects_exec',[])
+    if [_semantic(e) for e in effects]!=[RAGE_STATUS,RAGE_STAGE]:
+        raise ValueError('selected Rage status and reaction declarations changed')
+    return True
+
+
+def install_rage_stage(engine,actor,effect,source):
+    if not rage_declaration(engine,source,effect):return False
+    rows=[r for r in TIMING.records(actor) if r.get('source')==RAGE
+          and r.get('turn_owner') is actor and r.get('statuses')==['난동']
+          and r.get('turn_deadline')==actor.custom_conditions.get('combat_turn_serial',0)+1]
+    if not rows:raise ValueError('Rage reaction requires its actual preceding native status lifetime')
+    rows[-1]['rage_damage_stage']=deepcopy(RAGE_STAGE)
+    return True
+
+
+def rage_damage(engine,actor,target,move,receipt):
+    """One positive native attack application, including temporary HP damage."""
+    if (receipt['net_hp_loss']<=0 and receipt['net_temporary_hp_loss']<=0) or '난동' not in target.conditions:return
+    rows=[r for r in TIMING.records(target) if r.get('source')==RAGE and 'rage_damage_stage' in r]
+    if not rows:return
+    for row in rows:
+        if (not rage_declaration(engine,RAGE,row['rage_damage_stage']) or row.get('turn_owner') is not target
+                or row.get('statuses')!=['난동'] or row.get('turn_deadline',-1)<target.custom_conditions.get('combat_turn_serial',0)):
+            raise ValueError('actual Rage reaction lifetime changed')
+    import effects as FX
+    FX.apply_stage_changes(engine,target,target,{'atk':1},source_id=RAGE,
+        context={'native_attack':move['id'],'damage_application':deepcopy(receipt)})
+
 
 MOVE_LOCKS = {
     "move/지옥찌르기": {
@@ -158,6 +215,51 @@ def grounded(actor):
         isinstance(record.get("catalog_grounding"), dict)
         for record in TIMING.records(actor)
     )
+
+
+def thousand_arrows_policy(engine, move, mechanics=None):
+    """Own only this source's legacy Ice clause under the recorded interpretation."""
+    source = "move/사우전드애로"
+    if move.get("id") != source:
+        return None
+    if engine.r._selected_rule(source) != source:
+        raise ValueError("selected Thousand Arrows variant needs its own first-hit policy")
+    import json
+    from pathlib import Path
+    policy = json.loads((Path(engine.r.root) / "data/thousand-arrows-effectiveness-policy.json").read_text(encoding="utf-8"))
+    if (policy.get("source_id") != source or policy.get("actual_attack_type") != "땅"
+            or policy.get("first_immune_flying_base") != 1.0
+            or policy.get("interpretation") != "original_game_first_hit_20261023"):
+        raise ValueError("Thousand Arrows first-hit interpretation changed")
+    if mechanics is None:
+        mechanics, _ = engine.r.move_mech(source)
+    effects = [_semantic(effect) for effect in mechanics.get("effects_exec", [])]
+    for declaration in [policy["legacy_effect"], *policy["required_effects"]]:
+        if effects.count(declaration) != 1:
+            raise ValueError("Thousand Arrows first-hit policy needs its exact selected declaration")
+    return policy
+
+
+def thousand_arrows_ignores_ground_immunity(engine, move, mechanics=None):
+    return move.get("type") == "땅" and thousand_arrows_policy(engine, move, mechanics) is not None
+
+
+def thousand_arrows_base(engine, target, move, policy, multiplier):
+    if (policy is None or move.get("type") != policy["actual_attack_type"]
+            or multiplier != 0 or grounded(target)):
+        return multiplier
+    import field_effects as FIELD
+    import type_state as TYPES
+    import newground_flight_option as OPTION
+    if (TYPES.source_defense_steps(engine.r, move["type"], target.types) is not None
+            or FIELD.suppresses_ground_immunity(engine, target, {"_ability": ""})):
+        return multiplier
+    for defense in target.types:
+        if defense in ("비행", "Flying"):
+            component = TYPES.matchup(engine.r, move["type"], defense)
+            if OPTION.defense_component(engine, move["type"], defense, target, component) == 0:
+                return policy["first_immune_flying_base"]
+    return multiplier
 
 
 def _ability_names(engine, actor):

@@ -21,6 +21,8 @@ def policy(rules):
 
 
 def no_status_check(engine,attacker,target,move,mechanics):
+    created=__import__('coordinator').innovation_instance(engine.r,move['id'])
+    if created and created['template']==2:return True
     if move.get('class')!='변화' or move.get('ac') is not None:return False
     source=move.get('id');rules=policy(engine.r);entry=rules['sources'].get(source)
     if source in rules['unresolved']:return False
@@ -28,6 +30,7 @@ def no_status_check(engine,attacker,target,move,mechanics):
         # A registered structured definition can explicitly declare null AC.
         # Unclassified raw-source imports cannot silently acquire that meaning.
         canonical=engine.r.moves.get(source,{})
+        if __import__('coordinator').innovation_instance(engine.r,source) is not None:canonical=engine.r.move(source)
         if __import__('dancer').dance_instance(engine.r,source) is not None:canonical=engine.r.move(source)   # printed Dance Move template declares AC None
         if canonical.get('_source') or 'ac' not in canonical or canonical['ac'] is not None or canonical.get('class')!='변화':return False
     elif engine.r._selected_rule(source)!=source:raise ValueError('selected no-AC Move source changed')

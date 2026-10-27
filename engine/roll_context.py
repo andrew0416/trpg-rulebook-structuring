@@ -182,12 +182,17 @@ def resolve(engine, requests, procedure, *, request_id=None, observed_choices=No
         raise ValueError('observed sequence requires distinct participant IDs and bound choices')
     def execute(staged,rolls=None):
         if rolls is None:rolls=[staged.skill_roll(actor,skill,**options) for actor,skill,options,_ in prepared]
-        if kind=='dc':result=asdict(C.against_dc(rolls[0],procedure['dc']))
+        if kind=='dc':
+            actor,skill,options,_=prepared[0]
+            identity=SF._observed(staged,actor,rolls[0],options)[0] if actor.entity_id in getattr(staged,'_let_me_help_offers',{}) else options.get('roll_id')
+            result=asdict(SF.resolve_check(staged,actor,skill,procedure['dc'],rolls[0],options))
+            if identity is not None:rolls[0]=SF.event(staged,actor,identity).final or rolls[0]
         elif kind=='opposed':
-            winner=C.opposed(*rolls)
+            winner,rolls=SF.resolve_opposed(staged,[(a,s,o) for a,s,o,_ in prepared],rolls)
             result={'winner':winner,'winner_id':actors[0 if winner=='challenger' else 1]}
-        elif kind=='team':result=asdict(C.team(rolls,procedure['dc'],procedure['required_people']))
-        else:result=asdict(C.weighted_team(rolls,procedure['dc'],procedure['required_people'],procedure['weights']))
+        else:
+            check,rolls=SF.resolve_team(staged,[(a,s,o) for a,s,o,_ in prepared],rolls,procedure['dc'],procedure['required_people'],procedure.get('weights'))
+            result=asdict(check)
         for actor,_,options,_ in prepared:SF.finish(staged,actor,options.get('roll_id'))
         result={'procedure':deepcopy(procedure),'plans':[deepcopy(p[3]) for p in prepared],
                 'rolls':[dict(asdict(roll),total=roll.total) for roll in rolls],'result':result,'consumed':True}
@@ -203,7 +208,7 @@ def resolve(engine, requests, procedure, *, request_id=None, observed_choices=No
         next_records[request_id]={'intent':signature,'result':deepcopy(result)}
         return dict(result,replayed=False),next_records
     if observed_choices is None:
-        result,next_records=ACTION._staged_rolls(engine,execute)
+        result,next_records=ACTION._staged_rolls(engine,execute,actors=[a for a,_,_,_ in prepared])
     else:
         result,next_records=SF.sequence(engine,sequence_key,{'intent':signature},
             [(actor,skill,options) for actor,skill,options,_ in prepared],lambda rolls:execute(engine,rolls))
@@ -221,9 +226,38 @@ def resolve_pool(engine,actor,subject,*,purpose,source,count,sides,offset=0,fixe
     if type(subject) is not dict or type(subject.get('id')) is not str:raise ValueError('actual identified pool subject required')
     registered=W.entity_index(engine).get(subject['id'])
     if registered is not subject and (registered is not None or actor.spec.get('plants',{}).get(subject['id']) is not subject):raise ValueError('actual scoped pool subject required')
-    result = POOLS.pool(engine.rng, count, sides=sides, offset=offset, fixed=fixed)
+    result = observe_native(engine,actor,purpose,POOLS.pool(engine.rng,count,sides=sides,offset=offset,fixed=fixed),lambda faces:POOLS.pool(engine.rng,count,sides=sides,offset=offset,fixed=faces))
     return dict(result, purpose=purpose, source=source,
                 actor_id=actor.entity_id, subject_id=subject['id'])
+
+
+def observe_native(engine,actor,purpose,first,roll_again):
+    """The final native consumer uses this result, after its observed reroll."""
+    W.require_actors(engine,actor)
+    return __import__('warper').reroll(engine,actor,purpose,first,roll_again)
+
+
+def native_pool(engine,actor,*,purpose,source,count,sides,offset=0,fixed=None):
+    import roll_pools as POOLS
+    W.require_actors(engine,actor)
+    if not isinstance(purpose,str) or not purpose or engine.r._selected_rule(source)!=source:raise ValueError('actual selected native roll source and purpose required')
+    def apply(staged,c):
+        first=POOLS.pool(staged.rng,count,sides=sides,offset=offset,fixed=fixed)
+        return observe_native(staged,c,purpose,first,lambda faces:POOLS.pool(staged.rng,count,sides=sides,offset=offset,fixed=faces))
+    return __import__('state_grants').transition(engine,actor,apply)
+
+
+def native_choices(fn):
+    """Stage an actual ordinary roll together with its optional provider cost."""
+    from functools import wraps
+    @wraps(fn)
+    def run(engine,actor,*args,**kwargs):
+        if not any(c.spec.get('native_roll_offer') for c in W.actor_index(engine).values()):return fn(engine,actor,*args,**kwargs)
+        def apply(staged,c):
+            options=__import__('state_grants')._stage_transition_payload(engine,staged,{'args':args,'kwargs':kwargs})
+            return fn(staged,c,*options['args'],**options['kwargs'])
+        return __import__('state_grants').transition(engine,actor,apply)
+    return run
 
 
 def execute_policies(engine, submissions, procedure, *, request_id):

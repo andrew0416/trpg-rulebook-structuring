@@ -10,8 +10,11 @@ growth allocation. Features are owned sheet entries (feats list); every use
 re-validates the printed prerequisites against the actual sheet.
 """
 from copy import deepcopy
+from contextvars import ContextVar
 from pathlib import Path
 import json
+import csv
+import io
 import common_checks as C
 import researcher_features as RF
 import contest_features as FEATURES
@@ -19,6 +22,39 @@ import skill_modifiers as S
 import state_grants as G
 
 _data=json.loads((Path(__file__).resolve().parents[1]/'data/researcher-fields-definitions.json').read_text(encoding='utf8'))
+
+
+def _install_book_prerequisites(policy):
+ """Fill only the three published Books prerequisites, never a policy overlay.
+
+ These are executable prerequisite metadata, not copied source prose. Every
+ native acquisition/use below verifies the authenticated originals and exact
+ CSV records before relying on this adapter. Existing conflicting fields hold.
+ """
+ additions={
+  'reviewed_sources':{
+   'core_en':{'file':'source-audit/ptu-core-1.05.pdf','sha256':'e5e0371031601c3ad0a04056771c17599a2d8826e5a5102ccd37f9b368108907'},
+   'local_csv':{'file':'input/db/feats.csv','sha256':'4435ff1c462a211564c85d2c1c9a2ac6e7c790c7545e1ad7056d32888b2367bd'},
+   'may2015':{'file':'source-audit/official-may2015.pdf','sha256':'b1314908e4adbfee09042c58f08a36046b5f59a09de196425aa469b43232232d'}},
+  'csv_records':{'feat/폭넓은-지식':323,'feat/책벌레':324,'feat/이해-완료':325},
+  'clauses':{'general':'C04-081'},
+  'features':{
+   'feat/폭넓은-지식':{'english':'Breadth of Knowledge','field':'general','span':[2071,2073],
+       'action':'static','prerequisites':{'skills':[['일반 지식',3]]}},
+   'feat/책벌레':{'english':'Bookworm','field':'general','span':[2071,2073],
+       'book_source':'may2015','action':'static','prerequisites':{'feats':['feat/폭넓은-지식']}},
+   'feat/이해-완료':{'english':'Well Read','field':'general','span':[2071,2073],
+       'book_source':'may2015','action':'static','prerequisites':{'feats':['feat/책벌레'],'skills':[['일반 지식',5]]}}}}
+ for field,entries in additions.items():
+  destination=policy.setdefault(field,{})
+  if type(destination)is not dict:raise ValueError('Researcher Books metadata mapping required')
+  for key,value in entries.items():
+   if key in destination and json.dumps(destination[key],sort_keys=True,ensure_ascii=False,allow_nan=False)!=json.dumps(value,sort_keys=True,ensure_ascii=False,allow_nan=False):
+    raise ValueError('reviewed Researcher Books metadata changed: '+field+'/'+key)
+   destination.setdefault(key,deepcopy(value))
+
+
+_install_book_prerequisites(_data)
 DEFINITIONS=_data['features'];CLAUSES=_data['clauses'];RANKS=_data['ranks']
 SOURCE=_data['rule_source']
 assert SOURCE==RF.SOURCE
@@ -34,7 +70,185 @@ PUSHER='feat/후원자';SPECIAL='feat/이건-특별해-난-알아';SKILL_TRAINER
 PATCH_PREFIX='patch:';BLEND_PREFIX='blend:'
 CLIMATOLOGY_PREFIX='researcher-climatology:';SEED_PREFIX='researcher-seed:'
 EGG_MARK='researcher_playing_god';FOSSIL_MARK='researcher_fossil_restoration';QUALITY_MARK='researcher_special_quality'
+FOSSIL_AUTHORITY='fossil_birth_authority_version'
 WEATHER_NAMES={'hail':'싸라기눈','rain':'비','sandstorm':'모래바람','sunny':'쾌청'}
+
+
+BREADTH='feat/폭넓은-지식';BOOKWORM='feat/책벌레';WELL_READ='feat/이해-완료';ECHOES='feat/미래의-메아리'
+LIVE_LEARN='feat/오래-살고-볼일';INSTANT='feat/즉각적인-분석'
+WITCH='feat/마녀-사냥꾼';MENTAL='feat/정신-저항'
+OVERCLOCK='feat/오버클럭';EFFICIENT='feat/효율-설치'
+STATIC_DEFINITIONS={u:{'clause_id':CLAUSES[d['field']],'span':d.get('span',[2047,2128]),'minimum_level':0,'skill':None,
+ 'ranked':bool(d.get('ranked')),'max_rank':d.get('ranked',1)} for u,d in DEFINITIONS.items() if u in (BREADTH,BOOKWORM,WELL_READ)}
+
+
+def _book_prerequisite_sources(rules):
+ from source_context import verified_source
+ authority=_data['reviewed_sources']
+ content=verified_source(rules,authority['local_csv'],label='Researcher Books prerequisites')
+ rows=list(csv.reader(io.StringIO(content.decode('utf-8-sig'),newline='')))
+ expected=((323,'폭넓은 지식','초보일반지식'),(324,'책벌레','폭넓은지식'),
+           (325,'이해 완료','책벌레,전문일반지식'))
+ for number,title,prerequisite in expected:
+  if len(rows)<number:raise ValueError('actual General Research Field CSV record required')
+  row=rows[number-1]
+  if (len(row)<5 or row[0]!=title or row[1]!='[일반 지식 연구 분야]'
+      or ''.join(row[2].split())!=prerequisite or row[3]!='항상' or not row[4].strip()):
+   raise ValueError('reviewed General Research Field CSV record changed')
+ # Both original sources are already authenticated inputs. Native code owns
+ # the reviewed book/CSV distinction; no extracted body is fabricated here.
+ for key in ('core_en','may2015'):
+  verified_source(rules,authority[key],label='Researcher Books English authority',source_root='source-audit')
+
+def static_source(rules,feature):
+ return _source_authority(rules,feature,'book')
+
+
+def acquisition_snapshot(engine,actor,feature,rank,selection):
+ """Snapshot ordinary prerequisites before the new Feature exists."""
+ d=DEFINITIONS[feature]
+ selected=selection or {'edition':'book'}
+ if type(selected)is not dict or set(selected)-{'edition','edges','psionic_edition','replacement_feature'} or selected.get('edition') not in ('book','local_csv'):
+  raise ValueError('exact Researcher acquisition selection required')
+ RF.researcher(engine,actor,d['field'])
+ parents={p:bool(owns(actor,p)) for p in d.get('prerequisites',{}).get('feats',())}
+ if feature==ECHOES and selected['edition']=='local_csv':parents[BREADTH]=bool(owns(actor,BREADTH))
+ import pokemon_activities as P
+ for edge in d.get('prerequisites',{}).get('edges',()):
+  if edge!='pokebot_training':P._feature(engine,actor,'basic_balls' if edge=='poke_ball_crafter' else edge)
+ skills=set(S.EDUCATION_SKILLS)
+ pre=d.get('prerequisites',{})
+ for skill,n in [*pre.get('skills',[]),*pre.get('all_skills',[]),*(item for options in pre.get('rank_skills',{}).values() for item in options)]:skills.add(skill)
+ stunt=__import__('skill_stunts').for_dowsing(engine,actor) if pre.get('dowsing_stunt') else None
+ return {'selection':deepcopy(selection),'source':source(engine,feature,selected['edition']),
+  'skills':{s:_rank(engine,actor,s) for s in skills},'parents':parents,'dowsing_stunt':stunt,
+  'edges':list(actor.spec.get('edges',[])),'fields':list(RF.research_fields(actor)),
+  'rank_number':rank,'level':actor.level}
+
+
+def qualification(actor,feature,snapshot,prerequisite_source):
+ import acquisition_qualification as Q
+ if prerequisite_source is not None or type(snapshot)is not dict or set(snapshot)!={'selection','source','skills','parents','edges','fields','rank_number','level','dowsing_stunt'}:
+  raise ValueError('exact observed Researcher acquisition required')
+ selected=(snapshot['selection'] or {'edition':'book'})['edition'];d=DEFINITIONS[feature];pre=d.get('prerequisites',{})
+ if snapshot['source']!=_source_authority(actor.r,feature,selected):raise ValueError('Researcher acquisition authority changed')
+ skills=pre.get('skills',[])
+ if selected=='local_csv' and feature in (OVERCLOCK,EFFICIENT):skills=[['기술학',4]]
+ checks=[Q.check('trainer','prerequisite',actor.kind=='trainer','actual Trainer required'),
+  Q.check('field','prerequisite',d['field'] in snapshot['fields'],'actual acquired Researcher field required'),
+  Q.check('skills','prerequisite',not skills or any(snapshot['skills'][s]>=n for s,n in skills),'printed Education rank required'),
+  Q.check('all_skills','prerequisite',all(snapshot['skills'][s]>=n for s,n in pre.get('all_skills',[])),'every printed Education rank required'),
+  Q.check('parents','prerequisite',all(snapshot['parents'].values()),'actual parent Researcher Features required')]
+ if pre.get('dowsing_stunt'):checks.append(Q.check('dowsing_stunt','prerequisite',snapshot['dowsing_stunt'] is True,'actual approved Occult Dowsing Skill Stunt required'))
+ elif snapshot['dowsing_stunt'] is not None:raise ValueError('this Researcher prerequisite has no Dowsing waiver')
+ expected=set(pre.get('feats',[]))|({BREADTH} if feature==ECHOES and selected=='local_csv' else set())
+ if set(snapshot['parents'])!=expected:raise ValueError('exact historical Researcher parents required')
+ for number,options in pre.get('rank_skills',{}).items():
+  if int(number)<=snapshot['rank_number']:checks.append(Q.check('rank'+number,'prerequisite',any(snapshot['skills'][s]>=n for s,n in options),'printed ranked skill prerequisite required'))
+ for edge in pre.get('edges',[]):
+  aliases={'pokebot_training':('edge/포켓봇-훈련','feat/포켓봇-훈련'),'poke_ball_crafter':('edge/몬스터볼',),'green_thumb':('edge/원예가',),'gem_lore':('edge/보석-지식',),'repel_crafter':('edge/스프레이-제작자',),'paleontologist':('edge/고생물학자',)}
+  if edge not in aliases:raise ValueError('reviewed Researcher prerequisite Edge mapping required: '+edge)
+  checks.append(Q.check(edge,'prerequisite',any(uid in snapshot['edges'] for uid in aliases[edge]),'actual printed prerequisite Edge required'))
+ return Q.require(feature,'native','acquire',checks)
+
+
+def after_acquire(engine,actor,feature,source_id):
+ import trainer_feature_acquisition as T
+ record=next(r for sid,r in T.static_acquisitions(actor,feature) if sid==source_id)
+ selected=record['snapshot']['selection'] or {'edition':'book'}
+ actor.spec.setdefault('researcher_editions',{})[feature]=deepcopy(record['snapshot']['source'])
+ if feature==BREADTH:
+  choices=selected.get('edges')
+  if type(choices)is not list or len(choices)!=3:raise ValueError('Breadth of Knowledge requires exactly three eligible Education Edges')
+  for i,edge in enumerate(choices):_grant_education_edge(engine,actor,edge,source_id+'/edge/'+str(i),source_id)
+
+
+def _grant_education_edge(engine,actor,choice,sid,parent,*,education_only=True):
+ import hobbyist as H,trainer_feature_acquisition as T,capture_techniques as CAP
+ if type(choice)is not dict or set(choice)!={'id','choice'}:raise ValueError('exact normally qualified Edge choice required')
+ edge=choice['id'];value=choice['choice']
+ if edge in H.RANK_EDGES:
+  skill=S.skill_id(engine.r.skill_policy,value,required=True)
+  if education_only and skill not in S.EDUCATION_SKILLS:raise ValueError('Breadth rank Edge requires an Education skill')
+  proof=CAP._skill_edge(engine.r,{'edge':edge,'skill':skill},actor.level,_rank(engine,actor,skill))
+  CAP.grant_skill_edge(engine,actor,proof,sid,researcher_parent=parent)
+  __import__('acquisition_withdrawal').dependencies(engine,actor,sid,[parent])
+ elif edge in H.SKILL_EDGES:
+  if edge=='edge/고난이도-스킬':
+   if type(value)is not dict or S.skill_id(engine.r.skill_policy,value.get('skill'),required=True) not in S.EDUCATION_SKILLS:raise ValueError('Breadth Skill Stunt requires its actual Education skill')
+  elif edge=='edge/스킬-향상':
+   if type(value)is not list or len(value)!=2 or any(S.skill_id(engine.r.skill_policy,s,required=True) not in S.EDUCATION_SKILLS for s in value):raise ValueError('Breadth Skill Enhancement requires two Education skills')
+   old={S.skill_id(engine.r.skill_policy,s,required=True) for pair in actor.spec.get('edge_choices',{}).get(edge,[]) for s in pair}
+   if old.intersection(S.skill_id(engine.r.skill_policy,s,required=True) for s in value):raise ValueError('ordinary Skill Enhancement cannot apply twice to the same skill')
+  elif edge=='edge/거장':
+   if S.skill_id(engine.r.skill_policy,value,required=True) not in S.EDUCATION_SKILLS:raise ValueError('Breadth Virtuoso requires an Education skill')
+   if value in actor.spec.get('edge_choices',{}).get(edge,[]):raise ValueError('ordinary Virtuoso must choose a different skill')
+  else:raise ValueError('Breadth requires an individually selected Education Skill Edge')
+  # The existing executor validates ordinary acquisition and owns the exact
+  # choice/native skill consumer; its parent source need not be a Hobbyist.
+  H.acquire_skill_edge(engine,actor,edge,value,sid,parent)
+ elif edge in H.CORE_EDGE_SKILLS:
+  pre=H.CORE_EDGE_SKILLS[edge]
+  if education_only and not any(S.skill_id(engine.r.skill_policy,s,required=True) in S.EDUCATION_SKILLS for s,n in pre):raise ValueError('Breadth Edge must have an Education prerequisite')
+  T.grant_qualified_core_edge(engine,actor,edge,value,sid,parent)
+ else:raise ValueError('selected Edge needs its ordinary acquisition owner')
+
+
+def validate_acquisition(actor,record,source_id,active):
+ feature=record['feature_id'];selection=record['snapshot']['selection']
+ if active and actor.spec.get('researcher_editions',{}).get(feature)!=record['snapshot']['source']:raise ValueError('Researcher actual acquired edition projection changed')
+
+
+def _source_authority(rules,feature,edition):
+ """An explicit source choice changes only the reviewed delta, not ownership."""
+ from source_context import verified_source
+ if edition not in ('book','local_csv'):raise ValueError('reviewed Researcher edition required: book or local_csv')
+ if feature in (BREADTH,BOOKWORM,WELL_READ):_book_prerequisite_sources(rules)
+ if rules._selected_rule(SOURCE)!=SOURCE:raise ValueError('selected Researcher field variant needs a sourced adapter')
+ if edition=='book':
+  key=DEFINITIONS[feature].get('book_source')
+  authority=_data['reviewed_sources'][key] if key else {'file':_data['source_file'],'sha256':_data['source_sha256']}
+  verified_source(rules,authority,label='Book Researcher',source_root='source-audit' if authority['file'].startswith('source-audit/') else 'input')
+  return dict(authority,edition=edition,clause_id=clause(feature))
+ authority=_data['reviewed_sources']['local_csv']
+ verified_source(rules,authority,label='local CSV Researcher')
+ record=_data['csv_records'].get(feature)
+ if record is None:raise ValueError('this Book Feature has no identical local CSV record: '+feature)
+ identity='C2CSV/input/db/feats.csv:R'+str(record)+':main'
+ rules.ruleset.require({'id':identity,'source':{'file':'db/feats.csv','record_span':[record,record]}})
+ return dict(authority,edition=edition,clause_id=identity,record=record)
+
+
+def source(engine,feature,edition='book'):
+ return _source_authority(engine.r,feature,edition)
+
+
+def _edition(engine,trainer,feature):
+ row=trainer.spec.get('researcher_editions',{}).get(feature)
+ edition='book' if row is None else row.get('edition')
+ if row is not None and row!=source(engine,feature,edition):raise ValueError('actual selected Researcher source changed')
+ return edition
+
+
+def study_points(engine,trainer):
+ """AP-like study drain uses the same actual extended-rest recovery epoch."""
+ qualify(engine,trainer,BOOKWORM,available=False);edition=_edition(engine,trainer,BOOKWORM)
+ other=sum(owns(trainer,uid) for uid,d in DEFINITIONS.items() if d['field']=='general' and uid!=BOOKWORM)
+ maximum=2*other if edition=='local_csv' else 2+other
+ import recovery_receipts as RECOVERY
+ epoch=sorted(uid for uid,row in RECOVERY.validate(trainer).items() if row['intent'].get('source')=='gameplay/action-points' and row['intent'].get('resource')=='ap_removed' and row['intent'].get('policy')=='qualified_extended_rest' and row['eligibility'].get('eligible'))
+ rows=(state(trainer) or {}).get('study_drains',[])
+ spent=sum(row['amount'] for row in rows if row['rest_epoch']==epoch)
+ if type(spent)is not int or spent<0 or spent>maximum:raise ValueError('actual Study Point drain exceeds the acquired Bookworm pool')
+ return {'maximum':maximum,'drained':spent,'available':maximum-spent,'rest_epoch':epoch,'authority':source(engine,BOOKWORM,edition)}
+
+
+def _drain_study(engine,trainer,source_id):
+ pool=study_points(engine,trainer)
+ if not pool['available']:raise ValueError('Bookworm Study Points exhausted until an actual Extended Rest')
+ row={'amount':1,'source_id':source_id,'rest_epoch':pool['rest_epoch'],'authority':pool['authority'],'at':engine.elapsed_seconds}
+ state(trainer,create=True).setdefault('study_drains',[]).append(row);return row
+
 
 
 def uid(name):
@@ -55,6 +269,7 @@ def _rank(e,actor,skill):
 
 
 def owns(trainer,feature):
+ if feature==WARFARE and __import__('hobbyist').provider(trainer,feature) is not None:return True
  return trainer.kind=='trainer' and FEATURES.owned(trainer,feature)
 
 
@@ -68,17 +283,29 @@ def feature_rank(trainer,feature):
  return value
 
 
-def qualify(e,trainer,feature):
+def qualify(e,trainer,feature,*,edition=None,available=True):
  """Printed prerequisites against the actual sheet: field, parent Features, Edges and skill ranks."""
  import pokemon_activities as P
  d=DEFINITIONS[feature]
- RF.require(e,trainer,feature,d['field'])
+ if feature==WARFARE and __import__('hobbyist').provider(trainer,WARFARE) is not None:
+  FEATURES.conscious_trainer(trainer);RF.source(e)
+  return d
+ RF.require(e,trainer,feature,d['field'],static=feature==PUSHER,available=available)
  pre=d.get('prerequisites',{})
- for parent in pre.get('feats',()):qualify(e,trainer,parent)
- for edge in pre.get('edges',()):P._feature(e,trainer,edge)
+ for parent in pre.get('feats',()):qualify(e,trainer,parent,available=available)
+ for edge in pre.get('edges',()):
+  if edge=='pokebot_training':
+   if not any(FEATURES.owned(trainer,uid) for uid in ('edge/포켓봇-훈련','feat/포켓봇-훈련')):raise ValueError('Engineer requires actual Pokebot Training')
+  else:P._feature(e,trainer,'basic_balls' if edge=='poke_ball_crafter' else edge)
  skills=pre.get('skills')
+ selected=edition or trainer.spec.get('researcher_editions',{}).get(feature,{}).get('edition','book')
+ if feature in (BREADTH,BOOKWORM,WELL_READ):_source_authority(e.r,feature,selected)
+ if selected=='local_csv' and feature in (OVERCLOCK,EFFICIENT):skills=[['기술학',4]]
  if skills and not any(_rank(e,trainer,skill)>=rank for skill,rank in skills):
   raise ValueError(d['english']+' requires its printed skill rank: '+' or '.join(skill+' '+str(rank) for skill,rank in skills))
+ for skill,rank in pre.get('all_skills',()):
+  if _rank(e,trainer,skill)<rank:raise ValueError(d['english']+' requires every printed skill rank')
+ if selected=='local_csv' and feature==ECHOES:qualify(e,trainer,BREADTH,available=available)
  if 'rank_skills' in pre:
   rank=feature_rank(trainer,feature)
   for number in range(1,rank+1):
@@ -261,9 +488,10 @@ def apply_patch(engine,user,patch,target,*,seconds,reason,medical_techniques=Fal
   result={'patch':patch,'applied':done,'medical_techniques':None}
   if medical_techniques:
    _swift(e,u,TECHNIQUES);AP.spend(u,DEFINITIONS[TECHNIQUES]['ap'])
-   amount=e.tick(q)+_rank(e,u,'의학')
+   rank=S.effective_rank(e.r,u,'의학')
+   amount=e.tick(q)+rank
    e.heal(q,amount,source_kind='feature')
-   result['medical_techniques']={'heal':amount,'tick':e.tick(q),'medicine_rank':_rank(e,u,'의학')}
+   result['medical_techniques']={'heal':amount,'tick':e.tick(q),'medicine_rank':rank}
    e.log('  '+u.name+': 의학 테크닉 - 추가 회복 '+str(amount),SOURCE)
   return result
  return G.transition(engine,user,apply,participants=(target,) if target is not user else (),include_rulings=True)
@@ -383,7 +611,7 @@ def rainbow_light(engine,trainer):
 def _is_ally(trainer,actor):
  if actor is trainer:return True
  if actor.spec.get('trainer_id')==trainer.entity_id:return True
- return trainer.side is not None and actor.side==trainer.side
+ return getattr(trainer,'side',None) is not None and getattr(actor,'side',None)==trainer.side
 
 
 def effect_range_bonus(engine,attacker,move):
@@ -424,33 +652,54 @@ def fistful_of_force(engine,trainer,target,everyone,*,move_type,aim=None,set_dam
  if held is None:raise ValueError('Fistful of Force requires a shard in the main or off hand')
  if move_type not in _shard_types(engine,held['color']):raise ValueError('Judgement type must be one of the held shard colour types')
  if not engine.encounter_active:raise ValueError('Fistful of Force is a Standard attack in an active encounter')
- mid=d['move']
+ mid=d['move'];pending=[]
  def apply(e,t,*others):
   if not F.activation_allowed(t,FISTFUL,d['frequency'],engine=e):raise ValueError('Fistful of Force was already used this scene')
   allowed,reason=F.move_allowed(e,t,mid,outside_combat=False)
   if not allowed:raise ValueError('Judgement frequency refuses the attack: '+str(reason))
   sid='researcher-fistful:'+t.entity_id+':'+str(e.round_no)+':'+str(t.custom_conditions.get('combat_turn_serial',0))
   G.grant_moves(t,[mid],sid,'feature',owner_id=t.entity_id,lifetime='turn',rule_id=SOURCE,mode='permission')
-  s=state(t);s['fistful']={'move':mid,'type':move_type,'occult_rank':_rank(e,t,'오컬트학'),'shard':deepcopy(s['held_shard']),'source':sid,'round':e.round_no}
+  rank=S.effective_rank(e.r,t,'오컬트학')
+  s=state(t);s['fistful']={'move':mid,'type':move_type,'occult_rank':rank,'shard':deepcopy(s['held_shard']),'source':sid,'round':e.round_no}
   s['held_shard']=None
   F.consume_activation(t,FISTFUL,d['frequency'],engine=e)
   try:
    primary=others[0] if others else t
    result=e.use_move_on(t,primary,mid,list(e.everyone),aim=aim,set_damage=set_damage)
+  except Exception as error:
+   import passive_events as PASSIVE,heavy_injury_adapter as HEAVY
+   if (type(error) is PASSIVE.PassiveEventPending and e._passive_pending==error.event_id
+       and error.event_id in e._passive_events):pending.append((PASSIVE.PassiveEventPending,error.event_id))
+   elif (type(error) is HEAVY.HeavyPending and e._heavy_pending==error.event_id
+         and error.event_id in e._heavy_events):pending.append((HEAVY.HeavyPending,error.event_id))
+   else:raise
+   result=None
   finally:
    s['fistful']=None;G.revoke(t,sid,engine=e)
   e.log('  '+t.name+': 한줌의 힘 - '+held['color']+' 조각 파괴, 심판의뭉치('+move_type+')',SOURCE)
-  return {'result':result,'type':move_type,'shard':held,'attack_bonus':_rank(e,t,'오컬트학')*3}
- return G.transition(engine,trainer,apply,participants=(target,) if target is not trainer else (),include_rulings=True,include_grid=engine.grid is not None)
+  return {'result':result,'type':move_type,'shard':held,'attack_bonus':rank*3}
+ result=G.transition(engine,trainer,apply,participants=(target,) if target is not trainer else (),include_rulings=True,include_grid=engine.grid is not None)
+ if pending:
+  exception,event_id=pending[0]
+  raise exception(event_id)
+ return result
 
 
-def prepare_move(engine,attacker,move):
- """use_move_on: Judgement declared through Fistful of Force takes the chosen shard type and its attack substitute."""
+def prepare_move(engine,attacker,move,*,target=None):
+ """Keep the paid Fistful selection on each native recipient and resumed Move."""
  if attacker.kind!='trainer' or not isinstance(move,dict):return move
  st=attacker.spec.get(KEY)
  pending=None if st is None else st.get('fistful')
- if pending is None or move.get('id')!=pending['move']:return move
- return dict(move,type=pending['type'],_researcher_fistful={'attack_value':pending['occult_rank']*3,'type':pending['type'],'source':pending['source']})
+ if pending is not None and move.get('id')==pending['move']:
+  marker={'attack_value':pending['occult_rank']*3,'type':pending['type'],'source':pending['source']}
+ else:
+  import move_activation as ACTIVATION
+  scope=ACTIVATION.current_scope(engine,attacker,target,move.get('id'))
+  row=None if scope is None else getattr(engine,'_move_completions',{}).get(scope.get('completion_id'))
+  if row is None or row['actor'] is not attacker or row['move_id']!=move.get('id'):return move
+  marker=row['move'].get('_researcher_fistful')
+  if marker is None:return move
+ return dict(move,type=marker['type'],_researcher_fistful=deepcopy(marker))
 
 
 def attack_stat_value(engine,attacker,move,value):
@@ -480,7 +729,7 @@ def seed_bag(engine,trainer,pokemon,move,*,seconds,reason):
  if mid is None or mid not in _seed_moves(rank):raise ValueError('Seed Bag harvests only the printed powder/spore/seed Moves of its acquired rank')
  if pokemon.kind!='pokemon' or '풀' not in pokemon.types:raise ValueError('a willing Grass-type Pokemon is required')
  if pokemon.fainted or pokemon.dead:raise ValueError('a conscious willing Pokemon is required')
- if ENTITIES.loyalty_value(pokemon,required=True)<2:raise ValueError('a willing Pokemon (GM loyalty 2 or more) is required')
+ if ENTITIES.effective_loyalty_value(pokemon,engine=engine,required=True)<2:raise ValueError('a willing Pokemon (GM loyalty 2 or more) is required')
  if mid not in pokemon.moves:raise ValueError('the Pokemon must actually know that Move')
  if mid in trainer.moves:raise ValueError('Seed Bag cannot add a Move already on your Move list')
  frequency={'kind':'daily','uses':d['daily_uses_per_rank']*rank}
@@ -555,7 +804,7 @@ def craft_chemistry(engine,trainer,item,*,minutes,reason,scrap_value=0):
 
 
 def chemical_warfare(engine,trainer):
- """Scene x2 Free Action declared before your Pester Ball throw: the ball bursts (Burst 2) on everyone in the area."""
+ """Scene x2 Free Action declared before your Pester Ball throw: Blast 2 affects everyone in its 2x2 area."""
  import world_entities as W,frequency as F
  W.require_actors(engine,trainer);d=qualify(engine,trainer,WARFARE)
  def apply(e,t):
@@ -568,13 +817,13 @@ def chemical_warfare(engine,trainer):
  return G.transition(engine,trainer,apply,include_rulings=True)
 
 
-def _burst_targets(engine,center,radius,exclude):
+def _blast_targets(engine,center,size):
  import world_entities as W,body_state as BODY
  if engine.grid is None:return []
- cells=set(engine.grid.burst(tuple(center),radius))|{tuple(center)}
+ cells=set(engine.grid.ranged_blast(tuple(center),size))
  result=[]
  for c in W.actor_index(engine).values():
-  if c is exclude or not c.on_field or c.fainted or c.captured:continue
+  if not c.on_field or c.fainted or c.captured:continue
   try:occupied=set(BODY.cells(c))
   except ValueError:occupied={tuple(c.pos)} if getattr(c,'pos',None) is not None else set()
   if occupied & cells:result.append(c)
@@ -582,7 +831,7 @@ def _burst_targets(engine,center,radius,exclude):
 
 
 def pester_hit(engine,user,target,source,*,hit,status_applied):
- """pester_balls._consume: Chemical Warfare burst and the Caustic Chemistry exposure record."""
+ """pester_balls._consume: Chemical Warfare Blast and the Caustic Chemistry exposure record."""
  if user.kind!='trainer' or not (owns(user,WARFARE) or owns(user,CAUSTIC)):return None
  st=state(user,create=True)
  import pester_balls as PESTER
@@ -594,7 +843,7 @@ def pester_hit(engine,user,target,source,*,hit,status_applied):
    st['chemistry']['warfare']=None
    if hit:
     center=getattr(target,'pos',None)
-    for other in _burst_targets(engine,center,warfare['burst'],exclude=user) if center is not None else []:
+    for other in _blast_targets(engine,center,warfare['burst']) if center is not None else []:
      if other is target:continue
      applied=False
      if not PESTER.projection(engine,other)['immune']:
@@ -663,9 +912,9 @@ def playing_god(engine,trainer,*,species,nature,ability,gender,upgrades,seconds,
  if NATURE.describe(engine.r,nature) is None:raise ValueError('known selected nature required')
  basic,hidden=_basic_abilities(engine,sp['name'])
  if ability not in basic:raise ValueError('choose one of the species basic Abilities: '+', '.join(basic))
- _text(gender,'declared gender')
+ __import__('creation_egg').birth_gender(engine,sp['id'],gender)
  P._tool(trainer,d['tool'])
- rank=_rank(engine,trainer,'기술학')
+ rank=S.effective_rank(engine.r,trainer,'기술학')
  if not isinstance(upgrades,list) or len(upgrades)!=rank:raise ValueError('choose exactly one upgrade per Technology rank ('+str(rank)+')')
  counts={'shiny_contest':0,'inheritance_move':0,'base_stat':0}
  ls=engine.r.learnsets.get(sp['name'],{});pool=[]
@@ -714,7 +963,7 @@ def hatch_artificial(engine,trainer,egg_entity_id,*,name,reason):
  import world_entities as W,pokemon_entities as ENTITIES,creation_egg as E,pokemon_party as PARTY,pokemon_activities as P
  W.require_actors(engine,trainer);_text(reason,'hatch reason');_outside(engine)
  def apply(e,t):
-  import move_state as M,learning_grant as L,growth_stats as GROWTH,arithmetic_policy as ARITH
+  import move_state as M,growth_stats as GROWTH,arithmetic_policy as ARITH
   entry=ENTITIES.egg_index(e).get(egg_entity_id)
   if entry is None or entry[0] is not t or entry[1]['hatched'] or EGG_MARK not in entry[1]:raise ValueError('actual unhatched Playing God egg owned by this trainer required')
   egg=entry[1];facts=egg[EGG_MARK]
@@ -730,12 +979,6 @@ def hatch_artificial(engine,trainer,egg_entity_id,*,name,reason):
   tutor_points=1+ARITH.ratio(level,5)   # pokemon_progression initial balance for a known level
   pokemon,selected=E.construct(e,t,egg,name=name,birth_level=level,tutor_points=tutor_points,selected=selected,extra={'playing_god_egg_entity_id':egg['entity_id']})
   spec=pokemon.spec
-  egg_list=[e.r.move_id(x) for x in e.r.learnsets.get(sp['name'],{}).get('egg',[])]
-  for mid in inherited:
-   if mid in M.known(e.r,spec):continue
-   method='egg' if mid in egg_list else 'feature'
-   L.learn_moves(e.r,spec,candidates=[mid],selected=[mid],method=method,source=SOURCE,reason='Playing God inheritance upgrade',provider=t.entity_id,paid_tp=0,details={'playing_god_upgrade':'inheritance_move','route':'egg_list' if method=='egg' else 'tutor_list'})
-  G.set_baseline(pokemon,'moves',[m for m in spec['moves']])
   for row in facts['upgrades']:
    if row['kind']=='base_stat':
     GROWTH.apply_vitamin(pokemon,row['stat'],source=SOURCE)
@@ -796,36 +1039,57 @@ def _trainer_of(engine,actor):
  return owner if owner is not None and owner.kind=='trainer' else None
 
 
-def temperature_control(engine,trainer):
- """1 AP Free Action declared while a weather is in effect: the next weather your Move/Ability creates coexists with it."""
+def temperature_control(engine,trainer,*,replace_weather_id=None):
+ """1 AP Free Action: the next Move/Ability weather coexists, replacing one explicitly selected occurrence if two exist."""
  import world_entities as W,weather_state as WEATHER
  W.require_actors(engine,trainer);d=qualify(engine,trainer,TEMPERATURE);_ap(trainer,d['ap'])
  current=getattr(engine,WEATHER.KEY,None)   # read-only: never create the weather envelope while refusing
  if not (current and current.get('active')):raise ValueError('Temperature Control needs a non-standard weather already in effect')
+ records=[current['active'],*current.get('layers',[])]
+ if len(records)==2:
+  if type(replace_weather_id) is not int or replace_weather_id not in {row['id'] for row in records}:
+   raise ValueError('Temperature Control requires the actual weather occurrence to replace')
+ elif len(records)>2:raise ValueError('Temperature Control requires at most two coexisting weather occurrences')
+ elif replace_weather_id is not None:raise ValueError('a replacement occurrence is selected only when two weathers coexist')
  def apply(e,t):
   import action_points as AP
   st=state(t,create=True)
-  if st['climatology']['temperature_control'] is not None:raise ValueError('Temperature Control is already declared')
+  pending=st['climatology']['temperature_control']
+  if pending is not None and pending['turn_serial']==t.custom_conditions.get('combat_turn_serial',0):raise ValueError('Temperature Control is already declared')
   _free_action(e,t,TEMPERATURE);AP.spend(t,d['ap'])
   st['climatology']['temperature_control']={'round':e.round_no,'at':e.elapsed_seconds,'turn_serial':t.custom_conditions.get('combat_turn_serial',0),'clause_id':clause(TEMPERATURE)}
+  if replace_weather_id is not None:st['climatology']['temperature_control']['replace_weather_id']=replace_weather_id
   return deepcopy(st['climatology']['temperature_control'])
  return G.transition(engine,trainer,apply,include_rulings=True)
 
 
 def temperature_control_layer(engine,actor,record):
  """weather_state.set_weather: a declared Temperature Control layers the new Move/Ability weather instead of replacing."""
- import weather_state as WEATHER
- owner=_trainer_of(engine,actor)
- if owner is None or not engine.encounter_active:return None
- st=owner.spec.get(KEY)
- pending=None if st is None else st['climatology']['temperature_control']
- if pending is None:return None
- if pending['turn_serial']!=owner.custom_conditions.get('combat_turn_serial',0):
-  # The declaration lapses when the Researcher's next turn begins without a weather trigger.
-  st['climatology']['temperature_control']=None;return None
+ import weather_state as WEATHER,world_entities as WORLD
+ if not engine.encounter_active:return None
  if record['origin']!='move' and not str(record['source_id']).startswith('ability/'):return None
+ declarations=[]
+ for owner in WORLD.actor_index(engine).values():
+  if owner.kind!='trainer':continue
+  st=owner.spec.get(KEY)
+  pending=None if st is None else st['climatology']['temperature_control']
+  if pending is not None and pending['turn_serial']==owner.custom_conditions.get('combat_turn_serial',0):declarations.append((owner,st,pending))
+ if not declarations:return None
+ if len(declarations)>1:raise ValueError('multiple Temperature Control declarations need an explicit resolution order')
+ owner,st,pending=declarations[0]
  s=WEATHER.state(engine)
  if not s['active']:return None
+ records=[s['active'],*s.get('layers',[])]
+ if len(records)>1:
+  replaced=next((row for row in records if row['id']==pending.get('replace_weather_id')),None)
+  if len(records)!=2 or replaced is None:raise ValueError('Temperature Control replacement occurrence changed before its trigger')
+  weather_ended(engine,replaced)
+  __import__('weather_blessings').retire(engine,replaced,TEMPERATURE,'replaced by Temperature Control')
+  s['history'].append(dict(replaced,ended_round=engine.round_no,end_source=TEMPERATURE,end_reason='replaced by Temperature Control'))
+  if replaced is s['active']:
+   s['active']=s['layers'].pop(0)
+   WEATHER._sync_primary(engine)
+  else:s['layers'].remove(replaced)
  st['climatology']['temperature_control']=None
  s['sequence']+=1
  layer=dict(record,id=s['sequence'],actor_id=actor.entity_id if actor is not None else None,
@@ -1008,9 +1272,7 @@ def fossil_restoration(engine,trainer,*,fossil_id,seconds,reason,hatch_details=N
   st=state(t,create=True)
   st['fossils'].append({'fossil_id':fossil_id,'status':'pending','at':e.elapsed_seconds,'reason':reason})
   _extended(e,t,FOSSIL_RESTORATION,seconds)
-  result=FOSSIL.restore_native(e,t,fossil_id=fossil_id,hatch_details=hatch_details)
-  st['fossils'][-1].update(status='restored',egg_entity_id=result['egg']['entity_id'])
-  return result
+  return FOSSIL.restore_native(e,t,fossil_id=fossil_id,hatch_details=hatch_details)
  return G.transition(engine,trainer,apply,include_rulings=True)
 
 
@@ -1034,19 +1296,90 @@ def fossil_restoration_mark(engine,owner,fossil_id,egg):
  pending=_pending_fossil(owner,fossil_id)
  if pending is None:return
  egg[FOSSIL_MARK]={'trainer_id':owner.entity_id,'feature':FOSSIL_RESTORATION,'clause_id':clause(FOSSIL_RESTORATION),'tutor_points':deepcopy(pending['tutor_points']),'second_basic_ability':True,'gm_hidden_ability':None}
+ pending.update(status='restored',egg_entity_id=egg['entity_id'])
+ pending[FOSSIL_AUTHORITY]=1;pending['gm_hidden_ability']=None
 
 
-def choose_hidden_ability(engine,trainer,egg_entity_id,*,ability,reason):
- """GM choice for a single-basic-Ability species restored with Fossil Restoration."""
+def fossil_restoration_record(engine,egg,*,allow_legacy_pending=False):
+ """Only the original completed restoration event authorizes the birth exception."""
+ import world_entities as W,pokemon_entities as ENTITIES,creation_fossil as FOSSIL
+ entry=ENTITIES.egg_index(engine).get(egg.get('entity_id'))
+ if entry is None or entry[1] is not egg:raise ValueError('Fossil Restoration authority needs the actual registered egg')
+ fossil=ENTITIES.egg_fossil(engine,egg);restorer=W.actor_index(engine).get(egg.get('restored_by'))
+ if restorer is None or restorer.kind!='trainer':raise ValueError('Fossil Restoration authority needs the original restorer')
+ st=state(restorer);records=[] if st is None else st.get('fossils',[])
+ if type(records) is not list or any(type(row) is not dict for row in records):raise ValueError('Fossil Restoration authority needs actual event records')
+ matches=[row for row in records if row.get('fossil_id')==fossil['id'] or row.get('egg_entity_id')==egg['entity_id']]
+ if FOSSIL_MARK not in egg and not matches:return None
+ facts=egg.get(FOSSIL_MARK)
+ if type(facts) is not dict or len(matches)!=1:raise ValueError('Fossil Restoration authority needs its matching completed event')
+ record=matches[0]
+ if record.get('status')!='restored' or record.get('fossil_id')!=fossil['id'] or record.get('egg_entity_id')!=egg['entity_id']:
+  raise ValueError('Fossil Restoration authority lost its completed fossil/egg event')
+ contract=fossil.get(FOSSIL.CONTRACT,{})
+ # Completed pre-interpretation producers retain their actual1/0/deficit1 basis.
+ # No current default retroactively reallocates a hatched child's balance.
+ expected=FOSSIL.native(legacy=FOSSIL.BIRTH_BASIS not in contract.get('request',{}));base=expected['hatch']['tutor_points'];delta=DEFINITIONS[FOSSIL_RESTORATION]['tutor_point_delta']
+ points={'native':base,'printed_delta':delta,'birth':max(0,base+delta),'deficit':max(0,-(base+delta))}
+ expected['hatch']['tutor_points']=points['birth']
+ for observed in (record.get('tutor_points'),facts.get('tutor_points')):
+  if type(observed) is not dict or set(observed)!=set(points):raise ValueError('Fossil Restoration authority needs its actual Tutor Point facts')
+  for key in points:C.integer(observed[key],'Fossil Restoration '+key+' Tutor Points')
+ if egg.get('source')!=FOSSIL.SOURCE or fossil.get('restored_by')!=restorer.entity_id or contract.get('request',{}).get('declaration')!=expected or egg.get(FOSSIL.BIRTH)!=expected['hatch'] or record.get('tutor_points')!=points:
+  raise ValueError('Fossil Restoration authority disagrees with source or birth Tutor Points')
+ chosen=facts.get('gm_hidden_ability')
+ wanted={'trainer_id':restorer.entity_id,'feature':FOSSIL_RESTORATION,'clause_id':clause(FOSSIL_RESTORATION),'tutor_points':points,'second_basic_ability':True,'gm_hidden_ability':chosen}
+ if facts!=wanted or facts.get('second_basic_ability') is not True:
+  raise ValueError('Fossil Restoration authority facts disagree with the original event')
+ if FOSSIL_AUTHORITY in record and (type(record[FOSSIL_AUTHORITY]) is not int or record[FOSSIL_AUTHORITY]!=1 or 'gm_hidden_ability' not in record):
+  raise ValueError('Fossil Restoration authority schema needs its explicit GM selection field')
+ if 'gm_hidden_ability' in record and chosen!=record['gm_hidden_ability']:
+  raise ValueError('Fossil Restoration authority facts disagree with the original event')
+ C.integer(record.get('at'),'Fossil Restoration event time',0,egg['produced_at']-1);_text(record.get('reason'),'Fossil Restoration event reason')
+ if chosen is not None:
+  basic,hidden=_basic_abilities(engine,_species(engine,egg['species'])['name'])
+  if type(chosen) is not dict or set(chosen)!= {'ability','reason','at'} or len(basic)!=1 or chosen.get('ability') not in hidden:
+   raise ValueError('Fossil Restoration authority needs the actual GM hidden Ability choice')
+  _text(chosen['reason'],'Fossil Restoration GM choice reason');C.integer(chosen['at'],'Fossil Restoration GM choice time',egg['produced_at'],engine.elapsed_seconds)
+  if 'gm_hidden_ability' not in record and not allow_legacy_pending:
+   raise ValueError('legacy Fossil Restoration choice requires explicit GM confirmation with confirm_legacy=True')
+ confirmation=record.get('legacy_hidden_ability_confirmation')
+ if confirmation is not None:
+  if type(confirmation) is not dict or set(confirmation)!={'trainer_id','ability','reason','at'} or record.get(FOSSIL_AUTHORITY)!=1 or chosen is None or confirmation.get('ability')!=chosen['ability']:
+   raise ValueError('Fossil Restoration legacy confirmation disagrees with the retained GM choice')
+  _text(confirmation['trainer_id'],'Fossil Restoration legacy confirming owner');confirmer=W.actor_index(engine).get(confirmation['trainer_id'])
+  if confirmer is None or confirmer.kind!='trainer':raise ValueError('Fossil Restoration legacy confirmation needs its actual confirming owner')
+  _text(confirmation['reason'],'Fossil Restoration legacy confirmation reason');C.integer(confirmation['at'],'Fossil Restoration legacy confirmation time',chosen['at'],engine.elapsed_seconds)
+ return record
+
+
+def choose_hidden_ability(engine,trainer,egg_entity_id,*,ability,reason,confirm_legacy=False):
+ """GM choice, or explicit confirmation of the same retained legacy choice, for Fossil Restoration."""
  import world_entities as W,pokemon_entities as ENTITIES
  W.require_actors(engine,trainer);_text(reason,'GM hidden Ability reason')
+ if type(confirm_legacy) is not bool:raise ValueError('explicit boolean legacy Fossil Restoration confirmation required')
  def apply(e,t):
   entry=ENTITIES.egg_index(e).get(egg_entity_id)
-  if entry is None or entry[0] is not t or FOSSIL_MARK not in entry[1] or entry[1]['hatched']:raise ValueError('actual unhatched Fossil Restoration egg required')
-  egg=entry[1];basic,hidden=_basic_abilities(e,_species(e,egg['species'])['name'])
+  if entry is None or FOSSIL_MARK not in entry[1]:raise ValueError('actual unhatched Fossil Restoration egg required')
+  egg=entry[1]
+  if egg['hatched']:owned=confirm_legacy and _trainer_of(e,W.actor_index(e).get(egg.get('pokemon_id'))) is t
+  else:owned=entry[0] is t
+  if not owned:raise ValueError('actual owned legacy Fossil Restoration egg or hatched child required' if confirm_legacy else 'actual unhatched Fossil Restoration egg required')
+  record=fossil_restoration_record(e,egg,allow_legacy_pending=confirm_legacy);basic,hidden=_basic_abilities(e,_species(e,egg['species'])['name'])
+  if confirm_legacy:
+   chosen=egg[FOSSIL_MARK]['gm_hidden_ability']
+   if FOSSIL_AUTHORITY in record or 'gm_hidden_ability' in record or chosen is None:raise ValueError('only an unconfirmed actual legacy Fossil Restoration choice can be confirmed')
+   if ability!=chosen['ability']:raise ValueError('legacy Fossil Restoration confirmation must retain exactly the existing GM Ability')
+   record[FOSSIL_AUTHORITY]=1;record['gm_hidden_ability']=deepcopy(chosen)
+   record['legacy_hidden_ability_confirmation']={'trainer_id':t.entity_id,'ability':ability,'reason':reason,'at':e.elapsed_seconds}
+   e.gm._rec('Fossil Restoration legacy hidden Ability confirmation',None,ability,reason,t)
+   return deepcopy(egg[FOSSIL_MARK])
+  if 'legacy_hidden_ability_confirmation' in record:raise ValueError('confirmed legacy Fossil Restoration choice cannot be reset')
   if len(basic)!=1:raise ValueError('the species already has two basic Abilities; no hidden Ability choice applies')
   if ability not in hidden:raise ValueError('GM must choose one of the species hidden Abilities: '+', '.join(hidden))
   egg[FOSSIL_MARK]['gm_hidden_ability']={'ability':ability,'reason':reason,'at':e.elapsed_seconds}
+  record[FOSSIL_AUTHORITY]=1
+  record['gm_hidden_ability']=deepcopy(egg[FOSSIL_MARK]['gm_hidden_ability'])
   e.gm._rec('Fossil Restoration hidden Ability',None,ability,reason,t)
   return deepcopy(egg[FOSSIL_MARK])
  return G.transition(engine,trainer,apply,include_rulings=True)
@@ -1054,8 +1387,8 @@ def choose_hidden_ability(engine,trainer,egg_entity_id,*,ability,reason):
 
 def fossil_birth_details(engine,owner,egg,details):
  """creation_fossil._hatch: the restored Pokemon is born with both basic Abilities, or one basic plus the GM-chosen hidden Ability."""
- facts=egg.get(FOSSIL_MARK)
- if facts is None:return details
+ if fossil_restoration_record(engine,egg) is None:return details
+ facts=egg[FOSSIL_MARK]
  if type(details) is not dict:raise ValueError('GM hatch details must be a mapping')
  basic,hidden=_basic_abilities(engine,_species(engine,egg['species'])['name'])
  if len(basic)>=2:expected=basic[:2]
@@ -1154,20 +1487,26 @@ def set_razors_reaction(engine,pokemon,enabled):
  return enabled
 
 
-def _held_relic(pokemon,stat):
- name=getattr(pokemon,'item',None)
- row=relic_definition(name)
- if row is None or row[0]!=stat:return None
- record=pokemon.spec.get('relic_sources',{}).get(name)
- if not record or record.get('pokemon_id')!=pokemon.spec.get('id'):return None
- return name
+def _held_relic(engine,pokemon,stat):
+ import held_equipment as HELD,items as ITEMS
+ HELD.validate(pokemon);matches=[]
+ for held in HELD.entries(pokemon):
+  name=held['name'];row=relic_definition(name)
+  if row is None or row[0]!=stat or held.get('effects_pending'):continue
+  registered=getattr(pokemon,'_item_reg',{}).get(held.get('registration_key'))
+  if registered is None or not ITEMS.equipment_benefit_active(pokemon,registered):continue
+  effects=RF.relic_effects(engine,pokemon,name)
+  if effects is not None and effects[0]:matches.append(name)
+ if len(matches)>1:raise ValueError('multiple active relic effect sources need an explicit stacking policy')
+ return matches[0] if matches else None
 
 
 def relic_after_hit(engine,attacker,target,move,dealt):
  """Prehistoric Razors: after a damaging melee hit, the holder's reaction makes the attacker lose a Tick."""
  if type(dealt) is not int or dealt<=0 or move.get('class') not in ('물리','특수') or '근접' not in str(move.get('range','')):return None
  if getattr(target,'kind',None)!='pokemon':return None
- name=_held_relic(target,'def')
+ if not getattr(attacker,'side',None) or not getattr(target,'side',None) or attacker.side==target.side:return None
+ name=_held_relic(engine,target,'def')
  if name is None or not target.spec.get('researcher_razors_reaction'):return None
  if attacker is target or attacker.fainted:return None
  loss=engine.tick_loss(attacker)
@@ -1180,40 +1519,86 @@ def relic_after_hit(engine,attacker,target,move,dealt):
 def evasion_bonus(engine,target,move):
  """Relic Sash: +2 Evasion against Status Moves."""
  if target is None or not isinstance(move,dict) or move.get('class')!='변화':return 0
- if getattr(target,'kind',None)!='pokemon' or _held_relic(target,'spe') is None:return 0
+ if getattr(target,'kind',None)!='pokemon' or _held_relic(engine,target,'spe') is None:return 0
  return 2
 
 
 # ---------------------------------------------------------------- Pokemon Caretaking
+_PUSHER_ACQUISITION=ContextVar('pusher_acquisition',default=None)
+
+
+def _pusher_edge(rules,edge):
+ import poke_edge_variants as V
+ row=V.resolve(rules,edge)
+ if row is not None:return row['policy']
+ return rules.selection.resolve_name(edge,('poke_edge/',)) if isinstance(edge,str) and not edge.startswith('poke_edge/') else edge
+
+
 def pusher_funds(e,trainer,target,edge):
- """Pusher: the nine listed Poke Edges cost the Pokemon no Tutor Points when its owning trainer qualifies."""
+ """Pusher automatically grants only its nine listed, qualifying Poke Edges."""
  if getattr(trainer,'kind',None)!='trainer' or not owns(trainer,PUSHER):return None
  if getattr(target,'kind',None)!='pokemon' or target.spec.get('trainer_id')!=trainer.entity_id:return None
- try:resolved=e.r.selection.resolve_name(edge,('poke_edge/',)) if isinstance(edge,str) and not edge.startswith('poke_edge/') else edge
+ try:resolved=_pusher_edge(e.r,edge)
  except Exception:return None
  if resolved not in DEFINITIONS[PUSHER]['free_poke_edges']:return None
  qualify(e,trainer,PUSHER)
  return resolved
 
 
+def pusher_acquiring(e,trainer,target,source=None):
+ """Only this native acquisition scope may omit ordinary teaching requirements."""
+ current=_PUSHER_ACQUISITION.get()
+ if current is None or current[:2]!=(trainer.entity_id,target.entity_id):return False
+ return (source is None or source==current[2]) and pusher_funds(e,trainer,target,current[2])==current[2]
+
+
+def pusher_receipt(rules,receipt):
+ """Retain nominal native costs and old funding history; expose actual zero payment."""
+ row=receipt.get('pusher')
+ if row is None:return receipt['point_cost']
+ if type(row) is not dict or row.get('feature')!=PUSHER or row.get('clause_id')!=clause(PUSHER):raise ValueError('actual Pusher source receipt required')
+ _text(row.get('trainer_id'),'historical Pusher provider')
+ if row.get('trainer_id')!=receipt.get('trainer_id') or type(row.get('net_point_cost')) is not int or row['net_point_cost']!=0:raise ValueError('actual Pusher provider and zero payment required')
+ if receipt.get('source') not in DEFINITIONS[PUSHER]['free_poke_edges'] or type(row.get('edge')) is not str or not row['edge'].strip():raise ValueError('Pusher receipt must name its actual listed Edge')
+ if rules is not None and _pusher_edge(rules,row['edge'])!=receipt['source']:raise ValueError('Pusher receipt Edge source changed')
+ C.integer(receipt.get('point_cost'),'nominal Pusher native Edge cost',1)
+ if 'acquisition' in row:
+  if row['acquisition']!='automatic' or type(row.get('seconds')) is not int or row['seconds']!=0 or receipt.get('training_source')!=PUSHER:raise ValueError('actual automatic Pusher acquisition required')
+ refund=receipt.get('refund',{})
+ if type(refund) is not dict:raise ValueError('actual Pusher refund receipt required')
+ if row.get('acquisition')=='automatic' and receipt.get('status')=='refunded' and 'net_points' not in refund:raise ValueError('actual automatic Pusher zero refund required')
+ if 'net_points' in refund and (type(refund['net_points']) is not int or refund['net_points']!=0):raise ValueError('Pusher cannot refund unspent Tutor Points')
+ return 0
+
+
 def teach_funded(engine,trainer,target,edge,native):
- """Lend one Tutor Point for the native teaching so the net cost is zero; the native owner still decides qualification.
+ """Resolve a static grant through the native Edge's choices and qualification.
  native(engine,trainer,target) runs on the staged subjects."""
  import pokemon_teaching as TEACH
+ import poke_edge_variants as V
+ resolved=pusher_funds(engine,trainer,target,edge)
+ if resolved is None:raise ValueError('actual qualifying Pusher acquisition required')
+ definition=V.resolve(engine.r,edge) or V.resolve(engine.r,resolved)
+ cost=definition.get('tutor_cost',definition.get('point_cost',1)) if definition is not None else 1
+ C.integer(cost,'nominal native Pusher Edge cost',1)
  def apply(e,q,t):
-  before=TEACH._balance(q.spec);q.spec['tutor_points']=before+1
-  result=native(e,t,q)
+  before=TEACH._balance(q.spec);q.spec['tutor_points']=before+cost
+  token=_PUSHER_ACQUISITION.set((t.entity_id,q.entity_id,resolved))
+  try:result=native(e,t,q)
+  finally:_PUSHER_ACQUISITION.reset(token)
   receipts=q.spec.get('learned_poke_edges',[])
-  if not receipts or receipts[-1].get('point_cost')!=1:raise ValueError('Pusher funding requires the native one-point Poke Edge receipt')
+  if not receipts or receipts[-1].get('source')!=resolved or receipts[-1].get('point_cost')!=cost:raise ValueError('Pusher funding requires the actual native Poke Edge receipt')
   if TEACH._balance(q.spec)!=before:raise ValueError('Pusher funding must leave the Tutor Point balance unchanged')
-  receipts[-1]['pusher']={'trainer_id':t.entity_id,'feature':PUSHER,'clause_id':clause(PUSHER),'edge':edge,'net_point_cost':0}
+  receipts[-1]['training_source']=PUSHER
+  receipts[-1]['pusher']={'trainer_id':t.entity_id,'feature':PUSHER,'clause_id':clause(PUSHER),'edge':edge,'net_point_cost':0,'acquisition':'automatic','seconds':0}
+  pusher_receipt(e.r,receipts[-1])
   e.log('  '+t.name+': 후원자 - '+q.name+' '+str(edge)+' 가르침 포인트 없이 획득',SOURCE)
-  return dict(result,pusher_net_point_cost=0)
+  return dict(result,point_cost=0,pusher_net_point_cost=0,seconds=0)
  return G.transition(engine,target,apply,participants=(trainer,))
 
 
 def special_uses(e,trainer):
- rank=_rank(e,trainer,'포켓몬학')
+ rank=S.effective_rank(e.r,trainer,'포켓몬학')
  return max(0,rank-2)
 
 

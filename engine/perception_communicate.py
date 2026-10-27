@@ -30,7 +30,7 @@ def declaration(value):
         if block['field'] not in ('capabilities','feats','edges','blessings'):raise ValueError('unsupported actual receiver blocker')
     link=value['connection']
     if link is not None:
-        Q._fields(link,('maximum','lifetime'));C.integer(link['maximum'],'connection maximum',1)
+        Q._fields(link,('maximum','lifetime'));_maximum_declaration(link['maximum'])
         if type(link['lifetime']) is not dict or set(link['lifetime'])-{'duration','until','while'}:raise ValueError('connection uses existing non-repeating lifetime controls')
     frequency=value['frequency']
     if type(frequency) is not dict or frequency.get('kind') not in ('at_will','one_time','daily','scene','turn'):raise ValueError('explicit supported communication frequency required')
@@ -39,14 +39,17 @@ def declaration(value):
     if frequency['kind']=='turn':Q._text(frequency['turn_owner_id'])
     retry=value['retry']
     if retry is not None:
+        if type(retry) is not dict:raise ValueError('explicit communication retry policy required')
         Q._fields(retry,('period','scope','maximum_failures','delay_seconds',*(('failure_reasons',) if 'failure_reasons' in retry else ()),*(('penalty',) if 'penalty' in retry else ())))
         if retry['period'] not in PERIODS or retry['scope'] not in ('pair','sender','recipient'):raise ValueError('explicit retry unit required')
         if retry['maximum_failures'] is not None:C.integer(retry['maximum_failures'],'failure maximum',1)
         C.integer(retry['delay_seconds'],'retry delay',0)
         if 'failure_reasons' in retry:O._names(retry['failure_reasons'])
         if 'penalty' in retry:
-            Q._fields(retry['penalty'],('modifier','seconds'))
+            if type(retry['penalty']) is not dict:raise ValueError('explicit retry penalty policy required')
+            Q._fields(retry['penalty'],('modifier','seconds',*(('stacking',) if 'stacking' in retry['penalty'] else ())))
             C.integer(retry['penalty']['modifier'],'retry check penalty',maximum=-1);C.integer(retry['penalty']['seconds'],'retry penalty window',1)
+            if retry['penalty'].get('stacking','single') not in ('single','cumulative'):raise ValueError('explicit supported retry penalty stacking required')
     if type(value['distance_exceptions']) is not list:raise ValueError('explicit relationship distance exceptions required')
     for relation in value['distance_exceptions']:
         if type(relation) is not dict:raise ValueError('actual distance relationship declaration required')
@@ -59,6 +62,8 @@ def declaration(value):
 
 def _body(value):return {k:deepcopy(v) for k,v in value.items() if k!='id'}
 def _native(value):
+    if value['source']=='class/텔레파시능력자':return __import__('telepathy_core')
+    if value['source']=='class/교감자':return __import__('channeler')
     if value['source']=='capability/텔레파시':
         import telepathy
         return telepathy
@@ -136,7 +141,11 @@ def observe_relation(engine,sender,recipient,name,source,allowed,*,reason):
 
 def _willing(engine,sender,recipient,source):
     row=_state(engine)['permissions'].get(_pair(source,sender.entity_id,recipient.entity_id))
-    return row is not None and row['allowed']
+    willing=row is not None and row['allowed']
+    if source=='class/텔레파시능력자':
+        aware=_state(engine)['relations'].get(_pair('telepathy_awareness',sender.entity_id,recipient.entity_id))
+        willing=willing and aware is not None and aware['allowed']
+    return willing
 
 
 def _distance_exception(engine,sender,recipient,value):
@@ -197,6 +206,8 @@ def next_interval(engine,end_at):
 def _close(engine,row,reason):
     row.pop('sha256',None);row.update(status='closed',ended_at=engine.elapsed_seconds,ending=reason)
     row['sha256']=TX.request_fingerprint(row)
+    if row['source']=='class/교감자':
+        index=W.actor_index(engine);__import__('channeler').link_closed(engine,index[row['sender_id']],index[row['recipient_id']],reason)
 
 
 def boundary(engine,event,actor=None):
@@ -211,6 +222,7 @@ def boundary(engine,event,actor=None):
         elif L._ended(engine,record,event,actor):reason=event
         elif value['capabilities'] and not _owns(sender,'capabilities',value['capabilities']):reason='source_lost'
         elif value['consent']['kind']=='willing' and not _willing(engine,sender,recipient,row['source']):reason='consent_revoked'
+        if reason is None and row['source']=='class/교감자':reason=__import__('channeler').link_ending(engine,sender,recipient,row)
         if reason is not None:_close(engine,row,reason)
 
 
@@ -252,6 +264,7 @@ def send(engine,sender,recipient,value,thought,*,request_id,roll_options=None,op
     validate_world(engine,W.actor_index(engine));body=_body(value)
     intent={'sender_id':sender.entity_id,'recipient_id':recipient.entity_id,'policy':body,'text':thought,'roll_options':options}
     if native is not None:intent['operation']=operation
+    if native is not None and hasattr(native,'replay_intent'):intent=native.replay_intent(engine,intent,_state(engine)['requests'].get(request_id),'policy')
     prior=TX.replay_result(_state(engine)['requests'],request_id,intent,fingerprint_field='intent')
     if prior is not None:return dict(deepcopy(prior['result']),replayed=True)
     if native is not None:native.prepare(engine,sender,recipient,value,operation,thought)
@@ -260,13 +273,16 @@ def send(engine,sender,recipient,value,thought,*,request_id,roll_options=None,op
     def apply(e,c,other):
         validate_world(e,W.actor_index(e));_qualify(e,c,value);state=_state(e);source=value['source'];policy=state['policies'].get(source)
         signature=TX.request_fingerprint(body)
-        if policy is not None and policy['sha256']!=signature:raise ValueError('communication source policy cannot change with declaration or request identity')
+        if policy is not None and policy['sha256']!=signature and not (native is not None and native.accepts_stored_policy(e.r,policy['declaration'])):raise ValueError('communication source policy cannot change with declaration or request identity')
         state['policies'].setdefault(source,{'declaration':body,'sha256':signature});setattr(e,KEY,state);boundary(e,'reconcile')
         period=None if value['retry'] is None else _period(e,c,other,value['retry'])
         failures=[] if value['retry'] is None else _failures(state,c,other,value,period)
         retry=value['retry'];reason=None;consumed=False;check=None;exemption=None;message=None;event=None;modifier=0
         penalty=None if retry is None else retry.get('penalty')
-        if penalty is not None and any(e.elapsed_seconds<row['at']+penalty['seconds'] for row in failures):modifier=penalty['modifier']
+        if penalty is not None:
+            active=sum(e.elapsed_seconds<row['at']+penalty['seconds'] for row in failures)
+            modifier=penalty['modifier']*(active if penalty.get('stacking','single')=='cumulative' else bool(active))
+        if penalty is not None and native is not None and hasattr(native,'retry_modifier'):modifier=native.retry_modifier(e,failures,penalty)
         if retry is not None and retry['maximum_failures'] is not None and len(failures)>=retry['maximum_failures']:reason='retry_exhausted'
         elif failures and e.elapsed_seconds<failures[-1]['at']+retry['delay_seconds']:reason='retry_wait'
         elif not F.activation_allowed(c,'communication:'+source,value['frequency'],engine=e):reason='frequency_exhausted'
@@ -291,7 +307,7 @@ def send(engine,sender,recipient,value,thought,*,request_id,roll_options=None,op
             if reason is None and value['consent']['kind']=='willing' and not _willing(e,c,other,source):reason='mind_not_open'
             if reason is None and value['connection'] is not None and not live:
                 active=sum(x['status']=='live' and x['source']==source and x['sender_id']==c.entity_id for x in state['connections'].values())
-                if active>=value['connection']['maximum']:reason='connection_limit'
+                if active>=_connection_maximum(e,c,value['connection']):reason='connection_limit'
                 else:
                     prepared=L.prepare(e,c,other,value['connection']['lifetime'],source)
                     if not L.holds(e,prepared):reason='connection_condition_unavailable'
@@ -300,9 +316,7 @@ def send(engine,sender,recipient,value,thought,*,request_id,roll_options=None,op
                 if check['result']['winner_id']!=c.entity_id:reason='opposed_failed'
             if reason is None:
                 if value['connection'] is not None and not live:
-                    lifetime=prepared[L.KEY]
-                    state['connections'][key]=_signed({'source':source,'sender_id':c.entity_id,'recipient_id':other.entity_id,
-                        'lifetime':lifetime,'status':'live','opened_at':e.elapsed_seconds,'ended_at':None,'ending':None})
+                    establish(e,c,other,value)
                 message=_deliver(e,c,other,value,thought) if native is None else native.deliver(e,c,other,thought,operation)
         result={'source':source,'sender_id':c.entity_id,'recipient_id':other.entity_id,'status':'delivered' if reason is None else 'failed' if consumed else 'denied',
                 'reason':reason,'consumed':consumed,'check':check,'distance_exemption':exemption,'message':deepcopy(message),'replayed':False}
@@ -326,11 +340,12 @@ def send_many(engine,sender,recipients,value,thought,*,request_id,maximum,roll_o
     validate_world(engine,W.actor_index(engine))
     options={} if roll_options is None else deepcopy(roll_options)
     intent={'source':_body(value),'sender_id':sender.entity_id,'recipient_ids':ids,'text':thought,'roll_options':options}
+    native=_native(value)
+    if native is not None and hasattr(native,'replay_intent'):intent=native.replay_intent(engine,intent,_state(engine).get('batches',{}).get(request_id),'source')
     prior=TX.replay_result(_state(engine).get('batches',{}),request_id,intent,fingerprint_field='intent')
     if prior is not None:return dict(deepcopy(prior['result']),replayed=True)
     C.integer(maximum,'actual communication recipient maximum',0)
     if len(ids)>maximum:raise ValueError('actual communication recipient count exceeds the source maximum')
-    native=_native(value)
     if native is not None:
         for other in recipients:native.prepare(engine,sender,other,value,'send',thought)
     def apply(e,c,*others):
@@ -385,7 +400,7 @@ def validate_world(engine,index):
         if value['source']!=source or row['sha256']!=TX.request_fingerprint(row['declaration']):raise ValueError('communication source policy changed')
         Q._selected(engine,source)
         native=_native(value)
-        if native is not None and _body(native.policy(engine.r)['declaration'])!=row['declaration']:raise ValueError('native communication source contract changed')
+        if native is not None and not native.accepts_stored_policy(engine.r,row['declaration']):raise ValueError('native communication source contract changed')
     for field in ('permissions','relations','connections','attempts'):
         rows=state[field].items() if type(state[field]) is dict else enumerate(state[field])
         for key,row in rows:
@@ -450,5 +465,63 @@ def validate_world(engine,index):
         link=policy['declaration']['connection']
         if link is not None:
             for uid in index:
-                if sum(row['status']=='live' and row['source']==source and row['sender_id']==uid for row in state['connections'].values())>link['maximum']:raise ValueError('actual communication connection limit exceeded')
+                if sum(row['status']=='live' and row['source']==source and row['sender_id']==uid for row in state['connections'].values())>_connection_maximum(engine,index[uid],link):raise ValueError('actual communication connection limit exceeded')
     return True
+
+
+
+def _maximum_declaration(value):
+    if type(value)is dict:
+        Q._fields(value,('skill','effective'));Q._text(value['skill'])
+        if value['effective'] is not True:raise ValueError('connection skill limit must use its current effect rank')
+    else:C.integer(value,'connection maximum',1)
+
+
+def _connection_maximum(engine,actor,link):
+    value=link['maximum']
+    return S.effective_rank(engine.r,actor,value['skill']) if type(value)is dict else value
+
+
+def establish(engine,sender,recipient,value):
+    """One source-owned live connection primitive, shared by messages and Channeler."""
+    _actual(engine,sender,recipient);value=declaration(value);Q._selected(engine,value['source'])
+    state=_state(engine);body=_body(value);source=value['source'];digest=TX.request_fingerprint(body)
+    prior=state['policies'].get(source)
+    if prior is not None and prior['sha256']!=digest:raise ValueError('communication source policy cannot change')
+    state['policies'].setdefault(source,{'declaration':body,'sha256':digest});setattr(engine,KEY,state)
+    boundary(engine,'reconcile')
+    key=_pair(source,sender.entity_id,recipient.entity_id);old=state['connections'].get(key)
+    if old and old['status']=='live':return old
+    link=value['connection']
+    if link is None:raise ValueError('source requires an explicit connection declaration')
+    active=sum(row['status']=='live' and row['source']==source and row['sender_id']==sender.entity_id for row in state['connections'].values())
+    if active>=_connection_maximum(engine,sender,link):raise ValueError('connection limit reached')
+    prepared=L.prepare(engine,sender,recipient,link['lifetime'],source)
+    if not L.holds(engine,prepared):raise ValueError('connection condition unavailable')
+    row=_signed({'source':source,'sender_id':sender.entity_id,'recipient_id':recipient.entity_id,'lifetime':prepared[L.KEY],
+        'status':'live','opened_at':engine.elapsed_seconds,'ended_at':None,'ending':None})
+    state['connections'][key]=row;engine.time_actors([sender,recipient]);return row
+
+
+def publish_linked(engine,sender,recipient,source,information,*,request_id):
+    _actual(engine,sender,recipient);Q._text(request_id);Q._selected(engine,source)
+    state=_state(engine)
+    pairs=(_pair(source,sender.entity_id,recipient.entity_id),_pair(source,recipient.entity_id,sender.entity_id))
+    link=next((state['connections'][key] for key in pairs if key in state['connections'] and state['connections'][key]['status']=='live'),None)
+    if link is None:raise ValueError('actual live communication link required')
+    intent={'sender_id':sender.entity_id,'recipient_id':recipient.entity_id,'source':source,'information':deepcopy(information)}
+    previous=TX.replay_result(state['requests'],request_id,intent,fingerprint_field='intent')
+    if previous is not None:return dict(deepcopy(previous['result']),replayed=True)
+    def apply(e,a,b):
+        state=_state(e)
+        message={'source':source,'sender_id':a.entity_id,'recipient_id':b.entity_id,'information':deepcopy(information)}
+        result={'source':source,'sender_id':a.entity_id,'recipient_id':b.entity_id,'status':'delivered','reason':None,
+            'consumed':True,'check':None,'distance_exemption':None,'message':message,'replayed':False,'operation':'linked_information'}
+        native=_native({'source':source})
+        if native is None:raise ValueError('linked information needs a reviewed native information contract')
+        native.validate_result(e,result)
+        state['attempts'].append(_signed({'source':source,'sender_id':a.entity_id,'recipient_id':b.entity_id,'at':e.elapsed_seconds,
+            'period':None,'status':'delivered','reason':None,'request_id':request_id}))
+        state['requests'][request_id]={'intent':TX.request_fingerprint(intent),'result':deepcopy(result),'result_sha256':TX.request_fingerprint(result)}
+        return result
+    return G.transition(engine,sender,apply,participants=(recipient,))

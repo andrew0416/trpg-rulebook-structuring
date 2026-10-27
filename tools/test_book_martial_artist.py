@@ -325,12 +325,60 @@ class MartialArtistTests(unittest.TestCase):
   self.restore();self.valid()
 
  def test_reference_quick_guard_protects_adjacent_ally_only_from_actual_priority_hit(self):
-  import combat_move_reactions as REACT
+  import combat_move_reactions as REACT,action_resources as RES
   self.setup('테크니션');self.acquire(training=2);self.e.gm.set_move(self.t,'move/전광석화',reason='actual learned Priority Move')
-  self.start(self.t);REACT.arm(self.e,self.a,REACT.GUARD)
-  before=self.a.hp
-  with patch.object(Engine,'d20',return_value=20):self.e.use_move(self.t,self.a,'move/전광석화',set_damage=True)
-  self.assertEqual(self.a.hp,before);self.assertEqual(self.a.move_uses[REACT.GUARD],1)
+  self.u.side='party';self.u.spec['side']='party';self.e.gm.set_position(self.u,(3,4),reason='actual adjacent ally')
+  self.start(self.t);REACT.arm(self.e,self.a,REACT.GUARD,protect=self.u)
+  before=self.u.hp
+  with patch.object(Engine,'d20',return_value=20):self.e.use_move(self.t,self.u,'move/몸통박치기',set_damage=True)
+  self.assertLess(self.u.hp,before);self.assertNotIn(REACT.GUARD,self.a.move_uses)
+  self.assertIn(REACT.GUARD,self.a.spec[REACT.CHOICES]);self.assertEqual(RES.pending(self.a),{})
+  self.next(self.t)
+  before=self.u.hp
+  with patch.object(Engine,'d20',return_value=20):self.e.use_move(self.t,self.u,'move/전광석화',set_damage=True)
+  self.assertEqual(self.u.hp,before);self.assertEqual(self.a.move_uses[REACT.GUARD],1)
+  self.assertEqual(RES.pending(self.a),{'standard':1})
+  self.restore();self.valid()
+
+ def test_quick_guard_self_without_side_and_live_ally_observation_boundaries(self):
+  import combat_move_reactions as REACT,action_resources as RES
+  cases=(('absent','absent'),(None,None),(None,'party'),('party',None),('party','party'),('party','foes'))
+  for self_target in (False,True):
+   for sides in (cases if not self_target else cases[:2]):
+    with self.subTest(self_target=self_target,sides=sides):
+     self.setup('테크니션');self.acquire(training=2);self.e.gm.set_move(self.t,'move/전광석화',reason='actual learned Priority Move')
+     self.u.side='party';self.e.gm.set_position(self.u,(3,4),reason='actual adjacent protected body')
+     target=self.a if self_target else self.u
+     self.start(self.t);REACT.arm(self.e,self.a,REACT.GUARD,protect=target)
+     for actor,side in zip((self.a,target),sides):
+      actor.spec.pop('side',None)
+      if side=='absent':vars(actor).pop('side',None)
+      else:actor.side=side
+     allowed=self_target or sides==('party','party')
+     if allowed:REACT.arm(self.e,self.a,REACT.GUARD,protect=target)
+     else:self.rejected(lambda:REACT.arm(self.e,self.a,REACT.GUARD,protect=target),'observed adjacent ally')
+     self.restore();target=self.a if self_target else self.u;before=target.hp
+     choice=deepcopy(self.a.spec[REACT.CHOICES][REACT.GUARD])
+     with patch.object(Engine,'d20',return_value=20):self.e.use_move(self.t,target,'move/전광석화',set_damage=True)
+     if allowed:
+      self.assertEqual(target.hp,before);self.assertEqual(self.a.move_uses[REACT.GUARD],1)
+      self.assertEqual(RES.pending(self.a),{'standard':1});self.assertNotIn(REACT.GUARD,self.a.spec[REACT.CHOICES])
+     else:
+      self.assertLess(target.hp,before);self.assertNotIn(REACT.GUARD,self.a.move_uses)
+      self.assertEqual(RES.pending(self.a),{});self.assertEqual(self.a.spec[REACT.CHOICES][REACT.GUARD],choice)
+     self.restore();self.valid()
+
+ def test_quick_guard_rechecks_actual_adjacency_before_consuming_choice(self):
+  import combat_move_reactions as REACT,action_resources as RES
+  self.setup('테크니션');self.acquire(training=2);self.e.gm.set_move(self.t,'move/전광석화',reason='actual learned Priority Move')
+  self.u.side='party';self.e.gm.set_position(self.u,(3,4),reason='actual adjacent protected body')
+  self.start(self.t);REACT.arm(self.e,self.a,REACT.GUARD,protect=self.u)
+  self.e.gm.set_position(self.u,(5,3),reason='ally moved out of guard adjacency but remains next to attacker')
+  self.rejected(lambda:REACT.arm(self.e,self.a,REACT.GUARD,protect=self.u),'adjacent ally')
+  before=self.u.hp
+  with patch.object(Engine,'d20',return_value=20):self.e.use_move(self.t,self.u,'move/전광석화',set_damage=True)
+  self.assertLess(self.u.hp,before);self.assertNotIn(REACT.GUARD,self.a.move_uses)
+  self.assertIn(REACT.GUARD,self.a.spec[REACT.CHOICES]);self.assertEqual(RES.pending(self.a),{})
   self.restore();self.valid()
 
  def test_reference_sky_uppercut_interrupts_actual_fly_initiation_and_leaves_next_turn(self):
@@ -341,6 +389,31 @@ class MartialArtistTests(unittest.TestCase):
   with patch.object(Engine,'d20',return_value=20):self.e.use_setup_move_on(self.t,self.a,'move/공중날기',self.e.everyone)
   self.assertLess(self.t.hp,before);self.assertIsNone(SETUP.pending(self.t));self.assertIsNone(self.t.setup_move)
   self.assertEqual(self.t.budget['standard'],0);self.assertEqual(self.a.move_uses[REACT.UPPER],1)
+  self.restore();self.valid()
+
+ def test_sky_uppercut_uses_actual_other_target_without_an_enemy_restriction(self):
+  import combat_move_reactions as REACT,setup_move_state as SETUP,action_resources as RES
+  for sides in (('absent','absent'),(None,None),(None,'party'),('party',None),('party','party'),('party','foes')):
+   with self.subTest(sides=sides):
+    self.setup();self.acquire(training=3)
+    self.e.gm.choose_learned_capability_policy(self.t,'move/공중날기','move_entry',reason='actual learned Fly source')
+    self.e.gm.set_move(self.t,'move/공중날기',reason='actual learned Fly');self.start(self.t)
+    for actor,side in zip((self.a,self.t),sides):
+     actor.spec.pop('side',None)
+     if side=='absent':vars(actor).pop('side',None)
+     else:actor.side=side
+    REACT.arm(self.e,self.a,REACT.UPPER);self.restore();before=self.t.hp
+    with patch.object(Engine,'d20',return_value=20):self.e.use_setup_move_on(self.t,self.a,'move/공중날기',self.e.everyone)
+    self.assertLess(self.t.hp,before);self.assertIsNone(SETUP.pending(self.t))
+    self.assertEqual(self.a.move_uses[REACT.UPPER],1);self.assertEqual(RES.pending(self.a),{'standard':1})
+    self.restore();self.valid()
+  self.setup();self.acquire(training=3)
+  self.e.gm.choose_learned_capability_policy(self.a,'move/공중날기','move_entry',reason='actual learned Fly source')
+  self.e.gm.set_move(self.a,'move/공중날기',reason='actual learned Fly');self.start()
+  vars(self.a).pop('side',None);self.a.spec.pop('side',None);REACT.arm(self.e,self.a,REACT.UPPER)
+  with patch.object(Engine,'d20',return_value=20):self.e.use_setup_move_on(self.a,self.t,'move/공중날기',self.e.everyone)
+  self.assertIsNotNone(SETUP.pending(self.a));self.assertNotIn(REACT.UPPER,self.a.move_uses)
+  self.assertIn(REACT.UPPER,self.a.spec[REACT.CHOICES]);self.assertEqual(RES.pending(self.a),{})
   self.restore();self.valid()
 
  def test_reference_reaction_cannot_be_used_as_an_untriggered_ordinary_move(self):

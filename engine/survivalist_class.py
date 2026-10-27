@@ -8,6 +8,7 @@ Geography as-if terrain for one turn (C04-093) and the remaining Terrain Talent 
 (C04-094). Lifetimes use combat_timing, frequencies use frequency, trap instances use
 hazard_state, transactions use state_grants; nothing here overwrites actual world terrain.
 """
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 from pathlib import Path
 import hashlib
@@ -30,8 +31,9 @@ ENVIRON=_data['environ_labels']
 TOOLS='_survivalist_trap_tools'          # trainer.spec: consumable Trapper tools and their deployment receipts
 GUIDE_HISTORY='_survivalist_guide_history'  # trainer.spec: Wilderness Guide activation receipts
 TRAP_KIND=DEFINITIONS[TRAPPER]['hazard_kind']
-DEPLOY_RULING=DEFINITIONS[TRAPPER]['deploy_action_ruling']['prompt_type']
-DEPLOY_ACTIONS=tuple(DEFINITIONS[TRAPPER]['deploy_action_ruling']['choices'])
+# Retain old ruling identities only to validate historical paid deployment receipts.
+DEPLOY_RULING=DEFINITIONS[TRAPPER]['legacy_deploy_action_ruling']['prompt_type']
+DEPLOY_ACTIONS=tuple(DEFINITIONS[TRAPPER]['legacy_deploy_action_ruling']['choices'])
 PUSH='maneuver/밀기';TRIP='maneuver/걸기';OPPORTUNITY='maneuver/기회-공격'
 WEATHER_ALIASES={'snow':'hail'}
 
@@ -63,8 +65,7 @@ def definitions(rules):
 # ---------------------------------------------------------------- acquisition template
 def records(actor,feature=None,active=False):
  import trainer_feature_acquisition as T
- return [r['static_acquisition'] for _,r,live in T._static_records(actor)
-  if r['static_acquisition']['feature_id'] in FEATURES and (feature is None or r['static_acquisition']['feature_id']==feature) and (not active or live)]
+ return [record for _, record in T.static_family_acquisitions(actor, FEATURES, feature, active=active)]
 
 
 def acquired(actor,feature,rank=None):
@@ -233,12 +234,14 @@ def _allies(engine,actor):
          and getattr(t,'on_field',True) and not t.captured and not t.fainted]
 
 
-def wilderness_guide(e,a,*,terrain_name,reason):
+def wilderness_guide(e,a,*,terrain_name,reason,communication=None):
  import state_grants as G
  _text(reason,'GM Wilderness Guide reason')
  _require(e,a,GUIDE)
  allies=_allies(e,a)
  if not allies:raise ValueError('Wilderness Guide requires an actual ally on the field')
+ if communication is not None and (type(communication) is not dict or set(communication)!={t.entity_id for t in allies}):
+  raise ValueError('exact per-ally established communication requests required')
  def apply(staged,actor,*targets):
   import frequency as FREQ,turn as TURN,combat_timing as T
   _require(staged,actor,GUIDE)
@@ -252,7 +255,10 @@ def wilderness_guide(e,a,*,terrain_name,reason):
   freq=DEFINITIONS[GUIDE]['frequency']
   if not FREQ.activation_allowed(actor,GUIDE,freq,engine=staged):raise ValueError('Wilderness Guide Scene frequency exhausted')
   count=T.current(staged)
-  if not TURN.spend(staged,actor,'standard','야생 가이드: '+terrain):raise ValueError('Wilderness Guide Standard Action unavailable')
+  import order_actions as ORDERS
+  deliveries={t.entity_id:ORDERS.delivery(staged,actor,t,GUIDE,communication=None if communication is None else communication[t.entity_id]) for t in targets}
+  ORDERS.spend(staged,actor,GUIDE,subject=GUIDE+':'+str(len(actor.spec.get(GUIDE_HISTORY,[]))+1),
+               communication={'status':'delivered','recipients':deliveries})
   FREQ.consume_activation(actor,GUIDE,freq,engine=staged)
   sequence=len(actor.spec.get(GUIDE_HISTORY,[]))+1
   receipt={'sequence':sequence,'source':GUIDE,'owner_id':actor.entity_id,'terrain':terrain,'branch':branch,'round':staged.round_no,'count':count,
@@ -266,8 +272,11 @@ def wilderness_guide(e,a,*,terrain_name,reason):
    if row.get('damage_reduction'):record.update(effect_contract=True,damage_reduction=row['damage_reduction'])
    T.install(staged,t,record)
   staged.log('  '+actor.name+': 야생 가이드 ('+terrain+') → '+', '.join(t.name for t in targets)+' 1라운드',GUIDE)
+  import cheerleader as CHEER,duelist as DUELIST
+  origin={'kind':'wilderness_guide','source':GUIDE,'sequence':sequence}
+  CHEER.issue(staged,actor,targets,origin);DUELIST.after_order(staged,actor,targets,origin)
   return deepcopy(receipt)
- return G.transition(e,a,apply,participants=tuple(allies))
+ return G.transition(e,a,apply,participants=tuple(allies),include_rulings=True)
 
 
 def ignores_hazards(engine,actor):
@@ -402,7 +411,7 @@ def evasion_bonus(engine,target,attacker,move):
  opportunity=(isinstance(scope,dict) and scope.get('source')==OPPORTUNITY and scope.get('attacker_id')==attacker.entity_id and scope.get('target_id')==target.entity_id)
  if move.get('id') not in (PUSH,TRIP) and not opportunity:return 0
  import skill_modifiers as S
- return S.effective_rank(engine.r,target,'생존')//2
+ return NUMERIC.ratio(S.effective_rank(engine.r,target,'생존'),2)
 
 
 # ---------------------------------------------------------------- Trapper (ch04:2156-2164)
@@ -486,9 +495,6 @@ def deploy_trap_tool(e,a,*,tool_id,cells,reason):
  if problem:raise ValueError(problem)
  if not e.encounter_active:raise ValueError('Trapper Hazards require an actual encounter')
  _placement(e,a,cells)
- answer=e.rulings.decide({'type':DEPLOY_RULING,'actor':a.name,'tool_id':tool_id,'text':DEFINITIONS[TRAPPER]['deploy_action_ruling']['question']})
- if answer is None:return C.PendingDecision('GM ruling '+DEPLOY_RULING+' ('+'|'.join(DEPLOY_ACTIONS)+') required: the printed Trapper text gives no deployment action cost')
- if answer not in DEPLOY_ACTIONS:raise ValueError('Trapper deployment action ruling must be one of '+', '.join(DEPLOY_ACTIONS))
  def apply(staged,actor):
   import hazard_state as H,turn as TURN,world_entities as W
   _require(staged,actor,TRAPPER);live=_tool(actor,tool_id)
@@ -498,11 +504,11 @@ def deploy_trap_tool(e,a,*,tool_id,cells,reason):
   if index.get(actor.entity_id) is not actor or not getattr(actor,'on_field',True) or actor.captured:raise ValueError('actual on-field Trapper required')
   if not staged.encounter_active:raise ValueError('Trapper Hazards require an actual encounter')
   points=_placement(staged,actor,cells)
-  if not TURN.spend(staged,actor,answer,'트래퍼 도구 사용: '+tool_id):raise ValueError('Trapper deployment action unavailable')
+  if not TURN.spend(staged,actor,'standard','트래퍼 도구 사용: '+tool_id):raise ValueError('Trapper deployment action unavailable')
   source_id=TRAPPER+'#'+live['kind']+'#'+live['terrain']
   region=H._install_region(staged,actor,source_id,hazard_definition(staged.r,source_id,None),set(points),index)
   live['status']='used'
-  live['used']={'seconds':staged.elapsed_seconds,'round':staged.round_no,'region_id':region,'cells':[list(p) for p in sorted(points)],'action':answer,'ruling':DEPLOY_RULING,'reason':reason}
+  live['used']={'seconds':staged.elapsed_seconds,'round':staged.round_no,'region_id':region,'cells':[list(p) for p in sorted(points)],'action':'standard','ruling':None,'reason':reason}
   return deepcopy(live)
  return G.transition(e,a,apply,include_grid=True)
 
@@ -515,8 +521,9 @@ def hazard_entry(engine,actor,cell,instances):
  for instance in mine:
   if instance['trigger']!='enter_cell' or not H._hostile(instance,actor):continue
   _,kind,terrain=instance['source_id'].split('#');trap=TRAPS[kind];owner=H._owner(engine,instance)
-  if terrain in M.naturewalk_terrains(engine,actor):
-   engine.log('    %s: %s 자연걸음으로 %s 효과 면역'%(actor.name,terrain,instance['name']),TRAPPER);continue
+  immune=set(trap['terrains']) & M.naturewalk_terrains(engine,actor)
+  if immune:
+   engine.log('    %s: %s 자연걸음으로 %s 효과 면역'%(actor.name,', '.join(sorted(immune)),instance['name']),TRAPPER);continue
   duration=DEFINITIONS[TRAPPER]['slow_duration']
   if trap.get('replaces_slow'):
    H._dispatch(engine,owner,actor,instance,[{'type':'apply_status','status':trap['status'],'target':'target','duration':duration}])
@@ -547,7 +554,8 @@ def _validate_tools(engine,actor,index):
   if row['status'] not in ('ready','used') or (row['status']=='used')!=(row['used'] is not None):raise ValueError('Trapper tool status changed')
   if row['used'] is not None:
    used=row['used']
-   if type(used) is not dict or set(used)!={'seconds','round','region_id','cells','action','ruling','reason'} or used['action'] not in DEPLOY_ACTIONS or used['ruling']!=DEPLOY_RULING:raise ValueError('Trapper deployment receipt changed')
+   if type(used) is not dict or set(used)!={'seconds','round','region_id','cells','action','ruling','reason'}:raise ValueError('Trapper deployment receipt changed')
+   if not ((used['ruling'] is None and used['action']=='standard') or (used['ruling']==DEPLOY_RULING and used['action'] in DEPLOY_ACTIONS)):raise ValueError('Trapper deployment receipt changed')
    C.integer(used['seconds'],'Trapper deployment time',finished);C.integer(used['round'],'Trapper deployment round',0);_text(used['region_id'],'Trapper region');_text(used['reason'],'Trapper deployment reason')
    if type(used['cells']) is not list or len(used['cells'])!=DEFINITIONS[TRAPPER]['placement']['cells']:raise ValueError('Trapper deployment cells changed')
 
@@ -570,7 +578,7 @@ def _validate_records(engine,actor,index):
   owner=index.get(row['owner_id'])
   if owner is None or owner.kind!='trainer' or owner is actor:raise ValueError('Wilderness Guide record owner changed')
   history=owner.spec.get(GUIDE_HISTORY,[])
-  if not any(isinstance(h,dict) and h.get('sequence')==row['sequence'] and h.get('branch')==row['branch'] and actor.entity_id in h.get('allies',[]) for h in history):raise ValueError('Wilderness Guide record has no owner receipt')
+  if not any(isinstance(h,dict) and h.get('sequence')==row['sequence'] and h.get('branch')==row['branch'] and __import__('native_order_transfer').origin_id(record,actor) in h.get('allies',[]) for h in history):raise ValueError('Wilderness Guide record has no owner receipt')
   branch=BRANCHES[row['branch']]
   if record.get('evasion_modifier',0)!=branch.get('evasion',0) or record.get('damage_reduction',0)!=branch.get('damage_reduction',0):raise ValueError('Wilderness Guide numeric projection changed')
  rows=_adaptive_rows(actor)

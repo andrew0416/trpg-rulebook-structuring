@@ -21,6 +21,7 @@ def heal(engine,c,count,*,source):
     limit=engine.r.mech('combat/resting')['pokemon_center']['max_injuries_removed_per_day']
     import csv_item_capability_contracts as CSV_CAPABILITIES
     limit=CSV_CAPABILITIES.daily_injury_heal(c,limit)
+    limit+=__import__('study_books').care_injury_bonus(engine,c)
     import campaign_injury_policy as CAMPAIGN
     limit=CAMPAIGN.healing_limit(engine,c,source=source,core_limit=limit,spent=spent)
     import environmental_effects as ENVIRONMENT
@@ -129,6 +130,7 @@ def note_change(engine,c,amount,source):
     row.update(observed_at=engine.elapsed_seconds,known_seconds=0,accelerated_seconds=0,
                birth_round=engine.round_no if engine.round_start_seconds is not None else None,
                last_injury_source=source,last_injury_count=amount)
+    row.pop('study_book_acceleration',None)
 
 
 def advance(engine,c,seconds):
@@ -145,6 +147,7 @@ def advance(engine,c,seconds):
     # two-second interval: ceil(1 / 2) must not lose one-second slices.
     bonus=seconds if CSV_CAPABILITIES.injury_recovery_seconds(c,2)<2 else 0
     row['known_seconds']+=seconds
+    bonus+=__import__('study_books').care_acceleration(engine,c,seconds,synthetic=bool(bonus))
     row['accelerated_seconds']=row.get('accelerated_seconds',0)+bonus
 
 
@@ -160,10 +163,12 @@ def recover_naturally(engine,c):
     if c.dead or row['known_seconds']+row.get('accelerated_seconds',0)<rule['per_hours']*3600:return 0
     evidence={k:row[k] for k in ('observed_at','known_seconds','last_injury_source','last_injury_count')}
     evidence['accelerated_seconds']=row.get('accelerated_seconds',0)
+    if 'study_book_acceleration' in row:evidence['study_book_acceleration']=__import__('copy').deepcopy(row['study_book_acceleration'])
     recovered=heal(engine,c,rule['count'],source='natural')
     if recovered:
         c.spec['injury_healing_history'][-1]['eligibility']=evidence
         row.update(observed_at=engine.elapsed_seconds,known_seconds=0,accelerated_seconds=0,last_recovery_at=engine.elapsed_seconds,birth_round=None)
+        row.pop('study_book_acceleration',None)
     return recovered
 
 
@@ -179,6 +184,8 @@ def recover_with_ap(engine,c,*,duration_minutes=None,reason=None):
     if not isinstance(reason,str) or not reason.strip():raise ValueError('GM injury recovery duration reason required')
     validate(c);AP.validate(c)
     limit=engine.r.mech('combat/resting')['pokemon_center']['max_injuries_removed_per_day']
+    limit=__import__('csv_item_capability_contracts').daily_injury_heal(c,limit)
+    limit+=__import__('study_books').care_injury_bonus(engine,c)
     if c.dead or c.injuries<=ENVIRONMENT.protected_injuries(c) or healed_today(c)>=limit or AP.available(c)<2:return False
     engine.preflight_advance_time(duration_minutes*60,[c])
     def apply(e,actor):
@@ -201,7 +208,8 @@ def validate_clock(c):
     if row is not None:
         if not isinstance(row,dict) or row.get('source')!='combat/resting':raise ValueError('injury recovery clock source required')
         for key in ('observed_at','known_seconds','observed_injuries'):C.integer(row.get(key),'injury clock '+key,0)
-        C.integer(row.get('accelerated_seconds',0),'injury acceleration credit',0,row['known_seconds'])
+        extra=__import__('study_books').clock_extra_bound(row)
+        C.integer(row.get('accelerated_seconds',0),'injury acceleration credit',0,row['known_seconds']+extra)
         if row.get('birth_round') is not None:C.integer(row['birth_round'],'injury birth round',0)
         if row.get('last_recovery_at') is not None:C.integer(row['last_recovery_at'],'natural recovery time',0)
         if row.get('last_injury_source') is not None:

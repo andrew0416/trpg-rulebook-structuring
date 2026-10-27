@@ -28,11 +28,19 @@ def attacked(e,actor,target,move,*,producer="Engine.use_move"):
     # Self-only buffs are not attacks against the actor. Direct self-damage
     # producers can still register an actual damaging hit below.
     if actor is target and move.get("class")=="변화":return None
-    return _record(e,target,"attack",move["id"],actor=actor,producer=producer,
-                   move_class=move["class"],result="activated")
+    event=_record(e,target,"attack",move["id"],actor=actor,producer=producer,
+                  move_class=move["class"],result="activated")
+    frames=getattr(e,'_native_action_stack',[])
+    if event is not None and producer=='combat_maneuver' and frames:
+        frame=frames[-1]
+        if frame['actor'] is actor and frame['source']==move['id'] and frame['kind']=='maneuver':
+            frame['precision_event_id']=event['id']
+    return event
 
-def accuracy(event,hit):
-    if event is not None:event["result"]="accuracy_hit" if hit else "miss"
+def accuracy(event,hit,*,natural=None):
+    if event is None:return
+    event["result"]="accuracy_hit" if hit else "miss"
+    if natural is not None:event["natural"]=natural
 
 def damage_hit(e,actor,target,move,event,facts,damage):
     if event is None:event=attacked(e,actor,target,move,producer="Engine.resolve_attack_damage")
@@ -42,6 +50,15 @@ def damage_hit(e,actor,target,move,event,facts,damage):
     event.update(result="hit_prevented" if facts.get("hit_prevented") else "damaging_hit",
                  hit_prevented=facts.get("hit_prevented"),nullification=facts.get("nullification"),resolved_damage=damage)
 
+def gain_injury(e,c,amount,source):
+    """The actual gain boundary, before count-dependent injury consumers."""
+    amount=__import__('ace_trainer').prevent_injury(e,c,amount,source)
+    before=c.injuries
+    c.injuries+=amount
+    if amount:injury(e,c,amount,source)
+    return c.injuries-before
+
+
 def injury(e,c,amount,source):
     import campaign_injury_policy as CAMPAIGN
     import injury_recovery as INJURY
@@ -50,6 +67,7 @@ def injury(e,c,amount,source):
     if retained>0:
         _record(e,c,"injury",source,amount=retained)
         __import__('type_ace').gravel(e,c,'actual_injury')
+        __import__('sage').injury(e,c,retained,source)
 
 def clear(e):e._precision_events.clear()
 
@@ -103,12 +121,19 @@ def perform(e,actor,skill,dc,options,adjudication):
     def resolve(staged,rolls=None):
         ordinary=rolls[0] if rolls is not None else staged.skill_roll(actor,skill,**task)
         concentration=(rolls[1] if rolls is not None else staged.skill_roll(actor,"집중",**focus)) if observed["attacked"] else None
+        if concentration is not None:
+            import skill_feature_actions as SF
+            identity=SF._observed(staged,actor,concentration,focus)[0] if actor.entity_id in getattr(staged,'_let_me_help_offers',{}) else focus.get('roll_id')
+            __import__('skill_feature_actions').resolve_check(staged,actor,'집중',16,concentration,focus)
+            if identity is not None:
+                completed=__import__('skill_feature_actions').event(staged,actor,identity)
+                if completed is not None and completed.final is not None:concentration=completed.final
         failure=0 if concentration is None or concentration.total>=16 else -(1+M.ratio(16-concentration.total,4))
         hit_penalty=-2 if observed["damaging_hit"] else 0
         injury_penalty=-2*observed["injuries"]
         penalty=failure+hit_penalty+injury_penalty
         adjusted=replace(ordinary,modifier=ordinary.modifier+penalty)
-        check=C.against_dc(adjusted,dc)
+        check=__import__('skill_feature_actions').resolve_check(staged,actor,skill,dc,adjusted,task,observed_roll=ordinary)
         import skill_feature_actions as SF
         SF.finish(staged,actor,task.get("roll_id"))
         if concentration is not None:SF.finish(staged,actor,focus.get("roll_id"))
@@ -123,4 +148,4 @@ def perform(e,actor,skill,dc,options,adjudication):
         plans=[(actor,skill,task)]+([(actor,"집중",focus)] if observed["attacked"] else [])
         basis={"source":SOURCE,"context":deepcopy(context),"dc":dc,"evidence":observed}
         return SF.sequence(e,"precise:"+task["roll_id"],basis,plans,lambda rolls:resolve(e,rolls))
-    return COMMON._staged_rolls(e,resolve)
+    return COMMON._staged_rolls(e,resolve,actors=(actor,))

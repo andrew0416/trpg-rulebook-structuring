@@ -11,6 +11,8 @@ from synthetic_rule_fixture import register_synthetic
 import items as ITEMS
 import effects as FX
 import downtime as DT
+from reference_rule_connections import (registered_plate_state, initial_gift_state,
+    exhausted_gift_state, end_gift_scene, reference_step, prepare_reference_cases, connected_reference_suite)
 
 PLATES=[
 ('용의플레이트','드래곤',159),('공포플레이트','악',160),('대지플레이트','땅',161),
@@ -22,6 +24,9 @@ PLATES=[
 GIFT='feat/이벨타르의-메이저-기프트-박피사의-접촉'
 
 class ReferenceRuleTests(unittest.TestCase):
+    @classmethod
+    def prepare_chained_cases(cls,cases):
+        return prepare_reference_cases(cls,cases,PLATES,GIFT)
     @classmethod
     def setUpClass(cls):
         cls.rules=Rules(str(ROOT),ruleset='all')
@@ -60,35 +65,36 @@ class ReferenceRuleTests(unittest.TestCase):
         effects,_=self.rules.item_effects('타입플레이트')
         self.assertEqual(sum(x.get('type')=='damage_reduction' and x.get('value')==15 and x.get('vs_type')=='chosen' for x in effects),1)
         self.assertFalse(any(x.get('type')=='damage_reduction' for x in a.modifiers))
+    @reference_step
     def test_gift_one_additional_injury_per_acknowledged_trigger(self):
-        e,a,b=self.fixture(feat=True)
+        e,a,b=initial_gift_state(self,GIFT)
         before=b.injuries
         for i in range(3):
             self.assertEqual(ITEMS.manual_feat(e,a,GIFT,b),(1,0))
             self.assertEqual(b.injuries,before+i+1)
         self.assertEqual(a.injuries,0)
+    @reference_step
     def test_gift_fourth_use_rejected_without_target_mutation(self):
-        e,a,b=self.fixture(feat=True)
-        for _ in range(3):ITEMS.manual_feat(e,a,GIFT,b)
+        e,a,b=exhausted_gift_state(self,ITEMS.manual_feat,GIFT)
         before=(b.injuries,b.hp)
         self.assertEqual(ITEMS.manual_feat(e,a,GIFT,b),(0,1))
         self.assertEqual((b.injuries,b.hp),before)
+    @reference_step
     def test_gift_scene_end_does_not_refresh_daily_limit(self):
-        e,a,b=self.fixture(feat=True)
-        for _ in range(3):ITEMS.manual_feat(e,a,GIFT,b)
-        e.end_scene([a,b])
+        e,a,b=exhausted_gift_state(self,ITEMS.manual_feat,GIFT)
+        end_gift_scene(self,e,[a,b])
         self.assertEqual(ITEMS.manual_feat(e,a,GIFT,b),(0,1))
         self.assertEqual(b.injuries,3)
+    @reference_step
     def test_gift_explicit_new_day_refreshes_only_daily_uses(self):
-        e,a,b=self.fixture(feat=True)
-        for _ in range(3):ITEMS.manual_feat(e,a,GIFT,b)
+        e,a,b=exhausted_gift_state(self,ITEMS.manual_feat,GIFT)
         DT.new_day(a)
         for _ in range(3):self.assertEqual(ITEMS.manual_feat(e,a,GIFT,b),(1,0))
         self.assertEqual(ITEMS.manual_feat(e,a,GIFT,b),(0,1))
         self.assertEqual(b.injuries,6)
+    @reference_step
     def test_gift_usage_survives_serialized_spec_and_reregistration(self):
-        e,a,b=self.fixture(feat=True)
-        for _ in range(3):ITEMS.manual_feat(e,a,GIFT,b)
+        e,a,b=exhausted_gift_state(self,ITEMS.manual_feat,GIFT)
         spec=json.loads(json.dumps(a.spec,ensure_ascii=False))
         restored=Combatant(self.rules,spec)
         ITEMS.register_feats(e,restored)
@@ -97,7 +103,7 @@ class ReferenceRuleTests(unittest.TestCase):
 
 def make_plate_test(name,ty,mode):
     def test(self):
-        e,a,b=self.fixture(name)
+        e,a,b=registered_plate_state(self,name)
         if mode=='matching':
             for cls in ['물리','특수']:
                 m=self.move(ty,cls)
@@ -126,7 +132,7 @@ def make_plate_test(name,ty,mode):
             b.item=name;ITEMS.register_item(e,b)
             self.assertEqual(self.bonus(e,b,a,m),5)
             self.assertEqual(ITEMS.item_damage_reduction(b,m),15)
-    return test
+    return reference_step(test)
 for index,(name,ty,row) in enumerate(PLATES,1):
     for mode in ['matching','nonmatching','lifecycle']:
         setattr(ReferenceRuleTests,f'test_plate_{index:02d}_{mode}',make_plate_test(name,ty,mode))
@@ -139,9 +145,9 @@ if __name__=='__main__':
         def addFailure(self,test,err):super().addFailure(test,err);self.record(test,'fail')
         def addError(self,test,err):super().addError(test,err);self.record(test,'error')
         def addSkip(self,test,reason):super().addSkip(test,reason);self.record(test,'skip')
-    result=unittest.TextTestRunner(verbosity=2,resultclass=RecordedResult).run(unittest.defaultTestLoader.loadTestsFromTestCase(ReferenceRuleTests))
+    result=unittest.TextTestRunner(verbosity=2,resultclass=RecordedResult).run(connected_reference_suite(unittest.defaultTestLoader.loadTestsFromTestCase(ReferenceRuleTests),ReferenceRuleTests,PLATES,GIFT))
     paths=[p for folder,glob in [('engine','*.py'),('data','*.json')] for p in (ROOT/folder).glob(glob)]
-    paths += [ROOT/'tools/synthetic_rule_fixture.py',Path(__file__),ROOT/'input/ch09-equipment.md',ROOT/'input/supp-blessings.md',ROOT/'output/source-audit/2026-10-10/xlsx-cells.json']
+    paths += [ROOT/'tools/reference_rule_connections.py',ROOT/'tools/synthetic_rule_fixture.py',Path(__file__),ROOT/'input/ch09-equipment.md',ROOT/'input/supp-blessings.md',ROOT/'output/source-audit/2026-10-10/xlsx-cells.json']
     report=dict(generated_at=datetime.now(timezone.utc).isoformat(),results=result.rows,
         scope='Plate +5/DR15 type restrictions and lifecycle; GM-acknowledged Flayed One +1 injury and daily cap. Not full source certification.',
         input_hashes={p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in paths})

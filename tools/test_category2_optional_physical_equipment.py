@@ -142,10 +142,10 @@ class OptionalPhysicalEquipmentTests(unittest.TestCase):
         self.assertIn("자연걸음(산)", GRANTS.effective(actor, "capabilities"))
         ITEMS.unregister_item(engine, actor, registration_key=next(k for k,v in actor._item_reg.items() if v.get("instance_id")==boots))
         suit = self.equip(engine, actor, "item/우주복", "space-suit")
-        self.assertEqual(MOVEMENT.capabilities(engine, actor, environment=False)["levitate"], 4)
+        self.assertEqual(MOVEMENT.capabilities(engine, actor, environment=False)["free_float"], 4)
         self.assertIn("진공면역", GRANTS.effective(actor, "capabilities"))
         ITEMS.unregister_item(engine, actor, registration_key=next(k for k,v in actor._item_reg.items() if v.get("instance_id")==suit))
-        self.assertEqual(MOVEMENT.capabilities(engine, actor, environment=False).get("levitate", 0), 0)
+        self.assertEqual(MOVEMENT.capabilities(engine, actor, environment=False).get("free_float", 0), 0)
 
     def test_mental_shield_is_either_focus_bonus_or_mindlock_and_opposed_consumer_reads_it(self):
         engine, sender, recipient, _ = self.fixture()

@@ -20,6 +20,7 @@ import frequency as FREQUENCY
 POLICY_PATH = "data/class-actor-state-reactions-policy.json"
 NATIVE_POLICY_PATH = "data/native-class-reaction-policy.json"
 STATE = "_class_actor_state_reactions"
+DEEP_QUOTA = "_deep_cold_target_scene_quota"
 
 THIS_WILL_NOT_STAND = "feat/이건-버티지-못할걸"
 ENDURING_BLOOM = "feat/인내의-개화"
@@ -208,11 +209,20 @@ def _state(actor, create=False):
             __import__('combat_damage').validate_native_hit(receipt['native_damage'])
         if event["result"] is not None and not isinstance(event["result"], dict):
             raise ValueError("reaction result must be a mapping or null")
+        result = event["result"] or {}
+        if "target_scene_quota" in result:
+            proof = result["target_scene_quota"]
+            if (event["source"] != DEEP_COLD or event["status"] != "completed" or result.get("used") is not True
+                    or not isinstance(proof, dict) or proof.get("source") != _deep_source(actor.r)
+                    or proof.get("target_id") != event["target_id"]
+                    or proof.get("feature_owner_id") != actor.entity_id or proof.get("event_id") != event["id"]):
+                raise ValueError("Deep Cold completed result requires its actual target quota receipt")
     return value
 
 
 def validate(actor):
     _state(actor)
+    _deep_quota_state(actor)
     return True
 
 
@@ -221,6 +231,13 @@ def validate_world(engine, index=None):
     if index is None:
         index = _actor_index(engine)
     for actor in index.values():
+        quota = _deep_quota_state(actor)
+        if quota is not None and any(row["at"] > engine.elapsed_seconds
+                                     for row in quota["adoptions"] + quota["uses"]):
+            raise ValueError("Deep Cold target quota receipt cannot be in the future")
+        if quota is not None and any(row["key"] != _target_key(engine, actor, actor, DEEP_COLD)
+                                     for row in quota["uses"]):
+            raise ValueError("Deep Cold use requires the existing exact target frequency key")
         state = _state(actor)
         if state is None:
             continue
@@ -228,6 +245,11 @@ def validate_world(engine, index=None):
             if event["status"] == "pending" and any(
                     uid not in index for uid in (event["subject_id"], event["target_id"], event["attacker_id"])):
                 raise ValueError("pending reaction requires actual world participants")
+            proof = (event["result"] or {}).get("target_scene_quota")
+            if proof is not None and event["target_id"] in index:
+                target_quota = _deep_quota_state(index[event["target_id"]])
+                if target_quota is None or proof not in target_quota["uses"]:
+                    raise ValueError("completed Deep Cold target quota receipt is missing")
     return True
 
 
@@ -252,8 +274,155 @@ def _target_key(engine, owner, target, rule_id):
     return FREQUENCY.declaration_key(engine, owner, target, rule_id, "triggered_free", declaration)
 
 
+def _fingerprint(value):
+    # Native damage evidence contains finite type multipliers (including 0.5).
+    # Hash its existing JSON representation, not the integer-only request DSL.
+    import resolution_transaction as TX
+    return TX.json_fingerprint(value, allow_nan=False)
+
+
+def _deep_source(rules):
+    csv_source = policy(rules)
+    native = native_policy(rules)["sources"][DEEP_COLD]
+    return {"rule_id": DEEP_COLD, "clause_id": CLAUSE_BY_RULE[DEEP_COLD],
+            "csv_sha256": csv_source["source_file_sha256"],
+            "native_clause_id": native["clause_id"], "native_sha256": native["excerpt_sha256"]}
+
+
+def _deep_quota_state(target, create=False):
+    value = target.spec.get(DEEP_QUOTA)
+    if value is None and create:
+        value = {"version": 1, "adoptions": [], "uses": []}
+        target.spec[DEEP_QUOTA] = value
+    if value is None:
+        return None
+    FREQUENCY.validate(target)
+    scene = target.spec.get("frequency_state", {}).get("scene", 0)
+    if (not isinstance(value, dict) or set(value) != {"version", "adoptions", "uses"}
+            or value["version"] != 1 or type(value["adoptions"]) is not list or type(value["uses"]) is not list):
+        raise ValueError("invalid Deep Cold target quota receipts")
+    scopes = set()
+    events = set()
+    used_scenes = set()
+    for row in value["adoptions"] + value["uses"]:
+        if (not isinstance(row, dict) or row.get("source") != _deep_source(target.r)
+                or row.get("target_id") != target.entity_id
+                or type(row.get("scene")) is not int or not 0 <= row["scene"] <= scene
+                or type(row.get("at")) is not int or row["at"] < 0):
+            raise ValueError("Deep Cold quota requires actual source, target, Scene and time")
+    for row in value["adoptions"]:
+        if (set(row) != {"source", "target_id", "scene", "at", "scope", "evidence", "used", "reason"}
+                or type(row["used"]) is not int or row["used"] not in (0, 1)
+                or type(row["reason"]) is not str or not row["reason"].strip()
+                or type(row["evidence"]) is not list or not row["evidence"]
+                or type(row["scope"]) is not dict
+                or set(row["scope"]) != {"source", "target_id", "target_scene", "legacy_evidence_hash", "target_quota_hash"}
+                or row["scope"].get("source") != row["source"]
+                or row["scope"].get("target_id") != row["target_id"]
+                or row["scope"].get("target_scene") != row["scene"]
+                or row["scope"].get("legacy_evidence_hash") != _fingerprint(row["evidence"])
+                or type(row["scope"].get("target_quota_hash")) is not str
+                or re.fullmatch(r"[0-9a-f]{64}", row["scope"]["target_quota_hash"]) is None):
+            raise ValueError("Deep Cold adoption needs its exact current observation")
+        identity = _fingerprint(row["scope"])
+        if identity in scopes:
+            raise ValueError("duplicate Deep Cold quota observation")
+        scopes.add(identity)
+    for row in value["uses"]:
+        if (set(row) != {"source", "target_id", "scene", "at", "feature_owner_id", "key", "event_id"}
+                or any(type(row[key]) is not str or not row[key] for key in ("feature_owner_id", "key", "event_id"))
+                or row["event_id"] in events or row["scene"] in used_scenes):
+            raise ValueError("Deep Cold use needs its actual target quota receipt")
+        events.add(row["event_id"])
+        used_scenes.add(row["scene"])
+    return value
+
+
+def _deep_legacy_evidence(engine, target, key):
+    evidence = []
+    for owner in sorted(_actor_index(engine).values(), key=lambda actor: actor.entity_id):
+        FREQUENCY.validate(owner)
+        old = owner.spec.get("frequency_state", {}).get("activations", {}).get(key)
+        if owner is not target and old is not None and old.get("kind") == "scene" and old["used"]:
+            evidence.append({"kind": "owner_quota", "owner_id": owner.entity_id, "key": key, "row": deepcopy(old)})
+        state = _state(owner)
+        for event in state["events"] if state is not None else ():
+            if (event["source"] == DEEP_COLD and event["target_id"] == target.entity_id
+                    and event["status"] == "completed" and isinstance(event["result"], dict)
+                    and event["result"].get("used") is True
+                    and "target_scene_quota" not in event["result"]):
+                evidence.append({"kind": "owner_event", "owner_id": owner.entity_id, "event": deepcopy(event)})
+    return evidence
+
+
+def deep_cold_target_quota(engine, target):
+    """Read the actual target Scene; old owner counters cannot identify it."""
+    if _actor_index(engine).get(target.entity_id) is not target:
+        raise ValueError("actual registered Deep Cold target required")
+    FREQUENCY.validate(target)
+    key = _target_key(engine, target, target, DEEP_COLD)
+    calendar = target.spec.get("frequency_state", {})
+    scene = calendar.get("scene", 0)
+    row = calendar.get("activations", {}).get(key)
+    state = _deep_quota_state(target) or {"version": 1, "adoptions": [], "uses": []}
+    spent = bool(row and row["kind"] == "scene" and row["period"] == scene and row["used"])
+    spent = spent or any(receipt["scene"] == scene for receipt in state["uses"])
+    spent = spent or any(receipt["scene"] == scene and receipt["used"] == 1 for receipt in state["adoptions"])
+    evidence = _deep_legacy_evidence(engine, target, key)
+    covered = {_fingerprint(item) for receipt in state["adoptions"] for item in receipt["evidence"]}
+    unbound = any(_fingerprint(item) not in covered for item in evidence)
+    status = "spent" if spent else "observation_required" if unbound else "available"
+    scope = {"source": _deep_source(engine.r), "target_id": target.entity_id, "target_scene": scene,
+             "legacy_evidence_hash": _fingerprint(evidence),
+             "target_quota_hash": _fingerprint({"row": row, "receipts": state})}
+    return {"status": status, "scope": scope, "evidence": evidence, "key": key}
+
+
+def _close_deep_target(engine, target):
+    for owner in _actor_index(engine).values():
+        state = _state(owner)
+        for event in state["events"] if state is not None else ():
+            if event["status"] == "pending" and event["source"] == DEEP_COLD and event["target_id"] == target.entity_id:
+                event["status"] = "superseded"
+                event["result"] = {"used": False, "reason": "target_scene_limit_spent"}
+
+
+def observe_deep_cold_target_quota(engine, target, *, used, scope, reason):
+    """Adopt a GM observation of the current quota, preserving legacy history."""
+    if type(used) is not int or used not in (0, 1):
+        raise ValueError("Deep Cold current quota observation must be integer 0 or 1")
+    if type(reason) is not str or not reason.strip():
+        raise ValueError("Deep Cold current quota observation reason required")
+    current = deep_cold_target_quota(engine, target)
+    if current["status"] != "observation_required" or scope != current["scope"]:
+        raise ValueError("fresh scoped Deep Cold current quota observation required")
+    import state_grants as GRANTS
+
+    def commit(e, actual):
+        before = deep_cold_target_quota(e, actual)
+        if before["status"] != "observation_required" or scope != before["scope"]:
+            raise ValueError("fresh scoped Deep Cold current quota observation required")
+        receipt = {"source": deepcopy(scope["source"]), "target_id": actual.entity_id,
+                   "scene": scope["target_scene"], "at": e.elapsed_seconds,
+                   "scope": deepcopy(scope), "evidence": before["evidence"], "used": used, "reason": reason}
+        _deep_quota_state(actual, create=True)["adoptions"].append(receipt)
+        FREQUENCY.state(actual)["activations"][before["key"]] = {
+            "kind": "scene", "period": scope["target_scene"], "used": used}
+        if used:
+            _close_deep_target(e, actual)
+        e.gm._rec("현재 극심한 추위 대상 장면 횟수 관측", before, receipt, reason, who=actual)
+        return deepcopy(receipt)
+
+    return GRANTS.transition(engine, target, commit, include_rulings=True)
+
+
 def _available(engine, owner, target, rule_id):
     row = policy(engine.r)["clauses"][CLAUSE_BY_RULE[rule_id]]
+    if rule_id == DEEP_COLD:
+        if not FREQUENCY.activation_allowed(owner, rule_id, row["frequency"], engine=engine):
+            return False
+        status = deep_cold_target_quota(engine, target)["status"]
+        return None if status == "observation_required" else status == "available"
     return (
         FREQUENCY.activation_allowed(owner, rule_id, row["frequency"], engine=engine)
         and FREQUENCY.activation_allowed(
@@ -282,7 +451,7 @@ def _massive(engine, target, receipt):
 
 def _offer(engine, owner, subject, target, event, receipt, rule_id, *, critical, massive, actual_type, multiplier):
     acquisition_source = acquired_source(owner, rule_id)
-    if acquisition_source is None or not _available(engine, owner, target, rule_id):
+    if acquisition_source is None or _available(engine, owner, target, rule_id) is False:
         return None
     state = _state(owner, create=True)
     state["serial"] += 1
@@ -300,7 +469,7 @@ def _offer(engine, owner, subject, target, event, receipt, rule_id, *, critical,
         "type_multiplier": multiplier,
         "critical": critical,
         "massive": massive,
-        "sunny": __import__("effects").effective_weather(engine, subject) == "sunny",
+        "sunny": "sunny" in __import__("weather_state").effective_weathers(engine, subject, include_virtual=False),
         "damage_receipt": deepcopy(receipt),
         "round": engine.round_no,
         "status": "pending",
@@ -330,24 +499,8 @@ def observe_attack_damage(engine, event, receipt, *, critical):
 
     defending_owner = _owner(engine, target)
     massive = _massive(engine, target, receipt)
-    if defending_owner is not None and any(kind in ("드래곤", "Dragon") for kind in target.types):
-        # Adopted errata p8 replaces the printed critical/massive trigger with the actual
-        # above-half HP crossing owned by type_ace.hp_changed for receipted Type Ace owners.
-        # Legacy feats-list-only owners keep this pre-errata offer (documented limit).
-        if (critical or massive) and not __import__('type_ace').hp_interested(engine, target):
-            offered.append(_offer(
-                engine,
-                defending_owner,
-                target,
-                target,
-                event,
-                receipt,
-                THIS_WILL_NOT_STAND,
-                critical=critical,
-                massive=massive,
-                actual_type=actual_type,
-                multiplier=multiplier,
-            ))
+    # User-adopted This Will Not Stand is owned by the actual HP-crossing leaf in
+    # type_ace for both receipted and source-authenticated imported feat owners.
     if defending_owner is not None and any(kind in ("풀", "Grass") for kind in target.types):
         if actual_type in ENDURING_TYPES and multiplier > 1:
             offered.append(_offer(
@@ -389,7 +542,15 @@ def pending(engine, trainer):
     state = _state(trainer)
     if state is None:
         return ()
-    return tuple(deepcopy(event) for event in state["events"] if event["status"] == "pending")
+    result = []
+    for event in state["events"]:
+        if event["status"] != "pending":
+            continue
+        copy = deepcopy(event)
+        if event["source"] == DEEP_COLD:
+            copy["target_scene_quota"] = deep_cold_target_quota(engine, index[event["target_id"]])
+        result.append(copy)
+    return tuple(result)
 
 
 def ensure_clear(engine):
@@ -480,7 +641,7 @@ def _close_unavailable(engine, owner, actors):
         if event["status"] != "pending":
             continue
         target = actors.get(event["target_id"])
-        if target is None or not _available(engine, owner, target, event["source"]):
+        if target is None or _available(engine, owner, target, event["source"]) is False:
             event["status"] = "superseded"
             event["result"] = {"used": False, "reason": "frequency_or_target_scene_limit_spent"}
 
@@ -513,7 +674,10 @@ def resolve(engine, trainer, event_id, *, use, stats=()):
             raise ValueError("reaction participants must remain actual world actors")
         if _owner(staged_engine, subject) is not staged_owner:
             raise ValueError("reaction subject ownership changed")
-        if not _available(staged_engine, staged_owner, target, event["source"]):
+        available = _available(staged_engine, staged_owner, target, event["source"])
+        if available is None:
+            raise ValueError("Deep Cold target Scene quota requires a current scoped GM observation")
+        if not available:
             raise ValueError("reaction frequency or target Scene limit is spent")
         import action_lifecycle as ACTION
         ACTION.triggered_free_action(staged_engine, staged_owner, event["source"])
@@ -521,14 +685,23 @@ def resolve(engine, trainer, event_id, *, use, stats=()):
         clause = policy(staged_engine.r)["clauses"][event["clause_id"]]
         FREQUENCY.consume_activation(staged_owner, event["source"], clause["frequency"], engine=staged_engine)
         target_key = _target_key(staged_engine, staged_owner, target, event["source"])
+        quota_owner = target if event["source"] == DEEP_COLD else staged_owner
         FREQUENCY.consume_activation(
-            staged_owner,
+            quota_owner,
             target_key,
             {"kind": "scene", "uses": 1},
             engine=staged_engine,
         )
+        if event["source"] == DEEP_COLD:
+            receipt = {"source": _deep_source(staged_engine.r), "target_id": target.entity_id,
+                       "scene": FREQUENCY.state(target)["scene"], "at": staged_engine.elapsed_seconds,
+                       "feature_owner_id": staged_owner.entity_id, "key": target_key, "event_id": event["id"]}
+            _deep_quota_state(target, create=True)["uses"].append(deepcopy(receipt))
+            result["target_scene_quota"] = receipt
         event["status"] = "completed"
         event["result"] = dict(result, used=True)
+        if event["source"] == DEEP_COLD:
+            _close_deep_target(staged_engine, target)
         _close_unavailable(staged_engine, staged_owner, actors)
         return deepcopy(event["result"])
 

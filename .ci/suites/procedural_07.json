@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "execution_kind": "procedural_runner",
+  "unit_id": "script:engine/test_items.py",
+  "unit_kind": "procedural_script_runner",
+  "required_runner_ids": [
+    "script:engine/test_items.py"
+  ],
+  "completed": {},
+  "original_contract_sha256": "aebde1628a4a43c42d344b645c857a9c42daee7d4589aebec1cc79a834d51074",
+  "inventory_sha256": "46c04e8eb8efa90c96a5ca21864b44e0112a7b0b9d78f77c31aad5bafe36caf5",
+  "runner": {
+    "source_path": "engine/test_items.py",
+    "argv": [
+      "python",
+      "-B",
+      "-X",
+      "utf8",
+      "-I",
+      "{stage}/engine/test_items.py",
+      "{stage}"
+    ],
+    "cwd": "{stage}",
+    "environment": {
+      "TEMP": "{stage}/.tmp",
+      "TMP": "{stage}/.tmp"
+    },
+    "report": {
+      "path": "output/item-tests.md",
+      "kind": "markdown_result_table"
+    },
+    "additional_outputs": [],
+    "mutations": {
+      "temporarily_modified_restored": [],
+      "generated_retained": []
+    },
+    "result_buffer": "res",
+    "entry_function": "run",
+    "sort_results_by_id": false,
+    "source_sha256": "bd05b50c9642f418d5a3f681fc2b853fda0b3c98f68420babd8fff8929ded691"
+  }
+}

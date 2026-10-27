@@ -22,6 +22,8 @@ def definition(rules,source):
  return row
 
 def registration(rules,name):
+ reg=__import__('ability_exchange_contracts').registration(rules,name)
+ if reg is not None:return reg
  sources=getattr(rules,'ability_transition_policy',{}).get('sources',{})
  for uid,row in sources.items():
   if row['manual'] and name in row['aliases']:
@@ -38,6 +40,7 @@ def ability_id(rules,name):
   # Only registrars declaring reviewed equivalence collapse multiple source IDs.
   # Native single-source registrations already carry their canonical source_id.
   return reg['equivalent_source_ids'][0] if 'equivalent_source_ids' in reg else reg['source_id']
+ if name.startswith('ability/') and name in rules.selection.units:return rules._selected_rule(name)
  return rules.selection.resolve_name(name.split('/',1)[1] if name.startswith('ability/') else name,('ability/',))
 
 def label(rules,uid):
@@ -85,8 +88,15 @@ def registration_only(rules,uid):
 
 
 def native_passive(rules,uid):
+ if __import__('ability_exchange_contracts').handled(rules,uid):return True
+ if uid in __import__('telepath').CONTRACTS:return __import__('telepath').registration(rules,uid) is not None
+ if uid==__import__('sage').TOUCH:return __import__('sage').registration(rules,uid) is not None
+ if uid in __import__('oracle').CORE_CONTRACTS:return __import__('oracle').registration(rules,uid) is not None
+ if uid=='ability/틈새포착':
+  if rules._selected_rule(uid)!=uid or rules.ability_effects.get('틈새포착')!=[{'type':'skill_mod','skill':'은신','value':2},{'type':'ignore_effects','no_hazard_trigger':True,'no_blessing_reactions':True,'ignore_substitute':True}]:raise ValueError('reviewed Core Infiltrator declaration changed')
+  return True
  # These effects are dynamic consumers of the actual active ability list.
- return uid in ('ability/불면','ability/단순','ability/멀티타입') or registration(rules,uid) is not None
+ return uid in ('ability/도주','ability/도주-playtest','ability/불면','ability/단순','ability/멀티타입','ability/흡반') or registration(rules,uid) is not None
 
 def _raw_abilities(actor):
  st=actor.spec.get(G.KEY,{})
@@ -97,12 +107,15 @@ def _raw_abilities(actor):
  return list(dict.fromkeys(result))
 
 
-def _component_projection(actor,values,*,include_suppressed=False,ignored_sources=()):
+def _component_projection(actor,values,*,include_suppressed=False,ignored_sources=(),check_producer=True):
  rules=actor.r;result={};labels={}
  for value in values:
   uid=ability_id(rules,value);labels.setdefault(uid,value);result.setdefault(uid,set()).update(component_ids(rules,uid))
- operations=[(r['ability_operation'],r.get('rule_id')) for key,r in actor.spec.get(G.KEY,{}).get('sources',{}).items() if key not in ignored_sources and 'ability_operation' in r]
- for op,source in operations:
+ operations=[r for key,r in actor.spec.get(G.KEY,{}).get('sources',{}).items() if key not in ignored_sources and 'ability_operation' in r]
+ # Continuing Gas blocks later copies; ordinary transitions keep their source order.
+ operations.sort(key=lambda row:bool(row.get('ability_exchange') and row.get('gas_block') is True and row.get('rule_id')=='ability/화학변화가스'))
+ for record in operations:
+  op=record['ability_operation'];source=record.get('rule_id')
   if not isinstance(op,dict) or set(op)!={'kind','remove','add'} or op['kind'] not in ('copy','replace','suppress') or not all(isinstance(op[k],list) and all(isinstance(x,str) for x in op[k]) for k in ('remove','add')):raise ValueError('invalid source-owned ability operation')
   if include_suppressed and op['kind']=='suppress':continue
   source_row=rules.ability_transition_policy.get('sources',{}).get(source)
@@ -111,7 +124,8 @@ def _component_projection(actor,values,*,include_suppressed=False,ignored_source
    mode=REACTIVE.operation_mode(rules,source)
    if mode is None:
     import duelist as DUELIST
-    mode=DUELIST.operation_mode(actor,source)
+    mode='replace' if not check_producer and source==DUELIST.MANUAL else DUELIST.operation_mode(actor,source)
+   if mode is None:mode=__import__('ability_exchange_contracts').operation_mode(rules,source)
    if mode is None:raise ValueError('ability operation requires its reviewed producer')
   else:mode=source_row['mode']
   for uid in op['remove']:
@@ -137,6 +151,15 @@ def project(actor,values,*,include_suppressed=False,ignored_sources=()):
  return [labels[uid] for uid in projected]
 
 
+def owned_from_spec(rules,spec):
+ """Read possession for slot/receipt checks; live producers validate their own receipts."""
+ from types import SimpleNamespace
+ import move_state as M
+ actor=SimpleNamespace(r=rules,spec=spec)
+ projected,labels=_component_projection(actor,M.effective_list(spec,'abilities'),include_suppressed=True,check_producer=False)
+ return [labels[uid] for uid in projected]
+
+
 def active(actor,uid,component=None):
  if actor.abilities_suppressed:return False
  canonical=ability_id(actor.r,uid);active_ids=project_components(actor).get(canonical,())
@@ -144,6 +167,16 @@ def active(actor,uid,component=None):
  if not isinstance(component,str) or not component:raise ValueError('ability component identity required')
  if component not in component_ids(actor.r,canonical):raise ValueError('unknown ability component')
  return component in active_ids
+
+
+def effect_active(actor,effect):
+ """Native passive ownership follows its selected source, not a display label."""
+ if actor.abilities_suppressed:return False
+ source=effect.get('_rule_id')
+ if isinstance(source,str) and source.startswith('ability/'):
+  return active(actor,source)
+ name=effect.get('_ability')
+ return isinstance(name,str) and active(actor,name)
 
 
 def component_snapshot(rules,chosen,copied):
@@ -158,7 +191,11 @@ def known(actor):
 def key(source,target):
  return source+'@'+target.entity_id
 
-def select(engine,actor,target,source,*,ability=None,allies=(),reason):
+def select(engine,actor,target,source,*,ability=None,allies=(),reason,edition=None):
+ import ability_exchange_contracts as X
+ if X.source(engine.r,source) is not None:
+  return X.select(engine,actor,target,source,ability=ability,allies=allies,reason=reason,edition=edition)
+ if edition is not None:raise ValueError('edition belongs only to its reviewed exchange source')
  row=definition(engine.r,source)
  if row is None:raise ValueError('reviewed ability-transition source required')
  if not isinstance(reason,str) or not reason.strip():raise ValueError('actual choice reason required')
@@ -262,6 +299,9 @@ def apply(engine,actor,target,effect,ctx):
  return G.transition(engine,actor,staged,participants=(target,*allies))
 
 def activate(engine,actor,name,target):
+ import ability_exchange_contracts as X
+ if X.registration(engine.r,name) is not None:return X.activate(engine,actor,name,target)
+ if not X.admit_trigger(engine,actor,name):raise ValueError('Neutralizing Gas prohibits this triggered ability')
  reg=registration(engine.r,name)
  if reg is None:raise ValueError('reviewed manual copy source required')
  source=reg['source_id'];row=definition(engine.r,source)
@@ -270,23 +310,29 @@ def activate(engine,actor,name,target):
  def staged(e,a,t):
   import frequency as F,turn as TURN,effects as FX
   usage='ability:'+reg['name'];frequency=row['manual']['frequency']
-  if not F.activation_allowed(a,usage,frequency,engine=e):raise ValueError('copying ability Scene frequency exhausted')
+  if not F.activation_allowed(a,usage,frequency,engine=e,action_actor=a):raise ValueError('copying ability Scene frequency exhausted')
   if not TURN.spend(e,a,row['manual']['action'],reg['name']):raise ValueError('copying ability action unavailable')
-  F.consume_activation(a,usage,frequency,engine=e)
+  F.consume_activation(a,usage,frequency,engine=e,action_actor=a)
   result=FX.run_effects(e,a,t,[effect],{'hit':True,'nat':None},source)
   if result.pending:raise ValueError('copying ability effect did not complete')
   return result
  return G.transition(engine,actor,staged,participants=(target,))
 
 def end(engine,actor,event):
+ # Transform explicitly restores the prior Move List at these native boundaries.
+ if event in ('recall','faint','encounter'):
+  for sid,row in list(actor.spec.get(G.KEY,{}).get('sources',{}).items()):
+   if row.get('rule_id')=='move/변신' and sid in actor.spec.get(G.KEY,{}).get('overlays',{}):
+    G.revoke(actor,sid,engine=engine)
  for record in list(TIME.records(actor)):
   if TAG in record and event in record['ends']:TIME.expire(engine,actor,record)
  import reactive_ability_events as REACTIVE
  REACTIVE.end(engine,actor,event)
+ __import__('ability_exchange_contracts').end(engine,actor,event)
 
 def validate_world(engine,index):
  for actor in index.values():
-  expected={k for k,v in actor.spec.get(G.KEY,{}).get('sources',{}).items() if 'ability_operation' in v and 'reactive_ability' not in v and 'duelist_manual' not in v};seen=set()
+  expected={k for k,v in actor.spec.get(G.KEY,{}).get('sources',{}).items() if 'ability_operation' in v and 'reactive_ability' not in v and 'duelist_manual' not in v and 'ability_exchange' not in v};seen=set()
   for record in TIME.records(actor):
    if TAG not in record:continue
    source=record['source'];definition_row=definition(engine.r,source)
@@ -334,4 +380,4 @@ def validate_world(engine,index):
    if result.get('applied') is not True or result.get('selected')!=copied or result.get('pool')!=pool or result.get('random_index')!=random_index or result.get('component_contract')!=expected_components:raise ValueError('ability choice differs from completed native result')
   if expected!=seen:raise ValueError('ability contribution lacks its end-event record')
   if expected and actor.abilities!=G.effective(actor,'abilities'):raise ValueError('ability projection differs from source-owned state')
- return True
+ return __import__('ability_exchange_contracts').validate_world(engine,index)

@@ -27,7 +27,7 @@ class SaveConsumptionAtomicityTests(TestCase):
 
     def test_recovery_herb_late_save_error_preserves_choice_and_retries_once(self):
         fixture = ITEM_FIXTURE.RemainingCsvItemContractTests()
-        fixture.r = Rules(str(ROOT), ruleset='core')
+        fixture.r = Rules(str(ROOT), ruleset='core-confusion-feb2016')
         actor = fixture.pokemon('atomic-herb-holder')
         engine = fixture.fixture(actor, fixture.pokemon('atomic-herb-other'))
         buff_id = self.herb(engine, actor, '혼란')

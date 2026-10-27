@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "execution_kind": "procedural_runner",
+  "unit_id": "script:engine/test_rules.py",
+  "unit_kind": "procedural_script_runner",
+  "required_runner_ids": [
+    "script:engine/test_rules.py"
+  ],
+  "completed": {},
+  "original_contract_sha256": "897c201c260f1f2987b390fdffd754a5db8c1a64aafbd2a774004d252ac2f31f",
+  "inventory_sha256": "46c04e8eb8efa90c96a5ca21864b44e0112a7b0b9d78f77c31aad5bafe36caf5",
+  "runner": {
+    "source_path": "engine/test_rules.py",
+    "argv": [
+      "python",
+      "-B",
+      "-X",
+      "utf8",
+      "-I",
+      "{stage}/engine/test_rules.py",
+      "{stage}"
+    ],
+    "cwd": "{stage}",
+    "environment": {
+      "TEMP": "{stage}/.tmp",
+      "TMP": "{stage}/.tmp"
+    },
+    "report": {
+      "path": "output/rule-tests.md",
+      "kind": "markdown_result_table"
+    },
+    "additional_outputs": [],
+    "mutations": {
+      "temporarily_modified_restored": [],
+      "generated_retained": []
+    },
+    "result_buffer": "results",
+    "entry_function": "run",
+    "sort_results_by_id": false,
+    "source_sha256": "0d631fa4a39d29e7fc0924110a5a1f20265a10f4951003500091d23562988375"
+  }
+}

@@ -8,6 +8,8 @@ from engine import Rules,Engine,Combatant
 from builder import build_trainer,build_pokemon
 import passive_events as PASSIVE
 import move_defense_reactions as DEFENSE
+import move_completion as COMPLETE
+import world_entities as WORLD
 import test_category2_optional_weapon_framework as WEAPON_TESTS
 import test_category2_csv_stellar_tera_blast as STELLAR_TESTS
 import test_category2_optional_move_modes as MODE_TESTS
@@ -38,11 +40,35 @@ class MoveDefenseConsumerTests(unittest.TestCase):
         return event
 
     def test_steelheart_observes_actual_recipient_and_not_displaced_target(self):
-        f=WEAPON_TESTS.OptionalWeaponFrameworkTests();f.r=self.rules
-        e,a,b,c=f.fixture(family='physical');f.start(e,a)
-        self.intercept(e,a,b,c,'move/몸통박치기',[(4,2),(4,3),(3,3),(3,2)],[3,1])
-        self.assertEqual(a.spec[WEAPON.HITS]['targets'],[c.entity_id])
-        Engine.import_state(self.rules,e.export_state())
+        for variant in ('english_incoming_melee','korean_book_outgoing'):
+            with self.subTest(variant=variant):
+                f=WEAPON_TESTS.OptionalWeaponFrameworkTests();f.r=self.rules
+                e,a,b,c=f.fixture(family='physical')
+                choice=None
+                if variant=='korean_book_outgoing':
+                    choice={'value':variant,'reason':'actual outgoing recipient history under the complete Korean definition',
+                            'scope':WEAPON.steelheart_source_choices(e)['decision_scope']}
+                    WEAPON.select_steelheart_source(e,a,choice)
+                f.start(e,a)
+                event=self.intercept(e,a,b,c,'move/몸통박치기',[(4,2),(4,3),(3,3),(3,2)],[3,1])
+                row=e._move_completions[e._passive_events[event]['completion_id']]
+                received=COMPLETE.recipient_result(row,c)
+                self.assertIs(received['actor'],c);self.assertEqual(received['original_id'],b.entity_id)
+                self.assertIsNone(COMPLETE.recipient_result(row,b))
+                child=received['child_event']
+                self.assertTrue(COMPLETE.require_hit_return(e,child,c)['result']['hit'])
+                with self.assertRaisesRegex(ValueError,'actual successful nonprevented recipient hit required'):
+                    COMPLETE.require_hit_return(e,event,b)
+                history=a.spec[WEAPON.HITS]
+                self.assertEqual((history['policy_variant'],history['source_choice']),(variant,choice))
+                self.assertEqual(history['targets'],[c.entity_id] if variant=='korean_book_outgoing' else [])
+                self.assertEqual(history['receipts'],[row['id']+':'+c.entity_id])
+                before=e.export_state()
+                WEAPON.observe_hit(e,row,a,b);WEAPON.observe_hit(e,row,a,c)
+                self.assertEqual(e.export_state(),before)
+                restored=Engine.import_state(self.rules,before);index=WORLD.actor_index(restored)
+                self.assertEqual(index[a.entity_id].spec[WEAPON.HITS],history)
+                self.assertTrue(COMPLETE.require_hit_return(restored,child,index[c.entity_id])['result']['hit'])
 
     def test_stellar_opportunity_uses_actual_recipient_types(self):
         f=STELLAR_TESTS.StellarTeraBlastTests();f.rules=self.rules;f.setUp()

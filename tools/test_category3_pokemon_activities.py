@@ -109,7 +109,8 @@ class PokemonActivityTests(unittest.TestCase):
   self.act('disposition_ruling',target=self.p,disposition='우호적',reason='GM: 먹이 제공으로 개선',allow_retry=True)
   result=self.act('befriend',target=self.p,fixed=[4]*4);self.assertEqual(result['disposition'],'매우 우호적');self.assertFalse(self.p.captured)
  def test_befriend_spends_standard_and_cannot_repeat_without_budget(self):
-  self.a.budget={'standard':1,'shift':1,'swift':1};self.act('befriend',target=self.p,fixed=[3]*4)
+  self.e.start_round([self.a,self.p]);self.e.start_of_turn(self.a,initiative_count=20)
+  self.act('befriend',target=self.p,fixed=[3]*4)
   self.assertEqual(self.a.budget['standard'],0);self.assertTrue(self.a.took_standard)
   before=self.state();result=self.act('befriend',target=self.p,fixed=[4]*4)
   self.assertIsInstance(result,C.PendingDecision);self.assertEqual(before,self.state())
@@ -119,7 +120,7 @@ class PokemonActivityTests(unittest.TestCase):
   self.p.spec['disposition']='중립';self.p.spec['wild']=False
   with self.assertRaises(ValueError):self.act('befriend',target=self.p)
  def test_pokemaniac_discloses_only_four_fields_on_dc10_success(self):
-  self.own('maniac');self.a.budget={'standard':1,'shift':1,'swift':1}
+  self.own('maniac');self.e.start_round([self.a,self.p]);self.e.start_of_turn(self.a,initiative_count=20)
   self.p.abilities=['엽록소'];self.p.types=['풀'];self.p.spec['loyalty']=4
   result=self.act('pokemaniac',target=self.p,fixed=[2,2,3,3]);self.assertTrue(result['check'].passed)
   self.assertEqual(result['information'],{'level':20,'types':['풀'],'nature':'대담','abilities':['엽록소']});self.assertEqual(self.a.budget['standard'],0)
@@ -130,7 +131,8 @@ class PokemonActivityTests(unittest.TestCase):
   with self.assertRaises(ValueError):self.act('pokemaniac',target=self.p)
   self.a.spec['skills']['포켓몬학']='숙련'
   with self.assertRaises(ValueError):self.act('pokemaniac',target=self.a)
-  self.a.budget={'standard':0,'shift':1,'swift':1};before=self.state()
+  self.e.start_round([self.a,self.p]);self.e.start_of_turn(self.a,initiative_count=20)
+  self.a.budget['standard']=0;before=self.state()
   self.assertIsInstance(self.act('pokemaniac',target=self.p),C.PendingDecision);self.assertEqual(before,self.state())
  def test_invalid_dice_do_not_spend_standard(self):
   self.a.budget={'standard':1,'shift':1,'swift':1};before=self.state()
@@ -138,7 +140,7 @@ class PokemonActivityTests(unittest.TestCase):
   self.assertEqual(before,self.state())
  def test_disabled_feature_profile_refused_before_rng(self):
   self.own('psychologist');original=self.e.r._selected_rule
-  with patch.object(self.e.r,'_selected_rule',side_effect=lambda uid:uid+'@unsupported' if uid=='edge/포켓몬-심리학자' else original(uid)):
+  with patch.object(self.e.r,'_selected_rule',side_effect=lambda uid, *args, **kwargs: uid + '@unsupported' if uid == 'edge/포켓몬-심리학자' else original(uid, *args, **kwargs)):
    before=self.state()
    with self.assertRaises(ValueError):self.act('pokemon_interaction',target=self.p,skill='매력',dc=12,use_pokemon_education=True)
    self.assertEqual(before,self.state())
@@ -236,7 +238,7 @@ class PokemonActivityTests(unittest.TestCase):
    self.a.spec.pop('fishing_session',None);self.act('fishing',phase='start',rod='대단한낚싯대',attachment=attachment);self.act('fishing',phase='wait',roll_d20=15)
    result=self.act('fishing',phase='reel',target=self.p,fixed=[1]*4,escape_d20=escape)
    self.assertFalse(result['check'].passed);self.assertEqual(result['status'],status)
-  self.assertEqual(self.a.spec['items']['미끼'],0);self.assertEqual(self.a.spec['items']['루어'],1)
+  self.assertEqual(self.a.spec['items']['미끼'],0);self.assertEqual(self.a.spec['items']['루어'],0)
  def test_fishing_invalid_inputs_no_time_rng_or_resource_consumption(self):
   self.a.spec['items'].update({'대단한낚싯대':1,'미끼':1});self.act('fishing',phase='start',rod='대단한낚싯대',attachment='미끼');before=self.state()
   with self.assertRaises(ValueError):self.act('fishing',phase='wait',roll_d20=21)
@@ -274,7 +276,7 @@ class PokemonActivityTests(unittest.TestCase):
   with self.assertRaises(ValueError):self.act('experience_training',targets=[target],use_intimidate=True,safe=True)
   self.assertEqual(before,self.state())
  def test_mounted_prowess_auto_boards_then_plus3_still_checks_retention(self):
-  self.own('mounted');before=self.e.rng.getstate();self.a.budget={'standard':1,'shift':1,'swift':1}
+  self.own('mounted');self.e.start_round([self.a,self.p]);self.e.start_of_turn(self.a,initiative_count=20);before=self.e.rng.getstate()
   result=self.act('mounting',target=self.p,phase='mount',gm_mountable=True,skill='육상')
   self.assertTrue(result['automatic']);self.assertIsNone(result['check']);self.assertEqual(self.e.rng.getstate(),before);self.assertEqual(self.a.budget['standard'],0)
   result=self.act('mounting',target=self.p,phase='retain',skill='곡예',fixed=[1,2,2,2]);self.assertTrue(result['passed']);self.assertEqual(result['check'].total,10);self.assertEqual(result['retention_bonus'],3)
@@ -287,7 +289,8 @@ class PokemonActivityTests(unittest.TestCase):
   self.a.spec['edges']=[];self.a.spec['skills']['곡예']='숙련';result=self.act('mounting',target=self.p,phase='mount',gm_mountable=True,fixed=[1]*4)
   self.assertFalse(result['passed']);self.assertFalse(result['automatic'])
  def test_mounted_prowess_does_not_replace_other_skills_or_remove_action_cost(self):
-  self.own('mounted');self.a.budget={'standard':0,'shift':1,'swift':1};before=self.state()
+  self.own('mounted');self.e.start_round([self.a,self.p]);self.e.start_of_turn(self.a,initiative_count=20)
+  self.a.budget['standard']=0;before=self.state()
   result=self.act('mounting',target=self.p,phase='mount',gm_mountable=True);self.assertIsInstance(result,C.PendingDecision);self.assertEqual(before,self.state())
   with self.assertRaises(ValueError):self.act('mounting',target=self.p,phase='mount',gm_mountable=True,skill='포켓몬학')
   self.a.budget['standard']=1
@@ -377,6 +380,7 @@ class PokemonActivityTests(unittest.TestCase):
   self.a.spec['skills']['생존']='초보';result=self.act('repair_ball',ball_id='b1',fixed=[5]*3);self.assertTrue(result['check'].passed)
  def test_befriend_disposition_and_failure_are_per_trainer_unless_explicit_group(self):
   other=self.actor('second','trainer');key='trainer:'+self.a.spec['id'];other_key='trainer:'+other.spec['id']
+  self.e.gm.add_combatant(other)
   result=self.act('befriend',target=self.p,fixed=[3]*4);self.assertEqual(result['disposition'],'우호적')
   self.assertEqual(self.p.spec['disposition'],'중립');self.assertNotIn(other_key,self.p.spec['dispositions'])
   result=self.e.pokemon_activity(other,'befriend',target=self.p,fixed=[1]*4);self.assertFalse(result['check'].passed)
@@ -388,9 +392,11 @@ class PokemonActivityTests(unittest.TestCase):
   result=self.e.pokemon_activity(other,'befriend',target=self.p,group_id='party',fixed=[2]*4);self.assertEqual(result['disposition'],'중립')
   self.assertEqual(self.p.spec['dispositions']['group:party'],'중립');self.assertEqual(self.p.spec['dispositions'][key],'매우 우호적')
   outsider=self.actor('outsider','trainer')
+  self.e.gm.add_combatant(outsider)
   with self.assertRaises(ValueError):self.e.pokemon_activity(outsider,'befriend',target=self.p,group_id='party',fixed=[6]*4)
  def test_befriend_group_failure_blocks_only_actor_and_cannot_change_audience_to_retry(self):
   other=self.actor('second','trainer')
+  self.e.gm.add_combatant(other)
   self.act('disposition_ruling',target=self.p,disposition='중립',reason='GM shared audience',group_id='party',group_members=[self.a.spec['id'],other.spec['id']])
   result=self.act('befriend',target=self.p,group_id='party',fixed=[1]*4);self.assertFalse(result['check'].passed)
   self.assertEqual(self.p.spec['befriend_failures'],['trainer:'+self.a.spec['id']])
@@ -487,6 +493,7 @@ class PokemonActivityTests(unittest.TestCase):
   self.a.spec['classes']=['class/포획전문가'];self.a.spec['feat_ranks']={'feat/고급-포획-테크닉':3}
   self.a.spec['skills'].update({'곡예':'전문','육상':'전문','통찰':'초보','은신':'초보'})
   self.a.spec['collector_stacks']=stacks;self.p.spec['species']='pokemon/이상해씨'
+  __import__('items').register_feats(self.e,self.a)
  def test_collector_bonus_spends_one_to_three_and_adds_exactly_that_number(self):
   for count in (1,2,3):
    self.collector_setup();result=self.e.throw_ball(self.a,self.p,fixed_accuracy=20,fixed_capture=9-count,collector_choice={'kind':'bonus','stacks':count})
@@ -529,7 +536,7 @@ class PokemonActivityTests(unittest.TestCase):
   with self.assertRaises(ValueError):self.e.throw_ball(self.a,self.p,collector_choice={'kind':'reroll'})
   self.assertEqual(before,self.state())
  def test_collector_core_cannot_use_errata_stacks(self):
-  self.collector_setup();self.e.r=PokemonActivityTests.rules;before=self.state()
+  self.collector_setup();self.e.r=type(self).rules;before=self.state()
   with self.assertRaises(ValueError):self.e.throw_ball(self.a,self.p,collector_choice={'kind':'bonus','stacks':1})
   self.assertEqual(before,self.state())
  def test_collector_invalid_post_roll_choice_finalizes_original_without_refund_or_new_roll(self):

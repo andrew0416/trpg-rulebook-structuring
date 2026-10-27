@@ -22,12 +22,12 @@ class Tests(unittest.TestCase):
  def setUpClass(cls):cls.r=Rules(str(ROOT),ruleset='all')
  def add(self,spec,pos=(0,0)):
   c=Combatant(self.r,spec);self.e.gm.add_combatant(c,pos=pos,side='party',reason='actual state');return c
- def setUp(self):
+ def setUp(self,insight_role="메시아"):
   self.e=Engine(self.r,seed=1105);self.e.grid=Grid(40,20)
   gifts=['gift/고대의-지혜','gift/마이너-기프트-조심스런-수면',
    'gift/마이너-기프트-드림-마스터리','gift/마이너-기프트-사보타지-직감']+list(B.RULES)
   choices={
-   'gift/위대한-존재의-통찰력':{'role':'메시아'},
+   'gift/위대한-존재의-통찰력':{'role':insight_role},
    'gift/마이너-기프트-엘리멘탈-소울':{'patron':'프리져'},
    'gift/메이저-기프트-꿈의-전조':{'patron':'크레세리아'},
   }
@@ -103,7 +103,7 @@ class Tests(unittest.TestCase):
   before=deepcopy((self.a.spec,self.a.budget))
   with self.assertRaisesRegex(ValueError,'frequency'):self.observe(insight,self.t)
   self.assertEqual((self.a.spec,self.a.budget),before)
-  self.setUp();self.a.spec['gift_choices'][insight]={'role':'계약자'};self.fact(insight,values,self.t);self.begin()
+  self.setUp(insight_role='계약자');self.fact(insight,values,self.t);self.begin()
   redacted=self.observe(insight,self.t,{'weakness':'빛'})['values']
   self.assertEqual(redacted,{'weakness':'빛','aligned':True,'harms_patron_followers':False});self.assertNotIn('allegiance',redacted)
   self.setUp();self.fact(truth,{'desire_altruistic':True},self.t);self.begin();ap=AP.available(self.a)

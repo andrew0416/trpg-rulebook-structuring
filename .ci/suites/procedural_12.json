@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "execution_kind": "procedural_runner",
+  "unit_id": "script:tools/test_common_check_engine_independent.py",
+  "unit_kind": "procedural_script_runner",
+  "required_runner_ids": [
+    "script:tools/test_common_check_engine_independent.py"
+  ],
+  "completed": {},
+  "original_contract_sha256": "b6684fb25484da6294e2788e9972d2befa16a57299cbb9d7c67ecd2006f0613a",
+  "inventory_sha256": "46c04e8eb8efa90c96a5ca21864b44e0112a7b0b9d78f77c31aad5bafe36caf5",
+  "runner": {
+    "source_path": "tools/test_common_check_engine_independent.py",
+    "argv": [
+      "python",
+      "-B",
+      "-X",
+      "utf8",
+      "-I",
+      "{stage}/tools/test_common_check_engine_independent.py"
+    ],
+    "cwd": "{stage}",
+    "environment": {
+      "TEMP": "{stage}/.tmp",
+      "TMP": "{stage}/.tmp",
+      "PTK_NATIVE_RULE_ROOT": "{stage}"
+    },
+    "report": {
+      "path": "output/common-check-engine-independent-tests.json",
+      "kind": "json_results_array"
+    },
+    "additional_outputs": [],
+    "mutations": {
+      "temporarily_modified_restored": [
+        "tools/common_check_synthetic_evidence.txt"
+      ],
+      "generated_retained": [
+        "tools/native-profile-test-*.json"
+      ]
+    },
+    "result_buffer": "RESULTS",
+    "entry_function": null,
+    "sort_results_by_id": false,
+    "source_sha256": "bf066e0903876e8cd543d7c593c274bba6c2fd9df1eef7874d7dc0eb78e31200"
+  }
+}

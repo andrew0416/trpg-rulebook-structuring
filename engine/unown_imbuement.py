@@ -361,15 +361,9 @@ def _attack(engine, actor, primary, everyone, mode, mid, options, request_id, re
             try:
                 result = e.use_move_on(a,target,mid,[index[uid] for uid in ids])
             except Exception as error:
-                import passive_events as PASSIVE, heavy_injury_adapter as HEAVY
-                if (type(error) is PASSIVE.PassiveEventPending and e._passive_pending == error.event_id
-                        and error.event_id in e._passive_events):
-                    pending.append((PASSIVE.PassiveEventPending,error.event_id)); result = None
-                elif (type(error) is HEAVY.HeavyPending and e._heavy_pending == error.event_id
-                        and error.event_id in e._heavy_events):
-                    pending.append((HEAVY.HeavyPending,error.event_id)); result = None
-                else:
+                if not GRANTS.record_native_pending(e,error,pending):
                     raise
+                result = None
         if use['phase'] != 'used':
             raise ValueError('native Unown attack was unavailable before activation')
         if not pending:

@@ -104,4 +104,6 @@ def warning(engine, owner, event_id):
         return {'source': WARNING, 'status': 'not_triggered',
                 'immunity_source': immunity, 'attacker_id': attacker.entity_id,
                 'owner_id': owner.entity_id, 'event_id': receipt['event_id']}
-    return C.PendingDecision('Telepathic Warning positive reaction procedure remains unimplemented')
+    return {'source': WARNING, 'status': 'returned_attack', 'attacker_id': attacker.entity_id,
+            'owner_id': owner.entity_id, 'event_id': receipt['event_id'],
+            'reaction_boundary': 'arm_telepath_reaction before the actual pending Attack'}

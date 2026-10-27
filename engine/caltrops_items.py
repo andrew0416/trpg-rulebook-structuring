@@ -17,6 +17,8 @@ SOURCE_NAMES = {'move/압정뿌리기': '압정', 'move/독압정': '독압정'}
 
 
 def _plan(engine, r):
+    import ninja as NINJA
+    if NINJA.utility_authority(engine,r):return NINJA.utility_item(engine,r)
     import equipment_item_contracts as CONTRACTS
     import world_entities as WORLD
     import hazard_state as HAZARDS
@@ -66,6 +68,8 @@ def prepare(engine, request):
 
 
 def consume(engine, request):
+    import ninja as NINJA
+    if NINJA.utility_authority(engine,request):return NINJA.utility_item(engine,request,consume=True)
     import state_grants as G
     import item_stock as STOCK
     import consumption_execution as EXECUTION

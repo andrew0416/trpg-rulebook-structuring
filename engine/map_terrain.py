@@ -54,7 +54,7 @@ def observe(engine,cells,*,base,reason,rough=None,slow=None,blocking=None):
 
 def base_at(grid,cell):return getattr(grid,'base_terrain',{}).get(key(cell),'regular')
 
-def can_travel(engine,actor,position,mode,*,altitude=None,underground=None):
+def can_travel(engine,actor,position,mode,*,altitude=None,underground=None,capability_actor=None,movement_mode=None):
     """Movement permission consumes the selected capability, not only placement."""
     import body_state as BODY
     import movement_actions as MOVEMENT
@@ -63,7 +63,9 @@ def can_travel(engine,actor,position,mode,*,altitude=None,underground=None):
     bases={base_at(engine.grid,p) for p in cells}
     altitude=actor.spec.get('_movement_altitude',0) if altitude is None else altitude
     underground=bool(actor.spec.get('_burrow',{}).get('underground')) if underground is None else underground
-    caps=MOVEMENT.capabilities(engine,actor)
+    actual=actor if capability_actor is None else capability_actor
+    caps=MOVEMENT.capabilities(engine,actual)
+    if not MOVEMENT.free_float_destination(engine,actual,position,movement_mode or mode,origin=actor.pos):return False
     if mode in ('land','육상') and underground and 'earth' not in bases:
         import burrow_tunnels as TUNNELS
         if not TUNNELS.can_exit(engine,actor,position):return False
@@ -83,7 +85,7 @@ def slow_multiplier(engine,actor,position,mode):
     if engine.grid is None or mode in ('sky','levitate','공중/부유'):return 1
     import body_state as BODY
     import movement_actions as MOVEMENT
-    return 2 if any(p in engine.grid.slow and not MOVEMENT.ordinary_terrain(engine,actor,p)
+    return 2 if any(p in engine.grid.slow and not MOVEMENT.ordinary_terrain(engine,actor,p,movement=True)
                     for p in BODY.at_position(actor,position)) else 1
 
 def accuracy_penalty(engine,attacker,target):

@@ -3,7 +3,7 @@ from pathlib import Path
 from copy import deepcopy
 from unittest.mock import patch
 import json,unittest
-ROOT=Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
+ROOT=Path(__file__).resolve().parents[1]
 import test_category2_cleanse_tags as _fixture_test_category2_cleanse_tags
 from engine import Rules
 from grid import Grid
@@ -30,7 +30,10 @@ class BurnTests(unittest.TestCase):
     def place(self,uid):W.observe_location(self.e,self.e._physical_objects[uid],{'kind':'grid','cell':list(self.b.pos)},reason='GM observed real tag within user reach')
     def burn(self,*,event='actual-burn',engine=None,actor=None,tag='tag:one',checks=None):
         if checks is None:checks={self.p.entity_id:{'fixed':[2,2,3,3]}}
-        return (engine or self.e).gm.observe_cleanse_burn(actor or self.b,tag,event_id=event,reason='GM observed this actual original tag burned by this user',checks=checks)
+        e=engine or self.e
+        choice=None if B.KEY in e._physical_objects[tag] else dict(value='english_both_inclusive',
+            reason='These existing native controls explicitly exercise the English both-required and inclusive-tie rule',scope=B.source_choices(e)['decision_scope'])
+        return e.gm.observe_cleanse_burn(actor or self.b,tag,event_id=event,reason='GM observed this actual original tag burned by this user',checks=checks,source_choice=choice)
     def validate(self,e=None):
         e=e or self.e
         return CODEC.dump_engine(e)

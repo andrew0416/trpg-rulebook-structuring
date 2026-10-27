@@ -85,7 +85,10 @@ def suspend(e,scope,error):
  event=e._passive_events.get(error.event_id)
  if event is None:return False
  while event.get('defense_parent'):event=e._passive_events[event['defense_parent']]
- if event.get('completion_id')!=scope.get('completion_id') or not event.get('continuation'):return False
+ if event.get('completion_id')!=scope.get('completion_id'):
+  event=__import__('conquerors_march').counter_parent(e,event,scope['completion_id'])
+  if event is None:return False
+ elif not event.get('continuation'):return False
  row=e._move_completions[scope['completion_id']]
  import world_entities as WORLD
  memo={id(actor):actor for actor in WORLD.actor_index(e).values()}
@@ -98,7 +101,7 @@ def suspend(e,scope,error):
  # Geometry is bound before the ally is pushed, not recalculated from it later.
  if snapshot['accuracy'] is not None and snapshot['options'].get('aim') is None:
   import weapon_actions as WEAPON
-  move=event['continuation']['args']['move']
+  move=event['continuation']['args']['move'] if event.get('continuation') else __import__('move_completion').event_move(e,event)
   shape=WEAPON.range_spec(e,move,scope['actor']).get('shape')
   snapshot['options']['aim']=scope['actor'].pos if shape=='burst' else scope['primary'].pos
  row['activation_continuation']={'scope':snapshot,'event_id':event['id'],
@@ -168,9 +171,17 @@ def validate_continuations(e,index):
   scope=saved['scope'];event=e._passive_events.get(saved['event_id'])
   if (event is None or event.get('completion_id')!=key or scope['completion_id']!=key or
       scope['actor'] is not row['actor'] or list(scope['targets'])!=row['targets'] or
-      not 0<scope['index']<=len(scope['targets']) or scope['targets'][scope['index']-1] is not event['target'] or
+      not 0<scope['index']<=len(scope['targets']) or (scope['targets'][scope['index']-1] is not event['target'] and
+       not __import__('conquerors_march').pair_wait_index(e,row,event,scope)) or
       saved['fingerprint']!=R.fingerprint(_continuation_facts(scope,event['id']))):
-   raise ValueError('native suspended target group lacks its actual producer')
+   raise ValueError('native suspended target group lacks its actual producer: '+str({
+    'completion':key,'scope_completion':scope.get('completion_id'),
+    'event_completion':None if event is None else event.get('completion_id'),
+    'index':scope['index'],'targets':[a.entity_id for a in scope['targets']],
+    'declared':[a.entity_id for a in row['targets']],
+    'event_target':None if event is None else event['target'].entity_id,
+    'actor_matches':scope['actor'] is row['actor'],
+    'fingerprint_matches':event is not None and saved['fingerprint']==R.fingerprint(_continuation_facts(scope,event['id']))}))
   if any(index.get(actor.entity_id) is not actor for actor in scope['targets']):
    raise ValueError('native target group lost an actual target')
   converted=scope.get('stat_maneuver')
@@ -204,6 +215,8 @@ def verify(e,actor,target,move_id,activation,accuracy,*,count_use,free_action):
    raise ValueError('paid resolution lost its actual native declaration')
  ace=s.get('type_ace',{})
  extra=bool(index==0 and (ace.get('extra_move') or s.get('martial_artist',{}).get('extra_move')))
+ extra=extra or bool(index==0 and __import__('hex_maniac').free_activation(e,actor,target,move_id))
+ extra=extra or bool(index==0 and __import__('rune_master').move_authority(e,actor,target,move_id,'feat/폭발-룬'))
  expected_use=index==0 and prepaid is None and not paid and not(extra and ace.get('ignore_frequency'))
  if free_action is not extra or count_use is not expected_use:raise ValueError('shared activation cannot alter its cost/frequency boundary')
  if accuracy is not None and tuple(accuracy.get('targets',()))!=s['targets']:raise ValueError('shared target set changed')
@@ -291,10 +304,14 @@ def require_empty_field_scope(e,actor,move_id,token):
  return scope
 
 
-def activate_empty_area(e,actor,move,mm,*,weapon_id=None,struggle_choice=None,aim=None,appendage_id=None,set_damage=False):
+def activate_empty_area(e,actor,move,mm,*,weapon_id=None,struggle_choice=None,aim=None,appendage_id=None,set_damage=False,versatile_stat=None):
  """Atomically execute one mapped area Move that has no creature targets."""
  import area_targets as AREA
  import state_grants as G
+ # A damaging Move may aim only at terrain; its damage mode has no recipient.
+ # Status-only field declarations still reject a damage request before payment.
+ if set_damage and move.get('class') not in ('물리','특수'):
+  raise ValueError('empty area activation has no accuracy or damage declaration')
  effects=AREA.empty_field_effects(mm)
  import ice_lake as ICE_LAKE
  if not effects and not ICE_LAKE.empty_area_adopted(e,actor,move):return None
@@ -309,7 +326,7 @@ def activate_empty_area(e,actor,move,mm,*,weapon_id=None,struggle_choice=None,ai
    with open_empty_field_scope(staged,staged_actor,move_id,cells,effect_declaration,move=move) as token:
     return staged.use_move(staged_actor,staged_actor,move_id,
        _field_activation=token,weapon_id=weapon_id,
-        struggle_choice=struggle_choice,aim=aim,appendage_id=appendage_id,set_damage=set_damage)
+        struggle_choice=struggle_choice,aim=aim,appendage_id=appendage_id,versatile_stat=versatile_stat)
   except Exception as error:
    # A HeavyPending is a committed activation prefix, as on the ordinary
    # targeted path. Return a plain marker so the atomic graph can publish its

@@ -131,7 +131,7 @@ def _roll_group(engine, group, initiative_value, policy):
             if len(part) == 1:
                 next_parts.append(part)
                 continue
-            rolls = [(row, engine.d20()) for row in part]
+            rolls = [(row, engine.roll_d20(row[1],'initiative_tie')) for row in part]
             if any(not _int(face) or not 1 <= face <= 20 for _, face in rolls):
                 return None
             faces = sorted({face for _, face in rolls}, reverse=policy["policy"] == "highest_d20")
@@ -153,13 +153,16 @@ def _roll_group(engine, group, initiative_value, policy):
     return [part[0] for part in pending]
 
 
-def order(engine, combatants, *, procedures=None, round_no=None):
+def order(engine, combatants, *, procedures=None, round_no=None, resolved_values=None):
     """Return an ordinary resolved roster, or None to hold before round start.
 
     No actor/clock state is mutated. Missing/invalid decisions do not fabricate
     an order. Randomness is consumed only by an explicitly accepted tie policy.
     Decision and diagnostic logs are observable even when a request is held.
+    An optional sink receives the chosen integer values only after full success.
     """
+    if resolved_values is not None and type(resolved_values) is not dict:
+        raise ValueError('resolved initiative values require a dictionary')
     actors = list(combatants)
     if len({id(actor) for actor in actors}) != len(actors):
         return _hold(engine, "중복 전투원 입력")
@@ -212,5 +215,10 @@ def order(engine, combatants, *, procedures=None, round_no=None):
             if part is None:
                 return _hold(engine, "동률 굴림의 재동률/입력/계산 한계가 미해결")
         resolved.extend(part)
-    engine.log("이니셔티브" + ("(트릭룸)" if ascending else "") + ": " + ", ".join(f"{_name(actor)}({result.expression}={result.value})" for _, actor, result in resolved), "combat/initiative")
-    return [actor for _, actor, _ in resolved]
+    ordered=__import__('stall_ability').order(engine,[actor for _,actor,_ in resolved])
+    by_actor={id(actor):result for _,actor,result in resolved}
+    engine.log("이니셔티브" + ("(트릭룸)" if ascending else "") + ": " + ", ".join(f"{_name(actor)}({by_actor[id(actor)].expression}={by_actor[id(actor)].value})" for actor in ordered), "combat/initiative")
+    if resolved_values is not None:
+        resolved_values.update({actor['id'] if type(actor) is dict else actor.entity_id:result.value
+                                for _,actor,result in resolved})
+    return ordered

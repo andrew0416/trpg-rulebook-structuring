@@ -11,7 +11,7 @@ KEY = 'lifetime_policy'
 CONTROLS = ('duration', 'until', 'while', 'repeat')
 TURN_EVENTS = {'turn_start', 'turn_end'}
 OWNER_EVENTS = TURN_EVENTS | {'extended_rest'}
-EVENTS = OWNER_EVENTS | {'round_end', 'scene_end', 'encounter_end'}
+EVENTS = OWNER_EVENTS | {'round_end', 'scene_end', 'encounter_end', 'initiative_count'}
 REPEAT_KINDS = {'stage_change', 'heal', 'hp_loss', 'apply_status', 'cure_status'}
 
 
@@ -26,6 +26,8 @@ def _event(value, *, repeating=False):
     if set(value) - allowed or value.get('event') not in EVENTS:
         raise ValueError('unknown lifetime event or field')
     event = value['event']
+    if repeating and event == 'initiative_count':
+        raise ValueError('initiative count declares a lifetime, not a repeated boundary')
     if event in OWNER_EVENTS:
         if value.get('owner') not in ('user', 'target'):
             raise ValueError('actor boundary needs its actual user or target owner')
@@ -43,7 +45,12 @@ def _predicate(engine, actor, target, value):
     if type(value) is not dict or value.get('owner') not in ('user', 'target'):
         raise ValueError('while needs an actual owner and an explicit state predicate')
     selected = actor if value['owner'] == 'user' else target
-    if set(value) == {'owner', 'condition'}:
+    if set(value)=={'owner','communication_source','sender_id'}:
+        import world_entities as W,perception_communicate as COMM
+        index=W.actor_index(engine)
+        if value['owner']!='target' or value['sender_id'] not in index or value['communication_source']!='class/교감자':raise ValueError('actual communication lifetime owner required')
+        if COMM._state(engine)['connections'].get(COMM._pair(value['communication_source'],value['sender_id'],target.entity_id)) is None:raise ValueError('actual communication lifetime connection required')
+    elif set(value) == {'owner', 'condition'}:
         if type(value['condition']) is not str or not value['condition'].strip():
             raise ValueError('named condition required')
         engine.r.condition_effects(value['condition'])
@@ -85,8 +92,10 @@ def prepare(engine, actor, target, effect, source):
         if value in ('scene_end', 'encounter_end'):
             value = {'event': value}
         plan['until'] = _event(value)
-        if plan['until']['event'] in TURN_EVENTS | {'round_end', 'encounter_end'} and not engine.encounter_active:
+        if plan['until']['event'] in TURN_EVENTS | {'round_end', 'encounter_end', 'initiative_count'} and not engine.encounter_active:
             raise ValueError('combat lifetime requires an actual encounter')
+        if plan['until']['event'] == 'initiative_count':
+            plan['started_count'] = TIME.current(engine)
     if 'while' in effect:
         plan['while'] = _predicate(engine, actor, target, effect['while'])
     if 'repeat' in effect:
@@ -107,8 +116,12 @@ def prepare(engine, actor, target, effect, source):
         if issue is not None:
             raise ValueError('repeat consequence is unresolved: ' + issue.detail)
         plan['repeat_effect'] = payload
-    return {'source': source, 'effect_contract': True, 'timing_text': deepcopy(plan['declaration']),
-            KEY: plan, 'lifetime_actor': actor, 'lifetime_target': target, 'lifetime_deliveries': []}
+    record = {'source': source, 'effect_contract': True, 'timing_text': deepcopy(plan['declaration']),
+              KEY: plan, 'lifetime_actor': actor, 'lifetime_target': target, 'lifetime_deliveries': []}
+    if plan.get('until', {}).get('event') == 'initiative_count':
+        record.update(count_deadline=(engine.round_no + plan['until']['after'], plan['started_count']),
+                      encounter_end=True)
+    return record
 
 
 def holds(engine, record):
@@ -116,6 +129,10 @@ def holds(engine, record):
     if value is None:
         return True
     actor = owner(record, value['owner'])
+    if 'communication_source' in value:
+        import perception_communicate as COMM
+        row=COMM._state(engine)['connections'].get(COMM._pair(value['communication_source'],value['sender_id'],actor.entity_id))
+        return row is not None and row['status']=='live'
     if 'condition' in value:
         return value['condition'] in actor.conditions
     import body_state as BODY
@@ -130,6 +147,7 @@ def reconcile(engine):
         return
     import state_grants as G
     G.sync_capability_losses(engine)
+    __import__('native_path_area_moves').reconcile_fairy(engine)
     import network_integrity as INTEGRITY
     INTEGRITY.boundary(engine,'reconcile')
     import environment_change as EC
@@ -168,6 +186,10 @@ def _ended(engine, record, event, actor):
         return False
     if event in TURN_EVENTS:
         return actor.custom_conditions.get('combat_turn_serial', 0) >= plan['started_turns'][until['owner']] + until['after']
+    if event == 'initiative_count':
+        count = TIME.current(engine)
+        deadline = plan['started_round'] + until['after']
+        return engine.round_no > deadline or engine.round_no == deadline and count <= plan['started_count']
     if event == 'round_end':
         return engine.round_no >= plan['started_round'] + until['after'] - 1
     return True
@@ -273,6 +295,8 @@ def archive(engine, actor, record, *, ending, event):
                     'started_at': record[KEY]['started_at'], 'ended_at': engine.elapsed_seconds,
                     'state': ending, 'event': deepcopy(event),
                     'deliveries': list(record['lifetime_deliveries'])})
+    import native_order_transfer as TRANSFER
+    if TRANSFER.KEY in record:history[-1][TRANSFER.KEY]=deepcopy(record[TRANSFER.KEY])
 
 
 def next_interval(engine, end_at):
@@ -319,8 +343,11 @@ def end_selected(engine, actor, *, source=None, occurrence=None):
 
 
 def validate_world(engine, index):
+    __import__('native_path_area_moves').validate_world(engine,index)
+    __import__('electro_shot').validate_world(engine,index)
     import effect_contracts as CONTRACTS
     import perception_communicate as COMM
+    import native_order_transfer as TRANSFER
     COMM.validate_world(engine,index)
     for target in index.values():
         seen = set()
@@ -337,8 +364,8 @@ def validate_world(engine, index):
                 raise ValueError('lifetime ending requires its completed producer')
             CONTRACTS.validate_receipt(engine,history['receipt'],history['source'],occurrence,
                                       producer['actor'],producer['target'],producer['effect'])
-            contract = producer.get('lifetime_contracts', {}).get(target.entity_id)
-            if not contract or contract['policy'] != history['policy'] or target not in CONTRACTS.recipients(producer['actor'],producer['target'],producer['effect']):
+            contract = TRANSFER.lifetime_contract(engine,target,history,producer)
+            if not contract or contract['policy'] != history['policy'] or TRANSFER.origin(engine,target,history) not in CONTRACTS.recipients(producer['actor'],producer['target'],producer['effect']):
                 raise ValueError('lifetime ending differs from its actual recipient and policy')
             C.integer(history['started_at'],'ended lifetime start',0)
             C.integer(history['ended_at'],'ended lifetime end',history['started_at'])
@@ -355,7 +382,7 @@ def validate_world(engine, index):
             if KEY not in record:
                 continue
             actor = record.get('lifetime_actor')
-            if actor is None or index.get(actor.entity_id) is not actor or record.get('lifetime_target') is not target:
+            if actor is None or index.get(actor.entity_id) is not actor or record.get('lifetime_target') is not TRANSFER.clock_owner(engine,target,record):
                 raise ValueError('lifetime actors must resolve to their actual participants')
             receipt = record.get('effect_receipt')
             try:
@@ -366,11 +393,17 @@ def validate_world(engine, index):
                 raise ValueError('lifetime requires a completed producer receipt')
             CONTRACTS.validate_receipt(engine, receipt, record['source'], record['effect_occurrence'],
                                       row['actor'], row['target'], row['effect'])
-            if row['actor'] is not actor or target not in CONTRACTS.recipients(row['actor'], row['target'], row['effect']):
+            if row['actor'] is not actor or TRANSFER.origin(engine,target,record) not in CONTRACTS.recipients(row['actor'], row['target'], row['effect']):
                 raise ValueError('lifetime recipient differs from the producer receipt')
             if record['source'] in engine.r.selection.units and engine.r._selected_rule(record['source']) != record['source']:
                 raise ValueError('lifetime source selection changed')
             plan = record[KEY]
+            if plan.get('until', {}).get('event') == 'initiative_count':
+                C.integer(plan.get('started_round'), 'initiative lifetime activation round', 1, engine.round_no)
+                C.integer(plan.get('started_count'), 'initiative lifetime activation count')
+                deadline = (plan['started_round'] + plan['until']['after'], plan['started_count'])
+                if tuple(record.get('count_deadline', ())) != deadline or record.get('encounter_end') is not True:
+                    raise ValueError('initiative lifetime lost its original count deadline')
             if plan['declaration'] != {k: row['effect'][k] for k in CONTROLS if k in row['effect']}:
                 raise ValueError('lifetime declaration differs from its actual producer')
             C.integer(plan['started_at'], 'lifetime start', 0)
@@ -378,7 +411,7 @@ def validate_world(engine, index):
                 raise ValueError('lifetime cannot start in the future')
             contribution = {k: record[k] for k in ('accuracy_modifier','evasion_modifier','damage_reduction','save_modifier',
                                                     'statuses','initiative_zero','initiative_operation','type_operation','forbidden_actions','pledge_rainbow') if k in record}
-            contract = row.get('lifetime_contracts', {}).get(target.entity_id)
+            contract = TRANSFER.lifetime_contract(engine,target,record,row)
             if contract != {'policy': plan, 'contribution': contribution} or record.get('timing_text') != plan['declaration']:
                 raise ValueError('lifetime policy differs from its declared clocks and payload')
             deliveries = record['lifetime_deliveries']

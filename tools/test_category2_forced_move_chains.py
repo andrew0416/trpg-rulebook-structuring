@@ -57,13 +57,29 @@ class ForcedMoveChainTests(unittest.TestCase):
     def use(self, move_id, target, *, hit=True, amount=5):
         bases = []
 
-        def damage(attacker, actual_target, move, *args, **kwargs):
-            bases.append(self.e.damage_base(attacker, move, target=actual_target))
+        def damage(engine, attacker, actual_target, move, *args, **kwargs):
+            bases.append(engine.damage_base(attacker, move, target=actual_target))
             return amount
 
-        with patch.object(self.e, "d20", return_value=10 if hit else 1), \
-             patch.object(self.e, "roll_damage", side_effect=damage):
-            result = self.e.use_move(self.a, target, move_id)
+        if move_id == self.rollout:
+            direction = 1 if self.a.pos[0] <= 7 else -1
+            x,y = self.a.pos
+            self.e.gm.set_position(target,(x+direction,y),reason='actual next Rollout recipient on the complete Pass route')
+            other = self.c if target is self.b else self.b
+            self.e.gm.set_position(other,(10,10),reason='actual other recipient outside this Pass route')
+            self._pass_request = getattr(self,'_pass_request',0)+1
+        with patch.object(Engine, "d20", return_value=10 if hit else 1), \
+             patch.object(Engine, "roll_damage", autospec=True, side_effect=damage):
+            if move_id == self.rollout:
+                receipt = self.e.use_pass_move(self.a,move_id,(x+2*direction,y),
+                    event_id='forced-chain-pass:'+str(self._pass_request),object_adjudications={},
+                    source='gm/observed-object-hits',reason='actual complete repeat-chain Pass route')
+                creatures = [row for row in receipt['results'] if row['kind']=='creature']
+                self.assertEqual([row['id'] for row in creatures],[target.entity_id])
+                self.assertEqual((self.a.budget['standard'],self.a.budget['shift']),(0,0))
+                result = sum(row['dealt'] for row in creatures)
+            else:
+                result = self.e.use_move(self.a, target, move_id)
         return result, bases
 
     def progression(self, move_id, expected):

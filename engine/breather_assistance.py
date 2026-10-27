@@ -103,8 +103,8 @@ def _retreat(engine,actor,helper,request_id,record):
 
 def _continue(engine,actor,helper,request_id,record):
     B.validate_continuation(engine,helper,B.SOURCE,'assisted_breather',record)
-    MOVEMENT.boundary(engine,'assisted_breather_continuation');INTERRUPTS.require_clear(engine)
     with ACTION.resolution(engine,helper,B.SOURCE,kind='assisted_breather',_breather_attempt=record):
+        MOVEMENT.boundary(engine,'assisted_breather_continuation');INTERRUPTS.require_clear(engine)
         return _retreat(engine,actor,helper,request_id,record)
 
 def take(engine,actor,helper,*,request_id,path,retreat_reason,curse_origin,curse_reason,assistance):

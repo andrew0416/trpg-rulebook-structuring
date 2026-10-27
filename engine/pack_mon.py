@@ -1,9 +1,11 @@
 """C10-097: live Pack Mon authority, using existing species/evolution data.
 
-Pre-evolutions obey irrespective of level. The ten-level difference qualifies
-the same-species alternative (ch10:107, contrasted by same-species ch10:109).
+Only unowned wild Pokemon receive automatic command authority. Korean ch10:107
+limits the ten-level alternative to the same species; English indices:85 does
+not. An explicit scoped source choice selects the complete alternative.
 This grants neither trainer ownership, loyalty nor an additional action.
 """
+from copy import deepcopy
 import common_checks as C
 import crafting_recipes as SOURCE_POLICY
 import perception_communicate as COMM
@@ -16,9 +18,36 @@ SOURCE_REFERENCE = {'file': 'input/ch10-index-reference.md',
     'sha256': 'c3a1d783b4f649f0f6e25a9443a90ca8079a6e036c42c6f8797e100127157abe'}
 EVOLUTION_REFERENCE = {'file': 'input/db/learnsets.csv',
     'sha256': '9b2be5bac7189567b97ad957379124f1a001bf016a0ce45ed03f63065a10ea6a'}
+ENGLISH_REFERENCE = {'file': 'source-audit/pack-mon-indices-reference-1.05.txt',
+    'sha256': '3b0d5f60ef2152b459782106e626b42d3c0f3caee4b5b9d9c2c5db459f7e7947'}
 
 
-def authorize(engine, commander, pokemon):
+def _definitions():
+    return {
+        'korean_same_species': {'wild_unowned': True, 'pre_evolution': True,
+            'level_difference': 10, 'lower_level_species': 'same_species',
+            'source': SOURCE_REFERENCE},
+        'english_lower_level': {'wild_unowned': True, 'pre_evolution': True,
+            'level_difference': 10, 'lower_level_species': 'any_species',
+            'source': ENGLISH_REFERENCE}}
+
+
+def _document():
+    return {'schema': 1, 'id': 'native/pack-mon-command', 'variants': [{
+        'rule_id': SOURCE, 'source': SOURCE_REFERENCE,
+        'values': {'variant': {'$input': 'source_text'}, 'definitions': _definitions()},
+        'inputs': {'source_text': {'type': 'string', 'authority': 'gm',
+            'decision_kind': 'source_conflict', 'choices': list(_definitions()),
+            'question': 'Pack Mon: Korean requires the same species for ten-level obedience; English does not. Which complete source definition applies?'}}}]}
+
+
+def source_choices(engine):
+    """Return the existing scoped source decision before declaring a command."""
+    import source_policy as POLICY
+    return POLICY.resolve(engine.r, _document())
+
+
+def authorize(engine, commander, pokemon, *, source_choice=None):
     WORLD.require_actors(engine, commander, pokemon)
     import partial_entities as PARTIAL
     for actor in (commander, pokemon):
@@ -31,12 +60,28 @@ def authorize(engine, commander, pokemon):
         raise ValueError('current Pack Mon capability required')
     SOURCE_POLICY._selected(engine, SOURCE)
     verified_source(engine.r, SOURCE_REFERENCE, label='Pack Mon')
+    import wild_equipment as WILD
+    WILD._wild(engine, pokemon)
+    if pokemon.spec.get('party_location', {}).get('owner_id') or any(
+            pokemon.entity_id in actor.spec.get('pokemon_registry', {})
+            for actor in WORLD.actors(engine) if actor.kind == 'trainer'):
+        raise ValueError('unowned wild Pokemon required; registered ownership is not command consent')
+    resolved = None
+    variant = 'korean_same_species'
+    if source_choice is not None:
+        import source_policy as POLICY
+        resolved = POLICY.resolve(engine.r, _document(), decisions={'source_text': source_choice})
+        if resolved['status'] != 'PolicyValuesReady':raise ValueError('explicit Pack Mon source decision required')
+        variant = resolved['values']['variant']
+    definition = deepcopy(_definitions()[variant] if resolved is None else resolved['values']['definitions'][variant])
+    if variant == 'english_lower_level':
+        verified_source(engine.r, definition['source'], source_root='source-audit', label='English Pack Mon')
     leader = species_lookup(engine.r, commander.spec.get('species'))
     follower = species_lookup(engine.r, pokemon.spec.get('species'))
     for species in (leader, follower):SOURCE_POLICY._selected(engine, species['id'])
     if leader['id'] == follower['id']:
         relation = 'same_species'
-        obeys = commander.level - pokemon.level >= 10
+        obeys = commander.level - pokemon.level >= definition['level_difference']
     else:
         # The current leader's own listed lineage excludes unrelated species
         # and alternative branches; a global stage number is never a relation.
@@ -48,9 +93,15 @@ def authorize(engine, commander, pokemon):
         previous = [stage for stage, name, _ in stages if name == follower['name']]
         obeys = len(own) == 1 and len(previous) == 1 and previous[0] < own[0]
         relation = 'pre_evolution'
+    if (not obeys and definition['lower_level_species'] == 'any_species'
+            and commander.level - pokemon.level >= definition['level_difference']):
+        obeys = True
+        relation = 'lower_level'
     if not obeys:raise ValueError('Pack Mon species/level relation does not grant command authority')
     return {'activity': 'command_loyalty', 'obeys': True, 'check': None,
             'source': SOURCE, 'commander_id': commander.entity_id,
             'pokemon_id': pokemon.entity_id, 'relation': relation,
             'commander_species': leader['id'], 'pokemon_species': follower['id'],
-            'commander_level': commander.level, 'pokemon_level': pokemon.level}
+            'commander_level': commander.level, 'pokemon_level': pokemon.level,
+            'source_variant': variant, 'definition': definition,
+            'source_choice': deepcopy(source_choice), 'source_policy': resolved}

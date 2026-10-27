@@ -71,7 +71,7 @@ def _state(engine, actor, row, obj, *, create=False):
     return state
 
 
-def prepare_register(engine, actor, item_id, source_instance_id=None):
+def prepare_register(engine, actor, item_id, source_instance_id=None, *, projection=None):
     if item_id not in ITEM_KINDS:
         return None
     row = definition(engine.r, item_id)
@@ -81,6 +81,10 @@ def prepare_register(engine, actor, item_id, source_instance_id=None):
         raise ValueError("this remaining CSV held item is Pokemon-only")
     if row["kind"] in TRAINER_ONLY and actor.kind != "trainer":
         raise ValueError("this remaining CSV equipment is Trainer-only")
+    if projection is not None:
+        import fashionista as FASHION
+        FASHION.dress_item_origin(engine,actor,item_id,projection,preparing=True)
+        return dict(row, **{PLAN: True, 'feature_projection':deepcopy(projection)})
     if source_instance_id is None:
         raise ValueError("remaining CSV equipment requires an actual physical instance")
     _object(engine, actor, source_instance_id, item_id)
@@ -91,19 +95,33 @@ def consumes_effect(plan, effect):
     return bool(plan and plan.get(PLAN) is True and isinstance(effect, dict))
 
 
+def weapon_profile(rules, item_id):
+    if item_id not in ITEM_KINDS:
+        return None
+    row = definition(rules, item_id)
+    if row is None or row['kind'] != 'pokeball_cannon':
+        return None
+    return {'name': rules.items_mech[item_id]['name'], 'kind': '장거리 사격무기',
+            'grade': '좋음', 'moves': [], 'arcane': False, 'metal': False}
+
+
 def install(engine, actor, source_id, plan):
     if not plan or plan.get(PLAN) is not True:
         return [], 0
-    instance_id = source_id.split("equipment:", 1)[1] if source_id.startswith("equipment:") else None
-    obj = _object(engine, actor, instance_id, plan["item_id"])
+    projection=plan.get('feature_projection')
+    if projection is not None:
+        obj=__import__('fashionista').dress_item_origin(engine,actor,plan['item_id'],projection,preparing=True)
+        instance_id=obj['id']
+    else:
+        instance_id = source_id.split("equipment:", 1)[1] if source_id.startswith("equipment:") else None
+        obj = _object(engine, actor, instance_id, plan["item_id"])
     state = _state(engine, actor, plan, obj, create=True)
     effect_sources = []
     if plan["kind"] == "pokeball_cannon":
         import optional_weapon_framework as FRAMEWORK
         import turn as TURN
-        weapon = FRAMEWORK.crafted_weapon(engine, {"instance_id": instance_id}, {
-            "name": engine.r.items_mech[plan["item_id"]]["name"],
-            "kind": "장거리 사격무기", "grade": "좋음", "moves": []})
+        weapon = FRAMEWORK.crafted_weapon(engine, {"instance_id": instance_id},
+            weapon_profile(engine.r, plan["item_id"]))
         key = TURN.equip_weapon(engine, actor, weapon)
         actor.custom_conditions["equipped_weapons"][key].update(
             item_id=plan["item_id"], instance_id=instance_id)
@@ -120,16 +138,20 @@ def install(engine, actor, source_id, plan):
         }
     elif plan["kind"] == "air_balloon":
         import state_grants as GRANTS
-        GRANTS.grant(actor, "abilities", "부유", source_id, "item", owner_id=actor.entity_id,
-                     lifetime="equipped", rule_id=plan["item_id"])
-    state["history"].append({"event": "equipped", "at": engine.elapsed_seconds, "actor_id": actor.entity_id})
+        source=GRANTS.state(actor)['sources'][source_id]
+        GRANTS.grant(actor, "abilities", "부유", source_id, "item", owner_id=source['owner_id'],
+                     lifetime=source['lifetime'], rule_id=source['rule_id'])
+    state["history"].append({"event": "projected" if projection is not None else "equipped", "at": engine.elapsed_seconds, "actor_id": actor.entity_id})
     return effect_sources, 1
 
 
 def bind_registration(engine, actor, registration, plan):
     if not plan or plan.get(PLAN) is not True:
         return
-    obj = _object(engine, actor, registration.get("instance_id"), plan["item_id"])
+    if plan.get('feature_projection') is not None:
+        obj=__import__('fashionista').dress_item_origin(engine,actor,plan['item_id'],plan['feature_projection'],preparing=True)
+    else:
+        obj = _object(engine, actor, registration.get("instance_id"), plan["item_id"])
     state = _state(engine, actor, plan, obj)
     registration["csv_item_projection"] = _projection(registration, state)
     if plan["kind"] == "pokeball_cannon":
@@ -148,7 +170,7 @@ def uninstall(engine, actor, registration):
     if row["kind"] == "pokeball_cannon":
         import turn as TURN
         TURN.unequip_weapon(engine, actor, registration["cannon_weapon_key"])
-    obj = _objects(engine).get(registration.get("instance_id"))
+    obj = _objects(engine).get(_instance_id(registration))
     if isinstance(obj, dict) and OBJECT_STATE in obj:
         state = _state(engine, actor, row, obj)
         state["history"].append({"event": "unequipped", "at": engine.elapsed_seconds, "actor_id": actor.entity_id})
@@ -157,12 +179,33 @@ def uninstall(engine, actor, registration):
 
 
 def _projection(registration, state):
-    result = {"schema_version": 1, "instance_id": registration.get("instance_id"),
+    result = {"schema_version": 1, "instance_id": _instance_id(registration),
               "clause_id": state["clause_id"], "item_id": state["item_id"], "kind": state["kind"]}
     for field in ("loaded_ball_instance_id", "chosen_type", "study_rank", "scene_uses"):
         if field in state:
             result[field] = deepcopy(state[field])
     return result
+
+
+def _instance_id(registration):
+    return registration.get('projection',{}).get('wardrobe_instance_id',registration.get('instance_id'))
+
+
+def _registration_object(engine,actor,registration,row):
+    if registration.get('projection') is not None:
+        return __import__('fashionista').dress_item_origin(engine,actor,row['item_id'],registration['projection'])
+    obj=_object(engine,actor,registration.get('instance_id'),row['item_id'])
+    if obj.get('equipped_by')!=actor.entity_id:
+        raise ValueError('remaining CSV equipment registration and physical holder disagree')
+    return obj
+
+
+def projection_transferred(engine,actor,registration):
+    if registration.get('item_id')=='item/돌격조끼' and registration.get('projection') is not None:
+        engine.apply_status(actor,'난동',source=registration['item_id'])
+        actor.spec.setdefault(ACTOR_STATE,{})['assault_vest_rampage']={
+            'instance_id':_instance_id(registration),'started_at':engine.elapsed_seconds,
+            'encounter':_encounter_key(engine,actor),'active':True}
 
 
 def _active(engine, actor, kinds):
@@ -173,9 +216,7 @@ def _active(engine, actor, kinds):
         row = definition(engine.r, registration.get("item_id"))
         if row is None or row["kind"] not in kinds or registration.get("state_source") not in sources:
             continue
-        obj = _object(engine, actor, registration.get("instance_id"), row["item_id"])
-        if obj.get("equipped_by") != actor.entity_id:
-            raise ValueError("remaining CSV equipment registration and physical holder disagree")
+        obj = _registration_object(engine, actor, registration, row)
         state = _state(engine, actor, row, obj)
         if registration.get("csv_item_projection") != _projection(registration, state):
             raise ValueError("remaining CSV equipment projection differs from physical state")
@@ -239,16 +280,34 @@ def _manual_skill(engine, owner, rank):
         raise ValueError('Type Study Manual requires Novice/Expert Pokemon Education for its actual rank')
 
 
+def _cannon_projectile(engine, trainer, ball_instance_id):
+    ball = _objects(engine).get(ball_instance_id, {})
+    item_id = ball.get('item_rule_id')
+    _object(engine, trainer, ball_instance_id, item_id)
+    import pester_balls as PESTER
+    if item_id in PESTER.VARIANTS:
+        PESTER.definition(engine.r, item_id)
+        import item_stock as STOCK
+        STOCK.prepare(engine, trainer, item_id, held_selection=ball_instance_id)
+        return 'pester_ball'
+    if not isinstance(item_id, str):raise ValueError('Cannon projectile requires its exact selected item')
+    header = engine.r.item_effects(item_id)[1]
+    if header.get('id') != item_id or header.get('use') != 'ball':
+        raise ValueError('Cannon accepts only an actual selected Poke Ball or manufactured Pester Ball')
+    import missed_ball_body as BALL_BODY
+    BALL_BODY.physical(engine, trainer, ball_instance_id)
+    return 'ball'
+
+
 def load_cannon(engine, trainer, cannon_instance_id, ball_instance_id):
     matches = [entry for entry in _active(engine, trainer, "pokeball_cannon") if entry[2]["instance_id"] == cannon_instance_id]
     if len(matches) != 1:
         raise ValueError("one actual equipped Pokeball Cannon is required")
     entry = matches[0]
-    ball = _objects(engine).get(ball_instance_id)
-    if (not isinstance(ball, dict) or ball.get("kind") != "item_instance" or trainer.entity_id not in
-            (ball.get("owner_id"), ball.get("carrier_id")) or "볼" not in str(ball.get("item_rule_id", ""))):
-        raise ValueError("Pokeball Cannon requires one actual possessed ball instance")
-    _object(engine,trainer,ball_instance_id,ball['item_rule_id'])
+    _cannon_projectile(engine, trainer, ball_instance_id)
+    if any(row.get(OBJECT_STATE, {}).get('loaded_ball_instance_id') == ball_instance_id
+           for row in _objects(engine).values()):
+        raise ValueError('one actual projectile cannot be loaded into two Cannons')
     for attempt in trainer.spec.get('capture_attempts',{}).values():
         if attempt.get('physical_instance_id',attempt.get('cannon',{}).get('ball_instance_id'))==ball_instance_id and attempt.get('status') not in ('recovered_intact','repaired'):
             raise ValueError('Cannon projectile must be actually recovered before reloading')
@@ -264,25 +323,24 @@ def load_cannon(engine, trainer, cannon_instance_id, ball_instance_id):
 
 
 def cannon_profile(engine, trainer, cannon_instance_id, *, projectile):
-    if projectile not in ("ball", "sludge_bomb"):
-        raise ValueError("Pokeball Cannon supports a ball or Sludge Bomb projectile")
+    if projectile not in ('ball', 'pester_ball'):
+        raise ValueError('Pokeball Cannon supports only Poke Ball and Pester Ball items')
     matches = [entry for entry in _active(engine, trainer, "pokeball_cannon") if entry[2]["instance_id"] == cannon_instance_id]
     if len(matches) != 1:
         raise ValueError("one actual equipped Pokeball Cannon is required")
     entry = matches[0]
-    if projectile == "ball" and entry[4]["loaded_ball_instance_id"] is None:
+    if entry[4]["loaded_ball_instance_id"] is None:
         raise ValueError("Pokeball Cannon has no loaded physical ball")
-    if projectile == "ball":
-        ball = _objects(engine).get(entry[4]['loaded_ball_instance_id'], {})
-        _object(engine,trainer,entry[4]['loaded_ball_instance_id'],ball.get('item_rule_id'))
+    if _cannon_projectile(engine, trainer, entry[4]['loaded_ball_instance_id']) != projectile:
+        raise ValueError('Cannon must fire its actual loaded projectile kind')
     result = {"quality": "good", "weapon_class": "ranged", "accuracy_bonus": 1, "range_m": 15,
-              "fixed_damage": "2d6" if projectile == "ball" else None,
+              "fixed_damage": "2d6",
               "ball_instance_id": entry[4].get("loaded_ball_instance_id")}
     return result
 
 
-def fire_cannon(engine, trainer, cannon_instance_id, *, ball_instance_id):
-    profile = cannon_profile(engine, trainer, cannon_instance_id, projectile="ball")
+def fire_cannon(engine, trainer, cannon_instance_id, *, ball_instance_id, projectile='ball'):
+    profile = cannon_profile(engine, trainer, cannon_instance_id, projectile=projectile)
     if profile["ball_instance_id"] != ball_instance_id:
         raise ValueError("Cannon's actual loaded projectile changed")
     entry = next(row for row in _active(engine, trainer, "pokeball_cannon")
@@ -292,6 +350,8 @@ def fire_cannon(engine, trainer, cannon_instance_id, *, ball_instance_id):
     entry[4]["history"].append({"event": "fired", "at": engine.elapsed_seconds,
                                "ball_instance_id": ball_instance_id})
     _sync(entry)
+    # Pester Ball stock is consumed by its native item-use payment owner.
+    if projectile == 'pester_ball':return profile
     # A thrown ball remains an actual recoverable projectile, rather than an
     # inventory counter or a consumed object whose miss could not be recovered.
     ball.pop("carrier_id", None)
@@ -366,7 +426,10 @@ def dynamax_authorized(engine, actor):
 
 
 def ground_immunity(engine, actor, move):
-    return bool(move.get("type") == "땅" and _active(engine, actor, "air_balloon"))
+    import catalog_move_states as CATALOG
+    return bool(move.get("type") == "땅" and not CATALOG.grounded(actor)
+                and not CATALOG.thousand_arrows_ignores_ground_immunity(engine, move)
+                and _active(engine, actor, "air_balloon"))
 
 
 def loaded_dice_hits(engine, actor, *, fixed=None, optional=False):
@@ -384,7 +447,7 @@ def loaded_dice_hits(engine, actor, *, fixed=None, optional=False):
     def hits(face):
         return 1 if face == 1 else 2 if face <= 3 else 3 if face <= 6 else 4 if face == 7 else 5
     return {"rolls": rolls, "hits": max(map(hits, rolls)),
-            "item_id": "item/속임수주사위", "instance_id": active[0][2]["instance_id"]}
+            "item_id": "item/속임수주사위", "instance_id": _instance_id(active[0][2])}
 
 
 def _actual_hit(move, receipt):
@@ -393,13 +456,13 @@ def _actual_hit(move, receipt):
             and receipt.get("source") == move.get("id") and move.get("class") in ("물리", "특수"))
 
 
-def after_attack_damage(engine, attacker, target, move, receipt):
+def after_attack_damage(engine, attacker, target, move, receipt, *, type_multiplier=None):
     if not _actual_hit(move, receipt):
         return None
     balloon = _active(engine, target, "air_balloon")
     if balloon:
         _finish_instance(engine, target, balloon[0], "destroyed", "item/풍선:attack-hit")
-    multiplier = receipt.get("type_multiplier")
+    multiplier = type_multiplier if type_multiplier is not None else receipt.get("type_multiplier")
     if multiplier is None:
         multiplier = engine.type_multiplier(move.get("type"), target)[0]
     if multiplier > 1:
@@ -425,26 +488,51 @@ def after_stage_change(engine, actor, stat, before, after):
 
 
 def _scene_available(engine, entry):
-    actor = _actor_for(engine, entry[3]["equipped_by"])
+    actor = _entry_actor(engine, entry)
     return not any(row["scene"] == _scene_key(engine, actor)
                    for row in entry[4].get("scene_uses", []))
 
 
 def _actor_for(engine, uid):
-    for actor in engine.time_actors():
+    for actor in __import__('world_entities').actors(engine):
         if actor.entity_id == uid:
             return actor
     raise ValueError("equipment holder actor is missing")
 
 
+def _entry_actor(engine,entry):
+    if entry[2].get('projection') is None:return _actor_for(engine,entry[3]['equipped_by'])
+    holders=[actor for actor in __import__('world_entities').actors(engine) if getattr(actor,'_item_reg',{}).get(entry[0]) is entry[2]]
+    if len(holders)!=1:raise ValueError('projected equipment requires its unique actual beneficiary')
+    return holders[0]
+
+
 def _spend_scene(engine, entry, event, target_id=None):
-    actor = _actor_for(engine, entry[3]["equipped_by"])
+    actor = _entry_actor(engine, entry)
     key = _scene_key(engine, actor)
     if any(row["scene"] == key for row in entry[4].get("scene_uses", [])):
         raise ValueError("remaining CSV held-item scene use is spent")
     entry[4].setdefault("scene_uses", []).append({"scene": key, "event": event, "at": engine.elapsed_seconds,
                                                   "target_id": target_id})
-    _sync(entry)
+    for holder in __import__('world_entities').actors(engine):
+        for registration in getattr(holder,'_item_reg',{}).values():
+            if _instance_id(registration)==entry[3]['id']:
+                registration['csv_item_projection']=_projection(registration,entry[4])
+
+
+def _reaction_window(engine):
+    active = getattr(engine, "_active_turn_actor", None)
+    return [engine.round_no, engine.elapsed_seconds, engine.encounter_active,
+            getattr(active, "entity_id", None),
+            active.custom_conditions.get("combat_turn_serial", 0) if active is not None else 0]
+
+
+def expire_immediate_reactions(engine):
+    """A newly recorded action closes optional immediate switches only."""
+    for actor in __import__('world_entities').actors(engine):
+        pending = actor.spec.get(PENDING, {})
+        pending.pop("eject_button", None)
+        pending.pop("eject_pack", None)
 
 
 def _issue_pending(engine, actor, kind, **event):
@@ -452,10 +540,13 @@ def _issue_pending(engine, actor, kind, **event):
     if not matches or not _scene_available(engine, matches[0]):
         return None
     pending = actor.spec.setdefault(PENDING, {})
-    if kind in pending:
+    immediate = kind in ("eject_button", "eject_pack")
+    if kind in pending and (not immediate or pending[kind].get("window") == _reaction_window(engine)):
         return deepcopy(pending[kind])
-    row = {"kind": kind, "instance_id": matches[0][2]["instance_id"], "at": engine.elapsed_seconds,
+    row = {"kind": kind, "instance_id": _instance_id(matches[0][2]), "at": engine.elapsed_seconds,
            "scene": _scene_key(engine, actor), "event": _json_event(event), "automatic": bool(event.get("automatic"))}
+    if immediate:
+        row["window"] = _reaction_window(engine)
     pending[kind] = row
     return deepcopy(row)
 
@@ -485,14 +576,20 @@ def _resolve_pending(engine, actor, kind, *, accept=True, send=None):
     row = actor.spec.get(PENDING, {}).get(kind)
     if not isinstance(row, dict) or row.get("scene") != _scene_key(engine, actor):
         raise ValueError("actual live remaining-item reaction is required")
+    if kind in ("eject_button", "eject_pack") and row.get("window") != _reaction_window(engine):
+        raise ValueError("immediate held-item reaction window expired")
     if kind == "red_card" and accept is not True:
         raise ValueError("Red Card reaction is automatic")
     if type(accept) is not bool:
         raise ValueError("optional held-item Free action must be accepted or declined")
     matches = _active(engine, actor, kind)
-    if kind != "red_card" and len(matches) != 1:
+    if kind != "red_card" and (len(matches) != 1 or _instance_id(matches[0][2]) != row.get("instance_id")):
         raise ValueError("reaction's actual held item changed")
-    actor.spec[PENDING].pop(kind)
+    if accept and kind in ("eject_button", "eject_pack"):
+        _preflight_switch(engine, actor, send)
+        import action_lifecycle as ACTION
+        ACTION.triggered_free_action(engine, actor, matches[0][1]["item_id"])
+    actor.spec[PENDING].pop(kind, None)
     if not accept:
         return {"accepted": False, "kind": kind}
     if kind == "weakness_policy":
@@ -511,7 +608,8 @@ def _resolve_pending(engine, actor, kind, *, accept=True, send=None):
         reserves = _reserves(engine, attacker)
         if send is not None:
             raise ValueError("Red Card replacement is selected randomly from the actual controller's reserves")
-        if reserves:
+        import condition_recovery as RECOVERY
+        if reserves and RECOVERY.permits_recall(attacker):
             send = engine.rng.choice(reserves)
             _immediate_switch(engine, attacker, send)
         return {"accepted": True, "forced": True, "attacker_id": attacker_id,
@@ -519,7 +617,7 @@ def _resolve_pending(engine, actor, kind, *, accept=True, send=None):
     raise ValueError("unknown remaining-item reaction")
 
 
-def _immediate_switch(engine, outgoing, incoming):
+def _preflight_switch(engine, outgoing, incoming):
     if outgoing.kind != "pokemon" or not outgoing.on_field:
         raise ValueError("switch reaction requires the actual on-field Pokemon")
     if incoming is None:
@@ -528,6 +626,13 @@ def _immediate_switch(engine, outgoing, incoming):
         raise ValueError("switch replacement must be a conscious actual off-field Pokemon")
     if incoming is not None and incoming not in _reserves(engine, outgoing):
         raise ValueError("switch replacement must belong to the actual same controller")
+    import condition_recovery as RECOVERY
+    if not RECOVERY.permits_recall(outgoing):
+        raise ValueError("Trapped prevents ordinary recall")
+
+
+def _immediate_switch(engine, outgoing, incoming):
+    _preflight_switch(engine, outgoing, incoming)
     import combat_state_lifecycle as COMBAT
     COMBAT.recall(engine, outgoing)
     if incoming is not None:
@@ -555,6 +660,23 @@ def damage_roll_bonus(engine, actor, move):
 def _finish_instance(engine, actor, entry, outcome, source):
     key, _, registration, obj, state = entry
     state["history"].append({"event": outcome, "at": engine.elapsed_seconds, "source": source})
+    projected=registration.get('projection')
+    projected_views=any(reg.get('projection',{}).get('wardrobe_instance_id')==obj['id']
+        for holder in __import__('world_entities').actors(engine) for reg in getattr(holder,'_item_reg',{}).values())
+    if projected is not None or projected_views:
+        import fashionista as FASHION,world_entities as WORLD,consumption_execution as EXECUTION
+        if projected is not None:FASHION.dress_item_origin(engine,actor,obj['item_rule_id'],projected)
+        FASHION.finish_dress_item(engine,obj)
+        evidence=({'source':obj['item_rule_id'],'by_actor_id':actor.entity_id,'at':engine.elapsed_seconds,'trigger':source}
+                  if outcome=='consumed' else {'source':source,'former_holder_id':actor.entity_id})
+        WORLD.finish_physical_use(engine,obj,outcome,evidence)
+        if outcome=='consumed':
+            paid=EXECUTION.issue(engine,actor,{'kind':'wardrobe_instance' if projected is not None else 'held_instance',
+                'item_id':obj['item_rule_id'],'instance_id':obj['id'],'count':1,
+                'source':projected['rule_id'] if projected is not None else obj['item_rule_id']})
+            EXECUTION.finish(actor,paid,target_id=actor.entity_id,outcome='applied',
+                results=[{'kind':'physical_consumption','id':obj['id']}])
+        return
     if outcome == "consumed":
         import item_stock as STOCK
         stock = STOCK.prepare(engine, actor, obj["item_rule_id"], held_selection=obj["id"])
@@ -618,6 +740,15 @@ def validate_actor(actor):
     pending = actor.spec.get(PENDING, {})
     if not isinstance(pending, dict) or any(k not in REACTIONS or not isinstance(v, dict) or v.get("kind") != k for k, v in pending.items()):
         raise ValueError("remaining CSV pending reaction state is invalid")
+    for row in pending.values():
+        if "window" not in row:
+            continue  # Older saves remain readable; unbound immediate choices cannot be accepted.
+        window = row["window"]
+        if (not isinstance(window, list) or len(window) != 5
+                or any(type(window[i]) is not int or window[i] < 0 for i in (0, 1, 4))
+                or type(window[2]) is not bool
+                or window[3] is not None and (not isinstance(window[3], str) or not window[3])):
+            raise ValueError("remaining CSV immediate reaction window is invalid")
     state = actor.spec.get(ACTOR_STATE, {})
     if not isinstance(state, dict):
         raise ValueError("remaining CSV actor state must be a mapping")
@@ -661,22 +792,27 @@ def upgrade_legacy_cannon(engine, index):
 
 def validate_world(engine, index):
     POLICY.policy(engine.r)
+    loaded = set()
     for obj in _objects(engine).values():
         if OBJECT_STATE in obj:
             _validate_object_state(engine, obj)
+            projectile = obj[OBJECT_STATE].get('loaded_ball_instance_id')
+            if projectile is not None:
+                if projectile in loaded:raise ValueError('one actual projectile cannot be loaded into two Cannons')
+                loaded.add(projectile)
     for actor in index.values():
         validate_actor(actor)
         for registration in getattr(actor, "_item_reg", {}).values():
             row = definition(engine.r, registration.get("item_id"))
             if row is None:
                 continue
-            obj = _objects(engine).get(registration.get("instance_id"))
-            if not isinstance(obj, dict) or obj.get("equipped_by") != actor.entity_id:
-                raise ValueError("remaining CSV registration lacks its physical holder")
+            obj = _registration_object(engine, actor, registration, row)
             state = _state(engine, actor, row, obj)
             if registration.get("csv_item_projection") != _projection(registration, state):
                 raise ValueError("restored remaining CSV projection differs from physical state")
             if row["kind"] == "pokeball_cannon":
+                if state['loaded_ball_instance_id'] is not None:
+                    _cannon_projectile(engine, actor, state['loaded_ball_instance_id'])
                 key = registration.get("cannon_weapon_key")
                 weapon = actor.custom_conditions.get("equipped_weapons", {}).get(key)
                 if (not isinstance(weapon, dict) or weapon.get("item_id") != row["item_id"]

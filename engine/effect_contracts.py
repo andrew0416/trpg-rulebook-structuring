@@ -15,11 +15,13 @@ CONTROL=frozenset(('target','on','turns','scope','while','until','duration','rep
 CONDITION=frozenset(('on_miss','on_natural_roll_min','on_natural_roll','if_weather','on_ko','if'))
 ANNOTATIONS=frozenset(('note','confidence'))
 SCHEMAS={
+ 'oracle_mark':{'owner_id'},
+ 'channel_imprint':{'owner_id'},
  'forced_movement':{'distance','direction','stop_cells','allow_fainted'},
  'push':{'meters'},
  'stage_change':{'stat','delta','base','linked_to'},'stat_mod':{'stat','value','min','multiplier'},
  'apply_status':{'status','parameters'},'apply_status_random':{'options'},'cure_status':{'status'},'cure_all_status':set(),
- 'heal':{'amount','fraction_of_max','replaces'},'hp_loss':{'value','unpreventable'},'self_hp_set':{'self_hp','unpreventable'},
+ 'heal':{'amount','fraction_of_max','replaces'},'hp_loss':{'value','unpreventable','as'},'self_hp_set':{'self_hp','unpreventable','faint','loyalty'},
  'temp_hp':{'value'},'set_weather':{'weather','rounds'},'field_effect':{'field','rounds','effect'},
  'skill_check_mod':{'value'},'damage_reduction':{'value'},'evasion_mod':{'value'},'accuracy_mod':{'value'},'save_mod':{'value'},
  'initiative':{'delta','set_to','multiplier','priority'},'initiative_multiplier':{'value'},'drain':{'fraction'},'reset_stages':set(),
@@ -27,7 +29,8 @@ SCHEMAS={
  'type_change':{'add_type','lose_type','set_type','fallback','single_type'},
  'size_change':{'to'},
 }
-SELF_DEFAULT=frozenset(('damage_reduction','save_mod','type_change','grant_ability','ability_change','size_change','heal_injury','consume_buff','counter','self_hp_set','drain','grant_move'))
+# Field creation, hazard cleanup and repeat locks are owned by their user.
+SELF_DEFAULT=frozenset(('damage_reduction','save_mod','type_change','grant_ability','ability_change','size_change','heal_injury','consume_buff','counter','self_hp_set','drain','grant_move','destroy_hazards','field_effect','repeat_each_turn'))
 
 @dataclass(frozen=True)
 class Issue:
@@ -93,10 +96,77 @@ def recipients(actor,target,effect):
  if selected in ('both','self and target') and effect.get('type') in {'stage_change','stat_mod','apply_status','apply_status_random','cure_status','cure_all_status','heal','hp_loss','temp_hp','evasion_mod','accuracy_mod','reset_stages','save_mod'}:return tuple(dict.fromkeys((actor,target)))
  raise ValueError('explicit native target-set binding required for '+str(selected))
 
+def hit_recipients(engine,actor,target,effect,source):
+ """Resolve supported native per-hit selectors without widening their source."""
+ if source=='move/불꽃튀기기' and effect.get('type')=='hp_loss':
+  import csv,io
+  import hp_setting_moves as HP,body_state as BODY,world_entities as WORLD
+  from source_context import verified_source
+  content=verified_source(engine.r,HP.MOVE_REF,label='Flame Burst cardinal HP loss')
+  row=list(csv.reader(io.StringIO(content.decode('utf-8-sig'))))[246]
+  origin=engine.r.selection.units[source]['source']
+  expected={'type':'hp_loss','value':5,'target':'cardinally adjacent to target'}
+  if (engine.r._selected_rule(source)!=source or row[0]!='불꽃튀기기'
+      or origin.get('file')!='db/moves.csv' or origin.get('record_span')!=[247,247]
+      or engine.r.move(source).get('effect')!=row[7]
+      or {k:v for k,v in effect.items() if k!='_src'}!=expected):
+   raise ValueError('Flame Burst requires its exact selected cardinal HP-loss source')
+  WORLD.require_actors(engine,actor,target)
+  if engine.grid is None:
+   raise ValueError('Flame Burst requires mapped cardinal body geometry; generic mapless contact is insufficient')
+  BODY.cells(target,require_complete=True)
+  candidates=[c for c in WORLD.actor_index(engine).values()
+              if c.on_field and not c.captured and c.kind in ('trainer','pokemon')]
+  # A token alone cannot prove that an unobserved body is outside the splash.
+  for candidate in candidates:BODY.cells(candidate,require_complete=True)
+  return tuple(c for c in candidates if c is not target and BODY.adjacent(target,c,cardinal=True))
+ if source=='feat/왕복-여행':
+  import native_switch_transfer as SWITCH
+  if effect==SWITCH.ROUND_EFFECT:return (target,)
+ if (source=='move/천둥차기'
+       and effect=={'type':'stage_change','stat':'def','delta':-1,'target':'all_targets'}):
+  # The native activation dispatches this declaration once per actual hit.
+  return (target,)
+ if effect.get('type')=='apply_coat' and effect.get('target')=='all in burst':
+  return (target,)
+ if effect.get('target')=='all_targets':
+  import native_area_hit_effects as AREA_HIT
+  return AREA_HIT.preflight(engine,actor,target,effect,source)
+ return recipients(actor,target,effect)
+
 def inspect(engine,actor,target,effect,source,index=0):
  import effects as FX
  if not isinstance(effect,dict) or not isinstance(effect.get('type'),str):return Issue('unsupported_execution','type','typed effect record required')
+ if effect.get('type')=='hp_loss' and 'as' in effect and (source!='move/목숨걸기' or effect['as']!='damage'):
+  return Issue('unsupported_execution','as','only the reviewed Final Gambit fixed-damage declaration is supported')
+ if effect.get('type')=='self_hp_set' and 'faint' in effect and type(effect['faint']) is not bool:
+  return Issue('unsupported_execution','faint','explicit boolean required')
+ if effect.get('type')=='self_hp_set' and 'loyalty' in effect and (source not in ('move/대폭발','move/자폭') or type(effect['loyalty']) is not int or effect['loyalty']!=-1):
+  return Issue('unsupported_execution','loyalty','reviewed sacrifice decrease with explicit GM amount required')
  kind=effect['type']
+ if kind=='item_restore' and source=='move/리사이클':
+  try:__import__('recycle_move').preflight(engine,actor,target,effect,source)
+  except (ValueError,TypeError,KeyError) as ex:return Issue('unresolved_source','recycle',str(ex))
+  return None
+ if kind=='delayed_heal' and source=='move/희망사항':
+  try:__import__('wish_move').preflight(engine,actor,target,effect,source)
+  except (ValueError,TypeError,KeyError) as ex:return Issue('unresolved_source','wish',str(ex))
+  return None
+ import misty_explosion as MISTY
+ if MISTY.handles(source,effect):
+  try:MISTY.prepare(engine,actor,effect)
+  except (ValueError,TypeError,KeyError) as ex:return Issue('unresolved_source','local_misty',str(ex))
+  return None
+ if source==MISTY.SOURCE and kind=='conditional_damage_base':
+  try:MISTY.conditional(engine.r,engine.r.move(source),effect)
+  except (ValueError,TypeError,KeyError) as ex:return Issue('unresolved_source','misty_damage_base',str(ex))
+  return None
+ if kind=='oracle_mark':
+  try:__import__('oracle').mark_payload(engine,actor,target,effect,source,preflight=True)
+  except ValueError as ex:return Issue('unsupported_execution','oracle_mark',str(ex))
+ if kind=='channel_imprint':
+  try:__import__('channeler').preflight_imprint(engine,actor,target,effect,source)
+  except ValueError as ex:return Issue('unsupported_execution','channel_imprint',str(ex))
  if kind=='pledge' and 'rainbow_observed' in effect:
   import pledge_state as PLEDGE
   try:PLEDGE.prepare(engine,actor,target,effect,source)
@@ -138,19 +208,10 @@ def inspect(engine,actor,target,effect,source,index=0):
    if not WEAPONS.is_field(WEAPONS.range_spec(engine,engine.r.move(source))):
     return Issue('unresolved_source','target','Haze requires its selected Field range')
    targets=tuple(WEAPONS.field_members(engine))
-  elif (kind=='stage_change' and source=='move/천둥차기'
-        and effect=={'type':'stage_change','stat':'def','delta':-1,'target':'all_targets'}):
-   # use_move_on dispatches this target-1 Move once for every authenticated hit
-   # target.  The handler receives that current member, while the source wording
-   # retains all_targets provenance.
-   targets=(target,)
-  elif kind=='apply_coat' and effect.get('target')=='all in burst':targets=(target,)
-  elif effect.get('target')=='all_targets':
-   import native_area_hit_effects as AREA_HIT
-   targets=AREA_HIT.preflight(engine,actor,target,effect,source)
-  else:targets=recipients(actor,target,effect)
+  else:targets=hit_recipients(engine,actor,target,effect,source)
  except ValueError as ex:return Issue('unsupported_execution','target',str(ex))
  for field in ('scope','when','trigger','at','optional'):
+  if field=='trigger' and __import__('catalog_move_states').rage_declaration(engine,source,effect):continue
   if field in effect and not (kind=='free_maneuver' and field=='optional') and not (kind=='reaction_shield' and field=='trigger' and effect[field]=='user hit by a move'):return Issue('unresolved_source' if field=='optional' else 'unsupported_execution',field,'source-specific '+field+' adapter required; field cannot be ignored')
  if kind in SCHEMAS:
   unknown={k for k in effect if not k.startswith('_')}-({'type'}|CONTROL|ANNOTATIONS|SCHEMAS[kind])
@@ -192,11 +253,10 @@ def inspect(engine,actor,target,effect,source,index=0):
   affected=targets if kind=='remove_coats' else (getattr(engine,'everyone',None) or [actor,target])
   try:COATS.preflight_clear(engine,affected,source=source,applied_by=actor)
   except ValueError as ex:return Issue('unresolved_source','coat_removal',str(ex))
- if kind=='switch_out' and 'coats' in effect.get('pass',[]):
-  import coat_effects as COATS
-  if COATS.live(actor):
-   try:COATS.preflight_transfer(engine,actor,source)
-   except ValueError as ex:return Issue('unresolved_source','coat_transfer',str(ex))
+ if kind=='switch_out':
+  import native_switch_transfer as SWITCH
+  try:SWITCH.inspect(engine,actor,target,effect,source)
+  except ValueError as ex:return Issue('unresolved_source','native_switch',str(ex))
  if kind=='next_roll_bonus':
   import roll_effects as ROLLS
   try:ROLLS.preflight(engine,actor,target,effect,source)
@@ -300,6 +360,12 @@ def condition(engine,effect,ctx,*,source=None):
   checks.append(ROOT.TRUE if COMPLETE.authorized_field(engine,ctx,effect) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual field activation completion'))
  elif __import__('declarative_move_contracts').after_all(engine.r,effect):
   checks.append(ROOT.TRUE if COMPLETE.authorized(engine,ctx) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual all-target completion'))
+ elif __import__('hp_setting_moves').after_all(engine.r,ctx.get('move') or {},effect):
+  checks.append(ROOT.TRUE if ctx.get('after_all_targets') and COMPLETE.authorized(engine,ctx) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual sacrifice completion'))
+ elif __import__('misty_explosion').after_all(engine.r,ctx.get('move'),effect):
+  checks.append(ROOT.TRUE if source==__import__('misty_explosion').SOURCE and __import__('misty_explosion').authorized(engine,ctx,effect) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual Misty Explosion completion'))
+ elif COMPLETE.after_damage_self_stage(engine.r,ctx.get('move'),effect):
+  checks.append(ROOT.TRUE if COMPLETE.authorized_after_damage_self_stage(engine,ctx,effect,source) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual after-damage self-stage completion'))
  elif 'native_action' in ctx:
   import action_lifecycle as ACTION
   checks.append(ACTION.post_action_condition(engine,ctx,source))
@@ -310,7 +376,7 @@ def condition(engine,effect,ctx,*,source=None):
  nat=ctx.get('nat')
  if 'on_natural_roll_min' in effect:
   import combat_precision_features as CPF
-  face=CPF.effect_natural(engine,ctx['attacker'],ctx.get('move'),nat)
+  face=CPF.effect_natural(engine,ctx['attacker'],ctx.get('move'),nat,actual_damage_type=ctx.get('actual_damage_type'))
   checks.append(ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual natural accuracy observation') if face is None else known(face>=__import__('combat_modifiers').incoming_status_threshold(ctx['target'],effect.get('status'),effect['on_natural_roll_min'])))
  if effect.get('on_natural_roll')=='even':checks.append(ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual natural accuracy observation') if nat is None else known(nat%2==0))
  if effect.get('if_weather'):checks.append(known(FX.weather_matches(engine,effect['if_weather'],ctx.get('attacker'))))
@@ -384,6 +450,17 @@ def condition_text(engine,actor,target,text,ctx):
  import effects as FX
  import re
  import equipment_protection as PROTECTION
+ import misty_explosion as MISTY
+ if text==MISTY.CONDITION and ctx.get('move',{}).get('id')==MISTY.SOURCE:
+  MISTY.definition(engine.r)
+  return MISTY.affected(engine,actor)
+ if text=='terastallized':return __import__('homebrew_state').tera_active(actor)
+ if text=='stellar':
+  import stellar_tera_blast as STELLAR
+  move=ctx.get('move')
+  if STELLAR.owns_move(engine.r,move):
+   actual=ctx['actual_damage_type'] if 'actual_damage_type' in ctx else STELLAR.effective_type(engine,actor,target,move)
+   return STELLAR.stellar_move_active(engine,actor,target,move,actual_type=actual)
  if text=='dealt damage':
   dealt=ctx.get('dealt')
   return dealt>0 if type(dealt) is int and dealt>=0 else None

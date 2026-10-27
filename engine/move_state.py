@@ -55,7 +55,16 @@ def current_natural_evidence(rules,spec):
     result.setdefault(row['move_id'],[]).append({'source':TYPE_SYNC.SOURCE,'species_id':sp['id'],
       'kind':'level_up','required_level':row['level'],'type_sync_id':sync['id']})
  ls=rules.learnsets.get(sp['name'],{})
- for name in ls.get('egg',[]):add(rules.move_id(name),'egg')
+ if 'mentor_egg_list' in spec:
+  import mentor as MENTOR_FULL
+  for mid in MENTOR_FULL.individual_egg_list(rules,spec):
+   if mid in {rules.move_id(name) for name in ls.get('egg',[])}:add(mid,'egg')
+   else:
+    event=MENTOR_FULL.individual_egg_evidence(rules,spec,mid)
+    result.setdefault(mid,[]).append({'source':MENTOR_FULL.CSV[MENTOR_FULL.EGG_TUTOR],
+      'species_id':sp['id'],'kind':'egg','required_level':None,'egg_list_request_id':event['request_id']})
+ else:
+  for name in ls.get('egg',[]):add(rules.move_id(name),'egg')
  for name in ls.get('tutor',[]):
   if re.search(r'\(N\)',str(name),re.I):
    add(rules.move_id(re.sub(r'\s*\(N\)','',name,flags=re.I)),'n_tutor')
@@ -63,6 +72,10 @@ def current_natural_evidence(rules,spec):
 
 
 def validate_history(rules,spec):
+ from builder import species_lookup
+ def species_identity(raw):
+  try:return species_lookup(rules,raw)['id']
+  except (KeyError,TypeError):raise ValueError('natural opportunity requires an actual historical species') from None
  history=spec.get(HISTORY,{})
  if not isinstance(history,dict):raise ValueError('natural opportunity history must be a mapping')
  for mid,events in history.items():
@@ -71,17 +84,20 @@ def validate_history(rules,spec):
   seen=set()
   for event in events:
    import type_sync as TYPE_SYNC
-   if not isinstance(event,dict) or event.get('source') not in (SOURCE,TYPE_SYNC.SOURCE) or not isinstance(event.get('reason'),str) or not event['reason'].strip():
+   if not isinstance(event,dict) or event.get('source') not in (SOURCE,TYPE_SYNC.SOURCE,__import__('mentor').CSV[__import__('mentor').EGG_TUTOR]) or not isinstance(event.get('reason'),str) or not event['reason'].strip():
     raise ValueError('natural opportunity requires its actual source and observation reason')
    kind=event.get('kind');level=event.get('at_level');species=event.get('species_id')
    if kind not in ('level_up','egg','n_tutor') or type(level)is not int or not 1<=level<=100:
     raise ValueError('invalid natural opportunity kind or observed level')
+   if event['source']==__import__('mentor').CSV[__import__('mentor').EGG_TUTOR]:
+    __import__('mentor').validate_individual_egg_event(rules,spec,mid,event)
+    continue
    evidence=({mid:TYPE_SYNC.historical_evidence(rules,spec,event.get('type_sync_id'),mid,level)}
              if event['source']==TYPE_SYNC.SOURCE else current_natural_evidence(rules,{'species':species,'level':level}))
-   key=(species,kind,event.get('required_level'),event['source'],event.get('type_sync_id'))
+   key=(species_identity(species),kind,event.get('required_level'),event['source'],event.get('type_sync_id'))
    if key in seen:raise ValueError('duplicate natural opportunity event')
    seen.add(key)
-   if not any(row['kind']==kind and row['required_level']==event.get('required_level') and row['species_id']==species and row.get('type_sync_id')==event.get('type_sync_id') for row in evidence.get(mid,[])):
+   if not any(row['kind']==kind and row['required_level']==event.get('required_level') and species_identity(row['species_id'])==species_identity(species) and row.get('type_sync_id')==event.get('type_sync_id') for row in evidence.get(mid,[])):
     raise ValueError('natural opportunity does not match its historical species and level')
  return True
 
@@ -89,6 +105,7 @@ def validate_history(rules,spec):
 def mentor_natural_moves(rules,spec):
  result=set()
  for mid,record in spec.get('move_learning',{}).items():
+  if isinstance(record,dict) and 'mentor_acquisition_evidence' in record:__import__('mentor').validate_teaching_evidence(rules,record)
   if isinstance(record,dict) and record.get('method')=='mentor_csv':
    import mentor_csv as MENTOR_CSV
    MENTOR_CSV.validate_learning(rules,spec,mid,record)
@@ -110,7 +127,8 @@ def natural_moves(rules,spec):
  current=current_natural_evidence(rules,spec)
  validate_history(rules,spec)
  import underdog_lessons as LESSONS
- return set(current)|set(spec.get(HISTORY,{}))|mentor_natural_moves(rules,spec)|LESSONS.natural_moves(rules,spec)
+ import growth_milestones as MILESTONES
+ return set(current)|set(spec.get(HISTORY,{}))|mentor_natural_moves(rules,spec)|LESSONS.natural_moves(rules,spec)|MILESTONES.inheritance_natural_moves(rules,spec)
 
 
 def _opportunity_candidates(rules,spec):
@@ -142,6 +160,9 @@ def record_natural_opportunities(rules,spec,*,reason):
  """Persist only evidenced opportunities for moves already present in the sheet."""
  if spec.get('kind','pokemon')!='pokemon':return []
  if not isinstance(reason,str) or not reason.strip():raise ValueError('natural opportunity observation reason required')
+ learning=spec.get('move_learning',{})
+ if not isinstance(learning,dict):raise ValueError('move learning provenance must be a mapping')
+ if any(not isinstance(record,dict) for record in learning.values()):raise ValueError('move learning provenance must be a record')
  validate_history(rules,spec)
  current=current_natural_evidence(rules,spec);history=deepcopy(spec.get(HISTORY,{}));added=[]
  for mid,provenance in _opportunity_candidates(rules,spec).items():
@@ -151,12 +172,10 @@ def record_natural_opportunities(rules,spec,*,reason):
    event=dict(row,at_level=spec['level'],reason=reason,observation_provenance=deepcopy(provenance))
    events.append(event);added.append({'move_id':mid,**event})
  import underdog_lessons as LESSONS
- natural=set(current)|set(history)|mentor_natural_moves(rules,spec)|LESSONS.natural_moves(rules,spec)
- learning=spec.get('move_learning',{})
- if not isinstance(learning,dict):raise ValueError('move learning provenance must be a mapping')
+ import growth_milestones as MILESTONES
+ natural=set(current)|set(history)|mentor_natural_moves(rules,spec)|LESSONS.natural_moves(rules,spec)|MILESTONES.inheritance_natural_moves(rules,spec)
  updates=[]
  for mid,record in learning.items():
-  if not isinstance(record,dict):raise ValueError('move learning provenance must be a record')
   updates.append((record,mid in natural))
  # Every input has passed before mutation; preserve existing record identities.
  if history:spec[HISTORY]=history
@@ -227,6 +246,27 @@ GIVER_IDS=('ability/기부자','ability/기부자-2')
 
 
 def ability_registration(rules,name):
+ forms=__import__('csv_item_form_contracts').ability_registration(rules,name)
+ if forms is not None:return forms
+ vigor=__import__('endure').registration(rules,name)
+ if vigor is not None:return vigor
+ cap=__import__('hp_setting_moves').registration(rules,name)
+ if cap:return cap
+ typed=__import__('typed_defensive_bypass').registration(rules,name)
+ if typed:return typed
+ core_suction=__import__('core_suction_cups').registration(rules,name)
+ if core_suction is not None:return core_suction
+ # One CSV row shares the two defenses, but species acquisition keeps its member.
+ armor_id='ability/조가비갑옷-전투무장'
+ armor_names={'조가비갑옷':'조가비갑옷','Shell Armor':'조가비갑옷',
+              '전투무장':'전투무장','Battle Armor':'전투무장'}
+ if name in (*armor_names,armor_id,'조가비갑옷/전투무장','Shell Armor/Battle Armor'):
+  if rules._selected_rule(armor_id)!=armor_id:raise ValueError('selected Armor source needs its own registration')
+  unit=rules.selection.units[armor_id];source=unit['source']
+  if unit['title']!='조가비갑옷/전투무장' or source.get('file')!='db/abilities.csv' or source.get('record_span')!=[366,366]:
+   raise ValueError('reviewed paired Armor source changed')
+  return {'name':'조가비갑옷/전투무장','source_id':armor_id,
+          'acquisition_identity':armor_names.get(name)}
  # As One's two stock mounts have duplicated identical CSV definitions. Keep
  # both source IDs; equality of these exact rows authorizes only this family.
  for literal,ids,records in (
@@ -269,7 +309,7 @@ def ability_registration(rules,name):
   import reactive_ability_events as REACTIVE
   import tera_shell as TERA_SHELL
   import perish_body as PERISH_BODY
-  return BASE_ABILITIES.registration(rules,name) or PERMISSIONS.registration(rules,name) or HELD.registration(rules,name) or MANUAL.registration(rules,name) or ABILITY_TRANSITIONS.registration(rules,name) or ABILITY_STATE_PROJECTION.ability_registration(rules,name) or CAPACITY_ABILITIES.registration(rules,name) or ACQUIRED_PROJECTIONS.registration(rules,name) or REACTIVE.registration(rules,name) or TERA_SHELL.registration(rules,name) or PERISH_BODY.registration(rules,name)
+  return __import__('oracle').registration(rules,name) or BASE_ABILITIES.registration(rules,name) or PERMISSIONS.registration(rules,name) or HELD.registration(rules,name) or MANUAL.registration(rules,name) or ABILITY_TRANSITIONS.registration(rules,name) or ABILITY_STATE_PROJECTION.ability_registration(rules,name) or CAPACITY_ABILITIES.registration(rules,name) or ACQUIRED_PROJECTIONS.registration(rules,name) or REACTIVE.registration(rules,name) or TERA_SHELL.registration(rules,name) or PERISH_BODY.registration(rules,name)
  import json
  from pathlib import Path
  rows={x['id']:x for x in json.loads((Path(rules.root)/'output/entities/abilities.json').read_text(encoding='utf8')) if x.get('id') in GIVER_IDS}
@@ -287,7 +327,7 @@ def capacities(rules,spec,*,abilities=None):
  _source(rules);total=6;taught=3;exempt={};sources=[];seen=set()
  import special_entities as SPECIAL
  snapshot=spec.get(SPECIAL.PRIME_KEY)
- if snapshot:
+ if snapshot and SPECIAL.prime_definition(rules,snapshot)['hidden_powers']=='all_additional':
   current=set(effective_list(spec,'moves'))
   for mid in SPECIAL.prime_moves(rules,snapshot):
    if mid in current:exempt[mid]=SPECIAL.PRIME_PREFIX+snapshot['id']
@@ -355,16 +395,18 @@ def vitamin_state(rules,spec):
  import vitamin_moves as VITAMINS
  VITAMINS._history_ids(rules,spec)
  vms=vm_moves(rules,spec)
+ personals=__import__('personal_tutoring').current_moves(rules,spec)
  import vitamin_capacity as CAPACITY
  state=CAPACITY.current(rules,spec)
  historical=CAPACITY.historical_limit(rules,spec)
  import learning_slots as SLOTS
  occupancy=SLOTS.occupancy({'vitamin':max(state['capacity'],historical)},
   [{'id':str(i),'source':VITAMIN_SOURCE,'weights':{'vitamin':1}} for i in range(len(history))]+[{'id':'researcher:'+str(i),'source':__import__('researcher_fields').SOURCE,'weights':{'vitamin':1}} for i in range(__import__('researcher_fields').vitamin_equivalents(spec))],
-  reservations=[{'id':mid,'source':VM_SOURCE,'weights':{'vitamin':1}} for mid in vms])
+  reservations=[{'id':mid,'source':VM_SOURCE,'weights':{'vitamin':1}} for mid in vms]+
+   [{'id':mid,'source':__import__('personal_tutoring').CSV_SOURCE,'weights':{'vitamin':1}} for mid in personals])
  occupied=occupancy['used']['vitamin']
  if occupied>max(state['capacity'],historical):raise ValueError('Vitamin use exceeds its actual current or historical source capacity')
- return {**state,'historical_capacity':historical,'consumed':len(history),'reserved':len(vms),'occupied':occupied,'source':VITAMIN_SOURCE,'vm_moves':vms}
+ return {**state,'historical_capacity':historical,'consumed':len(history),'reserved':len(vms)+len(personals),'occupied':occupied,'source':VITAMIN_SOURCE,'vm_moves':vms,'personal_tutor_moves':personals}
 
 
 def classifications(rules,spec,*,require_routes=True):
@@ -408,23 +450,46 @@ def describe(rules,spec,*,moves=None,abilities=None,require_routes=False):
  for mid in caps['exempt']:
   if mid not in selected:raise ValueError('selected slot exemption must name a currently known move')
  vms=vm_moves(rules,spec)
+ personals=__import__('personal_tutoring').current_moves(rules,spec)
  counted=[mid for mid in selected if mid not in caps['exempt']]
  # A selected move that does not count toward the total list has zero total
  # weight, even if VM ordinarily weighs two. Taught/Vitamin channels stay intact.
  import learning_slots as SLOTS
  occupancy=SLOTS.occupancy({'total':caps['total'],'taught':caps['taught']},
-  [{'id':mid,'source':'observed move ownership','weights':{'total':2 if mid in vms else 1,
-    'taught':2 if classes[mid]=='vm' else 0 if __import__('researcher_fields').pool_exempt(spec,mid) else 1 if classes[mid]=='taught' else 0}} for mid in selected],
+  [{'id':mid,'source':'observed move ownership','weights':{'total':2 if mid in vms or mid in personals else 1,
+    'taught':2 if classes[mid]=='vm' else 0 if (__import__('researcher_fields').pool_exempt(spec,mid) or __import__('chronicler').tutor_pool_exempt(rules,spec,mid)) else 1 if classes[mid]=='taught' else 0}} for mid in selected],
+  reservations=__import__('pokemon_capability_edges').slot_reservations(rules,spec),
   exemptions={'total':caps['exempt']})
  slot_count=occupancy['used']['total']
- vitamins=vitamin_state(rules,spec) if vms else None
+ vitamins=vitamin_state(rules,spec) if vms or personals else None
  if vitamins and vitamins['occupied']>max(vitamins['capacity'],vitamins['historical_capacity']):raise ValueError('VM requires an available Vitamin slot')
  unknown=[mid for mid,value in classes.items() if value=='unknown']
  if require_routes and unknown:raise ValueError('known non-natural move needs actual learning provenance: '+unknown[0])
- return {**caps,'known':selected,'effective_moves':known(rules,{'moves':current}),'effective_classifications':{mid:classes.get(mid,'permission') for mid in known(rules,{'moves':current})},'counted':counted,'classifications':classes,'slot_count':slot_count,'vm_moves':vms,'vitamin_state':vitamins,'taught_count':occupancy['used']['taught'],'unknown_routes':unknown,'route_complete':not unknown}
+ return {**caps,'known':selected,'effective_moves':known(rules,{'moves':current}),'effective_classifications':{mid:classes.get(mid,'permission') for mid in known(rules,{'moves':current})},'counted':counted,'classifications':classes,'slot_count':slot_count,'vm_moves':vms,'personal_tutor_moves':personals,'vitamin_state':vitamins,'taught_count':occupancy['used']['taught'],'unknown_routes':unknown,'route_complete':not unknown}
 
 
 def validate_spec(rules,spec,*,moves=None,abilities=None,require_routes=False):
+ for row in spec.get('state_grants',{}).get('sources',{}).values():
+  linked=row.get('ability_lesson',{}).get('connection_move')
+  if linked is not None and linked not in known(rules,spec):raise ValueError('Connection Move cannot be forgotten')
+ for row in spec.get('move_learning_log',[]):
+  if row.get('connection_ability') in ('ability/생기','ability/생기-홈브류'):
+   if row.get('source')!=row['connection_ability'] or row.get('move_id') not in ('move/버티기','move/버티기-홈브류'):
+    raise ValueError('actual Vigor Connection learning provenance required')
+   if row['move_id'] not in known(rules,spec):raise ValueError('Connection Move cannot be forgotten even after the Ability ends')
+ __import__('growth_milestones').validate_inheritance(rules,spec)
+ for mid,record in spec.get('move_learning',{}).items():
+  if isinstance(record,dict) and 'archive_tutor_admission' in record:
+   import pokemon_teaching as T,chronicler as CH
+   admission=record['archive_tutor_admission']
+   if record.get('source')!=CH.TUTOR or admission!=T.tutor_admission(rules,mid,record.get('learned_at_level'),policy=admission.get('policy')):
+    raise ValueError('Archive Tutor admission differs from actual source and historical level')
+  if isinstance(record,dict) and 'archive_tutor_edition' in record:
+   import chronicler as CH
+   CH.tutor_pool_exempt(rules,spec,mid)
+ __import__('coordinator').validate_spec(rules,spec)
+ import advanced_connection as CONNECTION
+ CONNECTION.validate_protection(rules,spec)
  import example_species as EXAMPLES
  EXAMPLES.validate_spec(rules,spec,moves=owned_list(spec,'moves',moves))
  import special_entities as SPECIAL
@@ -437,12 +502,13 @@ def validate_spec(rules,spec,*,moves=None,abilities=None,require_routes=False):
    if record.get('source') not in (T.MENTOR,T.MOVE_TUTOR,T.EGG_TUTOR,'feat/개인-지도'):
     raise ValueError('tutoring admission requires its actual teaching source')
    T.source(rules,record['source'])
-   if record['tutoring_admission']!=T.tutor_admission(rules,mid,record.get('learned_at_level')):
+   if record['tutoring_admission']!=T.tutor_admission(rules,mid,record.get('learned_at_level'),policy=record['tutoring_admission'].get('policy')):
     raise ValueError('tutoring admission differs from selected source and historical level')
  import personal_tutoring as PERSONAL_TUTOR
  PERSONAL_TUTOR.validate_spec(rules,spec)
  import move_type_sync as MOVE_SYNC
  MOVE_SYNC.validate_spec(rules,spec)
+ __import__('ace_trainer').validate_spec(rules,spec)
  out=describe(rules,spec,moves=moves,abilities=abilities,require_routes=require_routes)
  import learning_grant as LEARNING
  LEARNING.validate(rules,spec)
@@ -464,6 +530,9 @@ def validate_actor(actor):
 
 
 def preflight_baseline(actor,field,values):
+ if field=='moves':
+  import advanced_connection as CONNECTION
+  CONNECTION.forbid_forgetting(actor,values)
  import csv_item_capability_contracts as CSV_CAP
  if field=='moves' and 'csv_essence_projection' in actor.spec:
   added=[mid for mid in values if mid not in actor.spec.get('moves',[])]
@@ -507,11 +576,16 @@ def preflight_grant(actor,field,value,source_id,*,tutor_points=0):
 
 
 def preflight_revoke(actor,source_ids):
- if actor.kind!='pokemon':return
  spec=deepcopy(actor.spec);st=spec.get('state_grants',{})
  for source in source_ids:
   st.get('sources',{}).pop(source,None);st.get('overlays',{}).pop(source,None)
- validate_spec(actor.r,spec)
+ __import__('ace_trainer').forget_missing(actor.r,spec,at=0,reason='preflight actual learned source withdrawal')
+ import advanced_connection as CONNECTION
+ remaining=set(known(actor.r,{'moves':owned_list(spec,'moves')}))
+ if set(CONNECTION.bound_moves(actor.r,actor.spec))-remaining:
+  raise ValueError('a Connection Move cannot be forgotten through source revocation')
+ CONNECTION.validate_protection(actor.r,spec)
+ if actor.kind=='pokemon':validate_spec(actor.r,spec)
 
 
 def _feature_id(owner,name):
@@ -639,6 +713,7 @@ def observe_learning(engine,actor,move_id,*,method,source,paid_tp=0,replace=None
   if old is not None:
    import move_type_sync as MOVE_SYNC
    MOVE_SYNC.forget_spec(e.r,candidate,old,at=e.elapsed_seconds,reason=reason)
+   __import__('ace_trainer').forget_spec(e.r,candidate,old,at=e.elapsed_seconds,reason=reason)
   candidate['moves']=moves;candidate.setdefault('move_learning',{})[mid]=record
   if method=='vm':
    state=vitamin_state(e.r,candidate)
@@ -648,6 +723,8 @@ def observe_learning(engine,actor,move_id,*,method,source,paid_tp=0,replace=None
   c.spec['move_learning']=candidate['move_learning']
   if HISTORY in candidate:c.spec[HISTORY]=candidate[HISTORY]
   if 'move_type_sync' in candidate:c.spec['move_type_sync']=candidate['move_type_sync']
+  if 'signature_techniques' in candidate:
+   c.spec['signature_techniques']=candidate['signature_techniques'];c.spec['tutor_points']=candidate['tutor_points']
   c.spec.setdefault('move_learning_log',[]).append({'move_id':mid,'replaced':old,**deepcopy(record)})
   if method=='vm':
    import vitamin_capacity as CAPACITY

@@ -82,7 +82,7 @@ def prepare(e,r):
     if direct:
         if r.aim['reachable'] is not True:raise ValueError('actual reachable direct spray target required')
         import body_modes as BODY,confusion_attacks as CONFUSION
-        BODY.require_targetable(r.target)
+        BODY.require_targetable(r.target,engine=e,attacker=r.user)
         if e.encounter_active and (r.user.injuries>=5 and not __import__('taskmaster').ignores_acting_loss(r.user)):raise ValueError('heavy-injury Repel attack needs native action composition')
         CONFUSION.preflight(e,r.user,attack(r))
         import invisibility_state as INV,blender_state as BLEND,effects_ext as EXT
@@ -125,6 +125,7 @@ def _record(e,user,target,r,payment,*,hit,natural):
             'reason':r.aim['reason'],'approaches':{}}
     rows[identity]=record
     __import__('researcher_fields').spray_exposure(e,user,target,r.source_id,hit=direct and bool(hit))
+    __import__('study_books').anarchist(e,user,target,repel=True,hit=direct and bool(hit))
     receipt=PAID.finish(user,payment,target_id=target.entity_id,
         outcome='applied' if record['affected'] else 'no_effect',
         results=[{'kind':'repel_use','id':identity}])
@@ -284,6 +285,7 @@ def flee(e,target):
         raise ValueError('Repel retreat observation no longer matches actual participants/positions')
     if paid is None and (_speeds(e,target)!=observed['speeds'] or target.spec.get(RELATIVE.FRAME,{}).get('directions',{}).get(observed['movement']['direction'])!=observed['direction_vector']):
         return C.PendingDecision('Reobserve the actual fastest feasible retreat after movement capability/direction changed',basis=current)
+    if paid is None:__import__('combat_move_reactions').before_escape(e,target,target,current['source'],kind='repel',request_id=observed['movement']['movement_id'])
     movement=e.move_relative(target,**observed['movement'])
     if isinstance(movement,C.PendingDecision) or movement is False:return movement
     complete=movement['state']=='complete'
@@ -332,3 +334,15 @@ def validate_world(e,index=None):
             for result in payment['results']:
                 if result.get('kind')=='repel_use' and result.get('id') not in rows:raise ValueError('Repel stock payment lost its actual application')
     return True
+
+
+def validate_escape(e,target,request_id):
+ observed=target.spec.get(FLEE)
+ if observed is None or observed['movement'].get('movement_id')!=request_id:raise ValueError('actual retained Repel flee declaration required')
+ _verify(observed)
+ return observed
+
+
+def resume_escape(e,target,request_id):
+ validate_escape(e,target,request_id)
+ return flee(e,target)

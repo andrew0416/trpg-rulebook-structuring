@@ -26,10 +26,40 @@ FEATURES={
  'psychologist':('edge/포켓몬-심리학자',('포켓몬 심리학자','PokéPsychologist'),(('포켓몬학',3),('일반 지식',3))),
  'reserves':('edge/예비-훈련',('예비 훈련','Train the Reserves'),(('명령',3),)),
  'maniac':('feat/포켓몬매니아',('포켓몬매니아','PokéManiac'),(('포켓몬학',4),)),
+ 'ball_crafter':('feat/몬스터볼-장인',('몬스터볼 장인','Poké Ball Crafter'),(('기술학',5),)),
 }
 DISPOSITIONS=('매우 적대적','적대적','두려움','중립','우호적','매우 우호적')
 DISPOSITION_DC=(30,15,8,12,15,None)
+DISPOSITION_SOURCE='ch05-pokemon/포켓몬-성향'
+DISPOSITION_KR={'file':'input/ch05-pokemon.md','sha256':'bdfb5d39fec8fede32cac615a7788301336aaceefc46079c8ed7014ea76d174b'}
+DISPOSITION_EN={'file':'source-audit/pokemon-relationships-fishing-core-1.05.txt','sha256':'9d49406f11a1cf694ea6c376c2aa142a1f7e43a03abd6d7471a6884316bc024f'}
 REPAIR_CSV='C2CSV/input/db/edges.csv:R17:main'
+MANIAC='feat/포켓몬매니아'
+MANIAC_BOOK='input/ch03-skills-edges-feats.md:897-901'
+MANIAC_CSV='C2CSV/input/db/feats.csv:R49:main'
+
+def pokemaniac_source(rules,selection=None):
+ """Only the two reviewed source contracts; no automatic CSV precedence."""
+ from source_context import verified_source
+ if selection is not None and (type(selection)is not dict or set(selection)!={'edition'} or selection['edition'] not in ('core','local_csv')):raise ValueError('exact reviewed Pokemaniac edition selection required')
+ edition='core' if selection is None else selection['edition']
+ if rules._selected_rule(MANIAC)!=MANIAC or any(uid in rules.ruleset.unit_versions for uid in (MANIAC,MANIAC_BOOK,MANIAC_CSV)):raise ValueError('selected Pokemaniac source needs its own activity policy')
+ authority={'file':'input/ch03-skills-edges-feats.md','sha256':'b94e43349794836391501f9aac10009d20746bf946ea0c4b5ff3adf85e982d23'}
+ verified_source(rules,authority,label='Pokemaniac')
+ if edition=='local_csv':
+  authority={'file':'input/db/feats.csv','sha256':'4435ff1c462a211564c85d2c1c9a2ac6e7c790c7545e1ad7056d32888b2367bd'}
+  verified_source(rules,authority,label='local CSV Pokemaniac')
+  rules.ruleset.require({'id':MANIAC_CSV,'source':{'file':'db/feats.csv','record_span':[49,49]}})
+  return dict(authority,edition=edition,clause_id=MANIAC_CSV,record=49)
+ return dict(authority,edition=edition,clause_id=MANIAC_BOOK,span=[897,901])
+
+def pokemaniac_snapshot_source(rules,snapshot):
+ source=pokemaniac_source(rules,snapshot.get('selection'))
+ # Historical Book declarations/receipts have no additional source choice.
+ if 'source' in snapshot:
+  if snapshot['source']!=source:raise ValueError('actual acquired Pokemaniac source changed')
+ elif snapshot.get('selection') is not None:raise ValueError('actual Pokemaniac source selection receipt required')
+ return source
 
 def _text(value,name):
  if not isinstance(value,str) or not value.strip():raise ValueError(name+' required')
@@ -59,7 +89,7 @@ def _feature(e,actor,name,required=True):
   if required:raise ValueError('acquired feature required: '+uid)
   return False
  if e.r._selected_rule(uid)!=uid:raise ValueError('selected feature version needs its own activity policy')
- if prerequisites and not any(_rank(e,actor,s)>=r for s,r in prerequisites):raise ValueError('feature prerequisite not established: '+uid)
+ if prerequisites and not __import__('hobbyist').skill_waived(actor,uid) and not any(_rank(e,actor,s)>=r for s,r in prerequisites):raise ValueError('feature prerequisite not established: '+uid)
  if name=='repair' and not (_feature(e,actor,'basic_balls',False) or _feature(e,actor,'apricorn_balls',False)):raise ValueError('Poke Ball Repair requires the acquired Basic Balls or Apricorn Balls crafting edge')
  return True
 
@@ -90,7 +120,7 @@ def _check(e,actor,skill,dc,options,*,action=None,seconds=0,time_actors=None,con
   options=_preflight(e,actor,skill,options)
   if action and not TURN.spend(e,actor,action,'포켓몬 전문활동'):return C.PendingDecision('required action unavailable')
   if seconds:e.advance_time(seconds,time_actors or [actor])
-  return C.against_dc(e.skill_roll(actor,skill,**options),dc)
+  return __import__('skill_feature_actions').resolve_check(e,actor,skill,dc,e.skill_roll(actor,skill,**options),options)
  import skill_feature_actions as SF
  roll_id=options.get('roll_id');_text(roll_id,'identified activity skill roll')
  if context is None:raise ValueError('observed activity feature needs concrete activity context')
@@ -106,7 +136,7 @@ def _check(e,actor,skill,dc,options,*,action=None,seconds=0,time_actors=None,con
   old={'actor':actor,'basis':deepcopy(basis),'closed':False}
   if not hasattr(e,'_pokemon_activity_skill_runs'):e._pokemon_activity_skill_runs={}
   e._pokemon_activity_skill_runs[roll_id]=old
- result=SF.sequence(e,'pokemon-activity:'+roll_id,basis,[(actor,skill,options)],lambda rolls:C.against_dc(rolls[0],dc))
+ result=SF.sequence(e,'pokemon-activity:'+roll_id,basis,[(actor,skill,options)],lambda rolls:SF.resolve_check(e,actor,skill,dc,rolls[0],options))
  old['closed']=True
  return result
 
@@ -116,7 +146,9 @@ def _outside(e):
 
 def perform(e,actor,activity,**options):
  # These concrete Pokemon routes enforce their own actual source/owner gates.
- if activity!='resolve_disobedience' and (actor.kind!='pokemon' or activity not in ('command_move','plant_berry','harvest_berry')):_trainer(actor)
+ import researcher_fields as RESEARCH
+ automatic=activity=='teach_edge' and RESEARCH.pusher_funds(e,actor,options.get('target'),options.get('edge')) is not None
+ if not automatic and activity!='resolve_disobedience' and (actor.kind!='pokemon' or activity not in ('command_move','plant_berry','harvest_berry')):_trainer(actor)
  fn=ACTIVITIES.get(activity)
  if fn is None:raise ValueError('unsupported Pokemon activity: '+str(activity))
  return fn(e,actor,**options)
@@ -147,7 +179,7 @@ def _breed(e,actor,*,pair,task_id,phase,compatible=None,**roll):
  if phase=='check':
   if previous is not None:raise ValueError('breeding task already checked')
   if compatible is not True:raise ValueError('GM-established compatible pair required')
-  check=_check(e,actor,'포켓몬학',12,roll,seconds=4*3600,time_actors=[actor,*pair],context=('breed',task_id,identity))
+  check=_check(e,actor,__import__('hobbyist').direct_skill(actor,'edge/브리더','포켓몬학'),12,roll,seconds=4*3600,time_actors=[actor,*pair],context=('breed',task_id,identity))
   record={'pair':identity,'status':'waiting_four_hours' if check.passed else 'failed','check_total':check.total,'checked_at':e.elapsed_seconds}
   actor.spec.setdefault('breeding_tasks',{})[task_id]=record
   return {'activity':'breed','check':check,'status':record['status'],'egg':None}
@@ -182,7 +214,23 @@ def _audience(actor,target,group_id=None):
  if not isinstance(members,list) or identity not in members:raise ValueError('trainer must belong to the GM-established disposition audience')
  return 'group:'+group_id
 
-def befriend(e,actor,*,target,use_pokemon_education=False,use_mystic_senses=False,group_id=None,friendship_performer=None,friendship_audience=None,**roll):
+def _befriend_source(e,actor,target,audience,performer,disposition,choice=None):
+ from source_context import verified_source
+ import source_policy as POLICY
+ verified_source(e.r,DISPOSITION_KR,label='wild disposition KR')
+ verified_source(e.r,DISPOSITION_EN,source_root='source-audit',label='wild disposition EN')
+ document={'schema':1,'id':'native/wild-disposition-source','variants':[{
+  'rule_id':DISPOSITION_SOURCE,'source':DISPOSITION_KR,
+  'values':{'interpretation':{'$input':'interpretation'},'actor_id':actor.entity_id,
+   'target_id':target.entity_id,'audience':audience,'performer':performer,
+   'initial_disposition':disposition,'english_source':DISPOSITION_EN},
+  'inputs':{'interpretation':{'type':'string','authority':'gm','decision_kind':'source_conflict',
+   'choices':['kr_one_step','en_hostile_to_neutral'],
+   'question':'Choose the complete KR one-step disposition rule or EN Hostile-to-Neutral rule; all other checks, actions and relationships are shared.'}}}]}
+ return POLICY.resolve(e.r,document,decisions={} if choice is None else {'interpretation':choice})
+
+
+def befriend(e,actor,*,target,use_pokemon_education=False,use_mystic_senses=False,group_id=None,friendship_performer=None,friendship_audience=None,source_choice=None,source_query=False,**roll):
  """ch05:717-738. State belongs to one trainer or an explicit GM audience."""
  _pokemon(target)
  if not target.spec.get('wild',False) or target.captured:raise ValueError('wild Pokemon required')
@@ -190,9 +238,7 @@ def befriend(e,actor,*,target,use_pokemon_education=False,use_mystic_senses=Fals
  if use_mystic_senses:
   if use_pokemon_education or friendship_performer is not None:raise ValueError('choose one friendship skill substitution')
   import elemental_connection as ELEMENTAL
-  ELEMENTAL.choices(e,actor)
-  if not any(ELEMENTAL.matches(x,ELEMENTAL.MYSTIC) for field in ('edges','feats') for x in actor.spec.get(field,[])):
-   raise ValueError('Mystic Senses acquisition required')
+  ELEMENTAL.require_mystic(e,actor)
  failure_subject='trainer:'+_text(actor.spec.get('id'),'trainer identity')
  if friendship_performer is not None:
   _pokemon(friendship_performer);_owner(actor,friendship_performer)
@@ -211,6 +257,15 @@ def befriend(e,actor,*,target,use_pokemon_education=False,use_mystic_senses=Fals
  import pokemon_entities as ENTITIES
  disposition=ENTITIES.disposition_projection(target,audience)['value']
  if disposition not in DISPOSITIONS:raise ValueError('GM-selected disposition required')
+ if e.r._selected_rule(DISPOSITION_SOURCE)!=DISPOSITION_SOURCE:raise ValueError('selected disposition source needs its own activity policy')
+ if type(source_query)is not bool or source_query and source_choice is not None:raise ValueError('choose a source query or one scoped source decision')
+ if source_query:return _befriend_source(e,actor,target,audience,failure_subject,disposition)
+ if source_choice is None:
+  source={'interpretation':'kr_one_step','authority':'authored_default','source':DISPOSITION_KR}
+ else:
+  source=_befriend_source(e,actor,target,audience,failure_subject,disposition,source_choice)
+  if source['status']!='PolicyValuesReady':raise ValueError('complete scoped disposition source decision required')
+ interpretation=source.get('interpretation',source.get('values',{}).get('interpretation'))
  index=DISPOSITIONS.index(disposition)
  if index==5:return {'activity':'befriend','status':'already_very_friendly','captured':False,'audience':audience}
  if failure_subject in target.spec.get('befriend_failures',[]):raise ValueError('retry requires GM permission after changed circumstances')
@@ -222,11 +277,12 @@ def befriend(e,actor,*,target,use_pokemon_education=False,use_mystic_senses=Fals
   check=friendship_check(e,actor,friendship_performer,target,dc=DISPOSITION_DC[index],roll_options=roll)
  else:check=_check(e,actor,skill,DISPOSITION_DC[index],roll,action='standard',target=target,context=('befriend',target.spec.get('id'),audience,disposition))
  if isinstance(check,C.PendingDecision):return check
- if check.passed:disposition=DISPOSITIONS[index+1]
+ if check.passed:disposition='중립' if index==1 and interpretation=='en_hostile_to_neutral' else DISPOSITIONS[index+1]
  else:target.spec.setdefault('befriend_failures',[]).append(failure_subject)
  target.spec.setdefault('dispositions',{})[audience]=disposition
  ENTITIES.record_disposition(e,target,audience=audience,before=DISPOSITIONS[index],after=disposition,reason=f'native {skill} check succeeded' if check.passed else f'native {skill} check failed; retry locked',performer=failure_subject,check_total=check.total)
- return {'activity':'befriend','skill':skill,'check':check,'disposition':disposition,'captured':False,'audience':audience}
+ target.spec['disposition_history'][-1]['source_decision']=deepcopy(source)
+ return {'activity':'befriend','skill':skill,'check':check,'disposition':disposition,'captured':False,'audience':audience,'source_decision':deepcopy(source)}
 
 def disposition_ruling(e,actor,*,target,disposition,reason,allow_retry=False,group_id=None,group_members=None,friendship_performer=None,friendship_audience=None):
  """Explicit GM relationship and changed-circumstance retry, for one performer."""
@@ -272,22 +328,41 @@ def disposition_ruling(e,actor,*,target,disposition,reason,allow_retry=False,gro
 
 
 def pokemaniac(e,actor,*,target,**roll):
- """ch03:897-901: native Standard action and DC10; no information on failure."""
+ """One native check/cost owner for the Book and independent CSV49."""
  _feature(e,actor,'maniac');_pokemon(target)
- import state_grants as G,world_entities as WORLD
+ import state_grants as G,world_entities as WORLD,pokemon_entities as ENTITIES
+ import trainer_feature_acquisition as ACQUISITION
  WORLD.require_actors(e,actor,target)
- missing=[x for x in ('nature',) if x not in target.spec]
+ records=ACQUISITION.static_acquisitions(actor,MANIAC,active=True)
+ if len(records)>1:raise ValueError('one actual Pokemaniac source required')
+ source=pokemaniac_snapshot_source(e.r,records[0][1]['snapshot']) if records else pokemaniac_source(e.r)
+ missing=[x for x in ('nature',) if target.spec.get(x) is None]
  if missing:return C.PendingDecision('GM target information missing: '+','.join(missing))
  C.integer(target.level,'Pokemon level',1)
  _text(target.spec['nature'],'Pokemon nature')
  if not isinstance(target.types,(list,tuple)) or any(not isinstance(value,str) or not value for value in target.types):raise ValueError('Pokemon types must be identity text')
  if not isinstance(target.abilities,(list,tuple)) or any(not isinstance(value,str) or not value for value in target.abilities):raise ValueError('Pokemon abilities must be identity text')
  info={'level':target.level,'types':list(target.types),'nature':target.spec['nature'],'abilities':list(target.abilities)}
- check=G.transition(e,actor,lambda se,sa,st:_check(se,sa,'포켓몬학',10,roll,action='standard',context=('pokemaniac',st.spec.get('id'))),participants=(target,))
+ dc=10;origin=None
+ if source['edition']=='local_csv':
+  origin=ENTITIES.origin_information(e,target)
+  if isinstance(origin,C.PendingDecision):return origin
+  info.update(special=origin['special'],original_species_changes=deepcopy(origin['changes']))
+  C.integer(actor.level,'Trainer level',1,50);M.validate_source(e.r)
+  dc=M.ceil_ratio(target.level-actor.level,5)+10
+ # The existing observed-roll owner rejects replacing either source or facts
+ # after an already paid first roll, including a pending helper/reroll choice.
+ context=('pokemaniac',target.spec['id'],source,info,origin)
+ check=G.transition(e,actor,lambda se,sa,st:_check(se,sa,__import__('hobbyist').direct_skill(sa,MANIAC,'포켓몬학'),dc,roll,action='standard',context=context),participants=(target,))
  if isinstance(check,C.PendingDecision):return check
  return {'activity':'pokemaniac','check':check,'information':info if check.passed else None}
 
-ACTIVITIES={'repair_ball':repair_ball,'breed':breed,'pokemon_interaction':pokemon_interaction,
+def observe_pokemon_origin(e,actor,*,target,special,original_species,changes,reason):
+ import pokemon_entities as ENTITIES,world_entities as WORLD
+ WORLD.require_actors(e,actor,target)
+ return ENTITIES.observe_origin(e,target,special=special,original_species=original_species,changes=changes,reason=reason)
+
+ACTIVITIES={'observe_pokemon_origin':observe_pokemon_origin,'repair_ball':repair_ball,'breed':breed,'pokemon_interaction':pokemon_interaction,
  'befriend':befriend,'disposition_ruling':disposition_ruling,'pokemaniac':pokemaniac}
 
 
@@ -308,7 +383,7 @@ def fishing(e,actor,*,phase,rod=None,attachment=None,target=None,roll_d20=None,e
   party=list(st[1:] if target is not None else st) if party is not None else None,
   level_match_reason=level_match_reason,cause=cause,lost=lost,reason=reason,**roll),participants=participants)
 
-def _fishing(e,actor,*,phase,rod=None,attachment=None,target=None,roll_d20=None,escape_d20=None,habitat=None,choice=None,random_choice=False,source_policy=None,party=None,level_match_reason=None,cause=None,lost=None,reason=None,**roll):
+def _fishing(e,actor,*,phase,rod=None,attachment=None,target=None,roll_d20=None,escape_d20=None,habitat=None,choice=None,random_choice=False,source_policy=None,party=None,level_match_reason=None,cause=None,lost=None,reason=None,book_stats=None,**roll):
  """ch05 five-minute or explicitly selected ch09 fifteen-minute attraction.
  Bait is attached/reserved until its sourced loss; a landed fish is not captured.
  """
@@ -327,7 +402,7 @@ def _fishing(e,actor,*,phase,rod=None,attachment=None,target=None,roll_d20=None,
  if phase=='start':
   if roll or roll_d20 is not None or escape_d20 is not None or target is not None:raise ValueError('starting fishing does not roll or select a target')
   if state and state['status'] in ('waiting','hooked'):raise ValueError('finish or abandon the current fishing session first')
-  if state and state.get('source')=='item/미끼' and state['attachment']=='루어' and state['status']=='escaped' and 'lure_loss' not in state:raise ValueError('resolve possible lure loss after the actual escape first')
+  if state and state['attachment']=='루어' and state['status']=='escaped' and 'lure_loss' not in state:raise ValueError('resolve possible lure loss after the actual escape first; historical escape alone does not establish retained or lost stock')
   if rod not in RODS:raise ValueError('known fishing rod required')
   _tool(actor,rod)
   if attachment not in ('미끼','루어'):raise ValueError('bait or reusable lure required')
@@ -358,7 +433,7 @@ def _fishing(e,actor,*,phase,rod=None,attachment=None,target=None,roll_d20=None,
   if target is not None or roll or escape_d20 is not None:raise ValueError('bite check is not the subsequent Athletics check')
   if roll_d20 is not None:C.integer(roll_d20,'bite d20',1,20)
   bonus=WILD_EQUIPMENT.tools_bonus(e,actor,'attraction')
-  e.advance_time(900 if source=='item/미끼' else 300,[actor]);face=roll_d20 if roll_d20 is not None else e.d20()
+  e.advance_time(900 if source=='item/미끼' else 300,[actor]);face=e.roll_d20(actor,'fishing_bite',fixed=roll_d20)
   if face+bonus>=15:state['status']='hooked'
   else:
    state['misses']+=1
@@ -384,6 +459,9 @@ def _fishing(e,actor,*,phase,rod=None,attachment=None,target=None,roll_d20=None,
   if target.spec.get('evolved') is not False:raise ValueError('unevolved target must be explicitly established for this rod')
   if rod_kind=='old' and (target.level>10 or target.spec.get('size') not in ('Small','작음','소형')):raise ValueError('Old Rod requires an unevolved Small Pokemon of level10 or less')
  if escape_d20 is not None:C.integer(escape_d20,'escape d20',1,20)
+ if source==FISHING_SOURCE:
+  from source_context import verified_source
+  verified_source(e.r,DISPOSITION_EN,source_root='source-audit',label='fishing failed-reel lure loss EN clarification')
  options=dict(roll);options['mods']=options.get('mods',0)+WILD_EQUIPMENT.tools_bonus(e,actor,'fishing_reel')
  check=_check(e,actor,'육상',8,options,context=('fishing_reel',target.spec.get('id'),state['rod'],state['attachment']))
  state=actor.spec['fishing_session'];inv=actor.spec['items']
@@ -391,14 +469,24 @@ def _fishing(e,actor,*,phase,rod=None,attachment=None,target=None,roll_d20=None,
  state['target_id']=identity
  escaped=None
  target.spec['fishing']=True
- if check.passed:state['status']='landed'
+ if check.passed:
+  state['status']='landed'
+  __import__('study_books').fished(e,actor,target,book_stats)
  else:
   if state['attachment']=='미끼':
    escaped=True;inv['미끼']-=1;state['status']='bait_lost'
   else:
-   face=escape_d20 if escape_d20 is not None else e.d20()
+   face=e.roll_d20(actor,'fishing_escape',fixed=escape_d20)
    escaped=face<=10
-   if escaped:state['status']='escaped'
+   state['reel_failure']={'target_id':identity,'rod':state['rod'],'attachment':'루어',
+    'check_total':check.total,'dc':8,'escape_d20':face,'escaped':escaped,'at':e.elapsed_seconds,'source':source}
+   if escaped:
+    state['status']='escaped'
+    if source==FISHING_SOURCE:
+     before=inv['루어'];inv['루어']-=1
+     state['lure_loss']={**deepcopy(state['reel_failure']),'cause':'escaped','lost':True,
+      'reason':'failed Athletics; actual secondary d20 <=10 takes the lure',
+      'stock_before':before,'stock_after':inv['루어'],'english_source':deepcopy(DISPOSITION_EN)}
  return dict(deepcopy(state),check=check,escaped=escaped,captured=False)
 
 
@@ -414,7 +502,7 @@ def _command_loyalty(e,actor,*,target,use_intimidate=False,dc_override=None,gm_f
  WORLD.require_actors(e,actor,target)
  pending=loyalty_pending(e,target,legendary_control=legendary_control)
  if pending is not None:return pending
- loyalty=command_loyalty_value(e,target,legendary_control=legendary_control);C.integer(loyalty,'GM loyalty',0,6)
+ loyalty=command_loyalty_value(e,target,legendary_control=legendary_control);C.integer(loyalty,'effective GM loyalty',0)
  roll={} if roll is None else roll
  if use_intimidate:_feature(e,actor,'beast')
  if loyalty>=2:
@@ -429,7 +517,8 @@ def _command_loyalty(e,actor,*,target,use_intimidate=False,dc_override=None,gm_f
   if not isinstance(gm_failure,dict) or gm_failure.get('kind') not in ('idle','action'):raise ValueError('GM failure decision must be idle or an explicit action')
   _text(gm_failure.get('reason'),'GM disobedience reason')
   if gm_failure['kind']=='action':_text(gm_failure.get('action'),'GM action');_text(gm_failure.get('target'),'GM target')
- check=_check(e,actor,'협박' if use_intimidate else '명령',dc,roll,target=target,context=('command_loyalty',target.spec.get('id'),use_intimidate))
+ skill=__import__('hobbyist').direct_skill(actor,'edge/비스트-마스터','협박') if use_intimidate else '명령'
+ check=_check(e,actor,skill,dc,roll,target=target,context=('command_loyalty',target.spec.get('id'),use_intimidate))
  return {'activity':'command_loyalty','obeys':check.passed,'check':check,
          'failure':deepcopy(gm_failure) if not check.passed and gm_failure else C.PendingDecision('GM chooses disobedient action and target') if not check.passed else None}
 
@@ -438,7 +527,11 @@ def experience_training(e,actor,*,targets,**options):
  """Commit the whole hour, every target and trainer quota as one graph."""
  if not isinstance(targets,(list,tuple)) or not targets or len(targets)>6:raise ValueError('one to six distinct Pokemon required')
  import state_grants as G
- return G.transition(e,actor,lambda se,sa,*st:_experience_training(se,sa,targets=list(st),**options),participants=tuple(targets))
+ if options.get('book_target') is not None and not any(options['book_target'] is target for target in targets):raise ValueError('one actual owned training participant required')
+ def apply(se,sa,*st):
+  copied=G._stage_transition_payload(e,se,options)
+  return _experience_training(se,sa,targets=list(st),**copied)
+ return G.transition(e,actor,apply,participants=tuple(targets))
 
 
 def _csv_training_source(rules,provider,cache_name,label):
@@ -474,7 +567,7 @@ def _beast_csv_source(rules):
  return _csv_training_source(rules,'beast_master','_beast_csv_policy','Beast Master')
 
 
-def _experience_training(e,actor,*,targets,use_intimidate=False,from_grooming=False,from_training=False,safe=None,bonus_skill=None,grooming_policy=None,beast_policy=None,use_reserves=False,pushed_skills=None,type_manual=None,**unused):
+def _experience_training(e,actor,*,targets,use_intimidate=False,from_grooming=False,from_training=False,safe=None,bonus_skill=None,grooming_policy=None,beast_policy=None,use_reserves=False,pushed_skills=None,type_manual=None,book_target=None,**unused):
  """Native one-hour training and sourced Beast Master substitution (ch05:229-236).
  Special feat/edge teaching is a separate application; this grants XP only.
  """
@@ -495,8 +588,9 @@ def _experience_training(e,actor,*,targets,use_intimidate=False,from_grooming=Fa
  value=REWARDS.policy(eligibility,3600,[{'id':'experience','source':PROGRESSION.TRAINING,'kind':'xp','formula':REWARDS.native_xp_formula()}],identity='native:experience-training')
  result=REWARDS.execute(e,actor,targets,value,safe=safe,from_grooming=from_grooming,from_training=from_training,
   pushed_skills=pushed_skills,type_manual=type_manual,_eligibility=eligibility,_pushed_source='experience_training')
+ book_bonus=__import__('study_books').training_bonus(e,actor,targets,book_target)
  awards=[row['base_award'] for row in result['awards'][0]['outputs']]
- return {'activity':'experience_training','skill':skill,'rank':rank,'limit':limit,'xp_rank':xp_rank,'grooming_policy':selected_policy if from_grooming else None,'beast_policy':selected_beast,'awards':awards,'rank_plans':deepcopy(rank_plans),'eligibility':deepcopy(eligibility),'reward_record_id':result['reward_record_id']}
+ return {'activity':'experience_training','skill':skill,'rank':rank,'limit':limit,'xp_rank':xp_rank,'grooming_policy':selected_policy if from_grooming else None,'beast_policy':selected_beast,'awards':awards,'rank_plans':deepcopy(rank_plans),'eligibility':deepcopy(eligibility),'reward_record_id':result['reward_record_id'],'study_book':book_bonus}
 
 ACTIVITIES.update(fishing=fishing,command_loyalty=command_loyalty,experience_training=experience_training)
 
@@ -602,7 +696,8 @@ def _mounting_native(e,actor,*,target,phase,skill='곡예',gm_mountable=None,dc=
   if gm_mountable is not None:raise ValueError('retention does not replace GM mounting admission')
   if actor.spec.get('mount_id')!=target.spec['id']:raise ValueError('actor must be riding this Pokemon')
   options=dict(roll);options['mods']=options.get('mods',0)+(3 if prowess else 0)
-  check=_check(e,actor,skill,dc,options,context=('mounting',phase,target.spec.get('id')));passed=check.passed
+  actual_skill=__import__('hobbyist').direct_skill(actor,'edge/탑승-기량',skill) if prowess else skill
+  check=_check(e,actor,actual_skill,dc,options,context=('mounting',phase,target.spec.get('id')));passed=check.passed
   if not passed:actor.spec.pop('mount_id',None)
  else:raise ValueError('mount phase must be mount or retain')
  return {'activity':'mounting','phase':phase,'check':check,'passed':passed,'automatic':phase=='mount' and prowess,'retention_bonus':3 if phase=='retain' and prowess else 0}
@@ -646,7 +741,7 @@ ACTIVITIES.update(observe_ball=observe_ball)
 
 def command_loyalty_value(e,pokemon,*,legendary_control=False):
  import mega_forms as MEGA,pokemon_entities as ENTITIES,legendary_commands as LEGENDARY
- return 0 if MEGA.uncontrolled(e,pokemon) or not legendary_control and LEGENDARY.uncontrolled(e,pokemon) else ENTITIES.loyalty_value(pokemon)
+ return 0 if MEGA.uncontrolled(e,pokemon) or not legendary_control and LEGENDARY.uncontrolled(e,pokemon) else ENTITIES.effective_loyalty_value(pokemon,engine=e)
 
 
 def loyalty_pending(e,pokemon,*,legendary_control=False):
@@ -667,7 +762,9 @@ def obedience_gate(e,pokemon,target,move_id,*,action_grant=None):
  for receipt in getattr(e,'_obedience_receipts',[]):
   if receipt.get('pack_mon') and not receipt['used'] and receipt['pokemon'] is pokemon and receipt['target'] is target and receipt['move_id']==move_id:
    import pack_mon as PACK
-   PACK.authorize(e,receipt['trainer'],pokemon)
+   authority=receipt['pack_mon']
+   current=PACK.authorize(e,receipt['trainer'],pokemon,source_choice=authority['source_choice'])
+   if current!=authority:raise ValueError('Pack Mon authority changed after declaration')
    receipt['used']=True;return True
  if pokemon.kind!='pokemon' or not pokemon.spec.get('trainer_id'):return True
  grants=getattr(e,'_action_grants',[])
@@ -687,7 +784,7 @@ def obedience_gate(e,pokemon,target,move_id,*,action_grant=None):
 
 def _execute_command(e,trainer,pokemon,target,move_id,options,*,pack_mon=False,gm_disobedience=False):
  receipt={'trainer':trainer,'pokemon':pokemon,'target':target,'move_id':move_id,'used':False}
- if pack_mon:receipt['pack_mon']=True
+ if pack_mon:receipt['pack_mon']=deepcopy(pack_mon)
  if gm_disobedience:receipt['gm_disobedience']=True
  receipts=getattr(e,'_obedience_receipts',None)
  temporary=receipts is None
@@ -708,11 +805,7 @@ def command_move(e,actor,*,pokemon,target,move_id,obedience_options=None,control
   def apply(se,sa,sp,st):
    try:return _command_move(se,sa,pokemon=sp,target=st,move_id=move_id,obedience_options=obedience_options,control_application=control_application,**move_options)
    except Exception as error:
-    import passive_events as PASSIVE,heavy_injury_adapter as HEAVY
-    if type(error) is PASSIVE.PassiveEventPending and se._passive_pending==error.event_id and error.event_id in se._passive_events:
-     pending.append((PASSIVE.PassiveEventPending,error.event_id));return None
-    if type(error) is HEAVY.HeavyPending and se._heavy_pending==error.event_id and error.event_id in se._heavy_events:
-     pending.append((HEAVY.HeavyPending,error.event_id));return None
+    if G.record_native_pending(se,error,pending):return None
     raise
   result=G.transition(e,actor,apply,participants=(pokemon,target),include_grid=e.grid is not None,include_rulings=True)
   if pending:
@@ -721,7 +814,7 @@ def command_move(e,actor,*,pokemon,target,move_id,obedience_options=None,control
  return _command_move(e,actor,pokemon=pokemon,target=target,move_id=move_id,obedience_options=obedience_options,**move_options)
 
 
-def _command_move(e,actor,*,pokemon,target,move_id,obedience_options=None,control_application=None,**move_options):
+def _command_move(e,actor,*,pokemon,target,move_id,obedience_options=None,control_application=None,pack_mon_source_choice=None,**move_options):
  """Declare a real move, then resolve obedience before any accuracy/frequency cost."""
  import action_lifecycle as ACTION
  import frequency as FREQ
@@ -729,9 +822,11 @@ def _command_move(e,actor,*,pokemon,target,move_id,obedience_options=None,contro
  pack_mon=actor.kind=='pokemon'
  if pack_mon:
   import pack_mon as PACK
-  decision=PACK.authorize(e,actor,pokemon)
+  decision=PACK.authorize(e,actor,pokemon,source_choice=pack_mon_source_choice)
   if obedience_options or control_application is not None:raise ValueError('Pack Mon obedience does not use trainer loyalty or control-tool options')
- else:_owner(actor,pokemon)
+ else:
+  if pack_mon_source_choice is not None:raise ValueError('Pack Mon source choice requires a Pokemon commander')
+  _owner(actor,pokemon)
  import exhaust_moves as EXHAUST
  EXHAUST.require_command(e,pokemon)
  if pokemon.spec.get('pending_disobedience'):return C.PendingDecision('resolve the previous disobedient action before issuing another command')
@@ -764,7 +859,7 @@ def _command_move(e,actor,*,pokemon,target,move_id,obedience_options=None,contro
   import state_fields as F
   pokemon.spec['pending_disobedience']={'trainer_id':actor.spec['id'],'commanded_move':resolved,'commanded_target':target.spec.get('id',target.name),'failure_id':F.new_id('failed-command')}
   return {'activity':'command_move','status':'disobedient','obedience':decision,'move_result':None}
- result=_execute_command(e,actor,pokemon,target,resolved,move_options,pack_mon=pack_mon)
+ result=_execute_command(e,actor,pokemon,target,resolved,move_options,pack_mon=decision if pack_mon else False)
  return {'activity':'command_move','status':'submitted','obedience':decision,'move_result':result}
 
 
@@ -921,6 +1016,15 @@ COLLECTOR_REVISION='supp-errata/포획-메커니즘-변경'
 
 def collector_eligible(e,trainer,required=False):
  """Errata:771-775, with ch04:376-386 acquisition prerequisites."""
+ import capture_techniques as CT,capture_specialist as CS
+ if CT._rows(trainer):
+  variant=CS.feature_variant(trainer,COLLECTOR_FEAT)
+  if variant==CS.SEPT:
+   CS.official_source(e.r,CS.SEPT)
+   C.integer(trainer.spec.get('collector_stacks',0),'collector stacks',0)
+   return True
+  if required:raise ValueError('Collector requires the actually acquired official September source')
+  return False
  owned=trainer.spec.get('feats',[])
  acquired=COLLECTOR_FEAT in owned or '포켓몬 넌 내 꺼야' in owned
  if not acquired:
@@ -990,7 +1094,7 @@ def collector_new_family(e,trainer,target):
  """Current ownership, not historical caught_species; runs before capture."""
  from builder import species_lookup
  _text(trainer.spec.get('id'),'collector trainer identity')
- if not target.spec.get('wild',target.side=='wild'):return False
+ if not target.spec.get('wild',getattr(target,'side',None)=='wild'):return False
  family=_evolution_family(e,target.spec.get('species'))
  everyone=list(e.gm.everyone or [])+list(e.everyone or [])
  for owned in everyone:

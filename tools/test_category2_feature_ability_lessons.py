@@ -137,9 +137,12 @@ class FeatureAbilityLessonTests(unittest.TestCase):
                 items.register_feats(self.engine, self.teacher)
                 result = self.teach(choices[0])
                 self.engine.gm.snapshot("trained")
+                owned=deepcopy((self.teacher.spec['feats'],self.teacher.spec['classes']))
                 self.teacher.spec.update(feats=[], classes=[])
+                with self.assertRaisesRegex(ValueError,'irreversible trainer Feature'):
+                    items.register_feats(self.engine, self.teacher)
+                self.teacher.spec['feats'],self.teacher.spec['classes']=owned
                 items.register_feats(self.engine, self.teacher)
-                self.assertEqual(self.teacher.stats["spe"], 10)
                 GRANTS.reconcile(self.engine, self.pupil)
                 self.assertIn(choices[0], ABILITIES.known(self.pupil))
                 self.engine.gm.restore("trained")

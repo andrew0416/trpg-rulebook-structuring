@@ -1,4 +1,5 @@
 """Sourced physical material facts and damage exceptions over the existing HP owner."""
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 from pathlib import Path
 import json
@@ -26,7 +27,7 @@ def quote(engine, rule_id, *, length_feet):
     row=_catalog(engine,rule_id)
     ATTACKS._integer(length_feet,'rope length in feet',row['min_length_feet'])
     if length_feet>row['max_length_feet']:raise ValueError('rope length exceeds sourced maximum')
-    price=length_feet*row['price_per_25_feet']//25
+    price=NUMERIC.ratio(length_feet*row['price_per_25_feet'],25)
     return dict(item_rule_id=rule_id,length_feet=length_feet,price=price,
                 max_hp=row['max_hp'],reduction=row['reduction'],minimum_damage=row['minimum_damage'],tension_kg=row['tension_kg'],
                 source=row['source'],policy_hash=ATTACKS._hash(row))

@@ -1,4 +1,5 @@
 """Source-bound Gigantamax activation and its completed field consumers."""
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 import json
 import os
@@ -37,6 +38,8 @@ def _catalog(rules):
             raise ValueError("selected G-Max move/species source is unavailable")
         if move.get("_source", {}).get("record_span") != [declaration["record"], declaration["record"]]:
             raise ValueError("G-Max record identity changed")
+        if not {"강타", "정신급증"}.issubset(move.get("keywords", ())):
+            raise ValueError("selected G-Max Smite/Spirit Surge source keywords changed")
         result[move["id"]] = dict(declaration, move_id=move["id"], species_id=species["id"])
     return result
 
@@ -221,9 +224,8 @@ def _members(engine, actor, *, allies):
 def activate(engine, actor, primary, base_move_id, gmax_move_id, everyone, **options):
     """Atomically execute the native Move and its all-target payload."""
     import state_grants as GRANTS
-    # The printed payload addresses the whole field.  Stage every registered
-    # actor as well as the native caller's view so no omitted field member can
-    # be mutated outside the shared transaction.
+    # Stage every registered actor, including field recipients and coin owners
+    # omitted from the native caller's local view.
     supplied = list(everyone) + [actor, primary]
     members = list({row.entity_id: row for row in engine.time_actors(supplied)}.values())
     participants = tuple(row for row in members if row is not actor)
@@ -237,22 +239,22 @@ def activate(engine, actor, primary, base_move_id, gmax_move_id, everyone, **opt
                              include_grid=engine.grid is not None)
 
 
-def _completed_hit(engine, actor, move_id, before):
+def _completed_move(engine, actor, move_id, before):
     rows = getattr(engine, "_move_completions", {})
     created = [row for token, row in rows.items() if token not in before and
                row.get("actor") is actor and row.get("move_id") == move_id]
     if len(created) != 1:
         raise ValueError("G-Max payload requires one native move-completion receipt")
     receipt = created[0]
-    if receipt.get("phase") != "complete" or not receipt.get("sealed"):
+    if (receipt.get("phase") != "complete" or not receipt.get("sealed") or
+            set(receipt.get("results", {})) != {target.entity_id for target in receipt["targets"]}):
         raise ValueError("G-Max native activation did not complete")
-    return receipt, any(result.get("hit") and not result.get("cancelled")
-                        for result in receipt.get("results", {}).values())
+    return receipt
 
 
 def _activate(engine, actor, primary, base_move_id, gmax_move_id, everyone, options):
     activation = plan(engine, actor, base_move_id, gmax_move_id)
-    payload = payload_plan(engine, actor, activation)
+    payload = payload_plan(engine, actor, activation, primary, everyone, options)
     if payload["kind"] == "area_hazard":
         import area_targets as AREA
         if options.get("aim") is None:
@@ -268,10 +270,13 @@ def _activate(engine, actor, primary, base_move_id, gmax_move_id, everyone, opti
     finally:
         if activation in scopes:
             scopes.remove(activation)
-    receipt, hit = _completed_hit(engine, actor, gmax_move_id, before)
-    # These clauses attach their field-wide consequence to a successful
-    # attack. A completed miss remains a real use but grants no payload.
-    if hit:
+    # A native pre-activation ruling is not a completed attack or its payload.
+    from common_checks import PendingDecision
+    if isinstance(result, PendingDecision):
+        return result
+    receipt = _completed_move(engine, actor, gmax_move_id, before)
+    # All twelve selected rows print Spirit Surge. Cancellation is not a miss.
+    if any(not outcome.get("cancelled") for outcome in receipt["results"].values()):
         apply_payload(engine, actor, activation, payload, receipt["id"])
     return result
 
@@ -292,10 +297,15 @@ def _apply_status(engine, target, status, activation, actor, *, parameters=None)
                         parameters=parameters, applied_by=actor)
 
 
-def payload_plan(engine, actor, activation):
+def payload_plan(engine, actor, activation, primary, everyone, options):
     declaration = _catalog(engine.r)[activation["gmax_move_id"]]
     foes = _members(engine, actor, allies=False)
     kind = declaration["effect"]
+    if kind == "confuse_and_coins":
+        import area_targets as AREA
+        move = AREA.bind(engine, actor, engine.r.move(activation["gmax_move_id"]), options.get("aim"))
+        selected = engine.targets_in_range(actor, move, everyone, primary)
+        foes = [target for target in selected if target.side is not None and target.side != actor.side]
     # Preflight the complete target set before the native Move can spend its
     # action/frequency or any payload consumer can mutate an earlier target.
     for target in foes:
@@ -307,12 +317,51 @@ def payload_plan(engine, actor, activation):
         for target in foes:
             if target.last_move is not None:
                 engine.r.move(target.last_move)
-    return {"kind": kind, "foes": foes}
+    payload = {"kind": kind, "foes": foes}
+    if kind == "confuse_and_coins":
+        import campaign_rewards as REWARDS
+        import common_checks as CHECKS
+        CHECKS.integer(actor.level, "G-Max coin-producing level", 1)
+        index = _actor_index(engine)
+        trainer_id = actor.spec.get("trainer_id")
+        recipient = index.get(trainer_id) if trainer_id is not None else actor
+        if (recipient is None or recipient.side != actor.side or
+                trainer_id is not None and recipient.kind != "trainer"):
+            raise ValueError("G-Max coins require the actual user-side recipient")
+        REWARDS.balances(recipient)
+        payload.update(recipient_id=recipient.entity_id, level=actor.level,
+                       encounter_epoch=engine._party_encounter_epoch)
+    return payload
+
+
+def _payload_foes(actor, payload, completion):
+    import move_completion as COMPLETE
+    recipients = COMPLETE.actual_recipients(completion)
+    outcomes = {target.entity_id: COMPLETE.recipient_result(completion, target)
+                for target in recipients}
+    foes = (recipients if payload["kind"] == "confuse_and_coins" else payload["foes"])
+    # Smite excludes the secondary effect only for its actual damaged recipient;
+    # Spirit Surge still reaches other field foes, including those outside the blast.
+    # Gold Rush cannot attach Confusion to a creature whose incoming hit was prevented.
+    return [target for target in foes if target.side is not None and target.side != actor.side
+            and not ((outcome := outcomes.get(target.entity_id)) is not None and
+                     (outcome.get("cancelled") or
+                      payload["kind"] == "confuse_and_coins" and outcome.get("hit_prevented") or
+                      not outcome.get("hit") and outcome.get("dealt", 0) > 0))]
 
 
 def apply_payload(engine, actor, activation, payload, completion_id):
     declaration = _catalog(engine.r)[activation["gmax_move_id"]]
-    foes = payload["foes"]
+    completion = getattr(engine, "_move_completions", {}).get(completion_id)
+    if (not completion or completion.get("actor") is not actor or
+            completion.get("move_id") != activation["gmax_move_id"] or
+            completion.get("phase") != "complete" or not completion.get("sealed") or
+            not completion["move"].get("_gmax_base_move_id") or
+            not any(not row.get("cancelled") for row in completion["results"].values())):
+        raise ValueError("G-Max payload requires its actual noncancelled native completion")
+    if any(row["completion_id"] == completion_id for row in engine._gmax_payload_receipts):
+        raise ValueError("G-Max completion payload already applied")
+    foes = _payload_foes(actor, payload, completion)
     kind = payload["kind"]
     if kind == "gravity":
         import field_effects as FIELD
@@ -340,8 +389,13 @@ def apply_payload(engine, actor, activation, payload, completion_id):
             _apply_status(engine, target, "혼란", activation, actor)
         rolls = POOLS.pool(engine.rng, declaration["dice"], sides=8)["faces"]
         event = {"source": SOURCE, "clause_id": activation["clause_id"], "owner_side": actor.side,
-                 "owner_id": actor.entity_id, "rolls": rolls, "amount": actor.level * sum(rolls),
+                 "owner_id": actor.entity_id, "completion_id": completion_id,
+                 "recipient_id": payload["recipient_id"], "level": payload["level"],
+                 "encounter_epoch": payload["encounter_epoch"], "rolls": rolls,
+                 "amount": payload["level"] * sum(rolls), "payment": None,
                  "status": "pending_encounter_end"}
+        completion["gmax_coin_basis"] = {key: event[key] for key in
+            ("owner_id", "owner_side", "recipient_id", "level", "encounter_epoch")}
         engine._gmax_coin_rewards = getattr(engine, "_gmax_coin_rewards", []) + [event]
     elif kind == "bind":
         for target in foes:
@@ -379,14 +433,24 @@ def start_turn(engine, actor):
     for row in effects:
         kind = row.get("kind")
         if kind in ("typed_residual", "sandblast"):
-            damage = actor.base_max_hp // 6
+            if kind == "sandblast":
+                serial = actor.custom_conditions.get("combat_turn_serial", 0)
+                if type(serial) is not int or serial < 1:
+                    raise ValueError("Sandblast requires an actual target turn")
+                if row["turns"] == 0:
+                    keep.append(row)
+                    continue
+            damage = NUMERIC.ratio(actor.base_max_hp,6)
             if damage:
                 engine.lose_hp(actor, damage, source=row["move_id"], unpreventable=True)
             row["turns"] -= 1
             if row["turns"] > 0:
                 keep.append(row)
             elif kind == "sandblast":
-                _end_sandblast(engine, actor, row)
+                # The fourth tick starts the fourth protected target turn.
+                # Keep its existing manual status owner until that real EOT.
+                row["expires_after_target_turn"] = serial
+                keep.append(row)
         elif kind == "delayed_sleep":
             if row.get("pending"):
                 engine.apply_status(actor, "잠듦", source=row["move_id"])
@@ -400,6 +464,23 @@ def start_turn(engine, actor):
             keep.append(row)
         else:
             raise ValueError("unknown saved G-Max effect")
+    if keep:
+        actor.spec[EFFECTS] = keep
+    else:
+        actor.spec.pop(EFFECTS, None)
+
+
+def end_turn(engine, actor):
+    """End Sandblast after the real target turn that delivered its fourth tick."""
+    effects = actor.spec.get(EFFECTS, [])
+    keep = []
+    for row in effects:
+        if row.get("kind") == "sandblast" and row.get("turns") == 0:
+            if row.get("expires_after_target_turn") != actor.custom_conditions.get("combat_turn_serial"):
+                raise ValueError("Sandblast expiry must match the actual closing target turn")
+            _end_sandblast(engine, actor, row)
+        else:
+            keep.append(row)
     if keep:
         actor.spec[EFFECTS] = keep
     else:
@@ -421,12 +502,10 @@ def _end_sandblast(engine, actor, row):
 
 
 def move_allowed(engine, actor, move):
-    """Encounter-long G-Max depletion enforcement for the selected last Move."""
+    """Encounter-long Suppressed; Disabled uses its ordinary condition owner."""
     for row in actor.spec.get(EFFECTS, []):
         if row.get("kind") != "disable_and_suppress_last_move":
             continue
-        if row.get("disabled_move_id") == move["id"]:
-            return False, "G-Max Depletion disabled this Move"
         import frequency as FREQ
         if row.get("suppressed") and FREQ.move_frequency(engine, move["id"], actor)[0] != "at_will":
             return False, "G-Max Depletion suppresses non-At-Will Moves for the encounter"
@@ -443,6 +522,8 @@ def retain_condition(engine, actor, condition):
 
 
 def end_encounter(engine, actors):
+    if getattr(engine, "_gmax_coin_rewards", []):
+        validate_world(engine)
     for actor in actors:
         receipt = actor.spec.get(STATE)
         if isinstance(receipt, dict) and receipt.get("source") == SOURCE:
@@ -458,8 +539,22 @@ def end_encounter(engine, actors):
             if not CONDITIONS.records(actor, "억압"):
                 actor.conditions.discard("억압")
     rewards = getattr(engine, "_gmax_coin_rewards", [])
+    index = _actor_index(engine)
+    import campaign_rewards as REWARDS
     for reward in rewards:
         if reward.get("status") == "pending_encounter_end":
+            recipient = index.get(reward.get("recipient_id"))
+            if recipient is None or reward.get("encounter_epoch") != engine._party_encounter_epoch:
+                raise ValueError("G-Max coin recipient or encounter changed")
+            REWARDS.balances(recipient)
+    for reward in rewards:
+        if reward.get("status") == "pending_encounter_end":
+            recipient = index[reward["recipient_id"]]
+            before = recipient.spec.get("money", 0)
+            REWARDS.pay(recipient, money=reward["amount"])
+            reward["payment"] = {"recipient_id": recipient.entity_id,
+                "completion_id": reward["completion_id"], "encounter_epoch": reward["encounter_epoch"],
+                "amount": reward["amount"], "money_before": before, "money_after": recipient.spec["money"]}
             reward["status"] = "collected"
     engine._gmax_activation_scopes = []
 
@@ -483,27 +578,59 @@ def validate_world(engine):
         raise ValueError("invalid G-Max payload receipt ledger")
     completions = getattr(engine, "_move_completions", {})
     declarations_by_clause = {row["clause_id"]: row for row in _catalog(engine.r).values()}
+    payload_ids = set()
     for row in receipts:
         completion = completions.get(row.get("completion_id"))
         declaration = declarations_by_clause.get(row.get("clause_id"))
         if (declaration is None or not completion or completion.get("phase") != "complete" or
                 completion.get("move_id") != declaration["move_id"] or
-                completion.get("actor").entity_id != row["actor_id"] or
-                not any(result.get("hit") and not result.get("cancelled")
+                completion.get("actor").entity_id != row["actor_id"] or row.get("completion_id") in payload_ids or
+                not completion.get("sealed") or
+                not completion.get("move", {}).get("_gmax_base_move_id") or
+                not any(not result.get("cancelled")
                         for result in completion.get("results", {}).values())):
-            raise ValueError("G-Max payload lacks its completed successful native Move receipt")
+            raise ValueError("G-Max payload lacks its completed noncancelled native Move receipt")
+        payload_ids.add(row["completion_id"])
         if not isinstance(row.get("target_ids"), list) or any(uid not in index for uid in row["target_ids"]):
             raise ValueError("G-Max payload target identity is missing")
     rewards = getattr(engine, "_gmax_coin_rewards", [])
     if not isinstance(rewards, list):
         raise ValueError("G-Max coin rewards must be a list")
+    seen = set()
     for row in rewards:
         if (not isinstance(row, dict) or row.get("source") != SOURCE or row.get("owner_id") not in index or
                 row.get("status") not in ("pending_encounter_end", "collected") or
                 not isinstance(row.get("rolls"), list) or len(row["rolls"]) != 10 or
                 any(type(face) is not int or not 1 <= face <= 8 for face in row["rolls"]) or
-                type(row.get("amount")) is not int or row["amount"] < 0):
+                type(row.get("level")) is not int or row["level"] < 1 or
+                type(row.get("amount")) is not int or row["amount"] != row["level"] * sum(row["rolls"]) or
+                row.get("recipient_id") not in index or not row.get("owner_side") or
+                type(row.get("encounter_epoch")) is not int or
+                not 1 <= row["encounter_epoch"] <= engine._party_encounter_epoch or
+                row.get("completion_id") in seen):
             raise ValueError("invalid G-Max Gold Rush reward receipt")
+        seen.add(row.get("completion_id"))
+        completion = completions.get(row.get("completion_id"))
+        declaration = declarations_by_clause.get(row.get("clause_id"))
+        if (not completion or declaration is None or declaration["effect"] != "confuse_and_coins" or
+                completion["move_id"] != declaration["move_id"] or
+                completion["actor"].entity_id != row["owner_id"] or
+                not any(receipt["completion_id"] == row["completion_id"] and
+                        receipt["clause_id"] == row["clause_id"] for receipt in receipts)):
+            raise ValueError("G-Max coins lack their actual payload completion")
+        if completion.get("gmax_coin_basis") != {key: row[key] for key in
+                ("owner_id", "owner_side", "recipient_id", "level", "encounter_epoch")}:
+            raise ValueError("G-Max coin generation inputs changed after activation")
+        payment = row.get("payment")
+        if row["status"] == "pending_encounter_end":
+            if payment is not None:
+                raise ValueError("uncollected G-Max coins cannot already have a payment")
+        elif (not isinstance(payment, dict) or
+                any(payment.get(key) != row[key] for key in
+                    ("recipient_id", "completion_id", "encounter_epoch", "amount")) or
+                type(payment.get("money_before")) is not int or payment["money_before"] < 0 or
+                payment.get("money_after") != payment["money_before"] + row["amount"]):
+            raise ValueError("G-Max coins lack their exact native payment receipt")
     if getattr(engine, "_gmax_activation_scopes", []):
         raise ValueError("cannot validate or save during a G-Max activation")
     return True
@@ -520,9 +647,17 @@ def validate_actor(actor):
             raise ValueError("unsupported G-Max actor effect receipt")
         if row.get("target_id") != actor.entity_id:
             raise ValueError("G-Max effect target identity changed")
-        if (row["kind"] in ("typed_residual", "sandblast") and
-                (type(row.get("turns")) is not int or row["turns"] < 1 or row["turns"] > 4)):
-            raise ValueError("G-Max residual turn count is invalid")
+        if row["kind"] in ("typed_residual", "sandblast"):
+            minimum = 0 if row["kind"] == "sandblast" else 1
+            if type(row.get("turns")) is not int or not minimum <= row["turns"] <= 4:
+                raise ValueError("G-Max residual turn count is invalid")
+            final = row.get("expires_after_target_turn")
+            if row["kind"] == "sandblast" and row["turns"] == 0:
+                if (type(final) is not int or final < 1
+                        or final != actor.custom_conditions.get("combat_turn_serial")):
+                    raise ValueError("Sandblast needs its actual fourth target turn end")
+            elif final is not None:
+                raise ValueError("only the final Sandblast turn has a pending turn end")
         if row["kind"] == "bind" and row.get("persists_if_owner_leaves") is not True:
             raise ValueError("G-Max bind must preserve its printed owner-leaves exception")
         if row["kind"] == "disable_and_suppress_last_move":

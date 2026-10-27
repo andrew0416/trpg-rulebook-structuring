@@ -45,8 +45,9 @@ def _verified_test_ids(body, cases=None):
     if summary is None:
         return None
     case_text = body[:summary.start()].split("\n"+"="*70, 1)[0]
-    headers = list(re.finditer(r"^(?:(test_\w+) \((\w+(?:\.\w+){2,})\)|"
-                              r"(setUpClass|setUpModule|tearDownClass|tearDownModule) \((\w+(?:\.\w+)*)\)) \.\.\.", case_text, re.M))
+    headers = list(re.finditer(r"^(?:(test_\w+) \((\w+(?:\.\w+){2,})\)"
+                              r"(?: \.\.\.|\r?\n[^\r\n]+ \.\.\.)|"
+                              r"(setUpClass|setUpModule|tearDownClass|tearDownModule) \((\w+(?:\.\w+)*)\) \.\.\.)", case_text, re.M))
     results = []
     subtest_parent_results = set()
     outcomes = []
@@ -61,7 +62,8 @@ def _verified_test_ids(body, cases=None):
             outcomes.append('ERROR')
             continue
         statuses = re.findall(r"^[ \t]*(ok|FAIL|ERROR|skipped [^\r\n]+|expected failure|unexpected success)[ \t]*\r?$", segment, re.M)
-        subtests = list(re.finditer(r"^[ \t]+(test_\w+) \((\w+(?:\.\w+){2,})\) .+ \.\.\. (FAIL|ERROR)[ \t]*\r?$", segment, re.M))
+        subtests = list(re.finditer(r"^[ \t]+(test_\w+) \((\w+(?:\.\w+){2,})\) .+?"
+                                   r"(?: \.\.\.|\r?\n[^\r\n]+ \.\.\.) (FAIL|ERROR)[ \t]*\r?$", segment, re.M))
         if subtests:
             if any(child[1] != header[1] or child[2] != header[2] for child in subtests):
                 return None

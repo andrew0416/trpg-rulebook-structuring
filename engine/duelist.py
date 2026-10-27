@@ -1,4 +1,5 @@
 """Book Duelist: one tagged foe, native Momentum producers and its consumers."""
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 import acquired_features as A
 import common_checks as C
@@ -87,7 +88,7 @@ def accuracy(engine,pokemon,foe):
     if trainer is None or not focused(pokemon,trainer):return 0
     tag=trainer.spec.get(KEY,{}).get('tag')
     if tag is None:return 0
-    if tag==foe.entity_id:return (momentum(pokemon)+1)//2
+    if tag==foe.entity_id:return NUMERIC.ceil_ratio(momentum(pokemon),2)
     import training_features as TRAIN
     return -sum(TRAIN.bonuses(row).get('accuracy',0) for row in TRAIN.active(pokemon)
                 if row['rule_id']==FOCUSED and row['owner'] is trainer)
@@ -95,7 +96,7 @@ def accuracy(engine,pokemon,foe):
 
 def evasion(engine,pokemon,foe):
     trainer=_owner(engine,pokemon)
-    return (momentum(pokemon)+1)//2 if trainer and focused(pokemon,trainer) and tagged(engine,pokemon,foe) else 0
+    return NUMERIC.ceil_ratio(momentum(pokemon),2) if trainer and focused(pokemon,trainer) and tagged(engine,pokemon,foe) else 0
 
 
 def tag(engine,trainer,foe):
@@ -103,7 +104,8 @@ def tag(engine,trainer,foe):
     W.require_actors(engine,trainer,foe)
     if not acquired(trainer) or foe.kind not in ('trainer','pokemon') or foe is trainer:
         raise ValueError('actual Duelist and opposing Trainer or Pokemon required')
-    if trainer.side is not None and trainer.side==foe.side:raise ValueError('Duelist tags a foe')
+    own_side=getattr(trainer,'side',None);foe_side=getattr(foe,'side',None)
+    if own_side is None or foe_side is None or own_side==foe_side:raise ValueError('Duelist tags an observed opposing foe')
     def apply(e,a,t):
         if not TURN.spend(e,a,'swift',CLASS):raise ValueError('Duelist requires its Swift action')
         state=_state(a);state['tag']=None if state['tag']==t.entity_id else t.entity_id
@@ -204,7 +206,7 @@ def after_move(engine,row):
         if hits and row.get('duelist_already_critical') and not overflow.get('heal_applied'):
             import life
             overflow['heal_applied']=True
-            overflow['healed']=life.heal(engine,pokemon,pokemon.base_max_hp//2,source_kind='feature')
+            overflow['healed']=life.heal(engine,pokemon,NUMERIC.ratio(pokemon.base_max_hp,2),source_kind='feature')
         if overflow.get('suspended'):
             # The native continuation has now completed the already paid Move.
             import initiative_interrupts as I
@@ -239,14 +241,22 @@ def _use(engine,trainer,pokemon,feature,mode):
     return row
 
 
-def _finish_order(e,a,p,row):
+def _pay_order(e,a,p,feature,communication=None):
+    import moment_of_action as MOMENT,order_actions as ORDERS
+    use_id=feature+':'+a.entity_id+':'+str(len(a.spec.get(USES,[]))+1)
+    request,delivery=MOMENT._communication(e,a,p,use_id,communication,source=feature,label='Duelist Order')
+    payment=ORDERS.spend(e,a,feature,subject=use_id,communication=delivery)
+    return request,delivery,payment
+
+
+def _finish_order(e,a,p,row,paid):
     import cheerleader as CHEER
     import trainer_feature_acquisition as TFA
     import moment_of_action as MOMENT
     import order_actions as ORDERS
-    payment=ORDERS.payment(e,a,row['source'])
-    if payment:row['free_order_payment']=payment
-    request,delivery=MOMENT._communication(e,a,p,row['id'],None,source=row['source'],label='Duelist Order')
+    request,delivery,payment=paid
+    if payment.get('kind')=='free_order':row['free_order_payment']=payment
+    elif payment.get('kind')=='priority_limited':row['priority_receipt_id']=payment['id']
     row['communication']={'request_id':request,'result':delivery};row['at']=e.elapsed_seconds
     row['integrity']=TFA._digest('duelist/use/v1',row)
     CHEER.issue(e,a,[p],{'kind':'duelist_order','source':row['source'],'use_id':row['id']})
@@ -254,7 +264,7 @@ def _finish_order(e,a,p,row):
     return deepcopy(row)
 
 
-def expend(engine,trainer,pokemon,*,amount,move=None):
+def expend(engine,trainer,pokemon,*,amount,move=None,communication=None):
     C.integer(amount,'Momentum expense',1,3)
     move=engine.r.move_id(move) if move is not None else None
     def apply(e,a,p):
@@ -267,7 +277,7 @@ def expend(engine,trainer,pokemon,*,amount,move=None):
                 raise ValueError('one known Move of the printed frequency required')
             if not p.move_uses.get(move):raise ValueError('selected Move has no spent use to restore')
         elif move is not None:raise ValueError('the d20 option does not restore a Move')
-        if not TURN.spend(e,a,'standard',EXPEND):raise ValueError('Expend Momentum requires its Standard action')
+        paid=_pay_order(e,a,p,EXPEND,communication)
         row=_use(e,a,p,EXPEND,amount);_change(e,p,momentum(p)-amount)
         if quota:F.consume_activation(p,EXPEND,quota,engine=e)
         if amount==2:
@@ -278,14 +288,14 @@ def expend(engine,trainer,pokemon,*,amount,move=None):
             F.state(p)['moves'].pop(move,None)
             if p.last_move==move:p.last_move=None
             row['move_id']=move
-        return _finish_order(e,a,p,row)
+        return _finish_order(e,a,p,row,paid)
     return G.transition(engine,trainer,apply,participants=(pokemon,),include_rulings=True)
 
 
 def choose_eleven(engine,pokemon,kind):
     if engine._active_turn_actor is not pokemon:return False
     serial=pokemon.custom_conditions.get('combat_turn_serial',0)
-    records=[r for r in TIME.records(pokemon) if r.get('duelist_eleven') and r['turn_deadline']==serial]
+    records=[r for r in TIME.records(pokemon) if r.get('duelist_eleven') and __import__('native_order_transfer').on_eligible_turn(engine,pokemon,r,r['turn_deadline'])]
     if not records:return False
     choice=engine.rulings.decide({'type':'duelist_eleven','unit':EXPEND,'actor':pokemon.name,'roll':kind,
         'text':'Use one Expend Momentum automatic 11 on this actual d20 roll?'})
@@ -294,7 +304,7 @@ def choose_eleven(engine,pokemon,kind):
     TIME.expire(engine,pokemon,records[0],ending='consumed');return True
 
 
-def manual(engine,trainer,pokemon,*,mode,ability=None):
+def manual(engine,trainer,pokemon,*,mode,ability=None,communication=None):
     C.integer(mode,'Manual option',1,3)
     def apply(e,a,p):
         import turn as TURN,action_points as AP,ability_transitions as AB
@@ -315,7 +325,7 @@ def manual(engine,trainer,pokemon,*,mode,ability=None):
                 operation={'kind':'replace','remove':[old],'add':[chosen]}
         elif ability is not None:raise ValueError('only the first Manual option exchanges an Ability')
         if AP.available(a)<2:raise ValueError('Manual requires two AP')
-        if not TURN.spend(e,a,'standard',MANUAL):raise ValueError('Manual requires its Standard action')
+        paid=_pay_order(e,a,p,MANUAL,communication)
         a.ap_account.charge(2,mode='spend');row=_use(e,a,p,MANUAL,mode)
         if quota:F.consume_activation(p,MANUAL,quota,engine=e)
         record={'source':MANUAL,'duelist_mode':mode,'duelist_use':row['id']}
@@ -327,7 +337,7 @@ def manual(engine,trainer,pokemon,*,mode,ability=None):
             row['ability_operation']=deepcopy(operation)
         TIME.install(e,p,record)
         if operation:G.materialize(p,'abilities');G.reconcile(e,p)
-        return _finish_order(e,a,p,row)
+        return _finish_order(e,a,p,row,paid)
     return G.transition(engine,trainer,apply,participants=(pokemon,),include_rulings=True)
 
 
@@ -365,7 +375,7 @@ def begin_move(engine,row):
 def ignores(engine,pokemon,target=None):
     if engine._active_turn_actor is not pokemon:return False
     serial=pokemon.custom_conditions.get('combat_turn_serial',0)
-    active=any(r.get('duelist_mode')==3 and r.get('turn_deadline')==serial for r in TIME.records(pokemon))
+    active=any(r.get('duelist_mode')==3 and __import__('native_order_transfer').on_eligible_turn(engine,pokemon,r,r.get('turn_deadline')) for r in TIME.records(pokemon))
     if not active:return False
     if target is not None:return tagged(engine,pokemon,target)
     return getattr(pokemon,'_duelist_ignoring',False)
@@ -455,14 +465,7 @@ def seize(engine,trainer,pokemon,*,event_id,move,target,**options):
         I.begin(e,queued['window_id'],event_id)
         try:result=e.use_move(p,t,move,**options)
         except Exception as error:
-            import passive_events as PASSIVE,heavy_injury_adapter as HEAVY
-            if (type(error) is PASSIVE.PassiveEventPending and e._passive_pending==error.event_id
-                    and error.event_id in e._passive_events):
-                pending.append((PASSIVE.PassiveEventPending,error.event_id))
-            elif (type(error) is HEAVY.HeavyPending and e._heavy_pending==error.event_id
-                    and error.event_id in e._heavy_events):
-                pending.append((HEAVY.HeavyPending,error.event_id))
-            else:raise
+            if not G.record_native_pending(e,error,pending):raise
             overflow_trigger(e,event_id)[1]['suspended']=True
             return None
         I.finish(e)
@@ -510,11 +513,10 @@ def critical(engine,pokemon,target,move,hit,crit):
 
 def smite(engine,pokemon,target,move,set_damage):
     if interrupt_attack(engine,pokemon,target,move) is None or move.get('class') not in ('물리','특수'):return 0
-    import combat_damage as DAMAGE,arithmetic_policy as M
+    import attack_damage_history as HISTORY,arithmetic_policy as M
     event={'attacker':pokemon,'target':target,'move':move}
     amount=M.ratio(engine.roll_damage(pokemon,target,move,False,set_damage,_reaction_event=event),2)
-    before=DAMAGE.observe(target);engine.take_damage(target,amount)
-    receipt=DAMAGE.application(requested=amount,before=before,after=DAMAGE.observe(target),source=move['id'],damage_class=move['class'])
+    receipt=HISTORY.apply_smite(engine,pokemon,target,move,amount,event.get('actual_damage_type',move['type']))
     observe_damage(engine,pokemon,target,move,event,receipt)
     return amount
 
@@ -531,6 +533,12 @@ def validate_world(engine,index):
             if row.get('free_order_payment') is not None:
                 import order_actions as ORDERS
                 ORDERS.validate(engine,actor,index[row['pokemon_id']],row['source'],row['free_order_payment'])
+            if row.get('priority_receipt_id') is not None:
+                import priority_limited as PRIORITY
+                paid=[r for r in PRIORITY.records(actor) if r['id']==row['priority_receipt_id']]
+                if (len(paid)!=1 or paid[0]['source']!=row['source'] or paid[0]['subject_id']!=row['id']
+                        or paid[0]['payment']['funded']!={'standard':1} or paid[0]['communication']!=row['communication']['result']):
+                    raise ValueError('Duelist Order lost its native Standard reservation')
             import moment_of_action as MOMENT
             delivered=row['communication']
             if MOMENT._delivery(engine,actor.entity_id,row['pokemon_id'],delivered['request_id'],row['at'])!=delivered['result']:
@@ -539,7 +547,7 @@ def validate_world(engine,index):
             use=record.get('duelist_use')
             if use is None:continue
             found=[(trainer,row) for trainer in index.values() for row in trainer.spec.get(USES,[]) if row['id']==use]
-            if len(found)!=1 or found[0][1]['pokemon_id']!=actor.entity_id:raise ValueError('actual Duelist timed Order producer required')
+            if len(found)!=1 or found[0][1]['pokemon_id']!=__import__('native_order_transfer').origin_id(record,actor):raise ValueError('actual Duelist timed Order producer required')
             trainer,row=found[0]
             if record['source']!=row['source']:raise ValueError('Duelist effect source changed')
             if record.get('grant_source'):

@@ -29,7 +29,7 @@ def validate(rules,spec):
     if len(rows)>1:raise ValueError('Attack Conflict is not a ranked or repeatable Poke Edge')
     for row in rows:
         import poke_edge_variants as VARIANTS
-        VARIANTS.validate_receipt(rules,row)
+        VARIANTS.validate_receipt(rules,row,history=True)
         if rules._selected_rule(ATTACK_CONFLICT)!=ATTACK_CONFLICT:raise ValueError('selected Attack Conflict needs its own allocation policy')
         if row.get('stat') not in ('atk','spa') or row.get('status')!='active':raise ValueError('Attack Conflict needs one active Attack or Special Attack choice')
         F.integer(row.get('point_cost'),'Attack Conflict investment',1,1)

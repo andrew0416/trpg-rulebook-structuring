@@ -38,18 +38,18 @@ class StyleExpertTests(unittest.TestCase):
   self.b=Combatant(self.rules,dict(deepcopy(common),name='actual recipient',kind='pokemon',gender='암컷',wild=True))
   self.e.gm.add_combatant(self.b,pos=(6,5),side='wild',reason='actual opposite gender recipient')
   for actor in self.e.everyone:prepare_body(self.e,actor,size='중형',offsets=[(0,0)],reason='actual body')
- def acquire(self,feature=S.CLASS,stat=None,rank=None):
+ def acquire(self,feature=S.CLASS,stat=None,rank=None,edition=None):
   branch=(stat or self.stat) if feature in (S.CLASS,S.FLOURISH,S.ENTRAINMENT) else None
-  return A.acquire_static(self.e,self.a,feature,branch=branch,rank=rank,
+  return A.acquire_static(self.e,self.a,feature,branch=branch,rank=rank,selection=None if edition is None else {'edition':edition},
    acquisition_request_id='Style/'+feature+'/'+str(branch)+'/'+str(rank))
- def family(self,stat=None,*,rank=1,effect=False,extra=False,flourish=False,entrainment=False):
+ def family(self,stat=None,*,rank=1,effect=False,extra=False,flourish=False,entrainment=False,edition=None):
   if stat is not None:self.setup(stat)
-  self.acquire();self.acquire(S.RANKED[self.stat],rank=1)
-  if rank==2:self.acquire(S.RANKED[self.stat],rank=2)
-  if effect:self.acquire(S.IMPROVE[self.stat])
-  if extra:self.acquire(CF.RANKED[self.stat][2][1])
-  if flourish:self.acquire(S.FLOURISH)
-  if entrainment:self.acquire(S.ENTRAINMENT)
+  self.acquire(edition=edition);self.acquire(S.RANKED[self.stat],rank=1,edition=edition)
+  if rank==2:self.acquire(S.RANKED[self.stat],rank=2,edition=edition)
+  if effect:self.acquire(S.IMPROVE[self.stat],edition=edition)
+  if extra:self.acquire(CF.RANKED[self.stat][2][1],edition=edition)
+  if flourish:self.acquire(S.FLOURISH,edition=edition)
+  if entrainment:self.acquire(S.ENTRAINMENT,edition=edition)
  def combat(self,actor=None):self.e.start_round(self.e.everyone);self.e.start_of_turn(actor or self.p,initiative_count=30)
  def use(self,mid='move/몸통박치기',target=None,**kw):
   with patch.object(Engine,'d20',return_value=19):return self.e.style_move(self.a,self.p,target or self.b,mid,set_damage=True,**kw)
@@ -269,4 +269,147 @@ class StyleExpertTests(unittest.TestCase):
   result=self.e.style_endurance(self.a,self.p,'fall',action_id='actual-fall',meters=3,intentional=False,reason='actual observed fall',natural_sky=False,natural_sky_reason='native grounded species')
   self.assertEqual(result['damage_distance'],1)
   self.rejected(lambda:self.e.style_endurance(self.a,self.p,'heavy'),'Heavy Injury')
+
+ def test_csv_fashionista_two_pokemon_qualification_is_source_scoped_and_historical(self):
+  import fashionista as FA
+  self.a.spec[FA.CHOICES]=['매력','직감']
+  A.acquire_static(self.e,self.a,FA.CLASS,acquisition_request_id='actual/Fashionista')
+  self.r.spec['poffins']=[]
+  self.rejected(self.acquire,'three trained')
+  self.q.spec['poffins']=[]
+  self.rejected(lambda:self.acquire(edition='local_csv'),'three trained')
+  self.q.spec['poffins']=[self.stat]*3
+  row=self.acquire(edition='local_csv')
+  self.assertTrue(row['snapshot']['fashionista']);self.assertEqual(row['snapshot']['source']['record'],203)
+  for p in self.partners:p.spec['poffins']=[]
+  self.restored();self.assertEqual(CF.style_stat_dice(self.e,self.a,self.p),{self.stat:2})
+  self.assertTrue(self.e.validate_state()['valid'])
+
+ def test_csv_acquisition_selection_replay_invalid_source_and_json_tampering(self):
+  self.rejected(lambda:self.acquire(edition='unknown'),'local_csv')
+  self.rejected(lambda:A.acquire_static(self.e,self.a,'feat/계승자',selection={'edition':'local_csv'},
+   acquisition_request_id='unrelated selection rejection'),'no optional acquisition selection')
+  with patch.object(S,'CSV_SHA256','0'*64):
+   self.rejected(lambda:self.acquire(edition='local_csv'),'source changed')
+  self.acquire(edition='local_csv')
+  self.rejected(self.acquire,'optional selection')
+  self.assertEqual(self.acquire(edition='local_csv')['snapshot']['selection'],{'edition':'local_csv'})
+  self.restored();self.assertTrue(S.local_csv(self.a,S.CLASS,self.stat))
+  # Mutating a live receipt must fail its existing acquisition integrity gate.
+  sid=next(k for k,v in self.a.spec[G.KEY]['sources'].items() if v.get('static_acquisition',{}).get('feature_id')==S.CLASS)
+  self.a.spec[G.KEY]['sources'][sid]['static_acquisition']['snapshot']['selection']['edition']='core'
+  with self.assertRaisesRegex(ValueError,'integrity|receipt'):A.validate_actor(self.a)
+
+ def test_csv_ranked_ap_uses_selected_move_rank_in_all_five_native_battle_and_contest_branches(self):
+  for stat,moves in S.MOVES.items():
+   for number,mid in ((1,moves[0][0]),(2,moves[1][1] if stat=='근사함' else moves[1][0])):
+    with self.subTest(stat=stat,rank=number):
+     self.setup(stat);self.family(rank=2,edition='local_csv');ce,c=self.contest();ap=AP.available(self.a)
+     ce.perform(c,mid,stat,[],False,style_ranked=S.RANKED[stat])
+     self.assertEqual(AP.available(self.a),ap-number);self.assertNotIn(mid,self.p.moves)
+     self.setup(stat);self.family(rank=2,edition='local_csv');self.combat();ap=AP.available(self.a)
+     rng=__import__('weapon_actions').range_spec(self.e,self.rules.move(mid),self.p)
+     target=self.p if rng.get('origin')=='self' and not rng.get('shape') else self.b
+     self.use(mid,target,ranked=S.RANKED[stat]);self.assertEqual(AP.available(self.a),ap-number)
+     self.assertNotIn(mid,self.p.moves)
+
+ def test_csv_rank2_ap_shortfall_and_native_failure_are_atomic_without_changing_book(self):
+  self.family(rank=2,edition='local_csv');self.combat();AP.spend(self.a,AP.available(self.a)-1)
+  self.rejected(lambda:self.use('move/악마의키스',ranked=S.RANKED[self.stat]),'2 AP')
+  self.e.end_of_turn(self.p)
+  self.rejected(lambda:self.use('move/유혹',ranked=S.RANKED[self.stat]),'activation|turn|Style')
+  self.setup();self.family(rank=2);self.combat();AP.spend(self.a,AP.available(self.a)-1)
+  self.use('move/악마의키스',ranked=S.RANKED[self.stat]);self.assertEqual(AP.available(self.a),0)
+
+ def test_csv_daily_beauty_endurance_limits_survive_scene_and_restore_then_reset_next_day(self):
+  for stat,feature,activate in (('아름다움',S.BEAUTY,lambda:self.e.enticing_beauty(self.a,self.p)),
+                               ('강인함',S.ENDURANCE,lambda:self.e.style_endurance(self.a,self.p,'heavy'))):
+   with self.subTest(feature=feature):
+    self.setup(stat);self.family(extra=True,edition='local_csv');self.p.injuries=5
+    for index in range(10):
+     if feature==S.ENDURANCE:self.combat()
+     activate();self.e.end_scene(self.e.everyone)
+     if index==4:self.restored()
+    if feature==S.ENDURANCE:self.combat()
+    self.rejected(activate,'frequency exhausted')
+    F.new_day(self.a);activate()
+    self.assertEqual(F.state(self.a)['activations'][feature]['used'],1)
+    self.setup(stat);self.family(extra=True);self.p.injuries=5
+    if feature==S.ENDURANCE:self.combat()
+    activate();self.rejected(activate,'frequency exhausted')
+    self.e.end_scene(self.e.everyone)
+    if feature==S.ENDURANCE:self.combat()
+    activate()
+
+ def test_csv_skill_quotas_use_actual_stunt_and_failed_reroll_consumers(self):
+  for stat,feature,limit in (('근사함',CF.STUNT,10),('슬기로움',CF.MISTAKES,5)):
+   with self.subTest(feature=feature):
+    self.setup(stat);self.family(extra=True,edition='local_csv')
+    def activate():
+     if feature==CF.STUNT:
+      return self.e.contest_skill_feature(self.a,self.p,feature,'육상',20,
+       context={'source':'ordinary','dramatic_risk':True,'action':'actual rescue','risk':'falling debris'},fixed=[2]*5)
+     return self.e.contest_skill_feature(self.a,self.p,feature,'육상',100,
+      fixed=[1]*4,reroll_faces=[2]*4,decision=lambda failed:True)
+    for index in range(limit):
+     out=activate();self.e.end_scene(self.e.everyone)
+     if feature==CF.MISTAKES:self.assertTrue(out['rerolled'])
+     if index==2:self.restored()
+    self.rejected(activate,'daily uses exhausted')
+    F.new_day(self.a);activate();self.assertEqual(F.state(self.a)['activations'][feature]['used'],1)
+  self.setup('근사함');self.family(extra=True);feature=CF.STUNT
+  for _ in range(2):activate();self.e.end_scene(self.e.everyone)
+  self.rejected(activate,'daily uses exhausted')
+
+ def test_csv_friends_five_actual_dispositions_and_daily_limit_not_scene_refresh(self):
+  self.setup('귀여움');self.family(extra=True,edition='local_csv')
+  def activate():
+   return self.e.pokemon_activity(self.a,'befriend',target=self.b,friendship_performer=self.p,
+    friendship_audience='performer',fixed=[2]*5)
+  for index in range(5):
+   self.e.pokemon_activity(self.a,'disposition_ruling',target=self.b,disposition='중립',
+    reason='actual GM-observed changed relationship',allow_retry=True,friendship_performer=self.p,friendship_audience='performer')
+   self.assertTrue(activate()['check'].passed);self.e.end_scene(self.e.everyone)
+   if index==2:self.restored()
+  self.rejected(activate,'frequency exhausted')
+  F.new_day(self.a)
+  self.e.pokemon_activity(self.a,'disposition_ruling',target=self.b,disposition='중립',
+   reason='actual GM-observed changed relationship on the new day',allow_retry=True,friendship_performer=self.p,friendship_audience='performer')
+  self.assertTrue(activate()['check'].passed)
+
+ def test_csv_bide_reaction_rank2_cost_and_spite_unanswered_boundary_remain_distinct(self):
+  import bide,spite
+  self.setup('강인함');self.family(rank=2,edition='local_csv');self.combat(self.b)
+  with patch.object(Engine,'d20',return_value=19):self.e.use_move_on(self.b,self.p,'move/몸통박치기',self.e.everyone,set_damage=True)
+  event=next(k for k,v in reversed(list(self.e._passive_events.items())) if v.get('phase')=='producer_return_boundary')
+  before=self.e.export_state();self.assertIsInstance(spite.use(self.e,self.a,self.p,event),C.PendingDecision)
+  self.assertEqual(self.e.export_state(),before)
+  ap=AP.available(self.a);bide.reaction(self.e,self.p,event,trainer=self.a,ranked=S.RANKED[self.stat],payment='next')
+  self.assertEqual(AP.available(self.a),ap-2);self.restored();self.assertIsNotNone(bide.pending(self.p))
+
+ def test_post_h_hobbyist_grace_and_csv_style_keep_native_sources_separate_after_restore(self):
+  import hobbyist as H,state_fields as FIELDS,skill_modifiers as SKILLS
+  self.setup('강인함')
+  skills=dict.fromkeys(self.rules.skill_policy['skills'],2)
+  skills.update({'general education':5,'perception':3})
+  FIELDS.base_patch(self.a,{'skills':skills},reason='actual declared independent Hobbyist and Style skills')
+  self.e.acquire_hobbyist_feature(self.a,request_id='combined/hobbyist',selection={'edition':'core',
+   'edges':[{'id':'edge/기본-스킬','choice':skill} for skill in ('의학','기술학','오컬트학')]})
+  self.e.acquire_hobbyist_feature(self.a,H.DILETTANTE,request_id='combined/dilettante',rank=1,
+   selection={'edition':'core','edge':{'id':'edge/우아함','options':{},'substitute':'일반 지식'},
+    'feature':{'id':'feat/디펜더','options':{},'substitute':'일반 지식'}})
+  self.acquire(edition='local_csv');self.restored()
+  self.assertTrue(S.local_csv(self.a,S.CLASS,self.stat));self.assertIsNotNone(H.provider(self.a,'edge/우아함'))
+  self.assertEqual(CF.poffin_dice(self.e,self.a,self.p,self.stat,CF.style_expert(self.e,self.a)),5)
+  self.assertEqual(SKILLS.rank(self.rules,self.a,'매력')[2],2)
+  self.rejected(lambda:self.acquire(S.RANKED[self.stat],rank=1,edition='local_csv'),'Novice|skill|rank')
+  ce=ContestEngine(self.cr,seed=1636)
+  c=ce.contestant_from_combatants(self.e,self.p,self.a,'매력',intro_stat=self.stat,
+   smart_stat_policy='ptu-original-special-defense')
+  # ch08:37 adds three DEF30 dice before the three Poffins and two Style dice.
+  self.assertEqual(c.intro_rank_dice,5);self.assertEqual(c.stat_dice[self.stat],8)
+  with patch.object(ContestEngine,'d6',side_effect=lambda number:[3]*number):ce.intro_stage([c],self.stat)
+  self.assertEqual(c.stat_dice[self.stat],13)
+  self.assertEqual(SKILLS.rank(self.rules,self.a,'매력')[2],2);self.assertEqual(self.p.spec['poffins'],[self.stat]*3)
+  self.assertTrue(self.e.validate_state()['valid'])
 

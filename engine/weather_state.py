@@ -32,7 +32,7 @@ def validate(engine,index=None):
  if type(layers) is not list:raise ValueError('weather layers must be sourced occurrences')
  records=[*state['history'],*([active] if active else []),*layers]
  for record in records:
-  if type(record) is not dict or record.get('weather') not in KINDS or record.get('origin') not in ('move','gm','natural','encounter') or not isinstance(record.get('source_id'),str) or not record['source_id'] or type(record.get('id')) is not int or not 1<=record['id']<=state['sequence']:
+  if type(record) is not dict or record.get('weather') not in KINDS or record.get('origin') not in ('move','ability','gm','natural','encounter') or not isinstance(record.get('source_id'),str) or not record['source_id'] or type(record.get('id')) is not int or not 1<=record['id']<=state['sequence']:
    raise ValueError('invalid sourced weather record')
   duration=record.get('duration');deadline=record.get('deadline_round');count=record.get('deadline_count')
   start=record.get('started_round')
@@ -42,11 +42,17 @@ def validate(engine,index=None):
   if duration is None and (deadline is not None or count is not None):raise ValueError('indefinite weather cannot have a deadline')
   if count is not None and type(count) is not int:raise ValueError('invalid weather initiative count')
   item_extension=record.get('item_extension')
+  extensions=record.get('trickster_extensions',[])
+  if type(extensions) is not list or any(type(x) is not dict or set(x)!={'source','completion','trainer_id','added'} or x['source']!=__import__('trickster').ENCORE or x['added']!=2 or not isinstance(x['completion'],str) or not isinstance(x['trainer_id'],str) for x in extensions) or len({x['completion'] for x in extensions})!=len(extensions):raise ValueError('actual Encore weather extensions required')
+  added=2*len(extensions)
+  if added and (duration is None or duration<=added):raise ValueError('Encore extends only an actual finite Weather occurrence')
   if item_extension is not None:
    import weather_duration_items as DURATION_ITEMS
-   DURATION_ITEMS.validate(item_extension,actor_id=record.get('actor_id'),weather=record['weather'],duration=duration)
+   DURATION_ITEMS.validate(item_extension,actor_id=record.get('actor_id'),weather=record['weather'],duration=duration-added)
   import homebrew_weather as HOME_WEATHER
   HOME_WEATHER.validate_record(engine,record,active=record is active,index=index)
+  if record['origin']=='ability':__import__('ability_native_actions').validate_weather_record(engine,record,index=index)
+  elif 'ability_activation_id' in record:raise ValueError('non-Ability weather cannot claim an Ability activation')
  if len({r['id'] for r in records})!=len(records):raise ValueError('duplicate weather occurrence')
  if 'nicolette' in state:
   import nicolette_gym as GYM
@@ -66,9 +72,24 @@ def state(engine):
  if not hasattr(engine,KEY):setattr(engine,KEY,{'version':1,'sequence':0,'active':None,'natural':None,'history':[]})
  return getattr(engine,KEY)
 
+
+def extend_from_completion(engine,actor,completion,turns):
+ import trickster as T
+ if turns!=2 or completion['actor'] is not actor or completion['phase']!='complete':raise ValueError('actual Encore Weather completion required')
+ s=state(engine)
+ rows=[r for r in ([s['active']] if s['active'] else [])+s.get('layers',[]) if r.get('actor_id')==actor.entity_id and r['source_id']==completion['move_id'] and r['started_round']==completion['round']]
+ if len(rows)!=1 or rows[0]['duration'] is None:raise ValueError('Encore requires the actual finite Weather activated by this Move')
+ row=rows[0];trainer=T.owner(engine,actor,T.ENCORE)
+ row.setdefault('trickster_extensions',[]).append({'source':T.ENCORE,'completion':completion['id'],'trainer_id':trainer.entity_id,'added':2})
+ row['duration']+=2;row['deadline_round']+=2
+ if row is s['active'] and engine.weather_rounds is not None:engine.weather_rounds+=2
+ validate(engine)
+ return row['id']
+
 def effective_state(engine,actor,*,include_virtual=True):
  """Actor-local weather; passive effects exclude Booster, retaining Umbrella."""
- value=deepcopy(state(engine))
+ validate(engine)
+ value=deepcopy(getattr(engine,KEY,{'version':1,'sequence':0,'active':None,'natural':None,'history':[]}))
  if _suppressed(value):value['active']=None;value['layers']=[]
  import field_effects as FIELD
  local=FIELD.local_weather_for(engine,actor)
@@ -177,6 +198,30 @@ def prepare_sample_move(engine,actor,move):
  if engine.r._selected_rule(move['id'])!=move['id']:raise ValueError('selected Rudolf Weather Ball source required')
  return dict(move,type=chosen)
 
+
+def prepare_weather_ball(engine,actor,move,selected=None):
+ """Select the sourced weather type before native costs and type overrides."""
+ if move.get('id')!='move/웨더볼':
+  if selected is not None:raise ValueError('weather type choice belongs only to Weather Ball')
+  return move
+ if '_weather_ball_type' in move:
+  if selected not in (None,move['_weather_ball_type']):
+   raise ValueError('prepared Weather Ball type changed')
+  return move
+ from source_context import verified_source
+ verified_source(engine.r,{'file':'input/db/moves.csv','sha256':'ab83f872e5eca67a41db7d126b842f0165437e0fa70bb77ddad832a0b7396c93'},label='Weather Ball')
+ if engine.r._selected_rule(move['id'])!=move['id']:raise ValueError('selected Weather Ball source required')
+ prepared=prepare_sample_move(engine,actor,move)
+ sample=prepared['type'] if prepared is not move else None
+ mapping={'sunny':'불꽃','rain':'물','hail':'얼음','sandstorm':'바위'}
+ choices=[sample] if sample else list(dict.fromkeys(mapping[w] for w in effective_weathers(engine,actor) if w in mapping)) or ['노말']
+ if selected is None:
+  if len(choices)!=1:raise ValueError('multiple weather types require an explicit Weather Ball type before Move cost')
+  selected=choices[0]
+ if selected not in choices:raise ValueError('Weather Ball type must match an actual effective weather')
+ return dict(move,type=selected,_weather_ball_type=selected)
+
+
 def prepare(engine,weather,rounds,source_id,origin,reason='',*,actor=None,policy=None):
  import homebrew_weather as HOME_WEATHER
  weather=HOME_WEATHER.canonical_weather(engine.r,weather)
@@ -187,7 +232,8 @@ def prepare(engine,weather,rounds,source_id,origin,reason='',*,actor=None,policy
  import ability_native_actions as NATIVE
  holder=NATIVE.weather_locked(engine)
  if holder is not None:raise ValueError('Air Lock holds normal weather: '+holder.entity_id)
- if origin not in ('move','gm','natural','encounter') or not isinstance(source_id,str) or not source_id:raise ValueError('weather needs its producer and rule source')
+ if origin not in ('move','ability','gm','natural','encounter') or not isinstance(source_id,str) or not source_id:raise ValueError('weather needs its producer and rule source')
+ activation_id=NATIVE.weather_contract(engine,actor,source_id,weather,rounds) if origin=='ability' else None
  if not isinstance(reason,str):raise ValueError('weather reason must be text')
  import homebrew_weather as HOME_WEATHER
  override=HOME_WEATHER.require_request(engine,weather,rounds,source_id,origin,policy)
@@ -207,6 +253,7 @@ def prepare(engine,weather,rounds,source_id,origin,reason='',*,actor=None,policy
   if not cursor or cursor.get('round')!=engine.round_no:raise ValueError('timed weather in an open round requires the current initiative count')
   count=cursor['count']
  result={'weather':weather,'source_id':source_id,'origin':origin,'reason':reason,'started_round':engine.round_no,'duration':rounds,'deadline_round':None if rounds is None else engine.round_no+rounds,'deadline_count':count}
+ if activation_id is not None:result['ability_activation_id']=activation_id
  if item_extension is not None:result['item_extension']=item_extension
  if policy is not None:result.update(policy=deepcopy(policy),started_seconds=engine.elapsed_seconds)
  if override is not None:result.update(policy_override=override,started_seconds=engine.elapsed_seconds)

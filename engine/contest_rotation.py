@@ -9,11 +9,11 @@ codec containers so it remains saveable with the contest occurrence.
 """
 
 
-SCHEMA = 1
+SCHEMA = 2
 _FIELDS = frozenset((
     "schema", "teams", "representatives", "mode", "orders", "round_types",
     "pool_cap", "performed", "spent", "last_moves", "current", "charged",
-    "shared",
+    "shared", "intro_dice",
 ))
 
 
@@ -84,6 +84,7 @@ def create(teams, representatives, *, orders=None, contest_type=None,
         "current": {},
         "charged": {},
         "shared": shared,
+        "intro_dice": {rep: {} for rep in representatives},
     }
 
 
@@ -105,6 +106,17 @@ def bind_shared_state(rotation):
         shared = rotation["shared"][rep]
         for member in team:
             member._paired_state = shared
+            member._intro_stat_dice = rotation["intro_dice"][rep]
+
+
+def share_introduction(rotation, before):
+    """Move only the representative's new dice into the team's single pool."""
+    for rep in rotation["representatives"]:
+        pool = rotation["intro_dice"][rep]
+        pool.update({stat: value - before[rep].get(stat, 0)
+                     for stat, value in rep.stat_dice.items()})
+        rep.stat_dice.clear()
+        rep.stat_dice.update(before[rep])
 
 
 def select_round(rotation, round_index, selector=None):
@@ -257,7 +269,7 @@ def validate(rotation, *, state=None, valid_types=(), move_validator=None,
     if rotation["pool_cap"] != 2 * count:
         raise ValueError("saved rotation dice limit changed")
 
-    keyed = ("performed", "spent", "last_moves", "shared")
+    keyed = ("performed", "spent", "last_moves", "shared", "intro_dice")
     if any(type(rotation[name]) is not dict or set(rotation[name]) != set(reps) for name in keyed):
         raise ValueError("saved rotation team ledger keys changed")
     seen_shared = set()
@@ -279,6 +291,11 @@ def validate(rotation, *, state=None, valid_types=(), move_validator=None,
         seen_shared.add(id(shared))
         if any(vars(member).get("_paired_state") is not shared for member in team):
             raise ValueError("rotation team no longer shares one effect state")
+        pool = rotation["intro_dice"][rep]
+        if (type(pool) is not dict or set(pool) - valid_types
+                or any(type(n) is not int or n < 0 for n in pool.values())
+                or any(vars(member).get("_intro_stat_dice") is not pool for member in team)):
+            raise ValueError("rotation team no longer shares one introduction pool")
         move = rotation["last_moves"][rep]
         if move is not None:
             if type(move) is not str:

@@ -18,6 +18,64 @@ from ruleset import ExcludedRuleSelection
 POLICY_PATH = "data/static-feature-state-grants-policy.json"
 KIND = "feature"
 STAT_ALIASES = {"공격":"atk", "방어":"def", "특수공격":"spa", "특수방어":"spd", "스피드":"spe"}
+FIERY = "C2CSV/input/db/feats.csv:R623:main"
+FIERY_OWNER = "feat/불의-영혼"
+FIERY_CHOICE = "fiery_soul_source_choice"
+
+
+def _fiery_policy(rules):
+    from source_context import verified_source
+    value = json.loads((Path(rules.root)/"data/fantasy-q30-source-policy.json").read_text(encoding="utf-8"))["fiery_soul"]
+    if value["rule_id"] != FIERY_OWNER:
+        raise ValueError("actual Fiery Soul source required")
+    verified_source(rules,value["source_reference"],label="Fiery Soul")
+    for definition in value["definitions"].values():
+        reference = definition["source"]
+        verified_source(rules,reference,label="Fiery Soul definition",
+                        source_root="source-audit" if reference["file"].startswith("source-audit/") else "input")
+    return value
+
+
+def _fiery_document(value):
+    return {"schema":1,"id":"native/fiery-soul-source","variants":[{
+        "rule_id":FIERY_OWNER,"source":value["source_reference"],
+        "values":{"variant":{"$input":"source_text"},"definitions":value["definitions"]},
+        "inputs":{"source_text":{"type":"string","authority":"gm","decision_kind":"source_conflict",
+            "choices":list(value["definitions"]),"question":"Fiery Soul: complete Korean Firestarter or English Heater grant, with shared Burn immunity and stat choice?"}}}]}
+
+
+def fiery_soul_source_choices(engine):
+    import source_policy as SOURCE
+    return SOURCE.resolve(engine.r,_fiery_document(_fiery_policy(engine.r)))
+
+
+def _fiery_selected(actor):
+    import source_policy as SOURCE
+    value = _fiery_policy(actor.r)
+    choice = actor.spec.get(FIERY_CHOICE)
+    result = SOURCE.resolve(actor.r,_fiery_document(value),decisions={} if choice is None else {"source_text":choice})
+    variant = value["default"] if choice is None else result["values"]["variant"]
+    return variant,choice,value["definitions"][variant]["capabilities"]
+
+
+def select_fiery_soul_source(engine,actor,choice):
+    """Reconcile only this actual current source, without replaying its stat tag."""
+    import action_lifecycle as ACTION
+    import world_entities as WORLD
+    WORLD.require_actors(engine,actor);ACTION.ensure_resolutions_clear(engine)
+    row = _policy(actor.r)["rules"][FIERY]
+    if actor.kind != "trainer" or not _row_enabled(actor.r,row) or not _owned(actor,FIERY,row):
+        raise ValueError("actual current owned Fiery Soul required")
+    def apply(e,a):
+        a.spec[FIERY_CHOICE] = deepcopy(choice)
+        declaration = _plan_one(a,FIERY,row)
+        source = _source(a,FIERY)
+        previous = a.spec.get(GRANTS.KEY,{}).get("sources",{}).get(source)
+        if previous is not None and previous.get("fiery_variant") == declaration["fiery_variant"] and previous.get("fiery_source_choice") == choice:
+            return False
+        GRANTS.revoke(a,source,engine=e)
+        return _install(e,a,FIERY,declaration)
+    return GRANTS.transition(engine,actor,apply)
 
 
 import resolution_transaction as _FINGERPRINTS
@@ -232,9 +290,9 @@ def _stat_choice(actor,cid,row):
 def _class_feature_count(actor, marker):
     count = 1
     seen = set()
+    names = ACQUIRED._names(actor, "feat/")
     for value in actor.spec.get("feats", []):
-        candidates = ([value] if value in actor.r.selection.units and value.startswith("feat/") else
-                      [uid for uid in actor.r.selection.names.get(value, ()) if uid.startswith("feat/")])
+        candidates = names.get(value, [])
         if not candidates:
             continue
         if len(candidates) != 1 or candidates[0] in seen:
@@ -247,6 +305,9 @@ def _class_feature_count(actor, marker):
 
 
 def _plan_one(actor,cid,row):
+    # CSV513 is an independently accepted local Ability grant. A printed Core
+    # Farcast receipt instead owns its triggered Daily Feature.
+    if row.get('owner_id')==__import__('warper').FARCAST and __import__('warper').acquired(actor,__import__('warper').FARCAST):return None
     if row.get("mode") == "martial":
         import trainer_feature_acquisition as MARTIAL
         try:
@@ -278,6 +339,9 @@ def _plan_one(actor,cid,row):
     if "stat_choice" in row:
         result["stat"] = _stat_choice(actor,cid,row)
         result["selection"] = result["stat"]
+    if cid == FIERY:
+        variant,choice,capabilities = _fiery_selected(actor)
+        result.update(capabilities=deepcopy(capabilities),fiery_variant=variant,fiery_source_choice=deepcopy(choice))
     result["count"] = 1
     return result
 
@@ -336,6 +400,13 @@ def _install(engine,actor,cid,declaration):
     if "selection" in declaration:
         metadata["selection"] = declaration["selection"]
     previous = actor.spec.get(GRANTS.KEY,{}).get("sources",{}).get(source)
+    if cid == FIERY:
+        if previous is None or "fiery_variant" in previous:
+            metadata.update(fiery_variant=declaration["fiery_variant"],fiery_source_choice=deepcopy(declaration["fiery_source_choice"]))
+        elif declaration["fiery_source_choice"] is not None or declaration["fiery_variant"] != "korean_firestarter":
+            raise ValueError("select current Fiery Soul source through its reconciliation action")
+        if previous is not None and set(previous.get("grants",{}).get("capabilities",())) != set(declaration["capabilities"]):
+            raise ValueError("select current Fiery Soul source through its reconciliation action")
     existed = previous is not None
     changed = not existed or previous.get("source_contract") != "acquired_static_feature_state_projection"
     GRANTS._source(actor,source,KIND,**metadata)
@@ -391,6 +462,12 @@ def validate(actor):
             raise ValueError("Static Feature provenance changed: " + cid)
         if row.get("selection") != declaration.get("selection"):
             raise ValueError("Static Feature immutable choice changed: " + cid)
+        if cid == FIERY:
+            if "fiery_variant" in row:
+                if row["fiery_variant"] != declaration["fiery_variant"] or row.get("fiery_source_choice") != declaration["fiery_source_choice"]:
+                    raise ValueError("Fiery Soul producing source choice changed")
+            elif declaration["fiery_variant"] != "korean_firestarter" or declaration["fiery_source_choice"] is not None:
+                raise ValueError("historical Fiery Soul grant has no invented source decision")
         for field in ("moves","abilities","capabilities"):
             desired = ([value["title"] for value in declaration[field]]
                        if field == "abilities" and field in declaration else declaration.get(field,()))

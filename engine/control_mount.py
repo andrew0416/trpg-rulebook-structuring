@@ -1,6 +1,7 @@
 """Actual mounted bodies, loads, source-owned movement and retention events."""
 from copy import deepcopy
 from dataclasses import asdict,is_dataclass
+import json
 import common_checks as C,crafting_recipes as Q,state_grants as G,world_entities as W
 import skill_modifiers as S,turn as TURN,movement_actions as MOVE,capability_actions as LOAD
 import resolution_transaction as TX,roll_context as R
@@ -15,10 +16,13 @@ RIDE_AS_ONE='feat/인마일체'
 FEATURES={RIDER:(902,904),RIDE_AS_ONE:(920,924)}
 
 
+class MountableLoadDecisionRequired(ValueError):
+    """A valid changed world still needs its next actual load judgment."""
+
+
 def _acquisitions(actor,feature,*,active=False):
     import trainer_feature_acquisition as TFA
-    return [row['static_acquisition'] for _,row,live in TFA._static_records(actor)
-            if row['static_acquisition']['feature_id']==feature and (live or not active)]
+    return [record for _, record in TFA.static_acquisitions(actor, feature, active=active)]
 
 
 def acquisition_snapshot(actor,feature):
@@ -99,13 +103,15 @@ def ride_pair(engine,actor,other):
 
 def speed_evasion(engine,actor,value):
     ev=actor.r.mech('combat/evasion')
-    import arithmetic_policy as M,combat_timing as TIMING
+    import arithmetic_policy as M,combat_timing as TIMING,vision_impairment as VISION
     results=[value]
     for pair in ride_pairs(engine,actor):
         other=next(c for c in pair if c is not actor)
+        implied_conditions=set(other.conditions)
+        if VISION.accuracy_level(engine,other)!='none':implied_conditions.add(VISION.BLIND)
         disabled=(other.fainted or other.custom_conditions.get('_grapple_relation') or TIMING.evasion_zero(other)
             or any(e['type']=='evasion_disabled' and (not e.get('only') or e.get('only')=='speed') for condition in other.conditions for e in other.r.condition_effects(condition))
-            or any(e.get('type')=='implied_by' and other.conditions.intersection(e.get('conditions',())) for e in other.r.condition_effects('취약')))
+            or any(e.get('type')=='implied_by' and implied_conditions.intersection(e.get('conditions',())) for e in other.r.condition_effects('취약')))
         theirs=0 if disabled else min(ev['cap'],M.ratio(other.staged(ev['sources']['speed']),ev['per_points']))
         results.append(value+1 if value==theirs else max(value,theirs))
     return max(results)
@@ -191,7 +197,7 @@ def native_declaration(skill):
         'movement':{'scope':'round','action_owner':'mover','maximum_distance':None}}
 
 
-def _admit(engine,rider,mount,value,gm_mountable):
+def _admit(engine,rider,mount,value,gm_mountable,mountable_load=None):
     import equipped_transport_saddle as EQUIPMENT
     if not EQUIPMENT.independent(engine,rider) or not EQUIPMENT.independent(engine,mount):raise ValueError('release actual equipment transport before separate mounting')
     W.require_actors(engine,rider,mount);W.require_mount_target(engine,rider,mount);Q._selected(engine,value['source'])
@@ -211,13 +217,19 @@ def _admit(engine,rider,mount,value,gm_mountable):
     if value['seats'] is not None and len(riders)>=value['seats']:raise ValueError('actual mounting seat capacity exceeded')
     for other in riders:
         if any(other.spec[CONTRACT]['policy'][field]!=value[field] for field in ('source','load','movement','seats')):raise ValueError('mount occupants must share the declared load and movement policy')
+    if mountable_load is not None and value['load']['kind']!='power':raise ValueError('Mountable significance requires the actual Power load policy')
     if value['load']['kind']=='power':
         import body_state as BODY
         for actual in (*riders,rider):number(BODY.weight_kg(actual),'actual rider weight',minimum=0)
         from copy import copy
         probe=copy(mount);setattr(probe,RIDERS,[*riders,rider]);probe.spec=dict(mount.spec)
         fake=copy(rider);fake.spec=dict(rider.spec,mount_id=mount.entity_id,**{CONTRACT:{'policy':_body(value)}})
-        setattr(probe,RIDERS,[*riders,fake]);LOAD.load(probe)
+        setattr(probe,RIDERS,[*riders,fake])
+        if mountable_load is not None:
+            state=deepcopy(probe.spec.get('_carried_load') or {'objects':[],'boundary_band':value['load']['boundary_band']})
+            state['mountable_load']=deepcopy(mountable_load);probe.spec['_carried_load']=state
+            _mountable_observation(probe,mountable_load)
+        LOAD.load(probe)
 
 
 def _attach(engine,rider,mount,value):
@@ -254,11 +266,11 @@ def native(engine,rider,*,target,phase,skill='곡예',gm_mountable=None,dc=10,**
     return G.transition(engine,rider,apply,participants=(target,))
 
 
-def board(engine,rider,mount,value,*,gm_mountable,roll_options=None):
-    value=declaration(value);_admit(engine,rider,mount,value,gm_mountable);options={} if roll_options is None else deepcopy(roll_options)
+def board(engine,rider,mount,value,*,gm_mountable,roll_options=None,mountable_load=None):
+    value=declaration(value);_admit(engine,rider,mount,value,gm_mountable,mountable_load);options={} if roll_options is None else deepcopy(roll_options)
     if type(options) is not dict:raise ValueError('native boarding roll options required')
     def apply(e,c,target):
-        _admit(e,c,target,value,gm_mountable);boarding=value['boarding'];automatic=boarding['automatic'] is not None and Q._observe(e,c,boarding['automatic'],set())
+        _admit(e,c,target,value,gm_mountable,mountable_load);boarding=value['boarding'];automatic=boarding['automatic'] is not None and Q._observe(e,c,boarding['automatic'],set())
         check=None
         if automatic and options:raise ValueError('automatic boarding does not consume dice or roll resources')
         import equipped_transport_saddle as EQUIPMENT
@@ -267,11 +279,52 @@ def board(engine,rider,mount,value,*,gm_mountable,roll_options=None):
         if bonus:actual['mods']=actual.get('mods',0)+bonus
         if not automatic:R.plan(e,c,boarding['skill'],purpose='declared mounting',target=target,**actual)
         if not TURN.spend(e,c,boarding['action'],'declared mounting'):return C.PendingDecision('required boarding action unavailable')
-        if not automatic:check=C.against_dc(e.skill_roll(c,boarding['skill'],skill_target=target,**actual),boarding['dc'])
+        if not automatic:check=__import__('skill_feature_actions').resolve_check(e,c,boarding['skill'],boarding['dc'],e.skill_roll(c,boarding['skill'],skill_target=target,**actual),actual)
         passed=automatic or check.passed
-        if passed:_attach(e,c,target,value)
+        if passed:
+            _attach(e,c,target,value)
+            if mountable_load is not None:
+                state=target.spec.get('_carried_load',{})
+                LOAD.set_carried(e,target,state.get('objects',[]),mountable_load['reason'],
+                    blocked_actions=state.get('blocked_actions',()),boundary_band=state.get('boundary_band',value['load']['boundary_band']),
+                    mountable_load=mountable_load)
         validate_world(e,W.actor_index(e));return {'passed':passed,'automatic':automatic,'check':check,'rider_id':c.entity_id,'mount_id':target.entity_id}
     return G.transition(engine,rider,apply,participants=(mount,))
+
+
+def mountable_load_scope(mount,*,riders=None,policy=None,objects=None):
+    """Expose the current actual load/body facts for one GM significance judgment."""
+    import body_state as BODY
+    riders=_riders(mount) if riders is None else list(riders)
+    if not riders:raise ValueError('Mountable significance requires actual riders')
+    value=riders[0].spec[CONTRACT]['policy'] if policy is None else declaration(policy)
+    exception=value['load'].get('average_exception')
+    names={S.key(x) for x in G.effective_capabilities(mount)}
+    if value['load']['kind']!='power' or exception is None or len(riders)>exception['maximum_riders'] or not names.intersection(S.key(x) for x in exception['capabilities']):
+        raise ValueError('Mountable significance requires the current actual Mountable exception')
+    state=mount.spec.get('_carried_load',{})
+    if state.get('mode','physical')!='physical':raise ValueError('Mountable significance requires actual physical cargo')
+    objects=state.get('objects',[]) if objects is None else objects
+    def body(actor):
+        row=BODY.projection(actor)
+        return {key:deepcopy(value) for key,value in row.items() if key not in ('location','cells','geometry_complete')}
+    scope={'mount':body(mount),'riders':sorted((body(c) for c in riders),key=lambda row:row['entity_id']),
+           'objects':sorted(({'id':obj['id'],'weight_kg':number(obj['weight_kg'],'actual cargo weight',minimum=0)} for obj in objects),key=lambda row:row['id']),
+           'capabilities':sorted(names),'load_policy':deepcopy(value['load']),
+           'source':mount.r.select_source_definition(value['source'])}
+    # Normalize tuples exactly as the existing native JSON save/restore does.
+    return json.loads(json.dumps(scope,ensure_ascii=False,allow_nan=False))
+
+
+def _mountable_observation(mount,observation):
+    Q._fields(observation,('significant','reason','scope'));Q._text(observation['reason'])
+    if type(observation['significant']) is not bool:raise ValueError('explicit Mountable significant weight judgment required')
+    scope=mountable_load_scope(mount)
+    if observation['scope']!=scope:raise MountableLoadDecisionRequired('Mountable load/body/source scope changed; fresh GM significance judgment required')
+    average=scope['load_policy']['average_exception']['average_weight_kg']
+    if not any(obj['weight_kg']>0 for obj in scope['objects']) and sum(number(row['weight_kg'],'actual rider weight',minimum=0) for row in scope['riders'])<=len(scope['riders'])*average:
+        raise ValueError('Mountable significance judgment requires additional actual weight')
+    return observation['significant']
 
 
 def rider_load(mount):
@@ -284,9 +337,13 @@ def rider_load(mount):
     exception=policy['average_exception'];exempt=False
     if exception is not None:
         names={S.key(x) for x in G.effective_capabilities(mount)}
-        exempt=bool(names & {S.key(x) for x in exception['capabilities']}) and len(riders)<=exception['maximum_riders'] and all(x<=exception['average_weight_kg'] for x in weights)
-        # Additional ordinary loads withdraw the average-rider exemption.
-        exempt=exempt and not (mount.spec.get('_carried_load') or {}).get('objects')
+        exempt=bool(names & {S.key(x) for x in exception['capabilities']}) and len(riders)<=exception['maximum_riders']
+        state=mount.spec.get('_carried_load') or {}
+        additional=sum(weights)>len(riders)*exception['average_weight_kg'] or any(number(obj['weight_kg'],'actual cargo weight',minimum=0)>0 for obj in state.get('objects',[]))
+        if exempt and additional:
+            observation=state.get('mountable_load')
+            if observation is None:raise MountableLoadDecisionRequired('additional Mountable weight needs a scoped GM significance judgment')
+            exempt=not _mountable_observation(mount,observation)
     return 0 if exempt else sum(weights),policy['boundary_band']
 
 
@@ -363,7 +420,7 @@ def retain(engine,rider,*,event='manual',roll_options=None):
         if not c.fainted and not target.fainted:
             actual=dict(options);actual['mods']=actual.get('mods',0)+bonus
             R.plan(e,c,policy['skill'],purpose='mount retention:'+event,target=target,**actual)
-            check=C.against_dc(e.skill_roll(c,policy['skill'],skill_target=target,**actual),policy['dc']);passed=check.passed
+            check=__import__('skill_feature_actions').resolve_check(e,c,policy['skill'],policy['dc'],e.skill_roll(c,policy['skill'],skill_target=target,**actual),actual);passed=check.passed
         if not passed:_detach(e,c,target,'retention:'+event)
         else:sync(e,target)
         result={'event':event,'rider_id':c.entity_id,'mount_id':target.entity_id,'passed':passed,'bonus':bonus,
@@ -445,5 +502,9 @@ def validate_world(engine,index):
                 if pool['period']['turn'] is not None:raise ValueError('round movement has no rider turn reset')
             else:C.integer(pool['period']['turn'],'actual mount movement turn',0,actor.custom_conditions.get('combat_turn_serial',0))
             C.integer(pool['used'],'spent shared movement',0);C.integer(pool['diagonals'],'shared diagonal steps',0)
-        if riders:LOAD.load(actor)
+        if riders:
+            try:LOAD.load(actor)
+            except MountableLoadDecisionRequired:
+                # Actual dismounts/retention losses persist; this grants no later load-dependent action.
+                pass
     return True

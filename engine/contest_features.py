@@ -52,6 +52,7 @@ def require(e,trainer,uid):
  if e.r._selected_rule(uid)!=uid:raise ValueError('selected feature variant requires a sourced adapter')
 
 def coordinator(e,trainer):
+ __import__('coordinator').require(e,trainer,'class/코디네이터')
  conscious_trainer(trainer);require(e,trainer,'class/코디네이터');require(e,trainer,'edge/우아함')
  if max(SKILL.rank(e.r,trainer,s)[2] for s in SKILLS)<3:
   raise ValueError('Coordinator requires a Novice contest skill')
@@ -78,7 +79,9 @@ def style_expert(e,trainer):
  conscious_trainer(trainer);require(e,trainer,STYLE)
  choices=branch_choices(trainer,STYLE)
  import style_expert as STYLE_OWNER
- if all(STYLE_OWNER.acquired(trainer,STYLE,stat) for stat in choices):return choices
+ if all(STYLE_OWNER.acquired(trainer,STYLE,stat) for stat in choices):
+  for stat in choices:STYLE_OWNER.local_csv(trainer,STYLE,stat)
+  return choices
  roster=[*getattr(e,'everyone',[]),*getattr(e,'_time_actors',[]),*getattr(getattr(e,'gm',None),'everyone',[])]
  roster=list({id(p):p for p in roster if p.kind=='pokemon' and p.spec.get('trainer_id')==trainer.spec['id']}.values())
  ids=[p.spec.get('id') for p in roster]
@@ -239,12 +242,13 @@ def _friendship_pool(e,trainer,pokemon,options,count):
  M.validate_source(e.r);ENVIRONMENT.ensure_clear(e)
  if pokemon.dead or pokemon.fainted:raise ValueError('conscious Pokemon performer required')
  skill='매력';context=options.get('skill_context')
+ shared_skill_context=BLESSINGS.ADVANCED.shared_context(context)
  BLESSINGS.validate_sleep_check(e,pokemon,skill,context)
  e.r.mech('gameplay/skill-check');AP_ROLL.bonus(e,pokemon,options.get('roll_id'),'skill')
  mods=options.get('mods',0);helper=options.get('helper_rank',0);penalty_count=options.get('penalty_count',0)
  C.validate_request(1,mods,helper,penalty_count,options.get('helper_bonus'))
  resolved=SKILL.modifiers(e.r,pokemon,skill,mods)
- for additions in (SURVIVALIST.modifier(e,pokemon,skill,context),ELEMENTAL.modifier(e,pokemon,skill,options.get('skill_target')),BLESSINGS.modifiers(e,pokemon,skill,context)):
+ for additions in (SURVIVALIST.modifier(e,pokemon,skill,shared_skill_context),ELEMENTAL.modifier(e,pokemon,skill,options.get('skill_target')),BLESSINGS.modifiers(e,pokemon,skill,context)):
   resolved['modifier']+=sum(row[1] for row in additions);resolved['sources']+=additions
  base_count=count
  # Skill Trainer modifies the final replacement pool, not an unused ordinary
@@ -322,12 +326,13 @@ def skill_feature(e,trainer,pokemon,feature,skill,dc,*,context=None,decision=Non
    if not isinstance(context.get(field),str) or not context[field].strip():raise ValueError('GM action and dramatic risk descriptions required')
   if decision is not None or reroll_faces is not None or reroll_penalties is not None:raise ValueError('Stunt is a pre-roll replacement, not a reroll')
   plan=_poffin_plan(e,trainer,pokemon,skill,'근사함',roll_options)
+  quota=__import__('style_expert').frequency(trainer,feature)
   def resolve(staged,actor):
-   if not FREQ.activation_allowed(actor,feature,'하루x2',engine=staged):raise ValueError('Action Hero Stunt daily uses exhausted')
+   if not FREQ.activation_allowed(actor,feature,quota,engine=staged):raise ValueError('Action Hero Stunt daily uses exhausted')
    trigger_free_action(staged,actor,feature)
    rolled=_poffin_roll(staged,pokemon,skill,feature,plan)
    check=C.against_dc(rolled,dc)
-   FREQ.consume_activation(actor,feature,'하루x2',engine=staged)
+   FREQ.consume_activation(actor,feature,quota,engine=staged)
    return {'source':feature,'roll':rolled,'check':check,'context':deepcopy(context)}
   return _feature_transaction(e,trainer,resolve)
  if feature==MISTAKES:
@@ -341,6 +346,7 @@ def _mistakes(e,trainer,pokemon,skill,dc,decision,reroll_faces,reroll_penalties,
  import skill_feature_actions as SF
  from dataclasses import replace
  choices=style_training(e,trainer,'슬기로움')
+ quota=__import__('style_expert').frequency(trainer,MISTAKES)
  if not callable(decision):raise ValueError('Learn From Your Mistakes requires a choice after actual failure')
  options=dict(roll_options)
  key,old=OBS.locate(e._ap_rolls,'contest_skill:'+MISTAKES,(trainer,pokemon),options.get('roll_id'))
@@ -359,7 +365,7 @@ def _mistakes(e,trainer,pokemon,skill,dc,decision,reroll_faces,reroll_penalties,
   # Known source/action/input errors must not expose a speculative first roll.
   staged=copy(e);staged.log_lines=[];staged._time_actors=list(getattr(e,'_time_actors',[]));shadow=copy(trainer);shadow.spec=deepcopy(trainer.spec);shadow._action_history=deepcopy(getattr(trainer,'_action_history',[]))
   if getattr(staged,'_active_turn_actor',None) is trainer:staged._active_turn_actor=shadow
-  if not FREQ.activation_allowed(shadow,MISTAKES,'하루x3',engine=staged):raise ValueError('Learn From Your Mistakes daily uses exhausted')
+  if not FREQ.activation_allowed(shadow,MISTAKES,quota,engine=staged):raise ValueError('Learn From Your Mistakes daily uses exhausted')
   trigger_free_action(staged,shadow,MISTAKES)
   # This transaction is private: no external callback or first-result exposure.
   first=_feature_transaction(e,trainer,lambda staged,shadow:staged.skill_roll(pokemon,skill,**options))
@@ -373,14 +379,14 @@ def _mistakes(e,trainer,pokemon,skill,dc,decision,reroll_faces,reroll_penalties,
   SF.finish(e,pokemon,key)
   return OBS.complete(old,{'source':MISTAKES,'first_roll':first,'roll':first,'check':check,'rerolled':False,'roll_id':key})
  def reroll(staged,shadow):
-  if not FREQ.activation_allowed(shadow,MISTAKES,'하루x3',engine=staged):raise ValueError('Learn From Your Mistakes daily uses exhausted')
+  if not FREQ.activation_allowed(shadow,MISTAKES,quota,engine=staged):raise ValueError('Learn From Your Mistakes daily uses exhausted')
   trigger_free_action(staged,shadow,MISTAKES)
   faces=C.dice(POOLS.pool(staged.rng,count)['faces'],count) if reroll_faces is None else reroll_faces
   penalties=C.dice(POOLS.pool(staged.rng,len(first.penalties))['faces'],len(first.penalties)) if reroll_penalties is None else reroll_penalties
   # Use the actual original rank/pool/modifiers; AP, helper and other bonuses
   # are not re-read or applied again after observing the failure.
   result=replace(first,faces=faces,penalties=penalties,modifier=first.modifier+bonus)
-  FREQ.consume_activation(shadow,MISTAKES,'하루x3',engine=staged)
+  FREQ.consume_activation(shadow,MISTAKES,quota,engine=staged)
   staged.log(f'  {pokemon.name}: 실수로부터 배운다 {first.total} → {result.total}, 포핀 +{bonus}',MISTAKES)
   return result
  final=_feature_transaction(e,trainer,reroll)
@@ -391,6 +397,7 @@ def _mistakes(e,trainer,pokemon,skill,dc,decision,reroll_faces,reroll_penalties,
 def reliable(e,trainer,pokemon):
  """ch04:509-519: validate the entire acquired Coordinator feature chain."""
  owner(trainer,pokemon);coordinator(e,trainer)
+ __import__('coordinator').require(e,trainer,RELIABLE)
  require(e,trainer,NUANCED);require(e,trainer,RELIABLE)
  if max(SKILL.rank(e.r,trainer,s)[2] for s in SKILLS)<6:
   raise ValueError('Reliable Performance requires a Master contest skill')
@@ -457,13 +464,14 @@ def friendship_check(e,trainer,performer,target,*,dc,roll_options):
  if options.get('skill_target') not in (None,target):raise ValueError('friendship check target cannot be substituted')
  options['skill_target']=target
  plan=_poffin_plan(e,trainer,performer,'매력','귀여움',options)
+ quota=__import__('style_expert').frequency(trainer,FRIENDS)
  def resolve(staged,actor):
-  if not FREQ.activation_allowed(actor,FRIENDS,'장면',engine=staged):raise ValueError('Let Us Be Friends scene use exhausted')
+  if not FREQ.activation_allowed(actor,FRIENDS,quota,engine=staged):raise ValueError('Let Us Be Friends selected frequency exhausted')
   if not TURN.spend(staged,actor,'free','우리 친구 하자!'):
    raise ValueError('trainer Free action unavailable for Let Us Be Friends')
   # ch04:1283-1287 grants this target's attempt as the Free feature's effect.
   # It names no extra Pokemon Standard cost or general out-of-turn permission.
   rolled=_poffin_roll(staged,performer,'매력',FRIENDS,plan)
-  FREQ.consume_activation(actor,FRIENDS,'장면',engine=staged)
+  FREQ.consume_activation(actor,FRIENDS,quota,engine=staged)
   return C.against_dc(rolled,dc)
  return _feature_transaction(e,trainer,resolve)

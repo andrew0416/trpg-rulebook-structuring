@@ -98,7 +98,7 @@ class CraftTests(unittest.TestCase):
    self.assertEqual(before,self.state());self.a.spec[key]=old
   original=self.e.r._selected_rule
   try:
-   self.e.r._selected_rule=lambda uid:uid+'/unsupported' if uid==C.RESEARCH_SOURCE else original(uid);before=self.state()
+   self.e.r._selected_rule=lambda uid, *args, **kwargs: uid + '/unsupported' if uid == C.RESEARCH_SOURCE else original(uid, *args, **kwargs);before=self.state()
    with self.assertRaises(ValueError):self.act('craft_item',item='상처약',minutes=1,reason='GM duration')
    self.assertEqual(before,self.state())
   finally:self.e.r._selected_rule=original
@@ -134,7 +134,7 @@ class CraftTests(unittest.TestCase):
    self.assertEqual(before,self.state());self.a.spec[key]=old
   self.a.spec['skills']['직감']='달인';original=self.e.r._selected_rule
   try:
-   self.e.r._selected_rule=lambda uid:uid+'/unsupported' if uid==C.CHEF_SOURCE else original(uid);before=self.state()
+   self.e.r._selected_rule=lambda uid, *args, **kwargs: uid + '/unsupported' if uid == C.CHEF_SOURCE else original(uid, *args, **kwargs);before=self.state()
    with self.assertRaises(ValueError):self.act('craft_item',item='튼튼밀크',minutes=1,reason='GM duration')
    self.assertEqual(before,self.state())
   finally:self.e.r._selected_rule=original

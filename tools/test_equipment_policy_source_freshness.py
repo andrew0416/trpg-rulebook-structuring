@@ -18,9 +18,8 @@ from engine import Combatant, Engine, Rules
 from ruleset import ExcludedRuleSelection, UnresolvedRuleSelection
 
 
-ROOT = Path(r'D:\trpg-rulebook-structuring\ptk-structure-experiment')
-WORKSPACE = Path(r'C:\Users\admin\Documents\ChatGPT\trpg-rulebook-structuring')
-TEMP_ROOT = WORKSPACE / 'tmp'
+ROOT = Path(__file__).resolve().parents[1]
+TEMP_ROOT = Path(tempfile.gettempdir())
 STATUS = 'data/verification/category2-item-table-status.json'
 ARMOR = 'item/분리중갑'
 GLOVE = 'item/펀치글러브'

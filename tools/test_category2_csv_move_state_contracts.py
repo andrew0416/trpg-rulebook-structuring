@@ -43,6 +43,10 @@ class CsvMoveStateContractTests(unittest.TestCase):
         return actor
 
     def setUp(self):
+        from copy import deepcopy
+        original = self.r.rulings
+        self.r.rulings = deepcopy(original)
+        self.addCleanup(setattr, self.r, 'rulings', original)
         self.e = Engine(self.r, seed=244)
         self.e.grid = Grid(12, 12)
         moves = (self.fury, self.butterfly, self.hex, self.mould, self.bitter, self.tackle)
@@ -102,17 +106,20 @@ class CsvMoveStateContractTests(unittest.TestCase):
         self.assertEqual(self.use_damage_move(self.fury, self.c)[1], [4])
 
     def test_hex_and_mould_share_affliction_predicate_but_keep_scene_limits_separate(self):
+        self.e.rulings.add_answer('hex_damage_boost',True,reason='actual optional Hex selection',scope='permanent')
         self.e.apply_status(self.b, "화상", source="move/도깨비불", applied_by=self.a)
         self.assertEqual(self.e.damage_base(self.a, self.r.move(self.hex), target=self.b), 13)
         self.assertEqual(self.use_damage_move(self.hex, self.b)[1], [13])
         self.next_turn()
         self.assertEqual(self.e.damage_base(self.a, self.r.move(self.hex), target=self.b), 7)
-        self.assertEqual(self.e.damage_base(self.a, self.r.move(self.mould), target=self.b), 13)
+        self.assertEqual(self.e.damage_base(self.a, self.r.move(self.mould), target=self.b), 7)
+        self.e.gm.choose_optional_move_effect(self.a, self.mould, reason="choose the independent Mould boost")
         self.assertEqual(self.use_damage_move(self.mould, self.b)[1], [13])
         self.next_turn()
         self.assertEqual(self.e.damage_base(self.a, self.r.move(self.mould), target=self.b), 7)
 
     def test_unafflicted_target_does_not_spend_scene_replacement_and_scene_end_restores_it(self):
+        self.e.rulings.add_answer('hex_damage_boost',True,reason='actual optional Hex selection',scope='permanent')
         self.assertEqual(self.e.damage_base(self.a, self.r.move(self.hex), target=self.b), 7)
         self.assertEqual(self.use_damage_move(self.hex, self.b)[1], [7])
         self.next_turn()
@@ -127,6 +134,7 @@ class CsvMoveStateContractTests(unittest.TestCase):
 
     def test_bitter_malice_uses_the_shared_scene_db_and_target_turn_status_lifetime(self):
         self.e.apply_status(self.b, "화상", source="move/도깨비불", applied_by=self.a)
+        self.e.gm.choose_optional_move_effect(self.a, self.bitter, reason="choose the Bitter Malice boost")
         observed = []
 
         def damage(attacker, actual_target, move, *args, **kwargs):

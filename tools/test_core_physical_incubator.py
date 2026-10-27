@@ -72,7 +72,11 @@ class PhysicalIncubatorTests(unittest.TestCase):
         self.e.advance_time(1,[])
         child=self.hatch(row,ready=None)['pokemon']
         self.assertEqual(child.spec['egg_entity_id'],row['entity_id'])
-        self.assertEqual(child.spec['move_learning']['move/뿌리박기']['teacher_id'],self.a.entity_id)
+        self.assertEqual(child.spec['inheritance_moves'],['move/뿌리박기'])
+        self.assertNotIn('move/뿌리박기',child.spec['moves'])
+        self.assertNotIn('move/뿌리박기',child.spec.get('move_learning',{}))
+        self.assertEqual(original['plan']['provider_id'],self.a.entity_id)
+        self.assertEqual(child.spec['trainer_id'],self.a.entity_id)
         self.assertEqual(row[E.CONTRACT],original);self.assertEqual(row['produced_at'],0)
         self.assertEqual(E.hatch_remaining(self.e,outside),43200)
         self.assertEqual(INC.describe(self.e,'box')['egg_ids'],[])

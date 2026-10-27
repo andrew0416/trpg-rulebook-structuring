@@ -11,7 +11,7 @@ def validate_record(actor,record,*,terminal=False):
     if meta['capacity']!={'bucket':'source_coat','source':record['source']} or meta['lifetime']!={'boundary':row['lifetime']}:raise ValueError('typed coat source authority mismatch')
     if not meta.get('applied_by_actor_id'):raise ValueError('actual typed coat creator required')
     for event in meta['ownership'][1:]:
-        if event.get('source')!='move/배턴터치':raise ValueError('typed Coat ownership can transfer only through Baton Pass')
+        if event.get('source') not in ('move/배턴터치','feat/힘의-전달','feat/태그-인'):raise ValueError('typed Coat ownership requires a reviewed transfer source')
     if record.get('applications')!=[]:raise ValueError('single-use coat has no periodic applications')
     C.integer(record.get('issued_turn'),'typed coat issue turn',0,COATS.serial(actor))
     if terminal:
@@ -39,7 +39,7 @@ def steps(engine,actor,move):
                if r['effect'].get('kind')=='damage_coat' and r['effect']['match_type']==move['type'])
 
 
-def after_damage(engine,attacker,target,move,receipt):
+def after_damage(engine,attacker,target,move,receipt, *, type_multiplier=None):
     import coat_effects as COATS
     absorbed=receipt['net_hp_loss']+receipt['net_temporary_hp_loss']
     actual_hit=(receipt.get('observation_boundary')=='native_attack_application_including_its_hooks'
@@ -59,6 +59,6 @@ def after_damage(engine,attacker,target,move,receipt):
         target.coats.remove(row)
         engine.log('    '+target.name+': typed damage consumed Coat '+row['id'],row['source'])
     import equipment_variant_contracts as EQUIPMENT_VARIANTS
-    EQUIPMENT_VARIANTS.after_attack_damage(engine,attacker,target,move,receipt)
+    EQUIPMENT_VARIANTS.after_attack_damage(engine,attacker,target,move,receipt,type_multiplier=type_multiplier)
     import held_item_reactions as HELD_REACTIONS
     HELD_REACTIONS.after_hit(engine,attacker,target,move,absorbed)

@@ -109,6 +109,7 @@ def use(engine,actor,target,*,willing,path,reason,equal_decision=None,fixed_accu
 
 @ACTION.resolved_native("actor",SOURCE,"threaded")
 def _use(engine,actor,target,**options):
+    if not options['willing']:__import__('condition_instances').require_target(actor,target)
     plan=prepare(engine,actor,target,**options)
     if not options['willing']:CONFUSION.preflight(engine,actor,plan['move'])
     import turn as TURN,forced_movement as FORCED,precise_actions as PRECISE

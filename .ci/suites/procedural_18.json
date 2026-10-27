@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "execution_kind": "procedural_runner",
+  "unit_id": "script:tools/test_root_inputs_author.py",
+  "unit_kind": "procedural_script_runner",
+  "required_runner_ids": [
+    "script:tools/test_root_inputs_author.py"
+  ],
+  "completed": {},
+  "original_contract_sha256": "810154d42450d8c546de087fcda36896d0242b71ae87b252dba2be0bb8c68c21",
+  "inventory_sha256": "46c04e8eb8efa90c96a5ca21864b44e0112a7b0b9d78f77c31aad5bafe36caf5",
+  "runner": {
+    "source_path": "tools/test_root_inputs_author.py",
+    "argv": [
+      "python",
+      "-B",
+      "-X",
+      "utf8",
+      "-I",
+      "{stage}/tools/test_root_inputs_author.py"
+    ],
+    "cwd": "{stage}",
+    "environment": {
+      "TEMP": "{stage}/.tmp",
+      "TMP": "{stage}/.tmp"
+    },
+    "report": {
+      "path": "output/root-inputs-author-tests.json",
+      "kind": "json_results_array"
+    },
+    "additional_outputs": [],
+    "mutations": {
+      "temporarily_modified_restored": [],
+      "generated_retained": []
+    },
+    "result_buffer": "results",
+    "entry_function": null,
+    "sort_results_by_id": false,
+    "source_sha256": "aac47d6111553cfbde09da7fdfd9cfba29c555555e42b9f1d68fb9081aee4ee4"
+  }
+}

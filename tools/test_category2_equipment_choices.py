@@ -300,6 +300,8 @@ class EquipmentTests(unittest.TestCase):
   held=(None,'선제공격손톱') if name=='매지션' else ('선제공격손톱',None)
   if occupied:held=('선제공격손톱','예리한손톱')
   e,a,b,mid=self.f.fixture(move,held=held,seed=seed);holder=a if name=='매지션' else b;G.replace_baseline(e,holder,'abilities',[name])
+  e.gm.add_combatant(a,side='party',reason='observed reaction attacker side')
+  e.gm.add_combatant(b,side='foe',reason='observed reaction target side')
   e.use_move(a,b,mid);return e,a,b,holder
  def test_each_actual_hit_reaction_accepts_declines_and_charges_scene_once(self):
   for name in ('나쁜손버릇','매지션'):

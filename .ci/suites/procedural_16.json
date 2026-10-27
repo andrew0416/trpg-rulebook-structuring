@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "execution_kind": "procedural_runner",
+  "unit_id": "script:tools/test_root_common_checks_author.py",
+  "unit_kind": "procedural_script_runner",
+  "required_runner_ids": [
+    "script:tools/test_root_common_checks_author.py"
+  ],
+  "completed": {},
+  "original_contract_sha256": "6ad65ebee1de6cf93cc64bcddc942ec5dcd44cbbe32a2be94baedf58cd397572",
+  "inventory_sha256": "46c04e8eb8efa90c96a5ca21864b44e0112a7b0b9d78f77c31aad5bafe36caf5",
+  "runner": {
+    "source_path": "tools/test_root_common_checks_author.py",
+    "argv": [
+      "python",
+      "-B",
+      "-X",
+      "utf8",
+      "-I",
+      "{stage}/tools/test_root_common_checks_author.py"
+    ],
+    "cwd": "{stage}",
+    "environment": {
+      "TEMP": "{stage}/.tmp",
+      "TMP": "{stage}/.tmp"
+    },
+    "report": {
+      "path": "output/root-common-check-author-tests.json",
+      "kind": "json_results_array"
+    },
+    "additional_outputs": [],
+    "mutations": {
+      "temporarily_modified_restored": [],
+      "generated_retained": []
+    },
+    "result_buffer": "results",
+    "entry_function": null,
+    "sort_results_by_id": false,
+    "source_sha256": "7505ea8f787101917a61eacdf4372cec6e565ce5bcfac6aae17140aea45c4207"
+  }
+}

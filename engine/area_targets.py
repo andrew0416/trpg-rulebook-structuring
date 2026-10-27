@@ -31,18 +31,28 @@ def mechanics(rules, move_id, declaration):
                                _native_empty_field_activation=_EMPTY_FIELD_AUTHORITY)
     if move_id=='move/소란피기' and declaration=={'effects_exec':[{'type':'cure_status','status':'잠듦','target':'all_targets'}]}:
         declaration=dict(declaration,effects_exec=[dict(declaration['effects_exec'][0],_activation_scope='field')],_native_empty_field_activation=_EMPTY_FIELD_AUTHORITY,_native_empty_field_kind='uproar')
+    if move_id=='move/일렉트로빔':
+        import electro_shot as ELECTRO
+        declaration=ELECTRO.mechanics(rules,move_id,declaration)
+        declaration=dict(declaration,_native_empty_field_activation=_EMPTY_FIELD_AUTHORITY,_native_empty_field_kind='electro_shot')
     import hazard_state as HAZARDS
     return HAZARDS.mechanics(rules, move_id, declaration)
 
 
 def empty_field_effects(declaration):
     """Return effects only from the exact runtime adapter, never authoring data."""
+    import misty_explosion as MISTY
+    mist = MISTY.field_effects(declaration)
+    if mist:
+        return mist
     import hazard_state as HAZARDS
     hazard = HAZARDS.field_effects(declaration)
     if hazard:
         return hazard
     if declaration.get('_native_empty_field_activation') is not _EMPTY_FIELD_AUTHORITY:
         return []
+    if declaration.get('_native_empty_field_kind')=='electro_shot':
+        return __import__('electro_shot').field_effects(declaration)
     if declaration.get('_native_empty_field_kind')=='uproar' and declaration.get('effects_exec')==[{'type':'cure_status','status':'잠듦','target':'all_targets','_activation_scope':'field'}]:return declaration['effects_exec']
     expected = [dict(_WHIRLWIND_PUSH, target='target'),
                 *(dict(effect, _activation_scope='field')
@@ -102,19 +112,28 @@ def cells(engine,actor,move):
         return g.ranged_blast(aim,size)
     if shape=='burst':
         if aim!=origin:raise ValueError('Burst is centered on the actual user')
-        return g.burst(origin,size)
+        # Burst excludes its user as a recipient, not other bodies at its origin.
+        return g.burst(origin,size)|{origin}
     dx=(aim[0]>origin[0])-(aim[0]<origin[0]);dy=(aim[1]>origin[1])-(aim[1]<origin[1])
     if not dx and not dy:raise ValueError('directional area requires a distinct aim cell')
     methods={'cone':g.cone,'line':g.line}
     if shape=='close_blast':return g.close_blast(origin,size,(dx,dy))
     if shape not in methods:raise ValueError('selected area shape requires an execution policy')
-    return methods[shape](origin,(dx,dy),size)
+    area=methods[shape](origin,(dx,dy),size)
+    if move.get('id')=='move/날려버리기':
+        import smoke_regions as SMOKE
+        SMOKE.require_bound_line(engine,area)
+    return area
 
 
 def targets(engine,actor,move,candidates):
     import body_state as BODY
     import body_modes as MODES
+    import marsupial_state as MARSUPIAL
+    import setup_move_state as SETUP
     area=cells(engine,actor,move)
     return [c for c in candidates if c is not actor and not c.fainted and not c.captured
-            and c.on_field and MODES.target_visible(engine,actor,c)
+            and MARSUPIAL.target_present(c,engine=engine)
+            and SETUP.targetable(c,engine=engine,attacker=actor,move=move)
+            and MODES.target_visible(engine,actor,c)
             and BODY.cells(c,require_complete=True).intersection(area)]

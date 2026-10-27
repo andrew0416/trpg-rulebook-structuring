@@ -1,29 +1,33 @@
 # Native revision CI with private fixtures
 
-The **Validate revisions** workflow runs the selected packet's final required test IDs on GitHub-hosted `windows-2022` with Python 3.11. The unchanged fixed verifier enforces exact packet selection. This validates the declared revision scope and earns **zero clause-completion credit**.
+The **Validate revisions** workflow runs the selected packet's final required test IDs on GitHub-hosted `windows-2022` with Python 3.11. The versioned verifier enforces exact packet selection. This validates the declared revision scope and earns **zero clause-completion credit**.
 
 Only reviewed code, schema files, CI configuration and public test-ID packets are public plaintext. Rulebook inputs and supporting fixture data are stored in `.ci/fixtures.zip.enc`, authenticated with AES-256-GCM. `.ci/fixtures-manifest.json` contains only relative paths, byte sizes and SHA-256 hashes. This repository does not relicense those sources or grant redistribution rights. Private candidate ledgers and original source documents are not published as plaintext.
 
 ## Running
 
-Maintainers configure the repository Actions secret **PTK_FIXTURE_KEY** with the 64 hexadecimal characters representing the bundle's 32-byte key. The key must not be committed, placed in command-line arguments, or included in artifacts.
+During development, run the reviewed changed-impact selection. **Actions → Validate revisions → Run workflow** defaults to `changed_revisions`, which runs one job using `.ci/suites/changed_revisions.json`.
 
-Relevant pushes to `main` and `codex/**` run the current `next_revisions` packet on one Windows VM. Manual `all_revisions` runs the three historical revision groups on independent VMs with `max-parallel: 3` and `fail-fast: false`. The job additionally requires repository identity `andrew0416/trpg-rulebook-structuring`, a push or manual event, and one of those trusted branch refs. Pull requests and external forks do not receive the private-fixture validation; there is no `pull_request_target` workflow.
+This is an explicit exact-ID packet, not an automatic Git-diff dependency detector. Update it for each change: include changed tests, affected consumers of shared code, and required producer/consumer stages. Its `required_unique_count` must equal the unique selected IDs. A subset PASS validates only that selection and does not certify the full project or award clause completion.
 
-**Actions → Validate revisions → Run workflow** offers a fixed choice on a trusted branch:
+| Choice | Purpose |
+| --- | --- |
+| `changed_revisions` (default) | Reviewed changed-impact checks during development; one job |
+| `all_revisions` | Final ordinary shards, frequency-equivalence modes and procedural runners |
+| `metadata_revisions` | Separate final metadata phase, after its native prerequisites are verified |
+| `final_revisions` | Ordinary final shards only |
+| `frequency_equivalence` / `procedural_runners` | Their explicit specialized validation scopes |
+| `performance_probe` | Optional explicit profiling of its diagnostic packet; never a completion substitute |
 
-| Choice | Scope | Unique required IDs |
-| --- | --- | ---: |
-| `all_revisions` (manual default) | All three historical revision groups, each on its own VM | 259 across groups |
-| `move_revisions` | Voice/keyword final 99 plus Push Buttons final 23 | 122 |
-| `rank_revisions` | Declared ranks final 107, martial ranks final 20, integration final 2 | 126 |
-| `retraining` | Edge choice retraining final 13 | 13 |
-| `common_checks` | Existing full common-check module | 34 currently |
-| `next_revisions` | Root-reviewed integration packet, one VM and one physical execution | Defined by the packet |
+Use the existing local verifier with exact module, class or method references, or a reviewed packet:
 
-Push validation selects `.ci/suites/next_revisions.json` directly; that current integration packet must be present. A single push runs its full declared scope once, without also launching the historical groups. Manual `all_revisions` preserves those three groups, and each explicit manual suite choice still selects only that suite. Older commits use their own workflow definitions. A single integration packet avoids combining parallel execution histories into one sequential acceptance history.
+```powershell
+python -B work/reuse-partials/verify_overlay_tests.py --auto tools.test_example.Tests.test_changed --stage <stage> --canonical <same-source-root> --record <D-evidence-directory>
+```
 
-The three groups make 261 test executions because two IDs are shared across independent groups. `rank_revisions` already includes the 34 common checks, so manual `all_revisions` does not add a redundant smoke job. Within each group only exact duplicate IDs are removed by the existing verifier. Its `tools.` module identity rules remain unchanged.
+After a failure or relevant change, rerun the failed and affected checks together. The verifier supports `--failed-from REPORT --also EXISTING_AFFECTED_IDS...`; genuinely new tests need a current declaration. Preserve the original report and do not repeat unrelated passing checks. Run the full retained scope once on a stable final candidate, then its gated metadata phase; later fixes receive affected-scope validation rather than another unrelated whole run.
+
+Pushes do not start game checks. Dispatch remains manual and restricted to this repository and `main` or `codex/**` branches. Existing source hashing, authenticated fixture restoration, physical evidence capture, original failure records and full-scope obligations remain enforced. Older runs keep their original head, packet and evidence; never relabel an older run as validation of unreviewed later code.
 
 The [public suite packets](.ci/suites/) retain the original candidate IDs, relative provenance paths, candidate SHA-256 hashes, and final `required_test_ids` as exact `completed[*].tests` declarations. The `completed` key is required by the existing verifier format; it does not claim accepted clauses. Withdrawn assumptions and superseded initial failure allocations do not become current obligations. Original private candidate ledgers are not needed on the runner.
 
@@ -79,7 +83,7 @@ An authorized maintainer can download `evidence.zip.enc` and decrypt it with the
 node tools/ci_fixtures.mjs decrypt "<downloaded evidence.zip.enc>" "<new private evidence ZIP>"
 ```
 
-The native process has a 60-minute timeout; decryption retains a 15-minute timeout, and the complete job has a 75-minute limit. The initial 550-test integration run hit the former 45-minute native limit after 529 tests had started. A timeout is unsuccessful: preserve its original input ZIP, event journal and partial log as non-acceptance evidence, then rerun the full required suite. Missing final metadata or after-execution module origins are never reconstructed from partial observations. The first accepted result must come from a complete run and use its original unique evidence paths.
+The native process has a 90-minute timeout; decryption retains a 15-minute timeout, and the complete job has a 105-minute limit. The initial 550-test integration run hit the former 45-minute native limit after 529 tests had started. A timeout is unsuccessful: preserve its original input ZIP, event journal and partial log as non-acceptance evidence, then rerun the full required suite. Missing final metadata or after-execution module origins are never reconstructed from partial observations. The first accepted result must come from a complete run and use its original unique evidence paths.
 
 For canonical acceptance, authenticate/decrypt the evidence with the existing helper. Use the **same absolute** `execution_stage` path recorded by the original execution. Check the physical ZIP manifest and every member's SHA before materializing its `stage/` inputs through the existing Root-reviewed restoration process. Keep the raw archive's names unchanged: copy `physical/ci-native.json` to the exact `metadata_path` recorded inside it, `physical/ci-native.log` to `raw_log`, and `physical/ci-native-inputs.zip` to `frozen_inputs`. These are distinct execution directories under `data/verification/ci-runs/`. Create evidence destinations exclusively and refuse any existing destination; retain original verifier files and partial evidence separately.
 
@@ -109,6 +113,30 @@ node tools/ci_fixtures.mjs encrypt "<private ZIP path>" .ci/fixtures.zip.enc
 ```
 
 The key must already be in the process environment through an approved secret mechanism. Output files must be new. The format is the ASCII header `PTKFX001`, a fresh 12-byte IV, a 16-byte authentication tag, then ciphertext. The header is authenticated as additional data. The JSON manifest format is `{"version":1,"files":[{"path":"input/example.md","sha256":"<64 lowercase hex>","size":123}]}`; the ZIP must contain exactly those files, without directory entries.
+
+## AA implementation branch private-policy channel
+
+On `codex/implementation-workflow-checks-1026ag`, the manual `aa_native`
+job selects the reviewed `changed_revisions` packet (86 exact declarations).
+It retains all original 55 AA declarations, adds one native Mummy/contact
+regression, and includes the newly rebased CONTROL24, two original musician
+impacts, three existing contact tests, and one unchanged Heavy sentinel.
+These declarations and any test success are not clause acceptance/publication.
+
+The original encrypted fixture bundle and its `files` manifest rows remain
+unchanged. One additional 1,384-byte policy is delivered through the repository
+Secret `PTK_ABILITY_EXCHANGE_POLICY_B64`, bound only to the adapter step.
+The tracked `private_policy` metadata fixes its exact destination, size and
+SHA-256. It is not part of the old encrypted ZIP and is never tracked plaintext.
+The adapter consumes both Secrets before launching the native child, validates
+canonical base64, size, SHA-256 and a UTF-8 JSON object, refuses collisions or
+overwrites, then includes the restored policy in normal input capture and drift
+checks. Raw logs and inputs retain the existing encrypted evidence channel.
+Missing metadata/Secret or a payload mismatch fails closed.
+
+No original40 upload, plaintext private ledger/source-review, original bundle
+repack, key retrieval, other-chat branch change, canonical ledger update, or
+local game execution is authorized by this channel.
 
 ## Pinned GitHub Actions
 

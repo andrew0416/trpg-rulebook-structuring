@@ -39,6 +39,33 @@ class StateCodecTests(unittest.TestCase):
     def roundtrip(self, e):
         return load_engine(self.rules, json.loads(json.dumps(dump_engine(e), ensure_ascii=False)))
 
+    def test_api_and_qualified_identity_keep_exact_native_world_membership(self):
+        import engine as native
+        import importlib
+        import state_codec as CODEC
+        import world_entities as WORLD
+        self.assertEqual(CODEC._types()[:3], (Engine, Combatant, Rules))
+        if hasattr(native, '__path__') and all(name in vars(native) for name in ('Engine', 'Combatant', 'Rules')):
+            qualified = importlib.import_module('engine.engine')
+            self.assertIs(qualified, native)
+            self.assertEqual(Path(qualified.__file__).resolve(), Path(native.__file__).resolve())
+        e, a, b = self.fixture()
+        self.assertIs(WORLD.require_actors(e, a, b)[a.entity_id], a)
+        outsider = Combatant(self.rules, dict(copy.deepcopy(a.spec), id='pokemon/codec-unregistered'))
+        with self.assertRaisesRegex(ValueError, 'actual registered actor/target'):
+            WORLD.require_actors(e, outsider)
+        class FakeCombatant(Combatant): pass
+        fake = object.__new__(FakeCombatant);vars(fake).update(vars(a))
+        with self.assertRaisesRegex(ValueError, 'actual registered actor/target'):
+            WORLD.require_actors(e, fake)
+        class FakeEngine(Engine): pass
+        fake_engine = object.__new__(FakeEngine);vars(fake_engine).update(vars(e))
+        with self.assertRaisesRegex(StateCodecError, 'native Engine and Rules required'):
+            dump_engine(fake_engine)
+        restored = self.roundtrip(e)
+        self.assertIs(type(restored), Engine)
+        self.assertIs(type(restored.everyone[0]), Combatant)
+
     def test_capability_policy_cache_preserves_cold_save_and_rejects_actual_override(self):
         import capability_actions as LOAD
         r = Rules(str(ROOT), ruleset='core')
@@ -55,6 +82,89 @@ class StateCodecTests(unittest.TestCase):
         r.capability_policy['weight_limits_kg']['1']['staggering'] += 1
         with self.assertRaisesRegex(StateCodecError, 'fingerprint mismatch'):
             load_engine(r, saved)
+
+    def test_native_feature_policy_reads_preserve_fresh_rules_restore_and_reject_override(self):
+        import class_actor_state_reactions as REACTIONS
+        import feature_ability_lessons as LESSONS
+        import optional_state_effect_contracts as OPTIONAL
+        import optional_weapon_framework as WEAPONS
+        import survivalist_class as SURVIVAL
+        import juggler as JUGGLER
+        r = Rules(str(ROOT), ruleset='all')
+        e = Engine(r, seed=712)
+        saved = dump_engine(e)
+        for reader in (REACTIONS.policy, REACTIONS.native_policy, LESSONS._policy,
+                       OPTIONAL._policy, WEAPONS.policy, SURVIVAL.definitions, JUGGLER.contract):
+            reader(r)
+        warmed = dump_engine(e)
+        self.assertEqual(saved['rules'], warmed['rules'])
+        restored = load_engine(Rules(str(ROOT), ruleset='all'),
+                              json.loads(json.dumps(warmed, ensure_ascii=False)))
+        self.assertEqual(warmed['rules'], dump_engine(restored)['rules'])
+        r._feature_ability_lessons = copy.deepcopy(r._feature_ability_lessons)
+        r._feature_ability_lessons['feat/요리-음미']['point_cost'] += 1
+        with self.assertRaisesRegex(StateCodecError, 'fingerprint mismatch'):
+            load_engine(r, warmed)
+
+    def test_poke_edge_derived_cache_preserves_cold_restore_and_rejects_override(self):
+        from unittest.mock import patch
+        import poke_edge_variants as EDGES
+        r = Rules(str(ROOT), ruleset='fantasy');e = Engine(r, seed=712)
+        self.assertNotIn('_poke_edge_variants', vars(r))
+        saved = dump_engine(e)
+        catalog = EDGES.catalog(r)
+        identity = r._poke_edge_variants_identity
+        self.assertEqual({row['record'] for row in catalog if row.get('record') in (67, 68)}, {67, 68})
+        self.assertEqual(saved, dump_engine(e))
+        restored = load_engine(Rules(str(ROOT), ruleset='fantasy'),
+                              json.loads(json.dumps(saved, ensure_ascii=False)))
+        self.assertEqual(saved['rules'], dump_engine(restored)['rules'])
+        altered = copy.deepcopy(catalog)
+        next(row for row in altered if row.get('record') == 68)['point_cost'] = 2
+        typed = copy.deepcopy(catalog)
+        next(row for row in typed if row.get('record') == 68)['point_cost'] = True
+        # In a legacy52 input this manual override equals the raw cold baseline.
+        unexpanded = [copy.deepcopy(row) for row in catalog if row.get('record') not in (67, 68)]
+        for label, value, origin in (
+                ('changed_cost', altered, identity),
+                ('bool_is_not_one', typed, identity),
+                ('missing_derived_rows', unexpanded, identity),
+                ('foreign_root', catalog, (identity[0] + '/foreign', identity[1])),
+                ('changed_source_identity', catalog, (identity[0], '0' * 64)),
+                ('identity_container', catalog, list(identity))):
+            with self.subTest(override=label), patch.object(r, '_poke_edge_variants', value), \
+                    patch.object(r, '_poke_edge_variants_identity', origin):
+                with self.assertRaisesRegex(StateCodecError, 'fingerprint mismatch'):
+                    load_engine(r, saved)
+        self.assertEqual(EDGES.catalog(r), catalog)
+        self.assertEqual(r._poke_edge_variants_identity, identity)
+        self.assertEqual(saved, dump_engine(e))
+
+    def test_verified_lookup_indexes_preserve_cold_state_but_not_changed_results(self):
+        from unittest.mock import patch
+        import source_catalog as CATALOG
+        import equipment_variant_contracts as EQUIPMENT
+        import skill_modifiers as SKILLS
+        r = Rules(str(ROOT), ruleset='all')
+        e = Engine(r, seed=712)
+        saved = dump_engine(e)
+        CATALOG._document(r)
+        EQUIPMENT._punch_moves(r)
+        for section in ('edges', 'rank_effects'):
+            for row in r.skill_policy.get(section, {}).values():
+                source = row.get('equivalent_csv_source')
+                if source:
+                    SKILLS.validate_csv_source(r, row, [source['id']])
+        self.assertEqual(saved['rules'], dump_engine(e)['rules'])
+        altered = copy.deepcopy(r._source_catalog)
+        altered['unreviewed-source'] = ({}, [])
+        for name, value in (
+                ('_source_catalog', altered),
+                ('_equipment_variant_punch_moves', r._equipment_variant_punch_moves | {'move/not-a-punch'}),
+                ('_skill_csv_sources', r._skill_csv_sources | {('unreviewed-source', '0' * 64)})):
+            with self.subTest(cache=name), patch.object(r, name, value):
+                with self.assertRaisesRegex(StateCodecError, 'fingerprint mismatch'):
+                    load_engine(r, saved)
 
     def test_selected_rule_fingerprint_keeps_nested_order_independent_and_rejects_bad_keys(self):
         from state_codec import _plain
@@ -504,10 +614,14 @@ assert b2.answer(b2.pending(b2.begin('second','check')),newp['gm'],c['requests']
 assert len(n._root_common_receipts)==2
 print('common pending stages and fresh-authority rejection: pass')
 """
-        out = subprocess.run([sys.executable, '-X', 'utf8', '-B', '-W', 'ignore::ResourceWarning',
-            '-c', script, str(ROOT)], capture_output=True, text=True, encoding='utf-8', timeout=120,
-            env=dict(os.environ,PYTHONPATH=os.pathsep.join((str(ROOT),str(ROOT/'tools')))))
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        # Preserve the fresh interpreter and expose actual capture paths.
+        with tempfile.TemporaryDirectory(prefix='common-codec-child-') as directory:
+            stdout_path,stderr_path=Path(directory)/'stdout.txt',Path(directory)/'stderr.txt'
+            with stdout_path.open('w',encoding='utf-8') as stdout,stderr_path.open('w',encoding='utf-8') as stderr:
+                out = subprocess.run([sys.executable, '-X', 'utf8', '-B', '-W', 'ignore::ResourceWarning',
+                    '-c', script, str(ROOT)], stdout=stdout,stderr=stderr,timeout=120,
+                    env=dict(os.environ,PYTHONPATH=os.pathsep.join((str(ROOT),str(ROOT/'tools')))))
+            self.assertEqual(out.returncode,0,stdout_path.read_text(encoding='utf-8')+stderr_path.read_text(encoding='utf-8'))
 
 
     def test_gm_snapshot_discovers_off_roster_skill_event_and_backing_alias(self):

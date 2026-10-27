@@ -52,6 +52,8 @@ def native_selected_rule(rules, uid, supports_versions=False):
     """Existing native reader, also identifiable without trusting duck hooks."""
     import special_entities as SPECIAL
     if SPECIAL.prime_instance(rules,uid) is not None:return uid
+    import coordinator as COORDINATOR
+    if COORDINATOR.innovation_instance(rules,uid) is not None:return uid
     import dancer as DANCER
     if DANCER.dance_instance(rules,uid) is not None:return uid
     return _native_selection(rules,uid,supports_versions)[0]

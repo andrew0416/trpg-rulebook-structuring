@@ -5,6 +5,7 @@ This module keeps each trap as a physical instance, groups one Move's instances
 into a stable region, and projects the instances back through ``engine.hazards``
 so existing movement, GM, snapshot, and field-clearing paths share one state.
 """
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 import hashlib
 import json
@@ -300,8 +301,9 @@ def install_from_completion(engine, actor, source_id, completion_id):
     if (not completion or completion["actor"] is not actor or completion["move_id"] != source_id or
             completion["phase"] != "complete" or not completion["sealed"] or
             not completion["move"].get("_gmax_base_move_id") or
-            not any(row["hit"] and not row["cancelled"] for row in completion["results"].values())):
-        raise ValueError("derived Hazard requires actual successful native completion")
+            not any(not row["cancelled"] for row in completion["results"].values()) or
+            not {"정신급증", "Spirit Surge"}.intersection(completion["move"].get("keywords", ()))):
+        raise ValueError("derived Hazard requires actual noncancelled Spirit Surge completion")
     if completion.get("hazard_region_id"):
         raise ValueError("derived Hazard completion already installed")
     import area_targets as AREA
@@ -322,7 +324,7 @@ def _install_region(engine, actor, source_id, row, chosen, index):
     for cell in sorted(chosen):
         envelope = engine.hazards.get(cell)
         if envelope is None:
-            envelope = engine.hazards[cell] = _new_envelope(engine, cell, slow=row["slow"])
+            envelope = engine.hazards[cell] = _new_envelope(engine, cell)
         elif not isinstance(envelope.get("instances"), list):
             ensure(engine)
             envelope = engine.hazards[cell]
@@ -416,6 +418,8 @@ def _dispatch(engine, owner, target, instance, effects):
          "_hazard_instance": instance, "_hazard_activation": _AUTHORITY}, source)
     if result[1] or result.pending:
         raise ValueError("Hazard trigger effect did not complete")
+    observed=getattr(engine,'_trickster_hazard_entry',None)
+    if observed is not None and not any(row[2]['id']==instance['id'] for row in observed):observed.append((owner,target,deepcopy(instance)))
 
 
 def stage_provenance(engine, source_actor, target, context):
@@ -480,7 +484,7 @@ def _ordinary_entry(engine, actor, cell, instances):
         import field_effects as FIELD
         if FIELD.touches_ground(actor):
             for instance in spikes:
-                engine.lose_hp(actor, M.ratio(actor.max_hp, 10), source="hazard-instance/" + instance["id"])
+                engine.lose_hp(actor, M.ratio(actor.base_max_hp, 10), source="hazard-instance/" + instance["id"])
                 _slow(engine, _owner(engine, instance), actor, instance)
     toxic = by_kind.get("toxic_spikes", [])
     if toxic:
@@ -494,29 +498,33 @@ def _ordinary_entry(engine, actor, cell, instances):
             _slow(engine, _owner(engine, instance), actor, instance)
 
 
-def _stealth_entry(engine, actor, cell):
+def _stealth_entry(engine, actor, entered_cells):
     from grid import cheb
     for kind, attack_type in (("stealth_rock", "바위"), ("steelsurge", "강철")):
         candidates = [instance for hazard_cell, envelope in ensure(engine).items()
                   for instance in envelope["instances"]
                   if instance["kind"] == kind and _hostile(instance, actor)
-                  and cheb(hazard_cell, cell) <= instance["trigger_range"]]
+                  and any(cheb(hazard_cell, cell) <= instance["trigger_range"] for cell in entered_cells)]
         if not candidates or kind in actor.spec.get(REENTRY, []):
             continue
         if kind == "stealth_rock" and __import__('survivalist_class').stealth_rock_immune(engine, actor):
             engine.log("    %s: 동굴 거주자로 스텔스록 함정 면역" % actor.name, "feat/지형-재능")
             continue
-        instance = min(candidates, key=lambda row: (cheb(row["cell"], cell), row["cell"], row["id"]))
+        instance = min(candidates, key=lambda row: (min(cheb(row["cell"], cell) for cell in entered_cells), row["cell"], row["id"]))
         multiplier, source = engine.type_multiplier(attack_type, actor)
         damage = M.product(engine.tick(actor), multiplier)
         engine.take_damage(actor, damage)
+        observed=getattr(engine,'_trickster_hazard_entry',None)
+        if observed is not None:observed.append((_owner(engine,instance),actor,deepcopy(instance)))
         if actor.kind == "pokemon":
             actor.spec.setdefault(REENTRY, []).append(kind)
         if not __import__('type_ace').preserve_rock(engine,instance):_remove(engine, [instance["id"]])
         engine.log("    %s: %s %s 피해 %d, 물리 함정 파괴" % (actor.name, instance["name"], source, damage), instance["source_id"])
 
 
-def on_enter_cell(engine, actor, cell):
+def on_enter_cell(engine, actor, cell, *, previous_position=None):
+    if __import__('ability_transitions').active(actor,'ability/틈새포착'):return
+    if __import__("jump_move_actions").hazard_immune(actor):return
     ensure(engine)
     import effect_lifetime_policy as LIFETIMES
     LIFETIMES.reconcile(engine)
@@ -524,19 +532,93 @@ def on_enter_cell(engine, actor, cell):
     has_any = any(envelope["instances"] for envelope in engine.hazards.values())
     if not has_any:
         return
+    import body_state as BODY
+    entered = BODY.at_position(actor,cell)
+    if previous_position is not None:
+        entered.difference_update(BODY.at_position(actor,previous_position))
+    if not entered:
+        return
     if STATIC_EQUIPMENT.ignores_entry_hazard(engine, actor):
         engine.log("    %s: 진입 함정 무시 (통굽부츠)" % actor.name, "item/통굽부츠")
         return
     guide = __import__('survivalist_class').ignores_hazards(engine, actor)
     if guide:
-        envelope = engine.hazards.get(tuple(cell))
-        if (envelope and envelope["instances"]) or any(row["kind"] in ("stealth_rock", "steelsurge") for env in engine.hazards.values() for row in env["instances"]):
+        if any(engine.hazards.get(point,{}).get("instances") for point in entered) or any(row["kind"] in ("stealth_rock", "steelsurge") for env in engine.hazards.values() for row in env["instances"]):
             engine.log("    %s: 함정을 유발하지 않음 (야생 가이드)" % actor.name, guide)
         return
-    envelope = engine.hazards.get(tuple(cell))
-    if envelope:
-        _ordinary_entry(engine, actor, tuple(cell), list(envelope["instances"]))
-    _stealth_entry(engine, actor, tuple(cell))
+    previous=getattr(engine,'_trickster_hazard_entry',None)
+    engine._trickster_hazard_entry=[]
+    try:
+        seen = set()
+        for point in sorted(entered):
+            envelope = engine.hazards.get(point)
+            if not envelope:
+                continue
+            instances = [row for row in envelope["instances"] if row["id"] not in seen]
+            seen.update(row["id"] for row in instances)
+            # Layers belong to this square; two body contacts do not make two layers.
+            _ordinary_entry(engine, actor, point, instances)
+        _stealth_entry(engine, actor, entered)
+        triggers=[__import__('trickster').hazard_trigger(engine,owner,target,instance)
+                  for owner,target,instance in engine._trickster_hazard_entry]
+        triggers=[token for token in triggers if token is not None]
+        if triggers:engine._trickster_trigger=triggers[0] if len(triggers)==1 else tuple(triggers)
+    finally:
+        if previous is None:del engine._trickster_hazard_entry
+        else:engine._trickster_hazard_entry=previous
+
+
+def extend_from_completion(engine,actor,completion,extra_cells):
+    """Encore installs two additional physical units of the actual placed type."""
+    import trickster as T,world_entities as W,body_state as BODY
+    from grid import cheb
+    move=completion['move'];source=completion['move_id'];base=cells(move)
+    if completion['actor'] is not actor or completion['phase']!='complete' or not base or source not in NATIVE_MOVES:raise ValueError('Encore requires actual completed native Hazard placement')
+    if not isinstance(extra_cells,(list,tuple)) or len(extra_cells)!=2:raise ValueError('Encore requires two explicit additional Hazard units')
+    chosen=[]
+    placement=_placement(engine,source)
+    for raw in extra_cells:
+        if not isinstance(raw,(list,tuple)) or len(raw)!=2 or any(type(x) is not int for x in raw):raise ValueError('actual extra Hazard coordinates required')
+        cell=tuple(raw)
+        if not engine.grid.inside(cell) or min(cheb(origin,cell) for origin in BODY.cells(actor,require_complete=True))>placement['within']:raise ValueError('extra Hazard unit lies outside the actual placement range')
+        chosen.append(cell)
+    if len(set(chosen))!=2 or set(chosen)&base:raise ValueError('Encore adds two distinct units beyond the original cells')
+    if placement.get('contiguous'):
+        todo=base|set(chosen);seen={todo.pop()}
+        while todo:
+            connected={c for c in todo if any(cheb(c,x)<=1 for x in seen)}
+            if not connected:raise ValueError('Encore extra units preserve the Hazard placement contiguity')
+            seen|=connected;todo-=connected
+    region=_install_region(engine,actor,source,policy(engine.r)['moves'][source],set(chosen),W.actor_index(engine))
+    completion['trickster_hazard_extension']={'source':T.ENCORE,'region':region,'cells':tuple(sorted(chosen))}
+    return region
+
+
+def relocate_allied(engine,trainer,pokemon,kind,destinations,*,source='core'):
+    """Shell Game moves every allied instance, preserving each physical identity."""
+    import skill_modifiers as SKILL,trickster as T
+    from grid import cheb
+    validate_world(engine)
+    selected=[r for env in ensure(engine).values() for r in env['instances'] if r['owner_side']==pokemon.side and r['kind']==kind]
+    if not selected:raise ValueError('Shell Game needs an actual allied Hazard type')
+    if type(destinations) is not dict or set(destinations)!={r['id'] for r in selected}:raise ValueError('Shell Game must name all allied instances of one Hazard type')
+    distance=NUMERIC.ratio(SKILL.rank(engine.r,trainer,'교활')[2],2)
+    planned=[]
+    for row in selected:
+        raw=destinations[row['id']]
+        if not isinstance(raw,(list,tuple)) or len(raw)!=2 or any(type(x) is not int for x in raw):raise ValueError('Shell Game destination needs actual coordinates')
+        cell=tuple(raw)
+        if not engine.grid.inside(cell) or cheb(row['cell'],cell)>distance:raise ValueError('Shell Game exceeds half the Trainer Guile rank')
+        planned.append((row,cell))
+    if source==T.CSV[T.SHELL] and any(a!=b and cheb(a,b)<=1 for _,a in planned for _,b in planned):raise ValueError('CSV Shell Game keeps its printed nonadjacent restriction')
+    for row,cell in planned:
+        old=engine.hazards[row['cell']];old['instances'].remove(row);_project(engine,row['cell'],old)
+    for row,cell in planned:
+        env=engine.hazards.setdefault(cell,_new_envelope(engine,cell))
+        row['cell']=cell;env['instances'].append(row);_project(engine,cell,env)
+    validate_world(engine)
+    trainer.spec.setdefault('trickster_shell_history',[]).append({'source':source,'round':engine.round_no,'kind':kind,'destinations':deepcopy(destinations)})
+    return {'status':'applied','instances':[r['id'] for r in selected]}
 
 
 def on_recall(actor):

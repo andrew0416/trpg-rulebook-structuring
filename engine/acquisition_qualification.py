@@ -58,7 +58,7 @@ def owned_skill_edge(actor,source_id,document,*,prerequisite_reason):
               source_id+' requires an actual '+document['owner_kind']),
         rank_limit('copies',A.owned_rule_count(actor,source_id),1,document['maximum_copies'],
                    source_id+' requires one actual acquired Edge'),
-        check('skill','prerequisite',S.rank(actor.r,actor,document['skill'])[2]>=document['minimum_rank'],
+        check('skill','prerequisite',S.rank(actor.r,actor,document['skill'])[2]>=document['minimum_rank'] or __import__('hobbyist').waives_printed_skill(actor,source_id,document['skill'],document['minimum_rank']),
               prerequisite_reason)])
     return True
 

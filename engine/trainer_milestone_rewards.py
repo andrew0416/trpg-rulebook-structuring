@@ -86,6 +86,37 @@ def validate(actor):
             raise ValueError('milestone allocation disagrees with native stat change')
         spent[key]+=sum(stats.values())
     if any(amount>(ordinary if key=='0' else _earned(int(key),levels)) for key,amount in spent.items()):raise ValueError('milestone allocation exceeds earned points')
+    seen=set()
+    for request_id,row in actor.spec.get('trainer_milestone_acquisitions',{}).items():
+        request=row.get('request',{});key=str(request.get('level'))
+        if key not in choices or choices[key]['option']!='general_feat' or key in seen or row.get('intent')!=TX.request_fingerprint(request):raise ValueError('one actual chosen General Feature milestone spend required')
+        seen.add(key)
+        result=row.get('result',{})
+        if result.get('feature_id')!=request.get('feature') or result.get('request_id')!=request_id+'/acquisition':raise ValueError('milestone must consume its actual acquired Feature receipt')
+        actual=__import__('trainer_feature_acquisition')._static_records(actor)
+        if not any(record['static_acquisition']==result for _,record,_ in actual):raise ValueError('milestone acquired Feature receipt missing')
+
+
+def acquire_general_feature(engine,actor,level,feature,*,request_id,selection=None,rank=None):
+    """Spend one chosen General Feature bonus on a qualified real acquisition."""
+    _admit(engine,actor)
+    request={'level':level,'feature':feature,'selection':deepcopy(selection),'rank':rank}
+    old=TX.replay_result(actor.spec.get('trainer_milestone_acquisitions',{}),request_id,request,fingerprint_field='intent')
+    if old is not None:return old['result']
+    choice=actor.spec.get(KEY,{}).get('choices',{}).get(str(level))
+    if type(level)is not int or choice is None or choice['option']!='general_feat':raise ValueError('actual chosen General Feature milestone required')
+    if any(row['request']['level']==level for row in actor.spec.get('trainer_milestone_acquisitions',{}).values()):raise ValueError('General Feature milestone already spent')
+    unit=engine.r.selection.units.get(feature,{})
+    regular=feature.startswith('feat/') and unit.get('source',{}).get('file')=='ch03-skills-edges-feats.md'
+    if not regular and not __import__('hobbyist').counts_as_general(engine.r,feature):raise ValueError('this reward grants only a General Feature; Hobbyist is the printed Class exception')
+    import state_grants as G,trainer_feature_acquisition as T
+    def apply(e,a):
+        result=T.acquire_static(e,a,feature,acquisition_request_id=request_id+'/acquisition',selection=selection,rank=rank)
+        # Keep the immutable native receipt, not the transient status response.
+        result={k:v for k,v in result.items() if k!='status'}
+        a.spec.setdefault('trainer_milestone_acquisitions',{})[request_id]={'intent':TX.request_fingerprint(request),'request':deepcopy(request),'result':deepcopy(result)}
+        return deepcopy(result)
+    return G.transition(engine,actor,apply)
 
 
 def _admit(engine,actor):

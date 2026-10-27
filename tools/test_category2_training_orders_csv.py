@@ -8,11 +8,8 @@ ROOT=Path(os.environ.get('PTK_CANONICAL_ROOT',STAGE))
 sys.path[:0]=[str(STAGE/'engine'),str(ROOT/'engine')]
 
 from engine import Rules,Engine,Combatant
-# engine.py gives its canonical directory import priority.  Restore the partial
-# overlay before loading the three staged modules under direct test.
+# Keep the staged import path without replacing owners already held by other fixtures.
 sys.path.insert(0,str(STAGE/'engine'))
-for _module in ('training_features','training_rewards','priority_limited','action_resources'):
- sys.modules.pop(_module,None)
 import training_features as T
 import items as ITEMS
 import pokemon_entities as ENTITIES
@@ -41,11 +38,11 @@ class TrainingOrdersCSVTests(unittest.TestCase):
   e.everyone=e.gm.everyone=[t,p,foe];e.time_actors(e.everyone);t.side=p.side='party';foe.side='enemy'
   ENTITIES.observe_loyalty(e,p,3,reason='actual willing owned partner');ITEMS.register_feats(e,t)
   return e,t,p,foe
- def open(self,e):e.start_round(e.everyone)
+ def open(self,e):e.start_round(e.everyone);e.at_initiative_count(30)
  def audible(self,e,t,p,allowed=True):
   e.gm.observe_sensory_environment(t,p,paths={'auditory':allowed},present=True,reason='actual audible order path')
  def issue(self,uid):
-  e,t,p,foe=self.fixture();self.open(e);self.audible(e,t,p);out=e.manual_feat(t,uid,p);return e,t,p,foe,out
+  e,t,p,foe=self.fixture();self.open(e);self.audible(e,t,p);out=e.manual_feat(t,T.CSV_CLAUSES[uid],p);return e,t,p,foe,out
 
  def test_exact_csv_cells_and_runtime_mapping(self):
   self.assertEqual(T.CSV_CLAUSES,{uid:value[0] for uid,value in CLAUSES.items()})
@@ -84,12 +81,25 @@ class TrainingOrdersCSVTests(unittest.TestCase):
   e,t,p,foe=self.fixture();self.open(e);self.audible(e,t,p);e.start_of_turn(foe)
   with self.assertRaisesRegex(ValueError,'between turns'):e.manual_feat(t,T.FOCUSED,p)
   self.assertFalse(T.records(p));self.assertIsNone(getattr(t,'pending_action_loss',None))
+  e,t,p,foe=self.fixture();self.open(e);self.audible(e,t,p)
+  e.apply_status(t,'넘어짐',source='condition/넘어짐');self.assertIn('넘어짐',t.conditions)
+  before=e.export_state()
+  with self.assertRaisesRegex(ValueError,'actual printed Priority action permission required'):
+   T.orders(e,t,T.FOCUSED,p)
+  self.assertEqual(e.export_state(),before)
+  with self.assertRaisesRegex(ValueError,'actual printed Priority action permission required'):
+   e.manual_feat(t,T.FOCUSED,p)
+  self.assertEqual(e.export_state(),before)
+  e.cure_status(t,'넘어짐')
+  out=e.manual_feat(t,T.FOCUSED,p)
+  self.assertEqual(out['status'],'applied');self.assertEqual(t.pending_action_loss,{'standard':1})
+  self.assertEqual(T.bonus(p,'skill'),2);self.assertTrue(e.validate_state()['valid'])
 
  def test_owned_target_and_explicit_self_exception(self):
   e,t,p,foe=self.fixture();self.open(e);self.audible(e,t,foe)
   with self.assertRaisesRegex(ValueError,'trainer identity|different trainer'):e.manual_feat(t,T.FOCUSED,foe)
   self.assertFalse(T.records(foe));self.assertIsNone(getattr(t,'pending_action_loss',None))
-  e,t,p,foe=self.fixture();self.open(e);out=e.manual_feat(t,T.FOCUSED,t)
+  e,t,p,foe=self.fixture();self.open(e);out=e.manual_feat(t,T.CSV_CLAUSES[T.FOCUSED],t)
   self.assertEqual(out['communication']['mode'],'self_target_exception');self.assertEqual(T.bonus(t,'accuracy'),1)
   self.assertEqual(out['source_clause_id'],CLAUSES[T.FOCUSED][0])
 

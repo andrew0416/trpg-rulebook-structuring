@@ -123,12 +123,16 @@ def preflight_advance(e,c,seconds):
 
 
 def _add_injuries(e,c,amount):
-    if not amount:return
-    c.injuries+=amount
+    if not amount:return 0
+    import actor_templates as TEMPLATES
+    if TEMPLATES.injuries_immune(c):
+        e.log(f"  {c.name}: 질식 부상 {amount} 면역",SUFFOCATION)
+        return 0
     import precise_actions as PRECISE
-    PRECISE.injury(e,c,amount,SUFFOCATION)
-    e.log(f"  {c.name}: 질식 부상 +{amount} (호흡 외 치유 불가)",SUFFOCATION)
+    retained=PRECISE.gain_injury(e,c,amount,SUFFOCATION)
+    e.log(f"  {c.name}: 질식 부상 +{retained} (호흡 외 치유 불가)",SUFFOCATION)
     e.check_fainted(c)
+    return retained
 
 
 def advance(e,c):
@@ -139,8 +143,10 @@ def advance(e,c):
     total=_target_count(state,e.elapsed_seconds)
     gained=total-state["applied_injuries"]
     state["applied_injuries"]=total
-    state["protected_injuries"]+=gained
-    _add_injuries(e,c,gained)
+    retained=_add_injuries(e,c,gained)
+    state["protected_injuries"]+=retained
+    prevented=gained-retained
+    if prevented:state['prevented_injuries']=state.get('prevented_injuries',0)+prevented
 
 
 def observe_breathing(e,c,*,air_available,medium,reason,timing_policy=None,round_offset_seconds=None):
@@ -160,7 +166,7 @@ def observe_breathing(e,c,*,air_available,medium,reason,timing_policy=None,round
         protected_injuries(c)
         if not old["breathing"] and len(e.unresolved_time_intervals)>old["unknown_interval_index"]:
             return C.PendingDecision("GM unknown deprivation interval; exact elapsed time must be reconciled before breathing recovery")
-        if timing_policy is not None and old["applied_injuries"] and timing_policy!=old["timing_policy"]:
+        if timing_policy is not None and old["applied_injuries"]+old.get("prevented_injuries",0) and timing_policy!=old["timing_policy"]:
             raise ValueError("cannot change suffocation timing after injuries have been applied")
     import trainer_capabilities as TRAINER
     grace=TRAINER.breath_grace(c,medium,engine=e)
@@ -183,7 +189,7 @@ def observe_breathing(e,c,*,air_available,medium,reason,timing_policy=None,round
     continuous=bool(old and not old["breathing"] and not effective)
     state=deepcopy(old) if continuous else {
         "source":SUFFOCATION,"deprivation_started_at":None if effective else e.elapsed_seconds,
-        "protected_injuries":0,"applied_injuries":0,"timing_policy":timing_policy,
+        "protected_injuries":0,"applied_injuries":0,"prevented_injuries":0,"timing_policy":timing_policy,
         "unknown_interval_index":len(e.unresolved_time_intervals)}
     if effective and old and old["protected_injuries"]:
         recovered=old["protected_injuries"]
@@ -222,7 +228,7 @@ def _dice(e,expr,fixed):
 def _fall_defense(e,c):
     import effects as FX
     import effect_lifetimes as LIFETIMES,stat_ace as STAT
-    dr=c.damage_reduction+LIFETIMES.numeric(c,'damage_reduction')+STAT.damage_reduction(e,c)
+    dr=c.damage_reduction+LIFETIMES.numeric(c,'damage_reduction')+STAT.damage_reduction(e,c)+__import__('defense_curl').reduction(c)+__import__('declarative_move_contracts').defensive_reduction(c)
     for modifier in c.modifiers:
         if modifier.get("type")!="damage_reduction":continue
         scope=modifier.get("_scope")
@@ -321,7 +327,7 @@ def fall(e,c,*,action_id,meters,intentional,reason,acrobatics=False,acrobatics_o
         checks={}
         for index,(key,dc,opts) in enumerate(plans):
             roll=observed[index] if observed is not None else staged.skill_roll(c,'곡예',**opts)
-            checks[key]=C.against_dc(roll,dc);SF.finish(staged,c,opts.get('roll_id'))
+            checks[key]=SF.resolve_check(staged,c,'곡예',dc,roll,opts);SF.finish(staged,c,opts.get('roll_id'))
         jump=base_jump+int(bool(checks.get("jump_boost") and checks["jump_boost"].passed))
         distance=max(0,meters-__import__('martial_artist').fall_reduction(staged,c)-jump+surface_meters)
         acro=int(bool(checks.get("falling_acrobatics") and checks["falling_acrobatics"].passed))
@@ -345,6 +351,7 @@ def fall(e,c,*,action_id,meters,intentional,reason,acrobatics=False,acrobatics_o
         elif fixed_damage not in (None,[],()):raise ValueError("no base falling damage dice at zero effective distance")
         extra,extra_faces=_dice(staged,surface_dice,fixed_surface) if surface_dice else (0,[])
         damage=max(1,damage_roll+extra-defense-dr) if db or surface_dice else 0
+        if __import__('setup_move_state').physical_immunity(c,'물리'):damage=0
         return dict(source=FALL,action_id=action_id,meters=meters,weight_class=weight,intentional=intentional,
             reason=reason,checks=checks,high_jump=jump,base_high_jump=base_jump,natural_sky=natural,
             natural_sky_evidence=evidence,surface_meters=surface_meters,surface_reason=surface_reason,
@@ -370,11 +377,11 @@ def fall(e,c,*,action_id,meters,intentional,reason,acrobatics=False,acrobatics_o
         sequence_key='fall:'+c.spec.get('id',c.name)+':'+action_id
         try:
             result=SF.sequence(e,sequence_key,basis,[(c,'곡예',opts) for _,_,opts in plans],
-                lambda rolls:COMMON._staged_rolls(e,lambda staged:calculate(staged,rolls)))
+                lambda rolls:COMMON._staged_rolls(e,lambda staged:calculate(staged,rolls),actors=(c,)))
         finally:
             if sequence_key not in getattr(e,'_skill_sequences',{}):c.spec.pop('_fall_skill_inflight',None)
         c.spec.pop('_fall_skill_inflight',None)
-    else:result=COMMON._staged_rolls(e,calculate)
+    else:result=COMMON._staged_rolls(e,calculate,actors=(c,))
     # Save the actual outcome before any potential adjudication boundary. A new
     # request cannot reroll this real fall merely because an exception is pending.
     result["status"]="calculated"
@@ -394,9 +401,11 @@ def fall(e,c,*,action_id,meters,intentional,reason,acrobatics=False,acrobatics_o
     before=c.injuries
     e.take_damage(c,result["damage"])
     result["damage_injuries"]=c.injuries-before
-    c.injuries+=result["height_injuries"]
+    import actor_templates as TEMPLATES
+    result["height_injuries_prevented"]=result["height_injuries"] if TEMPLATES.injuries_immune(c) else 0
+    result["height_injuries"]-=result["height_injuries_prevented"]
     import precise_actions as PRECISE
-    PRECISE.injury(e,c,result["height_injuries"],FALL)
+    result['retained_height_injuries']=PRECISE.gain_injury(e,c,result["height_injuries"],FALL)
     e.check_fainted(c)
     result["status"]="resolved" if c.injuries<5 else "pending_heavy_composition_after_base_fall"
     e.log(f"  {c.name}: 낙하 DB{result['damage_base']} 피해 {result['damage']}, 높이 부상 +{result['height_injuries']}",FALL)
@@ -417,16 +426,18 @@ def validate_respiration(c):
     if row.get('timing_policy') not in (None,*TIMINGS):raise ValueError('unknown suffocation phase')
     for key in ('protected_injuries','applied_injuries','unknown_interval_index','observed_at'):
         C.integer(row.get(key),'respiration '+key,0)
+    C.integer(row.get('prevented_injuries',0),'respiration prevented_injuries',0)
     C.integer(row.get('grace_seconds'),'respiration grace',60)
     if row.get('grace_source') not in (SUFFOCATION,'edge/수영-선수'):raise ValueError('unknown breath-holding source')
     if not isinstance(row.get('reason'),str) or not row['reason'].strip():raise ValueError('actual breathing observation reason required')
     if row['breathing']:
-        if row.get('deprivation_started_at') is not None or row['protected_injuries'] or row['applied_injuries']:
+        if row.get('deprivation_started_at') is not None or row['protected_injuries'] or row['applied_injuries'] or row.get('prevented_injuries',0):
             raise ValueError('breathing state cannot retain deprivation injury debt')
     else:
         C.integer(row.get('deprivation_started_at'),'deprivation start',0)
         if row['deprivation_started_at']>row['observed_at']:raise ValueError('deprivation starts after its observation')
-        if row['protected_injuries']!=row['applied_injuries']:raise ValueError('unrecovered suffocation provenance mismatch')
+        C.integer(row.get('prevented_injuries',0),'prevented suffocation injuries',0)
+        if row['protected_injuries']+row.get('prevented_injuries',0)!=row['applied_injuries']:raise ValueError('unrecovered suffocation provenance mismatch')
     protected_injuries(c)
 
 

@@ -20,8 +20,15 @@ def validate(actor):
             raise ValueError('stock receipt belongs to another payer')
         C.integer(row.get('at'),'stock payment time',0)
         C.integer(stock.get('count'),'paid stock count',1)
-        if row.get('outcome') not in ('paid','applied','no_effect','loaded') or type(row.get('results')) is not list:
+        if row.get('outcome') not in ('paid','deferred','applied','no_effect','loaded') or type(row.get('results')) is not list:
             raise ValueError('explicit stock application outcome required')
+        if row['outcome']=='deferred' and (type(row.get('target_id')) is not str or not row['target_id'] or not row['results'] or any(type(r) is not dict or not r.get('kind') or not r.get('id') for r in row['results'])):
+            raise ValueError('deferred stock needs its original target and native result')
+        if 'encounter' in row:
+            scope=row['encounter']
+            if type(scope) is not dict or set(scope)!={'active','epoch'} or type(scope['active']) is not bool:
+                raise ValueError('actual item payment encounter scope required')
+            C.integer(scope['epoch'],'item payment encounter epoch',0)
     return rows
 
 
@@ -29,8 +36,42 @@ def issue(engine, actor, paid):
     rows=validate(actor)
     identity=actor.entity_id+':stock:'+str(len(rows)+1)
     actor.spec.setdefault(KEY,{})[identity]={'receipt_id':identity,'user_id':actor.entity_id,
-        'at':engine.elapsed_seconds,'item_stock':paid,'outcome':'paid','target_id':None,'results':[]}
+        'at':engine.elapsed_seconds,'item_stock':paid,'outcome':'paid','target_id':None,'results':[],
+        'encounter':{'active':engine.encounter_active,'epoch':engine._party_encounter_epoch}}
     return paid
+
+
+def payment_id(actor, paid):
+    matches=[row['receipt_id'] for row in validate(actor).values() if row['item_stock'] is paid]
+    if len(matches)!=1:raise ValueError('actual original stock payment required')
+    return matches[0]
+
+
+def finish_immediate(engine, actor, target, identity, header, result):
+    """Native medicine tail, only after the original effect consumer returned."""
+    row=validate(actor).get(identity)
+    if row is None or row['item_stock']['item_id']!=header.get('id'):
+        raise ValueError('immediate item result requires its actual payment')
+    if not isinstance(result,(tuple,list)) or len(result)!=2 or any(type(x)is not int or x<0 for x in result):
+        raise ValueError('actual immediate item execution result required')
+    outcome='applied' if result[0]>0 and result[1]==0 else 'no_effect'
+    finish(actor,row['item_stock'],target_id=target.entity_id,outcome=outcome,
+           results=[{'kind':'immediate_item_target','id':target.entity_id}])
+    row['native_immediate_result']={'done':result[0],'held':result[1]}
+    return result
+
+
+def defer(actor, paid, *, target_id, results):
+    """Bind paid stock to a native delayed application, without claiming its effect."""
+    rows=validate(actor)
+    matches=[r for r in rows.values() if r['item_stock'] is paid]
+    if len(matches)!=1 or matches[0]['outcome']!='paid':
+        raise ValueError('actual unused stock payment required for deferred application')
+    if type(target_id) is not str or not target_id or not isinstance(results,(list,tuple)) or not results or any(
+            type(r) is not dict or not r.get('kind') or not r.get('id') for r in results):
+        raise ValueError('actual deferred target and native result addresses required')
+    matches[0].update(target_id=target_id,outcome='deferred',results=deepcopy(list(results)))
+    return matches[0]
 
 
 def finish(actor, paid, *, target_id, outcome, results=()):
@@ -44,7 +85,9 @@ def finish(actor, paid, *, target_id, outcome, results=()):
     if not isinstance(results,(list,tuple)) or any(type(r) is not dict or not r.get('kind') or not r.get('id') for r in results):
         raise ValueError('identified native result addresses required')
     proposed={'target_id':target_id,'outcome':outcome,'results':deepcopy(list(results))}
-    if row['outcome']!='paid':
+    if row['outcome']=='deferred' and (row['target_id']!=target_id or outcome not in ('applied','no_effect')):
+        raise ValueError('deferred stock must resolve for its original target')
+    if row['outcome'] not in ('paid','deferred'):
         if any(row[k]!=v for k,v in proposed.items()):raise ValueError('stock payment already has another outcome')
         return row
     row.update(proposed)

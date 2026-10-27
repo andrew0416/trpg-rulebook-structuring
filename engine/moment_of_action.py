@@ -13,8 +13,7 @@ KEY='moment_of_action_uses'
 
 
 def receipts(actor,feature,*,active=False):
-    return [row['static_acquisition'] for _,row,live in TFA._static_records(actor)
-            if row['static_acquisition']['feature_id']==feature and (live or not active)]
+    return [record for _, record in TFA.static_acquisitions(actor, feature, active=active)]
 
 
 def acquisition_snapshot(actor,feature):
@@ -102,7 +101,11 @@ def use(engine,actor,targets,*,funding,allies,communication=None):
     import passive_events as PASSIVE,heavy_injury_adapter as HEAVY
     PASSIVE.ensure_clear(engine);HEAVY.ensure_clear(engine)
     W.require_actors(engine,actor)
-    if type(targets) not in (list,tuple) or len(targets)>2:
+    import commander as COMMANDER
+    commander=COMMANDER.scope(engine,actor,FEATURE)
+    expanded=bool(commander is not None and commander['activation']['modifier'] in (COMMANDER.BATTLE,COMMANDER.TIP)
+        and [c['target'] for c in commander['assignments'] if c['feature']==FEATURE]==list(targets))
+    if type(targets) not in (list,tuple) or len(targets)>2 and not expanded:
         raise ValueError('explicit zero, one or two allied Trainers required')
     W.require_actors(engine,*targets)
     ids=[target.entity_id for target in targets]
@@ -120,11 +123,12 @@ def use(engine,actor,targets,*,funding,allies,communication=None):
         E.text(fact['reason'],'allied relationship reason')
         if actor.side and target.side and actor.side!=target.side:raise ValueError('actual opposing sides are not allies')
         AP.policy(funding[target.entity_id])
-    if engine.encounter_active:
-        P.preflight(engine,actor,action='standard',source=FEATURE);T.current(engine)
+    import order_actions as ORDERS
     def apply(e,owner,*recipients):
         import turn as TURN,action_lifecycle as ACTION,body_modes as BODY,effect_lifetimes as LIFE
         if e.encounter_active:
+            ORDERS.preflight(e,owner,FEATURE,action=COMMANDER.priority_action(e,owner,FEATURE));T.current(e)
+        if ORDERS.priority(e,owner,FEATURE):
             ACTION.ensure_resolutions_clear(e)
             if not TURN.can_act(e,owner) or not ACTION.status_permission(e,owner,'standard') or not BODY.permits(owner,'standard') or LIFE.forbids(owner,'priority'):
                 raise ValueError('actual Standard Priority action permission required')
@@ -135,14 +139,15 @@ def use(engine,actor,targets,*,funding,allies,communication=None):
             request,result=_communication(e,owner,target,use_id,None if communication is None else communication[target.entity_id])
             deliveries[target.entity_id]={'request_id':request,'result':result}
         group={'status':'delivered','recipients':deepcopy(deliveries)}
-        if e.encounter_active:
-            payment={'kind':'priority_limited','receipt_id':P.reserve(e,owner,action='standard',source=FEATURE,subject=use_id,communication=group)['id']}
+        if ORDERS.priority(e,owner,FEATURE):
+            payment={'kind':'priority_limited','receipt_id':P.reserve(e,owner,action=COMMANDER.priority_action(e,owner,FEATURE),source=FEATURE,subject=use_id,communication=group)['id']}
         else:
             if not TURN.spend(e,owner,'standard','Moment of Action'):raise ValueError('actual Standard action permission required')
             payment={'kind':'standard','action':'standard'}
         row={'id':use_id,'issuer_id':owner.entity_id,'source':deepcopy(receipt['source']),
              'acquisition_request_id':receipt['request_id'],'round':e.round_no,'at':e.elapsed_seconds,
              'targets':{},'payment':payment,'communication':deliveries}
+        if expanded:row['commander_activation']=commander['activation']['id']
         for target in recipients:
             origin={'issuer_id':owner.entity_id,'use_id':use_id,'acquisition_request_id':receipt['request_id']}
             effect=AP.grant(e,target,source=FEATURE,amount=1,origin=origin,funding=funding[target.entity_id],issuer=owner)
@@ -183,7 +188,7 @@ def validate_world(engine,index):
     for issuer in index.values():
         for serial,row in enumerate(_uses(issuer),1):
             fields={'id','issuer_id','source','acquisition_request_id','round','at','targets','payment','communication','integrity'}
-            if type(row) is not dict or set(row)!=fields or row['integrity']!=TFA._digest('moment-of-action/producer/v1',{k:v for k,v in row.items() if k!='integrity'}):
+            if type(row) is not dict or set(row) not in (fields,fields|{'commander_activation'}) or row['integrity']!=TFA._digest('moment-of-action/producer/v1',{k:v for k,v in row.items() if k!='integrity'}):
                 raise ValueError('Moment of Action producer evidence changed')
             if row['id']!='moment-of-action:'+issuer.entity_id+':'+str(serial) or row['issuer_id']!=issuer.entity_id or row['source']!=TFA._static_source(issuer.r,FEATURE):
                 raise ValueError('Moment of Action source or actual issuer changed')
@@ -192,11 +197,13 @@ def validate_world(engine,index):
             C.integer(row['at'],'Moment of Action issue time',0,engine.elapsed_seconds)
             C.integer(row['round'],'Moment of Action issue round',0,engine.round_no)
             targets=row['targets']
-            if type(targets) is not dict or len(targets)>2 or set(row['communication'])!=set(targets):raise ValueError('exact Moment of Action target roster required')
+            expanded=__import__('commander').group_authority(engine,issuer,FEATURE,targets,row.get('commander_activation'))
+            if (type(targets) is not dict or len(targets)>2 and not expanded or set(row['communication'])!=set(targets)
+                    or 'commander_activation' in row and not expanded):raise ValueError('exact Moment of Action target roster required')
             payment=row['payment']
             if payment.get('kind')=='priority_limited':
                 paid=[r for r in P.records(issuer) if r['id']==payment.get('receipt_id')]
-                if len(paid)!=1 or paid[0]['source']!=FEATURE or paid[0]['subject_id']!=row['id'] or paid[0]['payment']['funded']!={'standard':1} or paid[0]['communication']!={'status':'delivered','recipients':row['communication']}:
+                if len(paid)!=1 or paid[0]['source']!=FEATURE or paid[0]['subject_id']!=row['id'] or paid[0]['payment']['funded']!=__import__('commander').priority_funded(issuer,FEATURE,paid[0]['id'],row.get('commander_activation')) or paid[0]['communication']!={'status':'delivered','recipients':row['communication']}:
                     raise ValueError('Moment of Action actual Standard reservation missing')
             elif payment!={'kind':'standard','action':'standard'}:raise ValueError('Moment of Action Standard payment changed')
             for target_id,proof in targets.items():

@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "id": "repair_revisions_06",
+  "purpose": "Source-backed core Suction Cups and fossil/egg correction; selected Cleanse inventory source; lawful BattleContest/Juggler fixtures; full-state rollback diagnostics; explicit runtime source retention on custom loading; first11existing state-reuse test revisions with independent builders and blocked dependencies. Exact372 changed-impact methods including12new. All original4115 and later obligations retained; full repository13130methods+21procedural test revision remains partial.",
+  "completion_credit": 0,
+  "required_unique_count": 36,
+  "completed": {
+    "tools.test_battle_contest_cancelled.BattleContestCancellationTests": {
+      "tests": [
+        "tools.test_battle_contest_cancelled.BattleContestCancellationTests.test_paid_attacker_faint_cancellation_settles_once_restores_and_allows_next_performer"
+      ]
+    },
+    "tools.test_bound_ap_release.BoundAPTests": {
+      "tests": [
+        "tools.test_bound_ap_release.BoundAPTests.test_duplicate_adoption_no_effect_or_AP_change",
+        "tools.test_bound_ap_release.BoundAPTests.test_duplicate_release_cannot_refund_or_record_action_again",
+        "tools.test_bound_ap_release.BoundAPTests.test_release_exact_instance_effect_and_AP",
+        "tools.test_bound_ap_release.BoundAPTests.test_same_modifier_cannot_belong_to_two_bindings"
+      ]
+    },
+    "tools.test_category2_ability_transitions.AbilityTransitionTests": {
+      "tests": [
+        "tools.test_category2_ability_transitions.AbilityTransitionTests.test_both_replacement_sources_change_only_selected_identity_and_run_real_passives",
+        "tools.test_category2_ability_transitions.AbilityTransitionTests.test_copy_keeps_origin_snapshot_and_an_independent_same_ability_source",
+        "tools.test_category2_ability_transitions.AbilityTransitionTests.test_selected_suppression_preserves_other_ability_and_baseline_until_encounter_end",
+        "tools.test_category2_ability_transitions.AbilityTransitionTests.test_snapshot_and_fresh_engine_restore_preserve_origins_then_end_natively"
+      ]
+    },
+    "tools.test_foundation_fossil_creation.FossilTests": {
+      "tests": [
+        "tools.test_foundation_fossil_creation.FossilTests.test_actual_material_work_wait_and_declared_birth_produce_one_native_child",
+        "tools.test_foundation_fossil_creation.FossilTests.test_plain_fossil_birth_domain_survives_owner_transfer_gm_and_json_restore",
+        "tools.test_foundation_fossil_creation.FossilTests.test_plain_fossil_birth_requires_one_species_basic_at_every_initial_level"
+      ]
+    },
+    "tools.test_item_source_identity_revision.PickupSourceCategoryTests": {
+      "tests": [
+        "tools.test_item_source_identity_revision.PickupSourceCategoryTests.test_all_printed_d20_ranges_record_category_without_inventing_item",
+        "tools.test_item_source_identity_revision.PickupSourceCategoryTests.test_gm_selects_real_eligible_items_for_each_nonempty_category",
+        "tools.test_item_source_identity_revision.PickupSourceCategoryTests.test_legacy_reward_restores_stock_unchanged_and_requires_reconciliation",
+        "tools.test_item_source_identity_revision.PickupSourceCategoryTests.test_none_wrong_category_non_tm_and_missing_gm_reason_reject_unchanged",
+        "tools.test_item_source_identity_revision.PickupSourceCategoryTests.test_pending_category_restores_then_gm_awards_once_without_reroll"
+      ]
+    },
+    "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests": {
+      "tests": [
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_all_six_csv_stat_formulas_reach_each_native_boundary_once",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_birth_projections_preserve_inherited_moves_fossil_lineage_and_artificial_upgrades",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_capture_and_birth_do_not_replay_intrinsic_enter_or_trainer_registration",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_capture_with_absent_or_unknown_side_uses_registered_ownership",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_carried_storage_pending_all_acquire_effects_without_granting_combat_participation",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_class_fire_and_ice_declarations_preserve_live_type_and_target_conditions",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_csv_species_label_remains_distinct_and_wrong_or_absent_label_is_inert",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_explicit_csv_class_passive_ids_keep_exact_acquisition_source",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_explicit_csv_passive_restore_preserves_source_and_exclusion_is_atomic",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_failed_capture_and_invalid_thrower_never_install_owner_effects",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_json_fresh_rules_and_gm_restore_preserve_each_boundary_without_double_grants",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_late_projection_failure_rolls_back_every_native_boundary_and_live_identity",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_native_species_receipt_projects_actual_family_on_all_birth_and_join_routes",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_native_stat_mastery_receipts_survive_capture_and_all_birth_producers",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_native_stat_receipts_and_mastery_keep_the_book_source_at_late_join",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_newly_projected_book_species_retraining_and_transfer_remove_only_old_owner",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_range_generic_shine_and_both_slot_source_identities_reach_every_boundary",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_receipted_type_ace_shine_is_exactly_two_without_generic_double_projection",
+        "tools.test_owner_projection_lifecycle.OwnerProjectionLifecycleTests.test_same_side_foreign_owner_ownerless_and_unregistered_objects_do_not_borrow_sources"
+      ]
+    }
+  }
+}

@@ -69,6 +69,7 @@ def _seal(row):return TFA._digest('keep-fighting/producer/v1',{k:v for k,v in ro
 
 def replace_hp(engine,target,before,proposed,*,source,loss_kind,amount,unpreventable=False):
     """The HP producer supplies the post-temporary-HP proposal, before writing it."""
+    if source=='move/대타출동' and loss_kind=='hp_setting' and unpreventable:return proposed
     if before<1 or proposed>0:return proposed
     import world_entities as W,cheerleader as CH,frequency as F
     import action_lifecycle as ACTION,body_modes as BODY,turn as TURN

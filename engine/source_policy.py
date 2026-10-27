@@ -635,7 +635,7 @@ def _execute_captured(engine, actor, target, document, *, context=None, decision
             if qualification_result['status']!='qualified':raise ValueError('acquisition qualification denied')
         if frequency_key is not None:
             import frequency as FREQ
-            if not FREQ.activation_allowed(staged_actor,frequency_key,values['frequency'],engine=staged_engine):
+            if not FREQ.activation_allowed(staged_actor,frequency_key,values['frequency'],engine=staged_engine,action_actor=staged_actor):
                 raise PolicyExecutionPending('authored activation frequency exhausted')
         if _action:
             import turn as TURN
@@ -711,7 +711,7 @@ def _execute_captured(engine, actor, target, document, *, context=None, decision
             outcomes = [{'source_id':row.source_id,'status':row.status,
                          'occurrence':row.occurrence} for row in batch.outcomes]
         if frequency_key is not None:
-            FREQ.consume_activation(staged_actor,frequency_key,values['frequency'],engine=staged_engine)
+            FREQ.consume_activation(staged_actor,frequency_key,values['frequency'],engine=staged_engine,action_actor=staged_actor)
         if _action and 'recipient_debt' in values:
             import action_resources as RESOURCES
             RESOURCES.schedule(staged_target,values['recipient_debt'])
@@ -858,6 +858,7 @@ def register_sources(rules, definitions):
         known[uid]=row;new_units.append(unit)
     selection=RuleSelection(rules.ruleset,list(rules.selection.units.values())+new_units)
     selection.dependencies=deepcopy(rules.selection.dependencies)
+    selection.source_audit_snapshots=deepcopy(getattr(rules.selection,'source_audit_snapshots',{}))
     rules.selection=selection
     rules._authored_policy_sources=known
     return deepcopy(definitions)

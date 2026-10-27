@@ -61,29 +61,28 @@ class CoreMindlockTests(unittest.TestCase):
         self.assertEqual((self.a.budget['standard'], self.a.move_uses[M.MIND_READER]), (0, 1))
         self.assertEqual(self.e.rng.getstate(), rng)
         self.assertTrue(any(M.SOURCE in str(line) for line in self.e.log_lines))
-        # A later actual activation rechecks current ownership. No positive
-        # Mind Reader state/effect is invented for the still-unimplemented Move.
+        # A later activation rechecks current ownership and creates real Read.
         G.revoke(self.t, 'fixture:mindlock')
         self.e.end_of_turn(self.a)
         self.e.end_scene(self.e.everyone)
         self.begin(self.a)
-        before = self.resources(self.a)
-        with self.assertRaises(CONTRACTS.EffectContractError):
-            self.e.use_move(self.a, self.t, M.MIND_READER)
-        self.assertEqual(self.resources(self.a), before)
+        self.e.use_move(self.a, self.t, M.MIND_READER)
+        self.assertTrue(__import__('telepath').live(self.t, 'read'))
 
     def test_gentle_actual_owned_ability_blocks_only_mindlock_recipient(self):
         G.replace_baseline(self.e, self.p, 'abilities', ['다정한분위기'])
         self.mindlock(self.t)
+        self.p.pos = (6, 3)
         self.e.change_stage(self.t, 'atk', 2)
         self.e.gm.add_condition(self.t, '혼란', force=True, reason='observed agitation')
         self.begin(self.p)
         before = deepcopy((self.t.conditions, self.t.stages))
         resources = self.resources(self.p)
         out = self.e.activate_ability(self.p, 'Gentle Vibe', self.t)
-        self.assertEqual((out['status'], out['immunity_source'], out['calmed']), ('immune', M.SOURCE, False))
+        recipient = next(x for x in out['targets'] if x['target_id'] == self.t.entity_id)
+        self.assertEqual((recipient['status'], recipient['immunity_source']), ('immune', M.SOURCE))
         self.assertEqual((self.t.conditions, self.t.stages), before)
-        self.assertEqual(self.resources(self.p), resources)
+        self.assertEqual(self.p.budget['standard'], 0)
         with self.assertRaises(ValueError):
             self.e.activate_ability(self.p, M.GENTLE_VIBE, copy(self.t))
         with self.assertRaisesRegex(ValueError, 'actual unsuppressed'):
@@ -93,7 +92,8 @@ class CoreMindlockTests(unittest.TestCase):
             self.e.activate_ability(self.p, M.GENTLE_VIBE, self.t)
         self.p.abilities_suppressed = False
         G.revoke(self.t, 'fixture:mindlock')
-        with self.assertRaisesRegex(ValueError, 'reviewed manual ability source required'):
+        self.begin(self.p)
+        with self.assertRaisesRegex(ValueError, 'frequency'):
             self.e.activate_ability(self.p, M.GENTLE_VIBE, self.t)
         self.assertEqual((self.t.conditions, self.t.stages), before)
 
@@ -117,7 +117,7 @@ class CoreMindlockTests(unittest.TestCase):
         event2 = self.attack()
         before = (self.resources(self.a), self.resources(self.t), deepcopy(self.a.spec))
         pending = self.e.manual_feat(self.a, 'Telepathic Warning', event2)
-        self.assertIsInstance(pending, C.PendingDecision)
+        self.assertEqual(pending['status'], 'returned_attack')
         self.assertIsNone(self.e._passive_events[event2][M.ATTACK_FACT])
         self.assertEqual((self.resources(self.a), self.resources(self.t), self.a.spec), before)
 

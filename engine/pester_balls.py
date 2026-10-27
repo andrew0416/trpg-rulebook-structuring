@@ -60,6 +60,18 @@ def attack(rules, source):
             'ac':value['ac'],'range':'원거리, 대상1','keywords':[]}
 
 
+def _cannon(engine, r):
+    if r.held_selection is None:return None
+    import item_stock as STOCK,csv_item_physical_contracts as PHYSICAL
+    stock=STOCK.prepare(engine,r.user,r.source_id,held_selection=r.held_selection)
+    loaded=[obj['id'] for obj in getattr(engine,'_physical_objects',{}).values()
+            if obj.get(PHYSICAL.OBJECT_STATE,{}).get('loaded_ball_instance_id')==stock['instance_id']]
+    if not loaded:return None
+    if len(loaded)!=1:raise ValueError('Pester Ball needs one actual loading Cannon')
+    profile=PHYSICAL.cannon_profile(engine,r.user,loaded[0],projectile='pester_ball')
+    return dict(profile,instance_id=loaded[0])
+
+
 def _signed(value):
     return dict(value,sha256=TX.request_fingerprint(value))
 
@@ -173,7 +185,9 @@ def prepare(engine,r):
     if (r.user is r.target or r.user.kind!='trainer' or not r.user.on_field or not r.target.on_field
             or r.target.captured or r.target.dead):raise ValueError('actual trainer thrower and distinct on-field target required')
     if engine.grid is None:return C.PendingDecision('Pester Ball throwing needs actual mapped range and path')
-    if not B.in_range(engine,r.user,r.target,CAP.throwing_range(engine,r.user,category='poke_ball')):
+    cannon=_cannon(engine,r)
+    maximum=cannon['range_m'] if cannon is not None else CAP.throwing_range(engine,r.user,category='poke_ball')
+    if not B.in_range(engine,r.user,r.target,maximum):
         raise ValueError('Pester Ball target exceeds actual ball throwing range or path')
     if engine.encounter_active and (r.user.injuries>=5 and not __import__('taskmaster').ignores_acting_loss(r.user)):raise ValueError('heavy-injury Standard item attack needs reviewed action composition')
     validate_world(engine,W.actor_index(engine))
@@ -183,7 +197,8 @@ def prepare(engine,r):
     move=attack(engine.r,r.source_id);CONFUSION.preflight(engine,r.user,move)
     # Validate every native accuracy dependency before payment or RNG. This is
     # preparation only; native accuracy_check still owns the actual observation.
-    engine._prepare_accuracy_context(r.user,r.target,move,fixed_roll=r.fixed_accuracy)
+    engine._prepare_accuracy_context(r.user,r.target,move,fixed_roll=r.fixed_accuracy,
+                                     situational=cannon['accuracy_bonus'] if cannon is not None else 0)
     STOCK.prepare(engine,r.user,r.source_id,held_selection=r.held_selection)
 
 
@@ -202,15 +217,26 @@ def _consume(engine,r):
     import item_stock as STOCK,consumption_execution as PAID,turn as TURN
     import confusion_attacks as CONFUSION,precise_actions as PRECISE,world_entities as W
     stock=STOCK.prepare(engine,r.user,r.source_id,held_selection=r.held_selection)
+    cannon=_cannon(engine,r)
     if not TURN.spend(engine,r.user,'standard','오물탄'):return (0,0)
+    if cannon is not None:
+        import csv_item_physical_contracts as PHYSICAL
+        PHYSICAL.fire_cannon(engine,r.user,cannon['instance_id'],
+                             ball_instance_id=cannon['ball_instance_id'],projectile='pester_ball')
     payment=STOCK.debit(engine,r.user,stock)
     move=attack(engine.r,r.source_id);CONFUSION.observe_action(engine,r.user,move)
     event=PRECISE.attacked(engine,r.user,r.target,move,producer='item_attack')
-    hit,natural,_=engine.accuracy_check(r.user,r.target,move,fixed_roll=r.fixed_accuracy)
+    hit,natural,_=engine.accuracy_check(r.user,r.target,move,fixed_roll=r.fixed_accuracy,
+                                      situational=cannon['accuracy_bonus'] if cannon is not None else 0)
     PRECISE.accuracy(event,hit)
+    if hit and cannon is not None:
+        damage,faces=engine.roll_expr(cannon['fixed_damage'])
+        engine.take_damage(r.target,damage)
+        cannon['damage']={'expression':'2d6','faces':faces,'requested':damage}
     prior=projection(engine,r.target)['immune'];applied=False;row=None
     if hit and not prior:
-        applied=bool(engine.apply_status(r.target,VARIANTS[r.source_id],source=r.source_id,applied_by=r.user))
+        if cannon is None or not (r.target.fainted or r.target.dead):
+            applied=bool(engine.apply_status(r.target,VARIANTS[r.source_id],source=r.source_id,applied_by=r.user))
         receipt=next(value for value in PAID.validate(r.user).values() if value['item_stock'] is payment)
         rows=r.target.spec.setdefault(KEY,{'episodes':[]})['episodes']
         row={'id':r.target.entity_id+':pester:'+str(len(rows)+1),
@@ -222,8 +248,10 @@ def _consume(engine,r):
     PAID.finish(r.user,payment,target_id=r.target.entity_id,outcome='applied' if row else 'no_effect',
                 results=[{'kind':KEY,'id':row['id']}] if row else [])
     burst=__import__('researcher_fields').pester_hit(engine,r.user,r.target,r.source_id,hit=hit,status_applied=applied)
+    __import__('study_books').anarchist(engine,r.user,r.target,repel=False,hit=hit)
     validate_world(engine,W.actor_index(engine))
     result={'source':r.source_id,'target_id':r.target.entity_id,'hit':hit,'natural':natural,
             'status_applied':applied,'family_immune_before':prior,'immunity_started':row is not None,'payment':payment,'chemical_warfare':burst}
+    if cannon is not None:result['cannon']=cannon
     engine.log('    Pester Ball: '+('miss' if not hit else 'family immune' if prior else 'status applied' if applied else 'hit without new status'),r.source_id)
     return result

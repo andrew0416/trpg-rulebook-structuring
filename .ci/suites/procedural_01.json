@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "execution_kind": "procedural_runner",
+  "unit_id": "script:engine/test_builder.py",
+  "unit_kind": "procedural_script_runner",
+  "required_runner_ids": [
+    "script:engine/test_builder.py"
+  ],
+  "completed": {},
+  "original_contract_sha256": "e3d77188349b73970f6d36f0f531954dee866138e7948788b9d3062d268daf49",
+  "inventory_sha256": "46c04e8eb8efa90c96a5ca21864b44e0112a7b0b9d78f77c31aad5bafe36caf5",
+  "runner": {
+    "source_path": "engine/test_builder.py",
+    "argv": [
+      "python",
+      "-B",
+      "-X",
+      "utf8",
+      "-I",
+      "{stage}/engine/test_builder.py",
+      "{stage}"
+    ],
+    "cwd": "{stage}",
+    "environment": {
+      "TEMP": "{stage}/.tmp",
+      "TMP": "{stage}/.tmp"
+    },
+    "report": {
+      "path": "output/builder-tests.md",
+      "kind": "markdown_result_table"
+    },
+    "additional_outputs": [
+      "output/encounter-lakeside.md",
+      "output/encounter-cave.md"
+    ],
+    "mutations": {
+      "temporarily_modified_restored": [],
+      "generated_retained": []
+    },
+    "result_buffer": "res",
+    "entry_function": "run",
+    "sort_results_by_id": false,
+    "source_sha256": "4596774f241cc4c504b11745013ebf4269c03bb27f8f2aa30222f325adb4845c"
+  }
+}

@@ -100,6 +100,12 @@ def _rule(rules, uid):
 
 
 def _ability(rules, printed):
+    if printed=='파동바람':
+        row=_load(str(rules.root))['abilities'][printed]
+        if row.get('resolution')!='selected_core_or_official_playtest' or row.get('candidate_ids')!=['ability/파동바람','ability/파동바람-playtest']:raise ValueError('reviewed Core and Playtest Aura Storm source pair required')
+        uid=rules._selected_rule('ability/파동바람')
+        if uid not in ('ability/파동바람','ability/파동바람-playtest'):raise ValueError('selected Aura Storm contract required')
+        return uid,rules.selection.units[uid]['title']
     data = _load(str(rules.root))
     row = data["abilities"].get(printed)
     if row is None:
@@ -129,7 +135,10 @@ def _ability(rules, printed):
         })
         if actual != definition:
             raise ValueError("reviewed Ability catalog definition changed: " + uid)
-        if rules._selected_rule(uid) != uid or unit["title"] not in rules.ability_effects or unit["title"] in getattr(rules, "excluded_abilities", {}):
+        # A reviewed Core-only family retains later-variant catalog evidence,
+        # but does not request permission to execute those other definitions.
+        executable = row.get("resolution") != "ptu_1_05_definition_excludes_later_named_variant" or uid == row["ability_id"]
+        if executable and (rules._selected_rule(uid) != uid or unit["title"] not in rules.ability_effects or unit["title"] in getattr(rules, "excluded_abilities", {})):
             raise ValueError("reviewed Ability catalog identity is not executable: " + uid)
         candidates.append(uid)
     if candidates != row["candidate_ids"] or row["ability_id"] not in candidates:
@@ -158,6 +167,11 @@ def _ability(rules, printed):
 
 def registration(rules, name):
     """Exact ability registration used by move_state for these projections."""
+    if name in ('파동바람','파동바람 [Playtest]','ability/파동바람','ability/파동바람-playtest'):
+        uid,title=_ability(rules,'파동바람')
+        explicit={'파동바람 [Playtest]':'ability/파동바람-playtest','ability/파동바람-playtest':'ability/파동바람-playtest'}.get(name)
+        if explicit is not None and uid!=explicit:raise ValueError('selected Aura Storm edition differs from requested Ability')
+        return {'name':title,'source_id':uid,'equivalent_source_ids':[uid]}
     data = _load(str(rules.root))
     matches = []
     for printed, row in data["abilities"].items():
@@ -172,6 +186,10 @@ def registration(rules, name):
     if not matches:
         return None
     printed, row = matches[0]
+    if (row.get("resolution") == "ptu_1_05_definition_excludes_later_named_variant"
+            and name in row["candidate_ids"] and name != row["ability_id"]):
+        rules._selected_rule(name)
+        raise ValueError("explicit acquired-Feature Ability variant has no reviewed registration: " + name)
     ability_id, title = _ability(rules, printed)
     return {"name": title, "source_id": ability_id, "equivalent_source_ids": list(row["equivalent_ids"])}
 
@@ -218,6 +236,7 @@ def _ability_choice(actor, uid, row, rank):
     result = []
     for value in raw:
         candidates = [printed for printed in allowed if value in {
+            *(_ability(actor.r,printed) if printed=='파동바람' else ()),
             printed,
             _load(str(actor.r.root))["abilities"][printed]["ability_id"],
             _load(str(actor.r.root))["abilities"][printed]["ability_title"],
@@ -283,7 +302,13 @@ def plan(engine, actor, uid):
     moves = []
     selection = []
     if row["mode"] == "ability_choice":
-        abilities, selection = _ability_choice(actor, uid, row, rank)
+        import sage as SAGE
+        native=SAGE.acquired(actor,SAGE.HANDS) if uid==SAGE.HANDS else None
+        if native:
+            chosen=native['snapshot']['selection'];reg=SAGE.registration(engine.r,chosen)
+            abilities=[(reg['source_id'],reg['name'])];selection=[chosen]
+            if _source_choice(actor,uid)!=selection:raise ValueError('actual Lay on Hands immutable choice required')
+        else:abilities, selection = _ability_choice(actor, uid, row, rank)
     elif row["mode"] == "derived_ability":
         abilities, selection = _derived_choice(actor, uid, row)
     elif row["mode"] == "move_choice":
@@ -346,7 +371,7 @@ def register_all(engine, actor):
     all_sources, managed = _managed(actor)
     desired = {_source_key(actor, row["rule_id"]): row for row in desired_rows}
     for key in desired:
-        if key in all_sources and key not in managed:
+        if key in all_sources and key not in managed and not (all_sources[key].get('static_acquisition',{}).get('feature_id')==__import__('sage').HANDS):
             raise ValueError("acquired Feature source collides with another projection")
     for key, value in desired.items():
         prior = managed.get(key, {}).get("projection_selection")

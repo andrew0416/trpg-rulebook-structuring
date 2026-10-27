@@ -15,6 +15,8 @@ def validate(engine, actors):
     from world_entities import validate_mount_relations, validate_world
     import temporary_hp as TEMP_HP
     TEMP_HP.loss_policy(engine)
+    import frequency as FREQUENCY
+    FREQUENCY.validate_session_policy(engine)
     for actor in actors:
         if actor.kind != actor.spec.get('kind'):
             raise ValueError('actor kind disagrees with base state')
@@ -48,7 +50,8 @@ def validate(engine, actors):
     WEATHER_TEMPLATES.validate(engine)
     issues = validate_world(engine)['issues']
     if issues:
-        raise WorldIntegrityError('world reference integrity: ' + '; '.join(row['code'] for row in issues))
+        raise WorldIntegrityError('world reference integrity: ' + '; '.join(row['code'] for row in issues)
+                                  + ' (' + '; '.join(row['message'] for row in issues) + ')')
     # This native relation boundary also owns Telekinetic object/holder checks,
     # which are not included in WORLD's findings collector.
     validate_mount_relations(engine)

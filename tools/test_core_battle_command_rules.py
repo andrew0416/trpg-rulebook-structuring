@@ -211,7 +211,11 @@ class NativeBattleFixture(unittest.TestCase):
         else:
             self.e.act_on_party(self.t,recall=[self.old],send=[(self.new,(2,1))],
                 request_id='actual-switch',reason='actual fainted replacement' if fainted else 'actual voluntary switch')
-        self.e.replace_scheduled_participant('pc-pokemon',self.new,source='gm/actual-switch-binding',reason='actual replacement retains the turn slot')
+        if placement:
+            self.e.replace_scheduled_participant('pc-pokemon',self.new,source='gm/actual-switch-binding',reason='actual replacement retains the turn slot')
+        else:
+            self.assertIs(self.e._initiative_schedule['slots']['pc-pokemon']['actor'],self.new)
+            self.assertEqual(INTERRUPTS.command_debts(self.e,self.t),0)
         self.e.end_of_turn(self.t);self.close(self.foe_t)
 
     def waiting(self,move='move/막치기',roll=18):

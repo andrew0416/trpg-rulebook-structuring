@@ -135,6 +135,7 @@ def archive(engine,actor,record,*,state,event):
     if closed[KEY]['kind']=='condition':
         import condition_instances as CONDITIONS
         CONDITIONS.validate_record(actor,closed,terminal=True)
+    if closed[KEY]['kind']=='sage_dr':__import__('sage').validate_effect(actor,closed,terminal=True)
     history=actor.spec.setdefault('effect_instance_history',[])
     if not isinstance(history,list):raise ValueError('effect instance history must be a list')
     history.append(closed)
@@ -182,7 +183,7 @@ def records(actor):
     if not isinstance(timed,list):raise ValueError('timed effects must be a list')
     for row in timed:
         if isinstance(row,dict) and KEY in row:
-            if not isinstance(row[KEY],dict) or row[KEY].get('kind') not in ('event_effect','roll_components','captured_momentum','temporary_ap'):raise ValueError('native effect is stored outside its authoritative timed family')
+            if not isinstance(row[KEY],dict) or row[KEY].get('kind') not in ('event_effect','roll_components','captured_momentum','temporary_ap','sage_dr','telepath'):raise ValueError('native effect is stored outside its authoritative timed family')
             yield row,False
     import cheerleader as CHEER
     for row in CHEER.live(actor):
@@ -194,7 +195,7 @@ def records(actor):
     if not isinstance(history,list):raise ValueError('effect history must be a list')
     for row in history:
         if not isinstance(row,dict) or KEY not in row:raise ValueError('typed ended effect instance required')
-        if not isinstance(row[KEY],dict) or row[KEY].get('kind') not in ('event_effect','coat','team_blessing','roll_components','condition','captured_momentum','temporary_ap','cheerleader'):raise ValueError('unsupported canonical ended effect family')
+        if not isinstance(row[KEY],dict) or row[KEY].get('kind') not in ('event_effect','coat','team_blessing','roll_components','condition','captured_momentum','temporary_ap','cheerleader','sage_dr','telepath'):raise ValueError('unsupported canonical ended effect family')
         yield row,'terminal'
 
 
@@ -230,6 +231,8 @@ def validate_actor(actor):
         if row[KEY]['kind']=='condition':
             import condition_instances as CONDITIONS
             CONDITIONS.validate_record(actor,row,terminal=spent=='terminal')
+        if row[KEY]['kind']=='sage_dr':__import__('sage').validate_effect(actor,row,terminal=spent=='terminal')
+        if row[KEY]['kind']=='telepath':__import__('telepath').validate_effect(actor,row,terminal=spent=='terminal')
         uid=row['buff_id'] if spent is True else row['id']
         if uid in seen:raise ValueError('one effect instance appears more than once under an actor')
         seen.add(uid)
@@ -274,4 +277,6 @@ def validate_world(engine,index):
     FOOD.validate_transfer_world(engine,index)
     import declarative_move_contracts as DECLARATIVE_MOVES
     DECLARATIVE_MOVES.validate_world(engine,index)
+    import native_switch_transfer as SWITCH
+    SWITCH.validate_world(engine,index)
     return True

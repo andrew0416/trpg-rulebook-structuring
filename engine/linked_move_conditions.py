@@ -1,4 +1,5 @@
 """Move conditions that consume their actual applying actor or holder turns."""
+import arithmetic_policy as NUMERIC
 from copy import deepcopy
 import common_checks as C
 import condition_instances as CONDITIONS
@@ -11,6 +12,13 @@ PERISH = 'move/멸망의노래'
 
 def owns(row):
     return row.get('payload', row.get('effect', {})).get('operation') in OPERATIONS
+
+
+def explicit_cure_name(rules,name):
+    """A named removal can address a declared linked effect without making it an affliction."""
+    import custom_condition_effects as CUSTOM
+    row=CUSTOM.by_name(rules,name)
+    return row is not None and owns(row) and row['payload'].get('class')=='effect'
 
 
 def _semantic(effect):
@@ -54,7 +62,7 @@ def grant(engine, actor, target, effect, source, row):
     if row['payload']['operation'] == 'seed_drain' and _seed_immune(engine, actor, target, source): return False
     record = E.create(engine, target, kind='condition', source=source, payload=row['payload'],
         capacity={'bucket': 'condition:' + name, 'source': source},
-        lifetime={'boundary': 'scene_end' if row['payload']['operation'] == 'known_move_lock' else 'condition_cure_or_volatile_end'},
+        lifetime=row.get('lifetime', {'boundary': 'scene_end' if row['payload']['operation'] == 'known_move_lock' else 'condition_cure_or_volatile_end'}),
         applied_by=actor)
     record.update(issued_turn=target.custom_conditions.get('combat_turn_serial', 0), applications=[])
     target.custom_conditions.setdefault(CONDITIONS.KEY, []).append(record)
@@ -68,8 +76,8 @@ def validate_record(actor, record, *, row, terminal=False):
     E.validate(record, actor=actor, terminal=terminal)
     payload = row['payload']; meta = record[E.KEY]; operation = payload['operation']
     if record['effect'] != payload or meta['kind'] != 'condition': raise ValueError('linked condition payload changed')
-    boundary = 'scene_end' if operation == 'known_move_lock' else 'condition_cure_or_volatile_end'
-    if meta['capacity'] != {'bucket': 'condition:' + payload['condition'], 'source': record['source']} or meta['lifetime'] != {'boundary': boundary}:
+    lifetime = row.get('lifetime', {'boundary': 'scene_end' if operation == 'known_move_lock' else 'condition_cure_or_volatile_end'})
+    if meta['capacity'] != {'bucket': 'condition:' + payload['condition'], 'source': record['source']} or meta['lifetime'] != lifetime:
         raise ValueError('linked condition ownership or lifetime changed')
     E.text(meta.get('applied_by_actor_id'), 'actual condition applying actor')
     if not terminal and payload['condition'] not in actor.conditions: raise ValueError('linked condition projection missing')
@@ -78,28 +86,37 @@ def validate_record(actor, record, *, row, terminal=False):
     applications = record.get('applications')
     if not isinstance(applications, list): raise ValueError('condition applications must be a list')
     if operation == 'known_move_lock' and applications: raise ValueError('move lock has no turn ticks')
+    previous_round=0
     for index, event in enumerate(applications):
-        turn = C.integer(event.get('turn'), 'actual holder turn', turn + 1, actor.custom_conditions.get('combat_turn_serial', 0))
+        round_tick='round' in event
+        turn = C.integer(event.get('turn'), 'actual holder turn', turn if round_tick else turn + 1, actor.custom_conditions.get('combat_turn_serial', 0))
+        if round_tick:
+            previous_round=C.integer(event['round'],'boss seed drain round',previous_round+1)
+            if operation!='seed_drain':raise ValueError('boss seed drain source required')
+            import boss_transitions as BOSS
+            BOSS.require_periodic_round(actor,event)
         at = C.integer(event.get('at'), 'actual holder time', at)
         if event.get('holder_id') != actor.entity_id or event.get('kind') != operation: raise ValueError('actual linked holder event required')
         if operation == 'perish_count':
             if index > 2 or event.get('remaining') != 2 - index: raise ValueError('Perish countdown changed')
         elif operation == 'seed_drain':
             maximum = C.integer(event.get('maximum_hp'), 'actual maximum HP', 1)
-            if event.get('requested') != maximum // 10: raise ValueError('seed drain amount changed')
+            if event.get('requested') != NUMERIC.ratio(maximum,10): raise ValueError('seed drain amount changed')
             C.integer(event.get('lost'), 'actual seed HP loss', 0, event['requested'])
     if terminal and meta['end_event'].get('kind') != 'condition_cure': raise ValueError('actual linked condition cure required')
     return True
 
 
-def turn_start(engine, actor, record):
+def turn_start(engine, actor, record, *, _boss_round=False):
     operation = record['effect']['operation']
     if operation == 'known_move_lock': return
     turn = actor.custom_conditions.get('combat_turn_serial', 0)
     applications = record['applications']
+    if _boss_round and any(event.get('round')==engine.round_no for event in applications):return
     last = applications[-1]['turn'] if applications else record['issued_turn']
-    if turn <= last: return
+    if not _boss_round and turn <= last: return
     event = {'kind': operation, 'holder_id': actor.entity_id, 'turn': turn, 'at': engine.elapsed_seconds}
+    if _boss_round:event.update(round=engine.round_no,source_id='C11-129')
     if operation == 'perish_count':
         event['remaining'] = 2 - len(applications)
         applications.append(event)
@@ -108,16 +125,22 @@ def turn_start(engine, actor, record):
         return
     caster = W.actor_index(engine).get(record[E.KEY]['applied_by_actor_id'])
     if caster is None: raise ValueError('seed drain applying actor missing')
-    maximum = actor.max_hp
-    event.update(maximum_hp=maximum, requested=maximum // 10, lost=0)
+    maximum = actor.base_max_hp
+    event.update(maximum_hp=maximum, requested=NUMERIC.ratio(maximum,10), lost=0)
     applications.append(event)
     before = actor.hp
-    engine.lose_hp(actor, event['requested'], source=record['source'])
-    lost = max(0, before - actor.hp)
+    import boss_transitions as BOSS
+    boss=BOSS.state(actor)
+    spent=boss['hp_bars']['spent'] if boss else 0
+    engine.lose_hp(actor, event['requested'], source=record['source'],
+                   loss_kind='percentage' if _boss_round else 'loss')
+    lost = (min(before,event['requested']) if boss and boss['hp_bars']['spent']>spent
+            else max(0, before - actor.hp))
     # Fainting archives a copy during lose_hp; finish that same event receipt.
     closed = next((r for r in actor.spec.get('effect_instance_history', []) if r['id'] == record['id']), None)
     (closed['applications'][-1] if closed is not None else event)['lost'] = lost
     if lost: engine.heal(caster, lost, source_kind='move')
+    __import__('trickster').loss(engine,actor,before,record['source'],condition=record['effect']['condition'])
 
 
 def check_move(engine, actor, move_id):
@@ -126,6 +149,17 @@ def check_move(engine, actor, move_id):
         caster = W.actor_index(engine).get(record[E.KEY]['applied_by_actor_id'])
         if caster is None: raise ValueError('Imprison applying actor missing')
         if move_id in caster.moves: raise ValueError('봉인: 시전자가 현재 알고 있는 기술은 사용할 수 없습니다')
+
+
+def boundary(engine, actor, event):
+    """Non-status move states end only at their selected source's boundaries."""
+    import custom_condition_effects as CUSTOM
+    for record in list(CONDITIONS.records(actor)):
+        if not owns(record): continue
+        row = CUSTOM.definition(engine.r, record['source'])
+        if event in row.get('lifetime', {}).get('ends_on', ()):
+            validate_record(actor, record, row=row)
+            engine.cure_status(actor, record['effect']['condition'])
 
 
 def end_scene(engine, actors):

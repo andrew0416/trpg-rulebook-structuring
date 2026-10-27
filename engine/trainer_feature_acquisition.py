@@ -25,10 +25,40 @@ MARTIAL_ARTIST = "class/무술가"
 MARTIAL_PREREQUISITE = "edge/기본-무술"
 MARTIAL_ARTIST_ADAPTER = "trainer-feature/martial-artist-ability/v1"
 STATIC_FEATURES = {
+    __import__('type_sync').FEATURE: {'clause_id': __import__('type_sync').BOOK,
+        'span': [524, 531], 'catalog_span': [524, 531], 'definition': __import__('type_sync').DEFINITION,
+        'minimum_level': 0, 'skill': None,
+        'source': {'file': 'input/supp-fantasy.md', 'sha256': __import__('type_sync').BOOK_SHA}},
+    __import__('psionic_sight').FEATURE: {'clause_id': __import__('psionic_sight').BOOK,
+        'span': [903, 907], 'catalog_span': [903, 907], 'definition': __import__('psionic_sight').DEFINITION,
+        'minimum_level': 0, 'skill': None,
+        'source': {'file': 'input/ch03-skills-edges-feats.md', 'sha256': __import__('psionic_sight').BOOK_SHA}},
+    __import__('type_expertise').FEATURE: {'clause_id': 'C03-142', 'span': [863, 867],
+        'catalog_span': [863, 867], 'definition': __import__('type_expertise').DEFINITION,
+        'ranked': True, 'max_rank': 2, 'minimum_level': 9, 'skill': None,
+        'source': {'file': 'input/ch03-skills-edges-feats.md', 'sha256': __import__('type_expertise').BOOK_SHA256}},
+    **{u:{'clause_id':d['clause_id'],'span':d['span'],'catalog_span':d['catalog_span'],'class_template':'class/저글러','definition':d,'minimum_level':0,'skill':None,'source':d.get('source',{'file':'input/ch04-trainer-classes.md','sha256':__import__('juggler').SOURCE_SHA256})} for u,d in __import__('juggler').DEFINITIONS.items()},
+    **{u:{'clause_id':d['clause_id'],'span':d['span'],'catalog_span':d['catalog_span'],'class_template':__import__('ace_trainer').CLASS,'definition':d,'minimum_level':0,'skill':None,'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('ace_trainer').SOURCE_SHA256}} for u,d in __import__('ace_trainer').DEFINITIONS.items()},
+    **{u:{'clause_id':'input/ch03-skills-edges-feats.md:'+str(s[0])+'-'+str(s[1]),'span':list(s),'minimum_level':0,'skill':None,'source':{'file':'input/ch03-skills-edges-feats.md','sha256':'b94e43349794836391501f9aac10009d20746bf946ea0c4b5ff3adf85e982d23'}} for u,s in __import__('ace_trainer').TRAINING.items() if u!='feat/영감성-훈련'},
+    **{u:{'clause_id':d['clause_id'],'span':d['span'],'catalog_span':d['catalog_span'],'class_template':'class/공간도약자','definition':d,'minimum_level':0,'skill':None,'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('warper').SOURCE_SHA256}} for u,d in __import__('warper').DEFINITIONS.items()},
+    **{u:{'clause_id':d['clause_id'],'span':d['span'],'catalog_span':d['catalog_span'],'class_template':'class/텔레파시능력자','definition':d,'minimum_level':0,'skill':None,'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('telepath').SOURCE_SHA256}} for u,d in __import__('telepath').DEFINITIONS.items()},
+    **{u:{'clause_id':d['clause_id'],'span':d['span'],'catalog_span':d['catalog_span'],'class_template':'class/염동력자','definition':d,'minimum_level':0,'skill':None,'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('telekinetic').SOURCE_SHA256}} for u,d in __import__('telekinetic').DEFINITIONS.items()},
+    **{u:{'clause_id':d['clause_id'],'span':d['span'],'catalog_span':d['catalog_span'],'class_template':'class/현자','definition':d,'minimum_level':0,'skill':None,'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('sage').SOURCE_SHA256}} for u,d in __import__('sage').DEFINITIONS.items()},
+    **{u:{'clause_id':d['clause_id'],'span':d['span'],'catalog_span':d['catalog_span'],'class_template':'class/오라클','definition':d,'minimum_level':0,'skill':None,'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('oracle').SOURCE_SHA256}} for u,d in __import__('oracle').DEFINITIONS.items()},
+    **{u:{'clause_id':d['clause_id'],'span':d['span'],'catalog_span':d['catalog_span'],'class_template':'class/닌자','definition':d,'minimum_level':0,'skill':None,'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('ninja').SOURCE_SHA256}} for u,d in __import__('ninja').DEFINITIONS.items()},
+    **{u:{'clause_id':d['clause_id'],'span':d['span'],'catalog_span':d['catalog_span'],'class_template':'class/오컬트마니아','definition':d,'ranked':d['ranked'],'max_rank':3,'minimum_level':0,'skill':None,'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('hex_maniac').SOURCE_SHA256}} for u,d in __import__('hex_maniac').DEFINITIONS.items()},
+    **{u:{'clause_id':d['clause_id'],'span':d['span'],'catalog_span':d['catalog_span'],'class_template':'class/교감자','definition':d,'minimum_level':0,'skill':None,'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('channeler').SOURCE_SHA256}} for u,d in __import__('channeler').DEFINITIONS.items()},
+    **{u:{'clause_id':d['clause_id'],'span':d['span'],'catalog_span':d['catalog_span'],'class_template':'class/파동술사','definition':d,'ranked':d['ranked'],'max_rank':2,'minimum_level':0,'skill':None,'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('aura_guardian').SOURCE_SHA256}} for u,d in __import__('aura_guardian').DEFINITIONS.items()},
+    **{u:{"clause_id":d["clause_id"],"span":d["span"],"catalog_span":d["catalog_span"],"class_template":"class/텀블러","definition":d,"minimum_level":0,"skill":None,"source":{"file":"input/ch04-trainer-classes.md","sha256":__import__("tumbler").SOURCE_SHA256}} for u,d in __import__("tumbler").DEFINITIONS.items()},
     **{u:{"clause_id":d["clause_id"],"span":d["span"],"catalog_span":d["catalog_span"],"class_template":"class/망나니","definition":d,"minimum_level":0,"skill":None,"source":{"file":"input/ch04-trainer-classes.md","sha256":__import__("roughneck").SOURCE_SHA256}} for u,d in __import__("roughneck").DEFINITIONS.items()},
     **{u:{'clause_id':d['clause_id'],'span':d['span'],'catalog_span':d['catalog_span'],'class_template':'class/무술가','definition':d,'ranked':d.get('ranked',False),'max_rank':d.get('max_rank',2),'move_choices':d.get('move_choices',False),'minimum_level':0,'skill':None,'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('martial_artist')._data['source_sha256']}} for u,d in __import__('martial_artist').DEFINITIONS.items()},
     **{u:{"clause_id":d["clause_id"],"span":d["span"],"catalog_span":d["catalog_span"],"class_template":"class/선동가","definition":d,"minimum_level":0,"skill":None,"source":{"file":"input/ch04-trainer-classes.md","sha256":__import__("provocateur").SOURCE_SHA256}} for u,d in __import__("provocateur").DEFINITIONS.items()},
     **{u:{"clause_id":d["clause_id"],"span":d["span"],"catalog_span":d["catalog_span"],"class_template":"class/음악가","definition":d,"minimum_level":0,"skill":None,"branch":u=="feat/음악-재능","source":{"file":"input/ch04-trainer-classes.md","sha256":__import__("musician").SOURCE_SHA256}} for u,d in __import__("musician").DEFINITIONS.items()},
+    **{uid:{'clause_id':('C04-104' if uid==__import__('rogue').DIRTY else 'input/ch04-trainer-classes.md:'+str(d['span'][0])+'-'+str(d['span'][1])),
+        'span':list(d['span']),'catalog_span':list(d.get('catalog_span',d['span'])),
+        'class_template':'class/로그','definition':d,'minimum_level':0,'skill':None,'branch':uid==__import__('rogue').UNDERHAND,
+        'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('rogue').SOURCE_SHA256}}
+        for uid,d in __import__('rogue').DEFINITIONS.items()},
     **{u:{'clause_id':('C04-055' if u=='class/타입-에이스' else 'input/ch04-trainer-classes.md:'+str(d['span'][0])+'-'+str(d['span'][1])),
         'span':d['span'],'catalog_span':d['catalog_span'],'class_template':'class/타입-에이스','definition':d,
         'minimum_level':0,'skill':None,'branch':d.get('branch') is True,
@@ -115,11 +145,138 @@ STATIC_FEATURES = {
         "source": {"file": "input/ch04-trainer-classes.md", "sha256": "a1a4a213074bc6166507db3e0d4c04ded02c04168c4798c636a4d53911494ac4"}},
     "feat/포획-추진력": {"clause_id": "input/ch04-trainer-classes.md:388-396", "span": [388, 396], "minimum_level": 0, "skill": None,
         "source": {"file": "input/ch04-trainer-classes.md", "sha256": "a1a4a213074bc6166507db3e0d4c04ded02c04168c4798c636a4d53911494ac4"}},
+    **{uid: {'clause_id': {'class/지휘관': 'C04-015', 'feat/리더십': 'C04-016',
+                         'feat/전투-지휘': 'C04-017', 'feat/복합-지시': 'C04-018'}.get(
+                         uid, 'input/ch04-trainer-classes.md:' + str(span[0]) + '-' + str(span[1])),
+             'span': list(span), 'catalog_span': [411, 411] if uid == 'class/지휘관' else list(span),
+             'class_template': 'class/지휘관', 'minimum_level': 0, 'skill': None,
+             'branch': uid == 'class/지휘관', 'definition': __import__('commander').DEFINITIONS[uid],
+             'source': {'file': 'input/ch04-trainer-classes.md', 'sha256': __import__('commander').SOURCE_SHA}}
+       for uid, span in __import__('commander').FEATURES.items()},
+    **{uid: {'clause_id': 'input/ch03-skills-edges-feats.md:' + str(row['span'][0]) + '-' + str(row['span'][1]),
+             'span': list(row['span']), 'minimum_level': 0, 'skill': None,
+             'source': {'file': 'input/ch03-skills-edges-feats.md', 'sha256': __import__('commander').GENERAL_SHA}}
+       for uid, row in __import__('commander').BUNDLES.items()},
+    "feat/포켓몬-넌-내-꺼야": {"clause_id": "C04-013", "span": [398, 403], "catalog_span": [398,407], "minimum_level": 0, "skill": None,
+        "source": {"file": "input/ch04-trainer-classes.md", "sha256": "a1a4a213074bc6166507db3e0d4c04ded02c04168c4798c636a4d53911494ac4"}},
+    **{uid:{'clause_id':{'class/멘토':'C04-028','feat/지침':'C04-029','feat/평생학습':'C04-030'}.get(uid,'input/ch04-trainer-classes.md:'+str(span[0])+'-'+str(span[1])),
+        'span':list(span),'catalog_span':[603,603] if uid=='class/멘토' else [650,657] if uid=='feat/평생학습' else list(span),
+        'class_template':'class/멘토','minimum_level':0,'skill':None,
+        'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('mentor').SOURCE_SHA256}}
+       for uid,span in __import__('mentor').FEATURES.items()},
+    "feat/압박": {"clause_id": "input/ch03-skills-edges-feats.md:643-647", "span": [643, 647], "minimum_level": 0, "skill": ["협박", 4]},
     "feat/계승자": {"clause_id": "C03-128", "span": [668, 672], "minimum_level": 10, "skill": ["명령", 4]},
+    "feat/전력포즈": {"clause_id": "input/ch03-skills-edges-feats.md:674-677", "span": [674, 677], "minimum_level": 10, "skill": None},
     "feat/전설의-트레이너": {"clause_id": "C03-129", "span": [679, 684], "minimum_level": 20, "skill": None},
 }
+STATIC_FEATURES.update(__import__('versatility').DEFINITIONS)
+STATIC_FEATURES.update({u:dict(d,minimum_level=0,skill=None) for u,d in __import__('coordinator').STATIC_DEFINITIONS.items()})
+STATIC_FEATURES[__import__('walk_it_off').FEATURE]=dict(__import__('walk_it_off').DEFINITION)
+STATIC_FEATURES.update({uid:{'clause_id':'C03-130' if uid==__import__('focused_command').VOICE else 'C03-131',
+    'span':list(span),'catalog_span':[720,724] if uid==__import__('focused_command').VOICE else [726,735],
+    'minimum_level':0,'skill':None,
+    'source':{'file':'input/ch03-skills-edges-feats.md','sha256':__import__('commander').GENERAL_SHA}}
+    for uid,span in __import__('focused_command').FEATURES.items()})
+STATIC_FEATURES.update({u:{'clause_id':d['clause_id'],'span':d['span'],'catalog_span':d['catalog_span'],
+ 'class_template':__import__('trickster').CLASS,'definition':d,'minimum_level':0,'skill':None,
+ 'ranked':d['ranked'],'max_rank':2,'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('trickster').SOURCE_SHA256}}
+ for u,d in __import__('trickster').DEFINITIONS.items()})
+STATIC_FEATURES.update(__import__('hobbyist').STATIC_DEFINITIONS)
+STATIC_FEATURES.update(__import__('researcher_fields').STATIC_DEFINITIONS)
+STATIC_FEATURES.update(__import__('rune_master').DEFINITIONS)
+STATIC_FEATURES.update(__import__('arcanist').DEFINITIONS)
+STATIC_FEATURES.update(__import__('berserker').DEFINITIONS)
+STATIC_FEATURES.update(__import__('marksman').DEFINITIONS)
+STATIC_FEATURES.update(__import__('skirmisher').DEFINITIONS)
+STATIC_FEATURES.update(__import__('fortress').DEFINITIONS)
+for _uid,_span in __import__('hobbyist').GENERAL_FEATURES.items():
+    if _uid not in STATIC_FEATURES and _uid not in (PERSONAL_TUTOR,'feat/종의-학자'):
+        STATIC_FEATURES[_uid]={'clause_id':_uid,'span':list(_span),'minimum_level':0,'skill':None,'hobbyist_general':True,
+            'source':{'file':'input/ch03-skills-edges-feats.md','sha256':__import__('hobbyist').GENERAL}}
+STATIC_FEATURES['feat/포켓몬매니아']['source_choices']=['core','local_csv']
+STATIC_FEATURES['feat/지구력']={'clause_id':'input/ch04-trainer-classes.md:796-800','span':[796,800],
+    'minimum_level':0,'skill':None,'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('hobbyist').BOOK}}
+STATIC_FEATURES['class/불굴의-투지']={'clause_id':'input/ch04-trainer-classes.md:793','span':[793,793],'catalog_span':[782,782],
+    'minimum_level':0,'skill':None,'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('hobbyist').BOOK}}
+STATIC_FEATURES['feat/떨쳐버리기']={'clause_id':'input/ch04-trainer-classes.md:802-805','span':[802,805],
+    'class_template':'class/불굴의-투지','minimum_level':0,'skill':None,
+    'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('hobbyist').BOOK}}
+for _enduring_id,_enduring_span in (('feat/생기활발',[824,828]),('feat/아직이야',[818,822])):
+    STATIC_FEATURES[_enduring_id]={'clause_id':'input/ch04-trainer-classes.md:'+str(_enduring_span[0])+'-'+str(_enduring_span[1]),'span':_enduring_span,
+        'class_template':'class/불굴의-투지','minimum_level':0,'skill':None,
+        'source':{'file':'input/ch04-trainer-classes.md','sha256':__import__('hobbyist').BOOK}}
 STATIC_SOURCE = {"file": "input/ch03-skills-edges-feats.md",
                  "sha256": "b94e43349794836391501f9aac10009d20746bf946ea0c4b5ff3adf85e982d23"}
+
+
+def grant_qualified_core_edge(engine, actor, edge, choice, source_id, parent_source):
+    """Printed Core Edge qualification, then existing native owner registration.
+
+    This is an acquisition bridge, not an implementation of absent future
+    effects. Source variants without a reviewed acquisition contract still hold.
+    """
+    import hobbyist as H, skill_modifiers as S, acquisition_qualification as Q
+    import source_context as C, state_grants as G, acquisition_withdrawal as W
+    if edge not in H.CORE_EDGE_SKILLS or engine.r._selected_rule(edge) != edge:
+        raise ValueError('selected Edge needs its source-specific acquisition owner')
+    C.verified_source(engine.r, STATIC_SOURCE, label='Core Edge acquisition')
+    unit = engine.r.selection.units[edge]
+    if unit['source']['file'] != 'ch03-skills-edges-feats.md':
+        raise ValueError('exact Core Edge source required')
+    skills = {s:S.rank(engine.r,actor,s)[2] for s in S.EDUCATION_SKILLS | set(engine.r.skill_policy['skills'])}
+    parents = {}
+    ordinary = H.CORE_EDGE_SKILLS[edge]
+    checks = [Q.check('trainer','prerequisite',actor.kind=='trainer','actual Trainer required'),
+        Q.check('skills','prerequisite',not ordinary or any(S.rank(engine.r,actor,s)[2]>=n for s,n in ordinary),'ordinary printed Edge skill prerequisite required')]
+    repeated = edge == 'edge/원소-교감'
+    checks.append(Q.check('repeat','repeat',repeated or H.owned(actor,edge)==0,'ordinary Edge repeat restriction remains required'))
+    if edge == 'edge/몬스터볼-수리':
+        parents={p:H.owned(actor,p) for p in ('edge/몬스터볼','edge/규토리-볼')}
+        checks.append(Q.check('parent','prerequisite',any(parents.values()),'Basic Balls or Apricorn Balls required'))
+    if edge == 'edge/기본-사이오닉':
+        checks.append(Q.check('psychic','prerequisite','에스퍼' in __import__('elemental_connection').choices(engine,actor),'actual Psychic Elemental Connection required'))
+    if edge == 'edge/원소-교감':
+        old=__import__('elemental_connection').choices(engine,actor)
+        basic=set(engine.r.mech('combat/type-chart')['attack_vs_defense'])-{'에러','None'}
+        checks.extend([Q.check('branch','selection',choice in basic and choice not in old,'one new canonical elemental branch required'),
+            Q.check('exclusion','prerequisite',H.owned(actor,'edge/신비한-감각')==0,'Elemental Connection excludes Mystic Senses')])
+    elif edge == 'edge/신비한-감각':
+        checks.append(Q.check('exclusion','prerequisite',H.owned(actor,'edge/원소-교감')==0,'Mystic Senses excludes Elemental Connection'))
+    if edge == 'edge/선택한-무기':
+        import turn
+        parents={p:1 for p in actor.spec.get('feats',[]) if '무기' in engine.r.selection.units.get(p,{}).get('tags',[]) or 'Weapon' in engine.r.selection.units.get(p,{}).get('tags',[])}
+        checks.extend([Q.check('weapon','prerequisite',bool(parents),'actual acquired Weapon-tag Feature required'),
+            Q.check('choice','selection',choice in turn.WEAPON_KIND,'one sourced ordinary weapon type required')])
+    if edge not in ('edge/원소-교감','edge/선택한-무기') and choice is not None:
+        raise ValueError('this Core Edge has no acquisition choice')
+    qualification=Q.require(edge,actor.entity_id,'grant',checks)
+    record={'edge':edge,'source':dict(STATIC_SOURCE,span=unit['source']['lines']),
+        'choice':deepcopy(choice),'skills':skills,'parents':parents,'qualification':qualification,'parent_source':parent_source}
+    record['integrity']=_digest('trainer-feature/core-edge-grant/v1',record)
+    actor.spec.setdefault('edges',[]).append(edge)
+    if edge=='edge/원소-교감':actor.spec.setdefault('edge_choices',{}).setdefault(edge,[]).append(choice)
+    if edge=='edge/선택한-무기':actor.spec.setdefault('edge_choices',{})[edge]=choice
+    G._source(actor,source_id,'feature',owner_id=actor.entity_id,rule_id=edge,lifetime='while_owned',tutor_points=0,core_edge_acquisition=record)
+    W.dependencies(engine,actor,source_id,[parent_source])
+    __import__('items').register_feats(engine,actor)
+    __import__('class_move_grants').register_all(engine,actor)
+    return deepcopy(record)
+def _validate_core_edge_grants(actor):
+    import hobbyist as H, source_context as C
+    state=actor.spec.get('state_grants',{})
+    rows=[(sid,row,True) for sid,row in state.get('sources',{}).items()]
+    rows.extend((row['source_id'],row['record'],False) for row in state.get('ended_sources',[]))
+    for sid,row,active in rows:
+        if 'core_edge_acquisition' not in row:continue
+        record=row['core_edge_acquisition'];edge=record.get('edge')
+        if set(record)!={'edge','source','choice','skills','parents','qualification','parent_source','integrity'} or record.get('integrity')!=_digest('trainer-feature/core-edge-grant/v1',{k:v for k,v in record.items() if k!='integrity'}):raise ValueError('native Core Edge acquisition integrity changed')
+        C.verified_source(actor.r,STATIC_SOURCE,label='Core Edge acquisition')
+        unit=actor.r.selection.units.get(edge,{})
+        if edge not in H.CORE_EDGE_SKILLS or actor.r._selected_rule(edge)!=edge or record['source']!=dict(STATIC_SOURCE,span=unit.get('source',{}).get('lines')):raise ValueError('actual selected Core Edge source required')
+        if row.get('owner_id')!=actor.entity_id or row.get('rule_id')!=edge or row.get('lifetime')!='while_owned' or record['qualification'].get('status')!='qualified':raise ValueError('qualified Core Edge actual ownership source required')
+        if active and (H.owned(actor,edge)<1 or record['parent_source'] not in state.get('sources',{})):raise ValueError('Core Edge grant must retain its actual acquired provider source')
+
+
 BEAST_HEIR_SOURCE = "C2CSV/input/db/edges.csv:R21:main"
 LIFECYCLE_UNRESOLVED = {
     "removal": "external_policy_required",
@@ -192,32 +349,99 @@ def _digest(label, value):
 
 
 def _static_source(rules, feature_id):
+    if feature_id in __import__('skirmisher').FEATURES:return __import__('skirmisher').static_source(rules,feature_id)
+    if feature_id in __import__('fortress').FEATURES:return __import__('fortress').static_source(rules,feature_id)
+    if feature_id in __import__('marksman').FEATURES:return __import__('marksman').static_source(rules,feature_id)
+    if feature_id in __import__('berserker').FEATURES:return __import__('berserker').static_source(rules,feature_id)
+    if feature_id in __import__('arcanist').FEATURES:return __import__('arcanist').static_source(rules,feature_id)
+    if feature_id in __import__('rune_master').FEATURES:return __import__('rune_master').static_source(rules,feature_id)
+    if feature_id in __import__('researcher_fields').STATIC_DEFINITIONS:return __import__('researcher_fields').static_source(rules,feature_id)
+    if feature_id in __import__('coordinator').FEATURES:return __import__('coordinator').static_source(rules,feature_id)
     import source_context as SOURCES
     definition = STATIC_FEATURES.get(feature_id)
     if definition is None:
         raise ValueError("reviewed selectionless Feature definition required")
     authority = definition.get("source", STATIC_SOURCE)
     SOURCES.verified_source(rules, authority, label="selectionless Feature")
-    if rules._selected_rule(feature_id) != feature_id:
+    supported=feature_id in ('feat/훈련-상황','feat/작열','feat/패싱-왈츠')
+    if rules._selected_rule(feature_id,supports_versions=supported) != feature_id:
         raise ValueError("selected static Feature requires its own acquisition contract")
     source = rules.selection.units[feature_id].get("source", {})
     if (source.get("file") != authority["file"].removeprefix("input/") or
             source.get("lines") != definition.get("catalog_span", definition["span"]) or source.get("sha256") != authority["sha256"]):
         raise ValueError("selectionless Feature catalog source differs from the reviewed clause")
+    if feature_id == __import__('ace_trainer').TOP:
+        rules.ruleset.require({'id': definition['clause_id'], 'source': authority})
     result=dict(authority, clause_id=definition["clause_id"], span=definition["span"])
+    if feature_id=='feat/훈련-상황':
+        selected=__import__('athlete').regime_source(rules)
+        if feature_id in rules.ruleset.unit_versions:result['behavior_source']=selected
+    if feature_id=='feat/작열':
+        selected=__import__('pokemon_move_edges').incandescence_source(rules)
+        if feature_id in rules.ruleset.unit_versions:result['behavior_source']=selected
+    if feature_id=='feat/패싱-왈츠':
+        selected=__import__('dancer').waltz_source(rules)
+        if feature_id in rules.ruleset.unit_versions:result['behavior_source']=selected
     if definition.get('branch'):
         result['interpretation']={'authority':'PTU 1.05 English, user-selected precedence',
             'file':'output/source-audit/2026-10-10/ptu-core-1.05.pdf','pages':[112,113],
             'sha256':'e5e0371031601c3ad0a04056771c17599a2d8826e5a5102ccd37f9b368108907'}
         if definition.get('class_template')=='class/스타일-전문가':result['interpretation']['pages']=[115,116,117]
         if definition.get('class_template')=='class/타입-에이스':result['interpretation']['pages']=list(range(119,129))
-        if definition.get('class_template') in ('class/댄서','class/음악가'):result.pop('interpretation')   # printed Korean Ability choice; no English precedence
+        if definition.get('class_template') in ('class/댄서','class/음악가','class/로그'):result.pop('interpretation')   # printed Ability choices; no English precedence
+        if definition.get('class_template') == 'class/지휘관':result['interpretation']['pages'] = [80, 81]
     return result
 
 
 def _static_qualification(actor, feature_id, snapshot, prerequisite_source):
+    if feature_id in __import__('skirmisher').FEATURES:return __import__('skirmisher').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('fortress').FEATURES:return __import__('fortress').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('marksman').FEATURES:return __import__('marksman').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('berserker').FEATURES:return __import__('berserker').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('arcanist').FEATURES:return __import__('arcanist').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('rune_master').FEATURES:return __import__('rune_master').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('researcher_fields').STATIC_DEFINITIONS:return __import__('researcher_fields').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id == __import__('type_sync').FEATURE:
+        return __import__('type_sync').qualification(actor,snapshot,prerequisite_source)
     import acquisition_qualification as Q
+    if feature_id == __import__('psionic_sight').FEATURE:
+        return __import__('psionic_sight').qualification(actor, snapshot, prerequisite_source)
+    if type(prerequisite_source)is dict and 'hobbyist_parent' in prerequisite_source:
+        return __import__('hobbyist').child_qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('hobbyist').FEATURES:
+        return __import__('hobbyist').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if STATIC_FEATURES[feature_id].get('hobbyist_general'):
+        return __import__('hobbyist').general_qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('breather').FEATURES:
+        return __import__('breather').feature_qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('versatility').FEATURES:
+        return __import__('versatility').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id == __import__('type_expertise').FEATURE:
+        return __import__('type_expertise').qualification(actor, snapshot, prerequisite_source)
+    if feature_id in __import__('focused_command').FEATURES:
+        return __import__('focused_command').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id==__import__('walk_it_off').FEATURE:return __import__('walk_it_off').qualification(actor,snapshot,prerequisite_source)
+    if feature_id in __import__('trickster').FEATURES:return __import__('trickster').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('juggler').DEFINITIONS:return __import__('juggler').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('mentor').FEATURES:
+        return __import__('mentor').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('coordinator').FEATURES:return __import__('coordinator').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in {*__import__('commander').FEATURES, *__import__('commander').BUNDLES}:
+        return __import__('commander').qualification(actor, feature_id, snapshot, prerequisite_source)
+    import ace_trainer as ACE
+    if feature_id in ACE.FEATURES or (feature_id in ACE.TRAINING and set(snapshot)=={'skills','parents','gift','selection'}):
+        return ACE.qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('telekinetic').FEATURES:return __import__('telekinetic').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('warper').FEATURES:return __import__('warper').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('telepath').FEATURES:return __import__('telepath').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('sage').FEATURES:return __import__('sage').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('oracle').FEATURES:return __import__('oracle').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('ninja').FEATURES:return __import__('ninja').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('hex_maniac').FEATURES:return __import__('hex_maniac').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('channeler').FEATURES:return __import__('channeler').qualification(actor,feature_id,snapshot,prerequisite_source)
     definition = STATIC_FEATURES[feature_id]
+    if feature_id in __import__('aura_guardian').FEATURES:return __import__('aura_guardian').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__("tumbler").FEATURES:return __import__("tumbler").qualification(actor,feature_id,snapshot,prerequisite_source)
     import roughneck as ROUGHNECK
     if feature_id in ROUGHNECK.FEATURES:return ROUGHNECK.qualification(actor,feature_id,snapshot,prerequisite_source)
     import martial_artist as MARTIAL
@@ -226,6 +450,8 @@ def _static_qualification(actor, feature_id, snapshot, prerequisite_source):
     if feature_id in PROVOCATEUR.FEATURES:return PROVOCATEUR.qualification(actor,feature_id,snapshot,prerequisite_source)
     import musician as MUSICIAN
     if feature_id in MUSICIAN.FEATURES:return MUSICIAN.qualification(actor,feature_id,snapshot,prerequisite_source)
+    import rogue as ROGUE
+    if feature_id in ROGUE.FEATURES:return ROGUE.qualification(actor,feature_id,snapshot,prerequisite_source)
     import type_ace as TYPE_ACE
     if feature_id in TYPE_ACE.FEATURES:return TYPE_ACE.qualification(actor,feature_id,snapshot,prerequisite_source)
     import chronicler as CHRONICLER
@@ -268,8 +494,10 @@ def _static_qualification(actor, feature_id, snapshot, prerequisite_source):
         import cheerleader as CHEER
         return CHEER.qualification(actor, feature_id, snapshot, prerequisite_source)
     if feature_id == "feat/포획-추진력":
+        if 'selection' in snapshot:return __import__('capture_specialist').feature_qualification(actor,feature_id,snapshot,prerequisite_source)
         import captured_momentum as MOMENTUM
         return MOMENTUM.qualification(actor, snapshot, prerequisite_source)
+    if feature_id == 'feat/포켓몬-넌-내-꺼야':return __import__('capture_specialist').feature_qualification(actor,feature_id,snapshot,prerequisite_source)
     if type(snapshot) is not dict or set(snapshot) != {"level", "skill", "rank", "beast_count"}:
         raise ValueError("exact acquisition-time static Feature observations required")
     if type(snapshot["level"]) is not int or type(snapshot["rank"]) is not int or type(snapshot["beast_count"]) is not int:
@@ -302,7 +530,29 @@ def _static_records(actor):
     return [(sid, row, active) for sid, row, active in rows if "static_acquisition" in row]
 
 
+_ANY_STATIC_FEATURE = object()
+
+
+def static_acquisitions(actor, feature=_ANY_STATIC_FEATURE, *, features=None, active=False):
+    """Query committed receipts without changing their order or source identity."""
+    return [(sid, row['static_acquisition']) for sid, row, live in _static_records(actor)
+            if (features is None or row['static_acquisition']['feature_id'] in features)
+            and (feature is _ANY_STATIC_FEATURE or row['static_acquisition']['feature_id'] == feature)
+            and (not active or live)]
+
+
+def static_family_acquisitions(actor, features, feature=None, *, active=False):
+    return static_acquisitions(actor, _ANY_STATIC_FEATURE if feature is None else feature,
+                               features=features, active=active)
+
+
 def _validate_static_acquisitions(actor):
+    __import__('type_sync').validate_feature_actor(actor)
+    __import__('psionic_sight').validate_actor(actor)
+    __import__('hobbyist').validate_actor(actor)
+    _validate_core_edge_grants(actor)
+    __import__('versatility').validate_actor(actor)
+    __import__('type_expertise').validate_actor(actor)
     requests = set()
     for sid, row, active in _static_records(actor):
         record = row["static_acquisition"]
@@ -310,6 +560,16 @@ def _validate_static_acquisitions(actor):
         if type(record) is not dict or set(record) != fields:
             raise ValueError("exact selectionless Feature acquisition evidence required")
         feature_id = record["feature_id"]
+        if feature_id in __import__('researcher_fields').STATIC_DEFINITIONS:__import__('researcher_fields').validate_acquisition(actor,record,sid,active)
+        if feature_id in __import__('fortress').FEATURES:__import__('fortress').validate_acquisition(actor,record,sid,active)
+        if feature_id in __import__('berserker').FEATURES:__import__('berserker').validate_acquisition(actor,record,sid,active)
+        if feature_id in __import__('rune_master').FEATURES:__import__('rune_master').validate_acquisition(actor,record,sid,active)
+        if feature_id in __import__('arcanist').FEATURES:__import__('arcanist').validate_acquisition(actor,record,sid,active)
+        if feature_id in __import__('marksman').FEATURES:__import__('marksman').validate_acquisition(actor,record,sid,active)
+        if feature_id in __import__('skirmisher').FEATURES:__import__('skirmisher').validate_acquisition(actor,record,sid,active)
+        if feature_id == __import__('psionic_sight').FEATURE:__import__('psionic_sight').validate_acquisition(actor,record,sid,active)
+        if feature_id==__import__('walk_it_off').FEATURE:__import__('walk_it_off').validate_acquisition(actor,record,sid,active)
+        if feature_id in __import__('juggler').DEFINITIONS:__import__('juggler').validate_acquisition(actor,record,sid,active)
         expected = _static_source(actor.r, feature_id)
         payload = {key: value for key, value in record.items() if key != "integrity"}
         if record["integrity"] != _digest("trainer-feature/static-acquisition/v1", payload):
@@ -335,6 +595,16 @@ def _validate_static_acquisitions(actor):
             raise ValueError('actual acquired branch projection changed')
         if record["qualification"] != _static_qualification(actor, feature_id, record["snapshot"], record["prerequisite_source"]):
             raise ValueError("static Feature historical qualification changed")
+        if feature_id in __import__('aura_guardian').FEATURES:__import__('aura_guardian').validate_acquisition(actor,record,sid,active)
+        if feature_id in __import__('hex_maniac').FEATURES:__import__('hex_maniac').validate_acquisition(actor,record,sid,active)
+        if feature_id in __import__('ninja').FEATURES:__import__('ninja').validate_acquisition(actor,record,sid,active)
+        if feature_id in __import__('oracle').FEATURES:__import__('oracle').validate_acquisition(actor,record,sid,active)
+        if feature_id in __import__('sage').FEATURES:__import__('sage').validate_acquisition(actor,record,sid,active)
+        if feature_id in __import__('telekinetic').FEATURES:__import__('telekinetic').validate_acquisition(actor,record,sid,active)
+        if feature_id in __import__('warper').FEATURES:__import__('warper').validate_acquisition(actor,record,sid,active)
+        if feature_id in __import__('telepath').FEATURES:__import__('telepath').validate_acquisition(actor,record,sid,active)
+        if feature_id in {*__import__('ace_trainer').FEATURES,*__import__('ace_trainer').TRAINING} and set(record['snapshot'])=={'skills','parents','gift','selection'}:
+            __import__('ace_trainer').validate_acquisition(actor,record,sid,active)
         import control_mount as MOUNT
         if active and feature_id in {*MOUNT.FEATURES,*__import__('conquerors_march').FEATURES}:
             operation=actor.spec.get('state_grants',{}).get('stat_sources',{}).get('spe',{}).get('sources',{}).get(sid,{})
@@ -352,8 +622,37 @@ def _validate_static_acquisitions(actor):
             raise ValueError('actual active Ranked acquisition and rank projection differ')
 
 
-def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequisite_source=None, branch=None, rank=None, selection=None):
-    """Acquire a reviewed no-choice Feature without manufacturing a selection."""
+def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequisite_source=None, branch=None, rank=None, selection=None, source_id=None):
+    """Acquire a reviewed Feature; source variants select their exact book or CSV clause."""
+    import native_acquisition_adapters as NATIVE
+    native = feature_id in NATIVE.DEFINITIONS
+    if feature_id in (__import__('warper').FARCAST, __import__('ace_trainer').TOP):
+        book_source = STATIC_FEATURES[feature_id]['clause_id']
+        csv_source = NATIVE.DEFINITIONS[feature_id]['clause_id']
+        if source_id not in (None, book_source, csv_source):
+            raise ValueError('select the exact book or CSV acquisition source')
+        history = [row['static_acquisition'] for _, row, _ in _static_records(actor)
+                   if row['static_acquisition']['request_id'] == acquisition_request_id]
+        history.extend(row[NATIVE.KEY] for _, row, _ in NATIVE._rows(actor)
+                       if row[NATIVE.KEY]['request_id'] == acquisition_request_id)
+        if history:
+            if (len(history) != 1 or history[0]['feature_id'] != feature_id or
+                    source_id is not None and source_id != history[0]['source']['clause_id']):
+                raise ValueError('acquisition request replay changed intent or source')
+            source_id = history[0]['source']['clause_id']
+        # Old named requests retain their source, including withdrawn CSV receipts.
+        native = source_id == csv_source
+    elif source_id is not None:
+        raise ValueError('explicit acquisition source choice is only defined for Farcast and Top Percentage')
+    other_records = _static_records(actor) if native else NATIVE._rows(actor)
+    other_key = 'static_acquisition' if native else NATIVE.KEY
+    if any(row[other_key]['request_id'] == acquisition_request_id for _, row, _ in other_records):
+        raise ValueError('acquisition request belongs to another source adapter')
+    if native:
+        if prerequisite_source is not None or branch is not None or rank is not None:
+            raise ValueError('this source uses its exact native acquisition selection')
+        return NATIVE.acquire(engine, actor, feature_id,
+            acquisition_request_id=acquisition_request_id, selection=selection)
     import acquired_features as ACQUIRED,skill_modifiers as SKILLS,state_grants as GRANTS,world_entities as WORLD
     WORLD.require_actors(engine, actor)
     source = _static_source(engine.r, feature_id)
@@ -361,17 +660,24 @@ def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequ
         if type(branch) is not list or len(branch)!=2:raise ValueError('select exactly two acquired Moves')
         branch=[engine.r.move_id(value) for value in branch]
     _text(acquisition_request_id, "static Feature acquisition request")
+    if feature_id==__import__('fortress').GUARDIAN and type(selection)is dict and set(selection)=={'edition'}:
+        selection=dict(selection,mark_scope='korean_own_mark')
     validate_actor(actor)
     for _, row, active in _static_records(actor):
         record = row["static_acquisition"]
         if record["request_id"] == acquisition_request_id:
-            if record["snapshot"].get("selection")!=selection:raise ValueError("static acquisition replay cannot change optional selection")
+            actual_selection=record["snapshot"].get("selection")
+            if feature_id==__import__('commander').COMPLEX:
+                actual_selection={'prerequisite_source':record['snapshot']['prerequisite_source']}
+                if record['snapshot']['mastermind_declaration'] is not None:
+                    actual_selection['mastermind_declaration']=record['snapshot']['mastermind_declaration']
+            if actual_selection!=selection:raise ValueError("static acquisition replay cannot change optional selection")
             expected_branch=branch if STATIC_FEATURES[feature_id].get('branch') or STATIC_FEATURES[feature_id].get('move_choices') else None
             actual_branch=record['snapshot'].get('moves') if STATIC_FEATURES[feature_id].get('move_choices') else record['snapshot'].get('branch') if STATIC_FEATURES[feature_id].get('branch') else None
             if record["feature_id"] != feature_id or record["prerequisite_source"] != prerequisite_source or actual_branch!=expected_branch or (rank is not None and record['snapshot'].get('rank_number')!=rank):
                 raise ValueError("static Feature acquisition replay cannot change its intent")
             return dict(deepcopy(record), status="acquired" if active else "withdrawn")
-    if selection is not None and feature_id!=__import__("provocateur").PUSH:raise ValueError("this Feature has no optional acquisition selection")
+    if selection is not None and feature_id not in __import__('fortress').FEATURES and feature_id not in __import__('skirmisher').FEATURES and feature_id not in __import__('marksman').FEATURES and feature_id not in __import__('berserker').FEATURES and feature_id not in __import__('arcanist').FEATURES and feature_id not in __import__('rune_master').FEATURES and feature_id not in __import__('breather').FEATURES and feature_id not in __import__('researcher_fields').STATIC_DEFINITIONS and feature_id not in __import__('telekinetic').CSV_VARIANTS and feature_id not in {'feat/특색있는-맛','feat/경단'} and feature_id!=__import__('type_sync').FEATURE and feature_id!='feat/포켓몬매니아' and feature_id!=__import__('psionic_sight').FEATURE and feature_id not in __import__('hobbyist').FEATURES and feature_id!=__import__('commander').COMPLEX and feature_id!=__import__("provocateur").PUSH and feature_id not in {*__import__('style_expert').FEATURES,__import__('type_expertise').FEATURE,*__import__('versatility').FEATURES,*__import__('trickster').FEATURES,*__import__('type_ace').CSV_VARIANTS,*__import__('juggler').DEFINITIONS,*__import__('mentor').FEATURES,*__import__('coordinator').FEATURES,*__import__('ace_trainer').FEATURES,*__import__('ace_trainer').TRAINING,*__import__('aura_guardian').FEATURES,*__import__('hex_maniac').FEATURES,__import__('sage').HANDS,__import__('telekinetic').POWER,__import__('telepath').AWARE,__import__('walk_it_off').FEATURE,'feat/포획-추진력','feat/포켓몬-넌-내-꺼야'}:raise ValueError("this Feature has no optional acquisition selection")
     branched=STATIC_FEATURES[feature_id].get('branch',False)
     ranked=STATIC_FEATURES[feature_id].get('ranked',False)
     if rank is not None and not ranked:raise ValueError('this Feature is not Ranked')
@@ -403,7 +709,7 @@ def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequ
     elif feature_id in __import__('musician').FEATURES:
         snapshot=__import__('musician').acquisition_snapshot(engine,actor,feature_id,branch)
     elif feature_id in __import__('type_ace').FEATURES:
-        snapshot=__import__('type_ace').acquisition_snapshot(engine,actor,feature_id,branch)
+        snapshot=__import__('type_ace').acquisition_snapshot(engine,actor,feature_id,branch,selection)
     elif feature_id in __import__('chronicler').FEATURES:
         snapshot=__import__('chronicler').acquisition_snapshot(engine,actor,feature_id,rank)
     elif feature_id in __import__('fashionista').FEATURES:
@@ -413,16 +719,20 @@ def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequ
     elif feature_id in __import__('athlete').FEATURES:
         snapshot=__import__('athlete').acquisition_snapshot(engine,actor,feature_id,rank)
     elif feature_id in __import__('style_expert').FEATURES:
-        snapshot=__import__('style_expert').acquisition_snapshot(engine,actor,feature_id,branch,rank)
+        snapshot=__import__('style_expert').acquisition_snapshot(engine,actor,feature_id,branch,rank,selection)
+    elif feature_id in __import__('rogue').FEATURES:
+        snapshot=__import__('rogue').acquisition_snapshot(engine,actor,feature_id,branch)
     elif feature_id in __import__('dancer').FEATURES:
         snapshot=__import__('dancer').acquisition_snapshot(engine,actor,feature_id,branch)
+    elif feature_id in {*__import__('commander').FEATURES, *__import__('commander').BUNDLES}:
+        snapshot = __import__('commander').acquisition_snapshot(engine, actor, feature_id, branch, selection)
     elif branched:
         import stat_ace as STAT
         snapshot=STAT.acquisition_snapshot(engine,actor,feature_id,branch)
     import taskmaster as TASK
     if feature_id in TASK.FEATURES:snapshot=TASK.acquisition_snapshot(actor,feature_id)
     import chef_cooking as CHEF
-    if feature_id in CHEF.FEATURES:snapshot=CHEF.acquisition_snapshot(engine,actor,feature_id)
+    if feature_id in CHEF.FEATURES:snapshot=CHEF.acquisition_snapshot(engine,actor,feature_id,selection)
     import survivalist_class as SURVIVAL
     if feature_id in SURVIVAL.FEATURES:snapshot=SURVIVAL.acquisition_snapshot(engine,actor,feature_id,rank)
     import control_mount as MOUNT
@@ -443,12 +753,61 @@ def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequ
         snapshot = MOMENT.acquisition_snapshot(actor, feature_id)
     if feature_id == "feat/포획-추진력":
         import captured_momentum as MOMENTUM
-        snapshot = MOMENTUM.acquisition_snapshot(actor)
+        snapshot = __import__('capture_specialist').feature_snapshot(actor,feature_id,selection) if selection is not None else MOMENTUM.acquisition_snapshot(actor)
+    if feature_id == 'feat/포켓몬-넌-내-꺼야':snapshot=__import__('capture_specialist').feature_snapshot(actor,feature_id,selection)
     if feature_id in ("feat/응원-단체", "feat/영감을-주는-지원", "feat/신나게-방해", "feat/응원-문구"):
         import cheerleader as CHEER
         snapshot = CHEER.acquisition_snapshot(actor, feature_id)
     if feature_id in __import__("provocateur").FEATURES:
         snapshot=__import__("provocateur").acquisition_snapshot(engine,actor,feature_id,selection)
+    if feature_id in __import__("tumbler").FEATURES:snapshot=__import__("tumbler").acquisition_snapshot(engine,actor,feature_id)
+    if feature_id in __import__('aura_guardian').FEATURES:snapshot=__import__('aura_guardian').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id in __import__('channeler').FEATURES:snapshot=__import__('channeler').acquisition_snapshot(engine,actor,feature_id)
+    if feature_id in __import__('hex_maniac').FEATURES:snapshot=__import__('hex_maniac').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id in __import__('ninja').FEATURES:snapshot=__import__('ninja').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id in __import__('oracle').FEATURES:snapshot=__import__('oracle').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id in __import__('sage').FEATURES:snapshot=__import__('sage').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id in __import__('telekinetic').FEATURES:snapshot=__import__('telekinetic').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id in __import__('warper').FEATURES:snapshot=__import__('warper').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    elif feature_id in __import__('telepath').FEATURES:snapshot=__import__('telepath').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id in {*__import__('ace_trainer').FEATURES,*__import__('ace_trainer').TRAINING}:
+        snapshot=__import__('ace_trainer').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id in __import__('mentor').FEATURES:
+        snapshot=__import__('mentor').acquisition_snapshot(engine,actor,feature_id,selection)
+    if feature_id in __import__('coordinator').FEATURES:snapshot=__import__('coordinator').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id in __import__('trickster').FEATURES:snapshot=__import__('trickster').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id in __import__('juggler').DEFINITIONS:snapshot=__import__('juggler').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id == __import__('type_expertise').FEATURE:
+        snapshot = __import__('type_expertise').acquisition_snapshot(engine, actor, rank, selection)
+    if feature_id==__import__('walk_it_off').FEATURE:snapshot=__import__('walk_it_off').acquisition_snapshot(engine,actor,selection)
+    if feature_id in __import__('focused_command').FEATURES:
+        snapshot=__import__('focused_command').acquisition_snapshot(engine,actor,feature_id)
+    if feature_id in __import__('versatility').FEATURES:
+        snapshot=__import__('versatility').acquisition_snapshot(engine,actor,feature_id,selection)
+    if feature_id == __import__('psionic_sight').FEATURE:
+        snapshot = __import__('psionic_sight').acquisition_snapshot(engine, actor, selection)
+    if feature_id in __import__('researcher_fields').STATIC_DEFINITIONS:
+        snapshot = __import__('researcher_fields').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id == __import__('type_sync').FEATURE:
+        snapshot = __import__('type_sync').acquisition_snapshot(engine,actor,selection)
+    if feature_id in __import__('hobbyist').FEATURES:
+        snapshot=__import__('hobbyist').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    elif STATIC_FEATURES[feature_id].get('hobbyist_general'):
+        snapshot=__import__('hobbyist').general_snapshot(engine,actor,feature_id,selection)
+    elif feature_id in __import__('breather').FEATURES:
+        snapshot=__import__('breather').feature_snapshot(engine,actor,feature_id,selection)
+    if feature_id in __import__('rune_master').FEATURES:
+        snapshot = __import__('rune_master').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id in __import__('arcanist').FEATURES:
+        snapshot = __import__('arcanist').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id in __import__('berserker').FEATURES:
+        snapshot = __import__('berserker').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id in __import__('marksman').FEATURES:
+        snapshot = __import__('marksman').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id in __import__('skirmisher').FEATURES:
+        snapshot = __import__('skirmisher').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id in __import__('fortress').FEATURES:
+        snapshot = __import__('fortress').acquisition_snapshot(engine,actor,feature_id,rank,selection)
     qualification = _static_qualification(actor, feature_id, snapshot, prerequisite_source)
     record = {"actor_id": actor.entity_id, "feature_id": feature_id, "source": source, "request_id": acquisition_request_id,
               "prerequisite_source": prerequisite_source, "snapshot": snapshot, "qualification": qualification}
@@ -456,8 +815,14 @@ def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequ
     def apply(staged, trainer):
         import trainer_retraining as RETRAINING
         if feature_id not in trainer.spec.setdefault('feats',[]):trainer.spec['feats'].append(feature_id)
+        if feature_id==__import__('berserker').POWER:
+            __import__('berserker').prepare_acquire(staged,trainer,snapshot['selection'])
+        if feature_id==__import__('fortress').SLOW:
+            __import__('fortress').prepare_acquire(staged,trainer,snapshot['selection'])
         if ranked:
             trainer.spec.setdefault('feat_ranks',{})[feature_id]=rank
+            if feature_id==__import__('hex_maniac').STUDIES:
+                trainer.spec.setdefault('feature_choices',{}).setdefault(feature_id,[]).append(list(snapshot['selection']['moves']))
             if STATIC_FEATURES[feature_id].get('move_choices'):
                 trainer.spec.setdefault('feature_choices',{}).setdefault(feature_id,[]).append(list(snapshot['moves']))
         if branched:
@@ -469,13 +834,32 @@ def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequ
             GRANTS._source(trainer,source_id,'feature',rule_id=feature_id,owner_id=trainer.entity_id,lifetime='while_owned',tutor_points=0)
         else:source_id = RETRAINING.owned_source(staged, trainer, feature_id)
         GRANTS._source(trainer, source_id, "feature", static_acquisition=record)
+        if feature_id in __import__('researcher_fields').STATIC_DEFINITIONS:__import__('researcher_fields').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('rune_master').FEATURES:__import__('rune_master').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('arcanist').FEATURES:__import__('arcanist').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('berserker').FEATURES:__import__('berserker').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('marksman').FEATURES:__import__('marksman').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('skirmisher').FEATURES:__import__('skirmisher').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('fortress').FEATURES:__import__('fortress').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id == __import__('psionic_sight').FEATURE:__import__('psionic_sight').after_acquire(staged,trainer,source_id)
+        if feature_id in __import__('hobbyist').FEATURES:
+            __import__('hobbyist').after_acquire(staged,trainer,feature_id,source_id)
+        elif STATIC_FEATURES[feature_id].get('hobbyist_general'):
+            __import__('hobbyist').after_child(staged,trainer,feature_id,source_id,{})
+        if feature_id in __import__('versatility').FEATURES:
+            __import__('versatility').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id==__import__('walk_it_off').FEATURE:GRANTS.stat(trainer,'hp',1,source_id,operation_id='acquisition_stat_tag')
+        if feature_id in {*__import__('commander').FEATURES, *__import__('commander').BUNDLES}:
+            __import__('commander').after_acquire(staged, trainer, feature_id, source_id, branch)
+        if feature_id in __import__('rogue').FEATURES:
+            __import__('rogue').after_acquire(staged,trainer,feature_id,source_id,branch)
         if feature_id in {*MOUNT.FEATURES,*MARCH.FEATURES}:
             GRANTS.stat(trainer,'spe',1,source_id,operation_id='acquisition_stat_tag')
         if feature_id in __import__('hunter').FEATURES:
             __import__('hunter').after_acquire(staged,trainer,feature_id,source_id,branch)
         if feature_id in __import__('athlete').FEATURES:
             GRANTS.stat(trainer,__import__('athlete').STAT_TAG,1,source_id,operation_id='acquisition_stat_tag')
-        if feature_id == "feat/포획-추진력":
+        if feature_id in ("feat/포획-추진력",'feat/포켓몬-넌-내-꺼야'):
             import items
             items.register_feats(staged, trainer)
         if feature_id in __import__('martial_artist').FEATURES:
@@ -483,11 +867,27 @@ def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequ
             __import__('static_feature_state_grants').register_all(staged,trainer)
         if feature_id in __import__("provocateur").FEATURES:
             __import__("provocateur").after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__("tumbler").FEATURES:__import__("tumbler").after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('aura_guardian').FEATURES:__import__('aura_guardian').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('hex_maniac').FEATURES:__import__('hex_maniac').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('ninja').FEATURES:__import__('ninja').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('oracle').FEATURES:__import__('oracle').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('sage').FEATURES:__import__('sage').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('telekinetic').FEATURES:__import__('telekinetic').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('warper').FEATURES:__import__('warper').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('telepath').FEATURES:__import__('telepath').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('ace_trainer').FEATURES:__import__('ace_trainer').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('juggler').DEFINITIONS:__import__('juggler').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id == __import__('type_expertise').FEATURE:
+            __import__('type_expertise').after_acquire(staged, trainer, source_id)
+        if feature_id in __import__('mentor').FEATURES:__import__('mentor').on_acquired(staged,trainer,feature_id,record)
         validate_actor(trainer)
         ACQUIRED.class_instances(trainer);ACQUIRED.feature_instances(trainer)
         if branched:
             import static_trainer_modifiers as STATIC
             STATIC.register_all(staged,trainer)
+        if feature_id==__import__('breather').CLASS:
+            __import__('static_trainer_modifiers').register_all(staged,trainer)
         if feature_id in __import__('chronicler').FEATURES:
             __import__('chronicler').after_acquire(staged,trainer)
         if feature_id in __import__('fashionista').FEATURES:
@@ -498,6 +898,10 @@ def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequ
             __import__('roughneck').after_acquire(staged,trainer,feature_id,source_id)
         if feature_id in __import__('musician').FEATURES:
             __import__('musician').after_acquire(staged,trainer,feature_id,source_id,branch)
+        import class_passive_combat as PASSIVE
+        if feature_id in PASSIVE.POKEMON_STATIC:
+            for pokemon in PASSIVE._owned_pokemon(staged,trainer):
+                PASSIVE.register_all(staged,pokemon)
         return dict(deepcopy(record), status="acquired")
     return GRANTS.transition(engine, actor, apply)
 
@@ -641,17 +1045,19 @@ def _personal_tutor_qualification(actor, provider, waivers):
         raise ValueError("Personal Tutor prerequisite waiver has no reviewed native authority")
     import skill_modifiers as SKILLS
     rank_name, dice, rank = SKILLS.rank(actor.r, actor, "일반 지식")
+    hobbyist=__import__('hobbyist').provider(actor,PERSONAL_TUTOR)
+    waived=hobbyist is not None and hobbyist[1]['kind']=='dilettante'
     checks = [
         {"id": "trainer", "kind": "prerequisite", "state": "passed" if actor.kind == "trainer" else "denied",
          "observed": actor.kind, "reason": "Personal Tutor requires an actual trainer"},
-        {"id": "general_education", "kind": "prerequisite", "state": "passed" if rank >= 3 else "denied",
+          {"id": "general_education", "kind": "prerequisite", "state": "waived" if waived else "passed" if rank >= 3 else "denied",
          "observed": {"rank_name": rank_name, "dice": dice, "rank": rank},
          "reason": "Personal Tutor requires Novice General Education"},
     ]
-    denied = next((row for row in checks if row["state"] != "passed"), None)
+    denied = next((row for row in checks if row["state"] not in ('passed','waived')), None)
     if denied is not None:
         raise ValueError(denied["reason"])
-    return {"schema": 1, "status": "qualified", "checks": checks, "waivers": []}
+    return {"schema": 1, "status": "qualified", "checks": checks, "waivers": [{'hobbyist_provider':deepcopy(hobbyist[1])}] if waived else []}
 
 
 def _permanent_move_proofs(actor, selected):
@@ -782,9 +1188,15 @@ def _validate_personal_tutor_receipt(actor, payload):
     if provider != {"actor_id": actor.entity_id, "mode": "self_acquisition"}:
         raise ValueError("Personal Tutor receipt provider provenance mismatch")
     qualification = payload["qualification"]
+    hobbyist_waivers=qualification.get('waivers',[]) if isinstance(qualification,dict) else []
+    if hobbyist_waivers:
+        if type(hobbyist_waivers)is not list or len(hobbyist_waivers)!=1 or set(hobbyist_waivers[0])!={'hobbyist_provider'}:raise ValueError('exact acquired Dilettante Personal Tutor provider required')
+        proof=hobbyist_waivers[0]['hobbyist_provider']
+        __import__('hobbyist').validate_provider(actor,proof,False)
+        if proof['child']!=PERSONAL_TUTOR or proof['kind']!='dilettante':raise ValueError('Personal Tutor skill waiver requires its actual chosen Dilettante receipt')
     if (type(qualification) is not dict or set(qualification) != {"schema", "status", "checks", "waivers"} or
             qualification["schema"] != 1 or qualification["status"] != "qualified" or
-            qualification["waivers"] != [] or type(qualification["checks"]) is not list or
+              type(qualification["checks"]) is not list or
             len(qualification["checks"]) != 2):
         raise ValueError("Personal Tutor qualification or waiver provenance mismatch")
     trainer, education = qualification["checks"]
@@ -796,9 +1208,9 @@ def _validate_personal_tutor_receipt(actor, payload):
     observed = education.get("observed") if isinstance(education, dict) else None
     if (type(education) is not dict or set(education) != check_fields or
             (education["id"], education["kind"], education["state"]) !=
-            ("general_education", "prerequisite", "passed") or
+              ("general_education", "prerequisite", "waived" if hobbyist_waivers else "passed") or
             type(observed) is not dict or set(observed) != {"rank_name", "dice", "rank"} or
-            type(observed["rank"]) is not int or observed["rank"] < 3):
+              type(observed["rank"]) is not int or observed["rank"] < (1 if hobbyist_waivers else 3)):
         raise ValueError("Personal Tutor General Education prerequisite provenance mismatch")
     selection = payload["selection"]
     values = selection["values"]
@@ -961,6 +1373,8 @@ def _active_rows(actor):
 
 
 def validate_actor(actor):
+    import native_acquisition_adapters as NATIVE
+    NATIVE.validate_actor(actor)
     _validate_static_acquisitions(actor)
     ledger = actor.spec.get(LEDGER_KEY, {})
     projection = actor.spec.get(PROJECTION_KEY, {})
@@ -998,7 +1412,7 @@ def receipts(actor):
     import trainer_retraining as RETRAINING
     retired = RETRAINING.retired_receipts(actor)
     return [dict(deepcopy(ledger[key]), state='withdrawn') if ledger[key]['receipt_id'] in retired
-            else deepcopy(ledger[key]) for key in sorted(ledger)]
+            else deepcopy(ledger[key]) for key in sorted(ledger)] + __import__('native_acquisition_adapters').receipts(actor)
 
 
 def projection(actor, feature_id=None):

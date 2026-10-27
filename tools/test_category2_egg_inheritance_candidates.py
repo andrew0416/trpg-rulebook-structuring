@@ -4,7 +4,7 @@ from pathlib import Path
 import importlib.util,json,sys,unittest
 
 STAGE=Path(__file__).resolve().parents[1]
-CANON=Path(r'D:\trpg-rulebook-structuring\ptk-structure-experiment')
+CANON=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(CANON/'engine'),str(CANON/'tools')]
 import test_foundation_egg_creation as FIX
 from builder import build_pokemon

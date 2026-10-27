@@ -3,6 +3,13 @@ import state_fields as F
 import struggle_capabilities as S
 SOURCE='poke_edge/기본-원거리-공격'
 ALIASES=(SOURCE,'기본 원거리 공격','Basic Ranged Attacks')
+CHOICES=('불쏘시개','물줄기','냉동고','세찬바람','구체화','재퍼')
+
+
+def choice(value):
+ name=S.canonical(value)
+ if name not in CHOICES:raise ValueError('ranged Struggle requires one of the six printed capabilities')
+ return name
 
 
 def records(actor):
@@ -17,9 +24,9 @@ def validate(actor,*,allow_lost=False):
  if actor.kind!='pokemon' or actor.r._selected_rule(SOURCE)!=SOURCE:raise ValueError('selected Pokemon ranged Struggle source required')
  for row in rows:
   import poke_edge_variants as V
-  V.validate_receipt(actor.r,row)
+  V.validate_receipt(actor.r,row,history=True,minimum_level=20)
   name=row.get('choice')
-  if name not in S.DEFINITIONS or row.get('effect_storage')!='derived':raise ValueError('explicit ranged Struggle capability required')
+  if name not in CHOICES or row.get('effect_storage')!='derived':raise ValueError('explicit ranged Struggle capability required')
   F.integer(row.get('point_cost'),'ranged Struggle investment',1,1)
   if row.get('status')=='active':
    if name in seen:raise ValueError('distinct active ranged Struggle choices required')
@@ -58,7 +65,7 @@ def teach(e,owner,*,target,capability,from_grooming=False,from_training=False,sa
 def _teach(e,owner,target,capability,from_grooming=False,from_training=False,safe=None):
  import pokemon_teaching as T
  T._pokemon(e,owner,target);T.source(e.r,SOURCE,T.POINTS);validate(target)
- name=S.canonical(capability)
+ name=choice(capability)
  if target.level<20 or not S.owned(target,name):raise ValueError('ranged Struggle requires level20 and selected actual capability')
  if any(r['status']=='active' and r['choice']==name for r in records(target)):raise ValueError('capability already has ranged Struggle')
  if T._balance(target.spec)<1:raise ValueError('ranged Struggle costs one Tutor Point')

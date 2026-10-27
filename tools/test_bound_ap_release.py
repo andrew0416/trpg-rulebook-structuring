@@ -5,11 +5,75 @@ import copy, hashlib, json, sys, unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'engine'))
+from chained_case_lifecycle import bind_case_lifecycle, defer_case_commit
 from engine import Rules, Engine, Combatant
 import action_points as AP
 import effects as FX
 
 class BoundAPTests(unittest.TestCase):
+    LIFECYCLE_METHODS = (
+        'test_duplicate_adoption_no_effect_or_AP_change',
+        'test_same_modifier_cannot_belong_to_two_bindings',
+        'test_release_exact_instance_effect_and_AP',
+        'test_duplicate_release_cannot_refund_or_record_action_again',
+    )
+
+    @classmethod
+    def prepare_chained_cases(cls, cases):
+        """Reuse the adopted world only when all four exact stages are selected."""
+        if any(type(case) is not cls for case in cases):
+            raise ValueError('bound AP lifecycle requires this exact class')
+        stages = [case for case in cases if case._testMethodName in cls.LIFECYCLE_METHODS]
+        if {case._testMethodName for case in stages} != set(cls.LIFECYCLE_METHODS):
+            return None
+        if len(stages) != len(cls.LIFECYCLE_METHODS):
+            raise ValueError('each bound AP stage must be selected once')
+        if any(hasattr(case, '_bound_ap_context') for case in stages):
+            raise ValueError('bound AP stages already have a context')
+        by_name = {case._testMethodName: case for case in stages}
+        stages = tuple(by_name[name] for name in cls.LIFECYCLE_METHODS)
+        context = {'case_ids': tuple(case.id() for case in stages), 'next_stage': 0, 'state': None}
+        for case in stages:
+            case._bound_ap_context = context
+            bind_case_lifecycle(case, lambda reason: context.setdefault('blocked', reason))
+        ordered = []
+        inserted = False
+        for case in cases:
+            if case._testMethodName in cls.LIFECYCLE_METHODS:
+                if not inserted:
+                    ordered.extend(stages)
+                    inserted = True
+            else:
+                ordered.append(case)
+        return ordered
+
+    def build_release_replay_input(self):
+        state = self.fixture()
+        self.assertEqual(self.release(state[0], state[1]).status, 'released')
+        return state
+
+    def _stage_input(self, stage):
+        context = getattr(self, '_bound_ap_context', None)
+        if context is None:
+            return self.build_release_replay_input() if stage == 3 else self.fixture()
+        self.assertEqual(context['case_ids'][stage], self.id())
+        if context.get('blocked'):
+            raise unittest.SkipTest('blocked connected predecessor: ' + context['blocked'])
+        if context['next_stage'] != stage:
+            raise unittest.SkipTest('blocked by failed prerequisite: bound AP stage ' +
+                str(context['next_stage']) + ' did not complete; required stage ' + str(stage) + ' remains unexecuted')
+        if stage == 0:
+            self.assertIsNone(context['state'])
+            context['state'] = self.fixture()
+        self.assertIsNotNone(context['state'])
+        return context['state']
+
+    def _complete_stage(self, stage):
+        context = getattr(self, '_bound_ap_context', None)
+        if context is not None:
+            self.assertEqual(context['next_stage'], stage)
+            defer_case_commit(self, lambda: context.update(next_stage=stage + 1))
+
     @classmethod
     def setUpClass(cls): cls.rules=Rules(str(ROOT),ruleset='all')
     def fixture(self, *, ending='none_specified', adopted=True, turn=True):
@@ -39,7 +103,7 @@ class BoundAPTests(unittest.TestCase):
         self.assertEqual(z.status,'adopted');self.assertEqual(before,self.projection(e,a)[:-1]+([],))
         self.assertEqual(AP.available(a),avail)
     def test_release_exact_instance_effect_and_AP(self):
-        e,a,b,m,o=self.fixture();before=AP.available(a);rng=e.rng.getstate();budget=dict(a.budget)
+        e,a,b,m,o=self._stage_input(2);before=AP.available(a);rng=e.rng.getstate();budget=dict(a.budget)
         move={'type':'노말','class':'물리'}
         self.assertEqual(FX.passive_damage_mods(e,a,b,move,{'attacker':a,'target':b})[1],6)
         z=self.release(e,a);self.assertEqual(z.status,'released');self.assertEqual(z.released_ap,2)
@@ -49,6 +113,7 @@ class BoundAPTests(unittest.TestCase):
         self.assertEqual(a.spec['ap_spent'],1);self.assertEqual(a.spec['ap_removed'],1)
         self.assertEqual(a.budget,budget);self.assertEqual(e.rng.getstate(),rng)
         self.assertEqual(a._action_history,['free']);self.assertFalse(a.took_standard)
+        self._complete_stage(2)
     def test_no_standard_heavy_injury_consequence(self):
         e,a,b,m,o=self.fixture();a.injuries=5;hp=a.hp
         self.assertEqual(self.release(e,a).status,'released');self.assertEqual(a.hp,hp);self.assertFalse(a.took_standard)
@@ -56,18 +121,27 @@ class BoundAPTests(unittest.TestCase):
         e,a,b,m,o=self.fixture();a.budget=dict(standard=0,shift=0,swift=0)
         self.assertEqual(self.release(e,a).status,'released');self.assertEqual(sum(a.budget.values()),0)
     def test_duplicate_release_cannot_refund_or_record_action_again(self):
-        e,a,b,m,o=self.fixture();self.release(e,a);before=self.projection(e,a)
+        e,a,b,m,o=self._stage_input(3);before=self.projection(e,a)
         self.assertEqual(self.release(e,a).status,'rejected');self.assertEqual(self.projection(e,a),before)
+        self._complete_stage(3)
     def test_duplicate_adoption_no_effect_or_AP_change(self):
-        e,a,b,m,o=self.fixture();before=self.projection(e,a)
+        e,a,b,m,o=self._stage_input(0);before=self.projection(e,a)
+        full_before=e.export_state();rng_before=e.rng.getstate()
         z=e.adopt_bound_ap_modifier(a,'effect-A',modifier=m,ending_method='none_specified',source_ref='test_fixture')
         self.assertEqual(z.status,'rejected');self.assertEqual(self.projection(e,a),before)
+        self.assertEqual(e.export_state(),full_before)
+        self.assertEqual(e.rng.getstate(),rng_before)
+        self._complete_stage(0)
     def test_overlapping_equal_modifiers_are_not_removed_by_value(self):
         e,a,b,m,o=self.fixture();self.release(e,a);self.assertEqual(len(a.modifiers),1);self.assertIs(a.modifiers[0],o)
     def test_same_modifier_cannot_belong_to_two_bindings(self):
-        e,a,b,m,o=self.fixture();before=self.projection(e,a)
+        e,a,b,m,o=self._stage_input(1);before=self.projection(e,a)
+        full_before=e.export_state();rng_before=e.rng.getstate()
         z=e.adopt_bound_ap_modifier(a,'effect-B',modifier=m,ending_method='none_specified',source_ref='test_fixture')
         self.assertEqual(z.status,'rejected');self.assertEqual(self.projection(e,a),before)
+        self.assertEqual(e.export_state(),full_before)
+        self.assertEqual(e.rng.getstate(),rng_before)
+        self._complete_stage(1)
     def test_snapshot_restores_identity_and_replay(self):
         e,a,b,m,o=self.fixture();before=AP.available(a);e.gm.snapshot('bound');self.release(e,a)
         e.gm.restore('bound');self.assertEqual(AP.available(a),before)

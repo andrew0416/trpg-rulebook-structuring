@@ -1,6 +1,6 @@
 """Deterministic integration coverage: build -> equipment -> combat -> recovery -> growth.
 Run: python -X utf8 -B -I engine/test_playthrough.py <root>
-The trainer fixture's feat prerequisites are GM-approved; this is not a character-legality checker.
+Awareness has actual defensive partners and a GM acquisition confirmation; other loadout prerequisites remain GM-approved.
 The trainer has the Medic Training edge, so a healed Pokemon keeps its next standard/swift action (ch09 아이템 사용).
 Without that edge the engine now strips the recipient's next standard and swift action (source audit A03/A07).
 """
@@ -19,6 +19,8 @@ from engine import Rules, Engine, Combatant
 from builder import build_pokemon, build_trainer
 import items as ITEMS
 import effects as FX
+import effects_ext as EXT
+import enduring_awareness as AWARENESS
 import downtime as DT
 import turn as TURN
 
@@ -90,9 +92,11 @@ class PlaythroughTests(unittest.TestCase):
         self.assertEqual(c.hp,original[0]+20)
 
     def test_growth_registers_new_ability_once_without_duplicate_equipment(self):
-        e=self.engine;c=self.pokemon(item="분홍진주");e.register_abilities(c)
+        e=self.engine;c=self.pokemon(item="분홍진주")
+        e.gm.add_combatant(c,reason="actual growing pearl holder")
         before=dict(c.stats);old_stages=dict(c.stages)
         DT.gain_exp_combatant(e,c,"to next level")
+        e.choose_growth_ability(c,20,"두꺼운지방",reason="select the attained native ability milestone")
         self.assertEqual(c.level,20)
         self.assertIn("두꺼운지방",c.abilities)
         self.assertEqual(c.abilities,c.spec["abilities"])
@@ -104,7 +108,12 @@ class PlaythroughTests(unittest.TestCase):
         DT.gain_exp_combatant(e,c,0)
         self.assertEqual([m for m in c.modifiers if m.get("_ability")=="두꺼운지방"],fat)
         attacker=self.pokemon("브케인",20)
-        plain=Combatant(self.rules,copy.deepcopy(c.spec))
+        e.gm.add_combatant(attacker,reason="actual native damage source")
+        plain=self.pokemon(level=20)
+        e.gm.add_combatant(plain,reason="actual unmodified damage control")
+        for stat,value in c.stats.items():
+            e.gm.set_stat(plain,stat,value=value,reason="match the grown recipient's statistics without its ability")
+        self.assertEqual(plain.stats,c.stats)
         move=self.rules.move("move/불꽃세례")
         self.assertLess(e.roll_damage(attacker,c,move,set_damage=True),
                         e.roll_damage(attacker,plain,move,set_damage=True))
@@ -133,14 +142,26 @@ class PlaythroughTests(unittest.TestCase):
 
     def playthrough(self):
         e=self.engine; r=self.rules
-        # GM-approved trainer loadout; acquisition prerequisites are outside this fixture.
-        tr=self.trainer(items={"상처약":3},extra={"feats":["자각","과장된 동작"],"edges":["메딕 훈련"]})
-        ally=self.pokemon(item="분홍진주",extra={"trainer":"민","side":"ally"})
-        enemy=self.pokemon("캐터피",extra={"side":"enemy"})
-        bystander=self.pokemon("캐이시",extra={"trainer":"다른 트레이너","side":"ally"})
-        e.everyone=[tr,ally,enemy,bystander]
+        tr=self.trainer(items={"상처약":3},skills={"육상":3,"집중":3},extra={
+            "id":"playthrough/trainer","classes":[AWARENESS.ENDURING],
+            "feats":[AWARENESS.AWARENESS,"과장된 동작"],"edges":["메딕 훈련"]})
+        ally=self.pokemon(item="분홍진주",extra={"id":"playthrough/ally","trainer":"민","trainer_id":tr.entity_id,"side":"ally"})
+        enemy=self.pokemon("캐터피",extra={"id":"playthrough/enemy","side":"enemy"})
+        bystander=self.pokemon("캐이시",extra={"id":"playthrough/bystander","trainer":"다른 트레이너","side":"ally"})
+        # Distinct, actually owned defensive partners establish historical acquisition;
+        # the battling ally is a different current recipient, not a prerequisite grant.
+        defenders=[self.pokemon(level=5,name="방어 파트너 "+str(i),abilities=["두꺼운지방"],
+            extra={"id":"playthrough/defender/"+str(i),"trainer":"민","trainer_id":tr.entity_id,"side":"ally"}) for i in range(3)]
+        e.everyone=[tr,ally,enemy,bystander,*defenders];e.gm.everyone=e.everyone
+        record=e.gm.confirm_awareness(tr,[{"pokemon":p,"ability":"두꺼운지방",
+            "defensive_reason":"reduces incoming Fire and Ice damage"} for p in defenders],
+            reason="GM confirms three actual owned defensive Pokemon at Awareness acquisition")
+        self.assertEqual(len({row["pokemon_id"] for row in record["defenders"]}),3)
+        self.assertNotIn(ally.entity_id,[row["pokemon_id"] for row in record["defenders"]])
         for c in e.everyone:e.register_abilities(c)
-        self.assertEqual((ally.save_mod,enemy.save_mod,bystander.save_mod),(2,0,0))
+        self.assertEqual(tuple(EXT.save_dc(e,c,None,15) for c in (ally,enemy,bystander)),(13,15,15))
+        self.assertEqual((tr.save_mod,ally.save_mod,enemy.save_mod,bystander.save_mod),(0,0,0,0))
+        self.assertEqual(EXT.save_dc(e,tr,None,15),15)
         self.assertEqual(ally.stages["spa"],1)
         initial_stats=dict(ally.stats); initial_hp=ally.hp
         steps=[]
@@ -190,7 +211,7 @@ class PlaythroughTests(unittest.TestCase):
         self.assertEqual(ally.stages["spa"],1)
         restored=json.loads(json.dumps(ally.spec,ensure_ascii=False))
         self.assertEqual(restored["stat_history"][-1]["event"],"level_up")
-        result={"audit_notice":AUDIT_NOTICE,"seed":11,"fixture":"GM-approved trainer feat prerequisites; scripted initiative; set damage",
+        result={"audit_notice":AUDIT_NOTICE,"seed":11,"fixture":"GM-confirmed actual Awareness prerequisites; other trainer prerequisites approved; scripted initiative; set damage",
                 "initial_hp":initial_hp,"rounds":steps,"recovery":recovery,"experience":detail,
                 "final":{"level":ally.level,"hp":ally.hp,"stats":ally.stats,"abilities":ally.abilities,
                          "potions":tr.spec["items"]["상처약"],"history":restored["stat_history"]}}

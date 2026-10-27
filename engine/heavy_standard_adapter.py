@@ -56,7 +56,8 @@ def finish_equipment(engine,actor,before,outcome,pre_context):
  engine._heavy_events[identity]=packet
  if proposal.status=='ready' and not failures:
   final=proposal.snapshot.state
-  actor.hp,actor.temp_hp=final.hp,final.temporary_hp
+  TEMP.absorb(engine,actor,actor.temp_hp-final.temporary_hp)
+  actor.hp=final.hp
   import bandages as BANDAGES
   BANDAGES.on_hp_change(engine,actor,after['hp'],actor.hp)
   packet.update(status='applied',heavy_consequence=dict(kind='hp_loss',amount=proposal.loss,
@@ -88,21 +89,149 @@ def _public_data_failures(actor,target,move,mm,public_inputs):
    if type(getattr(c,field,None)) is not int:failures.append(label+':nonplain_'+field)
   for field in ('dead','captured','on_field','abilities_suppressed'):
    if type(getattr(c,field,None)) is not bool:failures.append(label+':nonplain_'+field)
-  if not _plain_json(c.spec):failures.append(label+':nonplain_spec')
+  # Native builder sheets contain passive tuples/sets (for example movement
+  # capabilities); they are not arbitrary object or numeric-subclass callbacks.
+  if type(c.spec) is not dict or not H._passive(c.spec):failures.append(label+':nonplain_spec')
   for field in ('types','abilities','moves'):
    value=getattr(c,field,None)
    if type(value) is not list or any(type(x) is not str for x in value):failures.append(label+':nonplain_'+field)
   if type(c.conditions) is not set or any(type(x) is not str for x in c.conditions):failures.append(label+':nonplain_conditions')
- if not _plain_json(move) or not _plain_json(mm):failures.append('nonplain_move_data')
+ source_move=H.single_target_move_data(move,target)
+ if source_move is None or not _plain_json(source_move) or not _plain_json(mm):failures.append('nonplain_move_data')
  return failures
+
+def _independent_native_standard(engine,actor,target,move,mm,ordinary_single,public_inputs):
+ """Certify the actual HP-independent native suffix, not an action exemption."""
+ import initiative_interrupts as INTERRUPTS,world_entities as WORLD
+ prepared_difference={}
+ def result(failures):
+  return dict(failures=list(dict.fromkeys(failures)),upper_damage=None,
+   checked=['actual_native_standard_and_selected_interrupt','exact_hp_independent_native_move',
+    'no_native_hp_observer_or_retaliation','loss_preserves_injuries_and_life_permission'],
+   context='native_standard_hp_loss_commutes' if not failures else 'unresolved_activation_context',
+   prepared_difference=prepared_difference)
+ failures=_public_data_failures(actor,target,move,mm,public_inputs)
+ native=getattr(engine,'_heavy_native_types',())
+ if (len(native)!=3 or type(engine) is not native[0] or type(engine.r) is not native[1]
+     or any(type(c) is not native[2] or c.r is not engine.r for c in (actor,target))):
+  failures.append('noncanonical_runtime_type')
+ if failures:return result(failures)
+ if not ordinary_single:
+  import move_activation as ACTIVATION
+  # use_move_on owns a frame even for one target. Its existing verify() has
+  # consumed index one before this diagnostic; neither shared dictionaries nor
+  # a copied completion receipt can replace this live producer/lifetime.
+  singles=[scope for scope in getattr(engine,'_move_activation_scopes',())
+   if scope['actor'] is actor and scope['move_id']==move.get('id')
+   and scope['primary'] is target and scope['targets']==(target,)
+   and scope['index']==1 and scope['accuracy'] is None
+   and scope['activation'] in ({},{'started':True})
+   and scope['profile']==ACTIVATION._profile(engine)
+   and scope['lifetime']==ACTIVATION._lifetime(engine)
+   and not any(scope.get(key) for key in ('prepaid_pass','paid_resolution','type_ace','martial_artist','style_expert','stat_maneuver'))]
+  ordinary_single=len(singles)==1
+ if (not ordinary_single or actor is target or not engine.encounter_active
+     or engine._active_turn_actor is not actor or engine.round_start_seconds is None
+     or actor.fainted or actor.dead or actor.captured or not actor.on_field):
+  failures.append('actual_conscious_native_standard_missing')
+ selected=INTERRUPTS.selected_move_frame(engine,actor)
+ if actor.hp<=0 and selected is None:failures.append('nonpositive_actor_has_no_actual_selected_interrupt')
+ passive=H.passive_prefix_failures(engine,actor,target,require_actor_budget=True)
+ from pathlib import Path
+ if type(engine.r.root) is type(Path()) and engine.r.root.is_absolute():
+  passive=[item for item in passive if item!='rules:nonpassive_state:root']
+ if selected is not None and __import__('enduring_soul').conscious(actor):
+  window=getattr(engine,INTERRUPTS.KEY)['windows'][selected[0]['window_id']]
+  __import__('enduring_soul').authorize_request(engine,actor,selected[1],window['trigger'])
+  passive=[item for item in passive if item!='actor:nonpassive_state:_enduring_not_yet_live']
+ failures.extend(passive)
+ if failures:return result(failures)
+ raw=dict(move);actual_targets=raw.pop('_actual_targets',None)
+ expected=engine.r.move(move.get('id'))
+ if (move.get('id') not in ('struggle','move/몸통박치기') or raw!=expected
+     or actual_targets!=(target,) or mm not in ({},{'push':{'meters':2}})
+     or (move.get('id')=='struggle' and mm!={})
+     or (move.get('id')=='move/몸통박치기' and mm!={'push':{'meters':2}})):
+  failures.append('not_reviewed_hp_independent_native_suffix')
+  prepared_difference.update(move={key:[raw.get(key),expected.get(key)]
+   for key in raw.keys()|expected.keys() if raw.get(key)!=expected.get(key)},mechanics=copy.deepcopy(mm))
+ for owner in (engine.rulings,engine.r.rulings):
+  if type(owner) is not Rulings:failures.append('noncanonical_rulings_type')
+  # These exact units are never read by either reviewed suffix: no capture is
+  # performed and both actual actors are required to have no conditions below.
+  # Keep every formula/effect/hook, and any other mech override, unresolved.
+  unrelated={'pokemon/capture-rate','condition/마비','condition/풀죽음','condition/헤롱헤롱'}
+  if (any(owner.hooks.values()) or set(owner.mech)-unrelated
+      or any(getattr(owner,k,None) for k in ('formulas','effects','situational','provider'))):
+   failures.append('external_native_observer')
+ for obj,names in ((engine,('lose_hp','_lose_hp','marker_injuries','check_fainted','accuracy_check','roll_damage','damage_base','d20','roll_expr','type_multiplier','formula','log')),
+                   (engine.r,('move','move_mech','mech','formula'))):
+  if any(name in vars(obj) for name in names):failures.append('overridden_native_method')
+ for c in (actor,target):
+  import temporary_hp as TEMP
+  if not H.inert_turn_bookkeeping(engine,c):
+   failures.append('native_suffix_custom_condition')
+  for field in ('abilities','ability_triggers','registry','modifiers','conditions','buffs','coats','blessings','item','shield',
+                'next_attack','reflect','damage_cap','form_rule','form','setup_move','locked_move'):
+   if getattr(c,field,None):failures.append('native_suffix_interaction:'+field)
+  if c.spec.get('feats') or c.spec.get('features') or c.spec.get('edges'):
+   failures.append('native_suffix_actor_feature')
+  if any(c.stages.values()) or c.damage_reduction:failures.append('native_suffix_nonplain_stats')
+ if target.injuries:failures.append('target_resource_interactions')
+ if type(engine.log_lines) is not list or any(type(line) is not str for line in engine.log_lines):
+  failures.append('noncanonical_log_sink')
+ if type(engine.rng) is not random.Random:failures.append('unknown_rng_provider')
+ elif set(vars(engine.rng))!={'gauss_next'} or type(vars(engine.rng)['gauss_next']) not in (type(None),int,float):
+  failures.append('rng_instance_state_not_native')
+ for obj in (engine,engine.r,actor,target,engine.rulings,engine.r.rulings):
+  if any(callable(value) for value in vars(obj).values()):failures.append('instance_callback')
+ if move.get('type') in actor.types:failures.append('native_suffix_stab_bound_not_reviewed')
+ if failures:return result(failures)
+ df=engine.r.mech('combat/damage-formula')
+ stages=engine.r.mech('combat/combat-stage-multipliers')['multiplier_by_stage']
+ if (move.get('class')!='물리' or df['attack_stat_by_class'].get('물리')!='atk'
+     or df['defense_stat_by_class'].get('물리')!='def' or stages.get('0')!=1):
+  failures.append('native_damage_bound_semantics_changed')
+ if move.get('id')=='struggle' and actor.kind!='pokemon':
+  entry=engine.r.mech('combat/damage-chart')['by_damage_base'][str(move['damage_base'])]
+  dice=re.fullmatch(r'(\d+)d(\d+)(?:\+(\d+))?',entry['dice'])
+  upper=None if dice is None else max(2*entry['set']['mid'],2*(int(dice[1])*int(dice[2])+int(dice[3] or 0)))+actor.stats['atk']-target.stats['def']
+  if upper is None or 2*upper>=target.base_max_hp or 2*(target.hp-upper)<=target.base_max_hp:
+   failures.append('target_marker_faint_or_massive_not_excluded')
+ for field in ('weather','field','zones','zone_cells','hazards','hazards_nogrid','delayed','taunt','zone_rules'):
+  if getattr(engine,field,None):failures.append('native_suffix_field:'+field)
+ index=WORLD.actor_index(engine);trainer=index.get(actor.spec.get('trainer_id'))
+ source=selected[1]['source'] if selected else None
+ import trainer_feature_acquisition as ACQUISITIONS
+ parent=ACQUISITIONS.STATIC_FEATURES.get(source,{}).get('class_template')
+ for c in index.values():
+  if c.kind!='trainer':continue
+  allowed={source} if c is trainer and source is not None else set()
+  classes={parent} if c is trainer and parent is not None else set()
+  if (set(c.spec.get('feats',()))-allowed or c.spec.get('features') or c.spec.get('edges')
+      or set(c.spec.get('classes',()))-classes):failures.append('other_trainer_native_interaction')
+ before=H.observe(actor);state=H._kernel_state(before);final=K._subtract(state,state.injuries)
+ if state.injuries<5 or state.injuries>=10 or K._crosses_marker(state,final):
+  failures.append('native_loss_changes_injury_boundary')
+ if actor.hp>0 and final.hp<=0:failures.append('native_loss_opens_a_new_faint_boundary')
+ if engine.death_enabled and not engine.friendly_battle:
+  from rulings import calc
+  threshold=calc(engine.r.mech('combat/injuries')['death']['hp_non_friendly'],{'max_hp':actor.base_max_hp})
+  if final.hp<=threshold:failures.append('native_loss_crosses_death_boundary')
+ return result(failures)
+
 
 def diagnose(engine,actor,target,move,mm,ordinary_single,*,public_inputs=None):
  import temporary_hp as TEMP_HP
  TEMP_HP.ensure_certain(engine,actor)
  TEMP_HP.ensure_certain(engine,target)
+ independent=_independent_native_standard(engine,actor,target,move,mm,ordinary_single,public_inputs)
+ if not independent['failures']:return independent
  prefix_failures=_public_data_failures(actor,target,move,mm,public_inputs)+H.passive_prefix_failures(engine,actor,target,require_actor_budget=True)
  if prefix_failures:
-  return dict(failures=prefix_failures,upper_damage=None,checked=['plain_public_data_checked'],context='unresolved_activation_context')
+  return dict(failures=prefix_failures,upper_damage=None,checked=['plain_public_data_checked'],
+   context='unresolved_activation_context',native_suffix_failures=independent['failures'],
+   prepared_difference=independent['prepared_difference'])
  base=H.certify_native_context(engine,actor,target,move,mm,ordinary_single=ordinary_single)
  failures=[x for x in base.failures if x!='attacker_standard_heavy_consequence_unresolved']
  for name in ('accuracy_check','damage_base','d20','roll_expr','formula','log'):
@@ -149,7 +278,8 @@ def diagnose(engine,actor,target,move,mm,ordinary_single,*,public_inputs=None):
  return dict(failures=list(dict.fromkeys(failures)),upper_damage=upper,
   checked=[x for x in base.checked if x!='attacker-not-heavy']+['heavy_actor_stable_local_loss','no_active_log_observer','native_standard_use','actor_resource_independent_accuracy_damage_frequency',
    'target_no_marker_faint_massive_for_all_damage_rolls','unmodified_random_provider'],
-  context='restricted_confluent_standard_use' if not failures else 'unresolved_activation_context')
+  context='restricted_confluent_standard_use' if not failures else 'unresolved_activation_context',
+  native_suffix_failures=independent['failures'],prepared_difference=independent['prepared_difference'])
 
 
 def diagnose_empty_field(engine,actor,move,mm,effects,ordinary_single,*,public_inputs=None):
@@ -209,9 +339,7 @@ def diagnose_empty_field(engine,actor,move,mm,effects,ordinary_single,*,public_i
   failures.append('actor_not_ordinary_conscious_on_field')
  for field in ('abilities','conditions','buffs','coats','blessings'):
   if getattr(actor,field,None):failures.append('actor:'+field)
- custom=getattr(actor,'custom_conditions',{})
- if (type(custom) is not dict or set(custom)-{'combat_turn_serial'}
-     or any(type(v) is not int for v in custom.values())):
+ if not H.inert_turn_bookkeeping(engine,actor):
   failures.append('actor:custom_conditions')
  for field in ('abilities','feats','edges','item'):
   if actor.spec.get(field):failures.append('actor:spec.'+field)
@@ -260,7 +388,7 @@ def observe_activation(engine,token):
  else:
   diagnostic['failures']=list(dict.fromkeys(diagnostic['failures']+pre['diagnostic']['failures']))
   if pre['before']!=H.observe(a):diagnostic['failures'].append('actor_changed_before_observed_activation')
- diagnostic['context']='restricted_confluent_standard_use' if not diagnostic['failures'] else 'unresolved_activation_context'
+ diagnostic['context']=diagnostic['context'] if not diagnostic['failures'] else 'unresolved_activation_context'
 
  event_id='heavy-standard-'+str(receipt['epoch'])
  receipt['event_id']=event_id;receipt['before']=H.observe(a)
@@ -289,6 +417,18 @@ def finish(engine,token,*,hit,dealt):
  if packet['status']!='in_progress':raise ValueError('Standard event already resolved')
  after=H.observe(a);target_after=None if target is None else H.observe(target);packet['observed_after']=after
  packet['outcome']=dict(hit=bool(hit),dealt=dealt,target_before=receipt['target_before'],target_after=target_after)
+ if packet['context_evidence']['context']=='native_standard_hp_loss_commutes':
+  if after!=receipt['before']:hold(engine,token,packet,'actor_resource_changed_during_move')
+  identity=packet['event_id'];amount=a.injuries
+  # The certified orders agree. Use the real loss owner so temp-HP provenance,
+  # marker/life hooks and the source-owned faint deferral stay authoritative.
+  engine._heavy_standard_receipts.pop(token)
+  engine.lose_hp(a,amount,source='heavily_injured_standard')
+  packet=engine._heavy_events[identity]
+  packet.update(status='applied',continuation_reified=True,unexecuted_remainder=None,
+   heavy_consequence=dict(kind='hp_loss',amount=amount,before=after,after=H.observe(a),
+    recursive_attack=False,order_claim='certified HP-independent native suffix commutes with loss'))
+  return
  if (target is not None and (target_after['injuries']!=receipt['target_before']['injuries']
      or target_after['hp']<=0 or target_after['conditions'])):
   hold(engine,token,packet,'target_outcome_exceeded_independent_context')
@@ -299,7 +439,8 @@ def finish(engine,token,*,hit,dealt):
  proposal=K.evaluate(K.Snapshot(event.after),event)
  if proposal.status!='ready':hold(engine,token,packet,proposal.reason)
  engine._heavy_standard_receipts.pop(token)
- a.hp,a.temp_hp=proposal.snapshot.state.hp,proposal.snapshot.state.temporary_hp
+ TEMP_HP.absorb(engine,a,a.temp_hp-proposal.snapshot.state.temporary_hp)
+ a.hp=proposal.snapshot.state.hp
  import bandages as BANDAGES
  BANDAGES.on_hp_change(engine,a,after["hp"],a.hp)
  packet['status']='applied';packet['unexecuted_remainder']=None

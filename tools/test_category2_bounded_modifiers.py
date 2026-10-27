@@ -119,6 +119,7 @@ class BoundedModifierTests(unittest.TestCase):
  def test_actual_sweet_scent_reduces_shared_extra_evasion_on_both_kinds(self):
   for kind in ('trainer','pokemon'):
    self.setUp();c=self.a if kind=='trainer' else self.p;c.pos=(1,1);self.target.pos=(2,1)
+   self.target.side='foe';c.side='party'
    self.e.gm.set_stage(c,'eva',value=5);before=[c.evasion(k) for k in ('물리','특수','변화')]
    self.e.gm.set_move(self.target,'move/달콤한향기',True,reason='observed source move')
    self.e.start_round([self.target,c]);self.e.start_of_turn(self.target);self.e.rng.seed(6)

@@ -88,7 +88,7 @@ def add_stat_points(rules, spec, points=1, strategy=None, choice=None, *, growth
     return stat_increment_plan(rules,spec,points,strategy,choice,growth_context=growth_context)['stats']
 
 
-def build_pokemon(rules, species, level, name=None, nature=None, strategy="balanced", moves=None, abilities=None, wild=False, side=None, pos=(0, 0), item=None, extra=None):
+def build_pokemon(rules, species, level, name=None, nature=None, strategy="balanced", moves=None, abilities=None, wild=False, side=None, pos=(0, 0), item=None, extra=None, creation_poke_edges=None):
     M.validate_source(rules)
     sp = species_lookup(rules, species)
     import example_species as EXAMPLES
@@ -151,6 +151,7 @@ def build_pokemon(rules, species, level, name=None, nature=None, strategy="balan
     LIFETIME.fresh(rules,spec)
     import pokemon_progression as PROGRESSION
     PROGRESSION.fresh(rules, spec, explicit_balance=bool(extra and "tutor_points" in extra))
+    __import__('pokemon_capability_edges').creation_choices(rules,spec,creation_poke_edges)
     if pending_creation_ability:
         import growth_milestones as MILESTONES
         MILESTONES.offer(spec,'ability:creation',source='pokemon/level-up',

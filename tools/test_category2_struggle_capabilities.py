@@ -26,7 +26,7 @@ class StruggleTests(unittest.TestCase):
   observed=[];original=f.e.damage_base
   def damage(actor,move,**kw):
    observed.append((move['type'],move['class']));return original(actor,move,**kw)
-  with patch.object(f.e,'damage_base',side_effect=damage),patch.object(f.e.rng,'randint',return_value=10):
+  with patch.object(f.e,'damage_base',side_effect=damage),patch.object(f.e.rng,'randint',side_effect=lambda low,high:10 if high==20 else 2):
    f.e.use_move_on(f.p,f.t,'struggle',[f.p,f.t],struggle_choice={'capability':'Zapper','special':True})
   self.assertIn(('전기','특수'),observed)
   self.assertEqual(f.p.budget['standard'],0)

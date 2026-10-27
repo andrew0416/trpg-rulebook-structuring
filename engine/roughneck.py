@@ -22,8 +22,7 @@ def owns(actor,feature):
 
 def records(actor,feature,active=True):
     import trainer_feature_acquisition as T
-    return [r['static_acquisition'] for _,r,live in T._static_records(actor)
-            if r['static_acquisition']['feature_id']==feature and (live or not active)]
+    return [record for _, record in T.static_acquisitions(actor, feature, active=active)]
 
 
 def acquisition_snapshot(e,actor,feature):
@@ -325,6 +324,9 @@ def validate_world(e,index):
     for target in index.values():
         for timed in CLOCK.records(target):
             if timed['source'] not in (MENACE,DISPLAY):continue
+            # Flinch's Vulnerable child belongs to condition_instances, which
+            # validates its exact envelope and canonical parent in WORLD.
+            if 'flinch_parent_id' in timed:continue
             origin=timed.get('roughneck_origin',{})
             producer=e._effect_dispatch_receipts.get(timed.get('effect_receipt'))
             if not producer or producer.get('roughneck_timed')!={k:timed[k] for k in producer.get('roughneck_timed',{})}:

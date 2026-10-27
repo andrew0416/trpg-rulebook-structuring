@@ -28,7 +28,7 @@ def choices(e,actor,*,allow_incomplete=False):
  if not isinstance(records,list):raise ValueError('Skill Stunt choices must be a list')
  if not acquired:
   if records:raise ValueError('Skill Stunt choice requires an acquired edge')
-  return ()
+  return tuple(__import__('study_books').stunts(e,actor))
  F.conscious_trainer(actor)
  if e.r._selected_rule(SOURCE)!=SOURCE:raise ValueError('selected Skill Stunt needs its own source policy')
  if (len(records)!=acquired and not allow_incomplete) or len(records)>acquired:raise ValueError('one actual narrow use per acquired Skill Stunt required')
@@ -41,7 +41,7 @@ def choices(e,actor,*,allow_incomplete=False):
   _text(choice_id,'Skill Stunt choice identity')
   normalized.append({'id':choice_id,'skill':skill,'skill_id':identity,'use':use,'gm_approved':True,'approval_reason':r.get('approval_reason'),'source':SOURCE})
  if len({r['id'] for r in normalized})!=len(normalized):raise ValueError('Skill Stunt acquisitions need distinct choice identities')
- return tuple(normalized)
+ return tuple(normalized+__import__('study_books').stunts(e,actor))
 
 def approve(e,actor,*,choice_id,skill,use,reason,approved):
  """Bind one already acquired edge to the GM's explicit approval or refusal."""

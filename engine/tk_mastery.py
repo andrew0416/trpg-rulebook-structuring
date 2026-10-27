@@ -24,7 +24,7 @@ def validate(c,*,allow_lost=False):
  active=0
  for r in rows:
   import poke_edge_variants as V
-  V.validate_receipt(c.r,r)
+  V.validate_receipt(c.r,r,history=True,minimum_level=20)
   F.integer(r.get('point_cost'),'TK Mastery TP',1,1)
   if r.get('status')=='active':
    active+=1

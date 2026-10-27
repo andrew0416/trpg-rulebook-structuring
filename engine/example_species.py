@@ -105,6 +105,8 @@ def install(rules):
   rules.learnset_links[sp['name']]=links;rules.species_skills[sp['name']]=skills
  rules.example_species={row['id']:deepcopy(row) for row in data['definitions']}
  rules.example_defender_types=defenders
+ from ruleset import build_runtime_selection
+ rules.selection=build_runtime_selection(rules)
 
 def require(rules,species):
  record=species.get('example_definition')
@@ -168,6 +170,8 @@ def harmful_move(rules,mid):
   if kind is not None and kind not in understood:raise ValueError('pacifist needs reviewed effect harm semantics: '+str(kind))
   return any(offensive(row) for key,row in value.items() if key not in ('_src','_rule_id','_rule_source'))
  mechanics,_=rules.move_mech(mid)
+ native_harm=__import__('telekinetic').harm_semantics(rules,mid)
+ if native_harm is True:return True
  if mechanics.get('apply_status') is not None:return True
  if isinstance(mechanics.get('evasion_mod'),(int,float)) and mechanics['evasion_mod']<0:return True
  if set(mechanics)-{'apply_status','effects_exec','evasion_mod','never_miss'}:raise ValueError('pacifist needs reviewed Move harm semantics: '+mid)

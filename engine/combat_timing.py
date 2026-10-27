@@ -58,6 +58,7 @@ def begin_turn(engine,c,count=None):
     # Actual owner turns advance even when no timed-list effect is installed.
     # Coats and other storage families consume the same clock.
     c.custom_conditions["combat_turn_serial"]=CHECKS.integer(c.custom_conditions.get("combat_turn_serial",0),"actual owner turn serial",0)+1
+    c.custom_conditions['blessing_ignore_turn_open']=True
     import effect_lifetime_policy as LIFETIMES
     LIFETIMES.boundary(engine,'turn_start',c)
     serial=c.custom_conditions.get("combat_turn_serial",0)
@@ -67,6 +68,7 @@ def begin_turn(engine,c,count=None):
                 expire(engine,target,record)
 
 def end_turn(engine,c):
+    __import__('telekinetic').end_turn(engine,c)
     import effect_lifetime_policy as LIFETIMES
     LIFETIMES.boundary(engine,'turn_end',c)
     serial=c.custom_conditions.get("combat_turn_serial",0)
@@ -76,6 +78,7 @@ def end_turn(engine,c):
                 expire(engine,target,record)
     import exhaust_moves as EXHAUST
     EXHAUST.end_turn(engine,c)
+    c.custom_conditions.pop('blessing_ignore_turn_open',None)
 
 def finish_round(engine):
     import environmental_item_state as ENVIRONMENTAL_ITEMS
@@ -131,6 +134,8 @@ def install(engine,c,record):
 def expire(engine,c,record,*,ending='expired',event=None):
     current_records=records(c)
     if record not in current_records:return
+    __import__('fortress').ending(engine,c,record)
+    __import__('telekinetic').ending(engine,c,record)
     if record.get('effect_instance',{}).get('kind')=='temporary_ap':
         import temporary_ap as TEMP_AP
         TEMP_AP.before_expire(engine,c,record)
@@ -157,6 +162,13 @@ def expire(engine,c,record,*,ending='expired',event=None):
             import roll_effects as ROLLS
             ROLLS.validate_record(c,record)
             event=event or {'kind':'round_end','round':engine.round_no}
+        elif record[INSTANCES.KEY].get('kind')=='sage_dr':
+            __import__('sage').validate_effect(c,record)
+            cursor=getattr(engine,'_initiative_cursor',None)
+            event=event or ({'kind':'initiative_count','round':engine.round_no,'count':cursor['count']} if cursor and cursor['round']==engine.round_no else {'kind':'lifetime_end','round':engine.round_no})
+        elif record[INSTANCES.KEY].get('kind')=='telepath':
+            __import__('telepath').validate_effect(c,record)
+            event=event or {'kind':'owner_turn_end','turn':c.custom_conditions.get('combat_turn_serial',0)}
         else:
             import event_effects as EVENTS
             EVENTS.validate_record(c,record)
@@ -182,6 +194,7 @@ def expire(engine,c,record,*,ending='expired',event=None):
         if baseline is not None and c.initiative_override==0:c.initiative_override=baseline["value"]
     if not current_records:c.custom_conditions.pop(KEY,None)
     BOUND.effect_ended(engine,c,record,event=event or {'kind':ending})
+    if record.get('channel_imprint'):__import__('channeler').imprint_ended(engine,c,record)
     engine.log(f"    {c.name}: {record['source']} 기간 종료",record["source"])
 
 def on_status_apply(c,status):
@@ -203,6 +216,8 @@ def on_status_cure(c,status):
 def on_initiative_override(c):
     c.custom_conditions.pop("timed_initiative_baseline",None)
     c.custom_conditions.pop("initiative_fixed",None)
+def all_roll_modifier(c):return sum(x.get("all_roll_modifier",0)+x.get("fashion_all_roll_modifier",0) for x in records(c))
+
 def skill_modifier(c):return sum(x.get("skill_modifier",0) for x in records(c))
 
 def evasion_zero(c):return any(x.get('evasion_zero') is True for x in records(c))

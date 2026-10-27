@@ -5,6 +5,7 @@ weak parts with HP alone. Observations do not certify creation rights or
 supply a damage/action algorithm for an incomplete sheet.
 """
 from copy import deepcopy
+from functools import wraps
 from types import SimpleNamespace
 from uuid import uuid4
 import state_fields as F
@@ -144,4 +145,18 @@ def update(e, uid, *, facts, reason):
 def require_complete(value, operation):
     if isinstance(value, dict) and value.get("kind") in KINDS:
         raise ValueError(operation + " needs a complete combat actor or an explicit HP-only-part adapter; missing stats are unknown")
+
+
+def complete_move(fn):
+    """Reject incomplete sheets before feature decorators inspect or stage them."""
+    @wraps(fn)
+    def run(engine, actor, target, *args, **kwargs):
+        require_complete(actor, fn.__name__)
+        if isinstance(target, dict) and target.get("kind") in KINDS:
+            from inspect import signature
+            field = signature(fn).bind(engine, actor, target, *args, **kwargs).arguments.get("_field_activation")
+            if field is None:
+                require_complete(target, fn.__name__ + " target")
+        return fn(engine, actor, target, *args, **kwargs)
+    return run
 

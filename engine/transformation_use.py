@@ -52,7 +52,7 @@ class NativeCraftingUse(TransformationUse):
  def perform(self,engine,actor,options):
   import crafting_activities as C
   C._p()._trainer(actor)
-  handlers={'cook_poffins':C._cook_poffins,'dismantle':C._dismantle,'craft_item':C._craft_item,'craft_gem':C._craft_gem}
+  handlers={'cook_poffins':C._cook_poffins,'dismantle':C._dismantle,'craft_item':C._craft_item,'craft_gem':C._craft_gem,'trade_materials':C._trade_materials}
   return handlers[self.operation](engine,actor,**options)
 
  def sources(self,engine,actor,options,result):
@@ -60,12 +60,14 @@ class NativeCraftingUse(TransformationUse):
   sources=[R.SOURCE]
   if self.operation=='cook_poffins':sources.append('item/포핀-혼합기')
   elif self.operation=='dismantle':sources.append(engine.r.item_effects(options['item'])[1]['id'])
+  elif self.operation=='trade_materials':pass
   elif self.operation=='craft_gem':sources.extend((C._p().FEATURES['gem_lore'][0],'item/조각',engine.r.item_effects(result['item'])[1]['id']))
   else:
    sources.extend((result['recipe_source'],result['item_id']))
+  if result.get('materials_edition')=='csv-homebrew' or any(p.get('materials_edition')=='csv-homebrew' for p in result.get('materials',[])):sources.append(R.CSV_SOURCE)
   return list(dict.fromkeys([*sources,*result.get('recipe_sources',[])]))
 
-ADAPTERS:dict[str,UseAdapter[TransformRequest]]={name:NativeCraftingUse(name) for name in ('cook_poffins','dismantle','craft_item','craft_gem')}
+ADAPTERS:dict[str,UseAdapter[TransformRequest]]={name:NativeCraftingUse(name) for name in ('cook_poffins','dismantle','craft_item','craft_gem','trade_materials')}
 
 def dispatch(engine,actor,operation,**options):
  return ADAPTERS[operation].execute(engine,TransformRequest(actor,options))

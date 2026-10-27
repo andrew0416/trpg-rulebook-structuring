@@ -67,6 +67,44 @@ class JumpTests(unittest.TestCase):
   self.assertIsInstance(self.jump(difficult=None),C.PendingDecision);self.assertIsInstance(self.jump(clear_path=None),C.PendingDecision)
   self.a.spec['movement'].pop('high_jump')
   with self.assertRaises(ValueError):self.jump()
+ def test_missing_jump_capabilities_reject_before_action_rng_or_position_changes(self):
+  for key in ('high_jump','long_jump'):
+   with self.subTest(capability=key):
+    self.setUp();self.turn();self.a.spec['movement'].pop(key)
+    before=deepcopy((self.a.spec,self.a.budget,self.a.pos,self.e.rng.getstate(),self.a._action_history))
+    with self.assertRaises(ValueError):self.jump()
+    self.assertEqual((self.a.spec,self.a.budget,self.a.pos,self.e.rng.getstate(),self.a._action_history),before)
+ def test_explicit_zero_high_jump_remains_a_valid_observed_capability(self):
+  self.a.spec['movement']['high_jump']=0;self.turn();before=self.e.rng.getstate()
+  out=self.jump()
+  self.assertEqual(out['effective_limits'],{'high_jump':0,'long_jump':3});self.assertEqual(self.a.budget['shift'],0);self.assertEqual(self.e.rng.getstate(),before)
+ def test_trainer_base_derivation_supplies_jump_values_without_sheet_totals(self):
+  self.a.kind='trainer';self.a.spec['kind']='trainer'
+  self.e.gm.set_movement_capabilities(self.a,{'land':6,'power':6},basis='trainer_base',reason='actual trainer skill-derived capability fixture')
+  self.turn();out=self.jump((3,1),apex_height=1)
+  self.assertEqual(out['effective_limits'],{'high_jump':1,'long_jump':2});self.assertEqual(self.a.budget['shift'],0)
+ def test_learned_move_supplies_actual_high_jump_contribution(self):
+  self.a.spec['movement_basis']='base';self.a.spec['movement'].pop('high_jump')
+  self.e.gm.set_move(self.a,'move/뛰어오르기',reason='actual learned high-jump source fixture')
+  self.turn();out=self.jump(apex_height=1)
+  self.assertEqual(out['effective_limits'],{'high_jump':1,'long_jump':3});self.assertEqual(self.a.budget['shift'],0)
+ def test_actual_merged_partner_supplies_missing_jump_but_both_missing_reject_atomically(self):
+  from builder import build_pokemon
+  import csv_item_form_contracts as FORMS
+  import jump_actions as JUMP
+  self.e=Engine(self.r,seed=93)
+  self.a=Combatant(self.r,build_pokemon(self.r,'네크로즈마',20,name='jump-owner',moves=[],abilities=[],extra={'capabilities':['바이러스 합체'],'movement':{'land':6,'power':6,'long_jump':3},'movement_basis':'current'}))
+  partner=Combatant(self.r,build_pokemon(self.r,'피카츄',20,name='jump-partner',moves=[],abilities=[],extra={'movement':{'land':6,'power':6,'high_jump':2,'long_jump':3},'movement_basis':'current'}))
+  self.e.gm.add_combatant(self.a);self.e.gm.add_combatant(partner)
+  FORMS.merge_necrozma(self.e,self.a,partner,willing=True)
+  self.assertEqual(JUMP.limits(self.a),{'high_jump':2,'long_jump':3})
+  self.assertNotIn('high_jump',self.a.spec['movement']);self.assertFalse(partner.on_field)
+  self.a.spec['movement']['high_jump']=1;partner.spec['movement'].pop('high_jump')
+  self.assertEqual(JUMP.limits(self.a),{'high_jump':1,'long_jump':3})
+  self.a.spec['movement'].pop('high_jump');self.a.pos=(1,1);self.e.grid=Grid(20,10);self.turn()
+  before=deepcopy((self.a.spec,partner.spec,self.a.budget,self.a.pos,self.e.rng.getstate(),self.a._action_history))
+  with self.assertRaises(ValueError):self.jump()
+  self.assertEqual((self.a.spec,partner.spec,self.a.budget,self.a.pos,self.e.rng.getstate(),self.a._action_history),before)
  def test_unconscious_or_wrong_turn_cannot_jump(self):
   self.turn();self.e.end_of_turn(self.a);self.assertFalse(self.jump());self.a.hp=0;self.e.encounter_active=False;self.assertFalse(self.jump())
  def test_snapshot_restores_landing_and_failed_attempt_history(self):

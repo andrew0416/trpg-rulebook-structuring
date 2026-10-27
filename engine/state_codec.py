@@ -54,10 +54,16 @@ def _fail(message):
 
 def _types():
     import engine as native
-    if hasattr(native, '__path__'):
-        from engine.engine import Engine, Combatant, Rules
-    else:
+    import sys
+    names = ('Engine', 'Combatant', 'Rules')
+    if all(name in vars(native) for name in names):
         from engine import Engine, Combatant, Rules
+        qualified = sys.modules.get('engine.engine')
+        if qualified is not None and any(vars(qualified).get(name) is not vars(native)[name] for name in names):
+            _fail('conflicting native engine module identities')
+    else:
+        # A real namespace package has no bare API; preserve that import mode.
+        from engine.engine import Engine, Combatant, Rules
     from gm_state import GMState
     from grid import Grid
     from rulings import Rulings
@@ -157,6 +163,8 @@ def _plain(value):
     if kind is list:
         result = None
         for index, item in enumerate(value):
+            if item is None or type(item) in (str, bool, int):
+                continue
             normalized = _plain(item)
             if normalized is not item:
                 if result is None:
@@ -173,6 +181,8 @@ def _plain(value):
         for key, item in value.items():
             if type(key) is not str:
                 _fail('selected rule fingerprint requires text keys')
+            if item is None or type(item) in (str, bool, int):
+                continue
             normalized = _plain(item)
             if normalized is not item:
                 if result is None:
@@ -206,11 +216,12 @@ def rules_fingerprint(rules):
     manifest = [(path.relative_to(root).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest())
                 for path in _corpus_paths(root)]
     policy = {k: v for k, v in vars(rules).items()
-              if k not in ('root', 'rulings', 'ruleset', 'selection', '_source_context_reads')}
+              if k not in ('root', 'rulings', 'ruleset', 'selection', '_source_context_reads', '_coordinator_contest_reader', '_runtime_weapon_declarations')}
     # Loading a policy cache is not a rules change. Use its saved definition
     # when cold and its actual contents when warm, preserving override checks.
     # Keep this registry explicit: arbitrary private rule state is still hashed.
     caches = {
+        '_juggler_contract': ('juggler-source-contract.json', None),
         'capability_policy': ('capability-policy.json', None),
         '_blessing_effect_policy': ('blessing-effect-policy.json', None),
         '_coat_effect_policy': ('coat-effect-policy.json', None),
@@ -251,9 +262,75 @@ def rules_fingerprint(rules):
     static_name='_static_trainer_modifier_policy'
     if static_name in policy and policy[static_name]==saved_policy('static-trainer-modifier-policy.json'):
         policy.pop(static_name)
+    lesson_name='_feature_ability_lessons'
     ranked_name='_ranked_class_move_tables'
     if ranked_name in policy and policy[ranked_name]==saved_policy('class-ranked-move-tables.json','rules'):
         policy.pop(ranked_name)
+    redundant = {
+        '_class_actor_state_reaction_policy': ('class-actor-state-reactions-policy.json', None),
+        '_native_class_actor_state_reaction_policy': ('native-class-reaction-policy.json', None),
+        '_optional_state_effect_contract_policy': ('optional-state-effect-contract-policy.json', None),
+        '_optional_weapon_framework_policy': ('optional-weapon-framework-policy.json', None),
+        '_survivalist_class_definitions': ('survivalist-definitions.json', None),
+        '_juggler_contract': ('juggler-source-contract.json', None),
+    }
+    for name, (filename, member) in redundant.items():
+        if name in policy and policy[name] == saved_policy(filename, member):
+            policy.pop(name)
+    # Recompute derived indexes with their existing readers on an isolated copy.
+    # Only an exact redundant result may disappear; authored definitions stay hashed.
+    def uncached(*names):
+        checked = copy(rules)
+        checked._source_context_reads = {}
+        for name in names:
+            vars(checked).pop(name, None)
+        return checked
+    if lesson_name in policy:
+        import feature_ability_lessons as LESSONS
+        saved_policy('feature-ability-lessons.json', 'rules')
+        expected_lessons = LESSONS._policy(uncached(lesson_name))
+        if (policy[lesson_name] == expected_lessons
+                and LESSONS._same(_plain(policy[lesson_name]), _plain(expected_lessons))):
+            policy.pop(lesson_name)
+    edge_name='_poke_edge_variants'
+    if edge_name in policy:
+        import poke_edge_variants as EDGES
+        saved_policy('poke-edge-variants.json', 'entries')
+        checked = uncached(edge_name, '_poke_edge_variants_identity')
+        expected_edges = EDGES.catalog(checked)
+        if (policy.get('_poke_edge_variants_identity') == checked._poke_edge_variants_identity
+                and policy[edge_name] == expected_edges
+                and json.dumps(_plain(policy[edge_name]), sort_keys=True, ensure_ascii=False, allow_nan=False)
+                    == json.dumps(_plain(expected_edges), sort_keys=True, ensure_ascii=False, allow_nan=False)):
+            policy.pop(edge_name)  # The existing cold baseline below uses saved entries.
+        else:
+            # A manual raw list must not masquerade as the absent-cache baseline.
+            policy[edge_name] = {'unverified_runtime_catalog': policy[edge_name]}
+    if '_source_catalog' in policy or '_source_catalog_identity' in policy:
+        import source_catalog as CATALOG
+        checked = uncached('_source_catalog', '_source_catalog_identity')
+        expected_catalog = CATALOG._document(checked)
+        if (policy.get('_source_catalog') == expected_catalog
+                and policy.get('_source_catalog_identity') == checked._source_catalog_identity):
+            policy.pop('_source_catalog')
+            policy.pop('_source_catalog_identity')
+    if '_equipment_variant_punch_moves' in policy:
+        import equipment_variant_contracts as EQUIPMENT
+        checked = uncached('_equipment_variant_punch_moves')
+        if policy['_equipment_variant_punch_moves'] == EQUIPMENT._punch_moves(checked):
+            policy.pop('_equipment_variant_punch_moves')
+    skill_reads = policy.get('_skill_csv_sources')
+    if type(skill_reads) is set:
+        import skill_modifiers as SKILLS
+        records = { (source['id'], source['sha256']): row
+            for section in ('edges', 'rank_effects')
+            for row in rules.skill_policy.get(section, {}).values()
+            if (source := row.get('equivalent_csv_source')) is not None }
+        if skill_reads <= records.keys():
+            checked = uncached('_skill_csv_sources')
+            for identity in skill_reads:
+                SKILLS.validate_csv_source(checked, records[identity], [identity[0]])
+            policy.pop('_skill_csv_sources')
     custom=saved_policy('custom-condition-policy.json')
     if policy.get('_custom_condition_policy')==custom:
         policy.pop('_custom_condition_policy')
@@ -301,7 +378,10 @@ def rules_fingerprint(rules):
     policy['selection'] = {k: v for k, v in selection.items() if k not in ('filter', 'dependencies')}
     data = {'files': manifest, 'selected': _plain(policy)}
     digest = _FINGERPRINTS.json_fingerprint(data, sort_keys=True, compact=True, allow_nan=False)
-    return {'sha256': digest, 'profile': rules.ruleset.name, 'file_count': len(manifest)}
+    result={'sha256': digest, 'profile': rules.ruleset.name, 'file_count': len(manifest)}
+    generated=__import__('weapon_actions').generated_declarations(rules)
+    if generated:result['generated_weapons']=generated
+    return result
 
 
 def _field_names(attrs, allowed, label):
@@ -401,6 +481,21 @@ class _Encoder:
             if value is not self.engine:
                 _fail('multiple Engines require a separately specified session contract')
             attrs = dict(vars(value))
+            if attrs.pop('_native_roll_deciding',False):
+                _fail('cannot save while a native roll decision callback is executing')
+            for key in ('_coordinator_damage_decisions','_coordinator_nuanced_decisions'):
+                live=attrs.pop(key,None)
+                if live is not None and (type(live)is not dict or any(type(k)is not str or not callable(v) for k,v in live.items())):_fail('invalid live Coordinator decision bindings')
+            decisions = attrs.pop('_native_roll_decisions',None)
+            if decisions is not None and (type(decisions) is not dict or any(type(k)is not str or not callable(v) for k,v in decisions.items())):
+                _fail('invalid live native roll decision bindings')
+            offers=attrs.get('_let_me_help_offers')
+            if offers is not None:
+                if type(offers)is not dict or any(type(row)is not dict or ('decision' in row and not callable(row['decision'])) for row in offers.values()):
+                    _fail('invalid live Let Me Help decision bindings')
+                attrs['_let_me_help_offers']={key:{k:v for k,v in row.items() if k!='decision'} for key,row in offers.items()}
+            # The data-only actor offer survives. Its observation callback must
+            # be authenticated again after load, like other live decision input.
             binding = attrs.pop('_root_common_binding', None)
             if binding is not None:
                 attrs['_root_common_saved'] = _export_common(binding)
@@ -607,8 +702,9 @@ def dump_engine(engine):
 
 
 class _Decoder:
-    def __init__(self, rules, nodes, *, contest_rules=None, graph_roots=None):
+    def __init__(self, rules, nodes, *, contest_rules=None, graph_roots=None, expected_native_rules=None):
         self.rules, self.nodes, self.objects, self.building = rules, nodes, {}, set()
+        self.expected_native_rules=expected_native_rules
         self.contest_rules, self.graph_roots = contest_rules, graph_roots
         self.classes = _types()
         self.engine_ids, self.actor_ids = [], {}
@@ -839,6 +935,13 @@ class _Decoder:
                     _fail('runtime ruling callbacks cannot be restored')
         # Validate gameplay against the saved declarations on this private Rules copy.
         self.rules.rulings = engine.rulings
+        if self.expected_native_rules is not None:
+            try:
+                __import__('weapon_actions').restore_generated(self.rules,self.expected_native_rules['generated_weapons'])
+                if rules_fingerprint(self.rules)!=self.expected_native_rules:
+                    _fail('selected rule/profile/source fingerprint mismatch after native weapon reconstruction')
+            except (ValueError,KeyError,TypeError) as exc:
+                raise StateCodecError('invalid native generated weapon declaration: '+str(exc)) from exc
         receipts = getattr(engine, '_effect_dispatch_receipts', {})
         opaque = {self.objects[uid] for uid,node in self.nodes.items() if node['kind'] == 'effect_receipt'}
         if type(receipts) is not dict or set(receipts) != opaque:
@@ -902,13 +1005,17 @@ def load_engine(rules, payload):
     scope = payload['save_scope']
     if type(scope) is not dict or set(scope) != {'current_gameplay', 'gm_checkpoint_history', 'omitted_checkpoint_count'} or scope['current_gameplay'] is not True or scope['gm_checkpoint_history'] is not False or type(scope['omitted_checkpoint_count']) is not int or scope['omitted_checkpoint_count'] < 0:
         _fail('invalid current-gameplay save scope')
-    if payload['rules'] != rules_fingerprint(rules):
+    generated=type(payload['rules'])is dict and 'generated_weapons' in payload['rules']
+    if generated:
+        if set(payload['rules'])!={'sha256','profile','file_count','generated_weapons'} or type(payload['rules']['sha256'])is not str or re.fullmatch(r'[0-9a-f]{64}',payload['rules']['sha256'])is None or type(payload['rules']['profile'])is not str or type(payload['rules']['file_count'])is not int or payload['rules']['file_count']<0 or type(payload['rules']['generated_weapons'])is not list or len(payload['rules']['generated_weapons'])>MAX_NODES:
+            _fail('invalid native generated weapon rules header')
+    elif payload['rules'] != rules_fingerprint(rules):
         _fail('selected rule/profile/source fingerprint mismatch')
     if type(payload['root']) is not dict or set(payload['root']) != {'$ref'}:
         _fail('graph root must reference the Engine')
-    clone_rules = copy(rules)
     try:
-        decoder = _Decoder(clone_rules, payload['nodes'])
+        clone_rules = __import__('weapon_actions').private_restore_rules(rules) if generated else copy(rules)
+        decoder = _Decoder(clone_rules, payload['nodes'],expected_native_rules=payload['rules'] if generated else None)
         if payload['root']['$ref'] != decoder.engine_ids[0]:
             _fail('root reference is not the unique Engine')
         return decoder.value(payload['root'])
@@ -947,7 +1054,7 @@ CONTEST_FIELDS = frozenset(('r', 'rng', 'log_lines', 'apply_intro_bonus',
     '_native_intro_bindings', '_trainer_partners', '_flourish_used', '_fashion_used',
     '_performance_observations', '_coordinator_used', '_paired_run', '_paired_busy',
     '_trainer_interactions', 'last_standings', '_standard_run', '_standard_busy',
-    '_festival_run', '_festival_busy'))
+    '_festival_run', '_festival_busy', '_adaptable_uses', '_adaptable_plan'))
 
 
 def _contest_types():
@@ -979,7 +1086,7 @@ def _validate_contest_state(contest, contestants, native):
     Engine, Combatant, _, _, _, _ = _types()
     if type(contest) is not ContestEngine or type(contest.r) is not ContestRules:
         _fail('native contest host and selected rules required')
-    required = CONTEST_FIELDS - {'last_standings', '_standard_run', '_standard_busy', '_festival_run', '_festival_busy'}
+    required = CONTEST_FIELDS - {'last_standings', '_standard_run', '_standard_busy', '_festival_run', '_festival_busy', '_adaptable_plan'}
     if not required <= vars(contest).keys():
         _fail('contest lacks required current-state fields')
     _field_names(vars(contest), CONTEST_FIELDS | {'_snapshots'}, 'ContestEngine')
@@ -993,6 +1100,7 @@ def _validate_contest_state(contest, contestants, native):
     for name in ('_flourish_used','_fashion_used','_coordinator_used'):
         if type(getattr(contest,name)) is not set:
             _fail('contest feature usage must be a set')
+    __import__('coordinator').validate_contest(contest,set(contestants))
     stats = set(contest.r.mech('contest/type-match')['ring'])
     ids = set()
     for c in contestants:
@@ -1019,8 +1127,12 @@ def _validate_contest_state(contest, contestants, native):
                 _fail('invalid contestant flag')
         if c.letter is not None and c.letter not in tuple('ABCDE'):
             _fail('invalid contest letter')
-        if type(c.intro_rank_dice) is not int or not 1<=c.intro_rank_dice<=6:
+        if type(c.intro_rank_dice) is not int or c.intro_rank_dice<1:
             _fail('invalid introduction rank')
+        if '_intro_stat_dice' in vars(c):
+            pool=c._intro_stat_dice
+            if type(pool) is not dict or set(pool)-stats or any(type(n) is not int or n<0 for n in pool.values()):
+                _fail('invalid shared introduction pool')
         if c.intro_stat is not None and c.intro_stat not in stats:
             _fail('invalid introduction stat')
         if type(c.intro_sources) is not set or type(c.trainer_edges) is not set or type(c.intro_bonuses) is not list:
@@ -1052,6 +1164,9 @@ def _validate_contest_state(contest, contestants, native):
         if type(participants) is not tuple or len(participants)!=1 or participants[0] not in known or type(declaration) is not dict:
             _fail('invalid observed contest participant')
         adjacent=declaration.get('adjacent')
+        intro_spend=declaration.get('spend_intro_dice',0)
+        if type(intro_spend) is not int or not 0<=intro_spend<=declaration.get('spend_stat_dice',-1):
+            _fail('invalid observed shared introduction spend')
         if type(adjacent) is not tuple or any(c not in known for c in adjacent) or len(set(adjacent))!=len(adjacent) or participants[0] in adjacent:
             _fail('invalid observed adjacent contestants')
         observation=record.get('observation')
@@ -1226,7 +1341,10 @@ def _validate_contest_progress(contest,state,participants,*,paired):
         if type(observed) is not dict or observed.get('state')!='pending':
             _fail('pending cursor lacks the preserved first observation')
         declaration=observed['declaration'];locked=state['pending']
-        if type(locked) is not dict or any(locked.get(k)!=declaration.get(v) for k,v in (('move','move'),('spend','spend_stat_dice'),('feature','feature'))):
+        move_key='requested_move' if 'adaptable' in declaration else 'move'
+        if 'adaptable' in declaration and (type(locked) is not dict or tuple(contest.r.move(m)['id'] for m in locked.get('adaptable',()))!=declaration['adaptable']):
+            _fail('pending Adaptable constituents differ from their observation')
+        if type(locked) is not dict or any(locked.get(k)!=declaration.get(v) for k,v in (('move',move_key),('spend','spend_stat_dice'),('feature','feature'))):
             _fail('pending cursor declaration differs from its observation')
 
 
@@ -1276,14 +1394,21 @@ def load_contest(contest_rules,payload,*,native_rules=None):
         _fail('invalid contest save scope')
     if payload['rules']!=rules_fingerprint(contest_rules):
         _fail('contest source/profile fingerprint mismatch')
+    generated_native=type(payload['native_rules'])is dict and 'generated_weapons' in payload['native_rules']
     if payload['native_rules'] is None:
         if native_rules is not None:
             _fail('standalone contest has no native rule context')
         native_copy=None
     else:
-        if type(native_rules) is not _types()[2] or payload['native_rules']!=rules_fingerprint(native_rules):
-            _fail('native contest source/profile fingerprint mismatch')
-        native_copy=copy(native_rules)
+        if type(native_rules) is not _types()[2]:_fail('native contest source/profile fingerprint mismatch')
+        if generated_native:
+            if set(payload['native_rules'])!={'sha256','profile','file_count','generated_weapons'} or type(payload['native_rules']['sha256'])is not str or re.fullmatch(r'[0-9a-f]{64}',payload['native_rules']['sha256'])is None or type(payload['native_rules']['profile'])is not str or type(payload['native_rules']['file_count'])is not int or payload['native_rules']['file_count']<0 or type(payload['native_rules']['generated_weapons'])is not list or len(payload['native_rules']['generated_weapons'])>MAX_NODES:
+                _fail('invalid native generated weapon rules header')
+            try:native_copy=__import__('weapon_actions').private_restore_rules(native_rules)
+            except (ValueError,KeyError,TypeError) as exc:_fail('invalid native generated weapon declaration: '+str(exc))
+        else:
+            if payload['native_rules']!=rules_fingerprint(native_rules):_fail('native contest source/profile fingerprint mismatch')
+            native_copy=copy(native_rules)
     roots=[]
     for key in ('root','participants'):
         ref=payload[key]
@@ -1291,7 +1416,8 @@ def load_contest(contest_rules,payload,*,native_rules=None):
             _fail('contest roots must be graph references')
         roots.append(ref['$ref'])
     try:
-        decoder=_Decoder(native_copy,payload['nodes'],contest_rules=copy(contest_rules),graph_roots=roots)
+        decoder=_Decoder(native_copy,payload['nodes'],contest_rules=copy(contest_rules),graph_roots=roots,
+                         expected_native_rules=payload['native_rules'] if generated_native else None)
         contest,contestants=(decoder.value(payload[k]) for k in ('root','participants'))
         if type(contest) is not _contest_types()[0] or type(contestants) is not tuple or not contestants or any(type(c) is not _contest_types()[1] for c in contestants) or len(set(contestants))!=len(contestants):
             _fail('invalid contest graph roots')

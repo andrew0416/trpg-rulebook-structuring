@@ -42,18 +42,20 @@ class SetupMoveStateTests(unittest.TestCase):
         self.e, self.a, self.b = prepare_setup_move_scene(self.r)
 
     def next_turn(self):
-        self.e.end_of_turn(self.a)
+        if self.e._active_turn_actor is self.a:
+            self.e.end_of_turn(self.a)
         self.e.start_round(self.e.everyone)
         self.e.start_of_turn(self.a, initiative_count=20)
 
     def test_exact_four_source_rows_and_four_deferred_resume_conditions(self):
+        # Keep the historical public test ID while extending its contract to five rows.
         rows = SETUP.declarations(self.r)
         self.assertEqual([row["clause_id"] for row in rows], [
             "C2CSV-MOVE-R0162", "C2CSV-MOVE-R0287",
-            "C2CSV-MOVE-R0386", "C2CSV-MOVE-R0801"])
-        self.assertEqual([row["record"] for row in rows], [162, 287, 386, 801])
+            "C2CSV-MOVE-R0386", "C2CSV-MOVE-R0801", "C2CSV-MOVE-R0629"])
+        self.assertEqual([row["record"] for row in rows], [162, 287, 386, 801, 629])
         deferred = SETUP.deferred(self.r)
-        self.assertEqual([row["record"] for row in deferred], [195, 314, 320, 629])
+        self.assertEqual([row["record"] for row in deferred], [195, 314, 320])
         self.assertTrue(all(row["resume_when"].strip() for row in deferred))
         with (ROOT / "input/db/moves.csv").open(encoding="utf-8-sig", newline="") as stream:
             source_rows = list(csv.reader(stream))
@@ -184,7 +186,8 @@ class SetupMoveStateTests(unittest.TestCase):
             self.e.use_move(self.a, self.b, TACKLE)
         self.e.end_encounter(self.e.everyone, round_elapsed_seconds=0)
         self.assertIsNone(SETUP.pending(self.a))
-        self.assertFalse(self.a.spec["_burrow"]["underground"])
+        self.assertTrue(self.a.spec["_burrow"]["underground"])
+        self.assertEqual(self.a.spec["_burrow"]["depth_m"], 25)
         self.assertIsNone(self.a.setup_move)
 
 

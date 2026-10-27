@@ -6,6 +6,8 @@
 !/SOURCE-NOTICES.md
 !/CI.md
 !/REVISION.md
+!/AGENTS.md
+!/USER_RULE_DECISIONS.md
 
 !/.github/
 /.github/*
@@ -74,3 +76,12 @@ id_ed25519
 .agents/
 Thumbs.db
 .DS_Store
+
+# Reviewed synthetic implementation-workflow tooling; no private inputs.
+!/work/reuse-partials/acceptance_evidence.py
+!/work/reuse-partials/reconcile_batch.py
+!/work/reuse-partials/audit_vault_quality.py
+!/work/reuse-partials/verify_ordered_core.py
+!/work/reuse-partials/test_acceptance_capture.py
+!/work/reuse-partials/test_reconcile_csv_core.py
+!/work/reuse-partials/test_verify_ordered_publication.py

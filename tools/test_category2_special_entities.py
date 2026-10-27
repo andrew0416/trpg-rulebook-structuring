@@ -277,9 +277,13 @@ class SpecialTests(unittest.TestCase):
   row['status']='active'
   with self.assertRaises(ValueError):S.observe(self.e,row,reason='same consumed identity cannot revive')
  def test_glyph_creator_growth_is_explicit_unresolved_not_auto_heal(self):
-  self.fantasy_world();S.observe(self.e,self.glyph(),reason='established glyph');self.a.level=6
-  out=S.view(self.e,'glyph');self.assertEqual(out['entity']['hp'],5)
-  self.assertIn('C2SPECIAL-CONFLICT-glyph-level-growth',out['state_view']['unresolved'])
+  # Preserve the historical test ID; U-009 has resolved its former question.
+  self.fantasy_world();row=self.glyph();row['hp']=3
+  S.observe(self.e,row,reason='established Glyph with observed prior damage')
+  self.e.gm.set_level(self.a,6,reason='actual creator growth after Glyph creation')
+  out=S.view(self.e,'glyph')
+  self.assertEqual(tuple(out['entity'][key] for key in ('creation_level','level','max_hp','hp')),(5,5,5,3))
+  self.assertEqual(out['state_view']['unresolved'],[])
  def setup_sentry(self):
   self.fantasy_world();glyph=self.glyph();glyph['status']='sentry'
   actor=Combatant(self.fantasy,build_pokemon(self.fantasy,'안농',5,name='sentry'));actor.moves=['move/잠재파워'];self.e.everyone.append(actor)

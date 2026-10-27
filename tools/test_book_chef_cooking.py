@@ -25,7 +25,12 @@ import world_entities as W
 class ChefCookingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.rules = Rules(ROOT, ruleset='all')
+        from ruleset import RuleFilter
+        profile = deepcopy(RuleFilter.load(ROOT, 'all').profile)
+        profile['exclude_units'] = list(profile.get('exclude_units', [])) + ['chef/dumplings-no-nesting-errata']
+        selected = RuleFilter(profile, 'all-with-original-book-dumplings')
+        with patch.object(RuleFilter, 'load', return_value=selected):
+            cls.rules = Rules(ROOT, ruleset='all')
 
     def setUp(self):
         previous = self.rules.rulings
@@ -100,7 +105,7 @@ class ChefCookingTests(unittest.TestCase):
                          ('item/오랭열매', {'kind': 'heal', 'amount': 5, 'berry': True}, 2, berries - 1, money - 150))
         herb = FIX.cook(engine, chef, recipe='preserves', origin='item/파워풀허브')
         self.assertEqual(herb['batch']['payload'], {'kind': 'herb_skip_setup'})
-        self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='preserves', origin='item/작은버섯'), 'source-specific consumer')
+        self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='preserves', origin='item/작은버섯'), 'actual held origin instance')
         self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='preserves', origin='item/상처약'), 'Berry, Herb or Mushroom')
         self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='preserves', origin='item/오카열매', taste='쓴맛'), 'assigned Taste must be one of')
         self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='preserves', origin='item/라즈열매'), 'source-specific consumer')
@@ -195,10 +200,15 @@ class ChefCookingTests(unittest.TestCase):
         self.assertEqual((self.batch(chef, pres['batch_id'])['count'], self.batch(chef, left['batch_id'])['count']), (1, 0))
         self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='dumplings', ingredient_1={'batch_id': pres['batch_id']}, ingredient_2={'batch_id': pres['batch_id']}), 'different items')
         self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='dumplings', ingredient_1={'item': 'item/먹다남은음식'}, ingredient_2={'item': 'item/먹다남은음식'}), 'different items')
-        self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='dumplings', ingredient_1={'batch_id': mixed['batch_id']}, ingredient_2={'item': 'item/먹다남은음식'}), 'another Dumplings')
+        # The printed Book allows a Chef-made Dumplings as the first Snack;
+        # the CSV/May errata prohibition has its own actual source selection.
+        nested = FIX.cook(engine, chef, recipe='dumplings', ingredient_1={'batch_id': mixed['batch_id']}, ingredient_2={'batch_id': pres['batch_id']})
+        self.assertEqual(len(nested['batch']['payload']['components']), 3)
+        self.assertEqual(self.batch(chef, mixed['batch_id'])['count'], 0)
         self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='dumplings', ingredient_1={'batch_id': meal['batch_id']}, ingredient_2={'item': 'item/먹다남은음식'}), 'not a Snack ingredient')
         self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='dumplings', ingredient_1={'item': 'item/먹다남은음식'}, ingredient_2={'batch_id': tasty['batch_id']}), 'leftovers, preserves required|exhausted')
-        self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='dumplings', ingredient_1={'batch_id': herb['batch_id']}, ingredient_2={'item': 'item/먹다남은음식'}), 'composite consumer')
+        herb_mix = FIX.cook(engine, chef, recipe='dumplings', ingredient_1={'batch_id': herb['batch_id']}, ingredient_2={'item': 'item/먹다남은음식'})
+        self.assertEqual(herb_mix['trigger_components'], ['herb_skip_setup'])
         spicy = FIX.cook(engine, chef, recipe='tasty_snack', snack='매운맛 랩')
         self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='dumplings', ingredient_1={'batch_id': spicy['batch_id']}, ingredient_2={'batch_id': oka['batch_id']}), 'two different trigger-bound')
         self.assertTrue(engine.validate_state()['valid'])

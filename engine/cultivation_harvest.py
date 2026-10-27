@@ -127,13 +127,13 @@ def prepare(engine,actor,plant,value,environment,soil,fixed):
     return {'context':observed,'period':period,'day':day,'contributions':contributions,'before':before}
 
 
-def harvest(engine,actor,value,*,plant_id,fixed=None,event_id=None,environment_allows_growth=None,soil_quality=None):
+def harvest(engine,actor,value,*,plant_id,fixed=None,event_id=None,environment_allows_growth=None,soil_quality=None,book_bonus=False):
     W.require_actors(engine,actor);Q._text(plant_id);value=declaration(value)
     import state_grants as GRANTS,roll_context as ROLLS
     def commit(e,c):
         P.validate(c)
         options={'declaration':deepcopy(value),'plant_id':plant_id,'fixed':deepcopy(fixed),
-                 'environment_allows_growth':environment_allows_growth,'soil_quality':soil_quality}
+                 'environment_allows_growth':environment_allows_growth,'soil_quality':soil_quality,'book_bonus':book_bonus}
         plan=PRODUCTS.preflight(e,c,'harvest_berry',options,None,event_id)
         if 'replay' in plan:return plan['replay']
         plant=c.spec.get('plants',{}).get(plant_id)
@@ -143,7 +143,10 @@ def harvest(engine,actor,value,*,plant_id,fixed=None,event_id=None,environment_a
         balances=R.snapshot(c);started=e.elapsed_seconds;observed=prepared['context']
         roll=ROLLS.resolve_pool(e,c,plant,purpose='harvest',source=value['source'],fixed=fixed,**value['roll'])
         soil=sum(observed[key] for flag,key in (('base','soil_base'),('site','site_bonus'),('fertilizer','fertilizer_bonus')) if value['soil'][flag])
-        feature=sum(row['value'] for row in prepared['contributions']);amount=max(0,roll['total']+soil+feature)
+        feature=sum(row['value'] for row in prepared['contributions'])
+        book=__import__('study_books').yield_bonus(e,c,use=book_bonus,production_id=plan['id'])
+        book_provider=__import__('study_books').provider(c,'berries') if book else None
+        amount=max(0,roll['total']+soil+feature)+book
         if plant.get('harvest_policy') is None:plant['harvest_policy']=deepcopy(value)
         receipt=P.record_harvest(c,plant,{'actor_id':c.entity_id,'day':prepared['day'],'at':e.elapsed_seconds,'session':e.session_epoch,
             'face':roll['faces'][0] if len(roll['faces'])==1 else None,'roll':roll,'soil_base':observed['soil_base'],'site_bonus':observed['site_bonus'],
@@ -151,7 +154,8 @@ def harvest(engine,actor,value,*,plant_id,fixed=None,event_id=None,environment_a
             'feature_bonus':feature,'feature_source':BOTANY if value['native'] and feature else None,'contributions':prepared['contributions'],
             'protected':observed['protected'],'environment_allows_growth':observed['environment_allows_growth'],'growth_context':observed,
             'harvest_definition':deepcopy(value),'period':prepared['period'],'period_consumed':amount>0 or value['zero_consumes'],
-            'production_id':plan['id'],'amount':amount,'inventory_key':value['output']['key'],'inventory_before':prepared['before'],'inventory_after':prepared['before']+amount})
+            'production_id':plan['id'],'amount':amount,'inventory_key':value['output']['key'],'inventory_before':prepared['before'],'inventory_after':prepared['before']+amount,
+            **({'study_book':book_provider} if book else {})})
         result={'activity':'harvest_berry','plant_id':plant_id,'face':receipt['face'],'faces':deepcopy(roll['faces']),'soil_bonus':soil+feature,'amount':amount,
                 'count':amount,'item':value['output']['key'],'item_id':value['output']['item_id'],'recipe_source':value['source'],'protected':observed['protected'],'receipt':deepcopy(receipt)}
         PRODUCTS.materialize(e,c,result,plan)
@@ -170,7 +174,7 @@ def _pending_harvest(engine,actor,plant):
     return C.PendingDecision('Plant '+plant['berry']+' exists; its species maturity duration, harvest yield and period need an explicit reviewed source policy')
 
 
-def native_harvest(engine,actor,*,plant_id,environment_allows_growth=True,soil_quality=0,fixed=None,event_id=None):
+def native_harvest(engine,actor,*,plant_id,environment_allows_growth=True,soil_quality=0,fixed=None,event_id=None,book_bonus=False):
     P.validate(actor);plant=actor.spec.get('plants',{}).get(plant_id)
     if not isinstance(plant,dict):raise ValueError('actual owned planted instance required')
     if P.harvest_pending(plant):return _pending_harvest(engine,actor,plant)
@@ -179,7 +183,7 @@ def native_harvest(engine,actor,*,plant_id,environment_allows_growth=True,soil_q
         if plant.get('growth',{}).get('definition',{}).get('native_variant','legacy') is None:raise ValueError('data-authored growth needs its declared harvest policy')
         value=native_definition(engine.r,plant)
     if fixed is not None and type(fixed) is not list:fixed=[C.integer(fixed,'fixed native harvest face',1,value['roll']['sides'])]
-    return harvest(engine,actor,value,plant_id=plant_id,fixed=fixed,event_id=event_id,environment_allows_growth=environment_allows_growth,soil_quality=soil_quality)
+    return harvest(engine,actor,value,plant_id=plant_id,fixed=fixed,event_id=event_id,environment_allows_growth=environment_allows_growth,soil_quality=soil_quality,book_bonus=book_bonus)
 
 
 def validate_receipt(actor,plant,row,prior):
@@ -243,7 +247,7 @@ def validate_receipt(actor,plant,row,prior):
     C.integer(row.get('feature_bonus'),'actual harvest feature contribution')
     if row.get('feature_bonus')!=feature or row.get('feature_source')!=(BOTANY if value['native'] and feature else None):raise ValueError('harvest feature contribution evidence changed')
     soil=sum(observed[k] for flag,k in (('base','soil_base'),('site','site_bonus'),('fertilizer','fertilizer_bonus')) if value['soil'][flag])
-    amount=max(0,roll['total']+soil+feature)
+    amount=max(0,roll['total']+soil+feature)+__import__('study_books').harvest_record(actor,row)
     C.integer(row.get('amount'),'actual harvest output count',0)
     if observed.get('soil_quality')!=base+site+bonus:raise ValueError('actual harvest growth soil evidence changed')
     before=C.integer(row.get('inventory_before'),'harvest stock before',0);after=C.integer(row.get('inventory_after'),'harvest stock after',0)

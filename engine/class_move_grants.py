@@ -13,6 +13,7 @@ import skill_modifiers as SKILLS
 import state_grants as GRANTS
 
 CORE_FIXED = {
+    "class/닌자": ("그림자분신", "독가루"),
     "class/선동가": ("천사의키스", "도발"),
     "class/로그": ("속여때리기", "도둑질"),
     "feat/금술": ("대타출동", "맹독"),
@@ -51,6 +52,7 @@ FIXED_CSV_PAIRS = {
 }
 FIXED = {**CORE_FIXED, **FIXED_CSV_PAIRS}
 AURA = "class/파동술사"
+AURA_MASTERY = "feat/파동-통달"
 RANKED = {
     "feat/겨울의-예고": {1: ("프리즈드라이", "냉동펀치", "냉동빔", "고드름떨구기"),
                        2: ("눈사태", "눈보라", "얼음숨결", "고드름침")},
@@ -68,7 +70,7 @@ MARTIAL_ABILITIES = {
 }
 TABLED_RANKED = ("feat/스톰-위자드", "feat/휘몰아치는-바람", "feat/자연의-포용", "feat/해류의-부름")
 RANKED_POLICY = "data/class-ranked-move-tables.json"
-SOURCES = (*FIXED, AURA, *RANKED, *TABLED_RANKED)
+SOURCES = (*FIXED, AURA, AURA_MASTERY, *RANKED, *TABLED_RANKED)
 SKILL_DOMAINS = {"class/선동가": ("매력", "교활", "협박"), "class/로그": ("곡예", "육상", "은신")}
 
 
@@ -174,6 +176,8 @@ def _prerequisites(engine, actor, uid, rank):
         import elemental_connection as ELEMENTAL
         if "격투" not in ELEMENTAL.choices(engine, actor):
             raise ValueError("Aura Guardian requires Fighting Elemental Connection")
+    if uid == AURA_MASTERY and (not _owned(actor,AURA) or _skill(actor,"직감")<5):
+        raise ValueError("Aura Mastery requires Aura Guardian and Expert Intuition")
     conditions = {
         "feat/금술": ("feat/독극-무기", "은신", 6),
         "feat/pk-알파": ("class/염동력자", None, 0),
@@ -219,9 +223,10 @@ def plan(engine, actor, uid):
     if uid in FIXED:
         if chosen is not None:
             raise ValueError("fixed class move source has no selectable moves")
-        groups = [_pair(engine.r, FIXED[uid], FIXED[uid])]
-    elif uid == AURA:
-        groups = [_pair(engine.r, chosen, ("판별", "진공파", "발경"))]
+        pair = ('사이코쇼크','배리어') if uid=='feat/pk-알파' and __import__('telekinetic').local_csv(actor,uid) else FIXED[uid]
+        groups = [_pair(engine.r, pair, pair)]
+    elif uid in (AURA,AURA_MASTERY):
+        groups = [_pair(engine.r, chosen, ("판별", "진공파", "발경") if uid==AURA else ("파동탄","기합구슬","드레인펀치","힘껏펀치"))]
     else:
         if not isinstance(chosen, (list, tuple)) or len(chosen) != rank:
             raise ValueError("one explicit two-move selection per acquired rank required")

@@ -45,7 +45,7 @@ def grace(pokemon,trainer=None,*,engine=None):
         raise ValueError("Grace variant requires its own Poffin availability contract")
     if count:
         from skill_modifiers import rank
-        if max(rank(pokemon.r,actual,skill)[2] for skill in ("매력","명령","교활","협박","직감"))<3:
+        if not __import__('hobbyist').skill_waived(actual,GRACE) and max(rank(pokemon.r,actual,skill)[2] for skill in ("매력","명령","교활","협박","직감"))<3:
             raise ValueError("Grace requires a Novice eligible social skill")
     return bool(count)
 
@@ -61,7 +61,8 @@ def available(pokemon,trainer=None,*,engine=None):
     if len(values)>ordinary_cap+2 and not witnessed:
         raise ValueError("Poffin history exceeds the level plus Grace allowance")
     # Grace's transfer rule limits use to six, preserving every consumed benefit.
-    return values[:8 if has_grace else 6]
+    usable=values[:8 if has_grace else 6]
+    return __import__('coordinator').flexible_projection(pokemon,usable,engine=engine)
 
 
 def consumption_limit(pokemon,trainer=None,*,engine=None):

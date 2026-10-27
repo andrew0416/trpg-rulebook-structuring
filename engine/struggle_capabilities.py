@@ -28,6 +28,19 @@ def owned(actor,name):
 
 
 def prepare(engine,actor,move,choice=None):
+ import ability_control_contracts as CONTROL
+ move=CONTROL.prepare_move(engine,actor,move)
+ selected=CONTROL.prepare_struggle(engine,actor,move,choice)
+ if selected is not None:return selected
+ created=move.get('innovation_instance')
+ if created and created['template']==3 and move.get('id')!='struggle':
+  import coordinator as COORDINATOR
+  if COORDINATOR.innovation_instance(engine.r,move['id'])!=created:raise ValueError('actual Innovation Struggle identity changed')
+  COORDINATOR.validate_spec(engine.r,actor.spec)
+  original_id=move['id'];out=prepare(engine,actor,dict(move,id='struggle'),choice)
+  # Native targets retain their live identities across repeated preparation.
+  if '_actual_targets' in move:out['_actual_targets']=move['_actual_targets']
+  return dict(out,id=original_id)
  import telekinetic_combat as TK
  if (move.get(TK.STRUGGLE_MARKER) is not None or
      isinstance(choice,dict) and S.key(choice.get('capability')) in {S.key(x) for x in ('염력','Telekinetic',TK.SOURCE)}):
@@ -37,8 +50,8 @@ def prepare(engine,actor,move,choice=None):
  if choice is None:choice={'capability':previous.get('capability'),'special':previous.get('special')}
  if not isinstance(choice,dict) or set(choice)!={'capability','special'} or type(choice['special']) is not bool:
   raise ValueError('Struggle choice requires capability and boolean special')
- if move.get('id')!='struggle' or actor.kind!='pokemon' or move.get('_weapon_attack'):
-  raise ValueError('elemental capability modifies a Pokemon ordinary Struggle only')
+ if move.get('id')!='struggle' or actor.kind not in ('pokemon','trainer') or move.get('_weapon_attack'):
+  raise ValueError('elemental capability modifies an ordinary unarmed Struggle only')
  name=canonical(choice['capability']);source='capability/'+name
  if name!='독샘' and engine.r._selected_rule(source)!=source:raise ValueError('selected Struggle capability needs its own source policy')
  if not owned(actor,name):raise ValueError('actual Struggle capability required')

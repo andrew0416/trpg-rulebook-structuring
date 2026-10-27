@@ -19,7 +19,8 @@ def _signature(trigger,rows):
     fields = {'turn':('kind','actor_id','serial','round'),'move':('kind','event_id'),
               'reaction':('kind','window_id','request_id'),'accuracy':('kind','event_id'),
               'between':('kind','round','schedule_cursor','closure_sequence','epoch'),
-              'duelist_overflow':('kind','overflow_id')}[trigger['kind']]
+              'duelist_overflow':('kind','overflow_id'),'native_accuracy':('kind','event_id'),
+              'pre_faint':('kind','actor_id','request_id')}[trigger['kind']]
     definition = [{k:(v.entity_id if k=='actor' else v) for k,v in row.items() if k not in ('status','receipt')} for row in rows]
     return ROOT.fingerprint({'trigger':{k:trigger[k] for k in fields},'requests':definition})
 
@@ -71,6 +72,7 @@ def between_frame(engine):
 def _trigger(engine, raw):
     if type(raw) is not dict:
         raise ValueError('actual native reaction trigger required')
+    if raw.get('kind')=='pre_faint':return __import__('enduring_soul').authorize_trigger(engine,raw)
     if raw.get('kind')=='duelist_overflow' and set(raw)=={'kind','overflow_id'}:
         import duelist as DUELIST
         DUELIST.overflow_trigger(engine,raw['overflow_id'])
@@ -80,6 +82,12 @@ def _trigger(engine, raw):
             raise ValueError('between-turn declaration differs from the actual schedule boundary')
         return dict(raw,owner=None)
     owner = engine._active_turn_actor
+    if owner is None and raw.get('kind')=='accuracy' and set(raw)=={'kind','event_id'}:
+        import move_defense_reactions as DEFENSE,focus_punch as FOCUS
+        proof=FOCUS.reaction_origin(engine,raw['event_id'],live=True) or __import__('marksman').reaction_origin(engine,raw['event_id'],live=True)
+        if proof is not None:
+            result=DEFENSE.authorize_trigger(engine,raw['event_id'])
+            return dict(result,owner=None,round_end_source=proof)
     if owner is None:
         raise ValueError('reaction window requires an actual suspended owner turn')
     if raw.get('kind')=='reaction' and set(raw)=={'kind','window_id','request_id'}:
@@ -95,10 +103,15 @@ def _trigger(engine, raw):
         C.integer(raw['serial'],'actual reaction owner turn',1)
         C.integer(raw['round'],'actual reaction round',1)
         return dict(raw,owner=owner)
+    if raw.get('kind')=='native_accuracy' and set(raw)=={'kind','event_id'}:
+        return __import__('move_defense_reactions').authorize_native_accuracy(engine,raw['event_id'])
     if raw.get('kind')=='accuracy' and set(raw)=={'kind','event_id'}:
         import move_defense_reactions as DEFENSE
         result=DEFENSE.authorize_trigger(engine,raw['event_id'])
-        if result['owner'] is not owner:raise ValueError('accuracy defense suspended owner changed')
+        if result['owner'] is not owner:
+            proof=__import__('marksman').watch_reaction_origin(engine,raw['event_id'],live=True)
+            if proof is None:raise ValueError('accuracy defense suspended owner changed')
+            return dict(result,owner=owner,marksman_watch_source=proof)
         return result
     if raw.get('kind')=='move' and set(raw)=={'kind','event_id'}:
         import passive_events as EVENTS
@@ -134,7 +147,8 @@ def _loan_location(engine,actor):
     return key,row['role'],due
 
 
-def _switch_location(engine,actor):
+def _switch_location(engine,actor,source=None):
+    if source==__import__('juggler').FIRST:return __import__('juggler').first_location(engine,actor)
     import party_actions as PARTY
     proof=PARTY.switch_lock(engine,actor)
     if proof is None:raise ValueError('next-round Interrupt loan requires the actual voluntary League switch lock')
@@ -161,12 +175,20 @@ def _move_request(engine,actor,row,evidence):
     """Only the real source consumer may request a selected Interrupt Move."""
     import move_defense_reactions as DEFENSE
     import combat_move_reactions as REACTIONS
+    if evidence['kind']=='pre_faint':
+        __import__('enduring_soul').authorize_request(engine,actor,row,evidence);return
+    if row['source']==__import__('skirmisher').SWIFT:
+        __import__('skirmisher').authorize_request(engine,actor,row,evidence);return
+    if row['source']==__import__('juggler').FIRST:
+        __import__('juggler').first_request(engine,actor,row);return
     if row.get('move_id') in REACTIONS.SOURCES:
         REACTIONS.authorize_request(engine,actor,row,evidence);return
     if evidence['kind']=='duelist_overflow':
         import duelist as DUELIST
         DUELIST.validate_interrupt(engine,evidence,dict(row,actor=actor))
         return
+    if evidence['kind']=='native_accuracy':
+        DEFENSE.authorize_native_splash(engine,evidence['event_id'],actor,row);return
     if evidence['kind']!='accuracy' or row['move_id']!=row['source']:
         raise ValueError('Interrupt Move requires its actual source-authenticated accuracy consumer')
     DEFENSE.authorize_move_interrupt(engine,evidence['event_id'],actor,row['move_id'])
@@ -191,17 +213,20 @@ def require_move_cost(engine,actor,kind,move,*,movement=False):
     selected=selected_move_frame(engine,actor)
     if selected is None:return
     current,row=selected
-    if (kind!='standard' or movement or not isinstance(move,dict) or move.get('id')!=row['move_id']
+    expected='shift' if row['source']==__import__('tumbler').SPLASH else 'standard'
+    if (kind!=expected or movement or not isinstance(move,dict) or move.get('id')!=row['move_id']
             or getattr(actor,'_action_history',[])[current['history_start']:]):
         raise ValueError('Interrupt permits exactly one native selected Standard Move and no other action')
 
 
-def require_recorded_action(engine,actor,kind):
+def require_recorded_action(engine,actor,kind,*,triggered_source=None):
     """Also close native Free producers which do not pass through TURN.spend."""
     selected=selected_move_frame(engine,actor)
     if selected is None:return
-    current,_=selected
-    if (kind!='standard' or actor.budget.get('standard')!=0
+    current,row=selected
+    if kind=='free' and __import__('jump_move_actions').triggered_free_allowed(engine,actor,row,triggered_source):return
+    expected='shift' if row['source']==__import__('tumbler').SPLASH else 'standard'
+    if (kind!=expected or actor.budget.get(expected)!=0
             or getattr(actor,'_action_history',[])[current['history_start']:]):
         raise ValueError('Interrupt records only its first actually paid selected Standard Move')
 
@@ -211,7 +236,7 @@ def _completed_move(engine,current,row):
         if key not in current['completion_ids_before'] and receipt['actor'] is current['actor']]
     if (len(receipts)!=1 or receipts[0]['move_id']!=row['move_id'] or receipts[0]['phase']!='complete'
             or receipts[0]['round']!=engine.round_no
-            or getattr(current['actor'],'_action_history',[])[current['history_start']:]!=['standard']):
+            or getattr(current['actor'],'_action_history',[])[current['history_start']:]!=__import__('jump_move_actions').interrupt_actions(engine,row)):
         raise ValueError('Interrupt needs exactly its actually completed native selected Move')
     return receipts[0]['id']
 
@@ -230,6 +255,7 @@ def queue(engine,candidates,*,trigger,order=None):
     import passive_events as EVENTS, heavy_injury_adapter as HEAVY
     EVENTS.ensure_clear(engine); HEAVY.ensure_clear(engine)
     evidence = _trigger(engine,trigger)
+    __import__('stall_ability').require_interruptible(engine,evidence)
     if type(candidates) is not list or not candidates:
         raise ValueError('nonempty sourced reaction declarations required')
     index = WORLD.actor_index(engine); planned = []; missing = []; ids = set()
@@ -243,6 +269,8 @@ def queue(engine,candidates,*,trigger,order=None):
         ids.add(uid)
         actor = index.get(raw['actor_id'])
         WORLD.require_actors(engine,actor)
+        if raw['mode']!='borrow_turn':__import__('ability_control_contracts').admit(engine,actor,'interrupt',trigger=evidence)
+        if raw['mode']!='borrow_turn':__import__('skirmisher').require_keyword(actor,'interrupt')
         DERIVE.selected(engine.r,raw['source'])
         absent = [key for key in ('priority','mode','payment','clock') if raw[key] is None]
         if absent:
@@ -254,7 +282,10 @@ def queue(engine,candidates,*,trigger,order=None):
         if raw['mode']=='reaction':
             if raw['clock']!='none' or raw['payment'] not in ('current','next') or 'settlement_clock' in raw:
                 raise ValueError('reaction requires explicit current/next payment and no owner clock')
-            row['budget'] = RESOURCES.loss(raw['budget'])
+            if raw['budget']=={}:
+                (__import__('skirmisher') if raw['source']==__import__('skirmisher').COUNTER else __import__('juggler')).free_reaction(engine,actor,raw)
+                row['budget']={}
+            else:row['budget'] = RESOURCES.loss(raw['budget'])
             row['debt_policy'] = raw.get('debt_policy','hold')
             if row['debt_policy'] not in ('hold','coalesce'):
                 raise ValueError('explicit hold/coalesce future action-loss conjunction required')
@@ -266,7 +297,7 @@ def queue(engine,candidates,*,trigger,order=None):
             if (set(raw)!=required|{'move_id'} or raw['payment']!='future_turn' or raw['clock']!='none'
                     or raw['budget']!={'standard':1}):
                 raise ValueError('switch Interrupt requires one selected Standard Move and a no-clock future turn loan')
-            row.update(_switch_location(engine,actor));row['settlement_clock']='none'
+            row.update(_switch_location(engine,actor,row['source']));row['settlement_clock']='none'
         elif raw['mode']=='borrow_turn':
             if 'move_id' in raw:raise ValueError('whole-turn borrowing cannot impersonate an Interrupt Move')
             if 'debt_policy' in raw:
@@ -349,12 +380,16 @@ def begin(engine,window_id,request_id):
                 raw['closure_sequence']=len(staged._turn_closures)
             _trigger(staged,raw)
         actor = row['actor']; WORLD.require_actors(staged,actor)
+        if row['mode']!='borrow_turn':__import__('ability_control_contracts').admit(staged,actor,'interrupt',trigger=window['trigger'])
+        if row['mode']!='borrow_turn':__import__('skirmisher').require_keyword(actor,'interrupt')
         if actor.dead or actor.fainted or not actor.on_field or actor.captured:
             raise ValueError('reaction owner no longer eligible')
         if 'move_id' in row:_move_request(staged,actor,row,window['trigger'])
         backup = deepcopy(getattr(actor,'budget',None)); loan = None
         if row['mode']=='reaction':
-            if row['payment']=='current':
+            if row['budget']=={}:
+                (__import__('skirmisher') if row['source']==__import__('skirmisher').COUNTER else __import__('juggler')).free_reaction(staged,actor,row)
+            elif row['payment']=='current':
                 if getattr(actor,'budget',None) is None:
                     raise ValueError('reaction current payment requires an actual prior action budget')
                 components = [kind for kind,amount in row['budget'].items() for _ in range(amount)]
@@ -367,7 +402,7 @@ def begin(engine,window_id,request_id):
                     raise ValueError('distinct next-action reaction costs require explicit conjunction')
                 RESOURCES.schedule(actor,row['budget'])
         elif row['mode']=='switch_interrupt':
-            if any(row[k]!=v for k,v in _switch_location(staged,actor).items()):
+            if any(row[k]!=v for k,v in _switch_location(staged,actor,row['source']).items()):
                 raise ValueError('switch Interrupt source/ownership/binding changed since declaration')
             loan_id=window_id+':'+row['id']
             loan={k:row[k] for k in ('source','actor','slot','role','due_round','settlement_clock',
@@ -437,7 +472,8 @@ def borrow_closed(engine,actor):
         return False
     sequence = len(engine._turn_closures)+1
     engine._turn_closures.append({'actor':actor,'round':engine.round_no,'sequence':sequence,
-                                 'kind':'borrowed','loan_id':current['loan_id']})
+                                 'kind':'borrowed','loan_id':current['loan_id'],
+                                 'turn_serial':actor.custom_conditions['combat_turn_serial']})
     _state(engine)['loans'][current['loan_id']]['borrow_closure'] = sequence
     current['status']='closing'; engine._active_turn_actor=None
     return True
@@ -467,18 +503,24 @@ def finish(engine):
                 del staged._initiative_interrupt_finishing
         if 'move_id' in row:
             completion=_completed_move(staged,current,row)
+            if row['source']==__import__('juggler').FIRST:
+                proof=__import__('juggler').first_request(staged,actor,row)
+                if [t.entity_id for t in staged._move_completions[completion]['targets']]!=[proof['target_id']]:raise ValueError('First Blood needs its actually selected native target')
             if current['mode']=='switch_interrupt':state['loans'][current['loan_id']]['move_completion']=completion
         row['receipt'] = {'actor':actor,'round':staged.round_no,'parent':current['parent'],
                           'remaining_budget':deepcopy(actor.budget),
                           'actions':deepcopy(getattr(actor,'_action_history',[])[current['history_start']:]),
                           'loan_id':current['loan_id']}
         if 'move_id' in row:row['receipt']['move_completion']=completion
-        if row['mode']=='reaction' and row['payment']=='next':
+        if row['mode']=='reaction' and row['payment']=='next' and row['budget']:
             row['receipt']['recipient_loss']={'status':'owed','budget':deepcopy(row['budget'])}
         row['status']='completed'; window['cursor'] += 1
         actor.budget = current['backup_budget']
         staged._active_turn_actor = current['parent']
         state['frames'].pop()
+        if row['source']==__import__('juggler').FIRST:
+            owner=__import__('party_actions').owner(staged,actor)
+            __import__('juggler').state(owner).pop('first_request',None)
         return status(staged)
     return GRANTS.transition(engine,None,apply,include_rulings=True)
 
@@ -639,8 +681,11 @@ def _validate_move_completion(engine,row,receipt):
     completion=getattr(engine,'_move_completions',{}).get(receipt.get('move_completion'))
     if (completion is None or completion['actor'] is not row['actor'] or completion['move_id']!=row['move_id']
             or completion['phase']!='complete' or completion['round']!=receipt['round']
-            or receipt['actions']!=['standard']):
+            or receipt['actions']!=__import__('jump_move_actions').interrupt_actions(engine,row)):
         raise ValueError('selected Interrupt receipt lost its real completed native Move')
+    if row['source']==__import__('juggler').FIRST:
+        proof=__import__('juggler').first_request(engine,row['actor'],row,historical=True)
+        if [t.entity_id for t in completion['targets']]!=[proof['target_id']]:raise ValueError('First Blood completed target evidence changed')
 
 
 def _validate_switch_loan(engine,index,loan,window,request):
@@ -649,10 +694,11 @@ def _validate_switch_loan(engine,index,loan,window,request):
         'encounter_epoch','switch_request_id','move_id')
     if (request is None or request['mode']!='switch_interrupt'
             or any(request[k]!=loan[k] for k in fields) or loan['settlement_clock']!='none'
-            or loan['due_round']!=loan['borrow_round']+1 or window['round']!=loan['borrow_round']):
+            or loan['due_round'] not in ((loan['borrow_round'],loan['borrow_round']+1) if loan['source']==__import__('juggler').FIRST else (loan['borrow_round']+1,)) or window['round']!=loan['borrow_round']):
         raise ValueError('switch Interrupt loan differs from its actual selected action-only declaration')
     trainer=index.get(loan['trainer_id'])
-    PARTY.validate_switch_lock(engine,loan['actor'],{'trainer':trainer,
+    if loan['source']==__import__('juggler').FIRST:__import__('juggler').validate_first_loan(engine,index,loan)
+    else:PARTY.validate_switch_lock(engine,loan['actor'],{'trainer':trainer,
         'request_id':loan['switch_request_id'],'scope':[loan['encounter_epoch'],loan['borrow_round']]})
     if loan['status'] not in ('owed','settled','cancelled'):raise ValueError('known switch Interrupt loan disposition required')
     completion=loan['move_completion']
@@ -713,8 +759,13 @@ def _validate_world(engine,index):
     for key,window in state['windows'].items():
         parent=window['parent'];between=window['trigger']['kind']=='between'
         overflow=window['trigger']['kind']=='duelist_overflow'
+        pre_faint=window['trigger']['kind']=='pre_faint'
+        round_end=window['trigger'].get('round_end_source') is not None
+        if round_end:
+            proof=__import__('focus_punch').reaction_origin(engine,window['trigger']['event_id'],live=False) or __import__('marksman').reaction_origin(engine,window['trigger']['event_id'],live=False)
+            if window['trigger']['kind']!='accuracy' or parent is not None or proof!=window['trigger']['round_end_source']:raise ValueError('actual no-owner round-end Move reaction origin required')
         if (key!=window['id'] or (between and parent is not None)
-                or (not between and not overflow and (parent is None or index.get(parent.entity_id) is not parent))
+                or (not between and not overflow and not pre_faint and not round_end and (parent is None or index.get(parent.entity_id) is not parent))
                 or (overflow and parent is not None and index.get(parent.entity_id) is not parent)):
             raise ValueError('reaction window requires its actual suspended owner')
         C.integer(window['round'],'reaction round',1,engine.round_no)
@@ -723,7 +774,9 @@ def _validate_world(engine,index):
             raise ValueError('reaction declaration changed after its actual priority decision')
         if window['trigger']['owner'] is not window['parent'] or window['trigger']['round']!=window['round']:
             raise ValueError('reaction trigger differs from actual window owner/round')
-        if overflow:
+        if pre_faint:
+            __import__('enduring_soul').validate_window(engine,window)
+        elif overflow:
             import duelist as DUELIST
             DUELIST.overflow_trigger(engine,window['trigger']['overflow_id'],allow_completed=True)
         elif between:
@@ -754,9 +807,17 @@ def _validate_world(engine,index):
             event=engine._passive_events.get(window['trigger']['event_id'])
             import move_defense_reactions as DEFENSE
             defense=None if event is None else DEFENSE._defense(engine,event)
-            if (event is None or event['actor'] is not window['parent'] or defense is None or
+            watch=window['trigger'].get('marksman_watch_source')
+            if watch is not None:
+                proof=__import__('marksman').watch_reaction_origin(engine,window['trigger']['event_id'],live=False)
+                if proof!=watch or parent is None or proof['owner_id']!=parent.entity_id:raise ValueError('actual Overwatch suspended turn owner changed')
+            if (event is None or (not round_end and watch is None and event['actor'] is not window['parent']) or defense is None or
                     defense['fingerprint']!=window['trigger']['defense_fingerprint']):
                 raise ValueError('reaction accuracy declaration changed')
+        elif window['trigger']['kind']=='native_accuracy':
+            event=__import__('move_defense_reactions').native_event(engine,window['trigger']['event_id'])
+            native_defense=event.get(__import__('move_defense_reactions').NATIVE_DEFENSE)
+            if native_defense is None or native_defense['facts']!=window['trigger']['facts'] or event['actor'] is not parent:raise ValueError('native Attack reaction source changed')
         elif window['trigger']['kind']=='reaction':
             parent_window = state['windows'].get(window['trigger']['window_id'])
             parent_request = None if not parent_window else next((r for r in parent_window['requests'] if r['id']==window['trigger']['request_id']),None)
@@ -777,7 +838,10 @@ def _validate_world(engine,index):
                 raise ValueError('reaction receipt requires its actual actor and resumed owner')
             if 'move_id' in row:
                 import move_defense_reactions as DEFENSE
-                if overflow:
+                if pre_faint:__import__('enduring_soul').validate_window(engine,window,row)
+                elif row['source']==__import__('juggler').FIRST:__import__('juggler').first_request(engine,actor,row,historical=True)
+                elif row['source']==__import__('skirmisher').SWIFT:__import__('skirmisher').validate_request(engine,window,row)
+                elif overflow:
                     import duelist as DUELIST
                     DUELIST.validate_interrupt(engine,window['trigger'],row)
                 elif row['move_id'] in __import__('combat_move_reactions').SOURCES:__import__('combat_move_reactions').validate_request(engine,window,row)
@@ -842,6 +906,7 @@ def _validate_world(engine,index):
 
 def validate_world(engine,index):
     try:
+        __import__('skirmisher').validate_world(engine,index)
         return _validate_world(engine,index)
     except (KeyError,TypeError,AttributeError,IndexError) as exc:
         raise ValueError('malformed actual initiative interrupt state') from exc

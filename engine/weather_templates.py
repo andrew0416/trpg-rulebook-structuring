@@ -74,7 +74,7 @@ def state(engine):
     return current
 
 def weaknesses(rules,defending_type):
-    return {attack for attack in TYPES.allowed_types(rules) if TYPES.matchup(rules,attack,defending_type)>1}
+    return {attack for attack in TYPES.attack_types(rules) if TYPES.matchup(rules,attack,defending_type)>1}
 
 def validate_definition(rules,row):
     keys={'id','name','base_type','boost_types','reduce_type','source_id','source','source_sha256','reason','origin','kind','creates_native_move'}
@@ -131,4 +131,3 @@ def definition(engine,identity):
     for sample in catalog(engine.r):
         if identity==sample.id:return sample.to_dict()
     raise ValueError('unknown weather-template identity')
-

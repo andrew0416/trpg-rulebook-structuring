@@ -45,9 +45,31 @@ def _observation(e,actors):
             'availability':(c.dead,c.fainted,c.on_field,c.captured)}
  return out
 
+def _passive_damage_history(e,c,actors):
+ # Native Struggle records positive damage even though no conditional-DB Move
+ # is enabled. Admit only that passive projection of validated attack receipts.
+ import conditional_damage_base as DB,attack_damage_history as HISTORY
+ state=c.custom_conditions[DB.STATE]
+ if (type(state)is not dict or set(state)!={'damage_round','damaged_by','streaks'}
+     or type(state['damage_round'])is not int or type(state['damaged_by'])is not dict
+     or type(state['streaks'])is not dict or state['streaks']
+     or any(type(uid)is not str or type(round_no)is not int for uid,round_no in state['damaged_by'].items())):return False
+ try:HISTORY.validate_actor(c)
+ except (ValueError,TypeError,KeyError):return False
+ pokemon={a.entity_id for a in actors.values() if a.kind=='pokemon'}
+ expected={'damage_round':None,'damaged_by':{},'streaks':{}}
+ for row in HISTORY.records(c):
+  if (c.entity_id not in pokemon or row['attacker_id'] not in pokemon
+      or row['attacker_id']==c.entity_id or row['round']>e.round_no or row['at']>e.elapsed_seconds
+      or row.get('application_kind','damage')!='damage' or row['receipt']['source']!='struggle'):return False
+  receipt=row['receipt']
+  if receipt['net_hp_loss']+receipt['net_temporary_hp_loss']>0:
+   expected['damage_round']=row['round'];expected['damaged_by'][row['attacker_id']]=row['round']
+ return expected['damage_round'] is not None and state==expected
+
 def _interaction_issues(e,actors):
  issues=[]
- for field in ('weather','field','grid','zones','zone_cells','hazards','hazards_nogrid',
+ for field in ('weather','field','grid','zones','zone_cells','_smoke_regions','hazards','hazards_nogrid',
                'delayed','zone_rules','taunt','condition_params','_action_grants'):
   if getattr(e,field,None):issues.append('unsupported interaction: '+field)
  for field in ('formulas','mech','effects','situational','answers','provider'):
@@ -66,7 +88,12 @@ def _interaction_issues(e,actors):
     # The native owner-turn clock is bookkeeping, not an optional phase effect.
     serial=value.get('combat_turn_serial',0)
     if type(serial)is not int or serial<0:issues.append(key+':invalid owner turn clock')
-    value={k:v for k,v in value.items() if k!='combat_turn_serial'}
+    marker=value.get('blessing_ignore_turn_open')
+    if 'blessing_ignore_turn_open' in value and (marker is not True or e._active_turn_actor is not c):
+     issues.append(key+':invalid native open-turn marker')
+    value={k:v for k,v in value.items() if k not in ('combat_turn_serial','blessing_ignore_turn_open')}
+    import conditional_damage_base as DB
+    if DB.STATE in value and _passive_damage_history(e,c,actors):value.pop(DB.STATE)
    if value:issues.append(key+':unsupported '+field)
   if c.conditions-{'기절'}:issues.append(key+':turn hook/status phase composition unsupported')
  return issues

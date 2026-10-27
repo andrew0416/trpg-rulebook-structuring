@@ -18,6 +18,8 @@ def source_unit(record, default_file=None):
     repository, not a claim about the authority of the underlying source.
     """
     source = record.get("source") or record.get("_source")
+    if source == "core_example" and isinstance(record.get("_source"), dict):
+        source = record["_source"]
     explicit = "source" in record or "_source" in record or bool(record.get("chapter"))
     if source == "custom":
         source = {"file": "data/custom/" + str(record.get("custom_file") or "runtime.json")}
@@ -110,6 +112,8 @@ class RuleFilter:
         self.name = name
         if profile is not None and not isinstance(profile, dict):raise TypeError("Profile must be a mapping")
         self.profile = profile or {}
+        import personal_type_settings as PERSONAL_TYPES
+        PERSONAL_TYPES.validate(self.profile)
         for key, universe in (("sources", ALL_GROUPS), ("variants", ALL_VARIANTS)):
             value = self.profile.get(key, "*")
             if value != "*" and (not isinstance(value, list) or any(not isinstance(x, str) or x not in universe for x in value)):
@@ -139,6 +143,9 @@ class RuleFilter:
     def load(cls, root, name=None):
         name = "all" if name is None else name
         with open(os.path.join(root, "data/rulesets.json"), encoding="utf-8") as handle:profiles = json.load(handle)["rulesets"]
+        import condition_editions as CONDITION_EDITIONS
+        if name in CONDITION_EDITIONS.PROFILES:
+            return cls(CONDITION_EDITIONS.profile(name,profiles.get(name)),name)
         if name not in profiles:raise KeyError(f"룰셋 프로필 없음: {name} (있는 것: {', '.join(profiles)})")
         return cls(profiles[name], name)
 
@@ -219,7 +226,7 @@ class RuleFilter:
         fields=('sources','variants','exclude_units','exclude_tags','replaces',
                 'variant_choices','unit_versions','rulings_files')
         declared=('sources','variants','exclude_units','exclude_tags','variant_replaces_core',
-                  'variant_choices','unit_versions','rulings_files')
+                  'variant_choices','unit_versions','rulings_files','personal_type_settings')
         return {'effective':{key:getattr(self,key) for key in fields},
                 'declared':{key:self.profile[key] for key in declared if key in self.profile}}
 
@@ -387,6 +394,15 @@ def build_runtime_selection(rules):
         catalog["struggle"] = dict(catalog["combat/struggle"], id="struggle", title="struggle")
     if "pokemon/capture-rate" in catalog:
         catalog["ball"] = dict(catalog["pokemon/capture-rate"], id="ball", title="ball")
+    # Only explicit runtime registrations survive a catalog rebuild. The new
+    # RuleSelection still applies the current filter and each source dependency.
+    previous = getattr(rules, "selection", None)
+    retained = {}
+    if previous is not None:
+        registered = set(previous.dependencies) | set(getattr(rules, "_authored_policy_sources", {}))
+        retained = {uid: deepcopy(unit) for uid, unit in previous.units.items()
+                    if uid in registered and uid not in catalog}
+        catalog.update(retained)
     for unit in catalog.values():
         source=unit['source'];file=source.get('file','').removeprefix('input/')
         if file in source_snapshots:
@@ -395,10 +411,19 @@ def build_runtime_selection(rules):
             source['sha256']=expected
         additional=source.get('additional_files',[])
         if additional:source['additional_snapshots']={file:source_snapshots[file] for file in additional if file in source_snapshots}
+    import mentor
+    expand_csv=mentor.bind_expand_csv_source(rules,catalog)
     selection = RuleSelection(rules.ruleset, catalog.values())
+    if expand_csv:selection.dependencies[mentor.EXPAND_CSV]=(mentor.EXPAND,)
     selection.source_audit_snapshots = {row['id']:{row['official_source']['extract']:row['official_source']['sha256']}
         for row in getattr(rules,'core_abilities',{}).values()
         if str(row.get('official_source',{}).get('extract','')).startswith('source-audit/')}
+    if previous is not None:
+        for uid in retained:
+            if uid in previous.dependencies:
+                selection.dependencies[uid] = deepcopy(previous.dependencies[uid])
+            if uid in getattr(previous, "source_audit_snapshots", {}):
+                selection.source_audit_snapshots[uid] = deepcopy(previous.source_audit_snapshots[uid])
     if "ball" in catalog:
         selection.dependencies["ball"] = ("pokemon/capture-rate", "combat/accuracy-roll")
     for uid, record in getattr(rules, "moves", {}).items():
@@ -406,6 +431,47 @@ def build_runtime_selection(rules):
             selection.dependencies[uid] = ("combat/struggle", "ch09-equipment/장비/무기")
     selection.validate_choices()
     return selection
+
+
+from contextvars import ContextVar
+from contextlib import contextmanager
+
+_GENERATED_WEAPON_JOURNALS = ContextVar('generated_weapon_publications', default=())
+
+
+@contextmanager
+def generated_weapon_transaction(rules):
+    """Journal only actual generated-weapon writes, including nested producers."""
+    journal={}
+    token=_GENERATED_WEAPON_JOURNALS.set((*_GENERATED_WEAPON_JOURNALS.get(),
+                                         (rules.moves,rules.selection,journal)))
+    try:
+        yield
+    except BaseException:
+        for records in reversed(tuple(journal.values())):
+            for mapping,key,present,old,contents in reversed(records):
+                if not present:mapping.pop(key,None)
+                else:
+                    if contents is not None:old[:]=contents
+                    mapping[key]=old
+        raise
+    finally:
+        _GENERATED_WEAPON_JOURNALS.reset(token)
+
+
+def capture_runtime_weapon(rules,uid,title):
+    """Capture this producer's exact touched keys once per enclosing transaction."""
+    selection=rules.selection
+    identity=(id(rules.moves),id(selection),uid)
+    for move_owner,selection_owner,journal in _GENERATED_WEAPON_JOURNALS.get():
+        if move_owner is not rules.moves or selection_owner is not selection:continue
+        if identity in journal:continue
+        keys=[(rules.moves,uid),(rules.moves_mech,uid),(selection.units,uid),
+              (selection.dependencies,uid),(selection.names,title),
+              (rules._runtime_weapon_declarations,uid)]
+        journal[identity]=[(mapping,key,key in mapping,mapping.get(key),
+                            list(mapping[key]) if mapping is selection.names and key in mapping else None)
+                           for mapping,key in keys]
 
 
 def require_runtime_weapon(rules, uid):
@@ -419,6 +485,7 @@ def require_runtime_weapon(rules, uid):
         return rules.selection.require_supported_version(uid)
     dependencies = ("combat/struggle", "ch09-equipment/장비/무기")
     if uid not in rules.selection.units:
+        capture_runtime_weapon(rules,uid,record['name'])
         rules.selection.register_derived({"id": uid, "title": record["name"],
             "source": {"file": "ch09-equipment.md"}, "tags": ["derived-weapon"]}, dependencies)
     for dependency in dependencies:

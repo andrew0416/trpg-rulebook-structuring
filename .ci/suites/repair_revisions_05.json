@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "id": "repair_revisions_05",
+  "purpose": "Source-backed core Suction Cups and fossil/egg correction; selected Cleanse inventory source; lawful BattleContest/Juggler fixtures; full-state rollback diagnostics; explicit runtime source retention on custom loading; first11existing state-reuse test revisions with independent builders and blocked dependencies. Exact372 changed-impact methods including12new. All original4115 and later obligations retained; full repository13130methods+21procedural test revision remains partial.",
+  "completion_credit": 0,
+  "required_unique_count": 43,
+  "completed": {
+    "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests": {
+      "tests": [
+        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_area_push_keeps_ally_inside_and_hits_interceptor_once_with_later_alias",
+        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_melee_success_hits_interceptor_and_preserves_original_accuracy"
+      ]
+    },
+    "tools.test_foundation_source_selection.SourceSelectionTests": {
+      "tests": [
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_acquired_chocolate_cannot_spend_or_heal_after_its_source_is_excluded",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_acquired_minor_gift_rejects_changed_supplement_before_actual_roll",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_acquired_stat_exception_cannot_survive_excluded_definition",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_changed_source_after_record_is_rejected",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_derived_reader_checks_dependency_source_before_returning_identity",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_display_name_lookup_rechecks_selected_source",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_every_minor_gift_keeps_outcome_dependencies_and_selected_source",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_expand_horizons_feature_does_not_admit_same_named_unresolved_edge",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_explicit_versions_require_reader_support",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_item_and_augmentation_same_name_do_not_choose_first_record",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_native_context_and_external_policy_share_selection_contract",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_native_feature_reader_cannot_choose_a_same_named_kind_by_priority",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_native_policy_uses_shared_contract_for_active_sources_only",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_native_reader_checks_registered_body_source_without_public_record",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_optional_shock_injury_requires_explicit_gm_choice_without_default",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_optional_shock_policy_rechecks_selected_source_and_source_bytes",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_pinned_native_csv_rejects_changed_bytes_and_replacement_hash",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_policy_binding_calls_custom_reader_and_preserves_registered_locator_without_new_package_fields",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_policy_binding_keeps_complete_values_and_rejects_locator_version_or_ambiguity",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_policy_history_requires_known_values_and_never_reselects_current_authority",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_rebuilt_excluding_profile_invalidates_prior_record",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_record_is_detached_and_revalidated_not_an_authority_token",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_registered_source_snapshots_are_checked_without_caller_hash",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_same_kind_duplicate_titles_require_exact_source_identity",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_same_named_body_and_csv_sources_keep_distinct_records",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_source_change_rejects_real_training_before_time_xp_and_rng",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_tutor_cannot_borrow_excluded_feature_before_spending",
+        "tools.test_foundation_source_selection.SourceSelectionTests.test_unrelated_ambiguous_inventory_does_not_block_selected_consumable"
+      ]
+    },
+    "tools.test_item_source_identity_revision.CannonItemIdentityTests": {
+      "tests": [
+        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_exact_loaded_source_and_single_loading_reject_before_payment",
+        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_late_native_damage_failure_restores_load_stock_action_and_rng",
+        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_loaded_pester_native_accuracy_range_damage_payment_and_hour",
+        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_loaded_pester_rejects_beyond_fifteen_metres_before_payment",
+        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_miss_consumes_loaded_pester_once_without_damage_or_immunity",
+        "tools.test_item_source_identity_revision.CannonItemIdentityTests.test_unloaded_or_withdrawn_cannon_does_not_extend_hand_throw"
+      ]
+    },
+    "tools.test_rule_selection.CustomSpeciesSelectionRetentionTests": {
+      "tests": [
+        "tools.test_rule_selection.CustomSpeciesSelectionRetentionTests.test_custom_load_preserves_complete_catalog_dependencies_and_external_selections_repeatedly",
+        "tools.test_rule_selection.CustomSpeciesSelectionRetentionTests.test_rebuilt_catalog_rechecks_excluded_derived_parents_and_authored_sources",
+        "tools.test_rule_selection.CustomSpeciesSelectionRetentionTests.test_repeated_custom_load_and_fresh_equivalent_rules_keep_codec_and_full_choice_catalog"
+      ]
+    },
+    "tools.test_type_ace_remaining_revision.TypeAceRemainingTests": {
+      "tests": [
+        "tools.test_type_ace_remaining_revision.TypeAceRemainingTests.test_wallclimber_blocks_actual_move_push_without_blocking_damage",
+        "tools.test_type_ace_remaining_revision.TypeAceRemainingTests.test_wallclimber_blocks_bigger_and_boulder_push_after_actual_rock_hit",
+        "tools.test_type_ace_remaining_revision.TypeAceRemainingTests.test_wallclimber_blocks_tough_style_push_after_actual_hit",
+        "tools.test_type_ace_remaining_revision.TypeAceRemainingTests.test_wallclimber_rejects_melee_intercept_before_payment_and_keeps_pending_hit"
+      ]
+    }
+  }
+}

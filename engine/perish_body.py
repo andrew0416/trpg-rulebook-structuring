@@ -44,7 +44,9 @@ def definition(rules, source=SOURCE):
                         'value': 3, 'tick': '-1 at turn start', 'at_zero': 'hp = 0',
                         'cleared_by': ['recall', 'breather', 'faint']},
                  'payload': {'kind': 'custom_condition', 'operation': 'perish_count',
-                             'condition': NAME, 'class': 'volatile'},
+                             'condition': NAME, 'class': 'effect'},
+                 'lifetime': {'boundary': 'explicit_linked_condition_end',
+                              'ends_on': ['faint', 'recall', 'breather']},
                  'source_record': {'file': 'input/db/abilities.csv', 'record': 141, 'sha256': digest},
                  'clause_id': CLAUSE}
     if any(row.get(k) != v for k, v in expected.items()) or row.get('condition') != condition:

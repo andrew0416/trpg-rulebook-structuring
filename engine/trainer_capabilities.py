@@ -51,7 +51,7 @@ def has_edge(c,uid):
  count=sum(value in names for value in c.spec.get('edges',[]))
  if count>1:raise ValueError('duplicate acquired capability edge')
  if count and c.r._selected_rule(uid)!=uid:raise ValueError('selected capability edge variant needs its own policy')
- if count and uid=='edge/수영-선수' and max(S.rank(c.r,c,'육상')[2],S.rank(c.r,c,'생존')[2])<3:
+ if count and uid=='edge/수영-선수' and not __import__('hobbyist').skill_waived(c,uid) and max(S.rank(c.r,c,'육상')[2],S.rank(c.r,c,'생존')[2])<3:
   raise ValueError('Swimmer requires Novice Athletics or Survival')
  return bool(count)
 
@@ -75,7 +75,7 @@ def swimming(c,land,*,base_swim=None):
  return LIMITS.add_sources(result,[{'id':'swimmer','source':'edge/수영-선수','value':2}])['value']
 
 def breath_grace(c,medium,*,engine=None):
- base=60 if medium!='water' or not has_edge(c,'edge/수영-선수') else 60*max(S.effective_rank(c.r,c,'육상'),S.effective_rank(c.r,c,'생존'))
+ base=60 if medium!='water' or not has_edge(c,'edge/수영-선수') else 60*max(__import__('hobbyist').direct_rank(c,'edge/수영-선수','육상'),__import__('hobbyist').direct_rank(c,'edge/수영-선수','생존'))
  base=max(base,__import__('survivalist_class').breath_seconds(c,medium,engine))
  return base+c.spec.get('_respiration',{}).get('style_extension',0)
 
@@ -94,7 +94,7 @@ def jump_bonuses(c,base):
  """Apply owned Acrobat once to explicit base values; current sheets bypass it."""
  result=dict(base)
  if has_edge(c,'edge/곡예사'):
-  if S.rank(c.r,c,'곡예')[2]<3:raise ValueError('Acrobat requires an acquired Novice Acrobatics skill')
+  if not __import__('hobbyist').skill_waived(c,'edge/곡예사') and S.rank(c.r,c,'곡예')[2]<3:raise ValueError('Acrobat requires an acquired Novice Acrobatics skill')
   for key in ('high_jump','long_jump'):
    if key in result:result[key]=LIMITS.add_sources(result[key],[{'id':'acrobat:'+key,'source':'edge/곡예사','value':1}])['value']
  return result
@@ -103,7 +103,7 @@ def jump_bonuses(c,base):
 def initiative_bonus(c):
  """Dynamism is a live Guile-rank contribution, separate from stored bonuses."""
  if not has_edge(c,'edge/패기'):return 0
- if S.rank(c.r,c,'교활')[2]<3:raise ValueError('Dynamism requires an acquired Novice Guile skill')
+ if not __import__('hobbyist').skill_waived(c,'edge/패기') and S.rank(c.r,c,'교활')[2]<3:raise ValueError('Dynamism requires an acquired Novice Guile skill')
  basis=c.spec.get('initiative_basis')
  if basis not in ('base','current'):raise ValueError('Dynamism initiative needs explicit base or current bonus basis')
- return S.effective_rank(c.r,c,'교활') if basis=='base' else 0
+ return __import__('hobbyist').direct_rank(c,'edge/패기','교활') if basis=='base' else 0

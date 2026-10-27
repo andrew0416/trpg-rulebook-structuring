@@ -37,6 +37,7 @@ def irreversible(engine,actor,source_id,*,event_id,reason):
 def preflight(actor,removed):
     rows=actor.spec.get('state_grants',{}).get('sources',{})
     removed=set(removed)
+    __import__('hobbyist').preflight_revoke(actor,removed)
     for identity,row in rows.items():
         dependencies=row.get('withdrawal_dependencies',[])
         uses=row.get('irreversible_uses',{})
@@ -66,11 +67,14 @@ def refund_native_investments(spec, records, *, source, reason, lost_prerequisit
             raise ValueError('actual active native investment required')
         F.integer(row.get('point_cost'), 'actual native investment payment', 0)
     F.integer(spec.get('tutor_points'), 'actual remaining Tutor Points for prerequisite refund', 0)
-    refunded = sum(row['point_cost'] for row in records)
+    if any('pusher' in row for row in records):import researcher_fields as RFS
+    costs = [RFS.pusher_receipt(None,row) if 'pusher' in row else row['point_cost'] for row in records]
+    refunded = sum(costs)
     for row in records:
         row.update(status='refunded', refund={
             'source': source, 'points': row['point_cost'], 'reason': reason,
             'lost_prerequisite': deepcopy(lost_prerequisite)})
+        if 'pusher' in row:row['refund']['net_points']=0
     spec['tutor_points'] += refunded
     return refunded
 

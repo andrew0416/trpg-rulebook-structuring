@@ -12,8 +12,10 @@ from __future__ import annotations
 import argparse
 import builtins
 from collections import Counter
+from datetime import datetime, timezone
 from enum import IntFlag
 from functools import partial
+from hashlib import sha256
 import importlib
 import importlib.abc
 import importlib.machinery
@@ -27,6 +29,7 @@ import time
 import traceback
 import unittest
 from uuid import uuid4
+from zipfile import ZIP_DEFLATED, ZipFile
 
 
 STAGE = Path(__file__).resolve().parent
@@ -59,6 +62,15 @@ class WorkflowMode(IntFlag):
     BRIEF = 8
 
 
+def native_platform():
+    if hasattr(sys, "getwindowsversion"):
+        return "Windows-" + ".".join(map(str, sys.getwindowsversion()[:3]))
+    if hasattr(os, "uname"):
+        system = os.uname()
+        return f"{system.sysname}-{system.release}-{system.machine}"
+    return sys.platform
+
+
 def read_object(path):
     value = json.loads(Path(path).read_text(encoding='utf-8-sig'))
     if not isinstance(value, dict):
@@ -66,8 +78,12 @@ def read_object(path):
     return value
 
 
-def test_module(value, stage, canonical):
-    """Accept test references, never shell commands or a guessed runtime owner."""
+def test_module(value, stage, canonical, *, preserve_selector=False):
+    """Normalize a test reference; only direct inputs retain class/method tails.
+
+    Saved reports and navigation still expand to whole declared modules.
+    Unknown direct selectors reach unittest discovery, never a module fallback.
+    """
     path = Path(value)
     if path.is_absolute():
         resolved = path.resolve()
@@ -77,17 +93,22 @@ def test_module(value, stage, canonical):
                 break
         else:
             raise ValueError(f'test path leaves the selected roots: {value}')
-    parts = value.removesuffix('.py').replace('\\', '.').replace('/', '.').split('.')
-    if not all(part.replace('-', '_').isidentifier() for part in parts):
-        raise ValueError(f'not a test reference: {value}')
+    parts = value.replace('\\', '.').replace('/', '.').split('.')
     index = next((i for i, part in enumerate(parts) if part.startswith('test_')), None)
+    # Only the module position has a file extension; selector tails are exact.
+    if index is not None and parts[index + 1:] == ['py']:
+        parts.pop()
+    module_parts = parts[:index + 1] if preserve_selector and index is not None else parts
+    if not all(part.replace('-', '_').isidentifier() for part in module_parts):
+        raise ValueError(f'not a test reference: {value}')
     if index is None:
         raise ValueError(f'no declared test module: {value}')
+    selector = parts[index + 1:] if preserve_selector else []
     parts = parts[:index + 1]
     if len(parts) == 1 and not any((root / (parts[0] + '.py')).is_file()
                                   for root in (stage, canonical)):
         parts.insert(0, 'tools')
-    return '.'.join(parts)
+    return '.'.join([*parts, *selector])
 
 
 def workflow_plan(targets, *, stage=None, canonical=None):
@@ -96,6 +117,7 @@ def workflow_plan(targets, *, stage=None, canonical=None):
     Historical success/frequency never authorizes omitting a declared test.
     A report restores *current full packet declarations*, including omissions.
     A navigation target selects whole declared modules, never a lookup sample.
+    A direct test reference keeps its explicitly selected module/class/method.
     """
     started = time.perf_counter()
     canonical_fixed = canonical is not None
@@ -159,8 +181,8 @@ def workflow_plan(targets, *, stage=None, canonical=None):
             continue
         active_stage = stage or canonical
         try:
-            modules.append(test_module(target, active_stage, canonical))
-            reasons.append('explicit_current_test_module')
+            modules.append(test_module(target, active_stage, canonical, preserve_selector=True))
+            reasons.append('explicit_current_test_reference')
             continue
         except ValueError:
             pass
@@ -285,7 +307,22 @@ def record_routing_error(args, mode, reason):
 
 class FixtureRootLoader(importlib.machinery.SourceFileLoader):
     def exec_module(self, module):
-        super().exec_module(module)
+        api = module.__name__ == 'engine'
+        if api:
+            existing = sys.modules.get('engine.engine')
+            if existing is not None and existing is not module:
+                raise ImportError('Conflicting engine.engine module identity')
+            # Qualified imports must reuse this same API before helper imports run.
+            sys.modules['engine.engine'] = module
+            module.engine = module
+        try:
+            super().exec_module(module)
+            if api and (sys.modules.get('engine.engine') is not module or module.engine is not module):
+                raise ImportError('Engine API alias changed during initialization')
+        except BaseException:
+            if api and sys.modules.get('engine.engine') is module:
+                del sys.modules['engine.engine']
+            raise
         # Test bodies also import staged fixture modules after initial discovery.
         redirect_fixture_roots((module,))
 
@@ -300,6 +337,17 @@ class StageOverlayFinder(importlib.abc.MetaPathFinder):
     """
 
     def find_spec(self, fullname, path=None, target=None):
+        if fullname == 'engine':
+            # Keep the bare engine.py API and its qualified test/helper imports.
+            locations = [str(root / 'engine') for root in dict.fromkeys((STAGE, CANONICAL))]
+            for root in dict.fromkeys((STAGE, CANONICAL)):
+                source = root / 'engine' / 'engine.py'
+                if _ISFILE(source):
+                    return importlib.util.spec_from_file_location(
+                        fullname, source, loader=FixtureRootLoader(fullname, str(source)),
+                        submodule_search_locations=locations)
+        if STAGE == CANONICAL:
+            return None
         if "." in fullname:
             source = STAGE.joinpath(*fullname.split('.')).with_suffix('.py')
             if _ISFILE(source):
@@ -418,6 +466,49 @@ def test_cases(suite):
             yield test
 
 
+def prepare_chained_suite(suite):
+    """Connect opt-in compatible cases without changing case identity or coverage.
+
+    Hooks prepare only empty shared contexts. Real fixtures are constructed by
+    the first running case; independently selected cases retain their builders.
+    """
+    cases = list(test_cases(suite))
+    grouped = {}
+    for case in cases:
+        grouped.setdefault(type(case), []).append(case)
+    replacements, chains = {}, []
+    for cls, selected in grouped.items():
+        hook = getattr(cls, 'prepare_chained_cases', None)
+        if hook is None:
+            continue
+        before = {id(case): case.id() for case in selected}
+        if len(before) != len(selected):
+            raise ValueError('Chained selection repeats a TestCase instance')
+        prepared = hook(tuple(selected))
+        if any(case.id() != before[id(case)] for case in selected):
+            raise ValueError('Chaining changed a test case identity')
+        if prepared is None:
+            continue
+        prepared = list(prepared)
+        if Counter(map(id, prepared)) != Counter(map(id, selected)):
+            raise ValueError('Chaining must preserve every selected TestCase instance exactly once')
+        replacements[cls] = iter(prepared)
+        chains.append({'class': cls.__module__ + '.' + cls.__qualname__,
+                       'selected_test_ids': [case.id() for case in selected],
+                       'execution_test_ids': [case.id() for case in prepared]})
+    if not chains:
+        return suite, []
+    def ordinary_suites(node):
+        if isinstance(node, unittest.TestSuite):
+            return type(node) is unittest.TestSuite and all(ordinary_suites(child) for child in node)
+        return True
+    if not ordinary_suites(suite):
+        raise ValueError('Chaining cannot replace a custom TestSuite execution contract')
+    ordered = [next(replacements[type(case)]) if type(case) in replacements else case
+               for case in cases]
+    return unittest.TestSuite(ordered), chains
+
+
 class ReportingResult(unittest.TextTestResult):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -425,12 +516,14 @@ class ReportingResult(unittest.TextTestResult):
         self.test_durations = []
 
     def startTest(self, test):
+        self._case_cpu_started = time.process_time()
         self._case_started = time.perf_counter()
         super().startTest(test)
 
     def stopTest(self, test):
         self.test_durations.append({'id': test.id(),
-                                    'seconds': time.perf_counter() - self._case_started})
+                                    'seconds': time.perf_counter() - self._case_started,
+                                    'process_cpu_seconds': time.process_time() - self._case_cpu_started})
         super().stopTest(test)
 
     def addSubTest(self, test, subtest, err):
@@ -499,6 +592,8 @@ def brief_summary(details, report_path, log_path, *, include_timing=False):
         lines.append(f"retry_ids={len(details['retry_ids'])}; exact IDs in JSON report")
     if details.get('repeat_from'):
         lines.append('repeated saved selection; current execution, not reused PASS')
+    for row in details.get('expanded_packets', []):
+        lines.append('expanded_packet=' + row['packet'])
     if details.get('workflow'):
         policy = details['workflow']
         lines.append(f"workflow={policy['route']}; state={policy['state']}; next={policy['next_action']}")
@@ -516,12 +611,297 @@ def brief_summary(details, report_path, log_path, *, include_timing=False):
     return '\n'.join(lines) + '\n'
 
 
+def physical_execution(args, parser):
+    """Freeze declared inputs, then run this same verifier under physical hooks.
+
+    Input directories are explicit, not inferred change-impact declarations.
+    The fresh import is important: its overlay must cache our physical hooks,
+    not the unobserved opens cached by the outer CLI during startup.
+    """
+    clock = time.perf_counter()
+    started = datetime.now(timezone.utc).isoformat()
+    if (not args.stage or not args.canonical or not args.record
+            or args.report or args.log or args.collect_only or args.inspect_report
+            or args.workflow_stats or args.quiet
+            or (args.auto and args.mode is not None and not args.mode & WorkflowMode.RUN)):
+        parser.error('--physical requires explicit --stage, --canonical, --record and a full log run')
+    stage, canonical, output = (value.resolve() for value in
+                                (args.stage, args.canonical, args.record))
+    if not stage.is_dir() or not canonical.is_dir():
+        parser.error('physical stage and canonical must be existing directories')
+    if os.name == 'nt' and any(path.drive.casefold() == 'c:' for path in
+                               (stage, canonical, output)):
+        parser.error('C: workspaces/evidence outputs are disabled; use D:')
+    if not output.is_relative_to(stage) or output == stage:
+        parser.error('physical --record must be a directory below stage')
+    physical_spec = args.physical.resolve()
+    runner = Path(__file__).resolve()
+    try:
+        declaration = read_object(physical_spec)
+        entries = declaration['inputs']
+        if (set(declaration) - {'version', 'inputs'} or declaration.get('version', 1) != 1
+                or not isinstance(entries, list) or not entries
+                or not all(isinstance(value, str) and value.strip() for value in entries)):
+            raise ValueError('expected {"version": 1, "inputs": [file or directory, ...]}')
+        paths = {physical_spec, runner}
+        # Selection evidence is consumed by the inner CLI, so freeze it too.
+        paths.update(value.resolve() for value in (args.candidate, args.failed_from,
+                     args.repeat_from) if value is not None)
+        paths.update(value.resolve() for value in (args.packets or []))
+        paths.update(Path(value).resolve() for value in (args.auto or [])
+                     if Path(value).suffix.lower() == '.json')
+        for value in entries:
+            selected = Path(value)
+            if not selected.is_absolute():
+                if '..' in selected.parts:
+                    raise ValueError('relative physical inputs cannot leave stage')
+                selected = stage / selected
+            selected = selected.resolve()
+            if selected.is_dir():
+                if not any(selected.is_relative_to(root) for root in (stage, canonical)):
+                    raise ValueError('input directories must be inside stage or canonical')
+                if output.is_relative_to(selected) or selected.is_relative_to(output):
+                    raise ValueError('input directory overlaps --record; declare narrower input roots')
+                for path in selected.rglob('*'):
+                    if path.is_file() and path.suffix == '.pyc':
+                        raise ValueError('pre-existing bytecode can be read despite -B; move it outside input roots before capture: ' + str(path))
+                    if path.is_file() and '__pycache__' not in path.parts and path.suffix != '.pyc':
+                        resolved = path.resolve()
+                        if not resolved.is_relative_to(selected):
+                            raise ValueError('input directory contains an escaping symlink: ' + str(path))
+                        paths.add(resolved)
+            elif selected.is_file():
+                paths.add(selected)
+            else:
+                raise ValueError('physical input does not exist: ' + str(selected))
+        if any(not path.is_file() for path in paths):
+            raise ValueError('selection evidence must be existing files')
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        parser.error('physical inputs: ' + str(exc))
+
+    physical_open, physical_builtin = io.open, builtins.open
+    originals = (os.path.exists, os.path.isfile, Path.exists, Path.is_file)
+    runtime_roots = {Path(value).resolve() for value in (sys.prefix, sys.base_prefix)}
+    physical_reading = 0
+
+    def physical_bytes(path):
+        nonlocal physical_reading
+        physical_reading += 1
+        try:
+            with physical_open(path, 'rb') as stream:
+                return stream.read()
+        finally:
+            physical_reading -= 1
+
+    def digest(path):
+        try:
+            return sha256(physical_bytes(path)).hexdigest()
+        except OSError:
+            return None
+
+    def archive_name(path):
+        for root, prefix in ((stage, 'stage/'), (canonical, 'canonical/')):
+            if path.is_relative_to(root):
+                return prefix + path.relative_to(root).as_posix()
+        return 'tooling/' + path.name
+
+    names = [archive_name(path) for path in paths]
+    if len(names) != len(set(names)):
+        parser.error('physical input paths collide in ZIP tooling names')
+    record = output / ('physical-' + uuid4().hex)
+    record.mkdir(parents=True, exist_ok=False)
+    for name in ('TEMP', 'TMP', 'TMPDIR'):
+        os.environ[name] = str(record)
+    sys.dont_write_bytecode = True
+    import tempfile
+    tempfile.tempdir = str(record)
+    archive_path = record / 'inputs.zip'
+    before = {}
+    # Seal the ZIP before any test import; unknown late reads never extend it.
+    with ZipFile(archive_path, 'x', compression=ZIP_DEFLATED) as archive:
+        for path in sorted(paths, key=str):
+            body = physical_bytes(path)
+            before[str(path)] = sha256(body).hexdigest()
+            archive.writestr(archive_name(path), body)
+        archive.writestr('physical-sha256.json', json.dumps(before, indent=2))
+    actual, first_reads, pre_origins, origin_errors, unsupported_reads = [], {}, {}, [], []
+    result = None
+
+    def observe(file, positional, keyword):
+        mode = positional[0] if positional else keyword.get('mode', 'r')
+        if not isinstance(mode, str) or not ('r' in mode or '+' in mode):
+            return
+        if isinstance(file, int):
+            unsupported_reads.append('unresolved file-descriptor read: ' + str(file))
+            return
+        try:
+            path = Path(file).resolve()
+            key = str(path)
+            # Runtime scratch and reports are outputs, not pre-existing inputs.
+            if (path.is_relative_to(record) or key in first_reads or not originals[1](path)
+                    or key not in before and any(path.is_relative_to(root) for root in runtime_roots)):
+                return
+            first_reads[key] = digest(path)
+        except (OSError, TypeError, ValueError):
+            return
+
+    def tracked_open(file, *positional, **keyword):
+        observe(file, positional, keyword)
+        return physical_builtin(file, *positional, **keyword)
+
+    def tracked_io_open(file, *positional, **keyword):
+        observe(file, positional, keyword)
+        return physical_open(file, *positional, **keyword)
+
+    audit_active = True
+
+    def audit_open(event, arguments):
+        # Import machinery and os.open bypass Python open wrappers.
+        if event == 'open' and audit_active and not physical_reading:
+            path, mode, flags = arguments
+            if isinstance(mode, str):
+                observe(path, (mode,), {})
+            elif flags & (os.O_WRONLY | os.O_RDWR) != os.O_WRONLY:
+                observe(path, ('rb',), {})
+
+    def origins():
+        found = {}
+        for name, module in sorted(tuple(sys.modules.items())):
+            file = getattr(module, '__file__', None)
+            if not file:
+                continue
+            path = Path(file).resolve()
+            if (path.suffix == '.py' and (str(path) in before
+                    or not any(path.is_relative_to(root) for root in runtime_roots))):
+                found[name] = {'file': str(path), 'sha256': digest(path)}
+        return found
+
+    def check_origins(found):
+        errors = []
+        for name, origin in found.items():
+            path = Path(origin['file'])
+            if stage != canonical and any(path.is_relative_to(canonical / part)
+                                          for part in ('engine', 'tools')):
+                errors.append('canonical code escaped private stage: ' + origin['file'])
+            if before.get(origin['file']) != origin['sha256']:
+                errors.append('loaded origin was not frozen or changed: ' + origin['file'])
+        return list(dict.fromkeys(errors))
+
+    old_start, old_run = unittest.TestResult.startTest, unittest.TextTestRunner.run
+
+    def start_test(self, test):
+        actual.append(test.id())
+        return old_start(self, test)
+
+    def run_suite(self, suite):
+        nonlocal pre_origins, result
+        pre_origins = origins()
+        origin_errors.extend(check_origins(pre_origins))
+        if origin_errors:
+            raise RuntimeError('; '.join(origin_errors))
+        result = old_run(self, suite)
+        return result
+
+    original_argv = sys.argv[:]
+    inner_argv = []
+    arguments = iter(original_argv)
+    for value in arguments:
+        if value == '--physical':
+            next(arguments)
+        elif value.startswith('--physical='):
+            continue
+        elif value == '--record':
+            next(arguments)
+            inner_argv.extend(('--record', str(record)))
+        elif value.startswith('--record='):
+            inner_argv.extend(('--record', str(record)))
+        else:
+            inner_argv.append(value)
+    preparation_seconds = time.perf_counter() - clock
+    code, exception = 1, None
+    builtins.open, io.open = tracked_open, tracked_io_open
+    sys.addaudithook(audit_open)
+    unittest.TestResult.startTest, unittest.TextTestRunner.run = start_test, run_suite
+    try:
+        spec = importlib.util.spec_from_file_location('_physical_verifier', runner)
+        inner = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = inner
+        spec.loader.exec_module(inner)
+        sys.argv = inner_argv
+        try:
+            inner.main()
+        except SystemExit as done:
+            code = done.code if type(done.code) is int else 1
+    except BaseException:
+        exception = traceback.format_exc()
+    finally:
+        audit_active = False
+        sys.argv = original_argv
+        builtins.open, io.open = physical_builtin, physical_open
+        os.path.exists, os.path.isfile, Path.exists, Path.is_file = originals
+        unittest.TestResult.startTest, unittest.TextTestRunner.run = old_start, old_run
+    loaded = origins()
+    origin_errors.extend(check_origins(loaded))
+    after = {path: digest(path) for path in before}
+    missing_reads = sorted(set(first_reads) - set(before))
+    missing_loaded = [value for value in loaded.values() if value['file'] not in before]
+    changed_reads = [path for path, value in first_reads.items()
+                     if path in before and before[path] != value]
+    reports = sorted(record.glob('tests-*.json'))
+    details = read_object(reports[0]) if len(reports) == 1 else {}
+    report = reports[0] if len(reports) == 1 else record / 'tests-incomplete.json'
+    log = Path(details['log_path']) if details.get('log_path') else record / 'tests-incomplete.log'
+    if not log.is_file():
+        with log.open('x', encoding='utf-8') as stream:
+            stream.write('Physical execution did not produce a complete test report.\n' + (exception or ''))
+    physical_errors = list(dict.fromkeys(origin_errors + unsupported_reads +
+        (['pre/post input SHA maps differ'] if before != after else []) +
+        (['read inputs missing pre-capture'] if missing_reads else []) +
+        (['first-read SHA differs from frozen input'] if changed_reads else [])))
+    if (physical_errors or missing_loaded or not details.get('successful')
+            or details.get('kind') != 'run' or not actual
+            or details.get('collected') != actual or len(actual) != len(set(actual))):
+        code = 1
+    metadata = dict(
+        purpose='Existing verifier physical capture; declared scope, not source/impact/credit acceptance.',
+        clause_delta=0, process_id=os.getpid(), command=original_argv,
+        started_utc=started, finished_utc=datetime.now(timezone.utc).isoformat(),
+        seconds=time.perf_counter() - clock, preparation_seconds=preparation_seconds,
+        successful=code == 0, exit_code=code,
+        original_cli_report=str(report), current_cli_report=report.relative_to(stage).as_posix(),
+        original_cli_log=str(log), execution_stage=str(stage),
+        test_ids=details.get('collected', []), actual_test_ids=actual,
+        tests=result.testsRun if result else 0,
+        failure_ids=[test.id() for test, _ in result.failures] if result else [],
+        error_ids=[test.id() for test, _ in result.errors] if result else [], exception=exception,
+        stable_hashes=before == after, runtime_test_data_sha256_before=before,
+        runtime_test_data_sha256_after=after, loaded_module_origins_before_execution=pre_origins,
+        loaded_module_origins=loaded, physical_open_saved_before_overlay=True,
+        frozen_inputs=archive_path.relative_to(stage).as_posix(), raw_log=log.relative_to(stage).as_posix(),
+        actual_read_paths=sorted(first_reads), first_actual_read_sha256=first_reads,
+        input_paths_missing_pre_execution_capture=missing_reads,
+        complete_pre_input_capture=not missing_reads,
+        loaded_inputs_missing_pre_execution_capture=missing_loaded,
+        complete_loaded_input_capture=not missing_loaded,
+        changed_origin_errors=list(dict.fromkeys(origin_errors)), capture_errors=physical_errors,
+        method_timings=details.get('test_durations', []))
+    metadata_path = record / 'physical.json'
+    with metadata_path.open('x', encoding='utf-8') as stream:
+        json.dump(metadata, stream, ensure_ascii=False, indent=2)
+        stream.write('\n')
+    print(json.dumps(dict(physical_capture='PASS' if code == 0 else 'FAIL',
+                         tests=metadata['tests'], inputs=len(before), reads=len(first_reads),
+                         errors=physical_errors, metadata=str(metadata_path),
+                         seconds=metadata['seconds']), ensure_ascii=False))
+    raise SystemExit(code)
+
+
 def main() -> None:
     global STAGE, CANONICAL
     parser = argparse.ArgumentParser()
     parser.add_argument("modules", nargs="*", help="module, class or exact method; .py paths also accepted")
     parser.add_argument('--auto', nargs='+', metavar='TARGET',
-                        help='route packets, saved reports, test references or exact navigation targets')
+                        help='direct test references keep exact module/class/method scope; packets, reports and navigation restore full declarations')
     parser.add_argument('--mode', type=lambda value: int(value, 0), metavar='BITS',
                         help='with --auto: ALLOCATE=1 RUN=2 SAVE=4 BRIEF=8; default 15, collect-only 13')
     parser.add_argument('--workflow-stats', type=Path, nargs='+', metavar='REPORT',
@@ -537,6 +917,8 @@ def main() -> None:
                         help='with --packets, run only these uniquely named completed groups')
     parser.add_argument('--cases', nargs='+', metavar='CASE',
                         help='with --packets, run only these exact declared case IDs')
+    parser.add_argument('--expand-declarations', action='store_true',
+                        help='expand explicit packet module/class refs with unittest and save exact packets')
     parser.add_argument('--stage', type=Path, help='sparse code overlay (candidate directory by default)')
     parser.add_argument('--canonical', type=Path, help='project code/data root')
     parser.add_argument('--report', type=Path, help='new JSON run/collection report; never overwrites evidence')
@@ -547,6 +929,8 @@ def main() -> None:
                         help='run exact collected cases from a saved run/collection, keeping its roots and scope')
     parser.add_argument('--record', type=Path, metavar='DIR',
                         help='save new UUID report/log in DIR and print a brief summary')
+    parser.add_argument('--physical', type=Path, metavar='INPUTS_JSON',
+                        help='freeze explicit input files/directories and capture physical run evidence')
     parser.add_argument('--also', nargs='+', metavar='CASE',
                         help='with --failed-from, also rerun exact cases collected in the original run')
     parser.add_argument("--quiet", action="store_true")
@@ -564,11 +948,14 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    if args.physical:
+        physical_execution(args, parser)
+
     if args.workflow_stats:
         if any((args.modules, args.auto, args.mode is not None, args.candidate, args.packets,
                 args.groups, args.cases, args.stage, args.canonical, args.report, args.log,
                 args.inspect_report, args.failed_from, args.repeat_from, args.record, args.also,
-                args.collect_only, args.brief, args.quiet)):
+                args.collect_only, args.brief, args.quiet, args.expand_declarations)):
             parser.error('--workflow-stats is read-only and cannot combine with execution options')
         try:
             print(json.dumps(workflow_stats(args.workflow_stats), ensure_ascii=False, indent=2))
@@ -613,7 +1000,7 @@ def main() -> None:
         if any((args.modules, args.candidate, args.packets, args.groups, args.cases,
                 args.stage, args.canonical, args.report, args.failed_from, args.repeat_from,
                 args.record, args.also,
-                args.collect_only, args.log, args.brief, args.quiet)):
+                args.collect_only, args.log, args.brief, args.quiet, args.expand_declarations)):
             parser.error('--inspect-report is read-only and cannot combine with test options')
         try:
             previous_report = json.loads(args.inspect_report.read_text(encoding='utf-8-sig'))
@@ -645,6 +1032,9 @@ def main() -> None:
         args.brief = not args.auto or bool(workflow['mode'] & WorkflowMode.BRIEF)
     if args.brief and (not args.report or not args.log):
         parser.error('--brief requires both --report and --log for complete evidence')
+    if args.expand_declarations and (not (args.candidate or args.packets)
+                                    or args.cases or not args.report):
+        parser.error('--expand-declarations requires recorded packet scope and cannot combine with --cases')
     if sum(map(bool, (args.modules, args.candidate, args.packets, args.failed_from, args.repeat_from))) != 1:
         parser.error("provide modules, --candidate, --packets, --failed-from or --repeat-from, exactly one")
     if args.packets and not args.stage:
@@ -730,7 +1120,8 @@ def main() -> None:
     if allocation:
         requested = [case for group in allocation for case in group['tests']]
     elif not saved_selection:
-        requested = [module_name(value) for value in args.modules]
+        # Workflow test references are already normalized, including exact tails.
+        requested = list(args.modules) if workflow else [module_name(value) for value in args.modules]
     requested = list(dict.fromkeys(requested))
     if allocation or args.also or args.repeat_from:
         # unittest repeats setUpClass/tearDownClass whenever a class is revisited.
@@ -782,22 +1173,71 @@ def main() -> None:
         str(CANONICAL / "engine"),
         str(CANONICAL / "tools"),
     ]
+    sys.meta_path.insert(0, StageOverlayFinder())
     if STAGE != CANONICAL:
-        sys.meta_path.insert(0, StageOverlayFinder())
         install_filesystem_overlay()
+    runtime_environment = {'python_version': sys.version, 'python_executable': sys.executable,
+                           'platform': native_platform(), 'cpu_clock': 'time.process_time'}
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()
     started = time.perf_counter()
-    for name in requested:
+    declaration_packets, declaration_allocation, declaration_refs = {}, [], []
+    declaration_requested = requested[:]
+    if args.expand_declarations:
+        declaration_allocation = [*allocation, *omitted_allocation]
+        try:
+            for path in dict.fromkeys(row['packet'] for row in declaration_allocation):
+                packet = declaration_packets[path] = read_object(path)
+                refs = packet.get('required_test_ids', [])
+                if (not isinstance(refs, list) or 'required_test_ids' in packet and not refs
+                        or not all(isinstance(ref, str) and ref.strip() for ref in refs)
+                        or len(refs) != len(set(refs))):
+                    raise ValueError('required_test_ids must contain distinct nonempty test references')
+                declaration_refs.extend(module_name(ref) for ref in refs)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            parser.error('cannot expand packet: ' + str(exc))
+    references = list(dict.fromkeys([*requested, *declaration_refs,
+        *(ref for row in declaration_allocation for ref in row['tests'])]))
+    resolved_cases = {}
+    for name in references:
         try:
             selected_suite = loader.loadTestsFromName(name)
-            if workflow and not selected_suite.countTestCases():
-                loader.errors.append(f'Auto-selected scope collected no tests: {name}')
-            suite.addTests(selected_suite)
+            resolved_cases[name] = list(test_cases(selected_suite))
+            if (workflow or args.expand_declarations) and not resolved_cases[name]:
+                loader.errors.append(f'Declared scope collected no tests: {name}')
+            if not args.expand_declarations:
+                suite.addTests(selected_suite)
         except Exception:
             # Import/load_tests failures must use the same fail-before-fixture path.
             loader.errors.append(traceback.format_exc())
+    if args.expand_declarations and not loader.errors:
+        def expanded(refs):
+            return list(dict.fromkeys(test.id() for ref in refs for test in resolved_cases[ref]))
+
+        full_ids = set(expanded(ref for row in declaration_allocation for ref in row['tests']))
+        missing_required = set(expanded(declaration_refs)) - full_ids
+        if missing_required:
+            loader.errors.append('Required test references leave declared packet scope: ' +
+                                 repr(sorted(missing_required)))
+        selected = {}
+        for ref in requested:
+            for test in resolved_cases[ref]:
+                selected.setdefault(test.id(), test)
+        by_class = {}
+        for case, test in selected.items():
+            by_class.setdefault(case.rpartition('.')[0], []).append(test)
+        suite.addTests(test for tests in by_class.values() for test in tests)
+        requested = [test.id() for test in test_cases(suite)]
+        allocation = [{**row, 'tests': expanded(row['tests'])} for row in allocation]
+        omitted_allocation = [{**row, 'tests': expanded(row['tests'])} for row in omitted_allocation]
     redirect_fixture_roots()
+    selected_case_ids = [test.id() for test in test_cases(suite)]
+    chained_cases = []
+    if not loader.errors:
+        try:
+            suite, chained_cases = prepare_chained_suite(suite)
+        except Exception:
+            loader.errors.append(traceback.format_exc())
     cases = list(test_cases(suite))
     collected = [test.id() for test in cases]
     sources = {test.__class__.__module__: getattr(sys.modules.get(test.__class__.__module__), '__file__', None)
@@ -805,7 +1245,9 @@ def main() -> None:
     details = {'version': 1, 'kind': 'discovery_error', 'canonical': str(CANONICAL),
                'stage': str(STAGE), 'requested': requested, 'collected': collected,
                'sources': sources, 'tests_run': 0, 'retry_ids': [],
-               'required_selection': required_selection, 'discovery_errors': loader.errors}
+               'required_selection': required_selection, 'discovery_errors': loader.errors,
+               'selected_case_ids': selected_case_ids, 'chained_cases': chained_cases,
+               'runtime_environment': runtime_environment}
     if workflow:
         details['workflow'] = workflow
         if len(collected) != len(set(collected)):
@@ -815,6 +1257,11 @@ def main() -> None:
             details['discovery_errors'].append(f'Recorded test obligations are missing: {missing!r}')
     if args.log:
         details['log_path'] = str(args.log)
+    if args.expand_declarations:
+        details['allocation_declarations'] = declaration_allocation
+        details['declared_requested'] = declaration_requested
+        details['declaration_expansion'] = {ref: [test.id() for test in cases]
+                                            for ref, cases in resolved_cases.items()}
     if args.repeat_from:
         details['repeat_from'] = str(args.repeat_from.resolve())
         for key in ('allocation', 'allocation_scope', 'origin_requested', 'origin_allocation',
@@ -847,16 +1294,34 @@ def main() -> None:
         details['declared_count'] = sum(len(group['tests']) for group in allocation)
         details['shared_ids'] = [name for name in requested if sum(
             name in group['tests'] for group in allocation) > 1]
-        if not loader.errors and collected != requested:
+        if not loader.errors and selected_case_ids != requested:
             details['discovery_errors'].append(
                 'Packet selection must resolve to exactly its declared test methods; '
-                f'requested={requested!r}, collected={collected!r}')
-    if (args.also or args.repeat_from) and not loader.errors and collected != requested:
+                f'requested={requested!r}, selected={selected_case_ids!r}')
+    if (args.also or args.repeat_from) and not loader.errors and selected_case_ids != requested:
         details['discovery_errors'].append(
             'Exact selection must resolve to exactly its declared test methods; '
-            f'requested={requested!r}, collected={collected!r}')
-    report = io.StringIO() if args.log else None
+            f'requested={requested!r}, selected={selected_case_ids!r}')
+    # Keep completed test output even if the process is interrupted before the
+    # final JSON report. unittest flushes each case; a partial log is not PASS.
+    report = None
+    if args.log:
+        args.log.parent.mkdir(parents=True, exist_ok=True)
+        report = args.log.open('x+', encoding='utf-8', buffering=1)
     details['discovery_seconds'] = time.perf_counter() - started
+    if args.expand_declarations and not details['discovery_errors']:
+        details['expanded_packets'] = []
+        for index, (source, packet) in enumerate(declaration_packets.items()):
+            for row in packet['completed'].values():
+                row['tests'] = expanded(module_name(ref) for ref in row['tests'])
+            if 'required_test_ids' in packet:
+                packet['required_test_ids'] = expanded(module_name(ref) for ref in packet['required_test_ids'])
+            destination = args.report.with_name(f'expanded-packet-{index}-' + args.report.name)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with destination.open('x', encoding='utf-8') as stream:
+                json.dump(packet, stream, ensure_ascii=False, indent=2)
+                stream.write('\n')
+            details['expanded_packets'].append({'source_packet': source, 'packet': str(destination)})
     if details['discovery_errors']:
         # Resolve every requested case before any expensive fixture executes.
         stream = report if report is not None else sys.stderr
@@ -875,6 +1340,7 @@ def main() -> None:
         details['kind'] = 'collection'
         successful = True
     else:
+        run_cpu_started = time.process_time()
         run_started = time.perf_counter()
         result = unittest.TextTestRunner(
             stream=report,
@@ -882,6 +1348,7 @@ def main() -> None:
             resultclass=ReportingResult,
         ).run(suite)
         suite_seconds = time.perf_counter() - run_started
+        suite_process_cpu_seconds = time.process_time() - run_cpu_started
         successful = result.wasSuccessful() and not (
             required_selection and (result.skipped or result.expectedFailures))
         if required_selection and (result.skipped or result.expectedFailures):
@@ -890,6 +1357,7 @@ def main() -> None:
         details.update(kind='run', tests_run=result.testsRun,
                        test_durations=result.test_durations,
                        suite_seconds=suite_seconds,
+                       suite_process_cpu_seconds=suite_process_cpu_seconds,
                        unattributed_suite_seconds=max(
                            0.0, suite_seconds - sum(item['seconds']
                                                     for item in result.test_durations)),
@@ -909,10 +1377,10 @@ def main() -> None:
             workflow['state'] |= int(WorkflowState.NEEDS_AGENT)
             workflow['state_names'].append('NEEDS_AGENT')
     if report is not None:
-        body = report.getvalue()
-        args.log.parent.mkdir(parents=True, exist_ok=True)
-        with args.log.open('x', encoding='utf-8') as stream:
-            stream.write(body)
+        report.flush()
+        report.seek(0)
+        body = report.read()
+        report.close()
         sys.stdout.write(brief_summary(details, args.report, args.log) if args.brief else body)
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)

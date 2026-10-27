@@ -195,7 +195,9 @@ def activation_plan(engine,trainer,pokemon,form_id,*,ring,stone=None,actor,repla
         if exception['move_id'] not in MOVES.known(engine.r,{'moves':MOVES.owned_list(pokemon.spec,'moves')}):
             raise ValueError('Delta Evolution requires this Rayquaza to know Dragon Ascent')
     ring_key,ring_row=equipped(trainer,ring)
-    if ring_row.get('item_id')!=engine.r.mega_form_policy['ring_rule'] or ring_row.get('slots')!=['장신구']:raise ValueError('actual accessory-slot Mega Ring required')
+    if (ring_row.get('item_id')!=engine.r.mega_form_policy['ring_rule'] and
+            not __import__('z_moves').mega_ring(engine.r,ring_row.get('item_id')) or
+            ring_row.get('slots')!=['장신구']):raise ValueError('actual accessory-slot Mega Ring required')
     ring_id=ring_row.get('instance_id');stone_id=stone_key=None
     equipment=[(ring_id,ring_row,trainer)]
     if exception is None:
@@ -314,7 +316,8 @@ def validate_world(engine,index):
                 if binding['form_id']!=row['definition'] or binding['definition_sha256']!=signature(form):raise ValueError('active Mega Stone belongs to another form')
             elif stone_rule not in form['stone_rules'] or form['origin']=='custom':raise ValueError('active Mega Stone has no actual matching form affinity')
         ring=getattr(engine,'_physical_objects',{}).get(row['ring_instance'])
-        if not ring or ring.get('item_rule_id')!=engine.r.mega_form_policy['ring_rule']:raise ValueError('actual activation Ring identity changed')
+        if not ring or (ring.get('item_rule_id')!=engine.r.mega_form_policy['ring_rule'] and
+                not __import__('z_moves').mega_ring(engine.r,ring.get('item_rule_id'))):raise ValueError('actual activation Ring identity changed')
         ability=row.get('ability');known=row.get('known_at_activation')
         if not isinstance(known,list) or any(not isinstance(x,str) or x not in engine.r.selection.units for x in known) or len(set(known))!=len(known) or ability in known or row.get('types')!=form['types'] or type(row.get('duplicate_replacement'))is not bool:raise ValueError('Mega granted duplicate ability or wrong type')
         if row.get('duplicate_replacement'):

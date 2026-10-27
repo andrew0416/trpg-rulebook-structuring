@@ -4,7 +4,7 @@ Only identity and fixed choices live here. Costs, eligibility, duplicate checks,
 state changes and refunds remain in the shared native policy. Source identity
 survives on the same investment receipt, not in a parallel state registry.
 """
-import json,hashlib
+import csv,io,json,hashlib
 from pathlib import Path
 from copy import deepcopy
 from source_context import verified_source
@@ -20,11 +20,36 @@ def catalog(rules):
         raise ValueError('Poke Edge definition or root changed; review required')
     data=json.loads(raw.decode('utf-8'))
     if data.get('schema')!='poke-edge-variants-v1':raise ValueError('unknown edge variant schema')
-    verified_source(rules,{'file':data['source_file'],'sha256':data['source_sha256']},label='Poke Edge')
+    content=verified_source(rules,{'file':data['source_file'],'sha256':data['source_sha256']},label='Poke Edge')
     if cached is None:
-        cached=data['entries'];rules._poke_edge_variants=deepcopy(cached)
+        cached=_named_capability_catalog(data,content);rules._poke_edge_variants=deepcopy(cached)
         rules._poke_edge_variants_identity=identity
     return deepcopy(cached)
+
+
+def _named_capability_catalog(data,content):
+    # Preserve old policy rows; derive only the two published named consumers.
+    if (data['source_file']!='input/db/poke-edges.csv' or
+            data['source_sha256']!='8e4bbb735033db781ca011f98885c1b5fe1b900da75a196b9e6f8734ceff946d'):
+        raise ValueError('reviewed named-capability Poke Edge source required')
+    entries=data['entries']
+    if type(entries)is not list or any(type(row)is not dict for row in entries):
+        raise ValueError('reviewed Poke Edge definition rows required')
+    result=list(entries)
+    rows=list(csv.reader(io.StringIO(content.decode('utf-8-sig'))))
+    for number,uid,cost in ((67,'poke_edge/언어-학습',2),(68,'poke_edge/탑승-훈련',1)):
+        cells=rows[number-1]
+        if len(cells)!=4:raise ValueError('complete named-capability source row required')
+        clause='C2CSV/input/db/poke-edges.csv:R'+str(number)+':main'
+        expected={'clause_id':clause,'rule_id':uid,'policy':uid,'record':number,
+                  'name':cells[0],'field':'none','choice':None,'native_kind':'named_capability',
+                  'point_cost':cost,'source_cells':cells}
+        matches=[row for row in entries if row.get('record')==number or row.get('rule_id')==uid or row.get('clause_id')==clause]
+        if matches:
+            if len(matches)!=1 or json.dumps(matches[0],sort_keys=True,ensure_ascii=False,allow_nan=False)!=json.dumps(expected,sort_keys=True,ensure_ascii=False,allow_nan=False):
+                raise ValueError('named-capability definition conflicts with its reviewed source')
+        else:result.append(expected)
+    return result
 
 
 def selected(rules,row):
@@ -56,8 +81,8 @@ def choice_value(rules,row,value):
         if value is not None:raise ValueError('this CSV Edge has no acquisition choice')
         return None
     if row['policy']=='poke_edge/기본-원거리-공격':
-        import struggle_capabilities as STRUGGLE
-        return STRUGGLE.canonical(value)
+        import ranged_struggle as RANGED
+        return RANGED.choice(value)
     if row['field']=='skill':return S.skill_id(rules.skill_policy,value,required=True)
     if row['field']=='stat':
         import pokemon_stat_edges as STAT
@@ -73,9 +98,52 @@ def choice_value(rules,row,value):
     return result
 
 
-def validate_receipt(rules,receipt):
+TRAINING_SOURCES=('input/ch05-pokemon.md:274','input/ch05-pokemon.md:229','edge/미용사')
+
+
+def validate_history(receipt,*,minimum_level=None,rules=None):
+    """Acquisition history written by every native Poke Edge teaching producer.
+
+    input/ch05-pokemon.md:274: a Pokemon spends Tutor Points on an Edge only after an
+    hour of training (or a completed training-session/Groomer hour). Mentor's printed
+    prerequisite waiver and the Connection keyword's immediate acquisition retain their
+    exact native producer validators instead of pretending to be ordinary hours. Active and refunded
+    receipts therefore keep the actual teacher, completion time and training source; the
+    current Tutor Point balance never proves a past payment. Producers that record the
+    acquisition level pass their level prerequisite as minimum_level.
+    """
+    import state_fields as F
+    training_source=receipt.get('training_source')
+    lesson=training_source=='feat/수업'
+    connection=training_source=='keyword/연결'
+    # Immediate Connection is an Ability-gain opportunity, not a training hour.
+    if not connection or receipt.get('trainer_id') is not None:
+        if type(receipt.get('trainer_id')) is not str or not receipt['trainer_id'].strip():raise ValueError('actual historical Poke Edge trainer required')
+    F.integer(receipt.get('completed_at'),'completed Poke Edge training time',0)
+    if lesson:
+        if rules is None:raise ValueError('actual Mentor source rules required')
+        if receipt.get('source') not in ('poke_edge/스킬-향상','poke_edge/고급-이동','poke_edge/재능-훈련'):
+            raise ValueError('Mentor lesson permits only its three printed Poke Edges')
+        import mentor as MENTOR
+        MENTOR.validate_edge_origin(rules,receipt)
+    elif connection:
+        if rules is None:raise ValueError('actual Connection source rules required')
+        import advanced_connection as CONNECTION
+        CONNECTION.validate_immediate_receipt(rules,receipt)
+    elif training_source not in TRAINING_SOURCES:
+        import researcher_fields as RFS
+        if training_source!=RFS.PUSHER or receipt.get('pusher',{}).get('acquisition')!='automatic':raise ValueError('actual completed Poke Edge training source required')
+        RFS.pusher_receipt(rules=None,receipt=receipt)
+    if minimum_level is not None:F.integer(receipt.get('acquired_level'),'historical Poke Edge acquisition level',1 if lesson else minimum_level,100)
+
+
+def validate_receipt(rules,receipt,*,history=False,minimum_level=None):
+    if 'pusher' in receipt:
+        import researcher_fields as RFS
+        RFS.pusher_receipt(rules,receipt)
+    if history:validate_history(receipt,minimum_level=minimum_level,rules=rules)
     origin=receipt.get('definition_origin')
-    if origin is None:return  # Earlier native receipts retain their existing authority.
+    if origin is None:return  # Earlier native receipts keep their native identity; history is checked above.
     if not isinstance(origin,dict):raise ValueError('typed definition origin required')
     rows=[r for r in catalog(rules) if r['clause_id']==origin.get('clause_id')]
     if len(rows)!=1:raise ValueError('unknown acquired CSV definition')
@@ -100,7 +168,10 @@ def teach(engine,owner,target,row,*,skill=None,capability=None,stat=None,move_id
     if fixed is not None and value!=choice_value(engine.r,row,fixed):raise ValueError('choice conflicts with fixed CSV variant')
     def apply(e,t,o):
         selected(e.r,row)
-        if row.get('native_kind')=='capability_parameters':
+        if row.get('native_kind')=='named_capability':
+            import pokemon_capability_edges as CAP
+            result=CAP.teach_named(e,o,t,row,from_grooming=from_grooming,from_training=from_training,safe=safe)
+        elif row.get('native_kind')=='capability_parameters':
             import capability_parameter_edges as PARAMETERS
             result=PARAMETERS.teach(e,o,t,row,from_grooming=from_grooming,from_training=from_training,safe=safe)
         elif row['policy']=='poke_edge/고급-연결':

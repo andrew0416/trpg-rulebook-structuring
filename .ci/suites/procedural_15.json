@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "execution_kind": "procedural_runner",
+  "unit_id": "script:tools/test_root_children_author.py",
+  "unit_kind": "procedural_script_runner",
+  "required_runner_ids": [
+    "script:tools/test_root_children_author.py"
+  ],
+  "completed": {},
+  "original_contract_sha256": "b5b377b5206210a36dc12f14c0b74282bba9ad0e30996a2088d212a394bfc2a2",
+  "inventory_sha256": "46c04e8eb8efa90c96a5ca21864b44e0112a7b0b9d78f77c31aad5bafe36caf5",
+  "runner": {
+    "source_path": "tools/test_root_children_author.py",
+    "argv": [
+      "python",
+      "-B",
+      "-X",
+      "utf8",
+      "-I",
+      "{stage}/tools/test_root_children_author.py"
+    ],
+    "cwd": "{stage}",
+    "environment": {
+      "TEMP": "{stage}/.tmp",
+      "TMP": "{stage}/.tmp"
+    },
+    "report": {
+      "path": "output/root-children-author-tests.json",
+      "kind": "json_results_array"
+    },
+    "additional_outputs": [],
+    "mutations": {
+      "temporarily_modified_restored": [],
+      "generated_retained": []
+    },
+    "result_buffer": "rows",
+    "entry_function": null,
+    "sort_results_by_id": false,
+    "source_sha256": "c6be177943c4afbc22d668f318e039981bf487c4c1f3c3f1a71dc172f05af52e"
+  }
+}

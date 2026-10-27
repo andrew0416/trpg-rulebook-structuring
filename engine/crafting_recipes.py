@@ -67,7 +67,7 @@ def declaration(recipe):
     return deepcopy(recipe)
 
 
-def material_groups(groups):
+def material_groups(groups, *, allow_zero_value=False):
     """Shared declared material units for item and non-item production."""
     recipe={'materials':groups}
     if type(recipe['materials']) is not list:raise ValueError('recipe material groups required')
@@ -92,12 +92,17 @@ def material_groups(groups):
                 _text(option['item_id']);_text(option['key'])
                 if not option['item_id'].startswith('item/'):raise ValueError('actual material item rule required')
             else:raise ValueError('unsupported recipe material kind')
-            C.integer(option['amount'],'recipe material amount',1)
+            C.integer(option['amount'],'recipe material amount',0 if allow_zero_value and kind=='value' else 1)
         if len(units)!=1:raise ValueError('monetary scrap value cannot substitute for counted shards or items')
     return deepcopy(groups)
 
 
 def _selected(engine, uid):
+    # Communication and restored communication facts reuse this identity reader.
+    # Only this source already has an explicit, source-verified version owner.
+    if uid=='feat/작열':
+        __import__('pokemon_move_edges').incandescence_source(engine.r)
+        return
     if engine.r._selected_rule(uid)!=uid:raise ValueError('selected recipe source needs its own declaration')
 
 
@@ -133,11 +138,11 @@ def require_tool(engine, actor, instance_id):
                 user_id=actor.entity_id)
 
 
-def _observe(engine, actor, node, sources):
+def _observe(engine, actor, node, sources, *, provider_source=None):
     kind=node['kind']
     if kind in ('all','any'):
         # Evaluate every authored branch so an unresolved source never hides.
-        values=[_observe(engine,actor,x,sources) for x in node['conditions']]
+        values=[_observe(engine,actor,x,sources,provider_source=provider_source) for x in node['conditions']]
         return all(values) if kind=='all' else any(values)
     if kind=='owned':
         for field in node['fields']:
@@ -146,6 +151,7 @@ def _observe(engine, actor, node, sources):
             if name.startswith(('edge/','feat/','class/')):_selected(engine,name);sources.add(name)
         return any(name in actor.spec.get(field,[]) for field in node['fields'] for name in node['names'])
     if kind=='skill':
+        if provider_source is not None and __import__('hobbyist').waives_printed_skill(actor,provider_source,node['skill'],node['rank']):return True
         rank=SKILL.effective_rank(engine.r,actor,node['skill']) if node['effective'] else SKILL.rank(engine.r,actor,node['skill'])[2]
         return rank>=node['rank']
     if kind=='region':
@@ -189,6 +195,14 @@ def action_policy(engine, actor, source, seconds):
     import cleanse_tags as CLEANSE
     if CLEANSE.handles(source):
         policy=CLEANSE.crafting_policy(engine,actor,source,seconds)
+    elif source=='feat/몬스터볼-장인':
+        import hobbyist as H,source_context as SOURCE
+        SOURCE.verified_source(engine.r,{'file':'input/ch03-skills-edges-feats.md','sha256':H.GENERAL},label='Poké Ball Crafter permission')
+        origin=engine.r.selection.units[source]['source']
+        if (origin.get('file'),origin.get('lines'),origin.get('sha256'))!=('ch03-skills-edges-feats.md',[892,895],H.GENERAL):raise ValueError('exact Poké Ball Crafter permission source required')
+        _,header=engine.r.feat_effects(source)
+        if META.resolve_feature_action(header)!=('static','') or FREQ.parse(header.get('frequency')) not in (('static',1),('at_will',1)):raise ValueError('changed Poké Ball Crafter permission requires its own policy')
+        policy=META.resolve_crafting_policy({'feature_kind':'crafting'})
     else:
         _,header=engine.r.feat_effects(source)
         policy=META.resolve_crafting_policy(dict(header,feature_kind='crafting'))
@@ -207,32 +221,36 @@ def prepare(engine, actor, recipe, *, count=1, inputs=None):
     W.require_actors(engine,actor);R.validate(actor)
     if actor.kind!='trainer':raise ValueError('actual trainer recipe producer required')
     recipe=declaration(recipe);C.integer(count,'crafted count',1)
+    charged=__import__('study_books').recipe(engine,actor,recipe)
     _selected(engine,R.SOURCE);_selected(engine,CRAFTING_SOURCE);_selected(engine,recipe['source'])
     output=recipe['output'];_selected(engine,output['item_id'])
     if engine.r.item_effects(output['key'])[1].get('id')!=output['item_id']:raise ValueError('recipe output key belongs to another selected rule')
     C.integer(actor.spec.get('items',{}).get(output['key'],0),'existing crafted inventory',0)
     sources={R.SOURCE,recipe['source'],output['item_id']}
-    checks=[Q.check(row['id'],'prerequisite',_observe(engine,actor,row['condition'],sources),row['reason']) for row in recipe['requirements']]
+    checks=[Q.check(row['id'],'prerequisite',_observe(engine,actor,row['condition'],sources,provider_source=recipe['source']),row['reason']) for row in recipe['requirements']]
     qualification=Q.require(recipe['source'],actor.entity_id,'recipe:'+recipe['id'],checks)
     policy=action_policy(engine,actor,recipe['source'],recipe['seconds'])
-    material_plan=prepare_materials(engine,actor,recipe['materials'],count=count,inputs=inputs)
+    material_plan=prepare_materials(engine,actor,charged['materials'],count=count,inputs=inputs,allow_zero_value=True)
     sources.update(material_plan['sources'])
     return {'recipe':recipe,'count':count,'policy':policy,'qualification':qualification,'payments':material_plan['payments'],'sources':sorted(sources)}
 
 
-def prepare_materials(engine,actor,groups,*,count=1,inputs=None):
+def prepare_materials(engine,actor,groups,*,count=1,inputs=None,allow_zero_value=False):
     """Pure aggregate payment plan; the caller owns action, time and output."""
     W.require_actors(engine,actor);R.validate(actor);C.integer(count,'produced count',1)
-    recipe={'materials':material_groups(groups)};_selected(engine,R.SOURCE);sources={R.SOURCE}
+    recipe={'materials':material_groups(groups,allow_zero_value=allow_zero_value)};_selected(engine,R.SOURCE);sources={R.SOURCE}
+    csv_materials=R.csv_materials(engine.r)
+    if csv_materials:sources.add(R.CSV_SOURCE)
     inputs={} if inputs is None else inputs
     if type(inputs) is not dict or any(k not in {x['id'] for x in recipe['materials']} for k in inputs):raise ValueError('only declared recipe input groups may be selected')
     payments=[];debits=Counter()
     for group in recipe['materials']:
         selection=inputs.get(group['id'],{'option':0,'scrap_value':0})
-        if type(selection) is not dict or set(selection) not in ({'option','scrap_value'},{'option','scrap_value','instances'}):raise ValueError('exact recipe material selection required')
+        if type(selection) is not dict or set(selection) not in ({'option','scrap_value'},{'option','scrap_value','instances'},{'option','scrap_value','shop'}):raise ValueError('exact recipe material selection required')
         C.integer(selection['option'],'recipe material alternative',0,len(group['options'])-1)
         C.integer(selection['scrap_value'],'scrap cost',0)
         option=group['options'][selection['option']];amount=option['amount']*count
+        if 'shop' in selection and (not csv_materials or option['kind']!='value'):raise ValueError('shop only purchases CSV monetary recipe materials')
         payment={'group':group['id'],'option':selection['option'],'kind':option['kind'],'amount':amount}
         if 'instances' in selection:
             if option['kind']!='item' or selection['scrap_value']:raise ValueError('physical inputs require the declared counted item')
@@ -245,9 +263,13 @@ def prepare_materials(engine,actor,groups,*,count=1,inputs=None):
             continue
         if option['kind']=='value':
             scrap=selection['scrap_value']
-            if (scrap and not option['scrap']) or (scrap!=amount and not option['money']):raise ValueError('recipe does not permit that money/scrap substitution')
-            cost=R.prepare_cost(actor,option['category'],amount,scrap)
+            category=R.material_kind(option['category']) if csv_materials else option['category']
+            if csv_materials and group['id'] not in inputs:
+                scrap=min(amount,actor.spec.get('crafting_scrap',{}).get(category,0)-debits['crafting_scrap',category])
+            if not csv_materials and ((scrap and not option['scrap']) or (scrap!=amount and not option['money'])):raise ValueError('recipe does not permit that money/scrap substitution')
+            cost=R.prepare_cost(actor,category,amount,scrap,shop=selection.get('shop'))
             payment.update(category=cost.kind,scrap=cost.scrap,money=cost.money)
+            if csv_materials:payment.update(materials_edition='csv-homebrew',purchased_material_value=cost.money,shop=cost.shop)
             debits['crafting_scrap',cost.kind]+=cost.scrap;debits['money',None]+=cost.money
         else:
             if selection['scrap_value']:raise ValueError('monetary scrap cannot pay counted recipe ingredients')
@@ -270,7 +292,7 @@ def pay_materials(engine,actor,payments):
     payments=deepcopy(payments)
     for payment in payments:
         if payment['kind']=='value':
-            R.pay_cost(actor,R.ValueCost(payment['category'],payment['amount'],payment['scrap'],payment['money']))
+            R.pay_cost(actor,R.ValueCost(payment['category'],payment['amount'],payment['scrap'],payment['money'],payment.get('shop')))
         elif payment['kind']=='physical_item':
             import item_stock as STOCK
             payment['stock']=STOCK.debit(engine,actor,payment['stock'])
