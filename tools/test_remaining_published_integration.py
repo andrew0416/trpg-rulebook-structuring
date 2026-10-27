@@ -187,6 +187,27 @@ class RemainingPublishedIntegrationTests(unittest.TestCase):
   self.assertEqual(h.p.spec[CONNECTION.PROTECTION][ENDURE.SOURCES[0]]['acquisitions'],1)
   h.restore();h.valid()
 
+ def test_vim_policy_cache_preserves_cold_fingerprint_and_keeps_typed_overrides(self):
+  h=self.fixture(ENDURING_FIXTURE.EnduringSoulCsvTests,'r','all');h.vim()
+  vars(h.r).pop('_feature_ability_lessons',None)
+  cold=h.e.export_state();cold_rules=deepcopy(cold['rules'])
+  rows=LESSONS._policy(h.r)
+  self.assertEqual(h.e.export_state(),cold)
+  self.assertEqual(CODEC.rules_fingerprint(h.r),cold_rules)
+  restored=CODEC.load_engine(h.r,deepcopy(cold))
+  self.assertEqual(restored.r._selected_rule(LESSONS.VIM),LESSONS.VIM)
+  for field,value in (('point_cost',2.0),('own_pokemon',1),('once_per_pokemon',0),
+                      ('lines',tuple(rows[LESSONS.VIM]['lines'])),('unreviewed',True)):
+   with self.subTest(field=field):
+    changed=deepcopy(rows);changed[LESSONS.VIM][field]=value
+    with patch.object(h.r,'_feature_ability_lessons',changed):
+     self.assertNotEqual(CODEC.rules_fingerprint(h.r),cold_rules)
+     with self.assertRaisesRegex(CODEC.StateCodecError,'fingerprint mismatch'):
+      CODEC.load_engine(h.r,deepcopy(cold))
+  self.assertEqual(h.e.export_state(),cold)
+  vars(h.r).pop('_feature_ability_lessons',None)
+  self.assertEqual(h.e.export_state(),cold);self.assertNotIn('_feature_ability_lessons',vars(h.r))
+
  def test_vim_declared_conflicts_rule_set_and_live_effect_source_reject_before_payment(self):
   h=self.fixture(ENDURING_FIXTURE.EnduringSoulCsvTests,'r','all');h.vim()
   declared=json.loads((ROOT/LESSONS.POLICY).read_text(encoding='utf8'))

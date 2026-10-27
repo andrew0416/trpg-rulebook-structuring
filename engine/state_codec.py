@@ -263,15 +263,12 @@ def rules_fingerprint(rules):
     if static_name in policy and policy[static_name]==saved_policy('static-trainer-modifier-policy.json'):
         policy.pop(static_name)
     lesson_name='_feature_ability_lessons'
-    if lesson_name in policy and policy[lesson_name]==saved_policy('feature-ability-lessons.json','rules'):
-        policy.pop(lesson_name)
     ranked_name='_ranked_class_move_tables'
     if ranked_name in policy and policy[ranked_name]==saved_policy('class-ranked-move-tables.json','rules'):
         policy.pop(ranked_name)
     redundant = {
         '_class_actor_state_reaction_policy': ('class-actor-state-reactions-policy.json', None),
         '_native_class_actor_state_reaction_policy': ('native-class-reaction-policy.json', None),
-        '_feature_ability_lessons': ('feature-ability-lessons.json', 'rules'),
         '_optional_state_effect_contract_policy': ('optional-state-effect-contract-policy.json', None),
         '_optional_weapon_framework_policy': ('optional-weapon-framework-policy.json', None),
         '_survivalist_class_definitions': ('survivalist-definitions.json', None),
@@ -288,6 +285,13 @@ def rules_fingerprint(rules):
         for name in names:
             vars(checked).pop(name, None)
         return checked
+    if lesson_name in policy:
+        import feature_ability_lessons as LESSONS
+        saved_policy('feature-ability-lessons.json', 'rules')
+        expected_lessons = LESSONS._policy(uncached(lesson_name))
+        if (policy[lesson_name] == expected_lessons
+                and LESSONS._same(_plain(policy[lesson_name]), _plain(expected_lessons))):
+            policy.pop(lesson_name)
     if '_source_catalog' in policy or '_source_catalog_identity' in policy:
         import source_catalog as CATALOG
         checked = uncached('_source_catalog', '_source_catalog_identity')

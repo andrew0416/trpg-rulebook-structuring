@@ -4915,13 +4915,15 @@ class Engine:
                              and _shared_accuracy is None and _action_grant is None))
 
     @ACTION.resolved_move
-    def _finish_move_resolution(self, attacker, target, move_id, move, mm, conf, hit, nat, crit, set_damage, standard_context, passive_event, precision_event, weather_attack, *, ordinary_single, completion_id=None):
+    def _finish_move_resolution(self, attacker, target, move_id, move, mm, conf, hit, nat, crit, set_damage, standard_context, passive_event, precision_event, weather_attack, *, ordinary_single, completion_id=None, _accuracy_hit=None):
         """Native post-accuracy continuation; never repays or rerolls activation.
 
         Only the admitted producer supplies this state. Reaction suspension must
         preserve that producer state rather than call use_move again.
         """
         import type_ace as TA
+        # A reflection changes this recipient's result, not its accuracy witness.
+        if _accuracy_hit is None:_accuracy_hit=hit
         reaction_args=dict(attacker=attacker,target=target,move_id=move_id,move=move,mm=mm,conf=conf,hit=hit,nat=nat,crit=crit,set_damage=set_damage,standard_context=standard_context,passive_event=passive_event,precision_event=precision_event,weather_attack=weather_attack,ordinary_single=ordinary_single,completion_id=completion_id)
         __import__('warper').reaction(self,reaction_args)
         hit=reaction_args['hit']
@@ -4940,7 +4942,7 @@ class Engine:
                 options=G._stage_transition_payload(self,e,dict(move=move,mm=mm,conf=conf,hit=hit,nat=nat,crit=crit,
                     set_damage=set_damage,standard_context=standard_context,passive_event=passive_event,
                     precision_event=precision_event,weather_attack=weather_attack,
-                    ordinary_single=ordinary_single,completion_id=completion_id))
+                    ordinary_single=ordinary_single,completion_id=completion_id,_accuracy_hit=_accuracy_hit))
                 from inspect import unwrap
                 return unwrap(Engine._finish_move_resolution)(e,a,t,move_id,**options)
             return REACTIVE_ABILITIES.atomic_move(self,attacker,target,staged)
@@ -4957,7 +4959,7 @@ class Engine:
         standard_event=self._heavy_standard_receipts.get(standard_context,{}).get('event_id')
         HEAVY_STANDARD.finish(self,standard_context,hit=result['hit'],dealt=result['dealt'])
         return PASSIVE_EVENTS.after_recipient(self,dict(attacker=attacker,target=target,
-            move_id=move_id,move=move,mm=mm,conf=conf,hit=hit,nat=nat,crit=crit,
+            move_id=move_id,move=move,mm=mm,conf=conf,hit=_accuracy_hit,nat=nat,crit=crit,
             set_damage=set_damage,standard_context=None,completed_standard_event=standard_event,passive_event=passive_event,
             precision_event=precision_event,weather_attack=weather_attack,
             ordinary_single=ordinary_single,completion_id=completion_id),result)

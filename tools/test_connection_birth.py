@@ -66,11 +66,13 @@ class ConnectionSpecialBirthTests(unittest.TestCase):
  restore=RFIX.ResearcherFieldsPokemonTests.restore
  def test_fossil_restoration_second_basic_connection_ability_is_included_at_final_birth(self):
   egg=self.fossil('푸린','connection-second-basic',feature=True)
+  self.assertEqual(egg[RF.FOSSIL_MARK]['tutor_points'],{'native':3,'printed_delta':-2,'birth':1,'deficit':0})
   child=self.hatch(egg,'second Basic child')
   self.assertEqual(child.spec['abilities'],['헤롱헤롱바디','자장가'])
   sing=self.rules.move_id('노래하기');self.assertIn(sing,child.spec['moves'])
   self.assertEqual(child.spec['move_learning'][sing]['connection_ability'],'ability/자장가')
-  self.assertEqual(child.spec['tutor_points'],0)
+  self.assertEqual(child.spec['move_learning'][sing]['paid_tp'],0)
+  self.assertEqual(child.spec['tutor_points'],1);self.assertEqual(C.records(child.spec),[])
   assert_rejected_unchanged(self.e,lambda:self.e.gm.set_move(child,sing,add=False),reason_pattern='cannot be forgotten')
  def test_playing_god_birth_hook_sees_final_upgrade_moves_and_registered_owner(self):
   self.t.spec['items']['화학 세트']=1

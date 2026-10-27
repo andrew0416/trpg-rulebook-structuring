@@ -114,7 +114,7 @@ class Tests(unittest.TestCase):
   try:
    with self.assertRaises(H.HeavyPending):
     FX.run_effects(e,a,b,[{"type":"test_only_heavy_hit"},{"type":"test_only_later"}],
-                   {"attacker":a,"target":b,"engine":e},"test-only/propagation")
+                   {"hit":True,"attacker":a,"target":b,"engine":e},"test-only/propagation")
   finally:
    for k,v in prior.items():
     if v is None:FX.HANDLERS.pop(k,None)
@@ -282,7 +282,7 @@ class Tests(unittest.TestCase):
  def test_038_encounter_returns_incomplete_without_turn_or_time_finish(self):
   import encounter as ENC
   e,a,b=self.pair();e._active_turn_actor=None;e._ordinary_turn_rounds={};e.round_no=0;e.round_start_seconds=None;e.encounter_active=False
-  e.initiative=lambda actors:[a,b]
+  a.stats['spe']=31
   with mock.patch.object(ENC,"load_encounter",return_value=(e,{"name":"test-only-heavy","rounds":2},[a],[b])), mock.patch.object(ENC,"choose_action",return_value=("move","struggle",b)):
    got,party,wild=ENC.run_encounter(str(ROOT),"test-only",write=False)
   self.assertIs(got,e);self.assertEqual(e._heavy_driver_result["status"],"incomplete")
@@ -342,17 +342,20 @@ class Tests(unittest.TestCase):
     super().append(line)
   e.log_lines=HPLog(e.log_lines)
   with self.assertRaises(H.HeavyPending):e.use_move(a,b,'struggle',set_damage=True)
-  self.assertEqual(seen,[50]);self.assertEqual(b.hp,9)
+  # Native graph copies can replay append; every observation must see real HP.
+  self.assertTrue(seen);self.assertEqual(set(seen),{50})
+  self.assertEqual((b.hp,b.stats['def']),(9,0))
+  self.assertEqual((a.budget['standard'],a.move_uses['struggle']),(0,1))
   p=e._heavy_events[e._heavy_pending]
   self.assertEqual(p['status'],'pending');self.assertNotIn('heavy_consequence',p)
   self.assertIn('noncanonical_log_sink',p['context_evidence']['failures'])
  def test_045_shared_passive_contract_rejects_attack_name_and_registry_observers(self):
-  for field,value in [('name',type('ObservedName',(str,),{})('target')),
-                      ('registry',type('ObservedRegistry',(list,),{})())]:
+  for field,value,stored_field in [('name',type('ObservedName',(str,),{})('target'),'spec'),
+                                   ('registry',type('ObservedRegistry',(list,),{})(),'registry')]:
    e,a,b=self.pair(certified=True);setattr(b,field,value)
    p=self.pending(e,a,b)
    self.assertEqual(b.hp,39)
-   self.assertIn('target:nonpassive_state:'+field,p['context_evidence']['failures'])
+   self.assertIn('target:nonpassive_state:'+stored_field,p['context_evidence']['failures'])
    self.assertEqual(p['status'],'pending')
  def test_046_below_threshold_skips_expensive_proof_without_granting_certificate(self):
   e,a,b=self.pair(injuries=0,certified=True)
@@ -369,7 +372,19 @@ class Tests(unittest.TestCase):
  def test_047_certain_grant_survives_heavy_absorption_but_not_its_observed_expiry(self):
   e,a,b=self.pair(certified=True);self.grant_temp(e,b,20)
   self.assertFalse(H.certify_native_context(e,a,b,e.r.move('struggle'),{},ordinary_single=True).failures)
-  e.use_move(a,b,'struggle',set_damage=True)
+  p=self.pending(e,a,b)
+  self.assertEqual(p['kernel_reason'],'fully_absorbed_attack_trigger_unresolved')
+  self.assertEqual(p['context_evidence']['failures'],[])
+  self.assertEqual((b.hp,b.temp_hp),(50,9));self.assertNotIn('heavy_consequence',p)
+  with self.assertRaises(H.HeavyPending):e.advance_time(1)
+  self.assertEqual((e.elapsed_seconds,b.custom_conditions[TEMP_HP.STATE]['minimum_seconds']),(0,300))
+  # This test-local GM choice does not resolve the source's fully absorbed trigger.
+  e.lose_hp(b,5,source='test-only external Heavy ruling')
+  receipt=self.ack(e,b,p,ruling='TEST-ONLY GM choice: apply five ordinary HP loss after this fully absorbed attack')
+  self.assertFalse(receipt['source_conformance_proven'])
+  self.assertEqual((receipt['original_after']['temporary_hp'],receipt['adjudicated_state']['temporary_hp']),(9,4))
+  self.assertEqual(p['status'],'resolved_by_external_ruling');self.assertNotIn('heavy_consequence',p)
+  self.assertEqual((a.budget['standard'],a.move_uses['struggle']),(0,1))
   self.assertEqual((b.hp,b.temp_hp),(50,4));self.assertIsNone(e._heavy_pending)
   self.assertEqual(b.custom_conditions[TEMP_HP.STATE]['contributions'][0]['amount'],4)
   e.at_round_offset(10)

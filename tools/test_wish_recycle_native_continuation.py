@@ -13,6 +13,7 @@ import test_csv_recycle_wish_helping as BASE
 import test_book_warper_full as WARPER_FIXTURE
 import consumption_execution as PAYMENTS
 import native_scenario_fixture as NATIVE
+import move_completion as COMPLETE
 import passive_events as PASSIVE
 import state_codec as CODEC
 import wish_move as WISH
@@ -232,8 +233,24 @@ class WarperWishTests(unittest.TestCase):
                     self.assertFalse(self.e.delayed)
                     rng = self.e.rng.getstate()
                     self.restore()
+                    actual_complete = PASSIVE.complete
+                    def changed_accuracy(engine, identity, **observations):
+                        if identity == event_id:observations['hit'] = False
+                        return actual_complete(engine, identity, **observations)
+                    with patch.object(PASSIVE, 'complete', new=changed_accuracy):
+                        self.reject(lambda: NativeContinuationTests.resume(self, self.b, event_id, listener),
+                            'completion disagrees with actual accuracy observation')
                     NativeContinuationTests.resume(self, self.b, event_id, listener)
                     self.assertEqual(self.e.rng.getstate(), rng)
+                    accuracy = next(row['facts'] for row in PASSIVE.observations(self.e, event_id)
+                                    if row['stage'] == 'accuracy')
+                    self.assertIs(accuracy['hit'], True)
+                    self.assertIs(self.e._passive_events[event_id]['hit'], True)
+                    self.reject(lambda: COMPLETE.require_hit_return(self.e, event_id, self.a),
+                                'actual successful nonprevented recipient hit required')
+                    before_replay = CODEC.dump_engine(self.e)
+                    self.assertEqual(self.e.deliver_passive_event(event_id), 'already_delivered')
+                    self.assertEqual(CODEC.dump_engine(self.e), before_replay)
                 else:
                     self.e.use_move(self.b, self.a, WISH.SOURCE, wish_edition=edition)
                 self.assertEqual(self.a.move_uses[WARPER.COAT], 1)
@@ -246,7 +263,11 @@ class WarperWishTests(unittest.TestCase):
                 self.assertIs(row['issuer'], self.a)
                 self.assertIs(row['who'], self.b)
                 self.assertIs(row['turn_owner'], self.a if edition == 'ptu105' else self.b)
-                proof = self.completion(self.b, WISH.SOURCE)['warper_reflection']
+                parent = self.completion(self.b, WISH.SOURCE)
+                self.assertFalse(parent['results'][self.a.entity_id]['hit'])
+                proof = parent['warper_reflection']
+                reflected = self.e._move_completions[proof['result_completion']]
+                self.assertTrue(reflected['results'][self.b.entity_id]['hit'])
                 self.assertEqual(row['completion_id'], proof['result_completion'])
                 self.restore()
                 self.valid()

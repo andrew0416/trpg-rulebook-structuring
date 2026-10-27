@@ -9,7 +9,7 @@ sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
 from engine import Rules
 from ruleset import RuleFilter, UnresolvedRuleSelection
 from source_selection import SourceChangedError
-from native_scenario_fixture import assert_logged_refusal_unchanged
+from native_scenario_fixture import assert_logged_refusal_unchanged, prepare_scene
 import test_book_taskmaster_hardened as TASKMASTER
 import test_book_duelist_momentum as DUELIST
 import telekinetic as TELEKINETIC
@@ -67,10 +67,23 @@ class NativeMoveExclusionTests(unittest.TestCase):
                     self.refusal(self.fixture(rules=rules), entry, move_id)
 
     def test_explicit_excluded_nonpositive_HP_move_keeps_core_refusal(self):
-        rules = Rules(ROOT, ruleset='no-ohko')
         for entry in ('use_move', 'use_move_on'):
             with self.subTest(entry=entry):
-                case = self.fixture(rules=rules)
+                case = TASKMASTER.TaskmasterTests()
+                body = {'size': '중형', 'offsets': [(0, 0)],
+                        'reason': 'observed complete native refusal participant'}
+                case.e, actors = prepare_scene(ROOT, ruleset='no-ohko', seed=61231,
+                    grid={'width': 8, 'height': 8}, actors=[
+                        {'key': 'attacker', 'kind': 'pokemon', 'body': body,
+                         'sheet': {'name': 'fainted requester', 'species': '이상해씨',
+                                   'level': 20, 'moves': ['move/몸통박치기'], 'abilities': [], 'pos': (1, 1)}},
+                        {'key': 'target', 'kind': 'trainer', 'body': body,
+                         'sheet': {'name': 'actual refusal target', 'level': 20,
+                                   'stats': {'hp': 60, 'atk': 10, 'def': 5, 'spa': 10, 'spd': 5, 'spe': 10},
+                                   'moves': [], 'abilities': [], 'pos': (2, 1)}}])
+                case.rules, case.p, case.b = case.e.r, actors['attacker'], actors['target']
+                self.assertIn('move/대폭발', case.rules.excluded_moves)
+                case.combat(case.p)
                 case.hp(case.p, 0)
                 self.assertTrue(case.p.fainted)
                 self.refusal(case, entry, 'move/대폭발')

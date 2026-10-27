@@ -24,9 +24,9 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "full1252-failure-repairs01",
-  "active_repair_scope": "Revalidate the repaired full1252 restoration failures and actual shared-runtime impacts as an exact226-ID/35-class ordinary union. Include all50 original nonpassing IDs,100 original PASS impacts,72 additional existing public tests and4 new native regressions. Original1252/1202PASS evidence and prior276 remain separate preserved evidence, not an automatic whole-snapshot acceptance; synthetic7 remain separate and clause credit is zero.",
-  "active_repair_required_tests": 226,
+  "active_repair": "repair226-followup01",
+  "active_repair_scope": "Revalidate the nine actual failures/errors from original226 plus the repaired native accuracy/recipient and rules-fingerprint boundaries as an exact108-ID/17-class ordinary union. Include all9 nonpassing IDs,24 original PASS impacts,74 additional existing public tests and1 new Vim cache/override regression. Preserve original226/217PASS,1252 and276 evidence separately; no full-snapshot acceptance or clause credit is inferred.",
+  "active_repair_required_tests": 108,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -42,7 +42,7 @@
   "separately_pending_frequency_equivalence_methods": 1029,
   "separately_pending_procedural_runners": 21,
   "ordinary_shard_count": 18,
-  "active_repair_phase": "native_source_and_fixture_repairs",
+  "active_repair_phase": "native_accuracy_fingerprint_and_fixture_corrections",
   "active_repair_procedural_runners": 0,
   "full_method_obligations": 13847,
   "ordinary_methods_separate_run": 40141538702,
@@ -77,14 +77,14 @@
   "phase2_metadata_methods_mandatory": 0,
   "phase2_additional_procedural_runners": 0,
   "unaffected_previous_PASS_reused": 0,
-  "selected_method_obligations": 226,
+  "selected_method_obligations": 108,
   "partial_prerequisite_refresh": true,
   "full_method_scope_executed": false,
   "source_fresh_native_prerequisites": 1404,
   "native_prerequisite_run": "40241811271",
   "activation_current_evidence_current": false,
   "previous_activation_evidence": "historical_only_not_current",
-  "active_repair_source_commit": "032ae287a0f4b919359da7b1c16e9ed47c676280",
+  "active_repair_source_commit": "65e8a75234964f0c207e212345d6c32e466038e8",
   "active_repair_source_plan_path": ".ci/suites/changed_revisions.json",
   "historical_source_contract_repair": {
     "source_commit": "2f8975c41bd76cf48c904df85cf92a489430dbbc",
@@ -447,7 +447,14 @@
     "source_candidate": "branch-integration-1027ai/full1252-repairs-composed01",
     "source_handoff": "branch-integration-1027ai/full1252-repairs-composed01/HANDOFF.json",
     "source_upload_manifest": "branch-integration-1027ai/full1252-repairs-composed01/review/SOURCE-UPLOAD.json",
-    "source_delta_against032": {"paths":23,"runtime":7,"tests":16,"additions":266,"deletions":61,"authority":"Root final current032 source upload manifest; temporary observer removal included"},
+    "source_delta_against032": {
+      "paths": 23,
+      "runtime": 7,
+      "tests": 16,
+      "additions": 266,
+      "deletions": 61,
+      "authority": "Root final current032 source upload manifest; temporary observer removal included"
+    },
     "upload_manifest": "branch-integration-1027ai/full1252-repairs-composed01/review/UPLOAD.json (Root prepares against032 before upload)",
     "source_files": 23,
     "source_runtime_files": 7,
@@ -532,5 +539,99 @@
       "active_repair_phase": "protected_hold_observation"
     },
     "historical_fields": "All original667/18/276/1252/4115 history, sourcepins, storedhistorical completion totals and ledgerdenominators remain unchanged. The previousobserver3 preparation remains as history and is not repurposed as accepted repair evidence."
+  },
+  "repair226_followup_preparation": {
+    "status": "SOURCE_REVIEWED108_ROOT_SOURCE_AND_CI_FROZEN_UNEXECUTED",
+    "base_commit": "65e8a75234964f0c207e212345d6c32e466038e8",
+    "runtime_preimage": "309ef62478b610e2e297c545c141cb1f7d2d37f4",
+    "selection": "branch-integration-1027ai/repair226-followup-controls01/required-followup-tests.json",
+    "additional_declarations": "branch-integration-1027ai/repair226-followup-controls01/additional-declaration-provenance.json",
+    "source_ownership": "Root composes the actual final source overlay; this record does not replace its final manifest or source review.",
+    "source_candidate": "branch-integration-1027ai/repair226-followup-composed01",
+    "source_handoff": "branch-integration-1027ai/repair226-followup-composed01/HANDOFF.json",
+    "source_upload_manifest": "branch-integration-1027ai/repair226-followup-composed01/review/SOURCE-UPLOAD.json",
+    "source_delta_against65": {"paths":7,"runtime":2,"tests":5,"additions":96,"deletions":18,"new_paths":0,"authority":"Root final source manifest and direct source review; no shared collision"},
+    "independent_review": "Wish/Admission reviewed byrepair_boss_capture, Heavy byrepair_conditions andVim byreview_order_variants; Root read all four source patches. No remaining actionable source finding reported; actual native validation still required.",
+    "source_candidates": [
+      "branch-integration-1027ai/repair226-wish-admission01",
+      "branch-integration-1027ai/repair226-vim01",
+      "branch-integration-1027ai/repair226-heavy-production01",
+      "branch-integration-1027ai/repair226-fossil-birth01"
+    ],
+    "required_unique_count": 108,
+    "required_class_groups": 17,
+    "counts": {
+      "owner_sum": 108,
+      "between_owner_duplicate_ids": 0,
+      "current9_nonpassing_included": 9,
+      "current9_nonpassing_missing": 0,
+      "selected_original226": 33,
+      "selected_original_pass": 24,
+      "selected_original_fail": 5,
+      "selected_original_error": 4,
+      "outside_original226": 75,
+      "additional_existing_public_ids": 74,
+      "new_methods": 1
+    },
+    "owners": {
+      "wish_admission": 85,
+      "vim": 17,
+      "heavy_production": 5,
+      "fossil_birth": 1
+    },
+    "new_test_ids": [
+      "tools.test_remaining_published_integration.RemainingPublishedIntegrationTests.test_vim_policy_cache_preserves_cold_fingerprint_and_keeps_typed_overrides"
+    ],
+    "original_result": {
+      "run": 40541644877,
+      "job": 122321298633,
+      "head": "309ef62478b610e2e297c545c141cb1f7d2d37f4",
+      "collected": 226,
+      "executed": 226,
+      "unique_pass": 217,
+      "unique_fail": 5,
+      "unique_error": 4,
+      "raw_failures": 5,
+      "raw_errors": 5,
+      "inputs_unchanged": true,
+      "H": "H_REJECTED",
+      "ordinary_verified": 0,
+      "original50_now_pass": 47,
+      "original50_remaining": 3,
+      "additional_existing_nonpassing": 6,
+      "new_previous4_all_pass": true,
+      "preserved": true
+    },
+    "source_frame_diagnostic": {
+      "run": 40548889423,
+      "job": 122346909854,
+      "head": "65e8a75234964f0c207e212345d6c32e466038e8",
+      "status": "success, original bound public frames read byRoot and owners",
+      "native_reruns": 0,
+      "meaning": "Diagnosis only; not repairPASS or acceptance."
+    },
+    "repairs": "Separate signed original accuracy from reflected recipient hit outcome while preserving native proof; isolate real excluded-move fixture; fingerprint real typed feature-policy cache independently from actual user overrides; preserve native Heavy observer/body/clock contracts in exact five tests; assert native fossil TP and free Connection provenance in one birth test.",
+    "selection_boundary": "No blanket226 rerun or failing-only reduction. Heavy's other45 existing PASS, unrelated fossil tests and all original scopes remain preserved within valid source/input boundaries. New Engine and StateCodec shared-boundary impacts are explicitly selected.",
+    "budget": {
+      "native_timeout_seconds": 10800,
+      "aa_native_job_timeout_minutes": 195,
+      "generic_job_timeout_minutes": 105,
+      "default_native_timeout_seconds": 5400,
+      "fit_or_speedup_claim": false
+    },
+    "execution_route": "Unchanged ordinary verifier/H and full original physical input/evidence capture. No diagnostic_profile, thin capture, synthetic substitution, newSecret or privateinput transfer.",
+    "source_preparation": "Existing7 synthetic preparation boundary checks and actual authenticated PDF extraction unchanged and separate.",
+    "current_diagnostic_route": "Existing aa_diagnostics remains bound to original309/226 failure and the exact65 workflow-only child. It intentionally rejects unrelated followup heads and is not dispatched by this candidate.",
+    "canonical_publication": false,
+    "completion_credit": 0,
+    "prior_active_repair": {
+      "active_repair": "full1252-failure-repairs01",
+      "active_repair_scope": "Revalidate the repaired full1252 restoration failures and actual shared-runtime impacts as an exact226-ID/35-class ordinary union. Include all50 original nonpassing IDs,100 original PASS impacts,72 additional existing public tests and4 new native regressions. Original1252/1202PASS evidence and prior276 remain separate preserved evidence, not an automatic whole-snapshot acceptance; synthetic7 remain separate and clause credit is zero.",
+      "active_repair_required_tests": 226,
+      "selected_method_obligations": 226,
+      "active_repair_source_commit": "032ae287a0f4b919359da7b1c16e9ed47c676280",
+      "active_repair_phase": "native_source_and_fixture_repairs"
+    },
+    "historical_fields": "All prior667/18/276/1252/226/4115 preparations, sourcepins, results and stored historical completion totals remain unchanged. New smaller execution scope does not erase or automatically accept original obligations."
   }
 }
