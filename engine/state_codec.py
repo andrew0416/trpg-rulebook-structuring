@@ -292,6 +292,20 @@ def rules_fingerprint(rules):
         if (policy[lesson_name] == expected_lessons
                 and LESSONS._same(_plain(policy[lesson_name]), _plain(expected_lessons))):
             policy.pop(lesson_name)
+    edge_name='_poke_edge_variants'
+    if edge_name in policy:
+        import poke_edge_variants as EDGES
+        saved_policy('poke-edge-variants.json', 'entries')
+        checked = uncached(edge_name, '_poke_edge_variants_identity')
+        expected_edges = EDGES.catalog(checked)
+        if (policy.get('_poke_edge_variants_identity') == checked._poke_edge_variants_identity
+                and policy[edge_name] == expected_edges
+                and json.dumps(_plain(policy[edge_name]), sort_keys=True, ensure_ascii=False, allow_nan=False)
+                    == json.dumps(_plain(expected_edges), sort_keys=True, ensure_ascii=False, allow_nan=False)):
+            policy.pop(edge_name)  # The existing cold baseline below uses saved entries.
+        else:
+            # A manual raw list must not masquerade as the absent-cache baseline.
+            policy[edge_name] = {'unverified_runtime_catalog': policy[edge_name]}
     if '_source_catalog' in policy or '_source_catalog_identity' in policy:
         import source_catalog as CATALOG
         checked = uncached('_source_catalog', '_source_catalog_identity')

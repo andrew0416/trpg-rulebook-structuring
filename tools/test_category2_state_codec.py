@@ -106,6 +106,40 @@ class StateCodecTests(unittest.TestCase):
         with self.assertRaisesRegex(StateCodecError, 'fingerprint mismatch'):
             load_engine(r, warmed)
 
+    def test_poke_edge_derived_cache_preserves_cold_restore_and_rejects_override(self):
+        from unittest.mock import patch
+        import poke_edge_variants as EDGES
+        r = Rules(str(ROOT), ruleset='fantasy');e = Engine(r, seed=712)
+        self.assertNotIn('_poke_edge_variants', vars(r))
+        saved = dump_engine(e)
+        catalog = EDGES.catalog(r)
+        identity = r._poke_edge_variants_identity
+        self.assertEqual({row['record'] for row in catalog if row.get('record') in (67, 68)}, {67, 68})
+        self.assertEqual(saved, dump_engine(e))
+        restored = load_engine(Rules(str(ROOT), ruleset='fantasy'),
+                              json.loads(json.dumps(saved, ensure_ascii=False)))
+        self.assertEqual(saved['rules'], dump_engine(restored)['rules'])
+        altered = copy.deepcopy(catalog)
+        next(row for row in altered if row.get('record') == 68)['point_cost'] = 2
+        typed = copy.deepcopy(catalog)
+        next(row for row in typed if row.get('record') == 68)['point_cost'] = True
+        # In a legacy52 input this manual override equals the raw cold baseline.
+        unexpanded = [copy.deepcopy(row) for row in catalog if row.get('record') not in (67, 68)]
+        for label, value, origin in (
+                ('changed_cost', altered, identity),
+                ('bool_is_not_one', typed, identity),
+                ('missing_derived_rows', unexpanded, identity),
+                ('foreign_root', catalog, (identity[0] + '/foreign', identity[1])),
+                ('changed_source_identity', catalog, (identity[0], '0' * 64)),
+                ('identity_container', catalog, list(identity))):
+            with self.subTest(override=label), patch.object(r, '_poke_edge_variants', value), \
+                    patch.object(r, '_poke_edge_variants_identity', origin):
+                with self.assertRaisesRegex(StateCodecError, 'fingerprint mismatch'):
+                    load_engine(r, saved)
+        self.assertEqual(EDGES.catalog(r), catalog)
+        self.assertEqual(r._poke_edge_variants_identity, identity)
+        self.assertEqual(saved, dump_engine(e))
+
     def test_verified_lookup_indexes_preserve_cold_state_but_not_changed_results(self):
         from unittest.mock import patch
         import source_catalog as CATALOG
