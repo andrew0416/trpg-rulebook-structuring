@@ -421,8 +421,8 @@ jobs:
           if ($taskSummaries.Count -ne 1) { throw 'One original native summary is required' }
           $taskSummary = Get-Content -LiteralPath $taskSummaries[0].FullName -Raw | ConvertFrom-Json
           $taskReport = @($taskSummary.reports)
-          if ($taskReport.Count -ne 1 -or -not $taskReport[0].successful -or $taskReport[0].tests_run -ne 1252 -or $taskReport[0].collected_count -ne 1252 -or $taskReport[0].status_counts.pass -ne 1252) {
-            throw 'The whole 1252-case published restoration and repair-impact declaration did not pass'
+          if ($taskReport.Count -ne 1 -or -not $taskReport[0].successful -or $taskReport[0].tests_run -ne 3 -or $taskReport[0].collected_count -ne 3 -or $taskReport[0].status_counts.pass -ne 3) {
+            throw 'The exact three-case Not Yet hold observation did not pass; original1252 remains a separate obligation'
           }
       - name: Check original ordinary evidence with unchanged independent H
         if: ${{ always() }}

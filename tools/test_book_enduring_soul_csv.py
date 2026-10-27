@@ -1,5 +1,6 @@
 """Only Enduring Soul's actual CSV differences and touched Book boundaries."""
 from copy import deepcopy
+from contextlib import contextmanager
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -18,6 +19,19 @@ import trainer_retraining as RETRAIN
 import endure as ENDURE,enduring_soul as NOTYET,initiative_interrupts as INTERRUPTS
 import ability_transitions as AB,move_state as MOVES,state_grants as GRANTS
 from native_scenario_fixture import assert_rejected_unchanged
+
+
+@contextmanager
+def observe_actual_heavy_hold(test):
+ import heavy_standard_adapter as STANDARD,heavy_injury_adapter as HEAVY
+ actual=STANDARD.hold;contexts=[]
+ def record(engine,token,packet,reason):
+  context=packet.get('context_evidence',{})
+  contexts.append({key:deepcopy(context.get(key,[])) for key in ('failures','native_suffix_failures')})
+  return actual(engine,token,packet,reason)
+ with patch.object(STANDARD,'hold',record):
+  try:yield
+  except HEAVY.HeavyPending:test.fail(str(contexts))
 
 
 class EnduringSoulCsvTests(unittest.TestCase):
@@ -370,7 +384,7 @@ class EnduringSoulCsvTests(unittest.TestCase):
   for below in (False,True):
    with self.subTest(below=below):
     self.setUp();self.not_yet()
-    with patch.object(Engine,'d20',return_value=10):
+    with patch.object(Engine,'d20',return_value=10),observe_actual_heavy_hold(self):
      self.e.lose_hp(self.p,self.p.hp+self.p.base_max_hp+int(below),source='condition/독')
     if below:
      self.assertNotIn(B.NOT_YET,F.state(self.a)['activations']);self.assertNotIn(INTERRUPTS.KEY,vars(self.e))
@@ -386,7 +400,7 @@ class EnduringSoulCsvTests(unittest.TestCase):
   self.not_yet();self.e.apply_status(self.a,'잠듦')
   self.e.lose_hp(self.p,self.p.hp,source='condition/독');self.assertNotIn(B.NOT_YET,F.state(self.a)['activations'])
   self.e.cure_status(self.a,'잠듦');self.e.heal(self.p,self.p.base_max_hp,source_kind='move')
-  with patch.object(Engine,'d20',return_value=10):self.e.lose_hp(self.p,self.p.hp,source='condition/독')
+  with patch.object(Engine,'d20',return_value=10),observe_actual_heavy_hold(self):self.e.lose_hp(self.p,self.p.hp,source='condition/독')
   self.assertEqual(F.state(self.a)['activations'][B.NOT_YET]['used'],1)
   event=next(row for row in self.e._heavy_events.values() if row['kind']=='action_taken')
   self.assertEqual(event['status'],'applied');self.assertTrue(event['continuation_reified'])

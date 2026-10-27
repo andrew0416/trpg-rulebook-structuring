@@ -60,7 +60,7 @@ class NativeResumeTests(unittest.TestCase):
   def fail(e,actor,amount,source='damage',**options):
    if source=='heavily_injured_standard':raise ValueError('late actual Heavy native loss failure')
    return original(e,actor,amount,source,**options)
-  with patch.object(Engine,'_lose_hp',fail),patch.object(Engine,'d20',return_value=10):
+  with patch.object(Engine,'_lose_hp',fail),patch.object(Engine,'d20',return_value=10),FIX.observe_actual_heavy_hold(self):
    assert_rejected_unchanged(self.e,lambda:self.e.lose_hp(self.p,self.p.hp,source='condition/독'),
        reason_pattern='late actual Heavy native loss failure')
   self.valid()
