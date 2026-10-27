@@ -24,9 +24,9 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "published-marksman-fortress-condition-restoration",
-  "active_repair_scope": "Restore published Marksman/Fortress consumers and selectable CSV condition/Frozen editions on the verified249 baseline. Retain the full historical/domain/current declarations and actual changed-boundary guards as an exact667 native union. Derive Marksman's missing excerpt only from its authenticated Core PDF before native input freeze. Seven synthetic preparation checks are separate. No full2352/canonical-equivalence or new clause-credit claim.",
-  "active_repair_required_tests": 667,
+  "active_repair": "published-restoration-failure-triage18",
+  "active_repair_scope": "Diagnostic reproduction only: exact18 original667 IDs selected from FAIL6, ERROR5, six starts without a result token and one unobserved declaration in run40464302678. Uses the unchanged ordinary native/verifier/H route. A successful18-case subset does not complete or replace original667 or pending1192, does not establish canonical equivalence, and earns zero clause credit. Seven synthetic source-preparation checks remain separate.",
+  "active_repair_required_tests": 18,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -42,7 +42,7 @@
   "separately_pending_frequency_equivalence_methods": 1029,
   "separately_pending_procedural_runners": 21,
   "ordinary_shard_count": 18,
-  "active_repair_phase": "runtime_corrections",
+  "active_repair_phase": "diagnostic_reproduction",
   "active_repair_procedural_runners": 0,
   "full_method_obligations": 13847,
   "ordinary_methods_separate_run": 40141538702,
@@ -77,14 +77,14 @@
   "phase2_metadata_methods_mandatory": 0,
   "phase2_additional_procedural_runners": 0,
   "unaffected_previous_PASS_reused": 0,
-  "selected_method_obligations": 667,
+  "selected_method_obligations": 18,
   "partial_prerequisite_refresh": true,
   "full_method_scope_executed": false,
   "source_fresh_native_prerequisites": 1404,
   "native_prerequisite_run": "40241811271",
   "activation_current_evidence_current": false,
   "previous_activation_evidence": "historical_only_not_current",
-  "active_repair_source_commit": "ad5ae261d62e5369917593d3c3083116afc13104",
+  "active_repair_source_commit": "9056bd2ff3fcb2fde7ea4d581cf0f2b1c34f75f8",
   "active_repair_source_plan_path": ".ci/suites/changed_revisions.json",
   "historical_source_contract_repair": {
     "source_commit": "2f8975c41bd76cf48c904df85cf92a489430dbbc",
@@ -199,6 +199,55 @@
       "unique_error": 0,
       "H": "H_PHYSICAL_ACCEPTED"
     }
-  ]
+  ],
+  "restoration_failure_triage18_preparation": {
+    "status": "PREPARED_SOURCE_ONLY_NOT_EXECUTED",
+    "base_commit": "9056bd2ff3fcb2fde7ea4d581cf0f2b1c34f75f8",
+    "runtime_source_commit": "b1204a91b405bbe7ffa2dac0189150f4ecbe0251",
+    "source_run": 40464302678,
+    "diagnostic_run": 40479018580,
+    "public_diagnostic_artifact": "restoration-timeout-diagnostic/result-40479018580/implementation-aa-diagnostics-40479018580-1.zip",
+    "public_member": "aa-diagnostics.json",
+    "diagnostic_self_check_passed": true,
+    "selection_counts": {
+      "FAIL": 6,
+      "ERROR": 5,
+      "started_without_result_token": 6,
+      "unobserved": 1,
+      "unique_union": 18
+    },
+    "selection": "Union of observed_result_public_ids.FAIL, observed_result_public_ids.ERROR, started_without_result_token_public_ids and original667 minus started_public_ids666. Partial verbose observations are not summed or counted as PASS.",
+    "execution_route": "unchanged ordinary_run; no diagnostic_profile or execution_kind override",
+    "native_timeout_seconds": 1800,
+    "aa_native_job_timeout_minutes": 45,
+    "native_timeout_default_seconds": 5400,
+    "native_timeout_allowed_range_seconds": [
+      1,
+      10800
+    ],
+    "generic_job_timeout_minutes": 105,
+    "original_full667": {
+      "commit": "b1204a91b405bbe7ffa2dac0189150f4ecbe0251",
+      "path": ".ci/suites/changed_revisions.json",
+      "required_unique_count": 667,
+      "status": "historical_full_packet_preserved_by_immutable_reference_not_completed_by_subset"
+    },
+    "pending_full1192": {
+      "path": "branch-integration-1027ai/all-published-restoration-composed/prepared-ci/.ci/suites/changed_revisions.json",
+      "union_path": "branch-integration-1027ai/all-published-restoration-composed/review/proposed-complete-union-gather.json",
+      "required_unique_count": 1192,
+      "class_count": 123,
+      "status": "full_cohort_pending_separate_root_integration_and_remote_validation"
+    },
+    "full_scope_completed": false,
+    "canonical_equivalence": false,
+    "completion_credit": 0
+  },
+  "pending_full_restoration": {
+    "path": "branch-integration-1027ai/all-published-restoration-composed/prepared-ci/.ci/suites/changed_revisions.json",
+    "union_path": "branch-integration-1027ai/all-published-restoration-composed/review/proposed-complete-union-gather.json",
+    "required_unique_count": 1192,
+    "class_count": 123,
+    "status": "full_cohort_pending_separate_root_integration_and_remote_validation"
+  }
 }
-

@@ -679,7 +679,10 @@ def main():
     parser.add_argument("--suite", choices=SUITES, default="common_checks")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--self-check", action="store_true")
+    parser.add_argument("--native-timeout-seconds", type=int, default=NATIVE_TIMEOUT_SECONDS)
     args = parser.parse_args()
+    if not 1 <= args.native_timeout_seconds <= 10800:
+        parser.error("--native-timeout-seconds must be between 1 and 10800")
     if args.self_check:
         fixture_key = None
         private_policy = None
@@ -703,7 +706,7 @@ def main():
         "input_manifest": "input-sha256.json",
         "input_manifest_after": "input-sha256-after.json",
         "input_comparison": "input-comparison.json",
-        "native_timeout_seconds": NATIVE_TIMEOUT_SECONDS,
+        "native_timeout_seconds": args.native_timeout_seconds,
         "public_summary": "summary.json",
     }
     outcome = {"exit_code": 1, "status": "setup_error"}
@@ -791,7 +794,7 @@ def main():
         baseline = hashes
         command = verifier_command(stage, args.suite, output)
         outcome = run_command(
-            command, stage, output / "command.log", timeout=NATIVE_TIMEOUT_SECONDS)
+            command, stage, output / "command.log", timeout=args.native_timeout_seconds)
         metadata["verifier_outcome"] = dict(outcome)
     except Exception as exc:
         metadata["setup_error_type"] = type(exc).__name__
