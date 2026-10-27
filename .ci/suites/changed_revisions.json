@@ -1,14 +1,17 @@
 {
   "schema_version": 1,
   "id": "changed_revisions",
-  "purpose": "Repair the failed remote AA batch without dropping any original86 IDs. Add five existing Musician native regressions for the shared atomic Move boundary: failed counter, unchanged no-accuracy pending, Playtest cancellation, explicit Core ruling resume and cancelled Move song rejection. No canonical publication or completion credit.",
+  "purpose": "Integrate the retained91 AA and affected-boundary declarations, the exact two source453bd Flame Burst declarations, and two source-owned Gas projection regressions. The existing Musician impact ID retains all six cases with a valid single-target Sonic direct caller and preserved invalid-area rejection. No full-source, canonical publication or completion credit.",
   "completion_credit": 0,
-  "required_unique_count": 91,
+  "required_unique_count": 95,
   "provenance": {
     "remote_base": "26d67e33dea546ff013eaf8f2e2339bb902778d8",
     "aa_source": "csv-ability-transitions-finish-1026aa/source-integration03",
     "control_source": "csv-ability-traps-finish-1026r; control-musician-impact-1026ac",
-    "selection": "Original86 declarations retained; source-repair06 adds five existing impact regressions. Not locally imported or collected. Original failed commit, tests and evidence are preserved separately."
+    "selection": "Original86 declarations retained; source-repair06 adds five existing impact regressions. Not locally imported or collected. Original failed commit, tests and evidence are preserved separately.",
+    "integration_ours": "61ee6c7717e407a2ab392b3a6fcd175af2101cfb",
+    "integration_source": "453bd89e31defaf1943491b444ae46f70a419a9d",
+    "integration_selection": "Exact unique union: retained91 plus source453bd two Flame Burst IDs plus two Gas projection IDs. Gas payload and Musician admission fixture are isolated under branch-integration-1027ai. Source final_revisions_12/15/16 and all other impact obligations remain separate; this is not a full-source or canonical-equivalence scope."
   },
   "completed": {
     "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests": {
@@ -41,6 +44,8 @@
         "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_gas_blocks_triggered_mummy_before_cost_but_not_static_offensive",
         "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_mummy_suppressed_gas_aura_ends_and_recall_restores_source",
         "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_newly_copied_defensive_ability_is_suppressed_until_gas_source_leaves",
+        "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_timed_gas_suppresses_later_copy_through_cold_restore_until_actual_count_expiry",
+        "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_later_copy_keeps_native_mummy_suppression_source_order_without_gas",
         "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_actual_public_selection_rejects_forged_event_fields",
         "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_gas_keeps_nontriggered_arena_and_tail_native_activation_and_psychic_struggle",
         "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_mummy_actual_source_suppression_reuses_control_aura_cleanup",
@@ -136,6 +141,12 @@
     "tests.test_heavy_standard.Tests": {
       "tests": [
         "tests.test_heavy_standard.Tests.test_001_native_hit_is_one_actual_standard_and_one_loss"
+      ]
+    },
+    "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests": {
+      "tests": [
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_actual_primary_miss_spends_one_move_without_any_splash",
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_unknown_remote_body_and_mapless_contact_do_not_silently_narrow_the_splash"
       ]
     }
   }

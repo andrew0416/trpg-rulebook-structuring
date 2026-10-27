@@ -111,8 +111,11 @@ def _component_projection(actor,values,*,include_suppressed=False,ignored_source
  rules=actor.r;result={};labels={}
  for value in values:
   uid=ability_id(rules,value);labels.setdefault(uid,value);result.setdefault(uid,set()).update(component_ids(rules,uid))
- operations=[(r['ability_operation'],r.get('rule_id')) for key,r in actor.spec.get(G.KEY,{}).get('sources',{}).items() if key not in ignored_sources and 'ability_operation' in r]
- for op,source in operations:
+ operations=[r for key,r in actor.spec.get(G.KEY,{}).get('sources',{}).items() if key not in ignored_sources and 'ability_operation' in r]
+ # Continuing Gas blocks later copies; ordinary transitions keep their source order.
+ operations.sort(key=lambda row:bool(row.get('ability_exchange') and row.get('gas_block') is True and row.get('rule_id')=='ability/화학변화가스'))
+ for record in operations:
+  op=record['ability_operation'];source=record.get('rule_id')
   if not isinstance(op,dict) or set(op)!={'kind','remove','add'} or op['kind'] not in ('copy','replace','suppress') or not all(isinstance(op[k],list) and all(isinstance(x,str) for x in op[k]) for k in ('remove','add')):raise ValueError('invalid source-owned ability operation')
   if include_suppressed and op['kind']=='suppress':continue
   source_row=rules.ability_transition_policy.get('sources',{}).get(source)

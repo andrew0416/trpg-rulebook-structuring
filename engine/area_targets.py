@@ -41,6 +41,10 @@ def mechanics(rules, move_id, declaration):
 
 def empty_field_effects(declaration):
     """Return effects only from the exact runtime adapter, never authoring data."""
+    import misty_explosion as MISTY
+    mist = MISTY.field_effects(declaration)
+    if mist:
+        return mist
     import hazard_state as HAZARDS
     hazard = HAZARDS.field_effects(declaration)
     if hazard:

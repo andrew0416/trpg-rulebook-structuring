@@ -271,6 +271,12 @@ def is_field(rng):
     return token in ('필드','전체','field')
 
 
+def is_blessing(rng):
+    """A printed Blessing range uses one caster anchor for its shared team pool."""
+    if not isinstance(rng,dict):raise ValueError('move range must be a mapping')
+    return str(rng.get('raw','')).strip().casefold() in ('축복','blessing')
+
+
 def field_members(engine):
     """Actual bodies currently present in the declared encounter field.
 

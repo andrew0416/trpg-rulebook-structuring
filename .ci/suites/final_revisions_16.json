@@ -3,7 +3,7 @@
   "id": "final_revisions_16",
   "purpose": "repair118 complete retained method scope; no old unaffected-PASS reuse. Typed1029/three modes/sentinel, phase1 procedural21 plus phase2 procedural22, mandatory metadata65+audit1 remain distinct.",
   "completion_credit": 0,
-  "required_unique_count": 907,
+  "required_unique_count": 935,
   "completed": {
     "tests.test_heavy_production.Tests": {
       "tests": [
@@ -1162,6 +1162,74 @@
       "tests": [
         "tools.test_substitute_damage_consumers.SubstituteDamageConsumerTests.test_coat_damage_recoil_and_self_stage_keep_creature_prevention_and_restore",
         "tools.test_substitute_damage_consumers.SubstituteDamageConsumerTests.test_intercept_coat_damage_pending_cold_resume_counts_actual_recipient_once"
+      ]
+    },
+    "tools.test_bide_accuracy_source.BideAccuracySourceTests": {
+      "tests": [
+        "tools.test_bide_accuracy_source.BideAccuracySourceTests.test_real_reaction_and_cold_release_succeed_on_natural_one_without_extra_payment",
+        "tools.test_bide_accuracy_source.BideAccuracySourceTests.test_unmarked_bide_keeps_ordinary_accuracy_and_forged_projection_has_no_native_authority"
+      ]
+    },
+    "tools.test_chronicler_lucky_consumer.ChroniclerLuckyConsumerTests": {
+      "tests": [
+        "tools.test_chronicler_lucky_consumer.ChroniclerLuckyConsumerTests.test_native_lucky_pool_blocks_profiled_critical_damage_once"
+      ]
+    },
+    "tools.test_gmax_protected_recipient.GoldRushProtectedRecipientTests": {
+      "tests": [
+        "tools.test_gmax_protected_recipient.GoldRushProtectedRecipientTests.test_substitute_receives_gold_rush_hit_without_new_confusion_or_lost_coins"
+      ]
+    },
+    "tools.test_native_blessing_range.NativeBlessingRangeTests": {
+      "tests": [
+        "tools.test_native_blessing_range.NativeBlessingRangeTests.test_all_eight_printed_blessings_create_one_pool_and_pay_once_on_map",
+        "tools.test_native_blessing_range.NativeBlessingRangeTests.test_lucky_chant_rejects_foreign_caster_and_keeps_team_pool_after_recall",
+        "tools.test_native_blessing_range.NativeBlessingRangeTests.test_numeric_range_with_blessing_keyword_stays_numeric_and_self_field_stay_distinct"
+      ]
+    },
+    "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests": {
+      "tests": [
+        "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests.test_actual_mounted_dash_pass_applies_one_cost_after_both_recipients",
+        "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests.test_clanging_scales_burst_uses_original_defense_then_one_drop",
+        "tools.test_nonsmite_self_cost.NonSmiteSelfCostTests.test_nonsmite_misses_do_not_gain_after_use_exception_but_substitute_hit_keeps_user_cost"
+      ]
+    },
+    "tools.test_book_athlete_training_regime.TrainingRegimeTests": {
+      "tests": [
+        "tools.test_book_athlete_training_regime.TrainingRegimeTests.test_sprint_replaces_half_with_double_for_all_actual_capabilities_and_restore"
+      ]
+    },
+    "tools.test_snare_freefloat_source_revision.FreeFloatingApproachTests": {
+      "tests": [
+        "tools.test_snare_freefloat_source_revision.FreeFloatingApproachTests.test_public_approach_preserves_paid_sprint_rate_and_clears_it_for_later_movement"
+      ]
+    },
+    "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests": {
+      "tests": [
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_actual_empty_burst_pays_one_cost_and_installs_one_field_without_hit_or_rng",
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_actual_hit_and_miss_install_one_centered_blast_after_faint_and_restore",
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_actual_local_status_damage_and_field_exclusion_expire_after_five_rounds",
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_airborne_global_mist_is_not_affected_but_local_mist_treats_every_occupant_as_affected",
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_native_volatile_delay_survives_restore_and_original_geometry_tamper_is_rejected",
+        "tools.test_misty_explosion_local_field.MistyExplosionLocalFieldTests.test_owned_empty_burst_preserves_unresolved_or_disobedient_permission_without_cost"
+      ]
+    },
+    "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests": {
+      "tests": [
+        "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests.test_relative_cells_share_native_sky_boundary_across_observed_gravity_regions",
+        "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests.test_relative_cold_restore_keeps_cell_prefix_and_rejects_forged_offsets_or_discounts",
+        "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests.test_relative_measured_step_keeps_actual_paid_sprint_rate_for_both_source_policies",
+        "tools.test_relative_freefloat_paid_source_revision.RelativeFreeFloatPaidTests.test_relative_parent_prefix_uses_actual_zero_charged_exit_not_physical_distance"
+      ]
+    },
+    "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests": {
+      "tests": [
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_actual_crafted_hit_splashes_cardinal_trainers_pokemon_and_adjacent_user_once",
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_actual_primary_miss_spends_one_move_without_any_splash",
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_changed_selected_payload_or_source_is_rejected_before_any_native_payment",
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_primary_and_adjacent_user_faint_do_not_cancel_the_remaining_actual_splash",
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_unbound_hit_label_cannot_forge_the_native_primary_producer",
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_unknown_remote_body_and_mapless_contact_do_not_silently_narrow_the_splash"
       ]
     }
   }

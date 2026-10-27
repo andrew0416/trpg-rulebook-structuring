@@ -757,6 +757,10 @@ def ensure_ability(e,c,name):
     source_id="ability:"+canonical
     import typed_defensive_bypass as TYPED
     effects=TYPED.effects(e.r,selected) if TYPED.handles(selected) else getattr(e.r,"ability_effects",{}).get(canonical,[])
+    if selected=='ability/감지-playtest':
+        import chronicler as CHRONICLER
+        CHRONICLER.perception_definition(e.r,selected)
+        effects=[effect for effect in effects if effect['type']=='evasion_mod']
     callback=(lambda:e._register_abilities_one(c,registration['name'],selected_id=registration['source_id'])) if registration else (lambda:e._register_abilities_one(c,name))
     apply_owned(e,c,source_id,callback,effects=effects)
     st["ability_receipts"][canonical]=source_id

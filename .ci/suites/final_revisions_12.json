@@ -3,7 +3,7 @@
   "id": "final_revisions_12",
   "purpose": "repair118 complete retained method scope; no old unaffected-PASS reuse. Typed1029/three modes/sentinel, phase1 procedural21 plus phase2 procedural22, mandatory metadata65+audit1 remain distinct.",
   "completion_credit": 0,
-  "required_unique_count": 710,
+  "required_unique_count": 716,
   "completed": {
     "tools.test_body_locality_source_revision.SendBodyTests": {
       "tests": [
@@ -530,7 +530,9 @@
         "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_profiled_native_critical_ignores_shell_only_for_archived_target_next_turn",
         "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_same_native_mold_breaker_owner_reaches_levitate_but_keeps_type_immunity",
         "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_selected_playtest_defensive_bypass_variants_keep_their_actual_move_type_limit",
-        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_suppressed_travel_perception_is_unavailable_and_place_history_is_retained"
+        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_suppressed_travel_perception_is_unavailable_and_place_history_is_retained",
+        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_playtest_perception_bonus_tracks_owned_source_and_suppression",
+        "tools.test_chronicler_source_crit_revision.ChroniclerSourceCritTests.test_playtest_perception_capped_registration_keeps_bonus_after_native_haze"
       ]
     },
     "tools.test_clock_native_consumers.TimedConsumerTests": {
@@ -914,7 +916,11 @@
         "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_suit_does_not_grant_levitate_or_flight_at_normal_unknown_or_unobserved_gravity",
         "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_tampered_saved_suit_speed_cannot_replace_the_selected_source",
         "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_unrelated_observed_region_disables_only_float_and_bad_local_evidence_still_rejects",
-        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_zero_gravity_air_and_vacuum_use_native_sky_motion_above_levitate_height"
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_zero_gravity_air_and_vacuum_use_native_sky_motion_above_levitate_height",
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_free_float_paid_path_cannot_reset_native_sky_allowance_each_step",
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_full_zero_gravity_keeps_four_speed_and_zero_endpoints_do_not_hide_normal_gap",
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_one_movement_sprint_keeps_paid_rate_across_segments_and_continuation",
+        "tools.test_snare_freefloat_source_revision.FreeFloatingTests.test_weaker_native_sky_does_not_spend_free_float_speed_in_normal_gravity"
       ]
     },
     "tools.test_state_lifecycle.LifecycleTests": {

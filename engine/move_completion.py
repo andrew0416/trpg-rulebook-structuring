@@ -234,7 +234,7 @@ def require_recipient_hit_return(e,event_id,recipient):
 
 
 def after_damage_self_stage(rules,move,effect):
-    """Exact printed Smite user stat costs, once after all recipient damage."""
+    """Exact printed user stat costs, once after the applicable recipient damage."""
     if rules is None or not isinstance(move,dict) or not isinstance(effect,dict):return False
     sources={
         'move/용성군':('피해량 계산이후 사용자의 특수공격 전투단계를 -2만큼 하락시킵니다.',{'spa':-2}),
@@ -243,6 +243,9 @@ def after_damage_self_stage(rules,move,effect):
         'move/플뢰르캐논':('피해량 계산 이후 사용자의 특수공격 전투단계가 -2만큼 하락합니다.',{'spa':-2}),
         'move/사이코부스트':('피해량 처리한 후사용자의 특수공격 전투단계가 -2만큼 하락한다.',{'spa':-2}),
         'move/v제너레이트':('사용자의 방어, 특수방어, 스피드 전투단계 모두 -1만큼 하락합니다.',{'def':-1,'spd':-1,'spe':-1}),
+        'move/인파이트':('피해량 계산 이후 사용자의 방어, 특수방어 전투단계가 모두 -1씩 하락합니다.',{'def':-1,'spd':-1}),
+        'move/엄청난힘':('엄청난힘을 사용하면 사용자의 공격과 방어 전투단계가 모두 -1만큼 하락합니다.',{'atk':-1,'def':-1}),
+        'move/스케일노이즈':('스케일노이즈의 피해 굴림에 방어 스탯의 절반만큼 더합니다. 기술이 처리된 이후 사용자의 방어 전투단계가 -1만큼 하락합니다.',{'def':-1}),
     }
     mid=move.get('id')
     if mid not in sources:return False
@@ -262,7 +265,8 @@ def after_all(effect,rules=None,move=None):
         post_stage=POST_STAGE.owns(rules,move,effect)
     focus_after=rules is not None and __import__('declarative_move_contracts').after_all(rules,effect)
     sacrifice=rules is not None and move is not None and __import__('hp_setting_moves').after_all(rules,move,effect)
-    return (sacrifice or focus_after or post_stage or after_damage_self_stage(rules,move,effect) or field_effect(effect) or
+    local_mist=rules is not None and move is not None and __import__('misty_explosion').after_all(rules,move,effect)
+    return (sacrifice or local_mist or focus_after or post_stage or after_damage_self_stage(rules,move,effect) or field_effect(effect) or
             (effect.get('type') in ('counter','stage_change') and effect.get('on')=='after use' and effect.get('target','self')=='self') or
             (effect.get('type')=='type_change' and effect.get('target','self')=='self'))
 
@@ -377,6 +381,17 @@ def authorized(e,ctx):
                 all(t.entity_id in row['results'] for t in row['targets']))
 
 
+def self_stage_damage_ready(e,row):
+    """Non-Smite effects require a hit; a real Substitute hit keeps user costs."""
+    hit_only=row['move_id'] in ('move/인파이트','move/엄청난힘','move/스케일노이즈')
+    for target in actual_recipients(row):
+        result=recipient_result(row,target)
+        if observed_damage(e,row,target,result) is None:continue
+        if hit_only and not (result['hit'] or result.get('substitute_damage')):continue
+        return True
+    return False
+
+
 def authorized_after_damage_self_stage(e,ctx,effect,source):
     row=getattr(e,KEY,{}).get(ctx.get('move_completion'))
     return bool(ctx.get('after_all_targets') and authorized(e,ctx) and
@@ -384,8 +399,7 @@ def authorized_after_damage_self_stage(e,ctx,effect,source):
                 any(ctx.get('target') is target for target in row['targets']) and
                 after_damage_self_stage(e.r,row['move'],effect) and
                 effect in row['post_effects'] and
-                any(observed_damage(e,row,target,recipient_result(row,target)) is not None
-                    for target in actual_recipients(row)))
+                self_stage_damage_ready(e,row))
 
 
 def authorized_field(e,ctx,effect):
@@ -513,13 +527,13 @@ def refresh(e,token=None):
     if row['profile']!=profile or e.r._selected_rule(row['move_id'])!=row['move_id']:
         raise ValueError('selected move completion policy changed')
     hit=any(x['hit'] and not x['cancelled'] for x in row['results'].values())
-    after_damage=any(observed_damage(e,row,target,recipient_result(row,target)) is not None for target in actual_recipients(row))
+    after_damage=self_stage_damage_ready(e,row)
     all_cancelled=all(x['cancelled'] for x in row['results'].values())
     # Ordinary self effects preserve their hit requirement; an explicitly
     # after-use counter also advances on a genuine miss, never a refusal.
     import post_resolution_stage_effects as POST_STAGE
     post=[x for x in row['post_effects'] if not all_cancelled and
-          (hit or after_damage and after_damage_self_stage(e.r,row['move'],x) or __import__('hp_setting_moves').after_all(e.r,row['move'],x) or field_effect(x) or POST_STAGE.owns(e.r,row['move'],x) or
+          (hit or after_damage and after_damage_self_stage(e.r,row['move'],x) or __import__('hp_setting_moves').after_all(e.r,row['move'],x) or __import__('misty_explosion').after_all(e.r,row['move'],x) or field_effect(x) or POST_STAGE.owns(e.r,row['move'],x) or
            __import__('declarative_move_contracts').after_all(e.r,x) or
            x.get('on')=='after use' or x.get('on_miss'))]
     stage_post=[x for x in post if POST_STAGE.owns(e.r,row['move'],x)]
@@ -625,7 +639,8 @@ def validate_world(e,index):
         if index.get(row['actor'].entity_id) is not row['actor']:
             raise ValueError('actual move completion actor required')
         if row.get('activation')=='empty_area_field':
-            if (row['phase'] not in ('completion_effects','complete') or not row['sealed'] or row['targets'] or
+            misty_applying=__import__('misty_explosion').empty_applying(e,row)
+            if (row['phase'] not in ('completion_effects','complete') and not misty_applying or not row['sealed'] or row['targets'] or
                     row['started'] or row['results'] or not row.get('field_cells') or
                     (not row.get('post_effects') and not row.get('_ice_lake')) or
                     any(not field_effect(effect) for effect in row['post_effects'])):

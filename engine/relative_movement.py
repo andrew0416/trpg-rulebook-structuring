@@ -201,9 +201,11 @@ def move(e,a,*,direction,distance,pace,movement_id,movement_mode='land',blindnes
         if stops_before and blindness_options is not None:
             raise ValueError('a stopped attempted entry performs no actual traversal check')
         budget,mode=e.move_profile(a,movement_mode,as_slowed=level=='total' and pace=='slowly')
+        sprint_rate=False
         if movement_mode!='teleport' and '질주' in a.custom_conditions:
             import arithmetic_policy as M
-            budget=M.increase(budget,'0.5',quantity='movement',base_id='current_capability',stage='sprint')
+            sprint_rate=__import__('athlete').sprint_rate(e,a)
+            budget=M.increase(budget,sprint_rate,quantity='movement',base_id='current_capability',stage='sprint')
         import capability_actions as LOAD
         budget=LOAD.movement_limit(a,budget)
         budget=min(distance,budget)
@@ -218,7 +220,7 @@ def move(e,a,*,direction,distance,pace,movement_id,movement_mode='land',blindnes
                'level':level,'mode':mode,'budget':budget,'automatic_trip':automatic,
                'checks':checks,'history_index':len(getattr(a,'_action_history',[])),
                'direction_vector':tuple(frame['directions'][direction]),
-               'direction_frame':deepcopy(frame)}
+               'direction_frame':deepcopy(frame),'sprint_rate':sprint_rate}
         if native is not None:facts['native_options']=native
         if route is not None:facts['native_route']=route
         if movement_mode=='teleport':facts['transfer_plan']=plan
@@ -360,6 +362,17 @@ def _continue(e,a,identity):
             if transfer:result=MOVEMENT.follow_paid_transfer(e,a,cell['plan'],progress=progress)
             else:
                 path=[facts['native_route'][len(row['cells'])-1]] if aerial else [q]
+                if native_mode=='sky':
+                    MOVEMENT._paid_progress(a,path,progress)
+                    # Keep the cell's own cursor; only its parent action's paid
+                    # rate and already charged prefix cross the cell boundary.
+                    if 'sprint_rate' in facts:progress['free_float_sprint_rate']=facts['sprint_rate']
+                    import electro_shot as ELECTRO
+                    charged_prefix=0
+                    for prior in row['cells'][:-1]:
+                        ELECTRO.validate_progress(e,a,prior['progress'])
+                        charged_prefix+=prior['progress'].get('charged_distance',prior['progress']['distance'])
+                    progress['free_float_distance_offset']=charged_prefix
                 result=MOVEMENT.follow_paid_path(e,a,path,mode=facts['mode'],
                     maximum_distance=facts['budget']-row['distance'],progress=progress)
             row=a.spec[KEY][identity];cell=row['cells'][-1];progress=cell['progress']
@@ -382,6 +395,8 @@ def _validate(e,a,row):
             or row['state'] not in ('pending','complete')):
         raise ValueError('relative Shift owner, direction or phase changed')
     CHECKS.integer(row['distance'],'actual relative movement distance',0,facts['budget'])
+    if 'sprint_rate' in facts and facts['sprint_rate'] is not False and (type(facts['sprint_rate'])is not str or facts['sprint_rate'] not in ('0.5','1')):
+        raise ValueError('actual paid relative Sprint rate required')
     policy=row.get('resumed_policy')
     if policy is not None:
         if policy.get('fingerprint')!=ROOT.fingerprint({k:v for k,v in policy.items() if k!='fingerprint'}):
@@ -389,7 +404,7 @@ def _validate(e,a,row):
         if policy.get('source')!='gm/relative-blindness-resumption' or policy.get('level') not in ('ordinary','total'):
             raise ValueError('actual resumed impaired-vision observation required')
         CHECKS.integer(policy['after_check'],'resumed policy check prefix',0,len(row['checks']))
-    total=0;previous=tuple(facts['origin']);previous_height=facts['altitude'];dx,dy,dz=_vector(facts['direction_vector'])
+    total=0;charged_total=0;previous=tuple(facts['origin']);previous_height=facts['altitude'];diagonals=facts['diagonals'];dx,dy,dz=_vector(facts['direction_vector'])
     mode=d['movement_mode'];aerial=mode in ('sky','levitate');transfer=mode in ('burrow','teleport')
     for number,cell in enumerate(row['cells']):
         expected=facts['native_route'][-1]['position'] if mode=='teleport' else (previous[0]+dx,previous[1]+dy)
@@ -400,6 +415,20 @@ def _validate(e,a,row):
         if height!=expected_height:raise ValueError('relative Shift cell differs from its declared altitude')
         progress=cell['progress']
         if progress:
+            if mode=='sky':
+                if 'sprint_rate' in facts or 'free_float_distance_offset' in progress:
+                    offset=CHECKS.integer(progress.get('free_float_distance_offset'),'actual parent movement charged prefix',0)
+                    if offset!=charged_total:raise ValueError('relative Sky charged prefix differs from prior paid cells')
+                if 'sprint_rate' in facts and (type(progress.get('free_float_sprint_rate'))is not type(facts['sprint_rate']) or progress.get('free_float_sprint_rate')!=facts['sprint_rate']):
+                    raise ValueError('relative Sky lost its actual paid Sprint rate')
+                horizontal,next_diagonals=MOVEMENT.step_cost(previous,cell['destination'],diagonals)
+                physical=facts['native_route'][number].get('gm_distance',max(horizontal,abs(height-previous_height))) if progress.get('next') else 0
+                if CHECKS.integer(progress['distance'],'actual relative Sky cell distance',0)!=physical:
+                    raise ValueError('relative Sky cell distance differs from its observed native segment')
+                import electro_shot as ELECTRO
+                ELECTRO.validate_progress(e,a,progress)
+                charged_total+=progress.get('charged_distance',physical)
+                if progress.get('next'):diagonals=next_diagonals
             if transfer:
                 expected_path=(previous,tuple(cell['destination']))
                 path_matches=tuple(tuple(p) for p in progress['path'])==expected_path

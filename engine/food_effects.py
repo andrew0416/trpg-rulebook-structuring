@@ -1455,7 +1455,7 @@ def hit_resistance(e,actor,move_type,multiplier,*,attacker):
  buff=_hit_resistance_buff(actor,move_type,multiplier,attacker=attacker)
  if buff is None:return 0
  consumption_allowed(e,actor,buff)
- owner=_suppression_choice_owner(e,actor,choice)
+ owner=_suppression_choice_owner(e,actor,actor.spec['food_hit_choice'])
  pending=_berry_composite_preflight(e,actor,buff,owner)
  if pending is not None:raise ValueError(str(pending))
  if _has_suppression(buff):

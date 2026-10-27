@@ -2820,6 +2820,11 @@ class Engine:
         import event_effects as EVENTS
         EVENTS.validate_for_use(self,attacker,move=move)
         mm, conf = ENVIRON.read(self,move,attacker)
+        bide_automatic = None
+        if move.get('id') == 'move/참기' and '_retrospective_hp_loss' in move:
+            # Accuracy re-reads retain the native phase's policy, not a recalculated damage amount.
+            bide_automatic = __import__('bide').project(self,attacker,move,mm)[1]['never_miss']
+            mm = dict(mm, never_miss=bide_automatic)
         import class_passive_combat as CLASS_PASSIVE
         CLASS_PASSIVE.preflight(self,attacker,target,move,mm)
         import move_accuracy as MOVE_ACCURACY
@@ -2842,6 +2847,7 @@ class Engine:
         if shared_roll is not None and roll_id is not None:
             raise ValueError('identified shared accuracy needs a sourced multi-target AP policy')
         mm, conf = ENVIRON.read(self,move,attacker)
+        if bide_automatic is not None:mm = dict(mm, never_miss=bide_automatic)
         no_hit_reason = EXT.blocks_hit(self,attacker,target,move,mm)
         import combat_social_edges as SOCIAL
         SOCIAL.preflight(self,attacker,target,move,mm)
@@ -4094,8 +4100,9 @@ class Engine:
         move = __import__('martial_artist').prepare(self,attacker,move)
         move = EXT.prepare_versatile_move(self,move,versatile_stat)
         VISION.require_move(self,attacker,move)
-        if WEAPONS.is_field(WEAPONS.range_spec(self,move,attacker)):
-            # Field Moves have no creature primary. Keep one actual user anchor
+        activation_range = WEAPONS.range_spec(self,move,attacker)
+        if WEAPONS.is_field(activation_range) or WEAPONS.is_blessing(activation_range):
+            # Field and Blessing Moves have no creature primary. Keep one actual user anchor
             # so action/frequency/effect lifecycles execute exactly once.
             primary=attacker
         import native_area_hit_effects as AREA_HIT
@@ -4115,6 +4122,10 @@ class Engine:
         import linked_move_conditions as LINKED
         LINKED.check_move(self,attacker,move_id)
         native_mm = LINKED.project(self,move,native_mm)
+        native_mm = __import__('misty_explosion').mechanics(self.r,move,native_mm)
+        if move_id == 'move/미스트버스트' and aim is None:
+            aim = attacker.pos
+            move = AREA.bind(self,attacker,move,aim)
         import five_strike as FIVE_STRIKE
         FIVE_STRIKE.preflight(self,attacker,move)
         # An explicit area aim, rather than the legacy primary placeholder, owns
@@ -4515,8 +4526,11 @@ class Engine:
             move = dict(move,_effect_area_cells=AREA.cells(self,attacker,move))
             if move_id=="move/일렉트로빔":move=__import__("electro_shot").capture_geometry(self,attacker,move)
         __import__('telepath').capture_area(self,attacker,target,move)
+        mm = __import__('misty_explosion').mechanics(self.r,move,mm)
         field_scope = (MOVE_ACTIVATION.verify_empty_field(self,attacker,move,mm,_field_activation)
                        if _field_activation is not None else None)
+        if move_id == 'move/미스트버스트':
+            mm = {k:v for k,v in mm.items() if k not in ('_native_empty_field_activation','_native_empty_field_kind')}
         import field_effects as FIELD
         field_block=FIELD.move_block_reason(self,attacker,target,move,mm,targetless=field_scope is not None)
         if field_block:
@@ -5304,7 +5318,7 @@ class Engine:
         if WEAPONS.is_field(rng):
             WEAPONS.field_members(self)
             return [attacker]
-        if WEAPONS.is_self_only(rng):
+        if WEAPONS.is_self_only(rng) or WEAPONS.is_blessing(rng):
             return [attacker]
         selected=WEAPONS.selected_targets(self,attacker,move,candidates,primary)
         if selected is not None:return selected
@@ -5806,8 +5820,10 @@ class Engine:
         tunnel_walk = mode in ('land','육상') and TUNNELS.can_pass(self,c,c.pos)
         if movement_mode == "burrow" or (c.spec.get("_burrow",{}).get("underground") and not tunnel_walk):
             raise ValueError("Burrow needs an explicit diggable path and surface/underground destination")
+        sprint_rate = False
         if "질주" in c.custom_conditions:
-            budget = M.increase(budget,__import__('athlete').sprint_rate(self,c),quantity='movement',base_id='current_capability',stage='sprint')
+            sprint_rate = __import__('athlete').sprint_rate(self,c)
+            budget = M.increase(budget,sprint_rate,quantity='movement',base_id='current_capability',stage='sprint')
         budget=CAPABILITIES.movement_limit(c,budget)
         if maximum_distance is not None:budget=min(budget,maximum_distance)
         occ = self.occupied(c)
@@ -5862,7 +5878,12 @@ class Engine:
         if blind_plan:
             SURVIVALIST.begin_approach(self,c,target,blind_plan,blindness_options)
             return
-        movement=MOVEMENT.follow_paid_path(self,c,path,mode=mode,maximum_distance=budget,action_owner=action_owner,movement_mode=movement_mode)
+        movement_progress=None
+        if sprint_rate is not False and (movement_mode or mode) in ('sky','공중/부유') and MOVEMENT.capabilities(self,c,environment=False).get('free_float',0)>0:
+            movement_progress={}
+            MOVEMENT._paid_progress(c,[tuple(node[:2]) for node in path],movement_progress)
+            movement_progress['free_float_sprint_rate']=sprint_rate
+        movement=MOVEMENT.follow_paid_path(self,c,path,mode=mode,maximum_distance=budget,action_owner=action_owner,movement_mode=movement_mode,progress=movement_progress)
         moved,spent=movement['steps'],movement['distance']
         if moved:
             c.airborne = (mode == "공중/부유")

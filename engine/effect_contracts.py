@@ -98,6 +98,28 @@ def recipients(actor,target,effect):
 
 def hit_recipients(engine,actor,target,effect,source):
  """Resolve supported native per-hit selectors without widening their source."""
+ if source=='move/불꽃튀기기' and effect.get('type')=='hp_loss':
+  import csv,io
+  import hp_setting_moves as HP,body_state as BODY,world_entities as WORLD
+  from source_context import verified_source
+  content=verified_source(engine.r,HP.MOVE_REF,label='Flame Burst cardinal HP loss')
+  row=list(csv.reader(io.StringIO(content.decode('utf-8-sig'))))[246]
+  origin=engine.r.selection.units[source]['source']
+  expected={'type':'hp_loss','value':5,'target':'cardinally adjacent to target'}
+  if (engine.r._selected_rule(source)!=source or row[0]!='불꽃튀기기'
+      or origin.get('file')!='db/moves.csv' or origin.get('record_span')!=[247,247]
+      or engine.r.move(source).get('effect')!=row[7]
+      or {k:v for k,v in effect.items() if k!='_src'}!=expected):
+   raise ValueError('Flame Burst requires its exact selected cardinal HP-loss source')
+  WORLD.require_actors(engine,actor,target)
+  if engine.grid is None:
+   raise ValueError('Flame Burst requires mapped cardinal body geometry; generic mapless contact is insufficient')
+  BODY.cells(target,require_complete=True)
+  candidates=[c for c in WORLD.actor_index(engine).values()
+              if c.on_field and not c.captured and c.kind in ('trainer','pokemon')]
+  # A token alone cannot prove that an unobserved body is outside the splash.
+  for candidate in candidates:BODY.cells(candidate,require_complete=True)
+  return tuple(c for c in candidates if c is not target and BODY.adjacent(target,c,cardinal=True))
  if source=='feat/왕복-여행':
   import native_switch_transfer as SWITCH
   if effect==SWITCH.ROUND_EFFECT:return (target,)
@@ -122,6 +144,15 @@ def inspect(engine,actor,target,effect,source,index=0):
  if effect.get('type')=='self_hp_set' and 'loyalty' in effect and (source not in ('move/대폭발','move/자폭') or type(effect['loyalty']) is not int or effect['loyalty']!=-1):
   return Issue('unsupported_execution','loyalty','reviewed sacrifice decrease with explicit GM amount required')
  kind=effect['type']
+ import misty_explosion as MISTY
+ if MISTY.handles(source,effect):
+  try:MISTY.prepare(engine,actor,effect)
+  except (ValueError,TypeError,KeyError) as ex:return Issue('unresolved_source','local_misty',str(ex))
+  return None
+ if source==MISTY.SOURCE and kind=='conditional_damage_base':
+  try:MISTY.conditional(engine.r,engine.r.move(source),effect)
+  except (ValueError,TypeError,KeyError) as ex:return Issue('unresolved_source','misty_damage_base',str(ex))
+  return None
  if kind=='oracle_mark':
   try:__import__('oracle').mark_payload(engine,actor,target,effect,source,preflight=True)
   except ValueError as ex:return Issue('unsupported_execution','oracle_mark',str(ex))
@@ -320,6 +351,10 @@ def condition(engine,effect,ctx,*,source=None):
   checks.append(ROOT.TRUE if COMPLETE.authorized_field(engine,ctx,effect) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual field activation completion'))
  elif __import__('declarative_move_contracts').after_all(engine.r,effect):
   checks.append(ROOT.TRUE if COMPLETE.authorized(engine,ctx) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual all-target completion'))
+ elif __import__('hp_setting_moves').after_all(engine.r,ctx.get('move') or {},effect):
+  checks.append(ROOT.TRUE if ctx.get('after_all_targets') and COMPLETE.authorized(engine,ctx) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual sacrifice completion'))
+ elif __import__('misty_explosion').after_all(engine.r,ctx.get('move'),effect):
+  checks.append(ROOT.TRUE if source==__import__('misty_explosion').SOURCE and __import__('misty_explosion').authorized(engine,ctx,effect) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual Misty Explosion completion'))
  elif COMPLETE.after_damage_self_stage(engine.r,ctx.get('move'),effect):
   checks.append(ROOT.TRUE if COMPLETE.authorized_after_damage_self_stage(engine,ctx,effect,source) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual after-damage self-stage completion'))
  elif 'native_action' in ctx:
@@ -406,6 +441,10 @@ def condition_text(engine,actor,target,text,ctx):
  import effects as FX
  import re
  import equipment_protection as PROTECTION
+ import misty_explosion as MISTY
+ if text==MISTY.CONDITION and ctx.get('move',{}).get('id')==MISTY.SOURCE:
+  MISTY.definition(engine.r)
+  return MISTY.affected(engine,actor)
  if text=='terastallized':return __import__('homebrew_state').tera_active(actor)
  if text=='stellar':
   import stellar_tera_blast as STELLAR

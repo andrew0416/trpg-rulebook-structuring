@@ -108,9 +108,51 @@ class ChroniclerSourceCritTests(unittest.TestCase):
         for actor in (self.t,self.p):
             self.assertIn('감지 [Playtest]',actor.abilities)
             self.assertEqual(actor.evasion_mod,1)
+            self.assertEqual(actor.evasion('물리',engine=self.e,attacker=self.b,ignore_stats=True),1)
+            self.e.register_abilities_one(actor,'감지 [Playtest]')
+            self.assertEqual(actor.evasion_mod,1)
             self.assertTrue(ABILITIES.active(actor,'감지 [Playtest]'))
         self.assertEqual(CH.perception_definition(self.rules,CH.PERCEPTION_PLAYTEST)['action'],'free')
         self.restore();self.valid()
+
+    def test_playtest_perception_bonus_tracks_owned_source_and_suppression(self):
+        self.travel(profile='playtest')
+        self.assertEqual(self.t.evasion('물리',engine=self.e,attacker=self.b,ignore_stats=True),1)
+        self.assertEqual(self.p.evasion('물리',engine=self.e,attacker=self.b,ignore_stats=True),1)
+        CH.observe_place(self.e,self.p,None,reason='actual Pokemon leaves its recorded Travel place')
+        self.assertNotIn('감지 [Playtest]',self.p.abilities)
+        self.assertEqual(self.p.evasion_mod,0)
+        self.e.gm.set_move(self.b,'move/위액',reason='actual known suppression Move')
+        self.e.gm.choose_ability_transition(self.b,self.t,'move/위액',ability=CH.PERCEPTION_PLAYTEST,reason='actual active Playtest Perception suppression')
+        self.combat(self.b,count=20);self.use(self.b,self.t,'move/위액',face=20)
+        self.assertFalse(ABILITIES.active(self.t,CH.PERCEPTION_PLAYTEST))
+        self.assertEqual(self.t.evasion_mod,0)
+        self.assertEqual(self.t.evasion('물리',engine=self.e,attacker=self.b,ignore_stats=True),0)
+        self.assertIn('actual recorded valley',CH.archived(self.t,'travel'))
+        self.restore();self.valid()
+        self.assertEqual((self.t.evasion_mod,self.p.evasion_mod),(0,0))
+
+    def test_playtest_perception_capped_registration_keeps_bonus_after_native_haze(self):
+        self.select_profile('playtest')
+        for actor in (self.t,self.p):
+            self.e.gm.set_stage(actor,'eva',value=6,reason='actual pre-existing capped evasion before Travel grant')
+        self.travel(profile='playtest')
+        for actor in (self.t,self.p):
+            self.assertEqual(actor.evasion_mod,6)
+            self.e.register_abilities_one(actor,'감지 [Playtest]')
+            self.assertEqual(actor.evasion_mod,6)
+        self.combat(self.b,count=20)
+        self.use(self.b,self.b,'move/흑안개',face=20)
+        for actor in (self.t,self.p):
+            self.assertEqual(actor.evasion_mod,1)
+            self.assertEqual(actor.evasion('물리',engine=self.e,attacker=self.b,ignore_stats=True),1)
+        self.restore();self.valid()
+        self.assertEqual((self.t.evasion_mod,self.p.evasion_mod),(1,1))
+        CH.observe_place(self.e,self.p,None,reason='actual Pokemon leaves the archived place after capped registration')
+        self.assertEqual((self.t.evasion_mod,self.p.evasion_mod),(1,0))
+        CH.observe_place(self.e,self.t,None,reason='actual trainer leaves the archived place after capped registration')
+        self.assertEqual((self.t.evasion_mod,self.p.evasion_mod),(0,0))
+        self.valid()
 
     def test_all_profile_allows_both_explicit_perception_sources_and_excludes_frisk(self):
         self.select_profile('all')
@@ -245,9 +287,11 @@ class ChroniclerSourceCritTests(unittest.TestCase):
             abilities=['조가비갑옷/전투무장'],speed=11)
         self.assertTrue(self.critical());self.assertFalse(self.critical(face=19));self.assertFalse(self.critical(self.c))
         self.restore();self.assertTrue(self.critical())
+        hp_before=self.b.hp
         with patch.object(Engine,'roll_damage',autospec=True,side_effect=Engine.roll_damage) as damage:
             self.use(self.p,self.b,'move/전광석화',face=20)
         self.assertTrue(damage.call_args.kwargs.get('crit',damage.call_args.args[4] if len(damage.call_args.args)>4 else False))
+        self.assertEqual(hp_before-self.b.hp,22, 'DB4 fixed dice11 twice, equal Attack/Defense, neutral type')
         self.e.end_of_turn(self.p);self.e.end_round();self.combat(self.p,count=20)
         self.assertFalse(self.critical());self.valid()
 

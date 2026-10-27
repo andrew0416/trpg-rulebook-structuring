@@ -342,9 +342,12 @@ def _payload_foes(actor, payload, completion):
     foes = (recipients if payload["kind"] == "confuse_and_coins" else payload["foes"])
     # Smite excludes the secondary effect only for its actual damaged recipient;
     # Spirit Surge still reaches other field foes, including those outside the blast.
+    # Gold Rush cannot attach Confusion to a creature whose incoming hit was prevented.
     return [target for target in foes if target.side is not None and target.side != actor.side
             and not ((outcome := outcomes.get(target.entity_id)) is not None and
-                     (outcome.get("cancelled") or not outcome.get("hit") and outcome.get("dealt", 0) > 0))]
+                     (outcome.get("cancelled") or
+                      payload["kind"] == "confuse_and_coins" and outcome.get("hit_prevented") or
+                      not outcome.get("hit") and outcome.get("dealt", 0) > 0))]
 
 
 def apply_payload(engine, actor, activation, payload, completion_id):

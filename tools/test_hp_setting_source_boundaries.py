@@ -69,6 +69,8 @@ class HPSettingSourceTests(unittest.TestCase):
         e.gm.set_temp_hp(actor,value,reason='actual observed temporary HP source',duration_seconds=300)
 
     def restored(self,e,variant):
+        # The fixture's fixed accuracy callback is not saved gameplay state.
+        vars(e).pop('d20',None)
         state=json.loads(json.dumps(e.export_state(),ensure_ascii=False))
         return Engine.import_state(self.make_rules(variant),state)
 
@@ -161,8 +163,17 @@ class HPSettingSourceTests(unittest.TestCase):
         self.assertEqual((restored.hp,restored.temp_hp,restored.fainted),(41,17,True))
         self.assertEqual(HISTORY.records(index[target.entity_id]),HISTORY.records(target))
         before=deepcopy(loaded.export_state())
-        with self.assertRaises(ValueError):loaded.use_move(restored,index[target.entity_id],'move/목숨걸기')
-        self.assertEqual(loaded.export_state(),before)
+        before_logs=list(loaded.log_lines)
+        self.assertFalse(getattr(loaded,'_execution_trace_enabled',False))
+        with patch.object(loaded,'d20',side_effect=AssertionError('fainted actor must not roll accuracy')) as roller:
+            self.assertEqual(loaded.use_move(restored,index[target.entity_id],'move/목숨걸기'),0)
+        roller.assert_not_called()
+        self.assertEqual(loaded.log_lines,before_logs+[
+            f"  {restored.name}: 체력 {restored.hp} 의식불명 → 동작 불가  => [combat/hit-points]"])
+        # Refusal logs are saved state; every other saved field, including
+        # HP/faint, target state, actions, frequency, RNG, effects and trace, stays unchanged.
+        with patch.object(loaded,'log_lines',before_logs):
+            self.assertEqual(loaded.export_state(),before)
 
     def test_original_cold_factory_and_adapted_warm_cache_use_independent_native_worlds(self):
         cold=self.world(fresh=True);warm=self.world()
@@ -304,6 +315,20 @@ class HPSettingSourceTests(unittest.TestCase):
         self.assertEqual((actor.hp,actor.temp_hp,actor.injuries),(-42,100,3))
         self.assertTrue(actor.fainted)
 
+    def test_public_misty_explosion_pays_self_cost_after_actual_hit_or_miss(self):
+        for hit in (True,False):
+            with self.subTest(hit=hit):
+                e,actor,target,_=self.world();self.temp(e,actor,100)
+                self.start(e,actor,target,'move/미스트버스트',hit=hit)
+                e.use_move_on(actor,target,'move/미스트버스트',[actor,target],set_damage=True)
+                self.assertEqual((actor.hp,actor.temp_hp,actor.injuries),(-42,100,3))
+                self.assertTrue(actor.fainted)
+                self.assertEqual(actor.move_uses['move/미스트버스트'],1)
+                rows=[row for row in e._effect_dispatch_receipts.values()
+                      if row['source_id']=='move/미스트버스트' and row['effect'].get('type')=='self_hp_set']
+                self.assertEqual(len(rows),1)
+                self.assertEqual(rows[0]['status'],'completed')
+
     def test_public_final_gambit_keeps_self_cost_when_substitute_receives_target_damage(self):
         import substitute as SUB
         e,actor,target,_=self.world()
@@ -314,8 +339,12 @@ class HPSettingSourceTests(unittest.TestCase):
         coat=SUB.live(target)[0];before=(target.hp,coat['hp'])
         e.end_of_turn(target);e.start_of_turn(actor,initiative_count=e.initiative_value(actor).value)
         e.d20=lambda:10
-        self.assertEqual(e.use_move(actor,target,'move/목숨걸기'),42)
+        # The public scalar is creature damage; the coat's actual damage is separate.
+        self.assertEqual(e.use_move(actor,target,'move/목숨걸기'),0)
         self.assertEqual((actor.hp,actor.fainted),(41,True))
         self.assertEqual((target.hp,SUB.live(target)[0]['hp']),(before[0],before[1]-42))
+        receipts=[row['substitute_hp_loss'] for row in e._effect_dispatch_receipts.values()
+                  if row['source_id']=='move/목숨걸기' and 'substitute_hp_loss' in row]
+        self.assertEqual(receipts,[{'coat_id':coat['id'],'damage':42,'remaining_hp':before[1]-42}])
 
 if __name__=='__main__':unittest.main()

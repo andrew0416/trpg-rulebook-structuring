@@ -183,6 +183,16 @@ def validate_local(engine, index=None):
     seen = set()
     active_rows = []
     for request, receipt in state['receipts'].items():
+        import misty_explosion as MISTY
+        if isinstance(receipt,dict) and receipt.get('source_id') == MISTY.SOURCE:
+            MISTY.validate(engine,receipt,index,request)
+            key = (MISTY.SOURCE,receipt['completion_id'])
+            if key in seen:
+                raise ValueError('Misty Explosion completion produced two local fields')
+            seen.add(key)
+            if not receipt['ended']:
+                active_rows.append(receipt)
+            continue
         required = {'request_id','source_id','clause_id','source_row_sha256','creator_id','scene','round','origin','geometry','cells','until','name','effect','action','frequency','seal','ended'}
         if isinstance(receipt,dict) and receipt.get('source_id')==LOCAL_SNOW_SOURCE:
             required |= {'expires_round','effect_occurrence','observation_only'}
@@ -304,6 +314,15 @@ def local_scene_end(engine):
 
 def terrain_for(engine, actor, name=None, *, include_virtual=True):
     """Read activation conditions, or only actual local/global Terrain effects."""
+    import misty_explosion as MISTY
+    mist = [row for row in validate_local(engine) if row['source_id'] == MISTY.SOURCE]
+    if mist and getattr(actor,'on_field',True):
+        import body_state as BODY
+        occupied = BODY.cells(actor,require_complete=True)
+        local = next((row for row in mist if occupied.intersection(tuple(p) for p in row['cells'])),None)
+        if local is not None:
+            # This area treats its occupants as Misty, not another Field Move.
+            return local if name is None or name == '미스트' else None
     import csv_item_physical_contracts as CSV_ITEMS
     virtual = CSV_ITEMS.effective_terrain(engine, actor) if include_virtual else None
     if virtual is not None:
@@ -354,6 +373,10 @@ def _semantic(effect):
 def prepare(engine, effect, source_id):
     """Validate the complete selected producer before action/frequency spend."""
     validate(engine)
+    import misty_explosion as MISTY
+    if MISTY.handles(source_id,effect):
+        MISTY.declaration(engine.r,effect)
+        return {'reviewed':True,'local_misty':True}
     if not isinstance(effect, dict) or effect.get("type") != "field_effect":
         raise ValueError("field effect producer requires one typed effect")
     rounds = effect.get("rounds", 5)
@@ -378,6 +401,8 @@ def prepare(engine, effect, source_id):
 
 def install(engine, actor, effect, source_id):
     plan = prepare(engine, effect, source_id)
+    if plan.get('local_misty'):
+        raise ValueError('Misty Explosion local field requires its native completion dispatch')
     if not plan["reviewed"]:
         state = {
             "name": effect["field"], "rounds": effect.get("rounds", 5),
@@ -528,7 +553,7 @@ def clear_terrain_at(engine,cells):
     if primary is not None and primary['source_id'] not in INDEPENDENT_SOURCES:
         ended.append(primary['source_id']);clear(engine,terrain_only=True)
     for row in validate_local(engine):
-        if row['source_id']==LOCAL_SOURCE and occupied.intersection(tuple(p) for p in row['cells']):
+        if row['source_id'] in (LOCAL_SOURCE,__import__('misty_explosion').SOURCE) and occupied.intersection(tuple(p) for p in row['cells']):
             row['ended']=True;row['seal']=_local_seal(row);ended.append(row['request_id'])
     return ended
 
@@ -547,6 +572,11 @@ def active(engine, name=None):
 
 
 def round_started(engine):
+    import misty_explosion as MISTY
+    for row in validate_local(engine):
+        if row['source_id'] == MISTY.SOURCE and engine.round_no >= row['expires_round']:
+            row['ended'] = True
+            row['seal'] = _local_seal(row)
     for state in _states(engine):
         if state["last_tick_round"] == engine.round_no or engine.round_no < state["activation_round"]:
             continue
@@ -701,6 +731,9 @@ def _validate_pending(engine, actor, row):
     if not isinstance(row, dict) or set(row) not in (required, required | {'dream_mist'}):
         raise ValueError("Misty deferred status receipt changed")
     policy_row = policy(engine.r)["moves"].get(row["terrain_source_id"])
+    import misty_explosion as MISTY
+    if row['terrain_source_id'] == MISTY.SOURCE:
+        policy_row = dict(MISTY.definition(engine.r),field='미스트')
     if policy_row is None or policy_row["field"] != "미스트" or policy_row["source_row_sha256"] != row["terrain_source_row_sha256"]:
         raise ValueError("Misty deferred status provenance changed")
     if engine.r.condition_class(row["condition"]) != "volatile":

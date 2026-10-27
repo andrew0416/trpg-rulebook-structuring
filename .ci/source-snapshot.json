@@ -24,10 +24,9 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "repair151-runtime",
+  "active_repair": "remote-reviewed-runtime",
   "active_repair_scope": "One reviewed affected ordinary subset; full obligation inventory and historical native/H evidence retained. No metadata65, typed, procedural, or full-scope acceptance claim.",
-  "active_repair_candidate_sha256": "764c081d003bc7c53c0cff0ebc6745ecccf6df1e1896b48c5d85ae12e243cac1",
-  "active_repair_required_tests": 34,
+  "active_repair_required_tests": 2,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -45,7 +44,7 @@
   "ordinary_shard_count": 18,
   "active_repair_phase": "runtime_corrections",
   "active_repair_procedural_runners": 0,
-  "full_method_obligations": 13812,
+  "full_method_obligations": 13847,
   "ordinary_methods_separate_run": 40141538702,
   "ordinary_methods": 12144,
   "ci_overlay_manifest_refs": [
@@ -78,11 +77,22 @@
   "phase2_metadata_methods_mandatory": 0,
   "phase2_additional_procedural_runners": 0,
   "unaffected_previous_PASS_reused": 0,
-  "selected_method_obligations": 34,
+  "selected_method_obligations": 2,
   "partial_prerequisite_refresh": true,
   "full_method_scope_executed": false,
   "source_fresh_native_prerequisites": 1404,
   "native_prerequisite_run": "40241811271",
   "activation_current_evidence_current": false,
-  "previous_activation_evidence": "historical_only_not_current"
+  "previous_activation_evidence": "historical_only_not_current",
+  "active_repair_source_commit": "2f8975c41bd76cf48c904df85cf92a489430dbbc",
+  "active_repair_source_plan_sha256": "eb6cdccd59875a4ccd9bea9b1bb93f7c4c1d8ce8f85b3479920eebb14377f1ec",
+  "remote_control_preparation": {
+    "status": "PREPARED_NOT_EXECUTED",
+    "added_method_count": 0,
+    "added_source_method_count": 0,
+    "added_existing_method_count": 0,
+    "existing_class_owners_preserved": true,
+    "fixture_cipher_sha256": "5d5dcecfbc08ace8a7e7f93a1433186282b903c065ad86674b4a6fc34733ada9",
+    "fixture_manifest_sha256": "32f3b6b64b44afec5e32657a08efba1046434543080fa218426fd80155e7f6b4"
+  }
 }

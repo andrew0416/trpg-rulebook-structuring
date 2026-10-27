@@ -97,6 +97,9 @@ def cond_ok(engine, e, ctx):
             return False, "target status"
     cond = e.get("if")
     if isinstance(cond, str):
+        import misty_explosion as MISTY
+        if cond == MISTY.CONDITION and MISTY.conditional(engine.r,ctx.get('move'),e):
+            return (True,'') if MISTY.affected(engine,ctx['attacker']) else (False,'outside Misty Terrain')
         if cond in ("user holds no item","user holds nothing"):
             import equipment_protection as PROTECTION
             return (True, "") if PROTECTION.itemless_for_move(engine,ctx["attacker"],ctx.get("move")) else (False,"condition: held item")
@@ -274,7 +277,14 @@ def h_hp_loss(engine, a, t, e, ctx):
         __import__('move_completion').apply_recoil_loss(engine,a,e,ctx)
         return
     if __import__('hex_maniac').skip_additional_self_cost(engine,a,e,ctx):return
-    for c in tgt_of(e, a, t):
+    if ctx.get('source_id')=='move/불꽃튀기기':
+        import attack_damage_history as DAMAGE_HISTORY
+        if DAMAGE_HISTORY.native_recipient(engine,a,t,ctx,error='Flame Burst needs its actual primary native hit') is None:
+            raise ValueError('Flame Burst needs its actual primary native hit')
+        recipients=tgt_of(e,a,t,ctx)
+    else:
+        recipients=tgt_of(e,a,t)
+    for c in recipients:
         v = _amount(e.get("value"), c, engine, ctx)
         if v is None:
             return f"value 미해석: {e.get('value')}"
@@ -331,6 +341,10 @@ def h_set_weather(engine, a, t, e, ctx):
 
 
 def h_field_effect(engine, a, t, e, ctx):
+    import misty_explosion as MISTY
+    if MISTY.handles(ctx.get('source_id'),e):
+        MISTY.install(engine,a,t,e,ctx)
+        return None
     import field_effects as FIELD
     FIELD.install(engine, a, e, ctx.get("source_id"))
 
@@ -1004,6 +1018,14 @@ def apply_passives(engine, c, ability_effects):
         import taskmaster as TASK
         TASK.cruelty_definition(engine.r)
         return
+    if any(isinstance(e,dict) and e.get('_rule_id')=='ability/감지-playtest' for e in ability_effects):
+        import chronicler as CHRONICLER
+        CHRONICLER.perception_definition(engine.r, CHRONICLER.PERCEPTION_PLAYTEST)
+        raw = [{k:v for k,v in e.items() if not k.startswith('_')} for e in ability_effects]
+        if raw != engine.r.ability_effects['감지 [Playtest]']:
+            raise ValueError('exact Playtest Perception passive and native reaction required')
+        # Its always-on bonus is independent; the selected native area reaction owns the Shift.
+        ability_effects = [e for e in ability_effects if e['type']=='evasion_mod']
     for e in ability_effects:   # 연결(connection): 특정 기술을 쓸 때 발동 → on_move_use 트리거로 등록 (effect 가 dict 면 실행, 문장이면 로그만)
         if isinstance(e, dict) and e.get("type") == "connection" and e.get("move"):
             import food_effects as FOOD

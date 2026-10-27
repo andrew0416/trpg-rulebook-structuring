@@ -299,6 +299,39 @@ class AbilityExchangeContractsTests(unittest.TestCase):
         self.assertIn('ability/불면',A.known(self.t));self.assertFalse(A.active(self.t,'ability/불면'))
         self.give(self.a,['불면']);self.assertTrue(A.active(self.t,'ability/불면'))
 
+    def test_timed_gas_suppresses_later_copy_through_cold_restore_until_actual_count_expiry(self):
+        from unittest.mock import patch
+        self.e.gm.set_position(self.t,(5,2),reason='outside aura before actual timed Gas hit')
+        self.give(self.a,['화학변화가스'])
+        with patch.object(type(self.e),'d20',new=lambda actual:20):self.hit(move='move/클리어스모그')
+        self.give(self.a,['불면']);self.next_round(self.a,21)
+        self.choose(self.a,self.t,X.ENTRAIN,'불면')
+        with patch.object(type(self.e),'d20',new=lambda actual:20):self.hit(move=X.ENTRAIN)
+        gas_sources=tuple(X._gas_sources(self.t))
+        self.assertEqual(len(gas_sources),1);self.assertEqual(len(self.live(self.t)),2)
+        self.assertNotIn('불면',self.t.spec['abilities']);self.assertNotIn('불면',self.t.abilities)
+        self.assertIn('ability/불면',A.project_components(self.t,include_suppressed=True))
+        self.assertIn('ability/불면',A.project_components(self.t,ignored_sources=gas_sources))
+        self.assertFalse(A.active(self.t,'ability/불면'))
+        e,index=self.fresh();target=index[self.t.entity_id];source=index[self.a.entity_id]
+        self.assertFalse(A.active(target,'ability/불면'));self.assertEqual(len(X._gas_sources(target)),1)
+        e.end_of_turn(source);e.start_of_turn(target,initiative_count=20)
+        self.assertTrue(A.active(target,'ability/불면'));self.assertEqual(X._gas_sources(target),{})
+        e.end_encounter(e.everyone);self.assertEqual(target.abilities,[])
+
+    def test_later_copy_keeps_native_mummy_suppression_source_order_without_gas(self):
+        from unittest.mock import patch
+        self.give(self.a,['단순']);self.give(self.t,['미라 [Playtest]','단순'])
+        self.choose(self.t,self.t,X.MUMMY,'단순')
+        with patch.object(type(self.e),'d20',new=lambda actual:20):self.hit()
+        self.assertFalse(A.active(self.t,'ability/단순'));self.assertEqual(len(self.live(self.t)),1)
+        self.next_round(self.a);self.choose(self.a,self.t,X.ENTRAIN,'단순')
+        with patch.object(type(self.e),'d20',new=lambda actual:20):self.hit(move=X.ENTRAIN)
+        self.assertTrue(A.active(self.t,'ability/단순'));self.assertEqual(len(self.live(self.t)),2)
+        self.assertEqual(self.live(self.t)[0]['source'],X.MUMMY)
+        self.e.gm.recall(self.t,reason='actual recall removes only earlier Mummy suppression')
+        self.assertTrue(A.active(self.t,'ability/단순'));self.assertEqual(len(self.live(self.t)),1)
+
     def test_actual_public_selection_rejects_forged_event_fields(self):
         self.give(self.t,['미라 [Playtest]','단순'])
         before=self.e.export_state()
