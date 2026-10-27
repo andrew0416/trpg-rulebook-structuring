@@ -580,10 +580,14 @@ assert b2.answer(b2.pending(b2.begin('second','check')),newp['gm'],c['requests']
 assert len(n._root_common_receipts)==2
 print('common pending stages and fresh-authority rejection: pass')
 """
-        out = subprocess.run([sys.executable, '-X', 'utf8', '-B', '-W', 'ignore::ResourceWarning',
-            '-c', script, str(ROOT)], capture_output=True, text=True, encoding='utf-8', timeout=120,
-            env=dict(os.environ,PYTHONPATH=os.pathsep.join((str(ROOT),str(ROOT/'tools')))))
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        # Preserve the fresh interpreter and expose actual capture paths.
+        with tempfile.TemporaryDirectory(prefix='common-codec-child-') as directory:
+            stdout_path,stderr_path=Path(directory)/'stdout.txt',Path(directory)/'stderr.txt'
+            with stdout_path.open('w',encoding='utf-8') as stdout,stderr_path.open('w',encoding='utf-8') as stderr:
+                out = subprocess.run([sys.executable, '-X', 'utf8', '-B', '-W', 'ignore::ResourceWarning',
+                    '-c', script, str(ROOT)], stdout=stdout,stderr=stderr,timeout=120,
+                    env=dict(os.environ,PYTHONPATH=os.pathsep.join((str(ROOT),str(ROOT/'tools')))))
+            self.assertEqual(out.returncode,0,stdout_path.read_text(encoding='utf-8')+stderr_path.read_text(encoding='utf-8'))
 
 
     def test_gm_snapshot_discovers_off_roster_skill_event_and_backing_alias(self):

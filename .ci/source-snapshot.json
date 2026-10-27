@@ -24,9 +24,9 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "published-class-test-contract-repair03",
-  "active_repair_scope": "Retain all245 integration and source-guard declarations; correct only two stale test expectations. Assert current native Living Weapon rejection routes and actual mapped Flame Burst hit/cardinal splash/receipts, retaining unsupported-source, incomplete-body and mapless rejection. Add four existing Flame Burst boundary tests. Runtime, fixed verifier/H and private fixtures are unchanged. No canonical publication or completion credit.",
-  "active_repair_required_tests": 249,
+  "active_repair": "published-marksman-fortress-condition-restoration",
+  "active_repair_scope": "Restore published Marksman/Fortress consumers and selectable CSV condition/Frozen editions on the verified249 baseline. Retain the full historical/domain/current declarations and actual changed-boundary guards as an exact667 native union. Derive Marksman's missing excerpt only from its authenticated Core PDF before native input freeze. Seven synthetic preparation checks are separate. No full2352/canonical-equivalence or new clause-credit claim.",
+  "active_repair_required_tests": 667,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -77,14 +77,14 @@
   "phase2_metadata_methods_mandatory": 0,
   "phase2_additional_procedural_runners": 0,
   "unaffected_previous_PASS_reused": 0,
-  "selected_method_obligations": 249,
+  "selected_method_obligations": 667,
   "partial_prerequisite_refresh": true,
   "full_method_scope_executed": false,
   "source_fresh_native_prerequisites": 1404,
   "native_prerequisite_run": "40241811271",
   "activation_current_evidence_current": false,
   "previous_activation_evidence": "historical_only_not_current",
-  "active_repair_source_commit": "86c390c305ffc74a1155cc6487120f364ee4956d",
+  "active_repair_source_commit": "ad5ae261d62e5369917593d3c3083116afc13104",
   "active_repair_source_plan_path": ".ci/suites/changed_revisions.json",
   "historical_source_contract_repair": {
     "source_commit": "2f8975c41bd76cf48c904df85cf92a489430dbbc",
@@ -99,8 +99,8 @@
       "453bd89e31defaf1943491b444ae46f70a419a9d"
     ],
     "merge_commit": "a8e047d2af3459bd09d0c2af8f4fd6781fbcb9d1",
-    "native_route": "Existing ci_validate and unchanged ci_remote_h; exact current-run/head packet249 with original authenticated fixture/policy restoration.",
-    "native_result": "Original245 at2b produced243PASS/2FAIL; exact diagnostic identified stale Living rejection and unsupported Flame Burst assertions. This test-only repair249 has not executed.",
+    "native_route": "Existing ci_validate and unchanged ci_remote_h; current-run/head packet667, original authenticated bundle/policy, source-bound PDF-derived input before freeze. Synthetic7 is not native credit.",
+    "native_result": "Prior249 and unchanged H accepted atad5; this new49-source/667-native candidate has not executed.",
     "canonical_completed_field_is_historical": true,
     "canonical_source_equivalence": false,
     "full_method_scope_executed": false,
@@ -128,9 +128,11 @@
     "classes": [
       "Arcanist",
       "Berserker",
-      "Rune Master"
+      "Rune Master",
+      "Marksman",
+      "Fortress"
     ],
-    "declared_unique_tests": 249,
+    "declared_unique_tests": 667,
     "private_bundle_changed": false,
     "verifier_changed": false,
     "H_changed": false,
@@ -155,6 +157,16 @@
       "runtime_changes": 0,
       "new_test_ids": 0,
       "additional_existing_guards": 4
+    },
+    "next_restoration": {
+      "base": "ad5ae261d62e5369917593d3c3083116afc13104",
+      "previous_run": 40452378890,
+      "previous_unique_pass": 249,
+      "previous_H": "H_PHYSICAL_ACCEPTED",
+      "public_source_files": 49,
+      "native_unique_declarations": 667,
+      "source_preparation_synthetic_checks": 7,
+      "scope": "Marksman, Fortress, selected condition/Frozen editions and real PDF source preparation. The remaining58 canonical cohort and its ongoing Wish/Recycle repair are not included."
     }
   },
   "previous_class_restoration_runs": [
@@ -178,6 +190,14 @@
       "unique_pass": 243,
       "unique_fail": 2,
       "unique_error": 0
+    },
+    {
+      "head": "ad5ae261d62e5369917593d3c3083116afc13104",
+      "run": 40452378890,
+      "unique_pass": 249,
+      "unique_fail": 0,
+      "unique_error": 0,
+      "H": "H_PHYSICAL_ACCEPTED"
     }
   ]
 }

@@ -54,12 +54,12 @@ def accuracy_stage(actor):
     return max(-6,min(6,actor.accuracy_stage+timed))
 
 
-def incoming_derivation(target,field,*,status=None):
+def incoming_derivation(target,field,*,status=None,stacking_key='roughneck_stacking'):
     import combat_timing as T,composition_derive as COMPOSITION
     rows=[r for r in T.records(target) if field in r and (status is None or r[field]['status']==status)]
     contributions=[];steps=[];seen=set()
     for row in rows:
-        identity=row['effect_occurrence'];source=row['source'];plan=row.get('roughneck_stacking')
+        identity=row['effect_occurrence'];source=row['source'];plan=row.get(stacking_key)
         if source in seen and plan is None:raise COMPOSITION.CompositionPending('overlapping identical source needs its explicit GM ruling')
         value=row[field] if status is None else row[field]['bonus']
         contributions.append({'id':identity,'source':source,'value':value})

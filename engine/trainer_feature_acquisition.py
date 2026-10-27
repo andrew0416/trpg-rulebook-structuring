@@ -185,6 +185,8 @@ STATIC_FEATURES.update(__import__('hobbyist').STATIC_DEFINITIONS)
 STATIC_FEATURES.update(__import__('rune_master').DEFINITIONS)
 STATIC_FEATURES.update(__import__('arcanist').DEFINITIONS)
 STATIC_FEATURES.update(__import__('berserker').DEFINITIONS)
+STATIC_FEATURES.update(__import__('marksman').DEFINITIONS)
+STATIC_FEATURES.update(__import__('fortress').DEFINITIONS)
 for _uid,_span in __import__('hobbyist').GENERAL_FEATURES.items():
     if _uid not in STATIC_FEATURES and _uid not in (PERSONAL_TUTOR,'feat/종의-학자'):
         STATIC_FEATURES[_uid]={'clause_id':_uid,'span':list(_span),'minimum_level':0,'skill':None,'hobbyist_general':True,
@@ -335,6 +337,8 @@ def _digest(label, value):
 
 
 def _static_source(rules, feature_id):
+    if feature_id in __import__('fortress').FEATURES:return __import__('fortress').static_source(rules,feature_id)
+    if feature_id in __import__('marksman').FEATURES:return __import__('marksman').static_source(rules,feature_id)
     if feature_id in __import__('berserker').FEATURES:return __import__('berserker').static_source(rules,feature_id)
     if feature_id in __import__('arcanist').FEATURES:return __import__('arcanist').static_source(rules,feature_id)
     if feature_id in __import__('rune_master').FEATURES:return __import__('rune_master').static_source(rules,feature_id)
@@ -376,6 +380,8 @@ def _static_source(rules, feature_id):
 
 
 def _static_qualification(actor, feature_id, snapshot, prerequisite_source):
+    if feature_id in __import__('fortress').FEATURES:return __import__('fortress').qualification(actor,feature_id,snapshot,prerequisite_source)
+    if feature_id in __import__('marksman').FEATURES:return __import__('marksman').qualification(actor,feature_id,snapshot,prerequisite_source)
     if feature_id in __import__('berserker').FEATURES:return __import__('berserker').qualification(actor,feature_id,snapshot,prerequisite_source)
     if feature_id in __import__('arcanist').FEATURES:return __import__('arcanist').qualification(actor,feature_id,snapshot,prerequisite_source)
     if feature_id in __import__('rune_master').FEATURES:return __import__('rune_master').qualification(actor,feature_id,snapshot,prerequisite_source)
@@ -538,9 +544,11 @@ def _validate_static_acquisitions(actor):
         if type(record) is not dict or set(record) != fields:
             raise ValueError("exact selectionless Feature acquisition evidence required")
         feature_id = record["feature_id"]
+        if feature_id in __import__('fortress').FEATURES:__import__('fortress').validate_acquisition(actor,record,sid,active)
         if feature_id in __import__('berserker').FEATURES:__import__('berserker').validate_acquisition(actor,record,sid,active)
         if feature_id in __import__('rune_master').FEATURES:__import__('rune_master').validate_acquisition(actor,record,sid,active)
         if feature_id in __import__('arcanist').FEATURES:__import__('arcanist').validate_acquisition(actor,record,sid,active)
+        if feature_id in __import__('marksman').FEATURES:__import__('marksman').validate_acquisition(actor,record,sid,active)
         if feature_id == __import__('psionic_sight').FEATURE:__import__('psionic_sight').validate_acquisition(actor,record,sid,active)
         if feature_id==__import__('walk_it_off').FEATURE:__import__('walk_it_off').validate_acquisition(actor,record,sid,active)
         if feature_id in __import__('juggler').DEFINITIONS:__import__('juggler').validate_acquisition(actor,record,sid,active)
@@ -634,6 +642,8 @@ def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequ
         if type(branch) is not list or len(branch)!=2:raise ValueError('select exactly two acquired Moves')
         branch=[engine.r.move_id(value) for value in branch]
     _text(acquisition_request_id, "static Feature acquisition request")
+    if feature_id==__import__('fortress').GUARDIAN and type(selection)is dict and set(selection)=={'edition'}:
+        selection=dict(selection,mark_scope='korean_own_mark')
     validate_actor(actor)
     for _, row, active in _static_records(actor):
         record = row["static_acquisition"]
@@ -649,7 +659,7 @@ def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequ
             if record["feature_id"] != feature_id or record["prerequisite_source"] != prerequisite_source or actual_branch!=expected_branch or (rank is not None and record['snapshot'].get('rank_number')!=rank):
                 raise ValueError("static Feature acquisition replay cannot change its intent")
             return dict(deepcopy(record), status="acquired" if active else "withdrawn")
-    if selection is not None and feature_id not in __import__('berserker').FEATURES and feature_id not in __import__('arcanist').FEATURES and feature_id not in __import__('rune_master').FEATURES and feature_id not in {'feat/특색있는-맛','feat/경단'} and feature_id!=__import__('type_sync').FEATURE and feature_id!=__import__('psionic_sight').FEATURE and feature_id not in __import__('hobbyist').FEATURES and feature_id!=__import__('commander').COMPLEX and feature_id!=__import__("provocateur").PUSH and feature_id not in {*__import__('style_expert').FEATURES,__import__('type_expertise').FEATURE,*__import__('versatility').FEATURES,*__import__('trickster').FEATURES,*__import__('type_ace').CSV_VARIANTS,*__import__('juggler').DEFINITIONS,*__import__('mentor').FEATURES,*__import__('coordinator').FEATURES,*__import__('ace_trainer').FEATURES,*__import__('ace_trainer').TRAINING,*__import__('aura_guardian').FEATURES,*__import__('hex_maniac').FEATURES,__import__('sage').HANDS,__import__('telekinetic').POWER,__import__('telepath').AWARE,__import__('walk_it_off').FEATURE,'feat/포획-추진력','feat/포켓몬-넌-내-꺼야'}:raise ValueError("this Feature has no optional acquisition selection")
+    if selection is not None and feature_id not in __import__('fortress').FEATURES and feature_id not in __import__('marksman').FEATURES and feature_id not in __import__('berserker').FEATURES and feature_id not in __import__('arcanist').FEATURES and feature_id not in __import__('rune_master').FEATURES and feature_id not in {'feat/특색있는-맛','feat/경단'} and feature_id!=__import__('type_sync').FEATURE and feature_id!=__import__('psionic_sight').FEATURE and feature_id not in __import__('hobbyist').FEATURES and feature_id!=__import__('commander').COMPLEX and feature_id!=__import__("provocateur").PUSH and feature_id not in {*__import__('style_expert').FEATURES,__import__('type_expertise').FEATURE,*__import__('versatility').FEATURES,*__import__('trickster').FEATURES,*__import__('type_ace').CSV_VARIANTS,*__import__('juggler').DEFINITIONS,*__import__('mentor').FEATURES,*__import__('coordinator').FEATURES,*__import__('ace_trainer').FEATURES,*__import__('ace_trainer').TRAINING,*__import__('aura_guardian').FEATURES,*__import__('hex_maniac').FEATURES,__import__('sage').HANDS,__import__('telekinetic').POWER,__import__('telepath').AWARE,__import__('walk_it_off').FEATURE,'feat/포획-추진력','feat/포켓몬-넌-내-꺼야'}:raise ValueError("this Feature has no optional acquisition selection")
     branched=STATIC_FEATURES[feature_id].get('branch',False)
     ranked=STATIC_FEATURES[feature_id].get('ranked',False)
     if rank is not None and not ranked:raise ValueError('this Feature is not Ranked')
@@ -772,6 +782,10 @@ def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequ
         snapshot = __import__('arcanist').acquisition_snapshot(engine,actor,feature_id,rank,selection)
     if feature_id in __import__('berserker').FEATURES:
         snapshot = __import__('berserker').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id in __import__('marksman').FEATURES:
+        snapshot = __import__('marksman').acquisition_snapshot(engine,actor,feature_id,rank,selection)
+    if feature_id in __import__('fortress').FEATURES:
+        snapshot = __import__('fortress').acquisition_snapshot(engine,actor,feature_id,rank,selection)
     qualification = _static_qualification(actor, feature_id, snapshot, prerequisite_source)
     record = {"actor_id": actor.entity_id, "feature_id": feature_id, "source": source, "request_id": acquisition_request_id,
               "prerequisite_source": prerequisite_source, "snapshot": snapshot, "qualification": qualification}
@@ -781,6 +795,8 @@ def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequ
         if feature_id not in trainer.spec.setdefault('feats',[]):trainer.spec['feats'].append(feature_id)
         if feature_id==__import__('berserker').POWER:
             __import__('berserker').prepare_acquire(staged,trainer,snapshot['selection'])
+        if feature_id==__import__('fortress').SLOW:
+            __import__('fortress').prepare_acquire(staged,trainer,snapshot['selection'])
         if ranked:
             trainer.spec.setdefault('feat_ranks',{})[feature_id]=rank
             if feature_id==__import__('hex_maniac').STUDIES:
@@ -799,6 +815,8 @@ def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequ
         if feature_id in __import__('rune_master').FEATURES:__import__('rune_master').after_acquire(staged,trainer,feature_id,source_id)
         if feature_id in __import__('arcanist').FEATURES:__import__('arcanist').after_acquire(staged,trainer,feature_id,source_id)
         if feature_id in __import__('berserker').FEATURES:__import__('berserker').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('marksman').FEATURES:__import__('marksman').after_acquire(staged,trainer,feature_id,source_id)
+        if feature_id in __import__('fortress').FEATURES:__import__('fortress').after_acquire(staged,trainer,feature_id,source_id)
         if feature_id == __import__('psionic_sight').FEATURE:__import__('psionic_sight').after_acquire(staged,trainer,source_id)
         if feature_id in __import__('hobbyist').FEATURES:
             __import__('hobbyist').after_acquire(staged,trainer,feature_id,source_id)

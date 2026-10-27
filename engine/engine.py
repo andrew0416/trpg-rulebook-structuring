@@ -96,6 +96,8 @@ class Rules:
         for rel in ("data/lookup-tables.json", "data/conditions.json"):
             for u in json.load(open(os.path.join(root, rel), encoding="utf-8")):
                 self.units[u["id"]] = u
+        import condition_editions as CONDITION_EDITIONS
+        CONDITION_EDITIONS.install(self)
         p = os.path.join(root, "data/progression-rules.json")         # 경험치 표·레벨업·진화·트레이너 경험치 (engine/downtime.py)
         if os.path.exists(p):
             for u in json.load(open(p, encoding="utf-8"))["units"]:
@@ -177,6 +179,7 @@ class Rules:
         self._apply_ruleset()
         __import__('trickster').install(self)
         __import__('commander').install(self)
+        __import__('marksman').install(self)
         __import__('z_moves').install(self)
         import martial_artist_ability_identities as MARTIAL_IDENTITIES
         MARTIAL_IDENTITIES.install(self)
@@ -193,6 +196,7 @@ class Rules:
         CAPACITY_ABILITIES.install(self)
         import digital_programs as DIGITAL_PROGRAMS
         DIGITAL_PROGRAMS.install(self)
+        __import__('fortress').install_shields(self)
         import mega_forms as MEGA
         MEGA.install(self)
         for rf in self.ruleset.rulings_files:        # 룰셋 프로필이 지정한 재정 파일 (core+errata → 에라타 재정)
@@ -307,6 +311,7 @@ class Rules:
         if hasattr(self, "species"):
             self.species = {uid: sp for uid, sp in self.species.items()
                             if self.ruleset.allows(source_unit(sp))[0]}
+        __import__('fortress').install_shields(self)
 
     from source_selection import native_selected_rule as _selected_rule
 
@@ -799,7 +804,8 @@ class Combatant:
                                           EFFECT_LIFETIMES.numeric(self,"evasion_modifier"), TRAINING.bonus(self,"evasion"),
                                           OPTIONAL_STATE.evasion_bonus(self), UNOWN.active_count(self), TASK.bonus(self,'evasion'),
                                           TA.evasion_extra(self), __import__('chef_cooking').evasion_bonus(self,move_class),
-                                          __import__('martial_artist').bonus(self,attacker,evasion=True))
+                                          __import__('martial_artist').bonus(self,attacker,evasion=True),
+                                          __import__('fortress').ordinary_shield(engine,self), __import__('fortress').shield_bonus(engine,self)[0])
         extra+=__import__('oracle').instinct_bonus(self,attacker,engine)
         extra+=__import__('telepath').evasion(self)
         extra+=__import__('warper').evasion(self)
@@ -1027,6 +1033,7 @@ class Engine:
         """Commit round effects and shared elapsed time together, once."""
         import state_grants as GRANTS
         if __import__('focus_punch').pending(self):return __import__('focus_punch').end_round(self)
+        if __import__('marksman').pending(self):return __import__('marksman').end_round(self)
         return GRANTS.transition(self, None, lambda staged, _: staged._end_round())
 
     def _end_round(self):
@@ -1044,6 +1051,8 @@ class Engine:
         SCHEDULE.preflight_end_round(self)
         focus_result=__import__('focus_punch').finish_round(self)
         if isinstance(focus_result,CHECKS.PendingDecision):return focus_result
+        marksman_result=__import__('marksman').finish_round(self)
+        if isinstance(marksman_result,CHECKS.PendingDecision):return marksman_result
         import conditional_damage_base as CONDITIONAL_DB
         CONDITIONAL_DB.finish_round(self)
         import environmental_effects as ENVIRONMENT
@@ -1766,6 +1775,11 @@ class Engine:
     def divine(self,actor,mode,**options):return __import__('oracle').divination(self,actor,mode,**options)
     def use_sage(self,actor,target):return __import__('sage').cast(self,actor,target)
     def activate_telepath(self,actor):return __import__('telepath').activate(self,actor)
+    def sustain_fortress(self,actor,**options):return __import__('fortress').sustain(self,actor,**options)
+    def end_fortress(self,actor,instance_id):return __import__('fortress').end(self,actor,instance_id)
+    def ready_fortress_shield(self,actor,instance_id,**options):return __import__('fortress').ready_shield(self,actor,instance_id,**options)
+    def follow_fortress_ally(self,actor,ally,target,**options):return __import__('fortress').follow_shift(self,actor,ally,target,**options)
+    def guardian_weapon_attack(self,actor,target,move_id,**options):return __import__('fortress').weapon_attack(self,actor,target,move_id,**options)
     def warper_teleport(self,actor,destination,**options):return __import__('warper').transfer(self,actor,destination,**options)
     def warper_ally_switch(self,actor,ally,**options):return __import__('warper').ally_switch(self,actor,ally,**options)
     def arm_warper_move(self,actor,move_id,**options):return __import__('warper').arm_move(self,actor,move_id,**options)
@@ -2346,10 +2360,11 @@ class Engine:
         if __import__('trickster').set_contains(self,c,'status_immune',cond):
             return "item/status_immunity"
         by_type = self.r.mech("combat/type-immunities")["by_type"]
-        if any(cond in by_type.get(t, []) for t in c.types):
+        csv_trainer_paralysis=cond=='마비' and c.kind!='pokemon' and __import__('condition_instances').csv_edition(self.r,cond)
+        if not csv_trainer_paralysis and any(cond in by_type.get(t, []) for t in c.types):
             return "combat/type-immunities"
         for e in self.r.condition_effects(cond):
-            if e["type"] == "immunity" and any(t in e["types"] for t in c.types):
+            if e["type"] == "immunity" and e.get('actor_kind',c.kind)==c.kind and any(t in e["types"] for t in c.types):
                 return f"condition/{cond}"
         return None
 
@@ -2527,7 +2542,8 @@ class Engine:
             return GRANTS.transition(self,c,return_and_start,include_rulings=True,include_grid=self.grid is not None)
         projection_turn=PROJECTION._owned(c,'ability/꼬르륵스위치')
         core_confused=__import__('confusion_attacks').interested(c) and __import__('confusion_attacks').core(self)
-        if getattr(self,'_initiative_schedule',None) is not None or getattr(self,'_initiative_extra_turns',None) or projection_turn or core_confused or PARTY_ACTIONS.gym_profile(self) is not None or __import__('swarm_transitions').state(c) is not None or '마비' in c.conditions:
+        csv_turn=any(condition in c.conditions and __import__('condition_instances').csv_edition(self.r,condition) for condition in ('풀죽음','헤롱헤롱'))
+        if getattr(self,'_initiative_schedule',None) is not None or getattr(self,'_initiative_extra_turns',None) or projection_turn or core_confused or csv_turn or PARTY_ACTIONS.gym_profile(self) is not None or __import__('swarm_transitions').state(c) is not None or '마비' in c.conditions:
             import state_grants as GRANTS
             return GRANTS.transition(self,c,lambda staged,actor:staged._start_of_turn(actor,initiative_count=initiative_count),include_rulings=True,include_grid=projection_turn and self.grid is not None)
         return self._start_of_turn(c,initiative_count=initiative_count)
@@ -2560,7 +2576,7 @@ class Engine:
         import combat_timing as TIMING
         TIMING.preflight_turn(self,initiative_count)
         import paralysis_state as PARALYSIS
-        PARALYSIS.preflight_turn(self,c,initiative_count)
+        if not __import__('condition_instances').csv_edition(self.r,'마비'):PARALYSIS.preflight_turn(self,c,initiative_count)
         import coat_effects as COATS
         COATS.validate_actor(c)
         import initiative_schedule as SCHEDULE
@@ -2593,6 +2609,7 @@ class Engine:
         import food_effects as FOOD
         FOOD.turn_start(self,c)
         TURN.weather_turn_start(self, c)
+        __import__('condition_instances').start_turn(self,c)
         limit = None
         for cond in sorted(c.conditions):
             if not BOSS.condition_applies_this_turn(c,cond):
@@ -2615,7 +2632,7 @@ class Engine:
                     if ok and e.get("on_success") == "cure":
                         self.cure_status(c, cond)
                     elif not ok:
-                        if cond == "마비":
+                        if cond == "마비" and not __import__('condition_instances').csv_edition(self.r,cond):
                             PARALYSIS.failed_save(self,c,check)
                         limit = next((x for x in self.r.condition_effects(cond) if x["type"] == "action_limit"), None)
         c._turn_action_limit = limit
@@ -2625,12 +2642,12 @@ class Engine:
         __import__('versatility').begin_turn(self,c)
         return c._turn_action_limit
 
-    def end_of_turn(self, c, *, swarm_continue=True):
+    def end_of_turn(self, c, *, swarm_continue=True, fortress_mark=None):
         import state_grants as GRANTS
         return GRANTS.transition(self,c,
-            lambda staged,actor:staged._end_of_turn(actor,swarm_continue=swarm_continue),include_rulings=True)
+            lambda staged,actor:staged._end_of_turn(actor,swarm_continue=swarm_continue,fortress_mark=fortress_mark),include_rulings=True)
 
-    def _end_of_turn(self, c, *, swarm_continue=True):
+    def _end_of_turn(self, c, *, swarm_continue=True, fortress_mark=None):
         PASSIVE_EVENTS.ensure_clear(self)
         LEAGUE.check_boundary(self, 'end_of_turn')
         HEAVY.ensure_clear(self)
@@ -2640,10 +2657,12 @@ class Engine:
             raise ValueError('explicit swarm continuation choice required')
         import swarm_transitions as SWARM
         if SWARM.defer_action(self,c,continue_action=swarm_continue):
+            if fortress_mark is not None:raise ValueError('Fortress Mark requires a real turn end, not a swarm continuation window')
             ACTION.check_end(self,c,continuation=True)
             ACTION.close_swarm_window(self,c)
             return {'status':'swarm_action_pending','initiative':SWARM.state(c)['swarm_turn']['next_initiative']}
         ACTION.check_end(self, c)
+        if fortress_mark is not None:c.custom_conditions['fortress_end_turn_mark']=fortress_mark
         import combat_social_edges as SOCIAL
         SOCIAL.validate(self,c)
         import enduring_awareness as AWARENESS
@@ -2708,6 +2727,7 @@ class Engine:
         FIELD.end_turn(self,c)
         import stat_ace as STAT
         STAT.end_turn(self,c)
+        __import__('fortress').end_turn(self,c,c.custom_conditions.pop('fortress_end_turn_mark',None))
         c.took_standard = False
         ACTION.close_turn(self, c)
         import combat_timing as TIMING
@@ -2807,7 +2827,7 @@ class Engine:
         import partial_entities as PARTIAL
         PARTIAL.require_complete(attacker, "_accuracy_check_native attacker")
         PARTIAL.require_complete(target, "_accuracy_check_native target")
-        BODY_MODES.require_targetable(target,attack=MARSUPIAL.attack_blocked(attacker,target,move,engine=self),engine=self)
+        BODY_MODES.require_targetable(target,attack=MARSUPIAL.attack_blocked(attacker,target,move,engine=self),engine=self,attacker=attacker)
         M.validate_source(self.r)
         import weapon_actions as WEAPONS
         move = WEAPONS.prepare(self,attacker,move)
@@ -2888,6 +2908,7 @@ class Engine:
         gambit=TASK.gambit_side(self,attacker,target,move)
         import optional_state_effect_contracts as OPTIONAL_STATE
         optional_accuracy, optional_critical = OPTIONAL_STATE.attack_modifiers(attacker, move, engine=self, target=target)
+        optional_accuracy,optional_critical,marksman_clear=__import__('marksman').accuracy_modifiers(self,attacker,target,move,(optional_accuracy,optional_critical))
         if gambit and not self._taskmaster_gambit['roll_effects']:
             hit=not bool(no_hit_reason)
             if hit and (DEFENSE.consume_shield(self,attacker,target,move) or DEFENSE.consume_shield(self,attacker,target,move,actual_hit=True)):return False,None,False
@@ -2916,6 +2937,7 @@ class Engine:
         if shared_roll is None:
             nat=__import__('oracle').replace_d20(self,attacker,nat,'accuracy')
             nat=__import__('roll_context').observe_native(self,attacker,'accuracy',nat,lambda faces:POOLS.die(self.rng,20,fixed=None if faces is None else faces[0]))
+        nat=__import__('marksman').deadeye_roll(self,attacker,target,move,nat)
         AP_ROLL.complete(self,attacker,roll_id,'accuracy')
         import combat_modifiers as COMBAT_MODS
         if shared_roll is not None:
@@ -2960,6 +2982,7 @@ class Engine:
         if ac_ov is not None:
             ac = ac_ov
         ac,evasion,automatic = CPF.accuracy_policy(self,attacker,target,move,mm,ac,evasion,bool(mm.get("never_miss") or never_cond))
+        if marksman_clear:evasion=0
         automatic = automatic or __import__('commander_orders').perfect_for_move(self,attacker,move)
         if __import__('type_ace').isolated_dragon(self,attacker,target,move):evasion=0
         ac = CLASS_PASSIVE.accuracy_target(self,attacker,move,ac)
@@ -2972,6 +2995,7 @@ class Engine:
         mods += MOMENTUM.accuracy(self,attacker,target,move,nat,shared_roll)
         import type_ace as TA
         mods+=TA.accuracy(self,attacker,target,move,mm)
+        mods+=__import__('fortress').accuracy(self,attacker,target)
         import hunter as HUNTER
         mods+=HUNTER.accuracy(self,attacker,target,move,mm)
         mods+=__import__('martial_artist').bonus(attacker,target)
@@ -3025,6 +3049,7 @@ class Engine:
         if gambit:crit=hit
         crit = bool(hit) if gambit=='incoming' or COUP.active(self,attacker,target,move) else EXT.crit_hook(self, attacker, target, move, hit, crit, natural=nat, crit_min=crit_min)
         if TA.aoo_outcome(self,attacker,move):crit=bool(hit)
+        if __import__('marksman').deadeye_critical(self,attacker,target,move,hit):crit=True
         if no_hit_reason:crit=False
         if EVENTS.critical(self,attacker,target,move,hit) or (hit and event_critical):crit=True
         if attacker.next_attack and attacker.next_attack.get("auto_crit") and move["class"] in ("물리", "특수") and hit:
@@ -3147,6 +3172,7 @@ class Engine:
         import event_effects as EVENTS
         event_effects=EVENTS.extra_rolls(self,attacker,move,mtype)
         times = (2 if crit and not __import__('multi_strike').separate_critical(move) else 1)+sum(r['effect']['amount'] for r in event_effects)
+        times+=__import__('marksman').sniper_times(attacker,crit)
         return df,mtype,actual_move,db,entry,event_effects,times
 
     def _damage_hit_context(self, attacker, target, move, mm, crit, actual_move, _reaction_event=None):
@@ -3245,6 +3271,7 @@ class Engine:
             self.log(f"    DB {db} → {entry['dice']}{' ×2(치명타)' if crit else ''} 눈 {rolls} = {dice_part}", "combat/critical-hit" if crit else "combat/damage-chart")
         dice_part+=__import__('multi_strike').critical_dice(self,attacker,move,set_damage)
         dice_part+=__import__('ability_control_contracts').damage_dice(self,attacker,move,set_damage)
+        dice_part+=__import__('marksman').sniper_dice(self,attacker,move,crit,set_damage)
         long_order_bonus = __import__('commander_orders').long_damage(self,attacker,target,move,dice_part,crit)
         EVENTS.record_damage(self,attacker,target,move,event_effects,db)
         component_roll_mod=ROLLS.use(self,attacker,target,move,'damage',{'damage_base':db,'roll_value':dice_part,'mode':'set' if set_damage else 'fixed_dice' if fixed_dice is not None else 'random'})
@@ -3289,6 +3316,7 @@ class Engine:
         resist_steps += CLASS_PASSIVE.resistance_steps(self,target,mtype)
         if arcanist_normal_boost:resist_steps-=1
         resist_steps += __import__('confusion_attacks').resistance(self,attacker,target,move)
+        resist_steps += __import__('marksman').resistance(self,attacker,target,move)
         import taskmaster as TASK
         resist_steps += TASK.bonus(target,'resistance')
         resist_steps += __import__('combat_move_reactions').resistance(self,attacker,target,move)
@@ -3378,6 +3406,7 @@ class Engine:
         excited_dr=CHEER.damage_reduction(self,target,attacker,move,_reaction_event)
         if dr_val is not None:
             dr_val += __import__('commander_orders').reduction(target)
+            dr_val += __import__('fortress').damage_reduction(self,target)
             dr_val += __import__('commander_orders').sentinel_reduction(self,target,_reaction_event)
         if excited_dr and dr_val is not None:dr_val+=excited_dr
         if dr_val is not None:dr_val+=rider_overrun['reduction']
@@ -3404,6 +3433,8 @@ class Engine:
             self.log(f"    요리사 간식 피해 감소 +{chef['damage_reduction']}","ch04/chef-snack")
         roll_mod+=__import__('coordinator').damage_bonus(self,attacker,move)
         roll_mod+=__import__('berserker').damage_bonus(self,attacker,target,move)
+        roll_mod+=__import__('fortress').outgoing_penalty(attacker)
+        roll_mod+=__import__('fortress').guardian_damage(self,attacker,target,move,_reaction_event)
         if _reaction_event is not None:_reaction_event['coordinator_formula']={'dice':dice_part,'attack':attack_value,'modifiers':roll_mod+infatuation_mod,'defense':def_val,'reduction':0 if AURA.sword(self,attacker,move) else dr_val}
         rolled_total=dice_part+attack_value+roll_mod+infatuation_mod
         roll_mod+=TA.fountain(self,attacker,actual_move,rolled_total)-rolled_total
@@ -3994,6 +4025,7 @@ class Engine:
     @__import__('defense_curl').native_move
     @OPTIONAL_WEAPONS.atomic_move
     @__import__('arcanist').atomic_move
+    @__import__('marksman').atomic_move
     @ACTION.resolved_move
     @__import__("cheerleader").native_action
     @__import__('electro_shot').native_move
@@ -4233,6 +4265,7 @@ class Engine:
         move, mm = OPTIONAL_MODES.project(self,attacker,primary,
             dict(move,_actual_targets=tuple(targets)),mm)
         for target in targets:
+            __import__('condition_instances').require_target(attacker,target)
             import move_accuracy as MOVE_ACCURACY
             if not MOVE_ACCURACY.preflight(self,attacker,target,move,mm):
                 self.spatial_evasion_penalty(target)
@@ -4313,6 +4346,7 @@ class Engine:
     @__import__('defense_curl').native_move
     @OPTIONAL_WEAPONS.atomic_move
     @__import__('arcanist').atomic_move
+    @__import__('marksman').atomic_move
     @ACTION.resolved_move
     @MOVE_ACTIVATION.effect_contributions
     @TRACE.operation('move_attempt','attacker','target','move_id','set_damage','count_use','free_action')
@@ -5006,6 +5040,7 @@ class Engine:
         if substitute is None and not (observed.get('coordinator_damage') or observed.get('rider_damage_selection')):GLEEFUL.observe_hit(self,attacker,target,move,passive_event)
         import optional_move_modes as OPTIONAL_MODES
         if not (observed.get('coordinator_damage') or observed.get('rider_damage_selection')):OPTIONAL_MODES.on_hit(self,attacker,target,move,completion_id)
+        __import__('fortress').guardian_hit(self,attacker,target,move,completion_id,passive_event=passive_event,defense_token=_defense_token)
         import attack_damage_history as DAMAGE_HISTORY
         if (move["class"] in ("물리", "특수") and '_retrospective_hp_loss' not in move
                 and not DAMAGE_HISTORY.direct_hp_loss(move,mm)):
@@ -5944,7 +5979,7 @@ class Engine:
         import special_entities as SPECIAL
         SPECIAL.require_prime_independent(self,target)
         import body_modes as BODY_MODES
-        BODY_MODES.require_targetable(target,engine=self)
+        BODY_MODES.require_targetable(target,engine=self,attacker=trainer)
         import actor_templates as TEMPLATES
         template = TEMPLATES.projection(target)
         if template and template["capture_immune"]:

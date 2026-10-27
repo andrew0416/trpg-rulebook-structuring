@@ -134,6 +134,9 @@ def retired_receipts(actor):
 
 def _native_dependencies(engine, actor, owned):
     """Use the parent identities declared by the existing teaching owners."""
+    import fortress as FORTRESS
+    fortress={u:list(parents) for u,parents in FORTRESS.PARENTS.items() if u in owned}
+    if any(parent not in owned for parents in fortress.values() for parent in parents):raise ValueError('actual acquired Fortress prerequisite required')
     import pokemon_teaching as TEACHING
     import feature_ability_lessons as LESSONS
     import trainer_feature_acquisition as FEATURES
@@ -290,6 +293,7 @@ def _native_dependencies(engine, actor, owned):
             parent=definition['parent']
             if parent not in owned:raise ValueError('actual acquired Provocateur prerequisite required')
             result[child]=list(dict.fromkeys(result.get(child,[])+[parent]))
+    result.update(fortress)
     return result
 
 

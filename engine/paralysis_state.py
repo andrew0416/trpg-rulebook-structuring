@@ -14,6 +14,8 @@ def _source(engine):
     from source_context import verified_source
     verified_source(engine.r, SOURCE, source_root='source-audit', label='modern Paralysis clarification')
     definition = engine.r.mech('condition/마비')
+    import condition_editions as EDITIONS
+    definition = EDITIONS.modern_paralysis_definition(engine.r, definition)
     if FINGERPRINTS.json_fingerprint(definition, compact=True) != DEFINITION:
         raise ValueError('modern Paralysis selected definition changed; review required')
 

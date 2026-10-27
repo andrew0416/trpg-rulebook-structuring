@@ -183,8 +183,8 @@ jobs:
             if ($taskSummaries.Count -ne 1) { throw 'One original native summary is required' }
             $taskSummary = Get-Content -LiteralPath $taskSummaries[0].FullName -Raw | ConvertFrom-Json
             $taskReport = @($taskSummary.reports)
-            if ($taskReport.Count -ne 1 -or -not $taskReport[0].successful -or $taskReport[0].tests_run -ne 249 -or $taskReport[0].collected_count -ne 249 -or $taskReport[0].status_counts.pass -ne 249) {
-              throw 'The whole 249-case retained integration and native weapon-contract declaration did not pass'
+            if ($taskReport.Count -ne 1 -or -not $taskReport[0].successful -or $taskReport[0].tests_run -ne 667 -or $taskReport[0].collected_count -ne 667 -or $taskReport[0].status_counts.pass -ne 667) {
+              throw 'The whole 667-case retained integration and published restoration declaration did not pass'
             }
           }
       - name: Check original ordinary evidence with unchanged independent H
@@ -392,6 +392,17 @@ jobs:
           $env:RUNNER_TEMP = $taskTemp
           python -B -m pip install --disable-pip-version-check --no-cache-dir --only-binary=:all: --require-hashes -r .ci/requirements.txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Check source preparation boundaries separately from native evidence
+        shell: pwsh
+        run: |
+          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-source-preparation-checks' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT
+          New-Item -ItemType Directory -Path $taskTemp -ErrorAction Stop | Out-Null
+          $env:TEMP = $taskTemp
+          $env:TMP = $taskTemp
+          $env:TMPDIR = $taskTemp
+          $env:RUNNER_TEMP = $taskTemp
+          python -B -X utf8 -m unittest tools.test_ci_prepare_marksman_source
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run fixed verifier against authenticated AA inputs
         shell: pwsh
         env:
@@ -410,8 +421,8 @@ jobs:
           if ($taskSummaries.Count -ne 1) { throw 'One original native summary is required' }
           $taskSummary = Get-Content -LiteralPath $taskSummaries[0].FullName -Raw | ConvertFrom-Json
           $taskReport = @($taskSummary.reports)
-          if ($taskReport.Count -ne 1 -or -not $taskReport[0].successful -or $taskReport[0].tests_run -ne 249 -or $taskReport[0].collected_count -ne 249 -or $taskReport[0].status_counts.pass -ne 249) {
-            throw 'The whole 249-case retained integration and native weapon-contract declaration did not pass'
+          if ($taskReport.Count -ne 1 -or -not $taskReport[0].successful -or $taskReport[0].tests_run -ne 667 -or $taskReport[0].collected_count -ne 667 -or $taskReport[0].status_counts.pass -ne 667) {
+            throw 'The whole 667-case retained integration and published restoration declaration did not pass'
           }
       - name: Check original ordinary evidence with unchanged independent H
         if: ${{ always() }}

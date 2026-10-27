@@ -8,7 +8,7 @@ SOURCES=(*DREAM_SOURCES,*PESTER.SOURCES)
 
 def prepare(engine,r):
  import body_modes as BODY_MODES
- BODY_MODES.require_targetable(r.target,engine=engine)
+ BODY_MODES.require_targetable(r.target,engine=engine,attacker=r.user)
  if r.source_id in PESTER.SOURCES:return PESTER.prepare(engine,r)
  import world_entities as W,body_state as B,dream_state as D
  if r.source_id not in SOURCES or engine.r._selected_rule(r.source_id)!=r.source_id:raise ValueError('selected consumable attack needs its own source contract')

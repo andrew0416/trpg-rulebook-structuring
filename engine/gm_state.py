@@ -24,6 +24,7 @@ ENGINE_FIELDS.append("_campaign_injury_policy")
 ENGINE_FIELDS.append('_ground_flight_option')
 ENGINE_FIELDS.append('_hp_loss_policy')
 ENGINE_FIELDS.append('_session_move_policy')
+ENGINE_FIELDS.append('_marksman_attack')
 ENGINE_FIELDS.extend(('_clock_invocations','_active_clock_invocation'))
 ENGINE_FIELDS.extend(('_native_action_stack','_native_action_resolutions','_native_action_sequence'))
 ENGINE_FIELDS.append('_breather_attempts')
@@ -573,6 +574,7 @@ class GMState:
         LIFETIMES.reconcile(self.e)
         __import__('ability_exchange_contracts').refresh(self.e)
         __import__('ability_control_contracts').refresh(self.e)
+        __import__('marksman').watch_state(self.e,c)
         self._rec("위치", before, copy.deepcopy(c.location), reason, c)
 
     def set_item(self, c, item, reason="", *, selection=None, source_instance_id=None):

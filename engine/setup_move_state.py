@@ -243,6 +243,7 @@ def targetable(target, *, engine=None, attacker=None, move=None):
 
 
 def require_targetable(engine, attacker, target, move_id):
+    __import__('condition_instances').require_target(attacker,target)
     import partial_entities as PARTIAL
     PARTIAL.require_complete(attacker, "setup Move attacker")
     PARTIAL.require_complete(target, "setup Move target")

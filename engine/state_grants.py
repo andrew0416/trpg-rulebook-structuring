@@ -895,6 +895,7 @@ def _revoke_sources(c,source_ids,engine,*,_settled_payment_ids=()):
     preflight_revoke(c,source_ids)
     old=list(c.abilities)
     sources=_revocation_sources(c,source_ids)
+    if engine is not None:__import__('fortress').before_revoke(engine,c,sources)
     if engine is not None and c.spec.get(__import__('arcanist').BIND):
         __import__('arcanist').before_revoke(engine,c,sources)
     if engine is not None and any(st['sources'].get(key,{}).get('rune_alarms') for key in sources):

@@ -401,8 +401,13 @@ def movement_limit(actor, value):
 def _ranged_weapon(actor, move):
     attack = move.get("_weapon_attack") if isinstance(move, dict) else None
     entry = actor.custom_conditions.get("equipped_weapons", {}).get(attack.get("key")) if isinstance(attack, dict) else None
+    import marksman as MARKSMAN
+    kind = entry.get("weapon", {}).get("kind") if isinstance(entry, dict) else None
+    acquired = MARKSMAN.acquired(actor, MARKSMAN.AIM)
+    eligible = (kind in ("단거리 사격무기", "장거리 사격무기") if acquired is not None
+                else kind == clause(actor.r, "FAN-104")["weapon_kind"])
     return (move.get("class") in ("물리", "특수") and isinstance(entry, dict)
-            and entry.get("weapon", {}).get("kind") == clause(actor.r, "FAN-104")["weapon_kind"])
+            and eligible and MARKSMAN.aim_applies(actor, move))
 
 
 def begin_move(engine, actor, target, move, completion_id):

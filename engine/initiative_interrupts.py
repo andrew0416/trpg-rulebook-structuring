@@ -82,7 +82,7 @@ def _trigger(engine, raw):
     owner = engine._active_turn_actor
     if owner is None and raw.get('kind')=='accuracy' and set(raw)=={'kind','event_id'}:
         import move_defense_reactions as DEFENSE,focus_punch as FOCUS
-        proof=FOCUS.reaction_origin(engine,raw['event_id'],live=True)
+        proof=FOCUS.reaction_origin(engine,raw['event_id'],live=True) or __import__('marksman').reaction_origin(engine,raw['event_id'],live=True)
         if proof is not None:
             result=DEFENSE.authorize_trigger(engine,raw['event_id'])
             return dict(result,owner=None,round_end_source=proof)
@@ -106,7 +106,10 @@ def _trigger(engine, raw):
     if raw.get('kind')=='accuracy' and set(raw)=={'kind','event_id'}:
         import move_defense_reactions as DEFENSE
         result=DEFENSE.authorize_trigger(engine,raw['event_id'])
-        if result['owner'] is not owner:raise ValueError('accuracy defense suspended owner changed')
+        if result['owner'] is not owner:
+            proof=__import__('marksman').watch_reaction_origin(engine,raw['event_id'],live=True)
+            if proof is None:raise ValueError('accuracy defense suspended owner changed')
+            return dict(result,owner=owner,marksman_watch_source=proof)
         return result
     if raw.get('kind')=='move' and set(raw)=={'kind','event_id'}:
         import passive_events as EVENTS
@@ -749,7 +752,8 @@ def _validate_world(engine,index):
         overflow=window['trigger']['kind']=='duelist_overflow'
         round_end=window['trigger'].get('round_end_source') is not None
         if round_end:
-            if window['trigger']['kind']!='accuracy' or parent is not None or __import__('focus_punch').reaction_origin(engine,window['trigger']['event_id'],live=False)!=window['trigger']['round_end_source']:raise ValueError('actual no-owner round-end Move reaction origin required')
+            proof=__import__('focus_punch').reaction_origin(engine,window['trigger']['event_id'],live=False) or __import__('marksman').reaction_origin(engine,window['trigger']['event_id'],live=False)
+            if window['trigger']['kind']!='accuracy' or parent is not None or proof!=window['trigger']['round_end_source']:raise ValueError('actual no-owner round-end Move reaction origin required')
         if (key!=window['id'] or (between and parent is not None)
                 or (not between and not overflow and not round_end and (parent is None or index.get(parent.entity_id) is not parent))
                 or (overflow and parent is not None and index.get(parent.entity_id) is not parent)):
@@ -791,7 +795,11 @@ def _validate_world(engine,index):
             event=engine._passive_events.get(window['trigger']['event_id'])
             import move_defense_reactions as DEFENSE
             defense=None if event is None else DEFENSE._defense(engine,event)
-            if (event is None or (not round_end and event['actor'] is not window['parent']) or defense is None or
+            watch=window['trigger'].get('marksman_watch_source')
+            if watch is not None:
+                proof=__import__('marksman').watch_reaction_origin(engine,window['trigger']['event_id'],live=False)
+                if proof!=watch or parent is None or proof['owner_id']!=parent.entity_id:raise ValueError('actual Overwatch suspended turn owner changed')
+            if (event is None or (not round_end and watch is None and event['actor'] is not window['parent']) or defense is None or
                     defense['fingerprint']!=window['trigger']['defense_fingerprint']):
                 raise ValueError('reaction accuracy declaration changed')
         elif window['trigger']['kind']=='native_accuracy':

@@ -263,6 +263,16 @@ def refresh_session(engine,c):
 
 
 def move_frequency(engine,mid,c=None):
+    suppressed=__import__('condition_instances').csv_suppressed(c)
+    def effective(pair):
+        kind,count=pair
+        if suppressed:
+            if kind=='at_will':return 'every_other_turn',1
+            if kind=='every_other_turn' or kind=='scene' and count==2:return 'scene',1
+        return pair
+    def vitamin(actor,move,pair):
+        import vitamin_moves as VITAMINS
+        return pair if suppressed else VITAMINS.frequency(actor,move,pair)
     created=__import__('coordinator').innovation_instance(engine.r,mid)
     if created and created['template']==3 and __import__('coordinator').source(engine.r,created['source_contract'],__import__('coordinator').INNOVATION)['innovation3_frequency']=='turn':return 'turn',1
     if c is not None:
@@ -271,7 +281,7 @@ def move_frequency(engine,mid,c=None):
         if mid == 'move/잠재파워':
             import csv_item_capability_contracts as CSV_CAPABILITIES
             if CSV_CAPABILITIES.hidden_power_frequency(c, None) == 'At-Will':
-                return 'at_will', 1
+                return effective(('at_will', 1))
     if c is not None:
         for effect in engine.r.move_mech(mid)[0].get("effects_exec", []):
             if effect.get("type")=="frequency_rule" and "if_ghost" in effect and "else" in effect:
@@ -279,11 +289,11 @@ def move_frequency(engine,mid,c=None):
                 ghost = "고스트" in c.types or CLASS_MOVES.uses_ghost_curse(c,mid)
                 import vitamin_moves as VITAMINS
                 import signature_moves as SIGNATURE
-                return SIGNATURE.frequency(c,mid,VITAMINS.frequency(c,mid,parse(effect["if_ghost"] if ghost else effect["else"])))
+                return effective(SIGNATURE.frequency(c,mid,vitamin(c,mid,parse(effect["if_ghost"] if ghost else effect["else"]))))
     parsed=engine.r.moves_mech.get(mid,{}).get('header',{}).get('frequency')
     import vitamin_moves as VITAMINS
     import signature_moves as SIGNATURE
-    return SIGNATURE.frequency(c,mid,VITAMINS.frequency(c,mid,parse(parsed or engine.r.move(mid).get('frequency'))))
+    return effective(SIGNATURE.frequency(c,mid,vitamin(c,mid,parse(parsed or engine.r.move(mid).get('frequency')))))
 
 def move_allowed(engine,c,mid,*,outside_combat=None):
     # None preserves the low-level turn-ledger contract used by direct policy

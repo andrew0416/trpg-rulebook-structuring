@@ -53,7 +53,7 @@ def validate_record(actor,row,*,terminal=False):
         C.integer(p['amount'],'temporary AP payment',1)
         if p['mode']=='bind':
             E.text(p['instance_id'],'temporary AP actual binding')
-            if p['binding_owner'] not in ('bound_ap','class_passive_combat','combat_precision_features','commander_orders','rune_master','arcanist'):raise ValueError('temporary AP actual binding owner changed')
+            if p['binding_owner'] not in ('bound_ap','class_passive_combat','combat_precision_features','commander_orders','rune_master','arcanist','fortress'):raise ValueError('temporary AP actual binding owner changed')
             if p['state'] not in ('bound','released'):raise ValueError('temporary binding state changed')
         elif p['instance_id'] is not None or p['state'] not in (('spent','refunded') if p['mode']=='spend' else ('spent',)) or p['binding_owner'] is not None:raise ValueError('temporary Drain cannot be recovered')
     if remaining(row)<0:raise ValueError('temporary AP overspent')
@@ -101,7 +101,7 @@ def charge(actor,amount,*,ordinary_available,mode,instance_id,binding_owner=None
     funding=rows[0]['effect']['funding']
     used=min(amount,capacity) if funding['priority']=='temporary_first' else max(0,amount-ordinary_available)
     if used>capacity:raise ValueError('insufficient temporary funding')
-    if used and mode=='bind' and binding_owner not in ('bound_ap','class_passive_combat','combat_precision_features','commander_orders','rune_master','arcanist'):
+    if used and mode=='bind' and binding_owner not in ('bound_ap','class_passive_combat','combat_precision_features','commander_orders','rune_master','arcanist','fortress'):
         raise ValueError('temporary AP funding requires a supported actual bound-effect owner before payment')
     if used and mode=='bind' and funding['binding_expiry']=='require_decision':
         raise ValueError('temporary AP binding requires an explicit funding-loss ending policy before activation')
@@ -143,6 +143,9 @@ def before_expire(engine,actor,row):
         binding,target,rule=native_binding(engine,actor,uid,owner)
         if owner=='arcanist':
             __import__('arcanist').end_binding(engine,actor,binding)
+            continue
+        if owner=='fortress':
+            __import__('fortress').end_binding(engine,actor,binding)
             continue
         if owner=='rune_master':
             __import__('rune_master').end_binding(engine,actor,binding)
@@ -217,13 +220,14 @@ def preflight_binding(actor,amount,binding_owner):
     capacity=available(actor);ordinary=actor.ap_account.available()-capacity
     funding=rows[0]['effect']['funding']
     used=min(amount,capacity) if funding['priority']=='temporary_first' else max(0,amount-ordinary)
-    if used and (binding_owner not in ('bound_ap','class_passive_combat','combat_precision_features','commander_orders','rune_master','arcanist') or funding['binding_expiry']!='end_effect'):
+    if used and (binding_owner not in ('bound_ap','class_passive_combat','combat_precision_features','commander_orders','rune_master','arcanist','fortress') or funding['binding_expiry']!='end_effect'):
         raise ValueError('temporary AP binding requires supported actual owner and explicit funding-loss policy before action cost')
 
 
 def native_binding(engine,actor,uid,owner):
     """Resolve the same actual native owner for restore and funding-loss expiry."""
     if owner=='arcanist':return __import__('arcanist').binding(engine,actor,uid),actor,None
+    if owner=='fortress':return __import__('fortress').binding(engine,actor,uid),actor,None
     if owner=='rune_master':return __import__('rune_master').binding(engine,actor,uid),actor,None
     if owner=='bound_ap':
         import bound_ap as B

@@ -134,6 +134,7 @@ def install(engine,c,record):
 def expire(engine,c,record,*,ending='expired',event=None):
     current_records=records(c)
     if record not in current_records:return
+    __import__('fortress').ending(engine,c,record)
     __import__('telekinetic').ending(engine,c,record)
     if record.get('effect_instance',{}).get('kind')=='temporary_ap':
         import temporary_ap as TEMP_AP

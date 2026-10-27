@@ -312,7 +312,8 @@ def targetable(actor,*,attack=True,engine=None):
  return not (attack and MARSUPIAL.protected_from_attacks(actor,engine=engine)) and (validate(actor) or {}).get('mode')!='phasing'
 
 
-def require_targetable(actor,*,attack=True,engine=None):
+def require_targetable(actor,*,attack=True,engine=None,attacker=None):
+ if attacker is not None:__import__('condition_instances').require_target(attacker,actor)
  import marsupial_state as MARSUPIAL
  if attack and MARSUPIAL.protected_from_attacks(actor,engine=engine):raise ValueError('native Marsupial baby is protected in its conscious mother pouch')
  if not targetable(actor,attack=False):raise ValueError('Phasing body cannot be a Move or attack target')

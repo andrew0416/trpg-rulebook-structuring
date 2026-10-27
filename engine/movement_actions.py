@@ -384,6 +384,8 @@ def _paid_progress(c,path,progress):
 
 def _paid_receipts(e,progress):
  if progress is not None and progress.get('phase') in ('entry_pending','reaction_pending'):
+  for event_id in progress.get('marksman_events',[]):
+   __import__('move_completion').require_returned_event(e,event_id)
   for identity in progress.get('native_actions',[]):
    row=getattr(e,'_native_action_resolutions',{}).get(identity)
    if row is None:raise ValueError('paid movement lost its actual nested action receipt')
@@ -440,12 +442,21 @@ def _paid_entry(e,c,progress,*,surface,reconcile=False,previous_position=None):
   LIFETIMES.reconcile(e)
  __import__('ability_exchange_contracts').refresh(e)
  __import__('ability_control_contracts').refresh(e)
+ pending=None
  if surface and c.pos==position and c.spec.get('_movement_altitude',0)==altitude:
   import effects_ext as EXT
-  EXT.on_enter_cell(e,c,c.pos,previous_position=previous_position)
+  pending=EXT.on_enter_cell(e,c,c.pos,previous_position=previous_position)
+ elif c.pos==position and c.spec.get('_movement_altitude',0)==altitude:
+  pending=__import__('marksman').moved(e,c)
  observed=[key for key in getattr(e,'_effect_dispatch_receipts',{}) if key not in receipts]
  if progress is not None:
   progress['effects'].extend(observed);progress['phase']='ready'
+ if isinstance(pending,C.PendingDecision):
+  if progress is not None:
+   progress['phase']='entry_pending'
+   if getattr(e,'_marksman_attack',None) and getattr(e,'_passive_pending',None):
+    progress.setdefault('marksman_events',[]).append(e._passive_pending)
+  return False
  if ACTION.pending_resolution_effects(e,{'effects':observed}):
   if progress is not None:progress['phase']='entry_pending'
   return False

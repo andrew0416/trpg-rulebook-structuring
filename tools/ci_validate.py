@@ -775,6 +775,15 @@ def main():
             hashes.update(restore_private_policy(stage, private_policy, private_manifest, manifest, tracked))
             metadata["fixture_file_count"] += 1
         private_policy = None
+        if 'engine/marksman.py' in hashes:
+            if 'tools/ci_prepare_marksman_source.py' not in hashes:
+                raise ValueError('Marksman source preparation must be Git-tracked')
+            from ci_prepare_marksman_source import prepare_stage as prepare_marksman_source, SourcePreparationError
+            try:
+                metadata['marksman_source_preparation'] = prepare_marksman_source(stage, manifest, hashes, output)
+            except SourcePreparationError as exc:
+                metadata['marksman_source_preparation'] = exc.safe_report
+                raise
         if args.suite.startswith('procedural_'):
             from ci_procedural_gate import prepare_stage
             prepare_stage(stage, selected_packet, hashes, output / 'procedural-preparation.log')

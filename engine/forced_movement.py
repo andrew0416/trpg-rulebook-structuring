@@ -92,7 +92,8 @@ def _along_path(engine,actor,target,*,points,source,stop_cells=(),allow_fainted=
                 if (target.fainted and not allow_fainted) or not target.on_field or target.captured:stop='interrupted';break
                 if tuple(target.pos)!=destination:stop='relocated';break
                 import effects_ext as EXT
-                EXT.on_enter_cell(engine,target,destination,previous_position=path[-2])
+                entered=EXT.on_enter_cell(engine,target,destination,previous_position=path[-2])
+                if isinstance(entered,C.PendingDecision):stop='pending';break
                 if (target.fainted and not allow_fainted) or not target.on_field or target.captured:stop='interrupted';break
                 if tuple(target.pos)!=destination:stop='relocated';break
             if destination in stops:stop='declared_stop';break

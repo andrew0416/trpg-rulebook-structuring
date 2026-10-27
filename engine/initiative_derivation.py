@@ -172,7 +172,7 @@ def collect(rules, actor, *, engine=None):
         for index, record in enumerate(_native(BLESSINGS.initiative_contributions, engine, actor)):
             add('team:'+str(index), record['source'], dict(operation='add', value=record['amount']))
     flinch = _native(CONDITIONS.flinch_penalty, actor)
-    for record in CONDITIONS.records(actor, '풀죽음'):
+    for record in CONDITIONS.records(actor, '풀죽음') if flinch else ():
         add('flinch:'+record['id'], record['source'], dict(operation='flinch', value=-5))
     for condition in sorted(actor.conditions):
         for index, effect in enumerate(rules.condition_effects(condition)):

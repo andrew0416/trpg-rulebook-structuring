@@ -141,6 +141,9 @@ class RuleFilter:
     def load(cls, root, name=None):
         name = "all" if name is None else name
         with open(os.path.join(root, "data/rulesets.json"), encoding="utf-8") as handle:profiles = json.load(handle)["rulesets"]
+        import condition_editions as CONDITION_EDITIONS
+        if name in CONDITION_EDITIONS.PROFILES:
+            return cls(CONDITION_EDITIONS.profile(name,profiles.get(name)),name)
         if name not in profiles:raise KeyError(f"룰셋 프로필 없음: {name} (있는 것: {', '.join(profiles)})")
         return cls(profiles[name], name)
 

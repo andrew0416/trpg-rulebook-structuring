@@ -449,6 +449,7 @@ def h_repeat_last_move(engine, a, t, e, ctx):
 
 
 def h_attack(engine, a, t, e, ctx):
+    __import__('condition_instances').require_target(a,t)
     from ruleset import UnresolvedRuleSelection
     origin = e.get("_rule_id")
     if not origin:
@@ -1878,7 +1879,9 @@ def on_enter_cell(engine, c, cell, *, previous_position=None):
     import marsupial_state as MARSUPIAL
     MARSUPIAL.sync(engine)
     import hazard_state as HAZARDS
-    return HAZARDS.on_enter_cell(engine,c,cell,previous_position=previous_position)
+    result=HAZARDS.on_enter_cell(engine,c,cell,previous_position=previous_position)
+    pending=__import__('marksman').moved(engine,c)
+    return pending if isinstance(pending,__import__('common_checks').PendingDecision) else result
 
 
 def save_dc(engine, c, cond, dc):

@@ -235,6 +235,7 @@ def standard_allowed(actor,kind,native_move=None,engine=None):
 def infatuation_damage(actor,target,move,attack_source,attack_stat_value):
     if getattr(actor,'_duelist_ignoring',False):return attack_stat_value,0
     import condition_instances as CONDITIONS
+    if CONDITIONS.csv_edition(actor.r,'헤롱헤롱'):return attack_stat_value,0
     sources=CONDITIONS.beloved(actor)
     if '헤롱헤롱' in actor.conditions and not sources:raise ValueError('Infatuation needs its actual beloved before damage resolution')
     if '헤롱헤롱' not in actor.conditions or not sources:return attack_stat_value,0

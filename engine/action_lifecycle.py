@@ -497,6 +497,7 @@ def close_swarm_window(engine, actor):
 
 
 def close_turn(engine, actor):
+    __import__('condition_instances').close_turn(actor)
     import swarm_transitions as SWARM
     SWARM.finish_turn(actor)
     __import__('berserker').end_turn(actor)
@@ -571,6 +572,7 @@ def self_cures_sleep(actor, target, effects):
     return False
 
 def status_permission(engine, actor, kind, *, sleep_cure=False, new_action=True, _standing_up=False, _condition_recovery=None, _native_move=None):
+    if new_action and __import__('condition_instances').flinch_blocks(actor):return False
     import action_resources as RESOURCES
     if new_action and RESOURCES.action_locked(actor):return False
     if type(_standing_up) is not bool or (_standing_up and (kind!='shift' or '넘어짐' not in actor.conditions)):
@@ -602,6 +604,7 @@ def status_permission(engine, actor, kind, *, sleep_cure=False, new_action=True,
     limit = getattr(actor, "_turn_action_limit", None)
     if limit and limit.get('source')=='condition/혼란' and __import__('breather').staying_permission(engine,actor,kind):return True
     if limit and new_action:
+        if 'forbidden' in limit:return kind not in limit['forbidden']
         selected=__import__('ace_trainer').supreme_limit(engine,actor,limit,_native_move)
         if selected and (limit.get('source')!='condition/혼란' or kind=='standard') and not getattr(actor,'_restricted_action_taken',False):
             return True
@@ -640,6 +643,7 @@ def unable_standard(actor, *, engine=None):
     # Voluntary inaction, a successful paralysis save and modern Flinch are not.
     import swarm_transitions as SWARM
     if __import__('blessing_effects').effective_conditions(actor) & {"잠듦", "얼음"} and not SWARM.incapacitation_replaced(actor,engine=engine):return True
+    if __import__('condition_instances').flinch_blocks(actor) or 'standard' in (getattr(actor,'_turn_action_limit',None) or {}).get('forbidden',[]):return True
     # A failed modern Paralysis save still permits choosing Standard. Only an
     # actual Shift selection makes Standard unavailable; voluntary waiting does not.
     return bool(getattr(actor,'_turn_action_limit',None) and
@@ -667,6 +671,7 @@ def move_grant(engine, actor, target, move_id, *, source, kind=None):
     ace=ace or martial or __import__('focus_punch').authority(engine,actor,target,move_id,source)
     ace=ace or __import__('hex_maniac').move_authority(engine,actor,target,move_id,source)
     ace=ace or __import__('rune_master').move_authority(engine,actor,target,move_id,source)
+    ace=ace or __import__('marksman').authority(engine,actor,target,move_id,source)
     ace=ace or __import__('warper').move_authority(engine,actor,target,move_id,source)
     ace=ace or __import__('capture_specialist').move_authority(engine,actor,target,move_id,source)
     ace=ace or __import__('conquerors_march').reprisal_authority(engine,actor,target,move_id,source)
@@ -702,16 +707,17 @@ def consume_move_grant(engine, token, actor, target, move_id, *, count_use=None,
             focus=__import__('focus_punch').authority(engine,actor,target,move_id,entry[5])
             hex_maniac=__import__('hex_maniac').move_authority(engine,actor,target,move_id,entry[5])
             rune=__import__('rune_master').move_authority(engine,actor,target,move_id,entry[5])
+            marksman=__import__('marksman').authority(engine,actor,target,move_id,entry[5])
             warper=__import__('warper').move_authority(engine,actor,target,move_id,entry[5])
             signature=__import__('ace_trainer').move_authority(engine,actor,target,move_id,entry[5])
             capture=__import__('capture_specialist').move_authority(engine,actor,target,move_id,entry[5])
             capture=capture or __import__('conquerors_march').reprisal_authority(engine,actor,target,move_id,entry[5])
-            ace=ace or martial or focus or hex_maniac or warper or capture or rune
+            ace=ace or martial or focus or hex_maniac or warper or capture or rune or marksman
             commander=__import__('commander_orders').strike_authority(engine,actor,target,move_id,entry[5])
             if not (ace or signature or commander) and entry[5] not in ("maneuver/기회-공격", "same_move_activation", "feat/치명적인-장기말", "move/원한", "move/버티기", "move/버티기-홈브류"):
                 raise ValueError("a maneuver child token cannot authorize a Move")
             expected_count=entry[5] in ('feat/치명적인-장기말','move/원한','move/버티기','move/버티기-홈브류')
-            if martial or focus or hex_maniac or commander or rune:expected_count=True
+            if martial or focus or hex_maniac or commander or rune or marksman:expected_count=True
             elif warper or signature or capture:expected_count=False
             elif ace:expected_count=not __import__('type_ace').scope(engine,actor,{'id':move_id}).get('ignore_frequency',False)
             if entry[5] in __import__('endure').SOURCES:__import__('endure').authority(engine,actor)

@@ -489,6 +489,7 @@ def _mark_definition(engine,binding):
 def _mark_allowed(engine,p,t,binding):
  definition=_mark_definition(engine,binding)
  for foe,record in _mark_pairs(engine):
+  if record.get('fortress_mark'):continue
   marker=record['ace_marker']
   if marker is p and foe is t:continue
   old=_mark_definition(engine,record.get(CQM_CHOICE))
@@ -510,7 +511,7 @@ def _mark(engine,p,t,*,event=None,binding=None):
  if not _mark_allowed(engine,p,t,binding):return False
  import combat_timing as T
  for r in list(T.records(t)):
-  if r.get('ace_marker') is p:T.expire(engine,t,r,ending='replaced')
+  if r.get('ace_marker') is p or r.get('fortress_mark'):T.expire(engine,t,r,ending='replaced')
  historical={} if facts is None else {'ace_mark_event':event['id'],'count_deadline':(facts['round']+1,facts['count'])}
  if binding is not None:historical[CQM_CHOICE]=deepcopy(binding)
  _timed(engine,t,uid('Close Quarters Mastery'),ace_marker=p,**historical);return True

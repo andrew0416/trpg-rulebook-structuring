@@ -67,6 +67,7 @@ def _geometry(e,actor,target,gm_distance):
 
 @ACTION.resolved_native("actor",NET,"net_capsule")
 def fire(e,actor,*,target,fixed_accuracy=None,accuracy_roll_id=None,gm_distance=None):
+ __import__('condition_instances').require_target(actor,target)
  import pokemon_activities as P
  import ap_roll_bonus as AP
  import effects_ext as EXT

@@ -306,6 +306,8 @@ def start_target(e,actor,target,move,mm,scope):
         import style_expert as STYLE
         STYLE.begin_move(e,rows[token])
         __import__('arcanist').begin_move(e,rows[token])
+        __import__('marksman').begin_move(e,rows[token])
+        __import__('fortress').begin_move(e,rows[token])
         import move_coins as COINS
         COINS.begin(e,rows[token])
         import confusion_attacks as CONFUSION
@@ -496,6 +498,7 @@ def refresh(e,token=None):
         import improvised_weapons as IMPROVISED
         IMPROVISED.observe_completion(e,row)
         row['phase']='complete';row['completed_at']=e.elapsed_seconds
+        __import__('fortress').completed(e,row)
         __import__('commander_orders').mark_complete(e,row)
         __import__('musician').after_completion(e,row)
         __import__('rogue').after_move(e,row)
@@ -525,6 +528,7 @@ def refresh(e,token=None):
         __import__('conquerors_march').after_move(e,row)
         __import__('native_switch_transfer').observe_move(e,row)
         __import__('ability_control_contracts').after_move(e,row['actor'],row['move'])
+        __import__('marksman').after_complete(e,row)
         return refresh(e,token)
     profile=ACTIVATION._profile(e)
     if row['profile']!=profile or e.r._selected_rule(row['move_id'])!=row['move_id']:
@@ -621,6 +625,7 @@ def validate_return_continuation(e,event):
 
 
 def validate_world(e,index):
+    __import__('fortress').validate_world(e,index)
     __import__('hp_setting_moves').validate_world(e,index)
     __import__('coordinator').validate_world(e,index)
     __import__('ace_trainer').validate_world(e,index)

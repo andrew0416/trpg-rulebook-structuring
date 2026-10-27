@@ -108,6 +108,9 @@ def weather_save_mod(engine, cond, actor=None):
     weathers=WEATHER.effective_weathers(engine,actor,include_virtual=False)
     if not rule or not weathers:
         return 0
+    effects=engine.r.condition_effects(cond) if cond and engine.r.condition_class(cond) else []
+    modifiers=[effect['weather'] for effect in effects if effect.get('type')=='save_modifier' and 'weather' in effect]
+    if modifiers:return sum(modifier.get(WEATHER_KO.get(weather,weather),0) for weather in weathers for modifier in modifiers)
     return sum(rule["weathers"].get(weather, {}).get("save_mod", {}).get(cond, 0) for weather in weathers)
 
 

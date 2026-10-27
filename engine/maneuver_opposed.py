@@ -52,7 +52,7 @@ def _requirements(e,a,t,requirements):
 def _prepare(e,a,t,source,skills,challenger_skill,defender_skill,fixed_accuracy,challenger_options,defender_options,basis,_grant=None,*,config=None,observe=False):
     import body_modes as BODY_MODES
     config=__import__('type_ace').threaded_config(e,a,source,config)
-    BODY_MODES.require_targetable(t,engine=e)
+    BODY_MODES.require_targetable(t,engine=e,attacker=a)
     permission=_permission(e,a,t,source,_grant,config);basis=dict(basis,grant=permission)
     import movement_actions as MOVEMENT,temporary_hp as TEMP
     MOVEMENT.boundary(e,source);Q._selected(e,source);W.require_actors(e,a,t)
