@@ -473,7 +473,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 2
+          fetch-depth: 3
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.11'
@@ -539,7 +539,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Authenticated diagnostic decryption failed' }
           } finally { Remove-Item Env:PTK_FIXTURE_KEY -ErrorAction SilentlyContinue }
           $taskCode = @'
-          import hashlib, json, os, re, subprocess, zipfile
+          import ast, hashlib, json, os, re, subprocess, zipfile
           from pathlib import Path
 
           def main():
@@ -551,8 +551,9 @@ jobs:
               evidence_id = 'c2d7b14e8c1748be901c27c225337433'
               def git(*args):
                   return subprocess.check_output(['git', *args], cwd=root, stderr=subprocess.DEVNULL)
-              if git('rev-parse', 'HEAD^').decode().strip() != head:
-                  raise ValueError('The diagnostic proposal must directly follow its bound source')
+              if (git('rev-parse', 'HEAD^').decode().strip() != '546b6b15469852f56064783ce4f4913254df2970'
+                      or git('rev-parse', 'HEAD^^').decode().strip() != head):
+                  raise ValueError('The diagnostic follow-up must retain its exact original-source ancestry')
               if git('diff', '--name-only', head, 'HEAD').decode().splitlines() != ['.github/workflows/validate.yml']:
                   raise ValueError('Only the diagnostic workflow may change before this read')
               packet_blob = '3f3647f03c325c4a129b223524aaa8d2e9eabf83'
@@ -673,6 +674,132 @@ jobs:
                                 if line.split(':', 1)[0] in error_types), 'unclassified')
                   return {'test_ids': ids, 'exception_type': error, 'frames': frames[-80:],
                           'omitted_frame_count': max(0, len(frames) - 80)}
+
+              # Exact public labels and static codes only; never emit event IDs or message values.
+              ordinary_id = 'tools.test_enduring_soul_native_resume.NativeResumeTests.test_ordinary_native_standard_uses_real_loss_temp_provenance_budget_and_restore'
+              pending_ids = {
+                  'tools.test_book_enduring_soul_csv.EnduringSoulCsvTests.test_not_yet_minus_true_max_is_inclusive_but_below_it_never_offers',
+                  'tools.test_book_enduring_soul_csv.EnduringSoulCsvTests.test_not_yet_scene_once_sleeping_owner_and_injury_death_do_not_grant_extra_moves',
+                  'tools.test_enduring_soul_native_resume.NativeResumeTests.test_actual_heavy_loss_failure_rolls_back_not_yet_move_damage_cost_injury_and_rng'}
+              if ordinary_id not in public_ids or not pending_ids <= public_ids:
+                  raise ValueError('Exact Heavy diagnostic targets differ')
+              source_text = {}
+              def bound_line(path, number):
+                  if path not in source_text:
+                      body = git('show', head + ':' + path)
+                      if before.get(path) != hashlib.sha256(body).hexdigest():
+                          raise ValueError('Heavy diagnostic source binding differs')
+                      source_text[path] = body.decode('utf-8').splitlines()
+                  if not 0 < number <= len(source_text[path]):
+                      raise ValueError('Heavy diagnostic source line differs')
+                  return source_text[path][number - 1]
+              if (bound_line('engine/heavy_injury_adapter.py', 21).strip() != 'class HeavyPending(RuntimeError):'
+                      or bound_line('engine/passive_events.py', 12).strip() != 'class PassiveEventPending(RuntimeError):'
+                      or "self.fail(str([row.get('context_evidence') for row in self.e._heavy_events.values()]))" not in bound_line('tools/test_enduring_soul_native_resume.py', 42)
+                      or "raise H.HeavyPending(packet['event_id'])" not in bound_line('engine/heavy_standard_adapter.py', 375)):
+                  raise ValueError('Exact public exception or diagnostic producer differs')
+              pending_types = {
+                  'heavy_injury_adapter.HeavyPending': 'heavy_injury_adapter.HeavyPending',
+                  'passive_events.PassiveEventPending': 'passive_events.PassiveEventPending'}
+              def pending_type(trace):
+                  terminal = next((line for line in reversed(trace.splitlines()) if line.strip()), '')
+                  return pending_types.get(terminal.split(':', 1)[0], 'unclassified')
+              literal_codes = [
+                  ("actor_not_ordinary_conscious_on_field", "engine/heavy_standard_adapter.py", 339),
+                  ("actor:custom_conditions", "engine/heavy_standard_adapter.py", 343),
+                  ("actor:foreign_rules_reference", "engine/heavy_standard_adapter.py", 310),
+                  ("actor:missing_native_budget", "engine/heavy_injury_adapter.py", 261),
+                  ("actor:noncanonical_last_target", "engine/heavy_standard_adapter.py", 314),
+                  ("actual_conscious_native_standard_missing", "engine/heavy_standard_adapter.py", 136),
+                  ("actual_standard_payment_missing", "engine/heavy_standard_adapter.py", 43),
+                  ("attacker_standard_heavy_consequence_unresolved", "engine/heavy_injury_adapter.py", 377),
+                  ("empty_field_authority_or_effects_changed", "engine/heavy_standard_adapter.py", 330),
+                  ("engine_subclass_not_reviewed", "engine/heavy_injury_adapter.py", 341),
+                  ("equipment_changed_actor_resources_or_condition", "engine/heavy_standard_adapter.py", 41),
+                  ("external_native_observer", "engine/heavy_standard_adapter.py", 166),
+                  ("external_rule_observer", "engine/heavy_standard_adapter.py", 22),
+                  ("extra_or_unknown_roster_interactions", "engine/heavy_injury_adapter.py", 413),
+                  ("instance_callback", "engine/heavy_standard_adapter.py", 187),
+                  ("native_damage_bound_semantics_changed", "engine/heavy_standard_adapter.py", 194),
+                  ("native_loss_changes_injury_boundary", "engine/heavy_standard_adapter.py", 215),
+                  ("native_loss_crosses_death_boundary", "engine/heavy_standard_adapter.py", 220),
+                  ("native_loss_opens_a_new_faint_boundary", "engine/heavy_standard_adapter.py", 216),
+                  ("native_suffix_actor_feature", "engine/heavy_standard_adapter.py", 178),
+                  ("native_suffix_custom_condition", "engine/heavy_standard_adapter.py", 173),
+                  ("native_suffix_nonplain_stats", "engine/heavy_standard_adapter.py", 179),
+                  ("native_suffix_stab_bound_not_reviewed", "engine/heavy_standard_adapter.py", 188),
+                  ("native_type_binding_missing", "engine/heavy_injury_adapter.py", 339),
+                  ("no_actual_own_combat_turn", "engine/heavy_standard_adapter.py", 15),
+                  ("noncanonical_empty_field_handler", "engine/heavy_standard_adapter.py", 333),
+                  ("noncanonical_log_sink", "engine/heavy_standard_adapter.py", 182),
+                  ("noncanonical_rulings_type", "engine/heavy_standard_adapter.py", 159),
+                  ("noncanonical_runtime_type", "engine/heavy_standard_adapter.py", 117),
+                  ("nonplain_empty_field_effects", "engine/heavy_standard_adapter.py", 316),
+                  ("nonplain_move_data", "engine/heavy_standard_adapter.py", 100),
+                  ("nonplain_public_move_inputs", "engine/heavy_standard_adapter.py", 82),
+                  ("nonpositive_actor_has_no_actual_selected_interrupt", "engine/heavy_standard_adapter.py", 138),
+                  ("not_empty_mech_native_struggle", "engine/heavy_injury_adapter.py", 373),
+                  ("not_exact_zero_damage_targetless_whirlwind", "engine/heavy_standard_adapter.py", 328),
+                  ("not_ordinary_single_activation", "engine/heavy_standard_adapter.py", 337),
+                  ("not_reviewed_hp_independent_native_suffix", "engine/heavy_standard_adapter.py", 155),
+                  ("ordinary_active_combat_context_missing", "engine/heavy_standard_adapter.py", 336),
+                  ("other_trainer_native_interaction", "engine/heavy_standard_adapter.py", 212),
+                  ("overridden_native_method", "engine/heavy_standard_adapter.py", 169),
+                  ("rng_instance_state_not_native", "engine/heavy_standard_adapter.py", 185),
+                  ("rules_subclass_not_reviewed", "engine/heavy_injury_adapter.py", 342),
+                  ("rulings:hooks", "engine/heavy_injury_adapter.py", 410),
+                  ("self_target_interaction", "engine/heavy_injury_adapter.py", 376),
+                  ("target_marker_faint_or_massive_not_excluded", "engine/heavy_standard_adapter.py", 200),
+                  ("target_resource_interactions", "engine/heavy_standard_adapter.py", 180),
+                  ("unknown_rng_provider", "engine/heavy_standard_adapter.py", 183),
+                  ('pre_reservation_context_missing', 'engine/heavy_standard_adapter.py', 387),
+                  ('actor_changed_before_observed_activation', 'engine/heavy_standard_adapter.py', 390)]
+              allowed_codes = set()
+              for code, path, number in literal_codes:
+                  line = bound_line(path, number)
+                  if '.append(' + repr(code) + ')' not in line and '.append("' + code + '")' not in line:
+                      raise ValueError('Reviewed literal failure code differs')
+                  allowed_codes.add(code)
+              for code, number in (('rules:nonpassive_state:root', 142),
+                                   ('actor:nonpassive_state:_enduring_not_yet_live', 146)):
+                  if repr(code) not in bound_line('engine/heavy_standard_adapter.py', number):
+                      raise ValueError('Reviewed literal context code differs')
+                  allowed_codes.add(code)
+              if ('for label,c in (("attacker",attacker),("target",target)):' not in bound_line('engine/heavy_injury_adapter.py', 388)
+                      or "failures.append(label+':custom_conditions')" not in bound_line('engine/heavy_injury_adapter.py', 398)):
+                  raise ValueError('Reviewed finite context code labels differ')
+              allowed_codes.update(('attacker:custom_conditions', 'target:custom_conditions'))
+              def heavy_codes(trace):
+                  line = next((line for line in reversed(trace.splitlines()) if line.startswith('AssertionError: ')), None)
+                  if line is None:
+                      return {'status': 'no_literal_payload'}
+                  payload = line[len('AssertionError: '):]
+                  if len(payload) > 65536:
+                      return {'status': 'payload_bound_exceeded'}
+                  try:
+                      contexts = ast.literal_eval(payload)
+                  except (ValueError, SyntaxError, TypeError, RecursionError, MemoryError):
+                      return {'status': 'not_supported_literal'}
+                  if type(contexts) is not list or not 1 <= len(contexts) <= 16:
+                      return {'status': 'context_shape_mismatch'}
+                  found = {'failures': set(), 'native_suffix_failures': set()}
+                  unknown = {'failures': 0, 'native_suffix_failures': 0}
+                  keys = {'failures', 'upper_damage', 'checked', 'context', 'prepared_difference', 'native_suffix_failures'}
+                  for context in contexts:
+                      if type(context) is not dict or set(context) - keys or 'failures' not in context:
+                          return {'status': 'context_shape_mismatch'}
+                      for field in found:
+                          values = context.get(field, [])
+                          if type(values) is not list or len(values) > 256 or any(type(value) is not str for value in values):
+                              return {'status': 'failure_list_shape_mismatch'}
+                          for value in values:
+                              if value in allowed_codes:
+                                  found[field].add(value)
+                              else:
+                                  unknown[field] += 1
+                  return {'status': 'classified', 'context_count': len(contexts),
+                          'codes': {field: sorted(values) for field, values in found.items()},
+                          'unknown_code_counts': unknown}
               marker = 'PRIVATE_VALUE_MUST_NOT_LEAVE'
               case = sorted(public_ids)[0]
               synthetic = ('Traceback (most recent call last):\n  File "' + prefix +
@@ -688,6 +815,23 @@ jobs:
               assert reduce(case, marker + ': private', set(), lambda path: 0)['exception_type'] == 'unclassified'
               holder = case.rsplit('.', 1)[0]
               assert reduce('setUpClass (' + holder + ')', '', set(), lambda path: 0)['test_ids'] == sorted(name for name in public_ids if name.startswith(holder + '.'))
+              for name in pending_types:
+                  assert pending_type(name + ': ' + marker) == name
+              assert pending_type(marker + ': private') == 'unclassified'
+              assert pending_type('heavy_injury_adapter.HeavyPending: ' + marker + '\nRuntimeError: ' + marker) == 'unclassified'
+              assert pending_type('heavy_injury_adapter.HeavyPending: ' + marker + '\npassive_events.PassiveEventPending: ' + marker) == 'passive_events.PassiveEventPending'
+              heavy_sample = heavy_codes('AssertionError: ' + repr([{
+                  'failures': ['attacker:custom_conditions', 'actor:nonpassive_state:' + marker, 'native_suffix_custom_condition' + marker],
+                  'native_suffix_failures': ['native_suffix_custom_condition'],
+                  'upper_damage': 123, 'checked': [marker], 'context': marker,
+                  'prepared_difference': {'private': marker}}]))
+              assert heavy_sample['status'] == 'classified' and heavy_sample['context_count'] == 1
+              assert heavy_sample['codes'] == {'failures': ['attacker:custom_conditions'], 'native_suffix_failures': ['native_suffix_custom_condition']}
+              assert heavy_sample['unknown_code_counts'] == {'failures': 2, 'native_suffix_failures': 0}
+              assert marker not in json.dumps(heavy_sample) and 'upper_damage' not in heavy_sample
+              assert heavy_codes('AssertionError: not_a_literal()') == {'status': 'not_supported_literal'}
+              assert heavy_codes('AssertionError: ' + repr([marker])) == {'status': 'context_shape_mismatch'}
+              assert heavy_codes('AssertionError: ' + 'x' * 65537) == {'status': 'payload_bound_exceeded'}
 
               # shortcut: this exact completed full1252 failure only; review before another run.
               with zipfile.ZipFile(temporary / 'diagnostics.zip') as archive:
@@ -729,6 +873,7 @@ jobs:
                   raise ValueError('Original completed full1252 report differs')
               reduced = []
               failing_ids, error_ids = set(), set()
+              pending_classified, ordinary_payload_rows = [], 0
               for kind, status, target_ids in (('failures', 'fail', failing_ids), ('errors', 'error', error_ids)):
                   for row in report[kind]:
                       if (not isinstance(row, dict) or not isinstance(row.get('id'), str) or len(row['id']) > 65536
@@ -737,8 +882,25 @@ jobs:
                       item = reduce(row['id'], row['traceback'], tracked, line_count)
                       if not item['test_ids'] or any(public_status[name] != status for name in item['test_ids']):
                           raise ValueError('Original failure row public mapping differs')
+                      frame_keys = {(frame['path'], frame['line']) for frame in item['frames']}
+                      if kind == 'errors' and any(name in pending_ids for name in item['test_ids']):
+                          if (len(item['test_ids']) != 1 or item['exception_type'] != 'unclassified'
+                                  or ('engine/reactive_ability_events.py', 126) not in frame_keys):
+                              raise ValueError('Exact pending exception row/frame differs')
+                          item['exception_type'] = pending_type(row['traceback'])
+                          item['public_pending_class_matched'] = item['exception_type'] in pending_types
+                          pending_classified.extend(item['test_ids'])
+                      if kind == 'failures' and ordinary_id in item['test_ids']:
+                          if (item['test_ids'] != [ordinary_id] or item['exception_type'] != 'AssertionError'
+                                  or ('tools/test_enduring_soul_native_resume.py', 42) not in frame_keys
+                                  or ('engine/heavy_standard_adapter.py', 375) not in frame_keys):
+                              raise ValueError('Exact ordinary Heavy assertion row/frame differs')
+                          item['heavy_failure_identifiers'] = heavy_codes(row['traceback'])
+                          ordinary_payload_rows += 1
                       target_ids.update(item['test_ids'])
                       reduced.append(dict(kind=kind, **item))
+              if len(pending_classified) != 3 or set(pending_classified) != pending_ids or ordinary_payload_rows != 2:
+                  raise ValueError('Exact Heavy diagnostic extension scope differs')
               if (len(failing_ids) != 9 or len(error_ids) != 41 or failing_ids & error_ids
                       or failing_ids != {name for name, status in public_status.items() if status == 'fail'}
                       or error_ids != {name for name, status in public_status.items() if status == 'error'}):
@@ -753,7 +915,10 @@ jobs:
                             original_verifier_status='fail', original_verifier_exit_code=1, original_report_count=1,
                             original_tests_run=1252, original_unique_pass=1202, original_unique_fail=9, original_unique_error=41,
                             raw_failure_rows=13, raw_error_rows=53, diagnostic_not_new_test_evidence=True,
-                            full1252_repair_scope_still_pending=True, failures=reduced)
+                            full1252_repair_scope_still_pending=True, failures=reduced,
+                            diagnostic_extension='heavy_static_identifiers_v1', public_pending_rows=3,
+                            ordinary_heavy_payload_rows=2, reviewed_failure_code_count=len(allowed_codes),
+                            unknown_code_values_disclosed=False)
               with (root / 'aa-diagnostics.json').open('x', encoding='utf-8') as stream:
                   json.dump(result, stream, ensure_ascii=False, indent=2)
 
