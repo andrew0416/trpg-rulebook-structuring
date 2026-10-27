@@ -98,13 +98,28 @@ class IndependentFieldSlotsRevisionTests(unittest.TestCase):
 
     def test_native_terrain_replacement_and_same_source_refresh_leave_other_fields(self):
         engine, actor, target = self.world([PSYCHIC, GRAVITY, GRASS])
-        for index, move_id in enumerate((PSYCHIC, GRAVITY, GRASS, GRAVITY)):
+        for index, move_id in enumerate((PSYCHIC, GRAVITY, GRASS)):
             if index:
                 engine.start_round(engine.everyone)
             self.native_field(engine, actor, move_id)
+        engine.start_round(engine.everyone)
+        engine.start_of_turn(actor, initiative_count=20)
+        before = deepcopy((actor.budget, actor.move_uses, engine.rng.getstate(), self.rows(engine)))
+        self.assertEqual(engine.use_move(actor, actor, GRAVITY), 0)
+        self.assertEqual((actor.budget, actor.move_uses, engine.rng.getstate(), self.rows(engine)), before)
+        engine.end_of_turn(actor)
+        engine.gm.set_move(target, GRAVITY, True, reason='actual second user of the same field source')
+        engine.start_of_turn(target, initiative_count=5)
+        before = target.budget['standard']
+        engine.use_move(target, target, GRAVITY)
+        self.assertEqual(target.budget['standard'], before - 1)
+        self.assertEqual(target.move_uses[GRAVITY], 1)
+        engine.end_of_turn(target)
         self.assertEqual(engine.field['source_id'], GRASS)
         self.assertEqual(set(self.rows(engine)), {GRAVITY, GRASS})
         self.assertEqual(self.rows(engine)[GRAVITY]['rounds'], 5)
+        self.assertEqual(self.rows(engine)[GRAVITY]['creator_id'], target.entity_id)
+        self.assertEqual(self.rows(engine)[GRASS]['rounds'], 4)
         self.assertEqual(FIELD.accuracy_modifier(engine, actor), 2)
         self.assertEqual(FIELD.damage_roll_modifier(engine, actor, target,
             self.r.move('move/염동력'), '에스퍼'), 0)
@@ -182,10 +197,13 @@ class IndependentFieldSlotsRevisionTests(unittest.TestCase):
                 self.assertEqual(room_user.budget['standard'], before - int(gravity_first))
                 self.assertEqual(result > 0, gravity_first)
                 engine.end_of_turn(room_user)
+                engine.gm.set_move(enemy, 'move/무릎차기', True,
+                    reason='actual second Move with the printed Gravity restriction')
                 engine.start_of_turn(enemy, initiative_count=10)
-                before = deepcopy((enemy.budget, enemy.move_uses, engine.rng.getstate()))
-                self.assertEqual(engine.use_move(enemy, room_user, 'move/점프킥'), 0)
-                self.assertEqual((enemy.budget, enemy.move_uses, engine.rng.getstate()), before)
+                for blocked_move in ('move/점프킥', 'move/무릎차기'):
+                    before = deepcopy((enemy.budget, enemy.move_uses, engine.rng.getstate(), self.rows(engine)))
+                    self.assertEqual(engine.use_move(enemy, room_user, blocked_move), 0)
+                    self.assertEqual((enemy.budget, enemy.move_uses, engine.rng.getstate(), self.rows(engine)), before)
                 engine.end_of_turn(enemy)
                 engine.start_round(engine.everyone)
                 self.assertFalse(self.rows(engine))

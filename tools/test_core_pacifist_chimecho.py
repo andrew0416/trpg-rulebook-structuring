@@ -171,13 +171,39 @@ class PacifistChimechoTests(unittest.TestCase):
   declaration['species']['allowed']=[PACIFIST]
   row=self.e.create_declared_egg(self.a,parents,declaration,request_id='pacifist-egg',compatible=True,species=PACIFIST,
    inheritance_moves=['move/맹독'],reason='GM adopts actual example child species')
-  # The newborn's one Basic Ability (ch05:111,660) is valid, so the pacifist Move guard is what rejects.
+  import pokemon_entities as EGGS,growth_milestones as MILESTONES
+  # One legal Basic Ability; inheritance is a future list, not birth knowledge.
   choices={'gender':'female','nature':'노력','abilities':['부유'],'moves':BIRTH,'inheritance_moves':['move/맹독'],'special_appearance':False}
   before=self.before()
-  with self.assertRaisesRegex(ValueError,'pacifist'):
-   self.e.hatch_declared_egg(self.a,row['entity_id'],name='child',ready=True,reason='actual observed hatch',choices=choices)
+  with self.assertRaisesRegex(ValueError,'birth known move is outside natural level-up candidates'):
+   self.e.hatch_declared_egg(self.a,row['entity_id'],name='child',ready=True,reason='actual observed hatch',
+    choices=dict(choices,moves=BIRTH+['move/맹독']))
   self.assertEqual(self.before(),before)
-  self.assertFalse(row['hatched'])
+  self.assertFalse(EGGS.egg_index(self.e)[row['entity_id']][1]['hatched'])
+  child=self.e.hatch_declared_egg(self.a,row['entity_id'],name='child',ready=True,
+   reason='actual birth with only the printed initial Moves',choices=choices)['pokemon']
+  actual_egg=EGGS.egg_index(self.e)[row['entity_id']][1]
+  self.assertTrue(actual_egg['hatched']);self.assertEqual(actual_egg['pokemon_id'],child.entity_id)
+  self.assertEqual(child.abilities,['부유']);self.assertEqual(child.moves,BIRTH+['struggle'])
+  self.assertEqual(child.spec['inheritance_moves'],['move/맹독'])
+  self.assertNotIn('move/맹독',child.spec.get('move_learning',{}))
+  # ch05:654 defers inheritance learning until the actual level20 milestone.
+  self.e.gm.set_level(child,19,reason='observed current level before native twentieth growth')
+  D.gain_exp_combatant(self.e,child,'to next level')
+  self.assertEqual(child.level,20)
+  slot=child.spec[MILESTONES.KEY]['inheritance:20']
+  self.assertEqual(slot['offered']['options'],['move/맹독']);self.assertIsNone(slot['selection'])
+  before=self.before()
+  with self.assertRaisesRegex(ValueError,'pacifist'):
+   self.e.choose_growth_inheritance(child,20,'move/맹독',reason='actual inherited Move learning attempt')
+  self.assertEqual(self.before(),before)
+  self.assertIsNone(child.spec[MILESTONES.KEY]['inheritance:20']['selection'])
+  saved=json.loads(json.dumps(CODEC.dump_engine(self.e),ensure_ascii=False))
+  restored=CODEC.load_engine(self.r,saved)
+  loaded=next(actor for actor in restored.everyone if actor.entity_id==child.entity_id)
+  self.assertEqual(loaded.spec,child.spec);self.assertEqual(loaded.moves,child.moves)
+  self.assertNotIn('move/맹독',loaded.moves)
+  self.assertNotIn('move/맹독',loaded.spec.get('move_learning',{}))
 
  def test_source_provenance_and_saved_learned_state_are_enforced(self):
   p=self.pokemon();self.teach(p,'치료방울');self.e.gm.snapshot('pacifist')

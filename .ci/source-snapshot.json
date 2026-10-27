@@ -24,9 +24,9 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "published-restoration02-after-final01",
-  "active_repair_scope": "Validate the next already-published source restoration cohort after the completed seven-case fixture repair: exact409 native IDs/61classes/59modules, preserving original owner80+261+68 with400 existing declarations and9 new methods. Preserve current G.weight and original-accuracy repairs. Earlier7/108/226/1252/276 evidence remains separately recorded; this is new409 execution scope, not cumulative PASS or clause credit. Synthetic preparation7 remains separate.",
-  "active_repair_required_tests": 409,
+  "active_repair": "repair409-field-and-birth01",
+  "active_repair_scope": "Validate the exact12-ID/6-class repair union after original409 produced406PASS and3FAIL: preserve all3 failures,5 original PASS impacts and4 additional existing field/frequency checks. Gravity admission precedes payment, daily same-scene refusal remains, and pacifist inheritance is tested at its actual learning milestone. Root local12PASS is separately recorded; the remote12 still needs its own result. Separate synthetic7 and clause credit remain distinct.",
+  "active_repair_required_tests": 12,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -42,7 +42,7 @@
   "separately_pending_frequency_equivalence_methods": 1029,
   "separately_pending_procedural_runners": 21,
   "ordinary_shard_count": 18,
-  "active_repair_phase": "next_published_source_restoration",
+  "active_repair_phase": "field_preflight_and_birth_fixture_repairs",
   "active_repair_procedural_runners": 0,
   "full_method_obligations": 13847,
   "ordinary_methods_separate_run": 40141538702,
@@ -77,14 +77,14 @@
   "phase2_metadata_methods_mandatory": 0,
   "phase2_additional_procedural_runners": 0,
   "unaffected_previous_PASS_reused": 0,
-  "selected_method_obligations": 409,
+  "selected_method_obligations": 12,
   "partial_prerequisite_refresh": true,
   "full_method_scope_executed": false,
   "source_fresh_native_prerequisites": 1404,
   "native_prerequisite_run": "40241811271",
   "activation_current_evidence_current": false,
   "previous_activation_evidence": "historical_only_not_current",
-  "active_repair_source_commit": "f5a76aac2c30ccecd265743939340eaf73c05c82",
+  "active_repair_source_commit": "c655cfd3f12bb7d5c675670f4e0d786504b2fc11",
   "active_repair_source_plan_path": ".ci/suites/changed_revisions.json",
   "historical_source_contract_repair": {
     "source_commit": "2f8975c41bd76cf48c904df85cf92a489430dbbc",
@@ -859,5 +859,98 @@
       "active_repair_phase": "two_fixture_corrections"
     },
     "historical_fields": "All earlier667/18/276/1252/226/108/7/4115 preparations, sourcepins, actual results and stored historical completion totals stay unchanged. New409 is a distinct future native scope; prior failures are not relabeledPASS."
+  },
+  "repair409_field_and_birth_preparation": {
+    "status": "SOURCE3_COMPOSED_ROOT_LOCAL12_PASS_PUBLIC_CI12_PREPARED_REMOTE_UNEXECUTED",
+    "base_commit": "c655cfd3f12bb7d5c675670f4e0d786504b2fc11",
+    "source_candidate": "branch-integration-1027ai/repair409-composed01",
+    "source_handoff": "branch-integration-1027ai/repair409-composed01/HANDOFF.json",
+    "source_upload_manifest": "branch-integration-1027ai/repair409-composed01/review/SOURCE-UPLOAD.json",
+    "source_delta_againstc655": {
+      "paths": 3,
+      "runtime": 1,
+      "tests": 2,
+      "new_paths": 0,
+      "additions": 59,
+      "deletions": 8
+    },
+    "selection": "branch-integration-1027ai/repair409-composed01/review/required-repair-tests.json",
+    "required_unique_count": 12,
+    "required_class_groups": 6,
+    "counts": {
+      "field_slots": 11,
+      "pacifist_birth": 1,
+      "owner_sum": 12,
+      "duplicates": 0,
+      "original3_failed_included": 3,
+      "original3_failed_missing": 0,
+      "selected_original409": 8,
+      "selected_original_pass": 5,
+      "selected_original_fail": 3,
+      "additional_existing": 4,
+      "new_methods": 0
+    },
+    "owners": {
+      "field_slots": 11,
+      "pacifist_birth": 1
+    },
+    "new_test_ids": [],
+    "original_result": {
+      "run": 40570418592,
+      "job": 122422814621,
+      "head": "c655cfd3f12bb7d5c675670f4e0d786504b2fc11",
+      "collected": 409,
+      "executed": 409,
+      "unique_pass": 406,
+      "unique_fail": 3,
+      "unique_error": 0,
+      "raw_failures": 4,
+      "original_failure_preserved": true
+    },
+    "root_local_validation": {
+      "record": "branch-integration-1027ai/repair409-local01/RESULT.json",
+      "composition": "branch-integration-1027ai/repair409-local01/composition.json",
+      "status": "LOCAL_NATIVE12_PASS_INPUTS_STABLE",
+      "required": 12,
+      "collected": 12,
+      "executed": 12,
+      "pass": 12,
+      "fail": 0,
+      "error": 0,
+      "exit_code": 0,
+      "suite_seconds": 87.818,
+      "verifier_seconds": 89.259,
+      "stable_hashes": true,
+      "complete_pre_input_capture": true,
+      "complete_loaded_input_capture": true,
+      "loaded_inputs_missing_pre_execution_capture": [],
+      "H_acceptance_claimed": false,
+      "scope": "Executed byRoot under the temporary local-verification authorization using restored original frozen inputs. This worker did not run tests or hashes. This is not a new remote result or whole409 PASS."
+    },
+    "source_composition": "Three owner preimages match currentc655 as exact source text and file size. Nonoverlapping owner bodies copied into this candidate exactly. No R/mirror/original candidate/private manifest change.",
+    "repairs": "Use existing selected Gravity usage restrictions at the common prepayment field boundary; retain Daily once-per-scene refusal and refresh via a second actual actor; test legal birth with future inheritance then actual20-level harmful-learning rejection and codec preservation.",
+    "source_admission_hold": "The exact original authenticated inputs omit a Supercell Slam physical-attack policy. Its actual Pass producer rejects source admission beforeFIELD; no policy addition, bypass or field-path PASS claim.",
+    "selection_boundary": "All original3 failures retained. Other valid original406 PASS and earlier409-discovery/7/108/226/1252/276 evidence remain immutable within scope. A12-method repair packet does not replace all earlier obligations or imply canonical equality.",
+    "budget": {
+      "native_timeout_seconds": 10800,
+      "aa_native_job_timeout_minutes": 195,
+      "generic_job_timeout_minutes": 105,
+      "default_native_timeout_seconds": 5400,
+      "fit_or_speedup_claim": false
+    },
+    "execution_route": "Unchanged ordinary verifier/H and full original physical input/evidence capture. No protected runner/fixture-manifest/private transport change, diagnostic_profile, thin capture, newSecret or synthetic substitution.",
+    "source_preparation": "Existing7 synthetic preparation checks and authenticated PDF preparation are unchanged and separate from native12.",
+    "current_diagnostic_route": "Existing aa_diagnostics is inherited unchanged with its historical exact-run binding; it is not dispatched or silently rebound by this candidate.",
+    "canonical_publication": false,
+    "completion_credit": 0,
+    "prior_active_repair": {
+      "active_repair": "published-restoration02-after-final01",
+      "active_repair_scope": "Validate the next already-published source restoration cohort after the completed seven-case fixture repair: exact409 native IDs/61classes/59modules, preserving original owner80+261+68 with400 existing declarations and9 new methods. Preserve current G.weight and original-accuracy repairs. Earlier7/108/226/1252/276 evidence remains separately recorded; this is new409 execution scope, not cumulative PASS or clause credit. Synthetic preparation7 remains separate.",
+      "active_repair_required_tests": 409,
+      "selected_method_obligations": 409,
+      "active_repair_source_commit": "f5a76aac2c30ccecd265743939340eaf73c05c82",
+      "active_repair_phase": "next_published_source_restoration"
+    },
+    "historical_fields": "All previous409/7/108/226/1252/276 and earlier declarations, sourcepins, actual results and stored historical completion totals are retained. Root local12 is distinct from a future remote12. Original failures are never rewritten as passed."
   }
 }

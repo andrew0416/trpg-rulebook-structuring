@@ -183,8 +183,8 @@ jobs:
             if ($taskSummaries.Count -ne 1) { throw 'One original native summary is required' }
             $taskSummary = Get-Content -LiteralPath $taskSummaries[0].FullName -Raw | ConvertFrom-Json
             $taskReport = @($taskSummary.reports)
-            if ($taskReport.Count -ne 1 -or -not $taskReport[0].successful -or $taskReport[0].tests_run -ne 409 -or $taskReport[0].collected_count -ne 409 -or $taskReport[0].status_counts.pass -ne 409) {
-              throw 'The exact 409-case published restoration scope did not pass; prior results and synthetic checks are separate'
+            if ($taskReport.Count -ne 1 -or -not $taskReport[0].successful -or $taskReport[0].tests_run -ne 12 -or $taskReport[0].collected_count -ne 12 -or $taskReport[0].status_counts.pass -ne 12) {
+              throw 'The exact 12-case field and birth repair scope did not pass; local and synthetic evidence are separate'
             }
           }
       - name: Check original ordinary evidence with unchanged independent H
@@ -421,8 +421,8 @@ jobs:
           if ($taskSummaries.Count -ne 1) { throw 'One original native summary is required' }
           $taskSummary = Get-Content -LiteralPath $taskSummaries[0].FullName -Raw | ConvertFrom-Json
           $taskReport = @($taskSummary.reports)
-          if ($taskReport.Count -ne 1 -or -not $taskReport[0].successful -or $taskReport[0].tests_run -ne 409 -or $taskReport[0].collected_count -ne 409 -or $taskReport[0].status_counts.pass -ne 409) {
-            throw 'The exact 409-case published restoration scope did not pass; prior results and synthetic checks are separate'
+          if ($taskReport.Count -ne 1 -or -not $taskReport[0].successful -or $taskReport[0].tests_run -ne 12 -or $taskReport[0].collected_count -ne 12 -or $taskReport[0].status_counts.pass -ne 12) {
+            throw 'The exact 12-case field and birth repair scope did not pass; local and synthetic evidence are separate'
           }
       - name: Check original ordinary evidence with unchanged independent H
         if: ${{ always() }}

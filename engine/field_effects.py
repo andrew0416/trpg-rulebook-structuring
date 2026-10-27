@@ -877,9 +877,16 @@ def native_move_block_reason(engine, move_id, actor=None):
     """Return a global field source that rejects this Move before activation."""
     if actor is not None:
         terrain_for(engine,actor,include_virtual=False)
-    for gravity in airborne_move_fields(engine, actor):
+    fields = airborne_move_fields(engine, actor)
+    for gravity in fields:
         if move_id in gravity["effect"].get("blocked_airborne_moves", ()):
             return gravity["source_id"]
+    if fields:
+        mechanics, _ = engine.r.move_mech(move_id)
+        for effect in mechanics.get("effects_exec", ()):
+            if (effect.get("type") == "usage_restriction"
+                    and "중력" in str(effect.get("only_if", "")) + str(effect.get("not_under", ""))):
+                return fields[0]["source_id"]
     return None
 
 
