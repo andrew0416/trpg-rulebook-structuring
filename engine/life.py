@@ -74,6 +74,9 @@ def sync(engine,c):
         dying=(c.injuries+CSV_CAP.essence_base_injuries(c)>=d['injuries'] or (not engine.friendly_battle and c.hp<=threshold))
     import taskmaster as TASK
     press=False if dying else TASK.faint_boundary(engine,c)
+    if c.hp>0:__import__('berserker').faint_boundary(engine,c)
+    if c.hp<=0 and not dying and not press:
+        press=__import__('berserker').faint_boundary(engine,c)
     if c.hp<=0 and not press:
         faint(engine,c)
         if c.faint_recovery_seconds is not None:
@@ -104,6 +107,7 @@ def heal(engine,c,amount,source_kind='unspecified'):
     if c.hp>0:
         import taskmaster as TASK
         for row in TASK.records(c):row['press_on']=False
+        __import__('berserker').faint_boundary(engine,c)
     if '기절' in c.conditions and c.hp>0 and gained>0:
         import optional_physical_equipment as OPTIONAL_EQUIPMENT
         if OPTIONAL_EQUIPMENT.awakening_blocked(engine,c):

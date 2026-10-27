@@ -124,4 +124,5 @@ def mechanics(e,move,original,*,actor=None):
 def read(e,move,actor=None):
     """Keep the selected mechanics on native accuracy/damage re-reads."""
     original,confidence=e.r.move_mech(move['id'])
-    return mechanics(e,move,original,actor=actor),confidence
+    mm=mechanics(e,move,original,actor=actor)
+    return __import__('rune_master').mechanics(e,actor,move,mm),confidence

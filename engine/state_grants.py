@@ -892,6 +892,10 @@ def _revoke_sources(c,source_ids,engine,*,_settled_payment_ids=()):
     preflight_revoke(c,source_ids)
     old=list(c.abilities)
     sources=_revocation_sources(c,source_ids)
+    if engine is not None and c.spec.get(__import__('arcanist').BIND):
+        __import__('arcanist').before_revoke(engine,c,sources)
+    if engine is not None and any(st['sources'].get(key,{}).get('rune_alarms') for key in sources):
+        __import__('rune_master').before_revoke(engine,c,sources)
     if engine is not None:__import__('telekinetic').before_revoke(engine,c,sources)
     if engine is not None:__import__('telepath').before_revoke(engine,c,sources)
     groups={st['sources'][key]['payment_id'] for key in sources if key in st['sources'] and st['sources'][key].get('payment_id')}
@@ -1326,6 +1330,9 @@ def _transition(engine,c,apply,*,participants=(),include_rulings=False,include_g
     try:
         with TRACE.staged_scope(engine,staged_engine):
             result=apply(staged_engine,staged_c,*staged_participants)
+        if any(row.get('rule_id')=='supp-fantasy/룬마스터' for actor in WORLD.actor_index(staged_engine).values()
+               for row in actor.spec.get(KEY,{}).get('sources',{}).values()):
+            __import__('rune_master').reconcile_unown(staged_engine)
     finally:
         _TRANSITION_MOVE_ALIASES.reset(context)
     import ranged_struggle as RANGED

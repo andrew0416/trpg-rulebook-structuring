@@ -24,9 +24,9 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "integrated-source-native95-candidate",
-  "active_repair_scope": "Retained AA and affected-boundary91 plus source Flame Burst2 plus Gas projection2. Two-parent source integration only; canonical published class/CSV source recovery and D/remote acceptance remain pending. Original full revision obligations and historical native/H evidence are retained. No current PASS, full2352 audit or completion credit.",
-  "active_repair_required_tests": 95,
+  "active_repair": "published-three-class-source-recovery",
+  "active_repair_scope": "Restore published Arcanist, Berserker and Rune Master sources and their actual acquisition, cost, receipt, native Move and lifetime consumers on the integrated source branch. Retain all native95 declarations; include the full historical71 union, actual changed-boundary guards, and two new native regressions for Arcanist continuation aliases and the selected legacy Rage lifetime. Canonical publication and full2352 acceptance remain pending.",
+  "active_repair_required_tests": 219,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -77,14 +77,14 @@
   "phase2_metadata_methods_mandatory": 0,
   "phase2_additional_procedural_runners": 0,
   "unaffected_previous_PASS_reused": 0,
-  "selected_method_obligations": 95,
+  "selected_method_obligations": 219,
   "partial_prerequisite_refresh": true,
   "full_method_scope_executed": false,
   "source_fresh_native_prerequisites": 1404,
   "native_prerequisite_run": "40241811271",
   "activation_current_evidence_current": false,
   "previous_activation_evidence": "historical_only_not_current",
-  "active_repair_source_commit": "a8e047d2af3459bd09d0c2af8f4fd6781fbcb9d1",
+  "active_repair_source_commit": "739da9a09bd48aa53e721c08416114fe88c2b3b4",
   "active_repair_source_plan_path": ".ci/suites/changed_revisions.json",
   "historical_source_contract_repair": {
     "source_commit": "2f8975c41bd76cf48c904df85cf92a489430dbbc",
@@ -94,10 +94,13 @@
     "boundary": "Original source-contract preparation remains branch/base/manifest bound and must not be dispatched on the integration branch unchanged. Its plan and preparation facts below are historical, not certification of native95."
   },
   "integration_source": {
-    "parents": ["69b13a0b573cad186f126a99f6093ece2c44288a", "453bd89e31defaf1943491b444ae46f70a419a9d"],
+    "parents": [
+      "69b13a0b573cad186f126a99f6093ece2c44288a",
+      "453bd89e31defaf1943491b444ae46f70a419a9d"
+    ],
     "merge_commit": "a8e047d2af3459bd09d0c2af8f4fd6781fbcb9d1",
-    "native_route": "existing ci_validate followed by unchanged ci_remote_h; exact current-run/head packet95 binding and authenticated fixture/policy restoration",
-    "native_result": "NOT_EXECUTED",
+    "native_route": "Existing ci_validate and unchanged ci_remote_h; current-run/head packet219 and original authenticated fixture/policy restoration.",
+    "native_result": "Prior native95 and H passed at739da9a; this class3 candidate has not yet executed.",
     "canonical_completed_field_is_historical": true,
     "canonical_source_equivalence": false,
     "full_method_scope_executed": false,
@@ -111,5 +114,28 @@
     "existing_class_owners_preserved": true,
     "fixture_cipher_sha256": "5d5dcecfbc08ace8a7e7f93a1433186282b903c065ad86674b4a6fc34733ada9",
     "fixture_manifest_sha256": "32f3b6b64b44afec5e32657a08efba1046434543080fa218426fd80155e7f6b4"
+  },
+  "previous_integration_native": {
+    "head": "739da9a09bd48aa53e721c08416114fe88c2b3b4",
+    "run": 40429275878,
+    "job": 121942723244,
+    "unique_pass": 95,
+    "independent_H": "H_PHYSICAL_ACCEPTED",
+    "scope": "Precedes class3 restoration; original evidence remains valid within that prior scope."
+  },
+  "published_class_recovery": {
+    "base": "739da9a09bd48aa53e721c08416114fe88c2b3b4",
+    "classes": [
+      "Arcanist",
+      "Berserker",
+      "Rune Master"
+    ],
+    "declared_unique_tests": 219,
+    "private_bundle_changed": false,
+    "verifier_changed": false,
+    "H_changed": false,
+    "canonical_publication": false,
+    "completion_credit": 0
   }
 }
+

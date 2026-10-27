@@ -129,7 +129,7 @@ def apply_attack_damage(engine, attacker, target, amount, move, *, producer, rem
                            and 2*amount >= before["real_max_hp"]
                            and not same_massive_basis)
     import taskmaster as TASK
-    relevant = (max(before["injuries"],after["injuries"]) >= 5 or potential_threshold) and not hardened
+    relevant = (max(before["injuries"],after["injuries"]) >= 5 or potential_threshold) and not hardened and not __import__('berserker').lessons(target)
     issues = []
     if relevant:
         if not certified:issues.append("production_effect_interactions_not_proven")

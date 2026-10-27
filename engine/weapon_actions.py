@@ -41,6 +41,8 @@ def prepare(engine, actor, move, weapon_id=None):
     if borrowed is not None:return borrowed
     rogue=__import__('rogue').weapon_move(engine,actor,move,weapon_id)
     if rogue is not None:return rogue
+    berserker=__import__('berserker').weapon_move(engine,actor,move,weapon_id)
+    if berserker is not None:return berserker
     if "_weapon_attack" in move:
         if move['_weapon_attack'].get('intrinsic'):
             import csv_item_capability_contracts as CSV_CAPABILITIES
@@ -199,7 +201,7 @@ def range_spec(engine,move,actor=None):
     override=move.get("_struggle_range") or move.get("_class_move_range") or move.get("_optional_move_range") or move.get("_weapon_attack",{}).get("range")
     if override:
         import duelist as DUELIST
-        return DUELIST.range_spec(engine,actor,move,override)
+        return __import__('arcanist').range_spec(engine,actor,move,DUELIST.range_spec(engine,actor,move,override))
     from copy import deepcopy
     reviewed=engine.r.moves_reviewed.get(move["id"],{})
     result=deepcopy(reviewed.get("range") or engine.r.moves_mech.get(move["id"],{}).get("header",{}).get("range") or {"raw":move.get("range","")})
@@ -233,7 +235,8 @@ def range_spec(engine,move,actor=None):
     import duelist as DUELIST
     result=DUELIST.range_spec(engine,actor,move,AREA_HIT.range_spec(engine,move,result))
     import style_expert as STYLE
-    return __import__('commander_orders').range_spec(engine,actor,move,__import__('type_ace').range_spec(engine,actor,move,STYLE.range_spec(engine,actor,move,result)))
+    result=__import__('commander_orders').range_spec(engine,actor,move,__import__('type_ace').range_spec(engine,actor,move,STYLE.range_spec(engine,actor,move,result)))
+    return __import__('arcanist').range_spec(engine,actor,move,result)
 
 def selected_targets(engine, actor, move, candidates, primary):
     """Admit the explicitly supplied recipients of a printed multi-target weapon Move."""

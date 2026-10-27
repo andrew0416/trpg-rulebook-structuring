@@ -65,6 +65,9 @@ def capabilities(e,c,*,environment=True):
  import combat_timing as TIMING
  result=__import__('telekinetic').movement(e,c,result)
  result=__import__('warper').movement(e,c,result)
+ bonus=__import__('berserker').frenzy_bonus(c)
+ for mode in MODES:
+  if result.get(mode,0)>0:result[mode]+=bonus
  bonus=__import__('commander_orders').movement_bonus(e,c)
  for mode in MODES:
   if result.get(mode,0)>0:result[mode]+=bonus

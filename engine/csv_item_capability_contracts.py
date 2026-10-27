@@ -276,7 +276,8 @@ def summon_unown(engine, actor, *, entity_id, selection, location, side, side_re
 
 def _summon_unown(engine, actor, entity_id, selection, location, side, side_reason, fixed_d8):
     _unown_source(engine.r)
-    if actor.kind!='pokemon' or actor.level<20 or not ({GATHER_UNOWN,'안농 모으기'}&_caps(actor)):
+    rune=__import__('rune_master').gather_authorized(engine,actor)
+    if not rune and (actor.kind!='pokemon' or actor.level<20 or not ({GATHER_UNOWN,'안농 모으기'}&_caps(actor))):
         raise ValueError('core Gather Unown requires an actual level-20 Pokemon with its live capability')
     import world_entities as WORLD,elapsed_time as TIME,resolution_transaction as TX
     if not isinstance(entity_id,str) or not entity_id.strip() or entity_id in WORLD.entity_index(engine):

@@ -15,12 +15,15 @@ BRANCH_CLASSES={
     "class/연구원":None,
 }
 STAT_ALIASES=dict(zip(("공격","방어","특수공격","특수방어","스피드"),("atk","def","spa","spd","spe")))
+RUNE_CLASS='supp-fantasy/룬마스터'
+BERSERKER_CLASS='supp-fantasy/버서커'
+ARCANIST_CLASS='supp-fantasy/아케니스트'
 
 
 @lru_cache(maxsize=16)
-def _prefix_ids(keys,prefix):
-    """Index only immutable IDs, never selection decisions or live aliases."""
-    return tuple(uid for uid in keys if uid.startswith(prefix))
+def _prefix_ids(keys,prefix,rune_class,berserker_class,arcanist_class=ARCANIST_CLASS):
+    """Index immutable IDs, preserving the local supplemental class routing."""
+    return tuple(uid for uid in keys if (prefix=='class/' if uid in (rune_class,berserker_class,arcanist_class) else uid.startswith(prefix)))
 
 
 def _names(actor,prefix):
@@ -28,11 +31,11 @@ def _names(actor,prefix):
     # Re-snapshot keys on every call: additions, removals and order changes are
     # immediately visible. Exact builtins make this path free of user callbacks;
     # custom mappings/strings retain the original iteration and error behavior.
-    if type(units) is dict and type(prefix) is str:
+    if type(units) is dict and type(prefix) is str and all(type(value)is str for value in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS)):
         keys=tuple(units)
         if set(map(type,keys)) <= {str}:
             result={}
-            for uid in _prefix_ids(keys,prefix):
+            for uid in _prefix_ids(keys,prefix,RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS):
                 unit=units[uid]
                 if type(unit) is not dict:break
                 title,eng=unit.get("title"),unit.get("eng")
@@ -44,7 +47,9 @@ def _names(actor,prefix):
                 return result
     result={}
     for uid,unit in units.items():
-        if not uid.startswith(prefix):continue
+        if uid in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS):
+            if prefix!='class/':continue
+        elif not uid.startswith(prefix):continue
         for name in (uid,unit.get("title"),unit.get("eng")):
             if name:result.setdefault(name,[]).append(uid)
     return result
@@ -145,6 +150,7 @@ def feature_rank(actor,source_id):
     if uid not in acquired:raise ValueError("actual acquired ranked feature required")
     tags=actor.r.selection.units[uid].get("tags",[])
     maxima=[int(match[1] or match[2]) for tag in tags if (match:=re.fullmatch(r"(?:랭크\s*(\d+)|(\d+)\s*랭크)",tag))]
+    if uid==__import__('arcanist').SIGNATURE:maxima=[2]
     ranks=actor.spec.get("feat_ranks",{})
     if not isinstance(ranks,dict):raise ValueError("acquired feature ranks must be a mapping")
     rank=ranks.get(uid,1)

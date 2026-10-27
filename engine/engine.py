@@ -403,7 +403,8 @@ class Rules:
         if self.use_hand and mid in self.moves_hand:
             return self.moves_hand[mid]["mech"], "hand"
         if mid in self.moves_reviewed:
-            return self.flatten_effects(self.moves_reviewed[mid]["effects"]), "reviewed"
+            effects=__import__('catalog_move_states').reviewed_effects(self,mid,self.moves_reviewed[mid]["effects"])
+            return self.flatten_effects(effects), "reviewed"
         if mid in self.moves_mech:
             auto = self.moves_mech[mid]
             name = auto["name"]
@@ -3010,11 +3011,13 @@ class Engine:
         crit_min -= optional_critical + ITEMS.crit_delta(attacker, move, engine=self) + TRAINING.bonus(attacker,"critical") + CPF.bad_mood_critical_bonus(self,attacker) + CLASS_PASSIVE.critical_bonus(self,attacker,move)
         import taskmaster as TASK
         crit_min -= TASK.bonus(attacker,'critical')
+        crit_min -= __import__('berserker').frenzy_bonus(attacker)
         import stat_ace as STAT
         crit_min -= STAT.stratagem_bonus(self,attacker,'critical',move)
         crit_min -= STYLE.critical(self,attacker,move) + __import__('combat_modifiers').incoming_critical_bonus(target)
         crit_min -= __import__('coordinator').attack_boon(attacker,move,'근사함')
         crit_min -= __import__('chef_cooking').critical_bonus(self,attacker,move)
+        crit_min -= __import__('arcanist').critical_bonus(self,attacker,move)
         import declarative_move_contracts as DECLARATIVE_MOVES
         crit_min = DECLARATIVE_MOVES.critical_threshold(attacker,crit_min)
         crit = move["class"] in ("물리", "특수") and (nat >= crit_min or any(e["type"] == "crit_range" and e.get("on_natural_roll") == "even" and nat % 2 == 0 for e in mm.get("effects_exec", [])))
@@ -3119,7 +3122,7 @@ class Engine:
             actual_type = EXT.effective_type(self,attacker,target or attacker,move,mechanics,consume=False)
         import stellar_tera_blast as STELLAR_TERA
         stab_type = STELLAR_TERA.stab_membership_type(self,attacker,target or attacker,move,actual_type)
-        if (stab_type in HOME.stab_types(attacker) or EXT.grants_stab(self, attacker, move)) and move["class"] in ("물리", "특수") and move["id"] != "struggle" and move.get("innovation_instance",{}).get("template")!=3 and not WEAPONS.excludes_stab(move):
+        if (stab_type in HOME.stab_types(attacker) or EXT.grants_stab(self, attacker, move) or __import__('rune_master').grants_stab(self,attacker,move)) and move["class"] in ("물리", "특수") and move["id"] != "struggle" and move.get("innovation_instance",{}).get("template")!=3 and not WEAPONS.excludes_stab(move):
             bonus = M.floor(self.formula("stab"))
             self.log(f"    자속보정: DB {db} → {db + bonus}", "combat/stab")
             db += bonus
@@ -3185,6 +3188,8 @@ class Engine:
         TYPES.validate_actor(target)
         M.validate_source(self.r)
         move = EXT.prepare_versatile_move(self,move,versatile_stat)
+        arcanist_original_move=move
+        move,arcanist_normal_boost=__import__('arcanist').link_damage(self,attacker,target,move,actual=False)
         hit_mm,_ = ENVIRON.read(self,move,attacker)
         import class_passive_combat as CLASS_PASSIVE
         CLASS_PASSIVE.preflight(self,attacker,target,move,hit_mm)
@@ -3193,6 +3198,8 @@ class Engine:
             if _precision_observation is not None:_precision_observation.update(hit_prevented=no_hit_reason,nullification="cannot_hit")
             self.log("    공격 명중 불가: "+no_hit_reason,no_hit_reason)
             return 0
+        move,arcanist_normal_boost=__import__('arcanist').link_damage(self,attacker,target,arcanist_original_move,actual=_reaction_event is not None)
+        arcanist_overdrive=__import__('arcanist').overdrive(self,attacker,move,actual=_reaction_event is not None)
         import food_effects as FOOD
         salty_hit=FOOD.salty_hit_pending(self,target,attacker=attacker)
         chef_plan=None if salty_hit else FOOD.chef_attack_preflight(self,attacker,target,move)
@@ -3280,6 +3287,7 @@ class Engine:
         roll_mod += coup_bonus + AURA.storm_bonus(self,attacker,move)
         roll_mod += __import__('hunter').damage_bonus(self,attacker,target,move)
         resist_steps += CLASS_PASSIVE.resistance_steps(self,target,mtype)
+        if arcanist_normal_boost:resist_steps-=1
         resist_steps += __import__('confusion_attacks').resistance(self,attacker,target,move)
         import taskmaster as TASK
         resist_steps += TASK.bonus(target,'resistance')
@@ -3332,6 +3340,7 @@ class Engine:
         roll_mod += TA.damage_bonus(self,attacker,target,actual_move,mult)
         roll_mod += OPTIONAL_EQUIPMENT.damage_roll_bonus(self,attacker,target,move)
         roll_mod += OPTIONAL_WEAPONS.damage_roll_bonus(self,attacker,move)
+        roll_mod += arcanist_overdrive
         import homebrew_state as HOME
         roll_mod += HOME.damage_bonus(attacker, actual_move, engine=self)
         import dynamic_chain_moves as CHAIN
@@ -3351,6 +3360,7 @@ class Engine:
         maneuver_defense=STAT.defense_maneuver(self,target,move,_reaction_event)
         incoming_reduction=DEFENSE.splash_reduction(self,_reaction_event)+rage_reduction+STAT.damage_reduction(self,target)+TA.damage_reduction(self,attacker,target,actual_move,mult)+ace_hit['reduction']+TA.incoming_reduction(self,attacker,target,actual_move,mult)
         incoming_reduction+=__import__('athlete').intercept_reduction(self,target,_reaction_event)
+        incoming_reduction+=__import__('arcanist').reduction(self,attacker,target)
         if incoming_reduction:
             # Pass the dynamic contribution through the existing defense hook;
             # effects that ignore damage reduction therefore keep one policy.
@@ -3393,6 +3403,7 @@ class Engine:
             dr_val += chef['damage_reduction']
             self.log(f"    요리사 간식 피해 감소 +{chef['damage_reduction']}","ch04/chef-snack")
         roll_mod+=__import__('coordinator').damage_bonus(self,attacker,move)
+        roll_mod+=__import__('berserker').damage_bonus(self,attacker,target,move)
         if _reaction_event is not None:_reaction_event['coordinator_formula']={'dice':dice_part,'attack':attack_value,'modifiers':roll_mod+infatuation_mod,'defense':def_val,'reduction':0 if AURA.sword(self,attacker,move) else dr_val}
         rolled_total=dice_part+attack_value+roll_mod+infatuation_mod
         roll_mod+=TA.fountain(self,attacker,actual_move,rolled_total)-rolled_total
@@ -3522,6 +3533,7 @@ class Engine:
                     event.get('cleanse_tag_weapon'),history_context)
         if native_damage:
             damage_receipt['native_damage'] = dict(DAMAGE.validate_native_hit(native_damage))
+        __import__('catalog_move_states').rage_damage(self,attacker,target,move,damage_receipt)
         CONDITIONAL_DB.commit(attacker, target, move, conditional_db_plan, damage_receipt)
         __import__('food_effects').berry_after_hit(self,attacker,target,move,event,damage_receipt)
         __import__('hex_maniac').record_boost(self,attacker,target,move,conditional_db_plan,_passive_event)
@@ -3557,7 +3569,7 @@ class Engine:
     def lose_hp(self, c, amount, source="damage", *, unpreventable=False, loss_kind="loss"):
         import ability_state_projection as PROJECTION,state_grants as GRANTS
         import keep_fighting as KEEP
-        if PROJECTION.hp_change_interested(c) or KEEP.interested(self,c) or __import__('type_ace').hp_interested(self,c) or c.spec.get('perseverance_choice'):
+        if PROJECTION.hp_change_interested(c) or KEEP.interested(self,c) or __import__('type_ace').hp_interested(self,c) or c.spec.get('perseverance_choice') or __import__('berserker').acquired(c,__import__('berserker').FIGHT):
             return GRANTS.transition(self,c,lambda e,actor:e._lose_hp(actor,amount,source,unpreventable=unpreventable,loss_kind=loss_kind),include_rulings=True,include_grid=self.grid is not None)
         return self._lose_hp(c,amount,source,unpreventable=unpreventable,loss_kind=loss_kind)
 
@@ -3704,7 +3716,7 @@ class Engine:
         import taskmaster as TASK
         if TASK.defer_faint(self,c) or __import__('conquerors_march').defer_faint(self,c):return
         import keep_fighting as KEEP,state_grants as GRANTS
-        if c.hp<=0 and (KEEP.interested(self,c) or __import__('ability_exchange_contracts').interested(self,c,c)):
+        if c.hp<=0 and (KEEP.interested(self,c) or __import__('ability_exchange_contracts').interested(self,c,c) or __import__('berserker').acquired(c,__import__('berserker').FIGHT)):
             return GRANTS.transition(self,c,lambda e,actor:e._check_fainted(actor),include_rulings=True,include_grid=self.grid is not None)
         return self._check_fainted(c)
 
@@ -3981,6 +3993,7 @@ class Engine:
     @__import__('duelist').attack_scope
     @__import__('defense_curl').native_move
     @OPTIONAL_WEAPONS.atomic_move
+    @__import__('arcanist').atomic_move
     @ACTION.resolved_move
     @__import__("cheerleader").native_action
     @__import__('electro_shot').native_move
@@ -3998,6 +4011,7 @@ class Engine:
                      or (not getattr(self, '_setup_move_scopes', ())
                          and __import__('herb_mushroom_rules').power_herb_interested(attacker))
                      or PROJECTION.native_move_interested(self,attacker,primary)
+                     or __import__('berserker').move_interested(self,attacker,primary)
                      or DEFENSE.interested(self,attacker,primary)
                      or ABILITY_INTERRUPTS.interested(self)
                      or __import__('musician').drown_interested(self)
@@ -4075,6 +4089,7 @@ class Engine:
         import weapon_actions as WEAPONS
         import environ_moves as ENVIRON
         move = WEAPONS.prepare(self,attacker,ENVIRON.prepare(self,attacker,self.r.move(move_id)),weapon_id)
+        move = __import__('arcanist').prepare(self,attacker,move)
         move = __import__('confusion_attacks').prepare(self,attacker,move)
         if stellar_choice is not None:move = dict(move,**{STELLAR_TERA.CHOICE:stellar_choice})
         import area_targets as AREA
@@ -4114,6 +4129,7 @@ class Engine:
         native_mm = __import__('ace_trainer').mechanics(self,attacker,move,native_mm)
         import unown_imbuement as UNOWN
         native_mm = UNOWN.mechanics(self,attacker,move,native_mm)
+        native_mm = __import__('rune_master').mechanics(self,attacker,move,native_mm)
         import optional_move_modes as OPTIONAL_MODES
         move, native_mm = OPTIONAL_MODES.project(self,attacker,primary,move,native_mm)
         import retrospective_moves as RETROSPECTIVE
@@ -4180,7 +4196,7 @@ class Engine:
         elif chain_steps is not None:raise ValueError('chain steps belong only to a dynamic chain Move')
         rng = WEAPONS.range_spec(self,move,attacker)
         reach = BODY.melee_reach(attacker) if rng.get("origin") == "melee" else (rng.get("origin") if isinstance(rng.get("origin"), int) else 1)
-        if self.grid is not None and origin_part is None and not rng.get("shape") and not BODY.in_range(self,__import__('type_ace').range_actor(self,attacker,move),primary,reach):
+        if self.grid is not None and origin_part is None and not rng.get("shape") and not BODY.in_range(self,__import__('rune_master').range_actor(self,__import__('type_ace').range_actor(self,attacker,move),move),primary,reach):
             if __import__('trickster').impromptu_scope(self,attacker,move):raise ValueError('Impromptu Move must be in its actual range without approach movement')
             self.approach(attacker, primary, reach)
         if CHAIN.declared(mm):
@@ -4246,6 +4262,9 @@ class Engine:
                 elif i==0 and ace and ace.get('extra_move'):
                     with ACTION.move_grant(self,attacker,t,move_id,source=ace['feature'],kind='free') as grant:
                         dealt=self.use_move(attacker,t,move_id,count_use=not ace.get('ignore_frequency',False),free_action=True,_action_grant=grant,_activation=activation,_shared_accuracy=shared_accuracy,aim=aim,set_damage=set_damage,versatile_stat=versatile_stat,weather_ball_type=weather_ball_type,use_radiated_type=use_radiated_type)
+                elif i==0 and __import__('rune_master').move_authority(self,attacker,t,move_id,'feat/폭발-룬'):
+                    with ACTION.move_grant(self,attacker,t,move_id,source='feat/폭발-룬',kind='free') as grant:
+                        dealt=self.use_move(attacker,t,move_id,count_use=True,free_action=True,_action_grant=grant,_activation=activation,_shared_accuracy=shared_accuracy,weapon_id=weapon_id,struggle_choice=struggle_choice,aim=aim,appendage_id=appendage_id,origin_part=origin_part,set_damage=set_damage,versatile_stat=versatile_stat,weather_ball_type=weather_ball_type,use_radiated_type=use_radiated_type)
                 elif i == 0:
                     import conditional_damage_base as CONDITIONAL_DB
                     import bide as BIDE
@@ -4293,6 +4312,7 @@ class Engine:
     @__import__('duelist').attack_scope
     @__import__('defense_curl').native_move
     @OPTIONAL_WEAPONS.atomic_move
+    @__import__('arcanist').atomic_move
     @ACTION.resolved_move
     @MOVE_ACTIVATION.effect_contributions
     @TRACE.operation('move_attempt','attacker','target','move_id','set_damage','count_use','free_action')
@@ -4321,6 +4341,7 @@ class Engine:
                      or (not getattr(self, '_setup_move_scopes', ())
                          and __import__('herb_mushroom_rules').power_herb_interested(attacker))
                      or PROJECTION.native_move_interested(self,attacker,target)
+                     or __import__('berserker').move_interested(self,attacker,target)
                      or DEFENSE.interested(self,attacker,target)
                      or ABILITY_INTERRUPTS.interested(self)
                      or __import__('musician').drown_interested(self)
@@ -4442,6 +4463,7 @@ class Engine:
         import weapon_actions as WEAPONS
         import environ_moves as ENVIRON
         move = WEAPONS.prepare(self,attacker,ENVIRON.prepare(self,attacker,self.r.move(move_id)),weapon_id)
+        move = __import__('arcanist').prepare(self,attacker,move)
         move = __import__('confusion_attacks').prepare(self,attacker,move)
         if stellar_choice is not None:move = dict(move,**{STELLAR_TERA.CHOICE:stellar_choice})
         import area_targets as AREA
@@ -4497,6 +4519,7 @@ class Engine:
         mm = __import__('ace_trainer').mechanics(self,attacker,move,mm)
         import unown_imbuement as UNOWN
         mm = UNOWN.mechanics(self,attacker,move,mm)
+        mm = __import__('rune_master').mechanics(self,attacker,move,mm)
         import optional_move_modes as OPTIONAL_MODES
         move, mm = OPTIONAL_MODES.project(self,attacker,target,move,mm,native=True)
         import move_type_choices as TYPE_CHOICES
@@ -4554,7 +4577,7 @@ class Engine:
             reach = native_range.get('origin')
             if reach == 'melee':
                 reach = BODY.melee_reach(attacker)
-            if type(reach) is int and not native_range.get('shape') and not BODY.in_range(self,__import__('jump_move_actions').range_actor(self,__import__('type_ace').range_actor(self,attacker,move),move),target,reach,move=move):
+            if type(reach) is int and not native_range.get('shape') and not BODY.in_range(self,__import__('jump_move_actions').range_actor(self,__import__('rune_master').range_actor(self,__import__('type_ace').range_actor(self,attacker,move),move),move),target,reach,move=move):
                 self.log('    target outside current attack reach', 'combat/range')
                 return 0
         import mapless_space as MAPLESS
@@ -4970,6 +4993,7 @@ class Engine:
         __import__('coordinator').recipient_prefix(self,passive_event,attacker,target,move_id,{'substitute':substitute,'completion_receipts':list(completion_receipts)})
         return self._apply_hit_recipient(attacker,target,move_id,move,mm,conf,hit,nat,crit,set_damage,precision_event,weather_attack,ordinary_single=ordinary_single,completion_id=completion_id,passive_event=passive_event,_defense_token=_defense_token,substitute=substitute,completion_receipts=completion_receipts)
 
+    @__import__('berserker').native_hit
     def _apply_hit_recipient(self,attacker,target,move_id,move,mm,conf,hit,nat,crit,set_damage,precision_event,weather_attack,*,ordinary_single,completion_id,passive_event,_defense_token,substitute,completion_receipts):
         __import__('conquerors_march').observe_hit(self,attacker,target,move,completion_id,passive_event)
         __import__('trickster').accuracy_hit(self,attacker,target,move,completion_id,nat,crit)
@@ -5337,6 +5361,8 @@ class Engine:
                   and MARSUPIAL.target_present(c,engine=self) and MODES.target_visible(self,attacker,c)
                   and SETUP_MOVE.targetable(c,engine=self,attacker=attacker,move=move)]
         import stat_ace as STAT
+        selected=__import__('rune_master').selected_targets(self,attacker,move,others,primary)
+        if selected is not None:return selected
         selected=__import__('ace_trainer').selected_targets(self,attacker,move,others,primary)
         if selected is not None:return selected
         selected=STAT.selected_targets(self,attacker,move,others,primary)
@@ -5363,7 +5389,7 @@ class Engine:
         if primary not in others:
             return []
         reach = BODY.melee_reach(attacker) if origin == "melee" else (origin if isinstance(origin, int) else 99)
-        if not BODY.in_range(self,__import__('type_ace').range_actor(self,attacker,move),primary,reach,move=move):
+        if not BODY.in_range(self,__import__('rune_master').range_actor(self,__import__('type_ace').range_actor(self,attacker,move),move),primary,reach,move=move):
             return []
         return [primary]
 

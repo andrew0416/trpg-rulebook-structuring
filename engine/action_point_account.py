@@ -78,7 +78,7 @@ class ActionPointAccount:
         import temporary_ap as TEMP
         return max(0,self.maximum()-c.spec.get("ap_spent",0)-c.spec.get("ap_removed",0)-bound+TEMP.bound_amount(c))+TEMP.available(c)
 
-    def charge(self, amount, *, mode='spend', instance_id=None, temporary_binding_owner=None):
+    def charge(self, amount, *, mode='spend', instance_id=None, temporary_binding_owner=None, retain_receipt=False):
         """Native ledger operation, called inside the admitted effect transaction.
 
         Bind callers own activation/end semantics; this function grants no effect or
@@ -86,6 +86,7 @@ class ActionPointAccount:
         """
         c = self.actor
         self.validate()
+        if type(retain_receipt)is not bool or retain_receipt and mode!='spend':raise ValueError('only actual AP spending may retain a refund receipt')
         if type(amount) is not int or amount<0:raise ValueError('AP charge requires nonnegative whole points')
         if mode not in ('spend','drain','bind'):raise ValueError('unsupported AP charge mode')
         if mode=='bind':
@@ -98,11 +99,36 @@ class ActionPointAccount:
         elif instance_id is not None:raise ValueError('only bound AP has an effect reservation')
         if amount>self.available():raise ValueError('insufficient available AP')
         import temporary_ap as TEMP
+        temporary_before={row['id']:len(row['payments']) for row in TEMP.live(c)}
         ordinary = TEMP.charge(c,amount,ordinary_available=self.available()-TEMP.available(c),mode=mode,instance_id=instance_id,binding_owner=temporary_binding_owner)
         if mode=='bind':c.spec['ap_bound']={**bound,instance_id:amount}
         elif ordinary:
             key='ap_removed' if mode=='drain' else 'ap_spent'
             c.spec[key]=c.spec.get(key,0)+ordinary
+        if not retain_receipt:return
+        return {'actor_id':c.entity_id,'mode':mode,'amount':amount,'ordinary':ordinary,
+                'temporary':[{'grant_id':row['id'],'index':index,'amount':payment['amount']}
+                    for row in TEMP.live(c) for index,payment in enumerate(row['payments'])
+                    if index>=temporary_before[row['id']]],'refunded':False}
+
+    def refund_spend(self, receipt):
+        """Refund a native producer's one retained spend receipt, never Drain/Bind.
+
+        The source owner authenticates its trigger and retains this same mutable
+        receipt in its completion. This layer validates and settles the funding.
+        """
+        c=self.actor;self.validate()
+        if (type(receipt)is not dict or set(receipt)!={'actor_id','mode','amount','ordinary','temporary','refunded'}
+                or receipt['actor_id']!=c.entity_id or receipt['mode']!='spend' or receipt['refunded'] is not False
+                or type(receipt['ordinary'])is not int or receipt['ordinary']<0
+                or type(receipt['amount'])is not int or receipt['amount']<0
+                or receipt['ordinary']>c.spec.get('ap_spent',0)):
+            raise ValueError('one actual unrefunded AP spend receipt required')
+        import temporary_ap as TEMP
+        TEMP.refund_spend(c,receipt['temporary'],expected=receipt['amount']-receipt['ordinary'])
+        if receipt['ordinary']:c.spec['ap_spent']-=receipt['ordinary']
+        receipt['refunded']=True
+        return receipt['amount']
 
     def release_binding(self, instance_id, *, expected_amount):
         """Settle a reservation after its native owner has validated effect ending."""

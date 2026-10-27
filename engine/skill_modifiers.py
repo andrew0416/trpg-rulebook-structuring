@@ -232,6 +232,9 @@ def modifiers(rules, actor, skill, additional, *, skill_context=None):
     import equipment_variant_contracts as EQUIPMENT_VARIANTS
     sources.extend(EQUIPMENT_VARIANTS.skill_modifiers(rules,actor,target,skill_context))
     sources.extend(glitch_modifier(rules,actor,skill_context))
+    frenzy=__import__('berserker').frenzy_bonus(actor)
+    if frenzy and target in ('acrobatics','athletics','combat','intimidate'):
+        sources.append((__import__('berserker').FRENZY,frenzy,'current Frenzy turn'))
     import capability_parameter_edges as PARAMETERS
     sources.extend(PARAMETERS.tracker_modifiers(rules,actor,target,skill_context))
     import body_modes as BODY_MODES

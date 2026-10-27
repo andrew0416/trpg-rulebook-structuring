@@ -203,6 +203,7 @@ def inspect(engine,actor,target,effect,source,index=0):
   else:targets=hit_recipients(engine,actor,target,effect,source)
  except ValueError as ex:return Issue('unsupported_execution','target',str(ex))
  for field in ('scope','when','trigger','at','optional'):
+  if field=='trigger' and __import__('catalog_move_states').rage_declaration(engine,source,effect):continue
   if field in effect and not (kind=='free_maneuver' and field=='optional') and not (kind=='reaction_shield' and field=='trigger' and effect[field]=='user hit by a move'):return Issue('unresolved_source' if field=='optional' else 'unsupported_execution',field,'source-specific '+field+' adapter required; field cannot be ignored')
  if kind in SCHEMAS:
   unknown={k for k in effect if not k.startswith('_')}-({'type'}|CONTROL|ANNOTATIONS|SCHEMAS[kind])

@@ -700,6 +700,8 @@ def _observe_batch(e,records,*,reason):
     for row in proposed:
         before=deepcopy(actual.get(row['id']));target=actual.setdefault(row['id'],{})
         target.clear();target.update(row)
+        if target.get('kind')=='glyph' and target.get('status') in ('destroyed','deactivated'):
+            __import__('rune_master').expire_glyph_bindings(e,target['id'])
         results.append({'entity':deepcopy(target),'state_view':derived[row['id']],'creation_legality_certified':False})
         e.gm._rec('special entity '+row['id'],before,target,reason)
     import control_remote as REMOTE
@@ -749,5 +751,6 @@ def expire_sentries(e,*,encounter_end=False,prepared=None):
             continue
         if row['status']=='active' and (e.elapsed_seconds>=expires_at or encounter_end):
             row['status']='ended';actor.on_field=False;glyph['status']='destroyed';glyph['channeling']=False
+            __import__('rune_master').expire_glyph_bindings(e,glyph['id'])
             expired.append(row['id'])
     return expired

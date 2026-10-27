@@ -499,6 +499,7 @@ def close_swarm_window(engine, actor):
 def close_turn(engine, actor):
     import swarm_transitions as SWARM
     SWARM.finish_turn(actor)
+    __import__('berserker').end_turn(actor)
     import action_resources as RESOURCES
     RESOURCES.close_turn_lock(engine,actor)
     import maneuver_grants as GRANTS
@@ -665,6 +666,7 @@ def move_grant(engine, actor, target, move_id, *, source, kind=None):
     martial=__import__('martial_artist').move_authority(engine,actor,target,move_id,source)
     ace=ace or martial or __import__('focus_punch').authority(engine,actor,target,move_id,source)
     ace=ace or __import__('hex_maniac').move_authority(engine,actor,target,move_id,source)
+    ace=ace or __import__('rune_master').move_authority(engine,actor,target,move_id,source)
     ace=ace or __import__('warper').move_authority(engine,actor,target,move_id,source)
     ace=ace or __import__('capture_specialist').move_authority(engine,actor,target,move_id,source)
     ace=ace or __import__('conquerors_march').reprisal_authority(engine,actor,target,move_id,source)
@@ -699,16 +701,17 @@ def consume_move_grant(engine, token, actor, target, move_id, *, count_use=None,
             martial=__import__('martial_artist').move_authority(engine,actor,target,move_id,entry[5])
             focus=__import__('focus_punch').authority(engine,actor,target,move_id,entry[5])
             hex_maniac=__import__('hex_maniac').move_authority(engine,actor,target,move_id,entry[5])
+            rune=__import__('rune_master').move_authority(engine,actor,target,move_id,entry[5])
             warper=__import__('warper').move_authority(engine,actor,target,move_id,entry[5])
             signature=__import__('ace_trainer').move_authority(engine,actor,target,move_id,entry[5])
             capture=__import__('capture_specialist').move_authority(engine,actor,target,move_id,entry[5])
             capture=capture or __import__('conquerors_march').reprisal_authority(engine,actor,target,move_id,entry[5])
-            ace=ace or martial or focus or hex_maniac or warper or capture
+            ace=ace or martial or focus or hex_maniac or warper or capture or rune
             commander=__import__('commander_orders').strike_authority(engine,actor,target,move_id,entry[5])
             if not (ace or signature or commander) and entry[5] not in ("maneuver/기회-공격", "same_move_activation", "feat/치명적인-장기말", "move/원한", "move/버티기", "move/버티기-홈브류"):
                 raise ValueError("a maneuver child token cannot authorize a Move")
             expected_count=entry[5] in ('feat/치명적인-장기말','move/원한','move/버티기','move/버티기-홈브류')
-            if martial or focus or hex_maniac or commander:expected_count=True
+            if martial or focus or hex_maniac or commander or rune:expected_count=True
             elif warper or signature or capture:expected_count=False
             elif ace:expected_count=not __import__('type_ace').scope(engine,actor,{'id':move_id}).get('ignore_frequency',False)
             if entry[5] in __import__('endure').SOURCES:__import__('endure').authority(engine,actor)

@@ -172,10 +172,10 @@ def bonus(actor,field):
     return amount*(2 if doubled else 1)
 
 
-def injury_ceiling(actor):return min(actor.injuries,5) if active(actor) else actor.injuries
+def injury_ceiling(actor):return min(actor.injuries,5) if active(actor) or __import__('berserker').lessons(actor) else actor.injuries
 def ignores_acting_loss(actor):
     import style_expert as STYLE
-    return active(actor) is not None or STYLE.endurance_active(actor)
+    return active(actor) is not None or STYLE.endurance_active(actor) or __import__('berserker').lessons(actor)
 def immune_loss(actor):return actor.injuries>=7 and active(actor) is not None
 
 
@@ -184,6 +184,7 @@ def conscious(actor, *, hp=None):
     if actor.dead or '기절' in actor.conditions:return False
     current_hp=actor.hp if hp is None else hp
     if current_hp>0:return True
+    if (hp is None or hp==actor.hp) and __import__('berserker').conscious(actor):return True
     rows=records(actor)
     if not rows or rows[0].get('press_on') is not True or 100*current_hp<=DEFINITIONS[PRESS]['parameters']['faint_percent']*actor.base_max_hp:return False
     import actor_templates as T

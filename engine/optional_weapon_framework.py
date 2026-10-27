@@ -286,6 +286,7 @@ def on_equip(engine, actor, key):
         __import__('telekinetic').remote(engine,actor,obj);return
     obj['equipped_by'] = actor.entity_id
     W._set_object_location(obj, {'kind': 'unknown'})
+    __import__('arcanist').reconcile_investment(engine,actor)
 
 
 def on_unequip(engine, actor, entry):
@@ -298,6 +299,7 @@ def on_unequip(engine, actor, entry):
         raise ValueError('physical weapon holder changed')
     obj.pop('equipped_by', None)
     W._set_object_location(obj, W.location_of(actor))
+    __import__('arcanist').reconcile_investment(engine,actor,unequipped=entry)
 
 
 def equip(engine, actor, instance_id, *, slot='주요손'):
@@ -341,6 +343,7 @@ def adapt_move(engine, actor, move):
     borrowed=LIVING.borrowed(engine,actor,move)
     if borrowed is not None:return borrowed
     if move.get('_rogue_cutthroat') is not None:return __import__('rogue').weapon_move(engine,actor,move,None)
+    if move.get('_berserker_weapon') is not None:return __import__('berserker').weapon_move(engine,actor,move,None)
     attack = move.get('_weapon_attack')
     if not attack:
         return move
@@ -441,6 +444,7 @@ def bond(engine, actor, instance_id, *, family):
             raise ValueError('Extended weapon bond action not admitted')
         receipt = dict(source=feature, instance_id=instance_id, at=e.elapsed_seconds)
         a.spec.setdefault(BONDS, {})[family] = receipt
+        if family=='arcane':__import__('arcanist').reconcile_investment(e,a)
         return deepcopy(receipt)
     return G.transition(engine, actor, apply)
 
@@ -634,6 +638,7 @@ def observe_hit(engine, completion, actor, target):
 
 
 def validate_world(engine, index):
+    __import__('arcanist').validate_world(engine,index)
     for uid, obj in getattr(engine, '_physical_objects', {}).items():
         if PROFILE in obj:
             object_profile(engine, uid, usable=False)

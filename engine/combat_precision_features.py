@@ -282,7 +282,7 @@ def effect_natural(engine, attacker, move, natural, *, actual_damage_type=None):
     import taskmaster as TASK
     import stat_ace as STAT
     mechanics,_ = engine.r.move_mech(move['id'])
-    return (natural + accuracy_bonus(engine, attacker, move)
+    value=(natural + accuracy_bonus(engine, attacker, move)
             + (TRAINING.bonus(attacker, "effect") if move else 0)
             + effect_range_bonus(attacker, move)
             + CLASS_PASSIVE.effect_range_bonus(engine,attacker,move,mechanics,actual_damage_type=actual_damage_type)
@@ -294,6 +294,7 @@ def effect_natural(engine, attacker, move, natural, *, actual_damage_type=None):
             + __import__('chef_cooking').effect_range_bonus(engine,attacker,move)
             + TASK.bonus(attacker,'effect')
             + STAT.stratagem_bonus(engine,attacker,'effect',move))
+    return __import__('arcanist').effect_natural(engine,attacker,move,value,face=natural)
 
 def damage_modifier(engine, attacker, move):
     return -5 if damaging(move) and binding(engine, attacker) else 0

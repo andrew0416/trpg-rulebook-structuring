@@ -170,6 +170,7 @@ def apply_stage_changes(engine, source_actor, target, changes, *, source_id, con
 
 
 def h_stage_change(engine, a, t, e, ctx):
+    if __import__('catalog_move_states').install_rage_stage(engine,a,e,ctx.get('source_id')):return None
     if e.get('linked_to'):
         import counter_effects as COUNTERS
         if COUNTERS.linked(a,e['linked_to'],ctx.get('source_id')):return None

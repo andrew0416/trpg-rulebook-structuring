@@ -59,6 +59,7 @@ def prepare(engine,actor,move):
     import unown_imbuement as UNOWN
     move=UNOWN.prepare(engine,actor,move)
     move=__import__('type_ace').prepare(engine,actor,move)
+    move=__import__('rune_master').prepare(engine,actor,move)
     move=__import__('ace_trainer').prepare(engine,actor,move)
     validate(engine.r,actor.spec)
     amount=int(any(r['status']=='active' and r['move_id']==move['id'] for r in records(actor.spec)))

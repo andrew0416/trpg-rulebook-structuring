@@ -130,7 +130,7 @@ class AcquisitionLedger:
         """Archive actual native grants, then end their current ownership."""
         state = self.actor.spec.get("state_grants", {})
         row = state.get("sources", {}).get(source_id)
-        if row is not None and (row.get("grants") or row.get("retraining") or row.get("native_acquisition")) and not row.get("payment_id"):
+        if row is not None and (row.get("grants") or row.get("retraining") or row.get("static_acquisition") or row.get("native_acquisition")) and not row.get("payment_id"):
             state.setdefault("ended_sources", []).append({
                 "source_id": source_id, "record": deepcopy(row)
             })

@@ -315,6 +315,7 @@ def choose(e, event_id, reactor, *, use, options=None, reason):
 
 
 def _prohibited(e, move, category):
+    if __import__('arcanist').forbids(e,move,category):return True
     if move.get('_commander_perfect') and category in ('intercept','dodge','parry','shield','avoid_hit'):return True
     if move.get('_type_ace_boo') and category in ('intercept','dodge','parry','shield'):return True
     specific = e.r.move_defense_policy['prohibited_moves'].get(move['id'], ())

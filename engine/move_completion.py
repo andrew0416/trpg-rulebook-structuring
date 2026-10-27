@@ -137,6 +137,7 @@ def record_return(e,event_id,*,hit_prevented):
     import ace_trainer as ACE
     recipient=event['target'];actual=recipient_result(row,recipient)
     ACE.after_target(e,row,recipient)
+    __import__('arcanist').after_target(e,row,recipient)
     if actual and actual['hit'] and not actual.get('cancelled') and event_move(e,event).get('class') in ('물리','특수'):
         ACE.after_damaging_hit(e,recipient,row['id'])
     import ability_reaction_choices as REACTIONS
@@ -304,6 +305,7 @@ def start_target(e,actor,target,move,mm,scope):
         DUELIST.begin_move(e,rows[token])
         import style_expert as STYLE
         STYLE.begin_move(e,rows[token])
+        __import__('arcanist').begin_move(e,rows[token])
         import move_coins as COINS
         COINS.begin(e,rows[token])
         import confusion_attacks as CONFUSION
@@ -342,6 +344,7 @@ def finish_target(e,token,actor,target,*,hit,dealt,effects=(),cancelled=False,hi
         if old!=result:raise ValueError('completed target observation changed')
         return refresh(e,token)
     row['results'][target.entity_id]=result
+    __import__('arcanist').after_target(e,row,target)
     __import__('ace_trainer').after_target(e,row,target)
     if result['hit'] and not result['cancelled'] and row['move'].get('class') in ('물리','특수'):
         __import__('ace_trainer').after_damaging_hit(e,target,token)
