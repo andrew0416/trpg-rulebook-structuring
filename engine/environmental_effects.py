@@ -228,7 +228,7 @@ def _dice(e,expr,fixed):
 def _fall_defense(e,c):
     import effects as FX
     import effect_lifetimes as LIFETIMES,stat_ace as STAT
-    dr=c.damage_reduction+LIFETIMES.numeric(c,'damage_reduction')+STAT.damage_reduction(e,c)
+    dr=c.damage_reduction+LIFETIMES.numeric(c,'damage_reduction')+STAT.damage_reduction(e,c)+__import__('defense_curl').reduction(c)+__import__('declarative_move_contracts').defensive_reduction(c)
     for modifier in c.modifiers:
         if modifier.get("type")!="damage_reduction":continue
         scope=modifier.get("_scope")
@@ -351,6 +351,7 @@ def fall(e,c,*,action_id,meters,intentional,reason,acrobatics=False,acrobatics_o
         elif fixed_damage not in (None,[],()):raise ValueError("no base falling damage dice at zero effective distance")
         extra,extra_faces=_dice(staged,surface_dice,fixed_surface) if surface_dice else (0,[])
         damage=max(1,damage_roll+extra-defense-dr) if db or surface_dice else 0
+        if __import__('setup_move_state').physical_immunity(c,'물리'):damage=0
         return dict(source=FALL,action_id=action_id,meters=meters,weight_class=weight,intentional=intentional,
             reason=reason,checks=checks,high_jump=jump,base_high_jump=base_jump,natural_sky=natural,
             natural_sky_evidence=evidence,surface_meters=surface_meters,surface_reason=surface_reason,

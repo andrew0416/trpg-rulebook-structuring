@@ -329,6 +329,7 @@ def register_item(engine, c, item_name=None, *, source_instance_id=None, as_held
     if canonical_id == 'item/만능우산':
         import ability_state_projection as PROJECTION
         PROJECTION.weather_changed(engine)
+    __import__('csv_item_form_contracts').equipment_changed(engine,c)
     return n
 
 
@@ -453,6 +454,7 @@ def unregister_item(engine,c,item_name=None,*,registration_key=None,maturation_r
     if record.get('item_id') == 'item/만능우산':
         import ability_state_projection as PROJECTION
         PROJECTION.weather_changed(engine)
+    __import__('csv_item_form_contracts').equipment_changed(engine,c)
     return 1
 
 
@@ -1263,5 +1265,6 @@ def destroy_equipment(engine,actor,selection,*,reason,consent_by=()):
         obj=e._physical_objects[actual["instance_id"]]
         import world_entities as WORLD
         WORLD.finish_physical_use(e,obj,"destroyed",{"source":reason,"former_holder_id":c.entity_id})
+        __import__('csv_item_form_contracts').physical_changed(e,actual["instance_id"])
         return {"destroyed":True,"instance_id":actual["instance_id"],"source":reason}
     return GRANTS.transition(engine,actor,apply)

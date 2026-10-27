@@ -279,6 +279,9 @@ def movement_blocked(engine,actor,origin,target,*,altitude,underground):
  if altitude!=0 or underground or abs(target[0]-origin[0])+abs(target[1]-origin[1])!=1:return True
  edge=tuple(sorted((origin,target)))
  if target in grid.blocking or edge not in grid.walls:return True
+ if __import__('setup_move_state').liquefied(actor):
+  import body_state as BODY
+  return not BODY.fits_observed_passage(engine,edge,height_m=0,width_m=0)
  row=validate(actor)
  if not row or row['mode']!='amorphous' or row['cross_section'] is None:return True
  if '부정형' not in G.effective_capabilities(actor,only=('부정형',)):return True

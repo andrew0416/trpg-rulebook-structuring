@@ -298,12 +298,13 @@ def construct(engine,owner,egg,*,name,birth_level,tutor_points,selected,extra=No
     import pokemon_progression as P,move_state as M
     Q._text(name);selected=details(engine,selected)
     inheritance_policy=egg.get(CONTRACT,{}).get('plan',{}).get('declaration',{}).get('inheritance',{}).get('tutoring_policy')
-    birth_gender(engine,egg['species'],selected['gender'])
+    species=__import__('csv_item_form_contracts').birth_species(engine,egg)
+    birth_gender(engine,species,selected['gender'])
     inherited=selected['inheritance_moves']
-    natural=M.current_natural_evidence(engine.r,{'species':egg['species'],'level':birth_level})
+    natural=M.current_natural_evidence(engine.r,{'species':species,'level':birth_level})
     if inheritance_candidates is not None and any(mid in inherited and not any(row['kind']=='level_up' for row in natural.get(mid,[])) for mid in selected['moves']):
         raise ValueError('inheritance list does not grant a birth Move; wait for its growth milestone')
-    spec=build_pokemon(engine.r,egg['species'],birth_level,name=name,nature=selected['nature'],moves=selected['moves'],
+    spec=build_pokemon(engine.r,species,birth_level,name=name,nature=selected['nature'],moves=selected['moves'],
         abilities=list(selected['abilities']),extra={'gender':selected['gender'],'trainer_id':owner.entity_id,'special_appearance':selected['special_appearance'],
         'inheritance_moves':inherited,'egg_entity_id':egg['entity_id'],'tutor_points':tutor_points,**deepcopy(extra or {})})
     if inheritance_policy is not None:
@@ -398,11 +399,12 @@ def hatch(engine,owner,egg_entity_id,*,name,ready=None,reason,choices):
             if type(ready) is not bool or not ready:raise ValueError('explicit observed hatch readiness required')
         elif hatch_remaining(e,egg,policy['seconds']):raise ValueError('declared hatch waiting time has not elapsed')
         if selected['inheritance_moves']!=plan['inheritance_moves']:raise ValueError('birth inheritance differs from actual egg selection')
+        species=__import__('csv_item_form_contracts').birth_species(e,egg)
         if policy['known_moves']=='natural_and_inherited':
-            evidence=M.current_natural_evidence(e.r,{'species':egg['species'],'level':policy['level']})
+            evidence=M.current_natural_evidence(e.r,{'species':species,'level':policy['level']})
             allowed={mid for mid,rows in evidence.items() if any(row['kind']=='level_up' for row in rows)}
             if any(mid not in allowed for mid in selected['moves']):raise ValueError('birth known move is outside natural level-up candidates')
-        birth_abilities(e,egg['species'],selected['abilities'])
+        birth_abilities(e,species,selected['abilities'])
         pokemon,selected=construct(e,a,egg,name=name,birth_level=policy['level'],tutor_points=policy['tutor_points'],selected=selected,inheritance_candidates=plan['inheritance_candidates'])
         placement=PARTY.preflight_hatch(e,a,pokemon,egg)
         commit_birth(e,a,egg,pokemon,selected,reason=reason,placement=placement)

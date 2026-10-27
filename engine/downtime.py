@@ -422,6 +422,12 @@ def gain_exp_combatant(engine, c, amount, *, stat_choices=None):
 
 
 def _gain_exp_combatant(engine, c, amount, *, stat_choices=None):
+    split=__import__('csv_item_form_contracts').experience_split(engine,c,amount,stat_choices=stat_choices)
+    if split is not None:return split
+    return _gain_exp_unsplit_combatant(engine,c,amount,stat_choices=stat_choices)
+
+
+def _gain_exp_unsplit_combatant(engine, c, amount, *, stat_choices=None):
     """전투 중 경험치(이상한사탕 등): 'to next level' 이면 다음 레벨 경험치까지. Combatant 의 spec·level·stats 를 갱신한다."""
     r = engine.r
     M.validate_source(r)

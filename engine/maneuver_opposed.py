@@ -33,6 +33,7 @@ def _options(options,purpose):
 def _permission(e,a,t,source,grant,config):
     import action_lifecycle as ACTION
     permission=ACTION.maneuver_authority(e,grant,a,t,source)
+    if grant is None:permission=__import__('skirmisher').maneuver_permission(e,a,t,source) or permission
     if config is not None and grant is None:permission={key:config[key] for key in ('action_cost','accuracy','opposed','success')}
     return permission
 
@@ -99,7 +100,7 @@ def _run(e,a,t,source,ac,plans,prepared,outcome,fixed_accuracy,_grant=None,*,con
         if hit:__import__('type_ace').maneuver_hit(e,a,t,source)
         else:__import__('martial_artist').maneuver_failed(e,a,t,source,opposed=False)
         return hit
-    spend=lambda:True if permission['action_cost']=='included' else __import__('martial_artist').spend_maneuver(e,a,t,source,permission['action_cost'])
+    spend=lambda:True if permission['action_cost']=='included' else __import__('skirmisher').maneuver_spend(e,a,t,source,permission['action_cost'])
     original_outcome=outcome
     def outcome(won):
         result=original_outcome(won)

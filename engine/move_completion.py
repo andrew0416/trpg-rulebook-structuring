@@ -138,6 +138,8 @@ def record_return(e,event_id,*,hit_prevented):
     recipient=event['target'];actual=recipient_result(row,recipient)
     ACE.after_target(e,row,recipient)
     __import__('arcanist').after_target(e,row,recipient)
+    if event.get('defense_parent') and actual and actual['hit'] and not actual.get('cancelled') and not hit_prevented:
+        __import__('csv_item_form_contracts').move_hit(e,recipient,event_move(e,event))
     if actual and actual['hit'] and not actual.get('cancelled') and event_move(e,event).get('class') in ('물리','특수'):
         ACE.after_damaging_hit(e,recipient,row['id'])
     import ability_reaction_choices as REACTIONS
@@ -308,6 +310,7 @@ def start_target(e,actor,target,move,mm,scope):
         __import__('arcanist').begin_move(e,rows[token])
         __import__('marksman').begin_move(e,rows[token])
         __import__('fortress').begin_move(e,rows[token])
+        __import__('skirmisher').begin_move(e,rows[token])
         import move_coins as COINS
         COINS.begin(e,rows[token])
         import confusion_attacks as CONFUSION
@@ -354,6 +357,8 @@ def finish_target(e,token,actor,target,*,hit,dealt,effects=(),cancelled=False,hi
     import optional_weapon_framework as FRAMEWORK
     if target.entity_id not in row.get('defense',{}) and target.entity_id not in row.get('recipient_aliases',{}):
         FRAMEWORK.observe_hit(e,row,actor,target)
+        if result['hit'] and not result['cancelled'] and not hit_prevented:
+            __import__('csv_item_form_contracts').move_hit(e,target,row.get('target_moves',{}).get(target.entity_id,row['move']))
     row['effects'].extend(x for x in effects if x not in row['effects'])
     return refresh(e,token)
 
@@ -499,6 +504,7 @@ def refresh(e,token=None):
         IMPROVISED.observe_completion(e,row)
         row['phase']='complete';row['completed_at']=e.elapsed_seconds
         __import__('fortress').completed(e,row)
+        __import__('skirmisher').after_move(e,row)
         __import__('commander_orders').mark_complete(e,row)
         __import__('musician').after_completion(e,row)
         __import__('rogue').after_move(e,row)

@@ -6,6 +6,7 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
@@ -19,6 +20,7 @@ import ability_state_projection as P
 import ability_transitions as A
 import cheerleader
 import capacity_abilities as CAP
+import acquired_feature_projections as ACQUIRED
 import world_entities as WORLD
 
 CORE = 'ability/엽록소'
@@ -98,6 +100,31 @@ class ProjectionSourceAliasTests(unittest.TestCase):
                     resolver(self.core, PLAYTEST)
                 self.assertEqual(engine.export_state(), before)
         self.assertEqual(set(A.project_components(actor)), {CORE})
+
+    def test_core_gale_wings_native_registration_rejects_excluded_variant_and_changed_source(self):
+        core = 'ability/질풍날개'; excluded = 'ability/질풍날개-썬문'
+        for requested in ('질풍날개', core):
+            with self.subTest(requested=requested):
+                engine, actor = self.actor(self.core, '엽록소')
+                engine.gm.set_ability(actor, requested, reason='actual observed Core Gale Wings')
+                self.assertEqual(A.ability_id(self.core, requested), core)
+                self.assertIn(core, A.project_components(actor))
+                self.assertTrue(any(effect.get('_rule_id') == core and effect.get('type') == 'gain_keyword'
+                    and effect.get('keyword') == '우선' for effect in actor.registry))
+        before = engine.export_state()
+        for requested in (excluded, '질풍날개 [썬문]'):
+            with self.subTest(excluded=requested):
+                with self.assertRaises(ExcludedRuleSelection):
+                    engine.gm.set_ability(actor, requested, reason='explicit excluded edition request')
+                self.assertEqual(engine.export_state(), before)
+        for changed in (core, excluded):
+            unit = self.core.selection.units[changed]
+            with self.subTest(changed_source=changed), patch.dict(unit, source=dict(unit['source'], record_span=[1, 1])):
+                with self.assertRaisesRegex(ValueError, 'catalog definition changed'):
+                    engine.gm.set_ability(actor, core, reason='changed actual source must fail before mutation')
+            self.assertEqual(engine.export_state(), before)
+        with self.assertRaisesRegex(ValueError, 'no reviewed registration'):
+            ACQUIRED.registration(Rules(ROOT, ruleset='all'), excluded)
 
     def test_real_unresolved_variant_choice_and_stale_selection_are_not_exclusions(self):
         source = {'file': 'db/abilities.csv'}

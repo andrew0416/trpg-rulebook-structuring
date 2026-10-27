@@ -46,6 +46,7 @@ def _eligible(e,actor,source):
 
 def pay_free(e,actor,source,frequency,*,trigger):
     """Pay only inside an authenticated source caller's native atomic scope."""
+    __import__('skirmisher').require_keyword(actor,'interrupt')
     if not __import__('ability_exchange_contracts').admit_trigger(e,actor,source):
         raise ValueError('Neutralizing Gas prohibits this triggered ability Interrupt')
     __import__('ability_control_contracts').admit(e,actor,'interrupt',trigger=trigger)
@@ -278,6 +279,7 @@ def choose(e,event_id,owner,*,use,options=None,reason):
     if row['phase']!='choices' or row['cursor']>=len(row['offers']) or row['offers'][row['cursor']]['owner_id']!=owner.entity_id:
         raise ValueError('this actual recipient is not the next Interrupt choice')
     if use:__import__('ability_control_contracts').admit(e,owner,'interrupt',trigger={'owner':event['actor']})
+    if use:__import__('skirmisher').require_keyword(owner,'interrupt')
     if use and not __import__('ability_exchange_contracts').admit_trigger(e,owner,row['offers'][row['cursor']]['source']):
         raise ValueError('Neutralizing Gas prohibits this triggered ability Interrupt')
     def apply(staged,actor):

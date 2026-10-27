@@ -504,7 +504,7 @@ def fits_observed_passage(engine,edge,*,height_m,width_m):
                     or any(obj.get(k) for k in ('carrier_id','equipped_by','telekinetic_holder_id'))):continue
             life=W.physical_lifecycle(obj)
             if life['consumed'] or life['destroyed']:continue
-            if height_m<=row['height_m'] and width_m<=row['width_m']:return True
+            if row['height_m']>0 and row['width_m']>0 and height_m<=row['height_m'] and width_m<=row['width_m']:return True
     return False
 
 
@@ -524,6 +524,10 @@ def flanking(engine,target):
             'required':None,'foes':[],'contributors':[],'pending':[],'evasion_penalty':0}
     if __import__('tumbler').immune(target):return result
     if __import__('martial_artist').unflanked(target):return result
+    forced=__import__('skirmisher').flanking(target)
+    if forced is not None:
+        result.update(flanked=forced,evasion_penalty=-2 if forced else 0)
+        return result
     seen=set();foes=[];unknown=set()
     for c in getattr(engine,'everyone',[]) or []:
         if c is target or id(c) in seen:continue

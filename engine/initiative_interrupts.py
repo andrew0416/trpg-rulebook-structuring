@@ -177,6 +177,8 @@ def _move_request(engine,actor,row,evidence):
     import combat_move_reactions as REACTIONS
     if evidence['kind']=='pre_faint':
         __import__('enduring_soul').authorize_request(engine,actor,row,evidence);return
+    if row['source']==__import__('skirmisher').SWIFT:
+        __import__('skirmisher').authorize_request(engine,actor,row,evidence);return
     if row['source']==__import__('juggler').FIRST:
         __import__('juggler').first_request(engine,actor,row);return
     if row.get('move_id') in REACTIONS.SOURCES:
@@ -268,6 +270,7 @@ def queue(engine,candidates,*,trigger,order=None):
         actor = index.get(raw['actor_id'])
         WORLD.require_actors(engine,actor)
         if raw['mode']!='borrow_turn':__import__('ability_control_contracts').admit(engine,actor,'interrupt',trigger=evidence)
+        if raw['mode']!='borrow_turn':__import__('skirmisher').require_keyword(actor,'interrupt')
         DERIVE.selected(engine.r,raw['source'])
         absent = [key for key in ('priority','mode','payment','clock') if raw[key] is None]
         if absent:
@@ -280,7 +283,7 @@ def queue(engine,candidates,*,trigger,order=None):
             if raw['clock']!='none' or raw['payment'] not in ('current','next') or 'settlement_clock' in raw:
                 raise ValueError('reaction requires explicit current/next payment and no owner clock')
             if raw['budget']=={}:
-                __import__('juggler').free_reaction(engine,actor,raw)
+                (__import__('skirmisher') if raw['source']==__import__('skirmisher').COUNTER else __import__('juggler')).free_reaction(engine,actor,raw)
                 row['budget']={}
             else:row['budget'] = RESOURCES.loss(raw['budget'])
             row['debt_policy'] = raw.get('debt_policy','hold')
@@ -378,13 +381,14 @@ def begin(engine,window_id,request_id):
             _trigger(staged,raw)
         actor = row['actor']; WORLD.require_actors(staged,actor)
         if row['mode']!='borrow_turn':__import__('ability_control_contracts').admit(staged,actor,'interrupt',trigger=window['trigger'])
+        if row['mode']!='borrow_turn':__import__('skirmisher').require_keyword(actor,'interrupt')
         if actor.dead or actor.fainted or not actor.on_field or actor.captured:
             raise ValueError('reaction owner no longer eligible')
         if 'move_id' in row:_move_request(staged,actor,row,window['trigger'])
         backup = deepcopy(getattr(actor,'budget',None)); loan = None
         if row['mode']=='reaction':
             if row['budget']=={}:
-                __import__('juggler').free_reaction(staged,actor,row)
+                (__import__('skirmisher') if row['source']==__import__('skirmisher').COUNTER else __import__('juggler')).free_reaction(staged,actor,row)
             elif row['payment']=='current':
                 if getattr(actor,'budget',None) is None:
                     raise ValueError('reaction current payment requires an actual prior action budget')
@@ -836,6 +840,7 @@ def _validate_world(engine,index):
                 import move_defense_reactions as DEFENSE
                 if pre_faint:__import__('enduring_soul').validate_window(engine,window,row)
                 elif row['source']==__import__('juggler').FIRST:__import__('juggler').first_request(engine,actor,row,historical=True)
+                elif row['source']==__import__('skirmisher').SWIFT:__import__('skirmisher').validate_request(engine,window,row)
                 elif overflow:
                     import duelist as DUELIST
                     DUELIST.validate_interrupt(engine,window['trigger'],row)
@@ -901,6 +906,7 @@ def _validate_world(engine,index):
 
 def validate_world(engine,index):
     try:
+        __import__('skirmisher').validate_world(engine,index)
         return _validate_world(engine,index)
     except (KeyError,TypeError,AttributeError,IndexError) as exc:
         raise ValueError('malformed actual initiative interrupt state') from exc

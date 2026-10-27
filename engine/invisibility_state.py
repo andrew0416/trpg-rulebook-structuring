@@ -118,14 +118,14 @@ def force_end(engine,actor,*,reason):
 
 
 def visual_block(engine,actor,*,observer=None):
- active=projection(engine,actor)['active']
+ active=True if __import__('setup_move_state').hidden_in_liquid(engine,actor) else projection(engine,actor)['active']
  if observer is not None and __import__('study_books').sees_invisible(engine,observer):return None
  if __import__('psionic_sight').ignores_invisibility(engine,observer,actor):return None
  return 'invisibility_time_unknown' if active is None else 'target_invisible' if active else None
 
 
 def accuracy_penalty(engine,actor,*,observer=None):
- active=projection(engine,actor)['active']
+ active=True if __import__('setup_move_state').hidden_in_liquid(engine,actor) else projection(engine,actor)['active']
  if observer is not None and __import__('study_books').sees_invisible(engine,observer):active=False
  if __import__('psionic_sight').ignores_invisibility(engine,observer,actor):active=False
  if active is None:raise ValueError('invisibility accuracy needs elapsed-time resolution')

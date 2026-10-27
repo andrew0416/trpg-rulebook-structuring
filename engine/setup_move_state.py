@@ -26,8 +26,8 @@ def _policy(rules):
         if cached.get("schema") != SCHEMA:
             raise ValueError("unsupported setup Move policy schema")
         rows = cached.get("moves")
-        if not isinstance(rows, list) or len(rows) != 4:
-            raise ValueError("setup Move policy must bind the exact four completed clauses")
+        if not isinstance(rows, list) or len(rows) != 5:
+            raise ValueError("setup Move policy must bind the exact five completed clauses")
         for file, digest in cached.get("source_files", {}).items():
             if hashlib.sha256((Path(rules.root) / file).read_bytes()).hexdigest() != digest:
                 raise ValueError("setup Move source changed: " + file)
@@ -259,7 +259,7 @@ def require_targetable(engine, attacker, target, move_id):
 def movement_permission(engine, actor):
     require_physical_exit(actor)
     row = pending(actor)
-    if row is None:
+    if row is None or row["kind"] == "acid_armor":
         return True
     scope = _scope(engine, actor, row["move_id"])
     if scope is not None and scope["phase"] == "resolve":
@@ -267,6 +267,62 @@ def movement_permission(engine, actor):
     if row["kind"] == "geomancy":
         return engine.round_no != row["prepared_round"]
     return False
+
+
+def liquefied(actor):
+    row = pending(actor)
+    if row is None or row.get("kind") != "acid_armor":
+        return False
+    validate_actor(actor)
+    return True
+
+
+def action_permission(engine, actor, kind, *, move_id=None):
+    if not liquefied(actor) or kind not in ("standard", "full"):
+        return True
+    row = pending(actor)
+    scope = _scope(engine, actor, row["move_id"])
+    return bool(type(move_id) is dict and move_id.get("id") == row["move_id"] and
+                scope is not None and scope["phase"] == "resolve")
+
+
+def physical_immunity(actor, damage_class):
+    return damage_class == "물리" and liquefied(actor)
+
+
+def observe_liquid(engine, actor, *, fully_submerged, liquid, reason):
+    """Observe actual immersion at the current body, not an assumed water map."""
+    import world_entities as WORLD
+    import state_grants as GRANTS
+    import body_state as BODY
+    WORLD.require_actors(engine, actor)
+    if type(fully_submerged) is not bool or not liquefied(actor):
+        raise ValueError("actual liquefied actor and explicit full immersion required")
+    liquid = _text(liquid, "observed liquid")
+    reason = _text(reason, "full immersion observation")
+    def apply(staged, user):
+        observation = {"fully_submerged": fully_submerged, "liquid": liquid, "reason": reason,
+                       "position": list(user.pos),
+                       "cells": [list(cell) for cell in sorted(BODY.cells(user, require_complete=True))],
+                       "altitude": user.spec.get("_movement_altitude", 0),
+                       "underground": bool(user.spec.get("_burrow", {}).get("underground")),
+                       "at": staged.elapsed_seconds}
+        pending(user)["liquid_observation"] = observation
+        staged.gm._rec("Acid Armor full immersion", None, deepcopy(observation), reason, user)
+        return deepcopy(observation)
+    return GRANTS.transition(engine, actor, apply, include_rulings=True)
+
+
+def hidden_in_liquid(engine, actor):
+    if not liquefied(actor):
+        return False
+    import body_state as BODY
+    observation = pending(actor).get("liquid_observation")
+    return bool(observation and observation["fully_submerged"] and
+                observation["position"] == list(actor.pos) and
+                observation["cells"] == [list(cell) for cell in sorted(BODY.cells(actor, require_complete=True))] and
+                observation["altitude"] == actor.spec.get("_movement_altitude", 0) and
+                observation["underground"] == bool(actor.spec.get("_burrow", {}).get("underground")))
 
 
 def _options(value):
@@ -402,11 +458,17 @@ def _prepare_dive(engine, actor, declaration, options):
     return row
 
 
+def _prepare_acid_armor(engine, actor, declaration, options):
+    _keys(options)
+    return _base_state(engine, actor, declaration)
+
+
 PREPARE = {
     "geomancy": _prepare_geomancy,
     "fly": _prepare_fly,
     "dig": _prepare_dig,
     "dive": _prepare_dive,
+    "acid_armor": _prepare_acid_armor,
 }
 
 
@@ -436,6 +498,8 @@ def native_phase(engine, actor, target, move_id):
     if declaration["kind"] == "geomancy":
         for stat in ("spa", "spd", "spe"):
             engine.change_stage(actor, stat, 2)
+    elif declaration["kind"] == "acid_armor":
+        engine.change_stage(actor, "def", 1)
     actor.custom_conditions.pop(STATE, None)
     consume_turn(actor)
     scope["native_started"] = True
@@ -539,14 +603,14 @@ def _prepare_resolution(engine, actor, primary, declaration, options):
         raise ValueError("matching prepared setup Move state required")
     if not _following_turn(engine, actor, declaration["move_id"]):
         raise ValueError("a setup Move resolves on the following actual own turn, not an arbitrary later turn")
-    if declaration["kind"] == "geomancy":
+    if declaration["kind"] in ("geomancy", "acid_armor"):
         _keys(options)
     else:
         RESOLVE[declaration["kind"]](engine, actor, primary, options)
 
 
 def activate(engine, actor, primary, move_id, everyone, *, setup_options=None, native_options=None):
-    """Atomically prepare or resume one of the four completed Set-Up Moves."""
+    """Atomically prepare or resume one of the five completed Set-Up Moves."""
     declaration = _catalog(engine.r).get(move_id)
     if declaration is None:
         raise ValueError("selected Move is outside the completed setup Move package")
@@ -606,7 +670,7 @@ def _activate(engine, actor, primary, declaration, everyone, setup_options, nati
             result = engine.use_move(actor, actor, move_id, **native_options)
         else:
             if phase == "skip":
-                if declaration["kind"] == "geomancy":
+                if declaration["kind"] in ("geomancy", "acid_armor"):
                     _keys(setup_options)
                 else:
                     RESOLVE[declaration["kind"]](engine, actor, primary, setup_options, skip_setup=True)
@@ -702,4 +766,21 @@ def validate_actor(actor):
         cells = row.get("rough_cells")
         if not isinstance(cells, list) or not cells or len({_point(cell) for cell in cells}) != len(cells):
             raise ValueError("Geomancy rough-cell receipt changed")
+    if row["kind"] == "acid_armor":
+        fields = required | {"prepared_turn"}
+        if turn is None or set(row) not in (fields, fields | {"liquid_observation"}):
+            raise ValueError("Acid Armor requires its actual own-turn liquid state")
+        if type(row.get("prepared_at")) is not int or row["prepared_at"] < 0:
+            raise ValueError("invalid Acid Armor preparation clock")
+        observation = row.get("liquid_observation")
+        if observation is not None:
+            fields = {"fully_submerged", "liquid", "reason", "position", "cells", "altitude", "underground", "at"}
+            if type(observation) is not dict or set(observation) != fields or type(observation["fully_submerged"]) is not bool or type(observation["underground"]) is not bool:
+                raise ValueError("Acid Armor immersion observation changed")
+            _text(observation["liquid"], "observed liquid"); _text(observation["reason"], "immersion reason")
+            _point(observation["position"])
+            if type(observation["cells"]) is not list or not observation["cells"] or len({_point(cell) for cell in observation["cells"]}) != len(observation["cells"]):
+                raise ValueError("Acid Armor immersion body changed")
+            if type(observation["altitude"]) is not int or type(observation["at"]) is not int or observation["at"] < row["prepared_at"]:
+                raise ValueError("Acid Armor immersion clock or altitude changed")
     return True

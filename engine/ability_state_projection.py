@@ -339,7 +339,8 @@ def _selection(engine,actor,source,choice,observation):
         if not isinstance(observation,dict) or observation.get('location')!='미용실' or set(observation)!={'location','fact'}:raise ValueError('Fabulous Trim requires an actual salon')
         _fact(observation['fact'],'salon fact')
     elif kind=='form_grants':
-        if actor.form!=choice:raise ValueError('form-derived grants require the actual current form')
+        if actor.form!=choice and not (source=='ability/폴터가이스트-playtest' and actor.form=='로토무' and choice=='보통 로토무'):
+            raise ValueError('form-derived grants require the actual current form')
         observation={'form':actor.form}
         if actor.level<40:payload.pop('moves',None)
     elif kind in ('creation_slots','turn_choice','move_form','hp_form','scene_form','choice') and observation is not None:
@@ -627,8 +628,11 @@ def form_changed(engine,actor):
     # Avoid resolving an excluded variant in rulesets where it cannot be owned.
     import ability_transitions as A
     if source not in A.known(actor):return
-    if _owned(actor,source) and actor.form in definition(engine.r,source)['choices']:
-        activate(engine,actor,source,choice=actor.form,reason='actual Rotom form changed')
+    if _owned(actor,source):
+        choice='보통 로토무' if actor.form=='로토무' else actor.form
+        if choice in definition(engine.r,source)['choices']:
+            activate(engine,actor,source,choice=choice,reason='actual Rotom form changed')
+        else:_remove(engine,actor,source)
 
 
 def level_changed(engine,actor,old_level):

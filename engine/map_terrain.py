@@ -85,7 +85,7 @@ def slow_multiplier(engine,actor,position,mode):
     if engine.grid is None or mode in ('sky','levitate','공중/부유'):return 1
     import body_state as BODY
     import movement_actions as MOVEMENT
-    return 2 if any(p in engine.grid.slow and not MOVEMENT.ordinary_terrain(engine,actor,p)
+    return 2 if any(p in engine.grid.slow and not MOVEMENT.ordinary_terrain(engine,actor,p,movement=True)
                     for p in BODY.at_position(actor,position)) else 1
 
 def accuracy_penalty(engine,attacker,target):

@@ -199,6 +199,7 @@ class Rules:
         __import__('fortress').install_shields(self)
         import mega_forms as MEGA
         MEGA.install(self)
+        __import__('csv_item_form_contracts').install(self)
         for rf in self.ruleset.rulings_files:        # 룰셋 프로필이 지정한 재정 파일 (core+errata → 에라타 재정)
             self.rulings.load(os.path.join(root, rf), self)
         if rulings_path:
@@ -1525,6 +1526,7 @@ class Engine:
                 selected_id = self.r.selection.resolve_name(name, ("ability/",))
             selected_id = self.r._selected_rule(selected_id)
         if __import__('ability_control_contracts').register(self,c,selected_id or name):return
+        if selected_id in (__import__('skirmisher').FLUTTER,__import__('skirmisher').VANGUARD):return
         import field_effects as FIELD
         if __import__('type_ace').ability_registration(self,c,selected_id):return
         if __import__('stall_ability').registration(self.r,selected_id):return
@@ -1752,6 +1754,7 @@ class Engine:
         import hex_maniac as HEX_MANIAC
         if HEX_MANIAC.ability_registration(self.r,ability):return HEX_MANIAC.activate_ability(self,actor,ability,target,event_id=trigger_event_id)
         if trigger_event_id is not None:raise ValueError('hit trigger belongs only to its reviewed Ability')
+        if ability in ('파닥파닥','Flutter',__import__('skirmisher').FLUTTER):return __import__('skirmisher').flutter(self,actor,target)
         import field_effects as FIELD
         if ability in (FIELD.LOCAL_SOURCE, '곰팡이군주'):
             return FIELD.activate_local_grass(self,actor,target,request_id=request_id)
@@ -2478,6 +2481,7 @@ class Engine:
     def cure_status(self, c, cond):
         cond = STATUS_NORM.get(cond,cond)
         if __import__("provocateur").retain_condition(c,cond):return False
+        if __import__('csv_item_form_contracts').retain_condition(c,cond):return False
         import field_effects as FIELD
         deferred_cured=FIELD.cancel_deferred_status(self,c,cond)
         import boss_transitions as BOSS
@@ -2914,12 +2918,13 @@ class Engine:
         import optional_state_effect_contracts as OPTIONAL_STATE
         optional_accuracy, optional_critical = OPTIONAL_STATE.attack_modifiers(attacker, move, engine=self, target=target)
         optional_accuracy,optional_critical,marksman_clear=__import__('marksman').accuracy_modifiers(self,attacker,target,move,(optional_accuracy,optional_critical))
+        optional_accuracy+=__import__('skirmisher').accuracy_bonus(self,attacker,move)
         if gambit and not self._taskmaster_gambit['roll_effects']:
             hit=not bool(no_hit_reason)
             if hit and (DEFENSE.consume_shield(self,attacker,target,move) or DEFENSE.consume_shield(self,attacker,target,move,actual_hit=True)):return False,None,False
             critical=hit if gambit=='incoming' else EXT.crit_hook(self,attacker,target,move,hit,hit)
             critical=EVENTS.critical(self,attacker,target,move,hit) or (hit and event_critical) or critical
-            return hit,None,critical and not __import__("provocateur").blocked(attacker,"no_critical") and not __import__("defense_curl").critical_immune(target)
+            return hit,None,critical and not __import__("provocateur").blocked(attacker,"no_critical") and not (__import__("defense_curl").critical_immune(target) or __import__('declarative_move_contracts').defensive_critical_immunity(target))
         if plan['no_accuracy']:
             self.log('    '+move['name']+': 명중 체크 없음'+(' ('+no_hit_reason+')' if no_hit_reason else ''),move['id'])
             hit = not bool(no_hit_reason)
@@ -2930,7 +2935,7 @@ class Engine:
             if __import__('musician').drown_out(self,attacker,target,move,None,shared_roll):return False,None,False
             critical=DUELIST.critical(self,attacker,target,move,hit,hit and COUP.active(self,attacker,target,move))
             critical=EVENTS.critical(self,attacker,target,move,hit) or (hit and event_critical) or critical
-            return hit,None,critical and not __import__('provocateur').blocked(attacker,'no_critical') and not __import__('defense_curl').critical_immune(target)
+            return hit,None,critical and not __import__('provocateur').blocked(attacker,'no_critical') and not (__import__('defense_curl').critical_immune(target) or __import__('declarative_move_contracts').defensive_critical_immunity(target))
         ac_rule,mm,conf=(plan[key] for key in ('ac_rule','mm','conf'))
         environment_evasion=plan['environment_evasion']
         invisibility_penalty,blender_evasion,spatial_penalty,ap_bonus,zone_pen=(plan[key] for key in ('invisibility_penalty','blender_evasion','spatial_penalty','ap_bonus','zone_pen'))
@@ -3062,7 +3067,7 @@ class Engine:
             attacker.next_attack = None
             self.log("    다음 공격 자동 치명타 발동", "effect/next_attack_modifier")
         crit=DUELIST.critical(self,attacker,target,move,hit,crit)
-        if __import__("provocateur").blocked(attacker,"no_critical") or __import__("defense_curl").critical_immune(target):crit=False
+        if __import__("provocateur").blocked(attacker,"no_critical") or __import__("defense_curl").critical_immune(target) or __import__('declarative_move_contracts').defensive_critical_immunity(target):crit=False
         self.log(f"  {attacker.name} {move['name']}: 명중 d20={nat}{mods:+d}={total} vs AC {ac}+회피 {evasion}={need} → {'명중' if hit else '빗나감'}{' 치명타!' if hit and crit else ''}", why)
         TA.after_accuracy(self,attacker,target,move,nat,hit)
         HUNTER.after_accuracy(self,attacker,target,move,nat,hit)
@@ -3205,7 +3210,7 @@ class Engine:
         import partial_entities as PARTIAL
         PARTIAL.require_complete(attacker, "roll_damage attacker")
         PARTIAL.require_complete(target, "roll_damage target")
-        if __import__('defense_curl').critical_immune(target):crit=False
+        if __import__('defense_curl').critical_immune(target) or __import__('declarative_move_contracts').defensive_critical_immunity(target):crit=False
         import aura_guardian as AURA
         move=AURA.damage_move(self,attacker,move)
         AURA.before_damage(self,attacker,target,move)
@@ -3231,6 +3236,9 @@ class Engine:
             return 0
         move,arcanist_normal_boost=__import__('arcanist').link_damage(self,attacker,target,arcanist_original_move,actual=_reaction_event is not None)
         arcanist_overdrive=__import__('arcanist').overdrive(self,attacker,move,actual=_reaction_event is not None)
+        if __import__('setup_move_state').physical_immunity(target,move.get('class')):
+            if _precision_observation is not None:_precision_observation['nullification']='acid_armor'
+            return 0
         import food_effects as FOOD
         salty_hit=FOOD.salty_hit_pending(self,target,attacker=attacker)
         chef_plan=None if salty_hit else FOOD.chef_attack_preflight(self,attacker,target,move)
@@ -3440,6 +3448,7 @@ class Engine:
         roll_mod+=__import__('berserker').damage_bonus(self,attacker,target,move)
         roll_mod+=__import__('fortress').outgoing_penalty(attacker)
         roll_mod+=__import__('fortress').guardian_damage(self,attacker,target,move,_reaction_event)
+        roll_mod+=__import__('skirmisher').vanguard_bonus(self,attacker,target)
         if _reaction_event is not None:_reaction_event['coordinator_formula']={'dice':dice_part,'attack':attack_value,'modifiers':roll_mod+infatuation_mod,'defense':def_val,'reduction':0 if AURA.sword(self,attacker,move) else dr_val}
         rolled_total=dice_part+attack_value+roll_mod+infatuation_mod
         roll_mod+=TA.fountain(self,attacker,actual_move,rolled_total)-rolled_total
@@ -3491,7 +3500,7 @@ class Engine:
     @__import__('conquerors_march').damage_scope
     def resolve_attack_damage(self, attacker, target, move, crit=False, set_damage=False, intercepted=False, _heavy_context=None, _passive_event=None, _precision_event=None, _damage_observation=None, _defense_token=None, _completion_id=None):
         """Apply one hit and its responses. intercepted means a successful maneuver already resolved by the caller."""
-        if __import__('defense_curl').critical_immune(target):crit=False
+        if __import__('defense_curl').critical_immune(target) or __import__('declarative_move_contracts').defensive_critical_immunity(target):crit=False
         if _damage_observation is not None and not isinstance(_damage_observation, dict):
             raise ValueError("damage observation must be a mapping")
         if _defense_token is not None:
@@ -3508,6 +3517,7 @@ class Engine:
         import enduring_resilience as RESILIENCE
         import taskmaster as TASK
         damage_crit=TASK.critical_damage(self,attacker,target,move,crit)
+        resolved_damage_move=__import__('struggle_capabilities').prepare(self,attacker,__import__('aura_guardian').damage_move(self,attacker,move))
         damage = __import__('conquerors_march').damage_selection(self,event,precision_facts)
         lean_deferred=False
         if damage is None:
@@ -3519,8 +3529,14 @@ class Engine:
                 damage = BLESSINGS.select_damage(self,event)
                 damage = REACTIONS.select_mettle(self, event)
                 __import__('conquerors_march').damage_selection(self,event,precision_facts,damage)
+        if __import__('setup_move_state').physical_immunity(target,resolved_damage_move.get('class')):
+            damage=0
+            precision_facts['nullification']='acid_armor'
         lean_deferred,damage=__import__('conquerors_march').prepare_lean(self,event,damage,_heavy_context,_precision_event,precision_facts)
         if "damage" in event and not lean_deferred:damage=REACTIONS.finalize_choice(self,event,damage)
+        if __import__('setup_move_state').physical_immunity(target,resolved_damage_move.get('class')):
+            damage=0
+            precision_facts['nullification']='acid_armor'
         import precise_actions as PRECISE
         if not lean_deferred:PRECISE.damage_hit(self,attacker,target,move,_precision_event,precision_facts,damage)
         if precision_facts.get("hit_prevented"):
@@ -3967,6 +3983,7 @@ class Engine:
             LIFE.advance(self,c,seconds)
             TEMP_HP.advance(self,c,seconds)
         self.elapsed_seconds += seconds
+        __import__('csv_item_form_contracts').elapsed(self)
         import state_grants as G
         G.sync_capability_losses(self)
         import environmental_item_state as ENVIRONMENTAL_ITEMS
@@ -4037,6 +4054,7 @@ class Engine:
     @OPTIONAL_WEAPONS.atomic_move
     @__import__('arcanist').atomic_move
     @__import__('marksman').atomic_move
+    @__import__('skirmisher').atomic_move
     @ACTION.resolved_move
     @__import__("cheerleader").native_action
     @__import__('electro_shot').native_move
@@ -4132,7 +4150,7 @@ class Engine:
             return 0
         import weapon_actions as WEAPONS
         import environ_moves as ENVIRON
-        move = WEAPONS.prepare(self,attacker,ENVIRON.prepare(self,attacker,self.r.move(move_id)),weapon_id)
+        move = __import__('skirmisher').prepare_move(self,attacker,WEAPONS.prepare(self,attacker,ENVIRON.prepare(self,attacker,self.r.move(move_id)),weapon_id))
         move = __import__('arcanist').prepare(self,attacker,move)
         move = __import__('confusion_attacks').prepare(self,attacker,move)
         if stellar_choice is not None:move = dict(move,**{STELLAR_TERA.CHOICE:stellar_choice})
@@ -4362,6 +4380,7 @@ class Engine:
     @OPTIONAL_WEAPONS.atomic_move
     @__import__('arcanist').atomic_move
     @__import__('marksman').atomic_move
+    @__import__('skirmisher').atomic_move
     @ACTION.resolved_move
     @MOVE_ACTIVATION.effect_contributions
     @TRACE.operation('move_attempt','attacker','target','move_id','set_damage','count_use','free_action')
@@ -4512,7 +4531,7 @@ class Engine:
             return 0
         import weapon_actions as WEAPONS
         import environ_moves as ENVIRON
-        move = WEAPONS.prepare(self,attacker,ENVIRON.prepare(self,attacker,self.r.move(move_id)),weapon_id)
+        move = __import__('skirmisher').prepare_move(self,attacker,WEAPONS.prepare(self,attacker,ENVIRON.prepare(self,attacker,self.r.move(move_id)),weapon_id))
         move = __import__('arcanist').prepare(self,attacker,move)
         move = __import__('confusion_attacks').prepare(self,attacker,move)
         if stellar_choice is not None:move = dict(move,**{STELLAR_TERA.CHOICE:stellar_choice})

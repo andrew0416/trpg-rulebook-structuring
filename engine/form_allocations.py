@@ -54,6 +54,11 @@ def project(actor):
     return {name:{'base':deepcopy(stats),'effective':G.prepare_stat_baseline(actor,stats)} for name,stats in record['forms'].items()}
 
 def switch(engine,actor,form):
+    return G.transition(engine,actor,lambda e,c:_switch_staged(e,c,form))
+
+
+def _switch_staged(engine,actor,form):
+    """The same allocation owner inside an already atomic compound form change."""
     import living_weapon as LIVING
     if LIVING.locked_form(engine,actor,form):raise ValueError('equipped Aegislash is fixed in Blade Form')
     if KEY not in actor.spec:
@@ -62,7 +67,7 @@ def switch(engine,actor,form):
             import ability_state_projection as PROJECTION
             PROJECTION.form_changed(e,c)
             return form
-        return G.transition(engine,actor,apply)
+        return apply(engine,actor)
     def apply(e,c):
         projected=project(c)
         if form not in projected:raise ValueError('declared form allocation required')
@@ -71,4 +76,4 @@ def switch(engine,actor,form):
         import ability_state_projection as PROJECTION
         PROJECTION.form_changed(e,c)
         return form
-    return G.transition(engine,actor,apply)
+    return apply(engine,actor)

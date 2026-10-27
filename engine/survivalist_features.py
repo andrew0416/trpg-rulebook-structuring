@@ -273,7 +273,7 @@ def prepare_approach(e,a,target,reach,movement_mode,mode,budget,path,options):
   cost=step+MOVEMENT.slow_terrain_penalty(e,a,q,mode,step=step)
   if spent+cost>budget:break
   selected_path.append((q,cost,diagonal));spent+=cost;parity=next_diagonals%2;previous=q
- hazards=[i for i,(q,_,_) in enumerate(selected_path) if (q in e.grid.rough or q in e.grid.slow) and not MOVEMENT.ordinary_terrain(e,a,q)]
+ hazards=[i for i,(q,_,_) in enumerate(selected_path) if (q in e.grid.rough or q in e.grid.slow) and not MOVEMENT.ordinary_terrain(e,a,q,movement=True)]
  if not hazards:return False
  plans=_traversal_options(e,a,options)
  indices=hazards[:1] if options['frequency']=='once_per_shift' else hazards

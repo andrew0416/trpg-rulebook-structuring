@@ -1083,6 +1083,7 @@ def validate_combat_move(engine, actor, move):
 
 def entry_move_allowed(engine, actor, move, mm):
     """Existing actual-turn counter is reset only by real field/encounter entry."""
+    __import__('declarative_move_contracts').require_defensive_move(actor,move)
     effects=mm.get('effects_exec',[])+actor.registry
     if not any(e.get('type')=='usage_restriction' and 'first turn after entering' in str(e.get('only_if','')) for e in effects):
         return True
@@ -1224,6 +1225,7 @@ def accuracy_hook(engine, a, t, move, mm, ctx):
 
 def crit_hook(engine, a, t, move, hit, crit, *, natural=None, crit_min=20):
     """Owned Demoralize permits status criticals; existing blessings follow."""
+    if __import__('declarative_move_contracts').defensive_critical_immunity(t):return False
     import ability_transitions as ABILITIES,taskmaster as TASK
     if (hit and TASK.gambit_side(engine,a,t,move)!='incoming'
             and ABILITIES.active(t,'ability/조가비갑옷-전투무장')
@@ -1623,7 +1625,7 @@ def defense_hook(engine, a, t, move, mm, def_stat, *, stage_override=None):
         stage=stage_override
         staged=max(FIELDS.stat_minimum(t.spec,def_stat),OPTIONAL.staged_value(t,def_stat,
             M.stage_stat(t.stats[def_stat],stage,engine.r.mech('combat/combat-stage-multipliers')['multiplier_by_stage'])))
-    dr = t.damage_reduction + LIFETIMES.numeric(t,"damage_reduction") + __import__('sage').reduction(t) + __import__('ace_trainer').damage_reduction(t,a) + __import__('defense_curl').reduction(t)
+    dr = t.damage_reduction + LIFETIMES.numeric(t,"damage_reduction") + __import__('sage').reduction(t) + __import__('ace_trainer').damage_reduction(t,a) + __import__('defense_curl').reduction(t) + __import__('declarative_move_contracts').defensive_reduction(t)
     if not t.abilities_suppressed:
         for e in t.modifiers:
             if e.get("type") == "damage_reduction" and e.get("if_weather") and isinstance(e.get("value"), int) and not any(e.get(k) for k in ("if", "vs", "duration")) and FX.weather_matches(engine, e["if_weather"],t):
@@ -1791,7 +1793,7 @@ def movement_profile(engine, c, land, sky, movement_mode=None, capabilities=None
         if value <= 0:
             return 0
         value = max(min(value, 2), value + delta) if delta < 0 else value + delta
-        if "둔화" in __import__('blessing_effects').effective_conditions(c) or as_slowed:
+        if "둔화" in __import__('blessing_effects').effective_conditions(c) or as_slowed or __import__('setup_move_state').liquefied(c):
             value = max(1, M.ratio(value,2))
         value += OPTIONAL_STATE.movement_addition(c)
         return OPTIONAL_STATE.movement_limit(c,value)

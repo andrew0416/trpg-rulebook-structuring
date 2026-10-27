@@ -255,7 +255,7 @@ def _hazard(e,a,q,mode):
     import body_state as BODY
     return (mode not in ('공중/부유','비행/부유')
             and mode not in ('sky','levitate')
-            and any((p in e.grid.rough or p in e.grid.slow) and not MOVEMENT.ordinary_terrain(e,a,p)
+            and any((p in e.grid.rough or p in e.grid.slow) and not MOVEMENT.ordinary_terrain(e,a,p,movement=True)
                     for p in BODY.at_position(a,q)))
 
 

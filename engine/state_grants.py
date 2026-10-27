@@ -906,6 +906,7 @@ def _revoke_sources(c,source_ids,engine,*,_settled_payment_ids=()):
         __import__('rune_master').before_revoke(engine,c,sources)
     if engine is not None:__import__('telekinetic').before_revoke(engine,c,sources)
     if engine is not None:__import__('telepath').before_revoke(engine,c,sources)
+    if engine is not None:__import__('skirmisher').before_revoke(engine,c,sources)
     groups={st['sources'][key]['payment_id'] for key in sources if key in st['sources'] and st['sources'][key].get('payment_id')}
     if groups-set(_settled_payment_ids):raise ValueError('group payment settlement required before withdrawal')
     found=any(key in st["sources"] or key in st["overlays"] or key in st["effects"] for key in sources)

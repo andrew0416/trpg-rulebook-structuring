@@ -777,11 +777,12 @@ def naturewalk_terrains(e,c):
  return frozenset(result)
 
 
-def ordinary_terrain(e,c,cell):
+def ordinary_terrain(e,c,cell,*,movement=False):
  """Whether sourced Naturewalk covers an observed cell's terrain types."""
  if e.grid is None:return False
  point=_point(cell)
  if not e.grid.inside(point):raise ValueError('terrain query outside grid')
+ if movement and __import__('setup_move_state').liquefied(c):return True
  types=getattr(e.grid,'terrain_types',{}).get(str(point[0])+','+str(point[1]))
  if types is None:return False
  types=__import__('survivalist_class').effective_cell_terrains(e,c,types)

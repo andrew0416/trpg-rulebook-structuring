@@ -135,7 +135,10 @@ def _ability(rules, printed):
         })
         if actual != definition:
             raise ValueError("reviewed Ability catalog definition changed: " + uid)
-        if rules._selected_rule(uid) != uid or unit["title"] not in rules.ability_effects or unit["title"] in getattr(rules, "excluded_abilities", {}):
+        # A reviewed Core-only family retains later-variant catalog evidence,
+        # but does not request permission to execute those other definitions.
+        executable = row.get("resolution") != "ptu_1_05_definition_excludes_later_named_variant" or uid == row["ability_id"]
+        if executable and (rules._selected_rule(uid) != uid or unit["title"] not in rules.ability_effects or unit["title"] in getattr(rules, "excluded_abilities", {})):
             raise ValueError("reviewed Ability catalog identity is not executable: " + uid)
         candidates.append(uid)
     if candidates != row["candidate_ids"] or row["ability_id"] not in candidates:
@@ -183,6 +186,10 @@ def registration(rules, name):
     if not matches:
         return None
     printed, row = matches[0]
+    if (row.get("resolution") == "ptu_1_05_definition_excludes_later_named_variant"
+            and name in row["candidate_ids"] and name != row["ability_id"]):
+        rules._selected_rule(name)
+        raise ValueError("explicit acquired-Feature Ability variant has no reviewed registration: " + name)
     ability_id, title = _ability(rules, printed)
     return {"name": title, "source_id": ability_id, "equivalent_source_ids": list(row["equivalent_ids"])}
 

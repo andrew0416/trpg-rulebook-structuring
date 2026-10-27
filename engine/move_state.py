@@ -246,6 +246,8 @@ GIVER_IDS=('ability/기부자','ability/기부자-2')
 
 
 def ability_registration(rules,name):
+ forms=__import__('csv_item_form_contracts').ability_registration(rules,name)
+ if forms is not None:return forms
  vigor=__import__('endure').registration(rules,name)
  if vigor is not None:return vigor
  cap=__import__('hp_setting_moves').registration(rules,name)

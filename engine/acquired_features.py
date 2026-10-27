@@ -20,12 +20,13 @@ BERSERKER_CLASS='supp-fantasy/버서커'
 ARCANIST_CLASS='supp-fantasy/아케니스트'
 MARKSMAN_CLASS='supp-fantasy/명사수'
 FORTRESS_CLASS='supp-fantasy/포트리스'
+SKIRMISHER_CLASS='supp-fantasy/척후'
 
 
 @lru_cache(maxsize=16)
-def _prefix_ids(keys,prefix,rune_class,berserker_class,arcanist_class=ARCANIST_CLASS,marksman_class=MARKSMAN_CLASS,fortress_class=FORTRESS_CLASS):
+def _prefix_ids(keys,prefix,rune_class,berserker_class,arcanist_class=ARCANIST_CLASS,marksman_class=MARKSMAN_CLASS,fortress_class=FORTRESS_CLASS,skirmisher_class=SKIRMISHER_CLASS):
     """Index immutable IDs, preserving the local supplemental class routing."""
-    return tuple(uid for uid in keys if (prefix=='class/' if uid in (rune_class,berserker_class,arcanist_class,marksman_class,fortress_class) else uid.startswith(prefix)))
+    return tuple(uid for uid in keys if (prefix=='class/' if uid in (rune_class,berserker_class,arcanist_class,marksman_class,fortress_class,skirmisher_class) else uid.startswith(prefix)))
 
 
 def _names(actor,prefix):
@@ -33,11 +34,11 @@ def _names(actor,prefix):
     # Re-snapshot keys on every call: additions, removals and order changes are
     # immediately visible. Exact builtins make this path free of user callbacks;
     # custom mappings/strings retain the original iteration and error behavior.
-    if type(units) is dict and type(prefix) is str and all(type(value)is str for value in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS)):
+    if type(units) is dict and type(prefix) is str and all(type(value)is str for value in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS)):
         keys=tuple(units)
         if set(map(type,keys)) <= {str}:
             result={}
-            for uid in _prefix_ids(keys,prefix,RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS):
+            for uid in _prefix_ids(keys,prefix,RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS):
                 unit=units[uid]
                 if type(unit) is not dict:break
                 title,eng=unit.get("title"),unit.get("eng")
@@ -49,7 +50,7 @@ def _names(actor,prefix):
                 return result
     result={}
     for uid,unit in units.items():
-        if uid in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS):
+        if uid in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS):
             if prefix!='class/':continue
         elif not uid.startswith(prefix):continue
         for name in (uid,unit.get("title"),unit.get("eng")):
@@ -128,6 +129,7 @@ def validate_class_slots(actor):
     RETRAINING.validate_actor(actor)
     import trainer_feature_acquisition as TRAINER_FEATURES
     TRAINER_FEATURES.validate_actor(actor)
+    __import__('skirmisher').validate_actor(actor)
     return True
 
 
@@ -225,7 +227,7 @@ def owned_rule_count(actor,source_id):
     """
     if type(source_id) is not str:
         raise ValueError('exact trainer Edge/Feature/Class source required')
-    supplemental = source_id not in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS) and not source_id.startswith(('edge/','feat/','class/'))
+    supplemental = source_id not in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS) and not source_id.startswith(('edge/','feat/','class/'))
     if supplemental and actor.r.selection.units.get(source_id,{}).get('kind')!='entity:feat':
         raise ValueError('exact trainer Edge/Feature/Class source required')
     supported=source_id in ('feat/훈련-상황','feat/작열','feat/패싱-왈츠')
@@ -241,7 +243,7 @@ def owned_rule_count(actor,source_id):
         prefix=source_id.rsplit('/',1)[0]+'/'
         names=_names(actor,prefix)
         return sum(_resolve(actor,value,prefix,names)==source_id for value in entries if value in names)
-    if source_id.startswith('class/') or source_id in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS):
+    if source_id.startswith('class/') or source_id in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS):
         return sum(row['source_id']==source_id for row in class_instances(actor))
     if source_id.startswith('feat/'):
         return sum(row['source_id']==source_id for row in feature_instances(actor))

@@ -17,6 +17,8 @@ KEY = "declarative_move_contracts"
 POLICY = "data/declarative-move-contract-policy.json"
 VERSION = 1
 NATIVE = "native_lifecycle"
+WITHDRAW = "move/껍질에숨기"
+DEFENSIVE_VARIANTS = ("core_1.05", "korean_csv_september")
 
 
 import resolution_transaction as _FINGERPRINTS
@@ -66,10 +68,10 @@ def policy(rules):
         "statuses_until_switch", "delayed_status", "next_normal_attack_type",
         "encounter_weight_and_stage", "last_resort_gate", "focus_until_switch",
         "rest_sleep", "scene_stat_choice", "explicit_scene_alternate_type",
-        "scene_type_replacement",
+        "scene_type_replacement", "defensive_stance",
     }
     operations = {row.get("operation") for row in data.get("moves", {}).values()}
-    if operations != expected_operations or len(data.get("moves", {})) != 11:
+    if operations != expected_operations or len(data.get("moves", {})) != 12:
         raise ValueError("declarative Move policy boundary changed")
     rules._declarative_move_contract_policy = data
     return data
@@ -211,15 +213,17 @@ def _choice(actor, source, target=None):
                  and row["status"] == "pending" and (target is None or row["target_id"] == target_id)), None)
 
 
-def choose(engine, actor, target, source, *, stat=None, own_type=None, target_type=None, reason):
+def choose(engine, actor, target, source, *, stat=None, own_type=None, target_type=None, variant=None, reason):
     """Record only a source-required player choice; activation still pays and rolls normally."""
     import state_grants as GRANTS
     import world_entities as WORLD
     WORLD.require_actors(engine, actor, target)
     source = engine.r.move_id(source)
     row = definition(engine.r, source)
-    if row is None or row["operation"] not in ("scene_stat_choice", "scene_type_replacement"):
+    if row is None or row["operation"] not in ("scene_stat_choice", "scene_type_replacement", "defensive_stance"):
         raise ValueError("Move has no reviewed declarative choice")
+    if row["operation"] != "defensive_stance" and variant is not None:
+        raise ValueError("source variant applies only to a reviewed defensive stance")
     if source not in [engine.r.move_id(mid) for mid in actor.moves]:
         raise ValueError("actor must currently know the selected Move")
     reason = _text(reason, "declarative Move choice reason")
@@ -230,7 +234,12 @@ def choose(engine, actor, target, source, *, stat=None, own_type=None, target_ty
         if any(item["source"] == source and item["scene"] == scene and item["status"] == "pending"
                for item in current["choices"]):
             raise ValueError("one pending choice already exists for this Move")
-        if row["operation"] == "scene_stat_choice":
+        if row["operation"] == "defensive_stance":
+            if (source != WITHDRAW or chosen_target is not user or variant not in DEFENSIVE_VARIANTS
+                    or any(value is not None for value in (stat, own_type, target_type))):
+                raise ValueError("defensive stance requires one exact self source variant")
+            payload = {"variant": variant}
+        elif row["operation"] == "scene_stat_choice":
             if stat not in ("atk", "spa") or own_type is not None or target_type is not None:
                 raise ValueError("Spicy Extract requires exactly atk or spa")
             if chosen_target is not user and (user.side is None or chosen_target.side != user.side):
@@ -298,13 +307,18 @@ def _plasma_conflict(engine, actor, source):
 def preflight(engine, actor, target, effects, source):
     """All deterministic gates run before cost, frequency, or accuracy RNG."""
     row = definition(engine.r, source)
+    if source in engine.r.moves:
+        require_defensive_move(actor, engine.r.move(source))
     markers = [effect for effect in effects if effect.get("type") == "declarative_move_contract"]
     if markers:
         if len(markers) != 1 or row is None or row["executor"] != NATIVE:
             raise ValueError("one exact native declarative Move marker required")
         _check_marker(engine, source, markers[0])
         operation = row["operation"]
-        if operation == "last_resort_gate":
+        if operation == "defensive_stance":
+            if source != WITHDRAW or target is not actor:
+                raise ValueError("defensive stance requires its actual self target")
+        elif operation == "last_resort_gate":
             if not engine.encounter_active:
                 raise ValueError("Last Resort requires an active encounter")
             # Struggle is an intrinsic fallback in Combatant.moves, not one of
@@ -437,6 +451,64 @@ def _reflect_type(engine, actor, target, source, context):
     return record
 
 
+def _defensive_stance(engine, actor, target, source, context):
+    choice = _choice(actor, source, actor)
+    variant = "core_1.05" if choice is None else choice["payload"]["variant"]
+    if source != WITHDRAW or variant not in DEFENSIVE_VARIANTS:
+        raise ValueError("reviewed Withdraw source variant required")
+    for previous in list(live(actor, "defensive_stance")):
+        _archive(engine, actor, previous, "replaced")
+    september = variant == "korean_csv_september"
+    if september:
+        engine.change_stage(actor, "def", 1)
+    record = _new_record(engine, actor, actor, source, context,
+                         {"boundary": "scene_switch_breather" if september else "explicit_paid_end"},
+                         {"variant": variant, "choice_id": None if choice is None else choice["id"]},
+                         active=not september)
+    if choice is not None:
+        choice["status"] = "used"
+        choice["consumed_record_id"] = record["id"]
+    return record
+
+
+def _defensive(actor, *, core=False):
+    return [row for row in live(actor, "defensive_stance")
+            if row["source"] == WITHDRAW and (not core or row["payload"]["variant"] == "core_1.05")]
+
+
+def defensive_critical_immunity(actor):
+    return bool(_defensive(actor, core=True))
+
+
+def defensive_reduction(actor):
+    return 15 if _defensive(actor, core=True) else 0
+
+
+def defensive_movement_allowed(actor):
+    return not _defensive(actor, core=True)
+
+
+def require_defensive_move(actor, move):
+    if _defensive(actor, core=True) and str(move.get("range", "")).split(",")[0].strip() != "자신":
+        raise ValueError("Withdraw permits only Self-range Moves")
+
+
+def end_defensive_stance(engine, actor, source, *, reason):
+    import state_grants as GRANTS
+    import turn as TURN
+    source = engine.r.move_id(source)
+    reason = _text(reason, "defensive stance end reason")
+    if source != WITHDRAW or not _defensive(actor, core=True):
+        raise ValueError("actual Core defensive stance required")
+    def apply(staged, user):
+        if not TURN.spend(staged, user, "shift", source + " end"):
+            raise ValueError("defensive stance ending action unavailable")
+        record = _defensive(user, core=True)[0]
+        _archive(staged, user, record, "paid_end", action="shift", reason=reason)
+        return deepcopy(record)
+    return GRANTS.transition(engine, actor, apply, include_rulings=True)
+
+
 EXECUTORS = {
     "statuses_until_switch": _statuses_until_switch,
     "delayed_status": _delayed_status,
@@ -447,6 +519,7 @@ EXECUTORS = {
     "rest_sleep": _rest,
     "scene_stat_choice": _spicy,
     "scene_type_replacement": _reflect_type,
+    "defensive_stance": _defensive_stance,
 }
 
 
@@ -571,7 +644,7 @@ def end_encounter(engine, actors):
     import state_grants as GRANTS
     for actor in actors:
         for record in list(live(actor)):
-            if record["operation"] == "scene_type_replacement":
+            if record["operation"] in ("scene_type_replacement", "defensive_stance"):
                 continue
             _archive(engine, actor, record, "encounter_end")
             grant = record["payload"].get("grant_source")
@@ -626,6 +699,33 @@ def _validate_record(engine, index, holder, record, terminal):
     elif record["end"] is not None:
         raise ValueError("live declarative Move record cannot be ended")
     operation = record["operation"]
+    if operation == "defensive_stance":
+        payload = record["payload"]
+        if (record["source"] != WITHDRAW or record["issuer_id"] != holder.entity_id or
+                set(payload) != {"variant", "choice_id"} or payload["variant"] not in DEFENSIVE_VARIANTS):
+            raise ValueError("defensive stance source projection changed")
+        september = payload["variant"] == "korean_csv_september"
+        if record["lifetime"] != {"boundary": "scene_switch_breather" if september else "explicit_paid_end"}:
+            raise ValueError("defensive stance lifetime changed")
+        if not terminal and september:
+            raise ValueError("September Withdraw has no continuing stance")
+        choices = (state(holder) or _empty())["choices"]
+        choice = next((item for item in choices if item["id"] == payload["choice_id"]), None)
+        if payload["choice_id"] is None:
+            if september:raise ValueError("September stance requires its source choice")
+        elif (choice is None or choice["status"] != "used" or choice["source"] != record["source"] or
+                choice["payload"] != {"variant": payload["variant"]} or choice["consumed_record_id"] != record["id"]):
+            raise ValueError("defensive stance choice consumption changed")
+        if terminal:
+            end = record["end"]
+            if end.get("kind") not in ({"applied", "replaced"} if september else {"paid_end", "replaced"}):
+                raise ValueError("defensive stance ending differs from selected source")
+            if end["kind"] == "paid_end":
+                if set(end) != {"kind", "at", "action", "reason"} or end["action"] != "shift":
+                    raise ValueError("defensive stance ending action differs from source")
+                _text(end["reason"], "defensive stance ending reason")
+            elif set(end) != {"kind", "at"}:
+                raise ValueError("defensive stance boundary event changed")
     if not terminal and operation == "statuses_until_switch":
         owned = record["payload"].get("owned_statuses")
         if not isinstance(owned, dict) or set(owned) != {"저주", "취약"} or any(
@@ -653,6 +753,8 @@ def validate_actor(actor):
     C.integer(value["sequence"], "declarative Move sequence", 0)
     if any(not isinstance(value[field], list) for field in ("live", "history", "uses", "choices")):
         raise ValueError("declarative Move ledgers must be lists")
+    if sum(isinstance(row, dict) and row.get("operation") == "defensive_stance" for row in value["live"]) > 1:
+        raise ValueError("one live Withdraw stance required")
     for use in value["uses"]:
         if not isinstance(use, dict) or set(use) != {"move_id", "at", "turn"}:
             raise ValueError("Last Resort use observation shape changed")
@@ -669,6 +771,11 @@ def validate_actor(actor):
             raise ValueError("declarative Move choice provenance changed")
         if choice["status"] not in ("pending", "used", "expired"):
             raise ValueError("declarative Move choice status changed")
+        if choice["operation"] == "defensive_stance" and (
+                choice["source"] != WITHDRAW or choice["target_id"] != actor.entity_id or
+                type(choice["payload"]) is not dict or set(choice["payload"]) != {"variant"} or
+                choice["payload"]["variant"] not in DEFENSIVE_VARIANTS):
+            raise ValueError("defensive stance choice source changed")
     return True
 
 

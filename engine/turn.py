@@ -145,6 +145,7 @@ def can_act(engine, c):
 
 
 def movement_permission(engine, c, *, equipment_transport=None):
+    if not __import__('declarative_move_contracts').defensive_movement_allowed(c):return False
     import equipped_transport_saddle as EQUIPMENT
     if not EQUIPMENT.independent(engine,c):
         body=getattr(c,EQUIPMENT.LINK)
@@ -190,7 +191,7 @@ def disengage(engine, c, destination, *, movement_mode=None, _telepathy_source=N
         raise ValueError("Disengage needs an explicit mapped destination")
     if cheb(c.pos, destination) != 1:
         raise ValueError("ordinary Disengage moves exactly one metre")
-    if not engine.grid.inside(destination) or engine.grid.blocked(c.pos, destination) or destination in engine.occupied(c):
+    if not engine.grid.inside(destination) or destination in engine.occupied(c):
         raise ValueError("Disengage destination is blocked or occupied")
     import body_state as BODY
     if not BODY.can_place(engine, c, destination, origin=c.pos):
@@ -205,11 +206,11 @@ def disengage(engine, c, destination, *, movement_mode=None, _telepathy_source=N
         raise ValueError("no usable movement capability")
     diagonal = c.pos[0] != destination[0] and c.pos[1] != destination[1]
     parity = getattr(c, "_diagonal_steps", 0) % 2
-    cost = (2 if diagonal and parity else 1) + int(destination in engine.grid.slow and mode == "육상")
+    cost = (2 if diagonal and parity else 1) + MOVEMENT.slow_terrain_penalty(engine,c,destination,'land' if mode=='육상' else movement_mode or 'sky')
     if cost > 1:
         raise ValueError("selected Disengage step exceeds its one-metre movement allowance")
     import stat_ace as STAT
-    swift=STAT.has(engine,c,STAT.MASTERY,'spe')
+    swift=STAT.has(engine,c,STAT.MASTERY,'spe') or __import__('skirmisher').nimble(engine,c)
     if swift and not movement_permission(engine,c):return False
     if _trickster_escape:
         proof=getattr(engine,'_trickster_escape',None)
@@ -417,12 +418,15 @@ def action_kind_of_move(engine, c, move, mm):
 def has_priority(engine, c, move):
     kws = set(engine.r.moves_mech.get(move["id"], {}).get("header", {}).get("keywords") or []) | set(move.get("keywords") or [])
     if "우선" in kws or "우선" in str(move.get("range", "")):
+        __import__('skirmisher').require_keyword(c,'priority')
         return True
     try:
         import effects_ext as EXT
-        return "우선" in EXT.keywords_for(c, move)
+        priority = "우선" in EXT.keywords_for(c, move)
     except Exception:
         return False
+    if priority:__import__('skirmisher').require_keyword(c,'priority')
+    return priority
 
 
 # ---------- 기회 공격 ----------
@@ -686,7 +690,7 @@ def disarm(engine, actor, target, *, attacker_skill, defender_skill, item_name=N
     def accuracy():
         import precise_actions as PRECISE
         event=PRECISE.attacked(engine,actor,target,move,producer='combat_maneuver')
-        hit,natural,_=engine.accuracy_check(actor,target,move,fixed_roll=fixed_accuracy)
+        hit,natural=(True,None) if __import__('skirmisher').finesse_context(engine,actor,target,source) else engine.accuracy_check(actor,target,move,fixed_roll=fixed_accuracy)[:2]
         PRECISE.accuracy(event,hit,natural=natural)
         if not hit:__import__('martial_artist').maneuver_failed(engine,actor,target,source,opposed=False)
         return hit
@@ -698,7 +702,7 @@ def disarm(engine, actor, target, *, attacker_skill, defender_skill, item_name=N
             STAT.maneuver_success(engine,actor,target,source)
         return result
     return SM.run(engine,actor,prepared,attack=move,
-        spend=lambda:__import__('martial_artist').spend_maneuver(engine,actor,target,source,'shift' if threaded is not None else 'standard'),
+        spend=lambda:__import__('skirmisher').maneuver_spend(engine,actor,target,source,'shift' if threaded is not None else 'standard'),
         aoo=lambda:trigger_aoo(engine,actor,'무장해제',[c for c in adjacent_enemies(engine,actor) if c is not target]),
         can_continue=lambda:can_act(engine,actor),accuracy=accuracy,
         outcome=outcome,

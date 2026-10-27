@@ -587,6 +587,9 @@ def status_permission(engine, actor, kind, *, sleep_cure=False, new_action=True,
             return False
         return all(status_permission(engine, actor, component, sleep_cure=sleep_cure,
                                      new_action=new_action,_native_move=_native_move) for component in kind.components)
+    if not __import__('setup_move_state').action_permission(engine,actor,kind,move_id=_native_move):
+        engine.log(f'    {actor.name}: 액화 상태에서는 기본/완전 행동 불가', 'setup_move_state/acid_armor')
+        return False
     import capability_actions as CAPABILITIES
     if not CAPABILITIES.action_permission(engine,actor,kind):return False
     if getattr(actor, "_turn_start_decisions_pending", False) and not __import__('coordinator').start_action_allowed(engine,actor,kind):
