@@ -299,16 +299,18 @@ def choose(e, event_id, reactor, *, use, options=None, reason):
     previous=state['decisions'].get(str(cursor))
     if state.get('active_attempt') and previous != choice:
         raise ValueError('paid Intercept declaration cannot change during continuation')
+    pending=[]
     def apply(staged, owner):
         native_event = staged._passive_events[event_id]
         _defense(staged, native_event)['decisions'][str(cursor)] = choice
         try:
             return PASSIVE.deliver(staged, event_id)
-        except PASSIVE.PassiveEventPending as pending:
-            if staged._passive_pending != pending.event_id or pending.event_id not in staged._passive_events:
-                raise
-            return None
+        except Exception as error:
+            if GRANTS.record_native_pending(staged,error,pending):return None
+            raise
     result = GRANTS.transition(e, reactor, apply, include_grid=e.grid is not None, include_rulings=True)
+    if pending:
+        exception,pending_id=pending[0];raise exception(pending_id)
     if e._passive_pending is not None:
         raise PASSIVE.PassiveEventPending(e._passive_pending)
     return result
@@ -850,6 +852,81 @@ def require_damage_receipt(e, token, attacker, recipient, move):
     return require_recipient(e,token,attacker,recipient,move,event['completion_id'])
 
 
+def _heavy_child_facts(e, row, event, state, child, packet):
+    """Bind one unfinished recipient to its actual observed Heavy interruption."""
+    import heavy_injury_adapter as HEAVY, passive_events as PASSIVE
+    if (state['phase'] != 'resolving' or row['phase'] != 'targets'
+            or event['phase'] != 'accuracy_boundary' or type(child) is not dict or type(packet) is not dict
+            or e._passive_events.get(event['id']) is not event
+            or e._passive_events.get(child['id']) is not child
+            or e._heavy_events.get(packet['event_id']) is not packet
+            or child.get('producer') != 'Engine.use_move/defense-recipient'
+            or child.get('defense_parent') != event['id'] or child['actor'] is not row['actor']
+            or child['completion_id'] != row['id'] or child['move_id'] != row['move_id']
+            or child['phase'] != 'activated' or child.get('hit') is not None
+            or packet.get('kind') != 'attack_damage'
+            or packet.get('producer') != HEAVY.Producer.RESOLVED_HIT.value
+            or packet.get('attacker') is not row['actor'] or packet.get('target') is not child['target']
+            or packet.get('round') != row['round'] or packet.get('elapsed_seconds') != row['seconds']
+            or packet.get('continuation_reified') is not False
+            or _move_facts(packet['move']) != state['facts']['move']):
+        raise ValueError('unfinished defense requires its actual Heavy recipient interruption')
+    uid=child['target'].entity_id
+    plan=next((p for p in state['recipients'] if p['actor_id']==uid),None)
+    if (plan is None or plan['hit'] is not True or state['children'].get(uid) != child['id']
+            or type(child.get('defense_token')) not in (tuple,list)
+            or tuple(child['defense_token']) != (event['id'],event['target'].entity_id,uid)
+            or uid in row.get('received',{}) or child['id'] in row.get('native_returns',{})):
+        raise ValueError('Heavy recipient must be an unreturned actual defense child')
+    observations=PASSIVE.observations(e,child['id'])
+    accuracy=next((r['facts'] for r in observations if r['stage']=='accuracy'),None)
+    if (accuracy != {'hit':True,'natural_roll':state['facts']['natural'],'critical':state['facts']['critical']}
+            or [r['stage'] for r in observations] != ['attempt','accuracy','damage_request']
+            or [r['producer'] for r in observations] != ['Engine.use_move/defense-recipient','Engine.use_move/accuracy','Engine.resolve_attack_damage']
+            or observations[-1]['facts']['amount'] != packet['amount']):
+        raise ValueError('Heavy recipient differs from its native accuracy and damage request')
+    return _move_facts(dict(event_id=event['id'],completion_id=row['id'],child_id=child['id'],
+        actor_id=row['actor'].entity_id,recipient_id=uid,heavy_event=packet['event_id'],
+        defense_token=child['defense_token'],
+        move=packet['move'],round=packet['round'],seconds=packet['elapsed_seconds'],
+        amount=packet['amount'],before=packet['before'],observed_after=packet['observed_after'],
+        context=packet['context'],context_evidence=packet['context_evidence'],observations=observations))
+
+
+def _heavy_interrupted_child(e, row, event, state):
+    binding=state.get('heavy_interruption')
+    if binding is None:return {}
+    if type(binding) is not dict or set(binding)!={'heavy_event','child_id','fingerprint'}:
+        raise ValueError('exact Heavy recipient interruption binding required')
+    packet=getattr(e,'_heavy_events',{}).get(binding['heavy_event'])
+    child=e._passive_events.get(binding['child_id'])
+    facts=_heavy_child_facts(e,row,event,state,child,packet)
+    if (packet['event_id']!=binding['heavy_event'] or child['id']!=binding['child_id']
+            or ROOT.fingerprint(facts)!=binding['fingerprint']):
+        raise ValueError('Heavy recipient interruption binding changed')
+    if packet['status']=='pending':
+        if e._heavy_pending!=packet['event_id']:raise ValueError('actual current Heavy interruption required')
+    elif packet['status']=='resolved_by_external_ruling':
+        # External adjudication accounts for the abandoned caller; it never
+        # produces a native recipient return or authorizes replaying damage.
+        import heavy_injury_adapter as HEAVY
+        receipt=packet.get('resolution')
+        if (type(receipt) is not dict
+                or set(receipt)!={'event_id','target','ruling','disposition','continuation_reason','adjudicated_state','original_after','source_conformance_proven'}
+                or receipt.get('event_id')!=packet['event_id']
+                or receipt.get('target') is not child['target']
+                or receipt.get('original_after')!=packet['observed_after']
+                or any(type(receipt.get(k)) is not str or not receipt[k].strip() for k in ('ruling','continuation_reason'))
+                or type(receipt.get('adjudicated_state')) is not dict
+                or receipt.get('source_conformance_proven') is not False
+                or receipt.get('disposition') not in {x.value for x in HEAVY.ContinuationDisposition}
+                or not any(receipt is item for item in e._heavy_resolution_history)
+                or e._heavy_pending==packet['event_id']):
+            raise ValueError('actual external Heavy adjudication receipt required')
+    else:raise ValueError('unfinished defense Heavy status changed')
+    return {child['target'].entity_id:child['id']}
+
+
 def finish(e,args):
     previous=getattr(e,'_defense_finishing',False)
     e._defense_finishing=True
@@ -867,6 +944,8 @@ def _finish(e, args):
         raise ValueError('actual resolved defense choices required')
     if state['phase'] == 'complete':
         return state['total']
+    if state.get('heavy_interruption') is not None:
+        raise ValueError('Heavy recipient caller remainder is not an automatic native continuation')
     completion = _row(e,event); index = WORLD.actor_index(e)
     for recipient_plan in state['recipients']:
         uid = recipient_plan['actor_id']; recipient = index[uid]
@@ -889,7 +968,18 @@ def _finish(e, args):
                 precision=PRECISE.attacked(e,args['attacker'],recipient,args['move'],producer='Engine.use_move/defense-recipient')
             PRECISE.accuracy(precision,recipient_plan['hit'])
             options.update(hit=recipient_plan['hit'],passive_event=child['id'],defense_token=token,precision_event=precision)
-            result = e._resolve_move_recipient(args['attacker'],recipient,**options)
+            try:
+                result = e._resolve_move_recipient(args['attacker'],recipient,**options)
+            except Exception as error:
+                import heavy_injury_adapter as HEAVY
+                if type(error) is HEAVY.HeavyPending and e._heavy_pending==error.event_id:
+                    event=e._passive_events[args['passive_event']];state=_defense(e,event)
+                    completion=_row(e,event);child=e._passive_events[state['children'][uid]]
+                    packet=e._heavy_events.get(error.event_id)
+                    facts=_heavy_child_facts(e,completion,event,state,child,packet)
+                    state['heavy_interruption']={'heavy_event':error.event_id,'child_id':child['id'],
+                                                'fingerprint':ROOT.fingerprint(facts)}
+                raise
         receipt = dict(result,hit=result['hit'] and not result['hit_prevented'],actor=recipient,original_id=event['target'].entity_id,
                        event_id=event['id'],child_event=child['id'],intercepted=recipient_plan['intercepted'],
                        cancelled=False)
@@ -1048,6 +1138,7 @@ def validate_world(e,index):
                 raise ValueError('defense differs from original native accuracy result')
             if state['phase'] not in ('choices','resolving','complete','cancelled'):
                 raise ValueError('known native defense phase required')
+            interrupted=_heavy_interrupted_child(e,row,event,state)
             if 'source_route' in state:
                 proof=state['source_route'];actor=index.get(proof.get('actor_id'))
                 import combat_move_reactions as REACTIONS,warper as WARPER
@@ -1058,7 +1149,7 @@ def validate_world(e,index):
                 choice=reaction['warper_choice'];replacement=choice['ally_id'] if original_id==actor.entity_id else actor.entity_id
                 if original_id not in (actor.entity_id,choice['ally_id']) or state['recipients']!=[{'actor_id':replacement,'hit':facts['hit'],'intercepted':True}]:raise ValueError('Ally Switch original recipient exchange changed')
                 owned={uid:r for uid,r in row.get('received',{}).items() if r['event_id']==event['id']}
-                if state['total']!=sum(r['dealt'] for r in owned.values()) or state['children']!={uid:r['child_event'] for uid,r in owned.items()}:raise ValueError('position-exchange route differs from native recipient results')
+                if state['total']!=sum(r['dealt'] for r in owned.values()) or state['children']!={**{uid:r['child_event'] for uid,r in owned.items()},**interrupted}:raise ValueError('position-exchange route differs from native recipient results')
                 continue
             requests = facts['watch']['requests']
             if len(state['attempts']) != state['cursor'] or not 0 <= state['cursor'] <= len(requests):
@@ -1150,7 +1241,7 @@ def validate_world(e,index):
                     raise ValueError('waiting defense lost its authenticated continuation')
             owned={uid:r for uid,r in row.get('received',{}).items() if r['event_id']==event['id']}
             if (state['total']!=sum(r['dealt'] for r in owned.values()) or
-                    state['children']!={uid:r['child_event'] for uid,r in owned.items()}):
+                    state['children']!={**{uid:r['child_event'] for uid,r in owned.items()},**interrupted}):
                 raise ValueError('defense aggregate differs from actual recipient returns')
             if state['phase']=='complete':
                 result=row['results'].get(original_id)

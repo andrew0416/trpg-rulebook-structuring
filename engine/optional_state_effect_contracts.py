@@ -360,6 +360,11 @@ def activate(engine, actor, clause_id, participants=(), *, choice=None, communic
             CLOCK.install(engine, target, record)
     elif clause_id == "FAN-104":
         deadline = actor.custom_conditions.get("combat_turn_serial", 0) + 1
+        state = _state(actor)
+        if state is not None:
+            state["effects"] = [record for record in state["effects"]
+                                if not (record["clause_id"] == clause_id
+                                        and record["owner_id"] == actor.entity_id)]
         _install(actor, actor, clause_id, dict(row, created_round=engine.round_no),
                  row["effects"], owner_turn_start=deadline)
     engine.time_actors((actor, *participants))

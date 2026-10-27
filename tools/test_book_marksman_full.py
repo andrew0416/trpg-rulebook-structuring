@@ -107,8 +107,15 @@ class MarksmanFullTests(unittest.TestCase):
     def test_aim_existing_lifetime_repeat_replacement_and_s001_weapon_scope(self):
         for scope,eligible in (('korean_ranged',True),('english_long_range',False)):
             self.scene(features=(M.AIM,),aim_scope=scope,positions=((2,4),(6,4),(12,9)));self.weapon('단거리 사격무기',moves=());self.combat()
-            M.aim(self.e,self.a);M.aim(self.e,self.a)
+            M.aim(self.e,self.a);first=deepcopy(O.records(self.a,M.AIM)[0])
+            self.assertEqual((self.a.budget['shift'],self.a.budget['standard']),(0,1))
+            M.aim(self.e,self.a)
             self.assertEqual(len(O.records(self.a,M.AIM)),1)
+            self.assertEqual((self.a.budget['shift'],self.a.budget['standard']),(0,0))
+            self.assertNotEqual(O.records(self.a,M.AIM)[0]['id'],first['id'])
+            move=WA.prepare(self.e,self.a,self.rules.move(self.mid),self.key)
+            self.assertEqual(O.attack_modifiers(self.a,move),(2,2) if eligible else (0,0))
+            self.restore();self.assertEqual(len(O.records(self.a,M.AIM)),1)
             self.combat();M.aim(self.e,self.a)
             move=WA.prepare(self.e,self.a,self.rules.move(self.mid),self.key)
             self.assertEqual(O.attack_modifiers(self.a,move),(2,2) if eligible else (0,0))

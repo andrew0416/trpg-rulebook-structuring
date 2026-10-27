@@ -294,11 +294,10 @@ def plan(engine, trainer, pokemon, source, branch, ability):
 
 def activate(engine, trainer, pokemon, source, branch, ability):
     """Pay and replace one family-owned grant as one staged transaction."""
-    value = plan(engine, trainer, pokemon, source, branch, ability)
-
     def apply(staged, owner, target):
         import priority_limited as PRIORITY
         import turn as TURN
+        value = plan(staged, owner, target, source, branch, ability)
         # The planned producer is evidence, not authority for this later commit.
         current = staged.r.bind_source_policy(value["source_id"], _policy(staged.r)["features"][value["source_id"]])
         if current != value["source_policy_binding"]:

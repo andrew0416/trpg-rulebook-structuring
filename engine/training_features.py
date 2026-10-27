@@ -617,13 +617,13 @@ def orders(engine, trainer, name, target, *, edition='local_csv', communication=
         if not (COMMANDER.transformed_target(engine,trainer,target) or COMMANDER.leadership_target(engine,trainer,target)):
             ACTIVITIES._pokemon(target);ACTIVITIES._owner(trainer,target)
         if target.dead or target.fainted:raise ValueError('conscious order recipient required')
-    commander_scope=__import__('commander').scope(engine,trainer,uid,target)
-    if edition=='local_csv' and ORDERS.current(engine,trainer,uid) is None and not (commander_scope or {}).get('priority_receipt') and not (commander_scope or {}).get('voice'):
-        if not engine.encounter_active:PRIORITY.preflight(engine,trainer,action='standard',source=uid)
-        ORDERS.preflight(engine,trainer,uid,action=__import__('commander').priority_action(engine,trainer,uid))
     if any(row.get('mode')=='orders' for row in records(target)):
         raise ValueError('target already has a live Training Order')
     def apply(e,owner,recipient):
+        commander_scope=__import__('commander').scope(e,owner,uid,recipient)
+        if edition=='local_csv' and ORDERS.current(e,owner,uid) is None and not (commander_scope or {}).get('priority_receipt') and not (commander_scope or {}).get('voice'):
+            if not e.encounter_active:PRIORITY.preflight(e,owner,action='standard',source=uid)
+            ORDERS.preflight(e,owner,uid,action=__import__('commander').priority_action(e,owner,uid))
         if recipient is owner:
             if communication_request is not None:raise ValueError('self-target Order has no external communication request')
             communication={'status':'delivered','mode':'self_target_exception','source_clause_id':values['source_clause_id'],

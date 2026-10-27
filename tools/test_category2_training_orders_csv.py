@@ -81,6 +81,19 @@ class TrainingOrdersCSVTests(unittest.TestCase):
   e,t,p,foe=self.fixture();self.open(e);self.audible(e,t,p);e.start_of_turn(foe)
   with self.assertRaisesRegex(ValueError,'between turns'):e.manual_feat(t,T.FOCUSED,p)
   self.assertFalse(T.records(p));self.assertIsNone(getattr(t,'pending_action_loss',None))
+  e,t,p,foe=self.fixture();self.open(e);self.audible(e,t,p)
+  e.apply_status(t,'넘어짐',source='condition/넘어짐');self.assertIn('넘어짐',t.conditions)
+  before=e.export_state()
+  with self.assertRaisesRegex(ValueError,'actual printed Priority action permission required'):
+   T.orders(e,t,T.FOCUSED,p)
+  self.assertEqual(e.export_state(),before)
+  with self.assertRaisesRegex(ValueError,'actual printed Priority action permission required'):
+   e.manual_feat(t,T.FOCUSED,p)
+  self.assertEqual(e.export_state(),before)
+  e.cure_status(t,'넘어짐')
+  out=e.manual_feat(t,T.FOCUSED,p)
+  self.assertEqual(out['status'],'applied');self.assertEqual(t.pending_action_loss,{'standard':1})
+  self.assertEqual(T.bonus(p,'skill'),2);self.assertTrue(e.validate_state()['valid'])
 
  def test_owned_target_and_explicit_self_exception(self):
   e,t,p,foe=self.fixture();self.open(e);self.audible(e,t,foe)

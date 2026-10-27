@@ -73,17 +73,22 @@ class AimingDownSightsSourceRevisionTests(unittest.TestCase):
         self.a,*self.targets=[index[uid] for uid in identities]
 
     def test_actual_three_recipient_weapon_activation_gives_every_target_accuracy_and_critical(self):
-        self.world();rng=self.e.rng.getstate()
-        with self.observe_modifiers(),patch.object(FAST,'roll',return_value=18) as rolls:
+        self.world();rng=self.e.rng.getstate();accuracy=[]
+        original=Engine._accuracy_check_native
+        def observe(engine,actor,target,move,*args,**kwargs):
+            result=original(engine,actor,target,move,*args,**kwargs)
+            accuracy.append((actor.entity_id,target.entity_id,move['id'],result))
+            return result
+        with self.observe_modifiers(),patch.object(FAST,'roll',return_value=18) as rolls,patch.object(Engine,'_accuracy_check_native',observe):
             self.attack(TRIPLE)
         self.assertEqual(rolls.call_count,3);self.assertEqual(self.seen,[(2,2)]*3)
         self.assert_consumed();self.assertEqual(self.a.move_uses[TRIPLE],1)
         self.assertEqual(self.e.rng.getstate(),rng)
-        events=[event for event in self.e._passive_events.values() if event['actor'] is self.a]
-        self.assertEqual(len(events),3)
-        for event in events:
-            accuracy=next(row['facts'] for row in PASSIVE.observations(self.e,event['id']) if row['stage']=='accuracy')
-            self.assertTrue(accuracy['hit']);self.assertTrue(accuracy['critical'])
+        # An ordinary attack needs no passive event when no reaction subscribes.
+        # Observe all three real native results without fabricating a listener.
+        self.assertEqual(accuracy,[(self.a.entity_id,target.entity_id,TRIPLE,(True,18,True)) for target in self.targets])
+        self.assertEqual(set(self.completion()['results']),{target.entity_id for target in self.targets})
+        self.assertTrue(all(result['hit'] for result in self.completion()['results'].values()))
         self.assertTrue(self.e.validate_state()['valid'])
 
     def test_actual_area_weapon_activation_keeps_one_shared_roll_and_all_target_bonuses(self):
@@ -188,7 +193,7 @@ class AimingDownSightsSourceRevisionTests(unittest.TestCase):
         self.assertEqual(len(self.completion()['results']),3);self.assertEqual(self.e.rng.getstate(),rng)
         NATIVE.assert_rejected_unchanged(self.e,
             lambda:self.e.choose_move_defense(event,self.targets[2],use=False,reason='attempted replay'),
-            reason_pattern='pending|already|resolved')
+            reason_pattern='actual waiting accuracy defense required')
         self.assertTrue(self.e.validate_state()['valid'])
 
     def test_unused_pending_effect_expires_at_owner_next_turn_and_saved_receipt_is_source_checked(self):

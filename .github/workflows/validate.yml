@@ -369,7 +369,7 @@ jobs:
       inputs.suite == 'aa_native' &&
       github.ref == 'refs/heads/codex/implementation-workflow-checks-1026ag'
     runs-on: windows-2022
-    timeout-minutes: 45
+    timeout-minutes: 105
     env:
       PYTHONDONTWRITEBYTECODE: '1'
       PYTHONUTF8: '1'
@@ -415,14 +415,14 @@ jobs:
           $env:TMP = $taskTemp
           $env:TMPDIR = $taskTemp
           $env:RUNNER_TEMP = $taskTemp
-          python -B -X utf8 tools/ci_validate.py --root "$env:GITHUB_WORKSPACE" --suite "$env:CI_SUITE" --native-timeout-seconds 1800
+          python -B -X utf8 tools/ci_validate.py --root "$env:GITHUB_WORKSPACE" --suite "$env:CI_SUITE" --native-timeout-seconds 5400
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $taskSummaries = @(Get-ChildItem -Path output/ci/*/summary.json)
           if ($taskSummaries.Count -ne 1) { throw 'One original native summary is required' }
           $taskSummary = Get-Content -LiteralPath $taskSummaries[0].FullName -Raw | ConvertFrom-Json
           $taskReport = @($taskSummary.reports)
-          if ($taskReport.Count -ne 1 -or -not $taskReport[0].successful -or $taskReport[0].tests_run -ne 18 -or $taskReport[0].collected_count -ne 18 -or $taskReport[0].status_counts.pass -ne 18) {
-            throw 'The exact 18-case diagnostic reproduction subset did not pass; full667 and pending1192 are not completed by this run'
+          if ($taskReport.Count -ne 1 -or -not $taskReport[0].successful -or $taskReport[0].tests_run -ne 276 -or $taskReport[0].collected_count -ne 276 -or $taskReport[0].status_counts.pass -ne 276) {
+            throw 'The exact 276-case restoration repair declaration did not pass; the full1252 restoration scope remains separately required'
           }
       - name: Check original ordinary evidence with unchanged independent H
         if: ${{ always() }}

@@ -104,12 +104,16 @@ class Tests(unittest.TestCase):
   self.assertNotIn('취약',c.conditions);self.assertEqual(CLOCK.records(c)[0]['owned_statuses'],set())
   self.assertTrue(e.validate_state()['valid'])
  def test_missing_clock_and_legacy_flag_do_not_invent_sources(self):
-  before=deepcopy((self.p.conditions,self.p.custom_conditions,self.p.spec))
-  with self.assertRaises(ValueError):self.e.apply_status(self.p,'풀죽음')
-  self.assertEqual((self.p.conditions,self.p.custom_conditions,self.p.spec),before)
-  self.open();self.p.conditions.add('풀죽음')
+  self.e.start_round(self.e.gm.everyone)
+  def state():return deepcopy((self.p.conditions,self.p.custom_conditions,self.p.spec,self.e.rng.getstate(),self.e.log_lines))
+  before=state()
+  with self.assertRaisesRegex(ValueError,'current explicit initiative count'):self.e.apply_status(self.p,'풀죽음')
+  self.assertEqual(state(),before)
+  self.e.start_of_turn(self.a,initiative_count=20);self.p.conditions.add('풀죽음')
   self.assertTrue(I.value(self.r,self.p).unresolved)
-  with self.assertRaises(ValueError):self.e.apply_status(self.p,'풀죽음')
+  before=state()
+  with self.assertRaisesRegex(ValueError,'unresolved legacy Flinch'):self.e.apply_status(self.p,'풀죽음')
+  self.assertEqual(state(),before)
  def test_native_headbutt_creates_source_instance_before_later_cure(self):
   self.e.gm.set_move(self.a,'move/박치기',reason='actual learned Move');self.open()
   with patch.object(self.e,'d20',return_value=18):self.e.use_move(self.a,self.p,'move/박치기',set_damage=True)
@@ -154,10 +158,11 @@ class Tests(unittest.TestCase):
     with self.assertRaisesRegex(ValueError,'explicit GM force flag required'):
      self.e.apply_status(self.p,'풀죽음',force=flag)
     self.assertEqual(state(),before)
+  self.e.start_round(self.e.gm.everyone);before=state()
   with self.assertRaisesRegex(ValueError,'current explicit initiative count'):
    self.e.apply_status(self.p,'풀죽음',force=True)
   self.assertEqual(state(),before)
-  self.open();base=I.value(self.r,self.p).value
+  self.e.start_of_turn(self.a,initiative_count=20);base=I.value(self.r,self.p).value
   before=state()
   self.assertFalse(self.e.apply_status(self.p,'풀죽음',source='move/박치기',applied_by=self.a))
   self.assertEqual(state(),before)

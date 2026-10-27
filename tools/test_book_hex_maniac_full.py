@@ -294,12 +294,16 @@ class HexManiacTests(unittest.TestCase):
     if face<=8:
      self.assertLess(self.a.hp,hp);self.assertEqual(result['type'],'None');self.assertEqual(result['resistance_steps'],1)
      row=self.e._move_completions[result['completion_id']];self.assertEqual(row['phase'],'complete');self.assertTrue(row['results'][self.a.entity_id]['hit'])
-     self.assertFalse(TURN.spend(self.e,self.a,'free','no other action'))
+     before=deepcopy((self.a.budget,self.a.hp,self.e.rng.getstate(),self.a._action_history))
+     for kind in ('free','swift'):
+      self.assertFalse(TURN.spend(self.e,self.a,kind,'no other action'))
+     self.assertEqual((self.a.budget,self.a.hp,self.e.rng.getstate(),self.a._action_history),before)
     else:self.assertEqual(self.a.hp,hp)
     self.assertEqual('혼란' in self.a.conditions,face<16)
     self.assertEqual(TURN.can_aoo(self.e,self.a),9<=face<=15 or face>=16)
     self.e.end_of_turn(self.a);self.assertTrue(TURN.can_aoo(self.e,self.a))
     self.assertTrue(__import__('action_lifecycle').status_permission(self.e,self.a,'free'))
+    self.assertTrue(__import__('action_lifecycle').status_permission(self.e,self.a,'swift'))
 
  def test_core_default_selects_printed_version_all_preserves_feb_and_frozen_turn_starts(self):
   rules=Rules(ROOT,ruleset='core');self.setup(rules);self.assertTrue(CONFUSION.core(self.e))

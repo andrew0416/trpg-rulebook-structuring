@@ -429,6 +429,10 @@ class AceTrainerFullTests(unittest.TestCase):
         observation=self.p.custom_conditions['core_confusion_turns'][-1]
         self.assertEqual(observation['outcome'],'selected_supreme_concentration');self.assertIn('혼란',self.p.conditions)
         self.assertEqual(self.p.budget['standard'],1);hp=self.p.hp
+        before=deepcopy((self.p.budget,self.p.hp,self.e.rng.getstate(),self.p._action_history))
+        for kind in ('free','swift'):
+            self.assertFalse(__import__('turn').spend(self.e,self.p,kind,'only the actual selected Technique is allowed'))
+        self.assertEqual((self.p.budget,self.p.hp,self.e.rng.getstate(),self.p._action_history),before)
         completions=len(getattr(self.e,'_move_completions',{}))
         self.e.gm.set_move(self.p,'move/막치기',reason='actual unrelated blocked Move')
         self.e.use_move(self.p,self.foe,'move/막치기')
@@ -436,6 +440,10 @@ class AceTrainerFullTests(unittest.TestCase):
         with patch.object(Engine,'d20',return_value=18):self.e.use_move_on(self.p,self.foe,'move/울음소리',[self.foe])
         self.assertEqual(self.p.budget['standard'],0);self.assertEqual(self.p.hp,hp);self.assertEqual(self.foe.stages['atk'],-1)
         self.assertFalse(__import__('turn').spend(self.e,self.p,'shift','Core Confusion does not unlock another action'))
+        before=deepcopy((self.p.budget,self.p.hp,self.e.rng.getstate(),self.p._action_history))
+        for kind in ('free','swift'):
+            self.assertFalse(__import__('turn').spend(self.e,self.p,kind,'the selected Technique does not unlock other actions'))
+        self.assertEqual((self.p.budget,self.p.hp,self.e.rng.getstate(),self.p._action_history),before)
         self.restore();self.valid()
 
     def test_supreme_exact_move_works_with_rage_paralysis_and_flinch_without_curing(self):

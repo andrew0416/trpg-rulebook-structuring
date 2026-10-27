@@ -268,8 +268,12 @@ class BossCaptureRepairTests(unittest.TestCase):
         trainer=Combatant(self.r,builder.build_trainer(self.r,'actual captor',30,dict.fromkeys(builder.STATS,10)))
         draft=builder.build_pokemon(self.r,'꼬렛',70,abilities=[])
         high=[]
-        for milestone in ('creation',20,40):
-            high.append(MILESTONES.ability_options(self.r,dict(draft,abilities=high),milestone)[0])
+        # Milestone list order does not choose an admitted Ability source.
+        for milestone,ability in (('creation','도주'),(20,'근성'),(40,'픽업')):
+            self.assertIn(ability,MILESTONES.ability_options(self.r,dict(draft,abilities=high),milestone))
+            self.assertEqual(self.r.selection.resolve_name(ability,('ability/',)),'ability/'+ability)
+            self.r.selection.require_supported_version('ability/'+ability)
+            high.append(ability)
         p=Combatant(self.r,builder.build_pokemon(self.r,'꼬렛',70,abilities=high,side='wild',pos=(1,0)))
         e.gm.add_combatant(trainer);e.gm.add_combatant(p)
         config=dict(kind='boss',total_bars=2,action_slots=[{'id':'first','initiative':20},{'id':'second','initiative':15}],

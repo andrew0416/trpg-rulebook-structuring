@@ -492,6 +492,7 @@ def deliver(e,event_id,*,_resume_activation=True):
     if ev is None:raise ValueError('no actual source event')
     if e._passive_pending not in (None,event_id):
         raise PassiveEventPending(e._passive_pending)
+    pending=[]
     def attempt(staged,actor):
         # Retrying re-evaluates real source eligibility; it does not accept a
         # caller assertion that an unsupported choice has become implemented.
@@ -523,10 +524,12 @@ def deliver(e,event_id,*,_resume_activation=True):
                 result=__import__('combat_move_reactions').resume_after_event(staged,event,result)
                 result=__import__('conquerors_march').resume_counter(staged,event,result)
             return result
-        except PassiveEventPending as pending:
-            if staged._passive_pending!=pending.event_id or pending.event_id not in staged._passive_events:raise
-            return None
+        except Exception as error:
+            if G.record_native_pending(staged,error,pending):return None
+            raise
     result=G.transition(e,ev['actor'],attempt,include_grid=e.grid is not None,include_rulings=True)
+    if pending:
+        exception,pending_id=pending[0];raise exception(pending_id)
     if e._passive_pending is not None:raise PassiveEventPending(e._passive_pending)
     return result
 

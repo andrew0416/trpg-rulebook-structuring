@@ -124,10 +124,10 @@ def use(engine,actor,targets,*,funding,allies,communication=None):
         if actor.side and target.side and actor.side!=target.side:raise ValueError('actual opposing sides are not allies')
         AP.policy(funding[target.entity_id])
     import order_actions as ORDERS
-    if engine.encounter_active:
-        ORDERS.preflight(engine,actor,FEATURE,action=COMMANDER.priority_action(engine,actor,FEATURE));T.current(engine)
     def apply(e,owner,*recipients):
         import turn as TURN,action_lifecycle as ACTION,body_modes as BODY,effect_lifetimes as LIFE
+        if e.encounter_active:
+            ORDERS.preflight(e,owner,FEATURE,action=COMMANDER.priority_action(e,owner,FEATURE));T.current(e)
         if ORDERS.priority(e,owner,FEATURE):
             ACTION.ensure_resolutions_clear(e)
             if not TURN.can_act(e,owner) or not ACTION.status_permission(e,owner,'standard') or not BODY.permits(owner,'standard') or LIFE.forbids(owner,'priority'):

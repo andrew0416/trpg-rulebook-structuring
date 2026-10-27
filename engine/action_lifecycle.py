@@ -608,6 +608,7 @@ def status_permission(engine, actor, kind, *, sleep_cure=False, new_action=True,
         selected=__import__('ace_trainer').supreme_limit(engine,actor,limit,_native_move)
         if selected and (limit.get('source')!='condition/혼란' or kind=='standard') and not getattr(actor,'_restricted_action_taken',False):
             return True
+        if limit.get('source')=='condition/혼란':return False
         choices = limit.get("choose_one_of", [])
         if kind not in choices and kind not in ("swift", "free"):
             engine.log(f"    {actor.name}: 마비 실패 후 기본·이동을 모두 쓰는 행동 불가", "condition/마비")

@@ -122,7 +122,7 @@ class TypeAceCsvTests(unittest.TestCase):
                 self.communication();self.combat(self.t)
                 self.assertTrue(TURN.spend(self.e,self.t,'standard','actual prior Standard'))
                 use = lambda:TA.activate(self.e,self.t,self.p,'Fey Trance')
-                if edition:self.rejected(use,'Standard unavailable')
+                if edition:self.rejected(use,'Order printed action is unavailable')
                 else:self.assertTrue(use())
 
     def test_csv_selection_source_replay_and_json_integrity_use_existing_acquisition_receipt(self):
@@ -282,7 +282,8 @@ class TypeAceCsvTests(unittest.TestCase):
                 TA.react(self.e,self.t,self.p,'Mold the Earth',row['id'],changes=[{'cell':cell,'terrain':'both'}],geometry=geometry,reason='actual Ground Move shapes observed ground')
                 self.assertIn(cell,self.e.grid.rough);self.assertIn(cell,self.e.grid.slow)
                 self.assertTrue(any(i['kind']=='spikes' for i in HAZARDS.ensure(self.e)[cell]['instances']))
-                TA.up_execution(self.e,self.t,self.p,row['id'],[self.b],options={self.b.entity_id:{'defender_skill':'전투','fixed_accuracy':20,
+                upheaval_event=None if geometry=='around_target' else row['id']
+                TA.up_execution(self.e,self.t,self.p,upheaval_event,[self.b],options={self.b.entity_id:{'defender_skill':'전투','fixed_accuracy':20,
                     'challenger_options':{'fixed':[6]*6},'defender_options':{'fixed':[1]*6}}})
                 self.assertIn('넘어짐',self.b.conditions)
                 self.restore();self.valid()

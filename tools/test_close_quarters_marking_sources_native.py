@@ -184,6 +184,7 @@ class CloseQuartersMarkingSourceTests(unittest.TestCase):
 
     def test_actual_disengage_leaves_one_or_both_markers_with_independent_smashing_payments(self):
         self.pair();self.both();self.e.end_of_turn(self.v)
+        self.e.gm.set_position(self.q,(9,10),reason='actual third party clears the one-marker departure destination')
         self.answer('type_ace_choice',True)
         self.e.gm.snapshot('actual-marked-departure')
         for destination,expected in (((5,2),('p',)),((5,1),('p','v'))):

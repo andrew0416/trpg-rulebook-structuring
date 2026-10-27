@@ -139,8 +139,55 @@ class FortressCurrentIntegrationTests(FortressFixture,unittest.TestCase):
   self.assertIs(self.e._heavy_events[pending]['target'],self.other)
   self.assertEqual(self.a.budget['swift'],0)
   self.assertEqual(FREQUENCY.state(self.a)['activations'][F.GUARDIAN]['used'],1)
+  self.e.gm.snapshot('actual-guardian-heavy-prefix')
+  self.e.gm.restore('actual-guardian-heavy-prefix',reason='restore the actual paid interrupted recipient')
+  self.assertEqual(self.e._heavy_pending,pending)
+  self.assertIs(self.e._heavy_events[pending]['target'],self.other)
+  self.assertEqual(self.a.budget['swift'],0)
+  self.assertEqual(FREQUENCY.state(self.a)['activations'][F.GUARDIAN]['used'],1)
   self.valid();self.restore();self.valid()
   scope=self.a.custom_conditions['fortress_guardian_attack'];actual=scope['recipient']
+  completion=self.e._move_completions[scope['completion_id']]
+  state=completion['defense'][self.b.entity_id]
+  proof=deepcopy(state['heavy_interruption'])
+  self.assertEqual(proof['heavy_event'],pending)
+  self.assertEqual(proof['child_id'],scope['recipient_event'])
+  self.assertNotIn(actual.entity_id,completion.get('received',{}))
+  pending_child=self.e._passive_events[proof['child_id']]
+  for mutation in ('missing','wrong_child','wrong_heavy','no_pending','wrong_target','wrong_token'):
+   with self.subTest(interruption=mutation):
+    old_target=self.e._heavy_events[pending]['target']
+    old_token=deepcopy(pending_child['defense_token'])
+    try:
+     if mutation=='missing':state.pop('heavy_interruption')
+     elif mutation=='wrong_child':state['heavy_interruption']['child_id']=event
+     elif mutation=='wrong_heavy':state['heavy_interruption']['heavy_event']='heavy-attack/unregistered'
+     elif mutation=='no_pending':self.e._heavy_pending=None
+     elif mutation=='wrong_token':pending_child['defense_token']=(event,self.b.entity_id,self.b.entity_id)
+     else:self.e._heavy_events[pending]['target']=self.b
+     self.assertFalse(self.e.validate_state()['valid'])
+    finally:
+     state['heavy_interruption']=deepcopy(proof);self.e._heavy_pending=pending
+     self.e._heavy_events[pending]['target']=old_target
+     pending_child['defense_token']=old_token
+  self.valid()
+  child=self.e._passive_events[scope['recipient_event']]
+  saved_hit=child['hit'];saved_observations=deepcopy(child['observations'])
+  try:
+   # A forged summary hit cannot replace this actual recipient's accuracy fact.
+   child['hit']=True
+   next(row for row in child['observations'] if row['stage']=='accuracy')['facts']['hit']=False
+   from resolution_transaction import request_fingerprint
+   previous=None
+   for observation in child['observations']:
+    observation['previous']=previous
+    observation['fingerprint']=request_fingerprint({key:value for key,value in observation.items() if key!='fingerprint'})
+    previous=observation['fingerprint']
+   with self.assertRaisesRegex(ValueError,'observed native hit'):
+    F.validate_world(self.e,WORLD.actor_index(self.e))
+  finally:
+   child['hit']=saved_hit;child['observations']=saved_observations
+  self.valid()
   scope['recipient']=self.b;self.assertFalse(self.e.validate_state()['valid'])
   scope['recipient']=actual;self.valid()
   self.assertEqual(self.e._heavy_pending,pending)
@@ -148,9 +195,50 @@ class FortressCurrentIntegrationTests(FortressFixture,unittest.TestCase):
   self.assertEqual(self.a._action_history,['standard','swift'])
   self.assertEqual(self.a.move_uses[mid],self.guardian_native_use_count)
   self.rejected(lambda:self.e.guardian_weapon_attack(self.a,self.b,mid,weapon_id=key,skill='집중'))
+  receipt=HEAVY.acknowledge_ruling(self.e,pending,self.other,
+   expected_current_state=HEAVY.observe(self.other),
+   ruling='explicit test GM ruling keeps the observed damage and cancels the remaining effects',
+   disposition=HEAVY.ContinuationDisposition.CANCELLED_BY_RULING,
+   continuation_reason='unreified caller remainder is cancelled externally, never replayed')
+  self.assertFalse(receipt['source_conformance_proven'])
+  self.assertIsNone(self.e._heavy_pending)
+  self.valid();self.restore();self.valid()
+  self.rejected(lambda:self.e.deliver_passive_event(event),'not an automatic native continuation')
+  self.assertEqual(self.a.move_uses[mid],self.guardian_native_use_count)
+  self.assertEqual(FREQUENCY.state(self.a)['activations'][F.GUARDIAN]['used'],1)
+
+ def test_guardian_invalid_pending_exception_rolls_back_paid_intercept(self):
+  class ClaimedHeavy(HEAVY.HeavyPending):pass
+  for error_type in (HEAVY.HeavyPending,ClaimedHeavy,PASSIVE.PassiveEventPending,ValueError):
+   with self.subTest(error=error_type.__name__):
+    key,mid,event=self.guardian_intercept()
+    before=self.e.export_state()
+    with patch.object(Engine,'_resolve_move_recipient',side_effect=error_type('unregistered-test-claim')):
+     with self.assertRaises(error_type):self.intercept(event)
+    self.assertEqual(self.e.export_state(),before)
+    self.assertEqual(self.a.budget['swift'],1)
+    self.assertFalse(self.a.custom_conditions['fortress_guardian_attack']['paid'])
+  key,mid,event=self.guardian_intercept()
+  self.e.gm.set_injuries(self.other,value=5,reason='actual Heavy recipient for subclass rejection')
+  before=self.e.export_state();original=Engine._resolve_move_recipient
+  def claim(engine,*args,**kwargs):
+   try:return original(engine,*args,**kwargs)
+   except HEAVY.HeavyPending as error:raise ClaimedHeavy(error.event_id) from error
+  with patch.object(Engine,'_resolve_move_recipient',claim):
+   with self.assertRaises(ClaimedHeavy):self.intercept(event)
+  self.assertEqual(self.e.export_state(),before)
+  self.assertIsNone(self.e._heavy_pending)
+  self.assertFalse(self.a.custom_conditions['fortress_guardian_attack']['paid'])
 
  def test_guardian_parent_accuracy_cannot_masquerade_as_actual_defense_recipient(self):
   key,mid,event=self.guardian_intercept()
+  parent=self.e._passive_events[event];saved_hit=parent['hit']
+  self.assertIs(saved_hit,True)
+  self.assertTrue(any(row['stage']=='accuracy' and row['facts']['hit'] is True for row in PASSIVE.observations(self.e,event)))
+  try:
+   parent['hit']=None
+   self.assertFalse(F._guardian_hit_observed(self.e,parent))
+  finally:parent['hit']=saved_hit
   scope=self.a.custom_conditions['fortress_guardian_attack']
   row=self.e._move_completions[scope['completion_id']]
   move=row.get('target_moves',{}).get(self.b.entity_id,row['move'])

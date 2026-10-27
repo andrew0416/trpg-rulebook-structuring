@@ -387,6 +387,19 @@ def event_interested(e,a,t,move):
  return bool(scope and scope['target'] is t and scope['move_id']==move['id'] and move.get('_weapon_attack') and acquired(a,GUARDIAN))
 
 
+def _guardian_hit_observed(e,event):
+ # Routed children publish their summary hit only at completion.
+ if event is None:return False
+ if event.get('hit') is None:
+  parent=e._passive_events.get(event.get('defense_parent'))
+  if (event.get('producer')!='Engine.use_move/defense-recipient' or parent is None or
+      parent['actor'] is not event['actor'] or parent['move_id']!=event['move_id'] or
+      parent['completion_id']!=event['completion_id']):return False
+ elif event['hit'] is not True:return False
+ import passive_events as EVENTS
+ return any(row['stage']=='accuracy' and row['facts']['hit'] is True for row in EVENTS.observations(e,event['id']))
+
+
 def guardian_hit(e,a,t,move,completion_id,*,passive_event=None,defense_token=None):
  scope=a.custom_conditions.get('fortress_guardian_attack')
  if not scope or scope['move_id']!=move['id']:return
@@ -400,14 +413,14 @@ def guardian_hit(e,a,t,move,completion_id,*,passive_event=None,defense_token=Non
  child=None
  if defense_token is None and original.entity_id in row.get('defense',{}):raise ValueError('actual native Guardian recipient producer required')
  event=getattr(e,'_passive_events',{}).get(passive_event)
- if event is None or event['actor'] is not a or event['target'] is not t or event['move_id']!=move['id'] or event['completion_id']!=completion_id or event.get('hit') is not True or event['phase']!='activated':raise ValueError('actual observed Guardian native hit required')
+ if event is None or event['actor'] is not a or event['target'] is not t or event['move_id']!=move['id'] or event['completion_id']!=completion_id or not _guardian_hit_observed(e,event) or event['phase']!='activated':raise ValueError('actual observed Guardian native hit required')
  if defense_token is not None:
   import move_defense_reactions as DEFENSE
   DEFENSE.require_recipient(e,defense_token,a,t,move,completion_id)
   child=getattr(e,'_passive_events',{}).get(passive_event)
   parent=getattr(e,'_passive_events',{}).get(defense_token[0])
   if child is None or parent is None or parent['target'] is not original:return
-  if child.get('defense_parent')!=parent['id'] or child['actor'] is not a or child['target'] is not t or child['move_id']!=move['id'] or child['completion_id']!=completion_id or child.get('hit') is not True:raise ValueError('actual Guardian defense recipient event required')
+  if child.get('defense_parent')!=parent['id'] or child['actor'] is not a or child['target'] is not t or child['move_id']!=move['id'] or child['completion_id']!=completion_id or not _guardian_hit_observed(e,child):raise ValueError('actual Guardian defense recipient event required')
   # Retain the declared choice when it still receives the attack. A redirect
   # may adopt only its unique eligible actual recipient, never an arbitrary one.
   index=W.actor_index(e);plans=row['defense'][original.entity_id]['recipients']
@@ -551,14 +564,14 @@ def validate_world(e,index):
     raise ValueError('paid Guardian requires its actual native recipient occurrence')
    child_id=scope.get('recipient_event')
    hit=getattr(e,'_passive_events',{}).get(scope.get('hit_event'))
-   if scope.get('hit_event') is not None and (hit is None or hit['actor'] is not a or hit['target'] is not target or hit['move_id']!=scope['move_id'] or hit['completion_id']!=row['id'] or hit.get('hit') is not True):raise ValueError('paid Guardian requires its observed native hit')
+   if scope.get('hit_event') is not None and (hit is None or hit['actor'] is not a or hit['target'] is not target or hit['move_id']!=scope['move_id'] or hit['completion_id']!=row['id'] or not _guardian_hit_observed(e,hit)):raise ValueError('paid Guardian requires its observed native hit')
    if child_id is not None:
     child=getattr(e,'_passive_events',{}).get(child_id)
     parent=None if child is None else getattr(e,'_passive_events',{}).get(child.get('defense_parent'))
     state=row.get('defense',{}).get(original.entity_id,{})
     if (child is None or parent is None or parent['target'] is not original or parent['actor'] is not a or
         child['target'] is not target or child['actor'] is not a or child['move_id']!=scope['move_id'] or
-        child['completion_id']!=row['id'] or child.get('hit') is not True or
+        child['completion_id']!=row['id'] or not _guardian_hit_observed(e,child) or
         state.get('children',{}).get(target.entity_id)!=child_id or
         not any(p['actor_id']==target.entity_id and p['hit'] for p in state.get('recipients',[]))):
      raise ValueError('paid Guardian requires its actual defense recipient receipt')

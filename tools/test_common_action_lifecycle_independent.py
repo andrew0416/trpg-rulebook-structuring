@@ -78,6 +78,7 @@ class ActionLifecycleTests(unittest.TestCase):
    with self.subTest(first=first):
     e,a,b=self.pair();e.start_round([a,b]);a.conditions.add('마비');e.d20=lambda:10;e.start_of_turn(a,initiative_count=__import__('initiative').value(self.rules,a,engine=e).value)
     self.assertTrue(self.turn.spend(e,a,first));self.assertFalse(self.denied_or_inert(lambda:self.turn.spend(e,a,second)))
+    self.assertTrue(self.turn.spend(e,a,'free'));self.assertTrue(self.turn.spend(e,a,'swift'))
  def test_015_successful_paralysis_permits_both_actions_without_cure(self):
   e,a,b=self.pair();e.start_round([a,b]);a.conditions.add('마비');e.d20=lambda:11;e.start_of_turn(a,initiative_count=__import__('initiative').value(self.rules,a,engine=e).value)
   self.assertTrue(self.turn.spend(e,a,'standard'));self.assertTrue(self.turn.spend(e,a,'shift'));self.assertIn('마비',a.conditions)
