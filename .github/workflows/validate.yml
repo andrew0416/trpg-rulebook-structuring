@@ -477,7 +477,7 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.11'
-      - name: Download only the bound original full226 failure artifact
+      - name: Download only the bound original full108 failure artifact
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -487,26 +487,26 @@ jobs:
           New-Item -ItemType Directory -Path $taskTemp -ErrorAction Stop | Out-Null
           $taskHeaders = @{ Authorization = 'Bearer ' + $env:GH_TOKEN; Accept = 'application/vnd.github+json'; 'X-GitHub-Api-Version' = '2022-11-28' }
           $taskApi = 'https://api.github.com/repos/andrew0416/trpg-rulebook-structuring'
-          $taskRun = Invoke-RestMethod -Uri ($taskApi + '/actions/runs/40541644877') -Headers $taskHeaders
-          if ($taskRun.head_sha -cne '309ef62478b610e2e297c545c141cb1f7d2d37f4' -or $taskRun.status -cne 'completed' -or $taskRun.conclusion -cne 'failure' -or $taskRun.run_attempt -ne 1) { throw 'Original run binding differs' }
-          $taskJob = Invoke-RestMethod -Uri ($taskApi + '/actions/jobs/122321298633') -Headers $taskHeaders
-          if ($taskJob.id -ne 122321298633 -or $taskJob.run_id -ne 40541644877 -or $taskJob.head_sha -cne $taskRun.head_sha -or $taskJob.status -cne 'completed' -or $taskJob.conclusion -cne 'failure') { throw 'Original job binding differs' }
-          $taskArtifact = Invoke-RestMethod -Uri ($taskApi + '/actions/artifacts/12752891660') -Headers $taskHeaders
-          if ($taskArtifact.name -cne 'implementation-aa-40541644877-1' -or $taskArtifact.size_in_bytes -ne 215094528 -or $taskArtifact.expired -or $taskArtifact.workflow_run.id -ne 40541644877 -or $taskArtifact.workflow_run.head_sha -cne $taskRun.head_sha -or $taskArtifact.digest -cne 'sha256:da2907d409abdf3eb097b6d74d7bbe2cfe0ea29ec43dcc315171ff14fa15803a') { throw 'Original artifact binding differs' }
+          $taskRun = Invoke-RestMethod -Uri ($taskApi + '/actions/runs/40554102869') -Headers $taskHeaders
+          if ($taskRun.head_sha -cne '9dddc9cba53e72857f98df75d84c4996f63925dd' -or $taskRun.status -cne 'completed' -or $taskRun.conclusion -cne 'failure' -or $taskRun.run_attempt -ne 1) { throw 'Original run binding differs' }
+          $taskJob = Invoke-RestMethod -Uri ($taskApi + '/actions/jobs/122365393328') -Headers $taskHeaders
+          if ($taskJob.id -ne 122365393328 -or $taskJob.run_id -ne 40554102869 -or $taskJob.head_sha -cne $taskRun.head_sha -or $taskJob.status -cne 'completed' -or $taskJob.conclusion -cne 'failure') { throw 'Original job binding differs' }
+          $taskArtifact = Invoke-RestMethod -Uri ($taskApi + '/actions/artifacts/12757317280') -Headers $taskHeaders
+          if ($taskArtifact.name -cne 'implementation-aa-40554102869-1' -or $taskArtifact.size_in_bytes -ne 214937966 -or $taskArtifact.expired -or $taskArtifact.workflow_run.id -ne 40554102869 -or $taskArtifact.workflow_run.head_sha -cne $taskRun.head_sha -or $taskArtifact.digest -cne 'sha256:0bef422461983cbefd2e73a8926a12a575f09c1597e6f67d5ae1752466f15e86') { throw 'Original artifact binding differs' }
           $taskZip = Join-Path $taskTemp 'original-artifact.zip'
-          Invoke-WebRequest -Uri ($taskApi + '/actions/artifacts/12752891660/zip') -Headers $taskHeaders -OutFile $taskZip
-          if ((Get-Item -LiteralPath $taskZip).Length -ne 215094528) { throw 'Original artifact size differs' }
+          Invoke-WebRequest -Uri ($taskApi + '/actions/artifacts/12757317280/zip') -Headers $taskHeaders -OutFile $taskZip
+          if ((Get-Item -LiteralPath $taskZip).Length -ne 214937966) { throw 'Original artifact size differs' }
           $taskArchive = [IO.Compression.ZipFile]::OpenRead($taskZip)
           try {
-            $taskPrefix = '4e87b49d54a64444aeaaa37e84066693/'
+            $taskPrefix = '2b170b05758d441d8289800857b9b473/'
             $taskExpected = @{
-              ($taskPrefix + 'diagnostics.zip.enc') = 956654
-              ($taskPrefix + 'evidence.zip.enc') = 213735294
+              ($taskPrefix + 'diagnostics.zip.enc') = 881285
+              ($taskPrefix + 'evidence.zip.enc') = 213658521
               ($taskPrefix + 'input-comparison.json') = 68
               ($taskPrefix + 'input-sha256-after.json') = 384436
               ($taskPrefix + 'input-sha256.json') = 384436
-              ($taskPrefix + 'run.json') = 4889
-              ($taskPrefix + 'summary.json') = 51089
+              ($taskPrefix + 'run.json') = 4907
+              ($taskPrefix + 'summary.json') = 27063
               'remote-h/h-proof.json.enc' = 739
               'remote-h/h-summary.json' = 427
             }
@@ -516,13 +516,13 @@ jobs:
               if (-not $taskSeen.Add($taskEntry.FullName) -or -not ($taskExpected.Keys -ccontains $taskEntry.FullName) -or $taskEntry.Length -ne $taskExpected[$taskEntry.FullName]) { throw 'Original artifact shape differs' }
             }
             $taskEntries = @($taskArchive.Entries | Where-Object { $_.FullName -ceq ($taskPrefix + 'diagnostics.zip.enc') })
-            if ($taskEntries.Count -ne 1 -or $taskEntries[0].Length -ne 956654) { throw 'One bound encrypted diagnostic is required' }
+            if ($taskEntries.Count -ne 1 -or $taskEntries[0].Length -ne 881285) { throw 'One bound encrypted diagnostic is required' }
             $taskInput = $taskEntries[0].Open()
             $taskOutput = [IO.File]::Open((Join-Path $taskTemp 'diagnostics.zip.enc'), [IO.FileMode]::CreateNew)
             try { $taskInput.CopyTo($taskOutput) } finally { $taskOutput.Dispose(); $taskInput.Dispose() }
           } finally { $taskArchive.Dispose() }
-          if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $taskTemp 'diagnostics.zip.enc')).Hash.ToLowerInvariant() -cne '7749135fb52b55559e1405b8e6a62bb3ec8a2469d166a83eaa0e2a0a56d6125f') { throw 'Encrypted diagnostic digest differs' }
-      - name: Reduce original full226 failures to public IDs and source frames only
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $taskTemp 'diagnostics.zip.enc')).Hash.ToLowerInvariant() -cne '7892e73d89cc771858c4cea935699efb8cb7a2480f1d046bd2a5baa0107e886b') { throw 'Encrypted diagnostic digest differs' }
+      - name: Reduce original full108 failures to public IDs and source frames only
         shell: pwsh
         env:
           PTK_FIXTURE_KEY: ${{ secrets.PTK_FIXTURE_KEY }}
@@ -547,15 +547,15 @@ jobs:
               temporary = Path(os.environ['RUNNER_TEMP']).resolve()
               if root.drive.upper() != 'D:' or temporary.drive.upper() != 'D:':
                   raise ValueError('D-only diagnostic paths required')
-              head = '309ef62478b610e2e297c545c141cb1f7d2d37f4'
-              evidence_id = '4e87b49d54a64444aeaaa37e84066693'
+              head = '9dddc9cba53e72857f98df75d84c4996f63925dd'
+              evidence_id = '2b170b05758d441d8289800857b9b473'
               def git(*args):
                   return subprocess.check_output(['git', *args], cwd=root, stderr=subprocess.DEVNULL)
               if git('rev-parse', 'HEAD^').decode().strip() != head:
                   raise ValueError('The diagnostic proposal must directly follow its bound source')
               if git('diff', '--name-only', head, 'HEAD').decode().splitlines() != ['.github/workflows/validate.yml']:
                   raise ValueError('Only the diagnostic workflow may change before this read')
-              packet_blob = '1daeeb40f16a6673d21f6daba5b4ce93fba46c58'
+              packet_blob = '3d1e44aa97cc21a2f59720219e2dfc2ab2ab3892'
               if git('rev-parse', head + ':.ci/suites/changed_revisions.json').decode().strip() != packet_blob:
                   raise ValueError('Original public packet Git object differs')
               packet_bytes = git('show', head + ':.ci/suites/changed_revisions.json')
@@ -563,15 +563,15 @@ jobs:
               declared = [name for group, row in packet['completed'].items() for name in row['tests']
                           if isinstance(name, str) and name.startswith(group + '.')]
               public_ids = set(declared)
-              if (len(declared) != 226 or len(public_ids) != 226 or packet['required_unique_count'] != 226
-                      or sum(len(row['tests']) for row in packet['completed'].values()) != 226
+              if (len(declared) != 108 or len(public_ids) != 108 or packet['required_unique_count'] != 108
+                      or sum(len(row['tests']) for row in packet['completed'].values()) != 108
                       or packet['completion_credit'] != 0
                       or any(re.fullmatch(r'(?:tools|tests)\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+\.test_[A-Za-z0-9_]+', name) is None for name in declared)):
                   raise ValueError('Original public declaration differs')
               outer_shape = {evidence_id + '/' + name: size for name, size in {
-                  'diagnostics.zip.enc': 956654, 'evidence.zip.enc': 213735294,
+                  'diagnostics.zip.enc': 881285, 'evidence.zip.enc': 213658521,
                   'input-comparison.json': 68, 'input-sha256-after.json': 384436,
-                  'input-sha256.json': 384436, 'run.json': 4889, 'summary.json': 51089}.items()}
+                  'input-sha256.json': 384436, 'run.json': 4907, 'summary.json': 27063}.items()}
               outer_shape.update({'remote-h/h-proof.json.enc': 739, 'remote-h/h-summary.json': 427})
               def shape(archive, expected):
                   entries = archive.infolist()
@@ -593,20 +593,20 @@ jobs:
               if (summary['schema_version'] != 1 or summary['suite'] != 'changed_revisions'
                       or summary['report_count'] != 1 or len(summary['reports']) != 1
                       or summary['verifier_status'] != 'fail' or summary['verifier_exit_code'] != 1):
-                  raise ValueError('Original full226 summary differs')
+                  raise ValueError('Original full108 summary differs')
               public_report = summary['reports'][0]
               public_tests = public_report['tests']
               if (public_report['kind'] != 'run' or public_report['successful'] is not False
-                      or public_report['tests_run'] != 226 or public_report['collected_count'] != 226
+                      or public_report['tests_run'] != 108 or public_report['collected_count'] != 108
                       or public_report['undisplayed_test_count'] != 0 or public_report['discovery_error_count'] != 0
-                      or public_report['status_counts'] != {'error': 4, 'fail': 5, 'pass': 217}
-                      or public_report['result_counts'] != dict(skipped=0, expected_failures=0, unexpected_successes=0, failures=5, errors=5)
-                      or len(public_tests) != 226 or {row['id'] for row in public_tests} != public_ids
+                      or public_report['status_counts'] != {'fail': 2, 'pass': 106}
+                      or public_report['result_counts'] != dict(skipped=0, expected_failures=0, unexpected_successes=0, failures=2, errors=0)
+                      or len(public_tests) != 108 or {row['id'] for row in public_tests} != public_ids
                       or any(row['status'] not in ('pass', 'fail', 'error') for row in public_tests)):
-                  raise ValueError('Original full226 public result differs')
+                  raise ValueError('Original full108 public result differs')
               public_status = {row['id']: row['status'] for row in public_tests}
-              if {status: sum(value == status for value in public_status.values()) for status in ('pass', 'fail', 'error')} != {'pass': 217, 'fail': 5, 'error': 4}:
-                  raise ValueError('Original full226 public status mapping differs')
+              if {status: sum(value == status for value in public_status.values()) for status in ('pass', 'fail', 'error')} != {'pass': 106, 'fail': 2, 'error': 0}:
+                  raise ValueError('Original full108 public status mapping differs')
               if (comparison != dict(unchanged=True, changed_paths=[], read_errors={})
                       or not isinstance(before, dict) or not before or before != after
                       or any(not isinstance(name, str) or not isinstance(sha, str) or re.fullmatch(r'[0-9a-f]{64}', sha) is None for name, sha in before.items())):
@@ -616,29 +616,29 @@ jobs:
                       raise ValueError('Original frozen public input differs')
               if before['.ci/suites/changed_revisions.json'] != hashlib.sha256(packet_bytes).hexdigest():
                   raise ValueError('Original frozen packet differs')
-              full_evidence = dict(file='evidence.zip.enc', sha256='c6c4d0c7930152edd87ca57e306abd962076d58653e779f23fe2846385e3c4ed', raw_file_count=13)
-              small_evidence = dict(file='diagnostics.zip.enc', sha256='7749135fb52b55559e1405b8e6a62bb3ec8a2469d166a83eaa0e2a0a56d6125f', raw_file_count=12, complete_input_capture=False)
+              full_evidence = dict(file='evidence.zip.enc', sha256='8bc827cc0b16b921c2706cf21a1e16daac33b1246b1cd78359d7b1ec1778cdd1', raw_file_count=13)
+              small_evidence = dict(file='diagnostics.zip.enc', sha256='7892e73d89cc771858c4cea935699efb8cb7a2480f1d046bd2a5baa0107e886b', raw_file_count=12, complete_input_capture=False)
               outcome = run['verifier_outcome']
-              stage = 'D:/trpg-rulebook-structuring/ci/40541644877-1-changed_revisions'
+              stage = 'D:/trpg-rulebook-structuring/ci/40554102869-1-changed_revisions'
               command = outcome['command']
               normalized = [value.replace('\\', '/') for value in command] if isinstance(command, list) and all(isinstance(value, str) for value in command) else []
               if (run['git_sha'] != head or run['evidence_id'] != evidence_id or run['suite'] != 'changed_revisions'
                       or run['status'] != 'fail' or run['exit_code'] != 1 or run['native_timeout_seconds'] != 10800
                       or run['inputs_unchanged'] is not True or run['evidence_status'] != 'encrypted'
                       or run['marksman_source_preparation']['status'] != 'prepared' or run['marksman_source_preparation']['page_index'] != 329
-                      or outcome['status'] != 'fail' or outcome['exit_code'] != 1 or outcome['elapsed_seconds'] != 1445.203
+                      or outcome['status'] != 'fail' or outcome['exit_code'] != 1 or outcome['elapsed_seconds'] != 800.5469999999999
                       or run['execution_stage'].replace('\\', '/') != stage
-                      or run['ci']['GITHUB_SHA'] != head or run['ci']['GITHUB_RUN_ID'] != '40541644877' or run['ci']['GITHUB_RUN_ATTEMPT'] != '1'
+                      or run['ci']['GITHUB_SHA'] != head or run['ci']['GITHUB_RUN_ID'] != '40554102869' or run['ci']['GITHUB_RUN_ATTEMPT'] != '1'
                       or run['encrypted_evidence'] != dict(full_evidence, diagnostics=small_evidence)
                       or len(normalized) != 14 or normalized[1:8] != ['-B', '-u', '-X', 'utf8', stage + '/tools/ci_physical.py', '--stage', stage]
                       or normalized[8] != '--inputs' or normalized[9] != normalized[13] + '/input-sha256.json'
                       or normalized[10:13] != ['--target', '.ci/suites/changed_revisions.json', '--output']
                       or not normalized[13].endswith('/output/ci/' + evidence_id)):
-                  raise ValueError('Original full226 execution binding differs')
-              if h_summary != dict(status='H_REJECTED', run='40541644877', attempt='1', head=head,
+                  raise ValueError('Original full108 execution binding differs')
+              if h_summary != dict(status='H_REJECTED', run='40554102869', attempt='1', head=head,
                                    suite='changed_revisions', checker_sha256='8df797f3faf505643e68ce05148d4ba3af36d47efe72ed08a0ef72aa5bd4ce07',
                                    ordinary_verified=0, native_runs=0, completion_credit=0,
-                                   encrypted_h_proof_sha256='f65150b79c5b491c1c01cd69cef6ccdf8c97d515254647d99e0f34678a1ce56b'):
+                                   encrypted_h_proof_sha256='090c83050de3a1fb7d14474f53420743323d7efb51129a93783dc150bc3dc852'):
                   raise ValueError('Original rejected H binding differs')
 
               tracked = {name for name in git('ls-tree', '-rz', '--name-only', head).decode('utf-8').split('\0') if name.endswith('.py')}
@@ -706,7 +706,7 @@ jobs:
               assert reduce(case, 'heavy_injury_adapter.HeavyPending: ' + marker + '\nRuntimeError: ' + marker,
                             set(), lambda path: 0)['exception_type'] == 'RuntimeError'
 
-              # shortcut: this exact completed full226 failure only; review before another run.
+              # shortcut: this exact completed full108 failure only; review before another run.
               with zipfile.ZipFile(temporary / 'diagnostics.zip') as archive:
                   entries = archive.infolist()
                   names = [item.filename for item in entries]
@@ -739,11 +739,11 @@ jobs:
                       raise ValueError('One bounded original verifier report required')
                   report = json.loads(archive.read(report_info))
               if (report['kind'] != 'run' or report['successful'] is not False
-                      or len(report['collected']) != 226 or set(report['collected']) != public_ids
-                      or report['tests_run'] != 226 or report['discovery_errors']
+                      or len(report['collected']) != 108 or set(report['collected']) != public_ids
+                      or report['tests_run'] != 108 or report['discovery_errors']
                       or report['skipped'] or report['expected_failures'] or report['unexpected_successes']
-                      or len(report['failures']) != 5 or len(report['errors']) != 5):
-                  raise ValueError('Original completed full226 report differs')
+                      or len(report['failures']) != 2 or len(report['errors']) != 0):
+                  raise ValueError('Original completed full108 report differs')
               reduced = []
               failing_ids, error_ids = set(), set()
               for kind, status, target_ids in (('failures', 'fail', failing_ids), ('errors', 'error', error_ids)):
@@ -756,20 +756,20 @@ jobs:
                           raise ValueError('Original failure row public mapping differs')
                       target_ids.update(item['test_ids'])
                       reduced.append(dict(kind=kind, **item))
-              if (len(failing_ids) != 5 or len(error_ids) != 4 or failing_ids & error_ids
+              if (len(failing_ids) != 2 or len(error_ids) != 0 or failing_ids & error_ids
                       or failing_ids != {name for name, status in public_status.items() if status == 'fail'}
                       or error_ids != {name for name, status in public_status.items() if status == 'error'}):
                   raise ValueError('Original unique failure mapping differs')
-              result = dict(kind='redacted_original_full226_failure_frames_only', source_run=40541644877,
-                            source_job=122321298633, source_attempt=1, declared_public_id_count=226,
+              result = dict(kind='redacted_original_full108_failure_frames_only', source_run=40554102869,
+                            source_job=122365393328, source_attempt=1, declared_public_id_count=108,
                             original_public_packet_blob_oid=packet_blob,
                             source_commit=head, diagnostic_commit=os.environ['GITHUB_SHA'],
                             evidence_id=evidence_id, game_runs=0, native_reruns=0, verifier_reruns=0, h_reruns=0,
                             clause_credit=0, ordinary_verified=0, self_check_passed=True, physical_acceptance=False,
                             original_input_maps_compared_equal=True, original_h_status='H_REJECTED',
                             original_verifier_status='fail', original_verifier_exit_code=1, original_report_count=1,
-                            original_tests_run=226, original_unique_pass=217, original_unique_fail=5, original_unique_error=4,
-                            raw_failure_rows=5, raw_error_rows=5, diagnostic_not_new_test_evidence=True,
+                            original_tests_run=108, original_unique_pass=106, original_unique_fail=2, original_unique_error=0,
+                            raw_failure_rows=2, raw_error_rows=0, diagnostic_not_new_test_evidence=True,
                             full_restoration_scope_still_pending=True, failures=reduced)
               with (root / 'aa-diagnostics.json').open('x', encoding='utf-8') as stream:
                   json.dump(result, stream, ensure_ascii=False, indent=2)
@@ -779,11 +779,11 @@ jobs:
           except BaseException:
               print('Bounded diagnostic reduction failed; raw evidence remains private.')
               raise SystemExit(1)
-          print('Redacted original full226 failure frames saved; native/verifier/H reruns=0, clause credit=0.')
+          print('Redacted original full108 failure frames saved; native/verifier/H reruns=0, clause credit=0.')
           '@
           python -I -B -X utf8 -c $taskCode
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Preserve only redacted public full226 failure frames
+      - name: Preserve only redacted public full108 failure frames
         if: ${{ success() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
