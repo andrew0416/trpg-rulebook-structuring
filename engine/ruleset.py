@@ -18,6 +18,8 @@ def source_unit(record, default_file=None):
     repository, not a claim about the authority of the underlying source.
     """
     source = record.get("source") or record.get("_source")
+    if source == "core_example" and isinstance(record.get("_source"), dict):
+        source = record["_source"]
     explicit = "source" in record or "_source" in record or bool(record.get("chapter"))
     if source == "custom":
         source = {"file": "data/custom/" + str(record.get("custom_file") or "runtime.json")}

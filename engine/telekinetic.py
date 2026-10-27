@@ -357,6 +357,14 @@ def mechanics(r,mid,mm):
  result['effects_exec']=[x for x in result.get('effects_exec',[]) if x.get('type')!='push']
  return result
 
+def harm_semantics(r,mid):
+ """Reviewed active effects that this owner executes outside effects_exec."""
+ if mid not in (BARRIER,LIFT):return None
+ __import__('priority_actions')._move(r,mid)
+ # Lift impairs the target's movement even under the literal caster Evasion
+ # policy. Barrier creates protective walls, not an effect harming its target.
+ return mid==LIFT
+
 def preflight_move(e,a,t,move):
  mid=move['id'];choice=a.spec.get('telekinetic_move_choice',{})
  if mid==KINESIS and __import__('combat_move_reactions').current(e,a,mid) is None:raise ValueError('Kinesis requires the actual about-to-hit attack Interrupt')

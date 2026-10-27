@@ -163,4 +163,56 @@ class ExampleSpeciesTests(unittest.TestCase):
   CAP.policy(cold)['scope_note']='actual changed policy'
   self.assertNotEqual(rules_fingerprint(cold),before)
 
+ def test_all_five_initial_catalog_rebuilds_and_equivalent_profile_cold_restore(self):
+  import state_codec as CODEC
+  from ruleset import RuleFilter
+  rules=Rules(ROOT,ruleset='core');engine=Engine(rules,seed=1509)
+  expected=set(rules.example_species);self.assertEqual(len(expected),5)
+  species={uid:deepcopy(rules.species[uid]) for uid in expected}
+  selected={uid:deepcopy(rules.selection.units[uid]) for uid in expected}
+  fingerprint=CODEC.rules_fingerprint(rules)
+  for uid in sorted(expected):
+   self.assertEqual(rules.selection.resolve(uid),uid)
+   self.assertEqual(selected[uid]['source']['file'],'ch11-running-the-game.md')
+   self.assertEqual(selected[uid]['source']['line_span'],species[uid]['_source']['line_span'])
+   actor=Combatant(rules,build_pokemon(rules,uid,1,abilities=[]))
+   engine.gm.add_combatant(actor)
+   self.assertEqual(actor.spec['source'],'core_example')
+  for rebuild in range(3):
+   if rebuild==1:rules.ruleset=RuleFilter(deepcopy(rules.ruleset.profile),name=rules.ruleset.name)
+   rules._apply_ruleset()
+   self.assertEqual({uid:rules.species[uid] for uid in expected},species)
+   self.assertEqual({uid:rules.selection.units[uid] for uid in expected},selected)
+   self.assertEqual(CODEC.rules_fingerprint(rules),fingerprint)
+   for uid in expected:self.assertEqual(rules.selection.resolve(uid),uid)
+  saved=json.loads(json.dumps(engine.export_state()))
+  fresh=Rules(ROOT,ruleset='core');fresh._apply_ruleset()
+  restored=Engine.import_state(fresh,saved)
+  self.assertEqual({actor.spec['species'] for actor in restored.everyone},expected)
+  self.assertTrue(all(actor.spec['source']=='core_example' for actor in restored.everyone))
+  other=Rules(ROOT,ruleset='core')
+  other.ruleset=RuleFilter({'sources':['core'],'variants':['소실']});other._apply_ruleset()
+  with self.assertRaisesRegex(StateCodecError,'fingerprint mismatch'):Engine.import_state(other,saved)
+
+ def test_example_source_marker_is_narrow_and_bad_source_and_policy_are_rejected(self):
+  from ruleset import source_unit,classify,RuleFilter,UnresolvedRuleSelection
+  source={'file':'ch11-running-the-game.md','line_span':[1509,1513]}
+  for marker in ('unknown_example','weapon'):
+   self.assertEqual(source_unit({'id':'unreviewed','source':marker,'_source':source})['source'],{'file':''})
+  self.assertEqual(source_unit({'source':'custom','custom_file':'demo.json','_source':source})['source'],{'file':'data/custom/demo.json'})
+  self.assertEqual(source_unit({'source':{'file':'unreviewed.txt'},'_source':source})['source'],{'file':'unreviewed.txt'})
+  tagged={'id':'example/tagged','name':'example [홈브류]','source':'core_example','_source':source}
+  self.assertEqual(classify(tagged),('core','홈브류'))
+  self.assertFalse(RuleFilter({'sources':['core'],'variants':[]}).allows(tagged)[0])
+  rules=Rules(ROOT,ruleset='core');engine=Engine(rules,seed=1510)
+  actor=Combatant(rules,build_pokemon(rules,AUDINO,1,abilities=[]));engine.gm.add_combatant(actor)
+  saved=engine.export_state()
+  bad=Rules(ROOT,ruleset='core');bad.species[AUDINO]['_source']={'file':'unreviewed-example.txt'}
+  bad._apply_ruleset()
+  with self.assertRaises(UnresolvedRuleSelection):bad.selection.resolve(AUDINO)
+  with self.assertRaisesRegex(StateCodecError,'fingerprint mismatch'):Engine.import_state(bad,saved)
+  changed=Rules(ROOT,ruleset='core');changed.example_species[AUDINO]['base_stat_deltas']['atk']+=1
+  with self.assertRaisesRegex(ValueError,'definition changed'):build_pokemon(changed,AUDINO,1,abilities=[])
+  with self.assertRaisesRegex(StateCodecError,'fingerprint mismatch'):Engine.import_state(changed,saved)
+
 if __name__=='__main__':unittest.main()
