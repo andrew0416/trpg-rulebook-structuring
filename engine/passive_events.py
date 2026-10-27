@@ -112,6 +112,8 @@ def _continuation_facts(e,ev,frame):
     # Preserve native next-use contribution data independently of live stack refs.
     facts['contributions']=[{k:v for k,v in scope.items() if k not in ('actor','target')}
                             for scope in frame['scopes']]
+    if 'source_choices' in frame:
+        facts['source_choices']=frame['source_choices']
     if frame.get('kind')=='recipient_return':
         import action_lifecycle as ACTION
         action=ACTION.move_frame(e,e._move_completions[args['completion_id']])
@@ -216,6 +218,11 @@ def after_accuracy(e,**args):
         return e._finish_move_resolution(**args)
     from root_resolution import fingerprint as request_fingerprint
     frame={'args':args,'scopes':list(getattr(e,'_event_use_scopes',()))}
+    import wish_move as WISH, recycle_move as RECYCLE
+    if args['move_id']==WISH.SOURCE:
+        frame['source_choices']={'wish':WISH.continuation_choice(e,args)}
+    elif args['move_id']==RECYCLE.SOURCE:
+        frame['source_choices']={'recycle':RECYCLE.continuation_choice(e,args)}
     frame['fingerprint']=request_fingerprint(_continuation_facts(e,ev,frame))
     ev['continuation']=frame
     ev.update(phase='accuracy_boundary',hit=args['hit'],natural_roll=args['nat'],critical=args['crit'])
@@ -228,6 +235,19 @@ def _deliver_accuracy(e,event_id):
     ev=e._passive_events[event_id];frame=ev.get('continuation')
     if frame is None or request_fingerprint(_continuation_facts(e,ev,frame))!=frame['fingerprint']:
         raise ValueError('native continuation changed')
+    import wish_move as WISH, recycle_move as RECYCLE
+    choices=frame.get('source_choices',{})
+    if type(choices)is not dict or set(choices)-{'wish','recycle'} or ('wish' in choices and 'recycle' in choices):
+        raise ValueError('native continuation source selection changed')
+    required='wish' if frame['args']['move_id']==WISH.SOURCE else 'recycle' if frame['args']['move_id']==RECYCLE.SOURCE else None
+    if required is not None and (set(choices)!={required} or choices[required] is None):
+        raise ValueError('native continuation requires its actual stored source choice')
+    with WISH.resume_choice(e,frame['args'],choices.get('wish')), RECYCLE.resume_choice(e,frame['args'],choices.get('recycle')):
+        return _deliver_selected_accuracy(e,event_id)
+
+
+def _deliver_selected_accuracy(e,event_id):
+    ev=e._passive_events[event_id];frame=ev['continuation']
     for key,profile in ev['listener_profiles'].items():
         if profile.get('event')!='accuracy_resolved':continue
         receipt=(ev['actor'],key,ev['activation_id'])

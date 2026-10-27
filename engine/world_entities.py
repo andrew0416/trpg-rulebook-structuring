@@ -882,6 +882,10 @@ def validate_world(engine):
     except (ValueError,KeyError,TypeError) as exc:
         issue('repel',None,str(exc))
     try:
+        __import__('study_books').validate_world(engine,index)
+    except (ValueError,KeyError,TypeError) as exc:
+        issue('study_books',None,str(exc))
+    try:
         import optional_physical_equipment as OPTIONAL_EQUIPMENT
         OPTIONAL_EQUIPMENT.validate_world(engine,index)
     except ValueError as exc:

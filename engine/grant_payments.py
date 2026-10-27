@@ -184,10 +184,11 @@ def settle_sources(engine,actor,sources,plans,reason,*,legacy_refund=0):
     return amount
 
 
-def acquire(engine,actor,group_id,grants,points,*,rule_id,reason,allocation=None,owner_id=None,lifetime=None):
+def acquire(engine,actor,group_id,grants,points,*,rule_id,reason,allocation=None,owner_id=None,lifetime=None,_native_completion=None):
     """Debit once and commit an application-adjudicated native grant group."""
     import state_grants as G
     _actor(engine,actor);_text(group_id);_text(rule_id);_text(reason);_points(points)
+    if _native_completion is not None and not callable(_native_completion):raise ValueError('native grant completion must be callable')
     if type(grants) is not list or not grants:raise ValueError('nonempty declared grant group required')
     children=[]
     for row in grants:
@@ -255,6 +256,10 @@ def acquire(engine,actor,group_id,grants,points,*,rule_id,reason,allocation=None
             source=G.state(c)['sources'][row['source_id']]
             source['payment_id']=group_id
             if row['field']=='moves':source['learning_route']=row['learning_route']
+        # The paid lesson must finish its source-owned Connection before the
+        # transition's ordinary gained-Ability observer reconciles the result.
+        # This is a live native callback, never serialized permission/state.
+        if _native_completion is not None:_native_completion(e,c)
         import move_state as MOVES
         MOVES.validate_spec(e.r,c.spec)
         validate(c)

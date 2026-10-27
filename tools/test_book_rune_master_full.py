@@ -1,4 +1,5 @@
 """Rune-specific acquired sources and real native producers/consumers."""
+from copy import deepcopy
 from pathlib import Path
 import sys,unittest
 from unittest.mock import patch
@@ -7,10 +8,11 @@ sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 from engine import Rules,Engine,Combatant
 from builder import build_trainer,build_pokemon
 from rune_master_fixture import RuneFixture
-from native_scenario_fixture import prepare_body
+from native_scenario_fixture import prepare_body,assert_rejected_unchanged
 import rune_master as R,trainer_feature_acquisition as T,acquired_features as A
 import state_grants as G,world_entities as W,action_points as AP,csv_item_capability_contracts as CAP
 import special_entities as SPECIAL,temporary_ap as TEMP
+import state_codec as CODEC,resolution_transaction as TX
 
 
 class RuneMasterFullTests(RuneFixture,unittest.TestCase):
@@ -79,6 +81,59 @@ class RuneMasterFullTests(RuneFixture,unittest.TestCase):
         R.create_glyph(self.e,self.a,u,glyph_id='glyph/wild-summoned',surface_id='surface/wall',visible=False,
             seconds=3,flat_surface=True,contact=True,gm_id='gm/actual',reason='GM observes actual non-Prime wild summoned Unown pressed to wall')
         self.assertFalse(u.on_field);self.assertTrue(u.spec['wild']);self.assertNotIn('trainer_id',u.spec)
+
+    def test_low_level_class_gather_uses_twenty_level_cap_in_both_editions_and_preserves_receipts(self):
+        for edition in ('supplement','local_csv'):
+            with self.subTest(edition=edition):
+                self.scene(edition=edition,acquire=False,trainer_level=12)
+                self.acquire(R.CLASS)
+                self.assertEqual(self.a.level,12)
+                self.assertEqual([row['feature_id'] for row in R.records(self.a)],[R.CLASS])
+                self.assertEqual(R.acquired(self.a)['snapshot']['source'],R.source(self.rules,R.CLASS,edition))
+                self.assertTrue(R.gather_authorized(self.e,self.a))
+                self.combat();self.assertEqual(self.a.budget['standard'],1)
+                out=CAP.summon_unown(self.e,self.a,entity_id='pokemon/low-level-summoned',
+                    selection={'species_id':'pokemon/안농','form':'Z','reason':'GM observes actual random form Z'},
+                    location={'kind':'grid','cell':[1,3]},side='independent',side_reason='GM observes independent allegiance',fixed_d8=[8,8])
+                u=out['pokemon'];self.assertTrue(out['summoned']);self.assertEqual(u.level,16)
+                self.assertIs(W.actor_index(self.e)[u.entity_id],u);self.assertEqual(self.a.budget['standard'],0)
+                self.assertTrue(u.spec['wild']);self.assertFalse(u.captured);self.assertNotIn('trainer_id',u.spec)
+                self.assertEqual(u.side,'independent');self.assertNotIn(u.entity_id,self.a.spec.get('pokemon_registry',{}))
+                self.assertEqual((out['receipt']['d8'],out['receipt']['level']),([8,8],16))
+                self.assertEqual(u.spec['gather_unown_origin']['summoner_id'],self.a.entity_id)
+                self.assertEqual(u.spec['gather_unown_origin']['selection'],out['receipt']['selection'])
+                self.assertEqual(CAP._unown_receipts(self.a),[out['receipt']])
+                self.assertTrue(CAP.validate_world(self.e,W.actor_index(self.e)))
+                self.e.end_of_turn(self.a);self.e.end_encounter(round_elapsed_seconds=0);self.restore()
+                u=W.actor_index(self.e)['pokemon/low-level-summoned']
+                self.assertEqual((self.a.level,u.level),(12,16));self.assertNotIn('trainer_id',u.spec)
+                self.assertTrue(u.spec['wild']);self.assertFalse(u.captured);self.assertEqual(u.side,'independent')
+                self.assertEqual(CAP._unown_receipts(self.a),[out['receipt']])
+                baseline=self.e.export_state();rng=self.e.rng.getstate();damaged=deepcopy(baseline)
+                receipt=deepcopy(out['receipt']);receipt['level']=self.a.level
+                receipt['sha256']=TX.request_fingerprint({key:value for key,value in receipt.items() if key!='sha256'})
+                encoded,=[node['items'] for node in damaged['nodes'].values()
+                    if node['kind']=='dict' and ['kind',CAP.UNOWN_SUMMON] in node['items']]
+                for pair in encoded:
+                    if pair[0] in ('level','sha256'):pair[1]=receipt[pair[0]]
+                unchanged=deepcopy(damaged)
+                with self.assertRaisesRegex(CODEC.StateCodecError,'summoned level must match the actual 2d8 roll'):
+                    CODEC.load_engine(self.rules,damaged)
+                self.assertEqual(damaged,unchanged);self.assertEqual(self.e.export_state(),baseline)
+                self.assertEqual(self.e.rng.getstate(),rng);self.assertIs(W.actor_index(self.e)[self.a.entity_id],self.a)
+                self.e.advance_time(604799,[])
+                assert_rejected_unchanged(self.e,lambda:CAP.summon_unown(self.e,self.a,entity_id='pokemon/low-level-too-soon',
+                    selection={'species_id':'pokemon/안농','form':'A','reason':'GM observes actual random form A'},
+                    location={'kind':'grid','cell':[1,3]},side='independent',side_reason='actual independent allegiance',fixed_d8=[8,8]),
+                    reason_pattern='actual week is spent')
+                self.e.advance_time(1,[]);self.combat();self.assertEqual(self.a.budget['standard'],1)
+                second=CAP.summon_unown(self.e,self.a,entity_id='pokemon/low-level-next-week',
+                    selection={'species_id':'pokemon/안농','form':'A','reason':'GM observes actual random form A'},
+                    location={'kind':'grid','cell':[1,4]},side='independent',side_reason='actual independent allegiance',fixed_d8=[8,8])
+                self.assertTrue(second['summoned']);self.assertEqual(second['pokemon'].level,16)
+                self.assertEqual(self.a.budget['standard'],0);self.assertNotIn('trainer_id',second['pokemon'].spec)
+                self.assertEqual(second['receipt']['at']-out['receipt']['at'],604800)
+                self.assertEqual(CAP._unown_receipts(self.a),[out['receipt'],second['receipt']])
 
     def test_hidden_power_native_physical_special_damage_and_shapes_stab(self):
         self.e.gm.set_position(self.b,(2,1),reason='actual adjacent target');self.combat()

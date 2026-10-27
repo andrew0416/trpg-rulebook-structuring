@@ -38,12 +38,12 @@ CRAFTING_SOURCE=RECIPES_CORE.CRAFTING_SOURCE
 
 def _day(actor):return actor.spec.get('frequency_state',{}).get('day',0)
 
-def dowse(e,actor,*,outdoors,rock_or_sand=False,reroll_sixes=False,fixed=None):
+def dowse(e,actor,*,outdoors,rock_or_sand=False,reroll_sixes=False,fixed=None,book_color=None):
  import state_grants as G
- return G.transition(e,actor,lambda se,sa:_dowse(se,sa,outdoors=outdoors,rock_or_sand=rock_or_sand,reroll_sixes=reroll_sixes,fixed=fixed))
+ return G.transition(e,actor,lambda se,sa:_dowse(se,sa,outdoors=outdoors,rock_or_sand=rock_or_sand,reroll_sixes=reroll_sixes,fixed=fixed,book_color=book_color))
 
 
-def _dowse(e,actor,*,outdoors,rock_or_sand=False,reroll_sixes=False,fixed=None):
+def _dowse(e,actor,*,outdoors,rock_or_sand=False,reroll_sixes=False,fixed=None,book_color=None):
  """One 10-minute use; paths select individual sixes, e.g. {'0','0.1'}.
  A True decision repeats every six. Each six grants its shard before rerolling.
  """
@@ -58,10 +58,11 @@ def _dowse(e,actor,*,outdoors,rock_or_sand=False,reroll_sixes=False,fixed=None):
  used=record.get('uses',0) if record.get('day')==_day(actor) else 0
  C.integer(used,'dowsing daily uses',0)
  if used>=M.ratio(rank,2):raise ValueError('daily Dowsing Rod allowance exhausted')
+ plan=__import__('study_books').dowsing_plan(e,actor,rank,used,book_color);count+=plan['dice']
  import roll_pools as POOLS
  gained=Counter()
  def award(path,face):
-  color=e.rng.choice(tuple(SHARDS)) if face>=4 else None
+  color=(plan['color'] or e.rng.choice(tuple(SHARDS))) if face>=4 else None
   if color:gained[color]+=1
   return {'shard':color}
  results=POOLS.recursive(e.rng,count,repeat=reroll_sixes,fixed=fixed,on_face=award)
@@ -69,8 +70,8 @@ def _dowse(e,actor,*,outdoors,rock_or_sand=False,reroll_sixes=False,fixed=None):
  e.advance_time(600,[actor])
  wallet=actor.spec.setdefault('shards',{})
  for color,number in gained.items():wallet[color]=wallet.get(color,0)+number
- actor.spec['dowsing']={'day':_day(actor),'uses':used+1}
- return {'activity':'dowse','pool':count,'results':results,'gained':dict(gained),'remaining_uses':M.ratio(rank,2)-used-1}
+ actor.spec['dowsing']={'day':_day(actor),'uses':used+plan['uses']}
+ return {'activity':'dowse','pool':count,'results':results,'gained':dict(gained),'remaining_uses':M.ratio(rank,2)-used-plan['uses']}
 
 def _inventory(actor,name,count):
  inv=actor.spec.get('items',{});names=(name,'item/'+name)+(('힘의 뿌리','item/힘의 뿌리') if name=='힘의뿌리' else ())
@@ -192,7 +193,7 @@ def _dismantle(e,actor,*,item,count=1,scrap_kind=None,scrap_reason=None,held_sel
  price=header.get('price',KIT_PRICES.get(name));category=RESOURCES.item_kind(header,declared=scrap_kind,reason=scrap_reason)
  C.integer(price,'source item price',1)
  if not category:raise ValueError('source crafting category required')
- _selected(e,header['id']);value=M.ratio(price*count,2)
+ _selected(e,header['id']);value=__import__('study_books').dismantle_value(e,actor,stock,price,count)
  if stock is not None:stock=STOCK.debit(e,actor,stock)
  else:actor.spec['items'][key]-=count
  wallet=actor.spec.setdefault('crafting_scrap',{});wallet[category]=wallet.get(category,0)+value
@@ -346,9 +347,9 @@ def _plant_berry(e,actor,*,berry,plant_id,planter_slot=None,planter_policy=None,
  import cultivation_growth as GROWTH
  return GROWTH.native_plant(e,actor,berry=berry,plant_id=plant_id,planter_slot=planter_slot,planter_policy=planter_policy,soft_soil=soft_soil)
 
-def harvest_berry(e,actor,*,plant_id,environment_allows_growth=True,soil_quality=0,fixed=None,event_id=None):
+def harvest_berry(e,actor,*,plant_id,environment_allows_growth=True,soil_quality=0,fixed=None,event_id=None,book_bonus=False):
  import cultivation_harvest as HARVEST
- return HARVEST.native_harvest(e,actor,plant_id=plant_id,environment_allows_growth=environment_allows_growth,soil_quality=soil_quality,fixed=fixed,event_id=event_id)
+ return HARVEST.native_harvest(e,actor,plant_id=plant_id,environment_allows_growth=environment_allows_growth,soil_quality=soil_quality,fixed=fixed,event_id=event_id,book_bonus=book_bonus)
 
 
 def _harvest_berry(e,actor,*,plant_id,environment_allows_growth=True,soil_quality=0,fixed=None):

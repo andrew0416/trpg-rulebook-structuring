@@ -31,7 +31,8 @@ def validate(spec):
                 raise ValueError('ability milestone identity differs from stage')
         if identity.startswith('inheritance:'):
             level=stage.get('level')
-            if offered['source']!=INHERITANCE_SOURCE or stage.get('kind')!='inheritance' or type(level) is not int or level<20 or level%10 or level>spec.get('level',0) or identity!='inheritance:'+str(level):
+            first=__import__('study_books').first_inheritance_level(spec,20)
+            if offered['source']!=INHERITANCE_SOURCE or stage.get('kind')!='inheritance' or type(level) is not int or level not in [first,*range(30,spec.get('level',0)+1,10)] or level>spec.get('level',0) or identity!='inheritance:'+str(level):
                 raise ValueError('actual inheritance milestone stage required')
         selection=row['selection']
         if selection is not None:
@@ -124,7 +125,8 @@ def offer_inheritance(rules,spec):
     policy=spec.get('inheritance_tutoring_policy')
     if policy is None:
         level=spec['level'];options=spec.get('inheritance_moves',[])
-        if not options or level<20 or level%10:return
+        first=__import__('study_books').first_inheritance_level(spec,20)
+        if not options or level not in [first,*range(30,level+1,10)]:return
         if rules._selected_rule(INHERITANCE_SOURCE)!=INHERITANCE_SOURCE:raise ValueError('selected inheritance source required')
         _options(options)
         if any(rules.move_id(mid)!=mid for mid in options):raise ValueError('canonical inherited Move list required')
@@ -138,7 +140,9 @@ def offer_inheritance(rules,spec):
     candidates=[rules.move_id(x) for x in spec.get('inheritance_moves',[])]
     if any(x is None or x in rules.excluded_moves for x in candidates) or len(set(candidates))!=len(candidates):
         raise ValueError('actual distinct inheritance candidates required')
-    for level in range(20,spec['level']+1,10):
+    first=__import__('study_books').first_inheritance_level(spec,20)
+    for level in [first,*range(30,spec['level']+1,10)]:
+        if level>spec['level']:continue
         identity='inheritance:'+str(level)
         if identity in spec.get(KEY,{}):continue
         eligible=[];admissions={};blocked={}

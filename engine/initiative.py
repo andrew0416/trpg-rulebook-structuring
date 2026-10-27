@@ -215,8 +215,10 @@ def order(engine, combatants, *, procedures=None, round_no=None, resolved_values
             if part is None:
                 return _hold(engine, "동률 굴림의 재동률/입력/계산 한계가 미해결")
         resolved.extend(part)
-    engine.log("이니셔티브" + ("(트릭룸)" if ascending else "") + ": " + ", ".join(f"{_name(actor)}({result.expression}={result.value})" for _, actor, result in resolved), "combat/initiative")
+    ordered=__import__('stall_ability').order(engine,[actor for _,actor,_ in resolved])
+    by_actor={id(actor):result for _,actor,result in resolved}
+    engine.log("이니셔티브" + ("(트릭룸)" if ascending else "") + ": " + ", ".join(f"{_name(actor)}({by_actor[id(actor)].expression}={by_actor[id(actor)].value})" for actor in ordered), "combat/initiative")
     if resolved_values is not None:
         resolved_values.update({actor['id'] if type(actor) is dict else actor.entity_id:result.value
                                 for _,actor,result in resolved})
-    return [actor for _, actor, _ in resolved]
+    return ordered

@@ -19,6 +19,8 @@ def linked_moves(rules,ability):
  uid=AM.choice(rules,ability);name=A.label(rules,uid)
  linked={rules.move_id(fx['move']) for fx in rules.ability_effects.get(name,[])
          if isinstance(fx,dict) and fx.get('type')=='connection' and fx.get('move')}
+ import endure as ENDURE
+ if uid in ENDURE.VIGOR:linked.add(ENDURE.connection_move(rules,uid))
  if not linked or None in linked:raise ValueError('Advanced Connection requires an actual Connection Ability with linked Moves')
  for mid in linked:rules._selected_rule(mid)
  return linked
@@ -82,6 +84,8 @@ def _linked_by_name(rules,name):
   uid=None;key=name.split('/',1)[1] if name.startswith('ability/') else name
  linked={rules.move_id(fx['move']) for fx in rules.ability_effects.get(key,[])
          if isinstance(fx,dict) and fx.get('type')=='connection' and fx.get('move')}
+ import endure as ENDURE
+ if uid in ENDURE.VIGOR:linked.add(ENDURE.connection_move(rules,uid))
  linked.discard(None)
  return uid or name,linked
 
@@ -189,9 +193,15 @@ def birth(engine,actor,egg,*,reason):
  return results
 
 
-def _learn(engine,c,ability,linked,*,reason,transform=None):
+def _learn(engine,c,ability,linked,*,reason,transform=None,choice=None,prompt=True,learning_source=KEYWORD):
  import move_state as M,learning_grant as L,pokemon_teaching as T,state_grants as G,common_checks as CC
  rules=c.r
+ if type(prompt)is not bool:raise ValueError('explicit Connection prompt mode required')
+ if learning_source!=KEYWORD:
+  import endure as ENDURE
+  if (transform is not None or learning_source!=ability or ENDURE.vigor_source(engine,c)!=ability
+      or linked!={ENDURE.connection_move(rules,ability)}):
+   raise ValueError('actual Vigor Connection lesson required')
  if rules._selected_rule(KEYWORD)!=KEYWORD:raise ValueError('selected Connection keyword source required')
  destination=c.spec if transform is None else c.spec[G.KEY]['overlays'][transform]
  # Source-owned known Moves become independently learned by this new keyword gain.
@@ -203,8 +213,7 @@ def _learn(engine,c,ability,linked,*,reason,transform=None):
  points=c.spec.get('tutor_points',0)
  CC.integer(points,'actual remaining Tutor Points',0)
  edge=any(row.get('status')=='active' for row in records(c.spec))
- choice=None
- if full or (c.kind=='pokemon' and points>=1 and not edge):
+ if prompt and choice is None and (full or (c.kind=='pokemon' and points>=1 and not edge)):
   choice=engine.rulings.decide({'type':PROMPT,'unit':KEYWORD,'actor':c.name,'actor_id':c.entity_id,'ability':ability,
    'moves':list(missing),'move_list_full':full,'tutor_points':points,
    'text':'Connection: name one known Move to forget, or spend 1 Tutor Point on Advanced Connection.'})
@@ -249,7 +258,7 @@ def _learn(engine,c,ability,linked,*,reason,transform=None):
    MOVE_SYNC.forget_spec(rules,candidate,forget,at=engine.elapsed_seconds,reason=reason)
    candidate['moves']=[m for m in candidate['moves'] if rules.move_id(m)!=forget]
   if missing:
-   L.learn_moves(rules,candidate,candidates=list(missing),selected=list(missing),method='feature',source=KEYWORD,
+   L.learn_moves(rules,candidate,candidates=list(missing),selected=list(missing),method='feature',source=learning_source,
     reason=reason,details={'connection_ability':ability},replaced=forget)
   for field in ('move_learning','move_learning_log',M.HISTORY,'move_type_sync'):
    if field in candidate:c.spec[field]=candidate[field]

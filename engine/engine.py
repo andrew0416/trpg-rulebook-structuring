@@ -819,7 +819,7 @@ class Combatant:
     @property
     def fainted(self):
         import taskmaster as TASK
-        return not TASK.conscious(self)
+        return not (TASK.conscious(self) or __import__('enduring_soul').conscious(self))
 
     def __repr__(self):
         c = ",".join(sorted(self.conditions)) or "-"
@@ -1527,6 +1527,7 @@ class Engine:
         if __import__('ability_control_contracts').register(self,c,selected_id or name):return
         import field_effects as FIELD
         if __import__('type_ace').ability_registration(self,c,selected_id):return
+        if __import__('stall_ability').registration(self.r,selected_id):return
         if selected_id == FIELD.LOCAL_SOURCE:
             FIELD.local_policy(self.r)
             # Only the explicit local-field activation is implemented.
@@ -1536,6 +1537,7 @@ class Engine:
         if BASE_ABILITIES.registration(self.r,selected_id or name):return
         import ability_transitions as ABILITY_TRANSITIONS
         if ABILITY_TRANSITIONS.native_passive(self.r,selected_id) or ABILITY_TRANSITIONS.registration_only(self.r,selected_id):return
+        if __import__('endure').registration(self.r,selected_id or name):return
         if REACTIVE_ABILITIES.handled(self.r,selected_id):return
         import tera_shell as TERA_SHELL
         if TERA_SHELL.registration(self.r,selected_id):return
@@ -2421,6 +2423,9 @@ class Engine:
         if cond=='저주' and applied_by is not None:
             import world_entities as WORLD
             WORLD.require_actors(self,applied_by)
+        if cond=='저주' and not force:
+            __import__('world_entities').require_actors(self,c)
+            if __import__('study_books').cursed_immune(self,c):return False
         legacy_install=any(r.get('installing') and cond in r.get('statuses',[]) for r in TIMING.records(c))
         if cond in CONDITIONS.SUPPORTED and not legacy_install:
             granted = CONDITIONS.grant(self,c,cond,source=source,parameters=parameters,applied_by=applied_by,force=force)
@@ -3600,7 +3605,7 @@ class Engine:
     def lose_hp(self, c, amount, source="damage", *, unpreventable=False, loss_kind="loss"):
         import ability_state_projection as PROJECTION,state_grants as GRANTS
         import keep_fighting as KEEP
-        if PROJECTION.hp_change_interested(c) or KEEP.interested(self,c) or __import__('type_ace').hp_interested(self,c) or c.spec.get('perseverance_choice') or __import__('berserker').acquired(c,__import__('berserker').FIGHT):
+        if PROJECTION.hp_change_interested(c) or KEEP.interested(self,c) or __import__('enduring_soul').interested(self,c) or __import__('type_ace').hp_interested(self,c) or c.spec.get('perseverance_choice') or __import__('berserker').acquired(c,__import__('berserker').FIGHT):
             return GRANTS.transition(self,c,lambda e,actor:e._lose_hp(actor,amount,source,unpreventable=unpreventable,loss_kind=loss_kind),include_rulings=True,include_grid=self.grid is not None)
         return self._lose_hp(c,amount,source,unpreventable=unpreventable,loss_kind=loss_kind)
 
@@ -3645,6 +3650,7 @@ class Engine:
         __import__('athlete').hp_changed(self,c,before,maxhp)
         BANDAGES.on_hp_change(self,c,before,c.hp)
         inj = self.marker_injuries(c, before, c.hp, maxhp)
+        __import__('endure').after_damage(self,c)
         import swarm_transitions as SWARM
         SWARM.after_hp_change(self,c,before,source)
         import boss_transitions as BOSS
@@ -3663,7 +3669,7 @@ class Engine:
         import control_mount as MOUNT,state_grants as GRANTS,ability_state_projection as PROJECTION
         projection_hp=PROJECTION.hp_change_interested(c)
         import keep_fighting as KEEP
-        keep_hp=KEEP.interested(self,c) or __import__('type_ace').hp_interested(self,c) or bool(c.spec.get('perseverance_choice'))
+        keep_hp=KEEP.interested(self,c) or __import__('enduring_soul').interested(self,c) or __import__('type_ace').hp_interested(self,c) or bool(c.spec.get('perseverance_choice'))
         if MOUNT.managed_subject(c) or '잠듦' in c.conditions or projection_hp or keep_hp:
             return GRANTS.transition(self,c,lambda e,target:e._take_damage(target,amount),include_rulings=projection_hp or keep_hp,include_grid=(projection_hp or keep_hp) and self.grid is not None)
         return self._take_damage(c,amount)
@@ -3702,12 +3708,13 @@ class Engine:
         n_inj = 0
         import actor_templates as TEMPLATES
         if (not TEMPLATES.injuries_immune(c) and not EXT.massive_damage_injury_immune(c)
-                and massive):
+                and massive and not __import__('endure').prevent_massive(self,c)):
             import precise_actions as PRECISE
             retained=PRECISE.gain_injury(self,c,1,"combat/massive-damage")
             n_inj += retained
             self.log(f"    대규모 데미지({amount} ≥ 최대 체력 {maxhp}의 50%) → 부상 +{retained}", "combat/injuries")
         n_inj += self.marker_injuries(c, before, c.hp, maxhp)
+        __import__('endure').after_damage(self,c)
         import swarm_transitions as SWARM
         SWARM.after_hp_change(self,c,before,"attack_damage")
         import boss_transitions as BOSS
@@ -3747,7 +3754,7 @@ class Engine:
         import taskmaster as TASK
         if TASK.defer_faint(self,c) or __import__('conquerors_march').defer_faint(self,c):return
         import keep_fighting as KEEP,state_grants as GRANTS
-        if c.hp<=0 and (KEEP.interested(self,c) or __import__('ability_exchange_contracts').interested(self,c,c) or __import__('berserker').acquired(c,__import__('berserker').FIGHT)):
+        if c.hp<=0 and (KEEP.interested(self,c) or __import__('enduring_soul').interested(self,c) or __import__('ability_exchange_contracts').interested(self,c,c) or __import__('berserker').acquired(c,__import__('berserker').FIGHT)):
             return GRANTS.transition(self,c,lambda e,actor:e._check_fainted(actor),include_rulings=True,include_grid=self.grid is not None)
         return self._check_fainted(c)
 
@@ -4015,6 +4022,8 @@ class Engine:
     @__import__('hp_setting_moves').preparation_scope
     @__import__('partial_entities').complete_move
     @_excluded_move_admission
+    @__import__('recycle_move').native_move
+    @__import__('wish_move').native_move
     @__import__('warper').native_move
     @__import__('telepath').native_move
     @__import__('telekinetic').native_move
@@ -4043,6 +4052,7 @@ class Engine:
                      or (not getattr(self, '_setup_move_scopes', ())
                          and __import__('herb_mushroom_rules').power_herb_interested(attacker))
                      or PROJECTION.native_move_interested(self,attacker,primary)
+                     or __import__('enduring_soul').move_interested(self)
                      or __import__('berserker').move_interested(self,attacker,primary)
                      or DEFENSE.interested(self,attacker,primary)
                      or ABILITY_INTERRUPTS.interested(self)
@@ -4336,6 +4346,8 @@ class Engine:
     @__import__('hp_setting_moves').preparation_scope
     @__import__('partial_entities').complete_move
     @_excluded_move_admission
+    @__import__('recycle_move').native_move
+    @__import__('wish_move').native_move
     @__import__('warper').native_move
     @__import__('telepath').native_move
     @__import__('telekinetic').native_move
@@ -4375,6 +4387,7 @@ class Engine:
                      or (not getattr(self, '_setup_move_scopes', ())
                          and __import__('herb_mushroom_rules').power_herb_interested(attacker))
                      or PROJECTION.native_move_interested(self,attacker,target)
+                     or __import__('enduring_soul').move_interested(self)
                      or __import__('berserker').move_interested(self,attacker,target)
                      or DEFENSE.interested(self,attacker,target)
                      or ABILITY_INTERRUPTS.interested(self)
@@ -4793,6 +4806,7 @@ class Engine:
         __import__('commander_orders').begin_move(self,attacker,target,move,completion_id)
         if DEFENSE.skip_received(self,attacker,target,move,completion_id):return 0
         __import__('endure').begin(self,attacker,move,completion_id)
+        __import__('enduring_soul').begin_move(self,attacker,move,completion_id)
         __import__('roughneck').begin_display(self,attacker,target,move,completion_id)
         UNOWN.begin_move_use(self,attacker,target,move,completion_id)
         REACTIVE_ABILITIES.begin_move(self,attacker,target,move,completion_id)
@@ -6018,6 +6032,9 @@ class Engine:
         import csv_item_physical_contracts as CSV_ITEMS
         cannon = CSV_ITEMS.cannon_profile(self,trainer,cannon_instance_id,projectile='ball') if cannon_instance_id is not None else None
         manual_bonus = 0 if type_manual_instance_id is None else M.ratio(-CSV_ITEMS.manual_capture_modifier(self,trainer,target,type_manual_instance_id),5)
+        book_manual=__import__('study_books').type_capture(trainer,target)
+        if book_manual:
+            manual_bonus=min(manual_bonus,book_manual) if procedure.sides==100 else max(manual_bonus,M.ratio(-book_manual,5))
         inv=trainer.spec.get('items',{})
         inventory_key=ITEMS.ball_inventory_key(trainer,ball_name)
         if cannon is not None:
@@ -6048,6 +6065,7 @@ class Engine:
             return False
         rate,boxes=self.capture_rate(target,rarity,source_variant=capture_source,hp=1 if combo else None)
         physical_plan=BALL_BODY.prepare(self,trainer,name,inventory_key,physical_instance_id,cannon)
+        book_ball_accuracy=__import__('study_books').ball_accuracy(self,physical_instance_id if cannon is None else cannon['ball_instance_id'])
         bonus=-trainer.level if procedure.sides==100 else max([b for lv,b in cr['trainer_bonus_by_level'].items() if trainer.level>=int(lv)],default=0)
         bmod,bwhy=CAPTURE.ball_modifier(self,name,trainer,target,procedure)
         import wild_equipment as WILD
@@ -6086,7 +6104,7 @@ class Engine:
         if type_manual_instance_id is not None:record['type_manual']={'instance_id':type_manual_instance_id,'bonus':manual_bonus,'source':'C2CSV/inventory:70:1'}
         __import__('juggler').capture_launch(self,trainer,target,record,actual_ball,bounce_plan)
         CONFUSION.observe_action(self,trainer,ball)
-        accuracy_options={'situational':tools_accuracy+(cannon['accuracy_bonus'] if cannon is not None else 0)}
+        accuracy_options={'situational':tools_accuracy+book_ball_accuracy+(cannon['accuracy_bonus'] if cannon is not None else 0)}
         if fixed_accuracy is not None:accuracy_options['fixed_roll']=fixed_accuracy
         if accuracy_roll_id is not None:accuracy_options['roll_id']=accuracy_roll_id
         hit,nat,_=self.accuracy_check(trainer,target,ball,**accuracy_options)

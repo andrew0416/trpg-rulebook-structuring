@@ -17,6 +17,15 @@ def _hash(value):
     except (TypeError,ValueError) as exc:raise ValueError('serializable crafting declaration required') from exc
 
 
+def _item_output(operation,options,result=None):
+    if operation in ('craft_item','craft_gem'):return True
+    if operation!='cook_chef_food':return False
+    import chef_cooking as CHEF
+    recipe={'vitamin':CHEF.VITAMINS,'meal_planner':CHEF.MEAL_PLANNER}.get(options.get('recipe'))
+    return recipe is not None and (result is None or (result.get('chef_recipe')==recipe
+        and result.get('recipe_id')=='native:chef:'+recipe.split('/',1)[1] and 'batch_id' not in result))
+
+
 def policy(value):
     if value is None:return None
     RECIPES._fields(value,('mode','instance_ids','owner_id','state','attachments'))
@@ -57,7 +66,8 @@ def preflight(engine,actor,operation,options,product_policy,event_id):
             if row['intent_sha256']!=digest:raise ValueError('crafting event cannot change its original request')
             return {'replay':deepcopy(row['transformation']['result'])}
     if declared is not None:
-        if operation not in ('craft_item','craft_gem'):raise ValueError('this product policy requires a native item output')
+        if not _item_output(operation,options):raise ValueError('this product policy requires a native item output')
+        if operation=='cook_chef_food' and declared['mode']!='create':raise ValueError('Chef item outputs require creation, not repair')
         count=C.integer(options.get('count',1),'physical output count',1)
         if len(declared['instance_ids'])!=count:raise ValueError('one physical identity per produced item required')
         index=W.actor_index(engine);owner=index.get(declared['owner_id'])
@@ -110,8 +120,9 @@ def publish(engine,actor,plan,record):
     if plan['id'] in rows:raise ValueError('duplicate transformation production identity')
     rows[plan['id']]={'id':plan['id'],'maker_id':actor.entity_id,'event_id':plan['event_id'],
         'intent':plan['intent'],'intent_sha256':plan['intent_sha256'],'transformation':record}
+    __import__('study_books').product_created(engine,actor,rows[plan['id']])
     validate_world(engine,W.actor_index(engine))
-    if record['operation'] in ('craft_item','craft_gem'):
+    if record['operation'] in ('craft_item','craft_gem') or plan['policy'] is not None:
         lineage(engine,actor,plan['id'])
     return rows[plan['id']]
 
@@ -123,7 +134,7 @@ def lineage(engine,actor,production_id):
     native=row['transformation']
     if not any(native is value for value in actor.spec.get('resource_transformations',[])):
         raise ValueError('actual native transformation original required')
-    if native['operation'] not in ('craft_item','craft_gem'):
+    if not _item_output(native['operation'],row['intent']['options'],native['result']):
         raise ValueError('origin view requires an actual crafted or repaired item')
     result=native['result'];declared=result.get('product_policy')
     outputs=list(result.get('product_instance_ids',[]))
@@ -172,6 +183,8 @@ def validate_world(engine,index):
             if declared is None:
                 if ids:raise ValueError('plain quantity product cannot claim physical copies')
                 continue
+            if not _item_output(record['operation'],row['intent']['options'],result):raise ValueError('physical product requires its actual native item output')
+            if record['operation']=='cook_chef_food' and declared['mode']!='create':raise ValueError('Chef item outputs require creation, not repair')
             if ids!=declared['instance_ids'] or len(ids)!=result['count']:raise ValueError('physical output identity/quantity mismatch')
             for identity in ids:
                 obj=objects.get(identity,{})

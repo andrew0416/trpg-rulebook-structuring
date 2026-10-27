@@ -246,6 +246,8 @@ GIVER_IDS=('ability/기부자','ability/기부자-2')
 
 
 def ability_registration(rules,name):
+ vigor=__import__('endure').registration(rules,name)
+ if vigor is not None:return vigor
  cap=__import__('hp_setting_moves').registration(rules,name)
  if cap:return cap
  typed=__import__('typed_defensive_bypass').registration(rules,name)
@@ -464,6 +466,14 @@ def describe(rules,spec,*,moves=None,abilities=None,require_routes=False):
 
 
 def validate_spec(rules,spec,*,moves=None,abilities=None,require_routes=False):
+ for row in spec.get('state_grants',{}).get('sources',{}).values():
+  linked=row.get('ability_lesson',{}).get('connection_move')
+  if linked is not None and linked not in known(rules,spec):raise ValueError('Connection Move cannot be forgotten')
+ for row in spec.get('move_learning_log',[]):
+  if row.get('connection_ability') in ('ability/생기','ability/생기-홈브류'):
+   if row.get('source')!=row['connection_ability'] or row.get('move_id') not in ('move/버티기','move/버티기-홈브류'):
+    raise ValueError('actual Vigor Connection learning provenance required')
+   if row['move_id'] not in known(rules,spec):raise ValueError('Connection Move cannot be forgotten even after the Ability ends')
  __import__('growth_milestones').validate_inheritance(rules,spec)
  for mid,record in spec.get('move_learning',{}).items():
   if isinstance(record,dict) and 'archive_tutor_admission' in record:

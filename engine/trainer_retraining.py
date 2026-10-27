@@ -137,10 +137,15 @@ def _native_dependencies(engine, actor, owned):
     import fortress as FORTRESS
     fortress={u:list(parents) for u,parents in FORTRESS.PARENTS.items() if u in owned}
     if any(parent not in owned for parents in fortress.values() for parent in parents):raise ValueError('actual acquired Fortress prerequisite required')
+    import breather as BREATHER
+    enduring={child:[parent] for child,parent in ((BREATHER.STAYING,BREATHER.CLASS),(BREATHER.SHRUG,BREATHER.STAYING),
+        (BREATHER.VIM,BREATHER.SHRUG),(BREATHER.NOT_YET,BREATHER.CLASS)) if child in owned}
+    if any(parent not in owned for parents in enduring.values() for parent in parents):
+        raise ValueError('actual retained Enduring Soul feature prerequisite required')
     import pokemon_teaching as TEACHING
     import feature_ability_lessons as LESSONS
     import trainer_feature_acquisition as FEATURES
-    result = {}
+    result = dict(enduring)
     for child,parents in __import__('ace_trainer').PARENTS.items():
         if child in owned and parents:
             if not set(parents)<=set(owned):raise ValueError('actual retained Ace Trainer prerequisite required')

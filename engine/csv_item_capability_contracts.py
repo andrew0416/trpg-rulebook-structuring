@@ -298,7 +298,7 @@ def _summon_unown(engine, actor, entity_id, selection, location, side, side_reas
     if not TURN.spend(engine,actor,'standard','안농 모으기'):
         return {'summoned':False,'reason':'no_standard_action'}
     faces=[POOLS.die(engine.rng,8,fixed=None if fixed_d8 is None else fixed_d8[i]) for i in range(2)]
-    level=min(sum(faces),actor.level)
+    level=min(sum(faces),20 if rune else actor.level)
     from builder import build_pokemon
     from engine import Combatant
     spec=build_pokemon(engine.r,selection['species_id'],level,wild=True,side=side,

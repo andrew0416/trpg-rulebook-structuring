@@ -67,7 +67,7 @@ def declaration(recipe):
     return deepcopy(recipe)
 
 
-def material_groups(groups):
+def material_groups(groups, *, allow_zero_value=False):
     """Shared declared material units for item and non-item production."""
     recipe={'materials':groups}
     if type(recipe['materials']) is not list:raise ValueError('recipe material groups required')
@@ -92,7 +92,7 @@ def material_groups(groups):
                 _text(option['item_id']);_text(option['key'])
                 if not option['item_id'].startswith('item/'):raise ValueError('actual material item rule required')
             else:raise ValueError('unsupported recipe material kind')
-            C.integer(option['amount'],'recipe material amount',1)
+            C.integer(option['amount'],'recipe material amount',0 if allow_zero_value and kind=='value' else 1)
         if len(units)!=1:raise ValueError('monetary scrap value cannot substitute for counted shards or items')
     return deepcopy(groups)
 
@@ -221,6 +221,7 @@ def prepare(engine, actor, recipe, *, count=1, inputs=None):
     W.require_actors(engine,actor);R.validate(actor)
     if actor.kind!='trainer':raise ValueError('actual trainer recipe producer required')
     recipe=declaration(recipe);C.integer(count,'crafted count',1)
+    charged=__import__('study_books').recipe(engine,actor,recipe)
     _selected(engine,R.SOURCE);_selected(engine,CRAFTING_SOURCE);_selected(engine,recipe['source'])
     output=recipe['output'];_selected(engine,output['item_id'])
     if engine.r.item_effects(output['key'])[1].get('id')!=output['item_id']:raise ValueError('recipe output key belongs to another selected rule')
@@ -229,15 +230,15 @@ def prepare(engine, actor, recipe, *, count=1, inputs=None):
     checks=[Q.check(row['id'],'prerequisite',_observe(engine,actor,row['condition'],sources,provider_source=recipe['source']),row['reason']) for row in recipe['requirements']]
     qualification=Q.require(recipe['source'],actor.entity_id,'recipe:'+recipe['id'],checks)
     policy=action_policy(engine,actor,recipe['source'],recipe['seconds'])
-    material_plan=prepare_materials(engine,actor,recipe['materials'],count=count,inputs=inputs)
+    material_plan=prepare_materials(engine,actor,charged['materials'],count=count,inputs=inputs,allow_zero_value=True)
     sources.update(material_plan['sources'])
     return {'recipe':recipe,'count':count,'policy':policy,'qualification':qualification,'payments':material_plan['payments'],'sources':sorted(sources)}
 
 
-def prepare_materials(engine,actor,groups,*,count=1,inputs=None):
+def prepare_materials(engine,actor,groups,*,count=1,inputs=None,allow_zero_value=False):
     """Pure aggregate payment plan; the caller owns action, time and output."""
     W.require_actors(engine,actor);R.validate(actor);C.integer(count,'produced count',1)
-    recipe={'materials':material_groups(groups)};_selected(engine,R.SOURCE);sources={R.SOURCE}
+    recipe={'materials':material_groups(groups,allow_zero_value=allow_zero_value)};_selected(engine,R.SOURCE);sources={R.SOURCE}
     inputs={} if inputs is None else inputs
     if type(inputs) is not dict or any(k not in {x['id'] for x in recipe['materials']} for k in inputs):raise ValueError('only declared recipe input groups may be selected')
     payments=[];debits=Counter()

@@ -199,6 +199,10 @@ def _eat_chef_bait(e,target,bait):
   if bait['variant']=='vile':e.apply_status(target,'독',source='recipe/미끼-믹서',applied_by=target)
 
 def snare_bonus(e,actor,target,*,conversion=None,source_variant=None):
+ if __import__('study_books').fishing_snare(actor,target):
+  procedure,_=__import__('capture_resolution').bind_native(e.r,source_variant)
+  if conversion is not None:raise ValueError('Fishing 101 uses the selected native Snare modifier, not an unrelated conversion')
+  return -10 if procedure.sides==100 else 2
  if conversion is not None:
   if type(conversion) is not dict or set(conversion)!={'modifier','reason','scope'} or conversion['scope']!='this_capture_roll':raise ValueError('explicit GM Snare conversion modifier/reason/this_capture_roll scope required')
   C.integer(conversion['modifier'],'GM Snare capture modifier')

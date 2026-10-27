@@ -350,7 +350,7 @@ def _expected_payload(rules, row):
 def _validate_batch(actor, batch_id, row):
     data = definitions(actor.r)
     required = {'id', 'kind', 'recipe', 'item_id', 'count', 'units', 'created_at', 'gap_count', 'created_by', 'taste', 'payload', 'served'}
-    if type(row) is not dict or set(row) - (required | {'origin_item', 'origin_body', 'components', 'ingredients', 'production_id', 'bait_variant', 'dumplings_basis'}) or set(row) & required != required:
+    if type(row) is not dict or set(row) - (required | {'origin_item', 'origin_body', 'components', 'ingredients', 'production_id', 'bait_variant', 'dumplings_basis', 'study_book_joy'}) or set(row) & required != required:
         raise ValueError('exact Chef batch fields required')
     if row['id'] != batch_id or row['kind'] not in BATCH_KINDS or row['created_by'] != actor.entity_id:
         raise ValueError('Chef batch identity or cook changed')
@@ -469,7 +469,11 @@ def validate_actor(actor):
         uid = actor.r.item_effects(options.get('item'))[1].get('id')
         basis = _meal_planner_basis(actor.r, options.get('edition', 'book'), uid)
         source = CHEF_SOURCE if basis['edition'] == 'book' else MEAL_PLANNER
-        if result.get('chef_recipe') != MEAL_PLANNER or result.get('meal_planner_basis') != basis or result.get('item_id') != uid or result.get('recipe_source') != source or result.get('money_spent') != basis['money'] or result.get('scrap_spent') != 0 or result.get('count') != 1:
+        discount = result.get('meal_planner_book_discount')
+        price = __import__('study_books').joy_recipe_value(actor, basis['money'], discount)
+        if discount is not None and discount['study']['at'] > product['transformation']['started_at']:
+            raise ValueError('Meal Planner discount must predate its actual paid work')
+        if result.get('chef_recipe') != MEAL_PLANNER or result.get('meal_planner_basis') != basis or result.get('item_id') != uid or result.get('recipe_source') != source or result.get('money_spent') != price or result.get('scrap_spent') != 0 or result.get('count') != 1:
             raise ValueError('Meal Planner must retain its actual selected recipe source and paid product')
         gates = result.get('recipe_definition', {}).get('requirements', [])
         if not any(gate.get('id') == 'meal_planner_rank' and gate.get('condition') == {'kind': 'skill', 'skill': '직감', 'rank': basis['intuition_rank'], 'effective': False} for gate in gates):
@@ -720,6 +724,7 @@ def _store_batch(e, actor, *, kind, recipe, item_id, units, taste, payload, **ex
            'taste': taste, 'payload': deepcopy(payload), 'served': [], **extra}
     _validate_batch(actor, batch_id, row)
     actor.spec.setdefault(KEY, {})[batch_id] = row
+    __import__('study_books').chef_batch_created(e,actor,row)
     actor.spec[SERIAL] = serial
     return row
 
@@ -856,7 +861,7 @@ def _cook_preserves(e, actor, *, origin, minutes, reason, taste=None, scrap_valu
     return _result(e, actor, recipe=PRESERVES, plan=plan, payments=payments, job=job, batch=batch)
 
 
-def _cook_hearty_meal(e, actor, *, ingredients, units, minutes, reason, taste=None):
+def _cook_hearty_meal(e, actor, *, ingredients, units, minutes, reason, taste=None,book_fungi=False):
     data = definitions(e.r)
     _duration(e, minutes, reason)
     row = data['recipes'][HEARTY]
@@ -871,6 +876,7 @@ def _cook_hearty_meal(e, actor, *, ingredients, units, minutes, reason, taste=No
     assignment = _assign_taste(e, actor, kind='hearty_meal', item_id=HEARTY_ITEM, taste=taste)
     declaration = _declaration(e, actor, recipe_id=HEARTY, source=CHEF_SOURCE, output_item=HEARTY_ITEM, prerequisites=row['prerequisites'],
                                materials=materials, seconds=minutes * 60)
+    declaration=__import__('study_books').fungi_recipe(e,actor,declaration,option,use=book_fungi)
     plan, payments, job = _run(e, actor, declaration, inputs={'ingredients': {'option': 0, 'scrap_value': 0}}, reason=reason, context={'ingredients': option['id'], 'units': units})
     batch = _store_batch(e, actor, kind='hearty_meal', recipe=HEARTY, item_id=HEARTY_ITEM, units=units, taste=assignment, payload=None, ingredients=[dict(option)])
     return _result(e, actor, recipe=HEARTY, plan=plan, payments=payments, job=job, batch=batch)
@@ -938,8 +944,10 @@ def _cook_meal_planner(e, actor, *, item, minutes, reason, edition='book'):
     declaration = _declaration(e, actor, recipe_id=MEAL_PLANNER, source=source, output_item=uid,
                                prerequisites=row['prerequisites'], materials=_money_material('음식', basis['money']), seconds=minutes * 60)
     declaration['requirements'].append({'id': 'meal_planner_rank', 'condition': {'kind': 'skill', 'skill': '직감', 'rank': basis['intuition_rank'], 'effective': False}, 'reason': 'Meal Planner product requires its selected printed Intuition rank'})
+    discount = __import__('study_books').provider(actor, 'joy_cooking')
     result = RECIPES.perform(e, actor, declaration, inputs={'cost': {'option': 0, 'scrap_value': 0}}, reason=reason, operation='cook_chef_food')
     result.update(chef_recipe=MEAL_PLANNER, meal_planner_basis=basis)
+    if discount is not None:result['meal_planner_book_discount'] = discount
     return result
 
 
@@ -1088,6 +1096,11 @@ def _perform(e, actor, options):
 
 class ChefCookingUse(__import__('transformation_use').TransformationUse):
     operation = 'cook_chef_food'
+
+    def bind_product(self, engine, actor, result, plan):
+        if 'batch_id' not in result:return
+        actor.spec[KEY][result['batch_id']]['production_id'] = plan['id']
+        result['batch']['production_id'] = plan['id']
 
     def perform(self, engine, actor, options):
         return _perform(engine, actor, options)

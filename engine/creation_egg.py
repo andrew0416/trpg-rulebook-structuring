@@ -150,7 +150,7 @@ def prepare(engine,owner,parents,value,*,compatible,species,inheritance_moves,re
         actors=[owner] if subject=='provider' else parents if subject=='parents' else [parents[subject]]
         if not all(_observe(engine,actor,row['condition']) for actor in actors):raise ValueError(row['reason'])
     candidates=[]
-    for n in value['species']['parents']:
+    for n in dict.fromkeys([*value['species']['parents'],*__import__('study_books').breeding_candidates(engine,owner,parents)]):
         if facts[n]['species'] is None:raise ValueError('actual parent species is unknown')
         candidates.append(facts[n]['species'])
     candidates+= [species_lookup(engine.r,uid)['id'] for uid in value['species']['allowed']]
@@ -308,8 +308,10 @@ def construct(engine,owner,egg,*,name,birth_level,tutor_points,selected,extra=No
         'inheritance_moves':inherited,'egg_entity_id':egg['entity_id'],'tutor_points':tutor_points,**deepcopy(extra or {})})
     if inheritance_policy is not None:
         spec['inheritance_tutoring_policy']=inheritance_policy
-        __import__('growth_milestones').offer_inheritance(engine.r,spec)
     spec[P.LEVEL_STATE].update(origin='hatch',egg_entity_id=egg['entity_id'])
+    # Retain the actual hatcher's historical Book provider even for the native
+    # policy-less inheritance route; neither route grants a birth Move early.
+    __import__('study_books').daycare_hatched(engine,owner,egg,spec)
     import growth_milestones as MILESTONES
     MILESTONES.offer_inheritance(engine.r,spec)
     import marsupial_state as MARSUPIAL

@@ -248,6 +248,7 @@ def _consume(engine,r):
     PAID.finish(r.user,payment,target_id=r.target.entity_id,outcome='applied' if row else 'no_effect',
                 results=[{'kind':KEY,'id':row['id']}] if row else [])
     burst=__import__('researcher_fields').pester_hit(engine,r.user,r.target,r.source_id,hit=hit,status_applied=applied)
+    __import__('study_books').anarchist(engine,r.user,r.target,repel=False,hit=hit)
     validate_world(engine,W.actor_index(engine))
     result={'source':r.source_id,'target_id':r.target.entity_id,'hit':hit,'natural':natural,
             'status_applied':applied,'family_immune_before':prior,'immunity_started':row is not None,'payment':payment,'chemical_warfare':burst}

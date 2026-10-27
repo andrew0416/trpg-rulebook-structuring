@@ -118,6 +118,7 @@ def herbal_state(actor):
   if index<3:
    if any(key in use for key in ('faces','stat','base_stage_delta')):raise ValueError('first two herbs have no random base-stage penalty')
   else:
+   if __import__('study_books').herbal_protected(use):continue
    faces=use.get('faces')
    if not isinstance(faces,list) or not faces:raise ValueError('herbal penalty requires actual d6 faces')
    for face in faces:C.integer(face,'herbal penalty d6 face',1,6)
@@ -135,7 +136,8 @@ def validate_herbal(actor):
  stages=STAGES.validate(actor) if 'herbal_restoratives' in actor.spec or owned is not None else None
  owned=(stages or {}).get('base',{}).get('herbal_restoratives')
  expected={}
- for use in state.get('uses',[])[2:]:expected[use['stat']]=expected.get(use['stat'],0)-1
+ for use in state.get('uses',[])[2:]:
+  if not __import__('study_books').herbal_protected(use):expected[use['stat']]=expected.get(use['stat'],0)-1
  if expected:
   if not isinstance(owned,dict) or owned.get('source')!=MEDICINE or owned.get('ends')!='extended_rest' or owned.get('deltas')!=expected:
    raise ValueError('herbal history and actual base-stage source disagree')
@@ -621,12 +623,17 @@ def _finish_intake(e,user,target,plan,payment):
           'at':e.elapsed_seconds,'consumed':False,'intake_contract':deepcopy(plan['intake_contract'])}
   target.spec['baby_food']=record
   result={'status':'consumed','item':uid,'policy':policy,'eligible':record['eligible_when_fed']}
+ joy=__import__('study_books').joy_consumed(e,user,target,plan)
+ if joy:result['joy_of_cooking_healed']=joy
  return result,stock_receipt,record
 
 
 def grant_buff(e,actor,uid,effect,*,source,capacity=None,source_selection=None,provenance=None):
  capacity=capacity or ordinary_capacity()
- if not can_gain_buff(e,actor,capacity=capacity):return None
+ prepared=__import__('study_books').herbal_provider(e,actor) if source==MEDICINE and uid in HERBS else None
+ if prepared is not None and prepared['repeat_food_buff']:
+  if capacity['bucket']!='source_exempt' and slots(actor)>=buff_capacity(e,actor):return None
+ elif not can_gain_buff(e,actor,capacity=capacity):return None
  buff=INSTANCES.create(e,actor,kind='digestion',source=source,payload=effect,capacity=capacity,lifetime=buff_policy(e.r)['lifetime'])
  buff['item']=uid
  buff['effect_source']=capacity['source'] if 'item' in buff_policy(e.r)['capacity_exceptions'].get(capacity['source'],{}) else MEDICINE if source==MEDICINE else uid
@@ -1356,6 +1363,10 @@ def herbal_preflight(e,actor,uid):
  if uid not in HERBS:return None
  selected(e,MEDICINE);selected(e,uid)
  state=deepcopy(validate_herbal(actor))
+ prepared=__import__('study_books').herbal_provider(e,actor)
+ if prepared is not None:
+  if prepared['repeat_food_buff'] or state['count']==0:buff_capacity(e,actor)
+  return state
  if state['count']>=2:
   import combat_stage_sources as STAGES
   STAGES.prepared(actor)
@@ -1369,10 +1380,12 @@ def herbal_consumed(e,actor,uid):
  if state is None:return
  state['count']+=1
  result={'count':state['count'],'source':MEDICINE,'item':uid}
- if state['count']==1:
+ prepared=__import__('study_books').herbal_provider(e,actor)
+ if prepared is not None:result.update(study_book=deepcopy(prepared['provider']),repeat_food_buff=prepared['repeat_food_buff'])
+ if state['count']==1 or prepared is not None and prepared['repeat_food_buff']:
   buff=grant_buff(e,actor,uid,{'kind':'save_bonus','amount':2},source=MEDICINE)
   result['buff_id']=buff['id'] if buff else None
- elif state['count']>=3:
+ elif state['count']>=3 and prepared is None:
   faces=[row['face'] for row in POOLS.recursive(e.rng,1,repeat=True)]
   stat=('atk','def','spa','spd','spe')[faces[-1]-1]
   import combat_stage_sources as STAGES

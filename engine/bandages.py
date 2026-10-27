@@ -173,17 +173,24 @@ def resolve_timing(e,actor,*,target,bandage_id,remaining_seconds,reason):
  advance(e,target)
  return dict(record)
 
-def rest_healing(e,c,*,previous,rest_id,blocks,block_minutes,fraction,heavy_threshold):
+def rest_healing(e,c,*,previous,rest_id,blocks,block_minutes,fraction,heavy_threshold,caretaker=False):
  """Plan whole known rest blocks, with time-qualified coverage and injury threshold.
  Mixed coverage is deliberately unresolved, rather than inferred prorating.
  """
  validate(c)
+ if type(caretaker)is not bool:raise ValueError('explicit native Caretaker rest contribution required')
+ if caretaker and __import__('study_books').care_owner(e,c,rest_id) is None:raise ValueError('actual Caretaker shared rest scope required')
+ from fractions import Fraction
+ def amount(covered):
+  rate=Fraction('1/8' if covered else fraction)+(Fraction(fraction) if caretaker else 0)
+  return M.product(c.base_max_hp,str(rate))
  records=_live(c)
- if not records:return blocks*M.product(c.base_max_hp,fraction) if c.injuries<heavy_threshold else 0
+ if not records:return blocks*amount(False) if c.injuries<heavy_threshold else 0
  if any(not _certain(e,x) for x in records):raise ValueError('bandage lifetime requires GM timing resolution before resting')
  carry=previous['carry_minutes'] if previous and rest_id is not None and previous['id']==rest_id else 0
  start=e.elapsed_seconds-carry*60;step=block_minutes*60
  injuries=c.injuries;protected=ENVIRONMENT.protected_injuries(c);spent=INJURY.healed_today(c);limit=e.r.mech('combat/resting')['pokemon_center']['max_injuries_removed_per_day']
+ limit=__import__('csv_item_capability_contracts').daily_injury_heal(c,limit)+__import__('study_books').care_injury_bonus(e,c)
  expiries=sorted(records,key=lambda x:x['expires_at']);processed=set();projected=copy(c)
  for i in range(blocks):
   a=start+i*step;b=a+step
@@ -194,7 +201,7 @@ def rest_healing(e,c,*,previous,rest_id,blocks,block_minutes,fraction,heavy_thre
   intersects=any(x['started_at']<b and x['expires_at']>a for x in records)
   if intersects and not covered:raise ValueError('bandage changes inside a 30-minute rest block; partial-block healing needs GM ruling')
   projected.injuries=injuries
-  if injuries<heavy_threshold:projected.hp=max(projected.hp,min(projected.max_hp,projected.hp+M.product(c.base_max_hp,"1/8" if covered else fraction)))
+  if injuries<heavy_threshold:projected.hp=max(projected.hp,min(projected.max_hp,projected.hp+amount(covered)))
  return projected.hp-c.hp
 
 ACTIVITIES={'apply_bandages':apply,'resolve_bandage_timing':resolve_timing}

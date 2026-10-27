@@ -19,7 +19,8 @@ def _signature(trigger,rows):
     fields = {'turn':('kind','actor_id','serial','round'),'move':('kind','event_id'),
               'reaction':('kind','window_id','request_id'),'accuracy':('kind','event_id'),
               'between':('kind','round','schedule_cursor','closure_sequence','epoch'),
-              'duelist_overflow':('kind','overflow_id'),'native_accuracy':('kind','event_id')}[trigger['kind']]
+              'duelist_overflow':('kind','overflow_id'),'native_accuracy':('kind','event_id'),
+              'pre_faint':('kind','actor_id','request_id')}[trigger['kind']]
     definition = [{k:(v.entity_id if k=='actor' else v) for k,v in row.items() if k not in ('status','receipt')} for row in rows]
     return ROOT.fingerprint({'trigger':{k:trigger[k] for k in fields},'requests':definition})
 
@@ -71,6 +72,7 @@ def between_frame(engine):
 def _trigger(engine, raw):
     if type(raw) is not dict:
         raise ValueError('actual native reaction trigger required')
+    if raw.get('kind')=='pre_faint':return __import__('enduring_soul').authorize_trigger(engine,raw)
     if raw.get('kind')=='duelist_overflow' and set(raw)=={'kind','overflow_id'}:
         import duelist as DUELIST
         DUELIST.overflow_trigger(engine,raw['overflow_id'])
@@ -173,6 +175,8 @@ def _move_request(engine,actor,row,evidence):
     """Only the real source consumer may request a selected Interrupt Move."""
     import move_defense_reactions as DEFENSE
     import combat_move_reactions as REACTIONS
+    if evidence['kind']=='pre_faint':
+        __import__('enduring_soul').authorize_request(engine,actor,row,evidence);return
     if row['source']==__import__('juggler').FIRST:
         __import__('juggler').first_request(engine,actor,row);return
     if row.get('move_id') in REACTIONS.SOURCES:
@@ -249,6 +253,7 @@ def queue(engine,candidates,*,trigger,order=None):
     import passive_events as EVENTS, heavy_injury_adapter as HEAVY
     EVENTS.ensure_clear(engine); HEAVY.ensure_clear(engine)
     evidence = _trigger(engine,trigger)
+    __import__('stall_ability').require_interruptible(engine,evidence)
     if type(candidates) is not list or not candidates:
         raise ValueError('nonempty sourced reaction declarations required')
     index = WORLD.actor_index(engine); planned = []; missing = []; ids = set()
@@ -750,12 +755,13 @@ def _validate_world(engine,index):
     for key,window in state['windows'].items():
         parent=window['parent'];between=window['trigger']['kind']=='between'
         overflow=window['trigger']['kind']=='duelist_overflow'
+        pre_faint=window['trigger']['kind']=='pre_faint'
         round_end=window['trigger'].get('round_end_source') is not None
         if round_end:
             proof=__import__('focus_punch').reaction_origin(engine,window['trigger']['event_id'],live=False) or __import__('marksman').reaction_origin(engine,window['trigger']['event_id'],live=False)
             if window['trigger']['kind']!='accuracy' or parent is not None or proof!=window['trigger']['round_end_source']:raise ValueError('actual no-owner round-end Move reaction origin required')
         if (key!=window['id'] or (between and parent is not None)
-                or (not between and not overflow and not round_end and (parent is None or index.get(parent.entity_id) is not parent))
+                or (not between and not overflow and not pre_faint and not round_end and (parent is None or index.get(parent.entity_id) is not parent))
                 or (overflow and parent is not None and index.get(parent.entity_id) is not parent)):
             raise ValueError('reaction window requires its actual suspended owner')
         C.integer(window['round'],'reaction round',1,engine.round_no)
@@ -764,7 +770,9 @@ def _validate_world(engine,index):
             raise ValueError('reaction declaration changed after its actual priority decision')
         if window['trigger']['owner'] is not window['parent'] or window['trigger']['round']!=window['round']:
             raise ValueError('reaction trigger differs from actual window owner/round')
-        if overflow:
+        if pre_faint:
+            __import__('enduring_soul').validate_window(engine,window)
+        elif overflow:
             import duelist as DUELIST
             DUELIST.overflow_trigger(engine,window['trigger']['overflow_id'],allow_completed=True)
         elif between:
@@ -826,7 +834,8 @@ def _validate_world(engine,index):
                 raise ValueError('reaction receipt requires its actual actor and resumed owner')
             if 'move_id' in row:
                 import move_defense_reactions as DEFENSE
-                if row['source']==__import__('juggler').FIRST:__import__('juggler').first_request(engine,actor,row,historical=True)
+                if pre_faint:__import__('enduring_soul').validate_window(engine,window,row)
+                elif row['source']==__import__('juggler').FIRST:__import__('juggler').first_request(engine,actor,row,historical=True)
                 elif overflow:
                     import duelist as DUELIST
                     DUELIST.validate_interrupt(engine,window['trigger'],row)

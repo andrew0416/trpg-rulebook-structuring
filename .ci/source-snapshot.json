@@ -24,9 +24,9 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "published-restoration-repairs01",
-  "active_repair_scope": "Revalidate the complete source-reviewed restoration repair union276/34classes after original18 reproduced15 unique failing/error methods. Preserve every original18 and prior207 method, add exact pending69 including one new Guardian negative. This ordinary repair run is not the pending full1252 restoration run or2352 completion. Seven synthetic source-preparation checks remain separate; no clause credit.",
-  "active_repair_required_tests": 276,
+  "active_repair": "published-restoration-after-repairs01",
+  "active_repair_scope": "Validate the complete published-source restoration rebased onto4dc repairs: preserve all original1192 declarations and all276 repair/impact declarations as an exact1252-ID/138-class ordinary union. Includes one new Guardian invalid-pending regression and59 additional existing impacts. Seven synthetic source-preparation checks remain separate. No whole2352 completion, canonical equivalence or new clause credit is claimed.",
+  "active_repair_required_tests": 1252,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -42,7 +42,7 @@
   "separately_pending_frequency_equivalence_methods": 1029,
   "separately_pending_procedural_runners": 21,
   "ordinary_shard_count": 18,
-  "active_repair_phase": "runtime_corrections",
+  "active_repair_phase": "full_source_restoration_after_repairs",
   "active_repair_procedural_runners": 0,
   "full_method_obligations": 13847,
   "ordinary_methods_separate_run": 40141538702,
@@ -77,14 +77,14 @@
   "phase2_metadata_methods_mandatory": 0,
   "phase2_additional_procedural_runners": 0,
   "unaffected_previous_PASS_reused": 0,
-  "selected_method_obligations": 276,
+  "selected_method_obligations": 1252,
   "partial_prerequisite_refresh": true,
   "full_method_scope_executed": false,
   "source_fresh_native_prerequisites": 1404,
   "native_prerequisite_run": "40241811271",
   "activation_current_evidence_current": false,
   "previous_activation_evidence": "historical_only_not_current",
-  "active_repair_source_commit": "f1ed27774ddf150135bb5d4ccbdf5bbdd61d84cc",
+  "active_repair_source_commit": "4dc5e9d47a3b159359974a455bc0014fc9476680",
   "active_repair_source_plan_path": ".ci/suites/changed_revisions.json",
   "historical_source_contract_repair": {
     "source_commit": "2f8975c41bd76cf48c904df85cf92a489430dbbc",
@@ -308,5 +308,75 @@
       "active_repair_phase": "diagnostic_reproduction"
     },
     "historical_preservation": "All other previous fields, historical4115/full counts/canonical1503 pins and original667/18 records remain unchanged. pending_full_restoration's1192 record is the preserved original baseline; its mandatory post-repair expansion is the separate full_scope_pending1252 object above."
+  },
+  "full_restoration_after_repairs01_preparation": {
+    "status": "FULL_RESTORATION_SOURCE_REVIEWED_ORIGINAL276_H_ACCEPTED_READY_FOR_AUTHORIZED_RUN",
+    "base_commit": "4dc5e9d47a3b159359974a455bc0014fc9476680",
+    "source_scope": "Rebase the prior64-path public restoration proposal on the accepted-for-review4dc source snapshot, preserving all20 preceding repair source files and genuine shared-consumer changes. Root separately reviews the actual resulting source delta; this control preparation does not freeze or count those paths.",
+    "source_candidate": "branch-integration-1027ai/all-published-restoration-after-repairs01",
+    "source_delta_count": 63,
+    "original_full_declaration": "branch-integration-1027ai/all-published-restoration-composed/review/proposed-complete-union-gather.json",
+    "repair_declaration": "branch-integration-1027ai/restoration-repairs-composed01/review/required-repair-tests-final.json",
+    "selection_counts": {
+      "original_full": 1192,
+      "repair": 276,
+      "exact_overlap": 216,
+      "unique_union": 1252,
+      "class_groups": 138,
+      "original_full_missing": 0,
+      "repair_missing": 0,
+      "additional_existing_impacts": 59,
+      "new_methods": 1
+    },
+    "new_test_ids": [
+      "tools.test_fortress_current_integration.FortressCurrentIntegrationTests.test_guardian_invalid_pending_exception_rolls_back_paid_intercept"
+    ],
+    "selection": "Exact-ID union only. No original1192 or actual276 repair obligation removed, replaced, treated as duplicate by name, or counted from partial output.",
+    "preceding_repair": {
+      "head": "4dc5e9d47a3b159359974a455bc0014fc9476680",
+      "run": 40492283991,
+      "job": 122148923748,
+      "required_tests": 276,
+      "status": "completed_success_original_evidence_preserved_and_read_by_Root",
+      "successful": true,
+      "collected": 276,
+      "executed": 276,
+      "unique_pass": 276,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "declared_id_difference": 0,
+      "inputs_unchanged": true,
+      "suite_seconds": 2585.8652726,
+      "H_status": "H_PHYSICAL_ACCEPTED",
+      "H_ordinary_verified": 276,
+      "evidence_id": "09c888bd89ef4de795cf400dfdbab962",
+      "artifact_id": 12732300572,
+      "artifact_api_digest": "sha256:7b0901f2f2e3e04d08ea4f1b7286c6fb7959c7a6230f982f58c9ab164b5cb46c",
+      "requirement": "Satisfied for the original276 repair snapshot. This is not execution or acceptance of the next1252 source restoration."
+    },
+    "budget": {
+      "aa_native_timeout_seconds": 10800,
+      "aa_native_job_timeout_minutes": 195,
+      "generic_default_native_timeout_seconds": 5400,
+      "generic_job_timeout_minutes": 105,
+      "full1252_elapsed_seconds": null,
+      "fit_or_speedup_claim": false
+    },
+    "execution": "One ordinary changed_revisions packet and complete native run, unchanged fixed verifier/H and complete original input/physical evidence capture. No thin capture, diagnostic_profile or synthetic evidence substitution.",
+    "source_preparation": "Existing7 synthetic tests and actual authenticated PDF extraction remain unchanged and separate from1252 native evidence.",
+    "private_inputs": "Reuse original authenticated encrypted fixture bundle/manifest and existing policy Secret; no new plaintext/private original upload or new Secret.",
+    "historical_fields": "Retain original667/18/276 preparation and actual earlier results, original4115/full counts, source pins and stored historical completion totals without rewriting them as current completion.",
+    "current_diagnostic_route": "Existing aa_diagnostics remains bound to the originalcac5/18 result and its exact direct diagnostic child; it is unchanged and refuses unrelated full-restoration heads until separately reviewed rebinding.",
+    "completion_credit": 0,
+    "canonical_publication": false,
+    "prior_active_repair": {
+      "active_repair": "published-restoration-repairs01",
+      "active_repair_scope": "Revalidate the complete source-reviewed restoration repair union276/34classes after original18 reproduced15 unique failing/error methods. Preserve every original18 and prior207 method, add exact pending69 including one new Guardian negative. This ordinary repair run is not the pending full1252 restoration run or2352 completion. Seven synthetic source-preparation checks remain separate; no clause credit.",
+      "active_repair_required_tests": 276,
+      "selected_method_obligations": 276,
+      "active_repair_source_commit": "f1ed27774ddf150135bb5d4ccbdf5bbdd61d84cc",
+      "active_repair_phase": "runtime_corrections"
+    }
   }
 }

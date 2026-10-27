@@ -55,6 +55,7 @@ def weather_turn_start(engine, c, *, _boss_round=False):
 
 
 def _weather_turn_start_one(engine,c,w,*,_boss_round=False):
+    if __import__('study_books').natural_weather_immune(engine,c):return
     if __import__('type_ace')._buff(c,'ace_zephyr'):return
     rule = weather_rule(engine)
     if not w or not rule or w not in rule["weathers"]:
@@ -388,6 +389,7 @@ def spend_compound(engine, c, cost, what="", *, movement=False, sleep_cure=False
 
 
 def action_kind_of_move(engine, c, move, mm):
+    if __import__('enduring_soul').move_scope(engine,c):return 'standard'
     if __import__('trickster').impromptu_scope(engine,c,move):return 'free'
     if __import__('trickster').sleight_scope(engine,c,move):return 'standard'
     if move['id']==__import__('tumbler').SPLASH:return 'shift'

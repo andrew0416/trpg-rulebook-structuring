@@ -543,6 +543,10 @@ def _use_immediate_item(engine,user,item_name,target,*,free=False,accepted=True,
     recipient_debt = policy['values']['debt'] if policy and engine.encounter_active else None
     if recipient_debt is not None:RESOURCES.plan_debt(target,recipient_debt)
     kind = "free" if free else policy['values']['action'] if policy else "standard"
+    book_action=__import__('study_books').restorative_action(engine,user,target,header['id'])
+    if book_action is not None:
+        if free or not is_restorative:raise ValueError('Combat Medic Sprint applies an ordinary paid Restorative')
+        kind=book_action
     if free and engine.encounter_active:
         engine.log("    [보류] 아이템 비용 면제만으로 실행 권한을 확정할 수 없음", "common/action-lifecycle")
         return (0, 1)
@@ -558,7 +562,7 @@ def _use_immediate_item(engine,user,item_name,target,*,free=False,accepted=True,
         if policy:
             receipt['medicine_policy']={'source_variant':policy['source_variant'],'source_policy':deepcopy(policy['source_policy']),
                 'values':deepcopy(policy['values']),'encounter_active':e.encounter_active}
-        return True
+        return __import__('consumption_execution').payment_id(c,receipt)
     # Stage only payment and physical membership, before any healing/cure event.
     # Effects below retain their ordinary observed-event behavior.
     paid = GRANTS.transition(engine,user,pay) if held_selection is not None else pay(engine,user)
@@ -571,8 +575,10 @@ def _use_immediate_item(engine,user,item_name,target,*,free=False,accepted=True,
             RESOURCES.schedule(target,recipient_debt)
             lost='신속' if 'swift' in recipient_debt else '이동'
             engine.log(f"    {target.name}은(는) 다음 기본 행동과 {lost} 행동을 잃음 (아이템 사용)", "ch09/아이템-사용")
-    if is_x and RESTORATIVE.special_apply(engine,target,header['id']):return (1,0)
-    return apply_immediate_effects(engine,user,target,item_name,effs,header)
+    if is_x and RESTORATIVE.special_apply(engine,target,header['id']):
+        return __import__('consumption_execution').finish_immediate(engine,user,target,paid,header,(1,0))
+    result=apply_immediate_effects(engine,user,target,item_name,effs,header)
+    return __import__('consumption_execution').finish_immediate(engine,user,target,paid,header,result)
 
 
 def apply_immediate_effects(engine,user,target,item_name,effs,header):

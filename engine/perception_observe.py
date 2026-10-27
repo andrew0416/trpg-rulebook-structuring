@@ -280,6 +280,7 @@ def _values(engine,observer,target,value,chosen):
                 actual=row['facts'].get('geometry',{}).get(field) if current else None
             else:actual=data.get(field)
             values[field]=deepcopy(actual)
+    if value['provider']=='aura':values=__import__('study_books').aura_filter(engine,observer,target,values)
     return _result(value,'observed','permitted_information',values)
 
 

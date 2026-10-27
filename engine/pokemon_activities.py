@@ -338,7 +338,7 @@ def fishing(e,actor,*,phase,rod=None,attachment=None,target=None,roll_d20=None,e
   party=list(st[1:] if target is not None else st) if party is not None else None,
   level_match_reason=level_match_reason,cause=cause,lost=lost,reason=reason,**roll),participants=participants)
 
-def _fishing(e,actor,*,phase,rod=None,attachment=None,target=None,roll_d20=None,escape_d20=None,habitat=None,choice=None,random_choice=False,source_policy=None,party=None,level_match_reason=None,cause=None,lost=None,reason=None,**roll):
+def _fishing(e,actor,*,phase,rod=None,attachment=None,target=None,roll_d20=None,escape_d20=None,habitat=None,choice=None,random_choice=False,source_policy=None,party=None,level_match_reason=None,cause=None,lost=None,reason=None,book_stats=None,**roll):
  """ch05 five-minute or explicitly selected ch09 fifteen-minute attraction.
  Bait is attached/reserved until its sourced loss; a landed fish is not captured.
  """
@@ -424,7 +424,9 @@ def _fishing(e,actor,*,phase,rod=None,attachment=None,target=None,roll_d20=None,
  state['target_id']=identity
  escaped=None
  target.spec['fishing']=True
- if check.passed:state['status']='landed'
+ if check.passed:
+  state['status']='landed'
+  __import__('study_books').fished(e,actor,target,book_stats)
  else:
   if state['attachment']=='미끼':
    escaped=True;inv['미끼']-=1;state['status']='bait_lost'
@@ -480,7 +482,11 @@ def experience_training(e,actor,*,targets,**options):
  """Commit the whole hour, every target and trainer quota as one graph."""
  if not isinstance(targets,(list,tuple)) or not targets or len(targets)>6:raise ValueError('one to six distinct Pokemon required')
  import state_grants as G
- return G.transition(e,actor,lambda se,sa,*st:_experience_training(se,sa,targets=list(st),**options),participants=tuple(targets))
+ if options.get('book_target') is not None and not any(options['book_target'] is target for target in targets):raise ValueError('one actual owned training participant required')
+ def apply(se,sa,*st):
+  copied=G._stage_transition_payload(e,se,options)
+  return _experience_training(se,sa,targets=list(st),**copied)
+ return G.transition(e,actor,apply,participants=tuple(targets))
 
 
 def _csv_training_source(rules,provider,cache_name,label):
@@ -516,7 +522,7 @@ def _beast_csv_source(rules):
  return _csv_training_source(rules,'beast_master','_beast_csv_policy','Beast Master')
 
 
-def _experience_training(e,actor,*,targets,use_intimidate=False,from_grooming=False,from_training=False,safe=None,bonus_skill=None,grooming_policy=None,beast_policy=None,use_reserves=False,pushed_skills=None,type_manual=None,**unused):
+def _experience_training(e,actor,*,targets,use_intimidate=False,from_grooming=False,from_training=False,safe=None,bonus_skill=None,grooming_policy=None,beast_policy=None,use_reserves=False,pushed_skills=None,type_manual=None,book_target=None,**unused):
  """Native one-hour training and sourced Beast Master substitution (ch05:229-236).
  Special feat/edge teaching is a separate application; this grants XP only.
  """
@@ -537,8 +543,9 @@ def _experience_training(e,actor,*,targets,use_intimidate=False,from_grooming=Fa
  value=REWARDS.policy(eligibility,3600,[{'id':'experience','source':PROGRESSION.TRAINING,'kind':'xp','formula':REWARDS.native_xp_formula()}],identity='native:experience-training')
  result=REWARDS.execute(e,actor,targets,value,safe=safe,from_grooming=from_grooming,from_training=from_training,
   pushed_skills=pushed_skills,type_manual=type_manual,_eligibility=eligibility,_pushed_source='experience_training')
+ book_bonus=__import__('study_books').training_bonus(e,actor,targets,book_target)
  awards=[row['base_award'] for row in result['awards'][0]['outputs']]
- return {'activity':'experience_training','skill':skill,'rank':rank,'limit':limit,'xp_rank':xp_rank,'grooming_policy':selected_policy if from_grooming else None,'beast_policy':selected_beast,'awards':awards,'rank_plans':deepcopy(rank_plans),'eligibility':deepcopy(eligibility),'reward_record_id':result['reward_record_id']}
+ return {'activity':'experience_training','skill':skill,'rank':rank,'limit':limit,'xp_rank':xp_rank,'grooming_policy':selected_policy if from_grooming else None,'beast_policy':selected_beast,'awards':awards,'rank_plans':deepcopy(rank_plans),'eligibility':deepcopy(eligibility),'reward_record_id':result['reward_record_id'],'study_book':book_bonus}
 
 ACTIVITIES.update(fishing=fishing,command_loyalty=command_loyalty,experience_training=experience_training)
 

@@ -123,6 +123,7 @@ def sprint(e,c,*,source_policy=None):
  c.custom_conditions['질주']={'round':e.round_no,'source_policy':source_policy}
  import athlete as ATHLETE
  ATHLETE.coach_sprint(e,c)
+ __import__('study_books').after_sprint(e,c)
  e.log('  '+c.name+': 질주 '+('x2 (코칭)' if ATHLETE.sprint_rate(e,c)=='1' else '+50%')+', '+source_policy,'maneuver/질주')
  return True
 

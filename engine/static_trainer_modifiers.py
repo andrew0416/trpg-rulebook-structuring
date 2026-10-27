@@ -119,7 +119,7 @@ def register_all(engine,trainer,pokemon=None):
     instances=ACQUIRED.class_instances(trainer)
     targets=_targets(engine,trainer,pokemon)
     count=0
-    if any(row['source_id']==ENDURING for row in instances):
+    if any(row['source_id']==ENDURING for row in instances) and __import__('breather').class_edition(trainer)=='local_csv':
         for target in targets:
             _install_stat(engine,trainer,target,rule_id=ENDURING,branch='hp',field='hp',
                           clause_id='C2CSV/input/db/feats.csv:R125:main');count+=1

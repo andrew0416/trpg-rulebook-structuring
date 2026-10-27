@@ -144,6 +144,14 @@ def inspect(engine,actor,target,effect,source,index=0):
  if effect.get('type')=='self_hp_set' and 'loyalty' in effect and (source not in ('move/대폭발','move/자폭') or type(effect['loyalty']) is not int or effect['loyalty']!=-1):
   return Issue('unsupported_execution','loyalty','reviewed sacrifice decrease with explicit GM amount required')
  kind=effect['type']
+ if kind=='item_restore' and source=='move/리사이클':
+  try:__import__('recycle_move').preflight(engine,actor,target,effect,source)
+  except (ValueError,TypeError,KeyError) as ex:return Issue('unresolved_source','recycle',str(ex))
+  return None
+ if kind=='delayed_heal' and source=='move/희망사항':
+  try:__import__('wish_move').preflight(engine,actor,target,effect,source)
+  except (ValueError,TypeError,KeyError) as ex:return Issue('unresolved_source','wish',str(ex))
+  return None
  import misty_explosion as MISTY
  if MISTY.handles(source,effect):
   try:MISTY.prepare(engine,actor,effect)

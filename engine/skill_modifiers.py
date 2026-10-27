@@ -230,7 +230,14 @@ def modifiers(rules, actor, skill, additional, *, skill_context=None):
             if canonical!=entry['skill']:raise ValueError('canonical skill modifier required')
             if canonical==target:sources.append((source_id,entry['delta'],canonical))
     import equipment_variant_contracts as EQUIPMENT_VARIANTS
-    sources.extend(EQUIPMENT_VARIANTS.skill_modifiers(rules,actor,target,skill_context))
+    equipment=list(EQUIPMENT_VARIANTS.skill_modifiers(rules,actor,target,skill_context))
+    import study_books as BOOKS
+    book=BOOKS.manual_bonus(actor,skill)
+    if book>sum(value for _,value,_ in equipment if value>0):
+        # Study Manual replaces this nonstacking equipment group, not feat bonuses.
+        sources.extend(row for row in equipment if row[1]<=0)
+        sources.append((BOOKS.ITEMS['study_manual'],book,'Books/Equipment nonstacking Skill bonus'))
+    else:sources.extend(equipment)
     sources.extend(glitch_modifier(rules,actor,skill_context))
     frenzy=__import__('berserker').frenzy_bonus(actor)
     if frenzy and target in ('acrobatics','athletics','combat','intimidate'):

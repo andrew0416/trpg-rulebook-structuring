@@ -13,6 +13,8 @@ from copy import deepcopy
 from contextvars import ContextVar
 from pathlib import Path
 import json
+import csv
+import io
 import common_checks as C
 import researcher_features as RF
 import contest_features as FEATURES
@@ -20,6 +22,39 @@ import skill_modifiers as S
 import state_grants as G
 
 _data=json.loads((Path(__file__).resolve().parents[1]/'data/researcher-fields-definitions.json').read_text(encoding='utf8'))
+
+
+def _install_book_prerequisites(policy):
+ """Fill only the three published Books prerequisites, never a policy overlay.
+
+ These are executable prerequisite metadata, not copied source prose. Every
+ native acquisition/use below verifies the authenticated originals and exact
+ CSV records before relying on this adapter. Existing conflicting fields hold.
+ """
+ additions={
+  'reviewed_sources':{
+   'core_en':{'file':'source-audit/ptu-core-1.05.pdf','sha256':'e5e0371031601c3ad0a04056771c17599a2d8826e5a5102ccd37f9b368108907'},
+   'local_csv':{'file':'input/db/feats.csv','sha256':'4435ff1c462a211564c85d2c1c9a2ac6e7c790c7545e1ad7056d32888b2367bd'},
+   'may2015':{'file':'source-audit/official-may2015.pdf','sha256':'b1314908e4adbfee09042c58f08a36046b5f59a09de196425aa469b43232232d'}},
+  'csv_records':{'feat/폭넓은-지식':323,'feat/책벌레':324,'feat/이해-완료':325},
+  'clauses':{'general':'C04-081'},
+  'features':{
+   'feat/폭넓은-지식':{'english':'Breadth of Knowledge','field':'general','span':[2071,2073],
+       'action':'static','prerequisites':{'skills':[['일반 지식',3]]}},
+   'feat/책벌레':{'english':'Bookworm','field':'general','span':[2071,2073],
+       'book_source':'may2015','action':'static','prerequisites':{'feats':['feat/폭넓은-지식']}},
+   'feat/이해-완료':{'english':'Well Read','field':'general','span':[2071,2073],
+       'book_source':'may2015','action':'static','prerequisites':{'feats':['feat/책벌레'],'skills':[['일반 지식',5]]}}}}
+ for field,entries in additions.items():
+  destination=policy.setdefault(field,{})
+  if type(destination)is not dict:raise ValueError('Researcher Books metadata mapping required')
+  for key,value in entries.items():
+   if key in destination and json.dumps(destination[key],sort_keys=True,ensure_ascii=False,allow_nan=False)!=json.dumps(value,sort_keys=True,ensure_ascii=False,allow_nan=False):
+    raise ValueError('reviewed Researcher Books metadata changed: '+field+'/'+key)
+   destination.setdefault(key,deepcopy(value))
+
+
+_install_book_prerequisites(_data)
 DEFINITIONS=_data['features'];CLAUSES=_data['clauses'];RANKS=_data['ranks']
 SOURCE=_data['rule_source']
 assert SOURCE==RF.SOURCE
@@ -37,6 +72,183 @@ CLIMATOLOGY_PREFIX='researcher-climatology:';SEED_PREFIX='researcher-seed:'
 EGG_MARK='researcher_playing_god';FOSSIL_MARK='researcher_fossil_restoration';QUALITY_MARK='researcher_special_quality'
 FOSSIL_AUTHORITY='fossil_birth_authority_version'
 WEATHER_NAMES={'hail':'싸라기눈','rain':'비','sandstorm':'모래바람','sunny':'쾌청'}
+
+
+BREADTH='feat/폭넓은-지식';BOOKWORM='feat/책벌레';WELL_READ='feat/이해-완료';ECHOES='feat/미래의-메아리'
+LIVE_LEARN='feat/오래-살고-볼일';INSTANT='feat/즉각적인-분석'
+WITCH='feat/마녀-사냥꾼';MENTAL='feat/정신-저항'
+OVERCLOCK='feat/오버클럭';EFFICIENT='feat/효율-설치'
+STATIC_DEFINITIONS={u:{'clause_id':CLAUSES[d['field']],'span':d.get('span',[2047,2128]),'minimum_level':0,'skill':None,
+ 'ranked':bool(d.get('ranked')),'max_rank':d.get('ranked',1)} for u,d in DEFINITIONS.items() if u in (BREADTH,BOOKWORM,WELL_READ)}
+
+
+def _book_prerequisite_sources(rules):
+ from source_context import verified_source
+ authority=_data['reviewed_sources']
+ content=verified_source(rules,authority['local_csv'],label='Researcher Books prerequisites')
+ rows=list(csv.reader(io.StringIO(content.decode('utf-8-sig'),newline='')))
+ expected=((323,'폭넓은 지식','초보일반지식'),(324,'책벌레','폭넓은지식'),
+           (325,'이해 완료','책벌레,전문일반지식'))
+ for number,title,prerequisite in expected:
+  if len(rows)<number:raise ValueError('actual General Research Field CSV record required')
+  row=rows[number-1]
+  if (len(row)<5 or row[0]!=title or row[1]!='[일반 지식 연구 분야]'
+      or ''.join(row[2].split())!=prerequisite or row[3]!='항상' or not row[4].strip()):
+   raise ValueError('reviewed General Research Field CSV record changed')
+ # Both original sources are already authenticated inputs. Native code owns
+ # the reviewed book/CSV distinction; no extracted body is fabricated here.
+ for key in ('core_en','may2015'):
+  verified_source(rules,authority[key],label='Researcher Books English authority',source_root='source-audit')
+
+def static_source(rules,feature):
+ return _source_authority(rules,feature,'book')
+
+
+def acquisition_snapshot(engine,actor,feature,rank,selection):
+ """Snapshot ordinary prerequisites before the new Feature exists."""
+ d=DEFINITIONS[feature]
+ selected=selection or {'edition':'book'}
+ if type(selected)is not dict or set(selected)-{'edition','edges','psionic_edition','replacement_feature'} or selected.get('edition') not in ('book','local_csv'):
+  raise ValueError('exact Researcher acquisition selection required')
+ RF.researcher(engine,actor,d['field'])
+ parents={p:bool(owns(actor,p)) for p in d.get('prerequisites',{}).get('feats',())}
+ if feature==ECHOES and selected['edition']=='local_csv':parents[BREADTH]=bool(owns(actor,BREADTH))
+ import pokemon_activities as P
+ for edge in d.get('prerequisites',{}).get('edges',()):
+  if edge!='pokebot_training':P._feature(engine,actor,'basic_balls' if edge=='poke_ball_crafter' else edge)
+ skills=set(S.EDUCATION_SKILLS)
+ pre=d.get('prerequisites',{})
+ for skill,n in [*pre.get('skills',[]),*pre.get('all_skills',[]),*(item for options in pre.get('rank_skills',{}).values() for item in options)]:skills.add(skill)
+ stunt=__import__('skill_stunts').for_dowsing(engine,actor) if pre.get('dowsing_stunt') else None
+ return {'selection':deepcopy(selection),'source':source(engine,feature,selected['edition']),
+  'skills':{s:_rank(engine,actor,s) for s in skills},'parents':parents,'dowsing_stunt':stunt,
+  'edges':list(actor.spec.get('edges',[])),'fields':list(RF.research_fields(actor)),
+  'rank_number':rank,'level':actor.level}
+
+
+def qualification(actor,feature,snapshot,prerequisite_source):
+ import acquisition_qualification as Q
+ if prerequisite_source is not None or type(snapshot)is not dict or set(snapshot)!={'selection','source','skills','parents','edges','fields','rank_number','level','dowsing_stunt'}:
+  raise ValueError('exact observed Researcher acquisition required')
+ selected=(snapshot['selection'] or {'edition':'book'})['edition'];d=DEFINITIONS[feature];pre=d.get('prerequisites',{})
+ if snapshot['source']!=_source_authority(actor.r,feature,selected):raise ValueError('Researcher acquisition authority changed')
+ skills=pre.get('skills',[])
+ if selected=='local_csv' and feature in (OVERCLOCK,EFFICIENT):skills=[['기술학',4]]
+ checks=[Q.check('trainer','prerequisite',actor.kind=='trainer','actual Trainer required'),
+  Q.check('field','prerequisite',d['field'] in snapshot['fields'],'actual acquired Researcher field required'),
+  Q.check('skills','prerequisite',not skills or any(snapshot['skills'][s]>=n for s,n in skills),'printed Education rank required'),
+  Q.check('all_skills','prerequisite',all(snapshot['skills'][s]>=n for s,n in pre.get('all_skills',[])),'every printed Education rank required'),
+  Q.check('parents','prerequisite',all(snapshot['parents'].values()),'actual parent Researcher Features required')]
+ if pre.get('dowsing_stunt'):checks.append(Q.check('dowsing_stunt','prerequisite',snapshot['dowsing_stunt'] is True,'actual approved Occult Dowsing Skill Stunt required'))
+ elif snapshot['dowsing_stunt'] is not None:raise ValueError('this Researcher prerequisite has no Dowsing waiver')
+ expected=set(pre.get('feats',[]))|({BREADTH} if feature==ECHOES and selected=='local_csv' else set())
+ if set(snapshot['parents'])!=expected:raise ValueError('exact historical Researcher parents required')
+ for number,options in pre.get('rank_skills',{}).items():
+  if int(number)<=snapshot['rank_number']:checks.append(Q.check('rank'+number,'prerequisite',any(snapshot['skills'][s]>=n for s,n in options),'printed ranked skill prerequisite required'))
+ for edge in pre.get('edges',[]):
+  aliases={'pokebot_training':('edge/포켓봇-훈련','feat/포켓봇-훈련'),'poke_ball_crafter':('edge/몬스터볼',),'green_thumb':('edge/원예가',),'gem_lore':('edge/보석-지식',),'repel_crafter':('edge/스프레이-제작자',),'paleontologist':('edge/고생물학자',)}
+  if edge not in aliases:raise ValueError('reviewed Researcher prerequisite Edge mapping required: '+edge)
+  checks.append(Q.check(edge,'prerequisite',any(uid in snapshot['edges'] for uid in aliases[edge]),'actual printed prerequisite Edge required'))
+ return Q.require(feature,'native','acquire',checks)
+
+
+def after_acquire(engine,actor,feature,source_id):
+ import trainer_feature_acquisition as T
+ record=next(r for sid,r in T.static_acquisitions(actor,feature) if sid==source_id)
+ selected=record['snapshot']['selection'] or {'edition':'book'}
+ actor.spec.setdefault('researcher_editions',{})[feature]=deepcopy(record['snapshot']['source'])
+ if feature==BREADTH:
+  choices=selected.get('edges')
+  if type(choices)is not list or len(choices)!=3:raise ValueError('Breadth of Knowledge requires exactly three eligible Education Edges')
+  for i,edge in enumerate(choices):_grant_education_edge(engine,actor,edge,source_id+'/edge/'+str(i),source_id)
+
+
+def _grant_education_edge(engine,actor,choice,sid,parent,*,education_only=True):
+ import hobbyist as H,trainer_feature_acquisition as T,capture_techniques as CAP
+ if type(choice)is not dict or set(choice)!={'id','choice'}:raise ValueError('exact normally qualified Edge choice required')
+ edge=choice['id'];value=choice['choice']
+ if edge in H.RANK_EDGES:
+  skill=S.skill_id(engine.r.skill_policy,value,required=True)
+  if education_only and skill not in S.EDUCATION_SKILLS:raise ValueError('Breadth rank Edge requires an Education skill')
+  proof=CAP._skill_edge(engine.r,{'edge':edge,'skill':skill},actor.level,_rank(engine,actor,skill))
+  CAP.grant_skill_edge(engine,actor,proof,sid,researcher_parent=parent)
+  __import__('acquisition_withdrawal').dependencies(engine,actor,sid,[parent])
+ elif edge in H.SKILL_EDGES:
+  if edge=='edge/고난이도-스킬':
+   if type(value)is not dict or S.skill_id(engine.r.skill_policy,value.get('skill'),required=True) not in S.EDUCATION_SKILLS:raise ValueError('Breadth Skill Stunt requires its actual Education skill')
+  elif edge=='edge/스킬-향상':
+   if type(value)is not list or len(value)!=2 or any(S.skill_id(engine.r.skill_policy,s,required=True) not in S.EDUCATION_SKILLS for s in value):raise ValueError('Breadth Skill Enhancement requires two Education skills')
+   old={S.skill_id(engine.r.skill_policy,s,required=True) for pair in actor.spec.get('edge_choices',{}).get(edge,[]) for s in pair}
+   if old.intersection(S.skill_id(engine.r.skill_policy,s,required=True) for s in value):raise ValueError('ordinary Skill Enhancement cannot apply twice to the same skill')
+  elif edge=='edge/거장':
+   if S.skill_id(engine.r.skill_policy,value,required=True) not in S.EDUCATION_SKILLS:raise ValueError('Breadth Virtuoso requires an Education skill')
+   if value in actor.spec.get('edge_choices',{}).get(edge,[]):raise ValueError('ordinary Virtuoso must choose a different skill')
+  else:raise ValueError('Breadth requires an individually selected Education Skill Edge')
+  # The existing executor validates ordinary acquisition and owns the exact
+  # choice/native skill consumer; its parent source need not be a Hobbyist.
+  H.acquire_skill_edge(engine,actor,edge,value,sid,parent)
+ elif edge in H.CORE_EDGE_SKILLS:
+  pre=H.CORE_EDGE_SKILLS[edge]
+  if education_only and not any(S.skill_id(engine.r.skill_policy,s,required=True) in S.EDUCATION_SKILLS for s,n in pre):raise ValueError('Breadth Edge must have an Education prerequisite')
+  T.grant_qualified_core_edge(engine,actor,edge,value,sid,parent)
+ else:raise ValueError('selected Edge needs its ordinary acquisition owner')
+
+
+def validate_acquisition(actor,record,source_id,active):
+ feature=record['feature_id'];selection=record['snapshot']['selection']
+ if active and actor.spec.get('researcher_editions',{}).get(feature)!=record['snapshot']['source']:raise ValueError('Researcher actual acquired edition projection changed')
+
+
+def _source_authority(rules,feature,edition):
+ """An explicit source choice changes only the reviewed delta, not ownership."""
+ from source_context import verified_source
+ if edition not in ('book','local_csv'):raise ValueError('reviewed Researcher edition required: book or local_csv')
+ if feature in (BREADTH,BOOKWORM,WELL_READ):_book_prerequisite_sources(rules)
+ if rules._selected_rule(SOURCE)!=SOURCE:raise ValueError('selected Researcher field variant needs a sourced adapter')
+ if edition=='book':
+  key=DEFINITIONS[feature].get('book_source')
+  authority=_data['reviewed_sources'][key] if key else {'file':_data['source_file'],'sha256':_data['source_sha256']}
+  verified_source(rules,authority,label='Book Researcher',source_root='source-audit' if authority['file'].startswith('source-audit/') else 'input')
+  return dict(authority,edition=edition,clause_id=clause(feature))
+ authority=_data['reviewed_sources']['local_csv']
+ verified_source(rules,authority,label='local CSV Researcher')
+ record=_data['csv_records'].get(feature)
+ if record is None:raise ValueError('this Book Feature has no identical local CSV record: '+feature)
+ identity='C2CSV/input/db/feats.csv:R'+str(record)+':main'
+ rules.ruleset.require({'id':identity,'source':{'file':'db/feats.csv','record_span':[record,record]}})
+ return dict(authority,edition=edition,clause_id=identity,record=record)
+
+
+def source(engine,feature,edition='book'):
+ return _source_authority(engine.r,feature,edition)
+
+
+def _edition(engine,trainer,feature):
+ row=trainer.spec.get('researcher_editions',{}).get(feature)
+ edition='book' if row is None else row.get('edition')
+ if row is not None and row!=source(engine,feature,edition):raise ValueError('actual selected Researcher source changed')
+ return edition
+
+
+def study_points(engine,trainer):
+ """AP-like study drain uses the same actual extended-rest recovery epoch."""
+ qualify(engine,trainer,BOOKWORM,available=False);edition=_edition(engine,trainer,BOOKWORM)
+ other=sum(owns(trainer,uid) for uid,d in DEFINITIONS.items() if d['field']=='general' and uid!=BOOKWORM)
+ maximum=2*other if edition=='local_csv' else 2+other
+ import recovery_receipts as RECOVERY
+ epoch=sorted(uid for uid,row in RECOVERY.validate(trainer).items() if row['intent'].get('source')=='gameplay/action-points' and row['intent'].get('resource')=='ap_removed' and row['intent'].get('policy')=='qualified_extended_rest' and row['eligibility'].get('eligible'))
+ rows=(state(trainer) or {}).get('study_drains',[])
+ spent=sum(row['amount'] for row in rows if row['rest_epoch']==epoch)
+ if type(spent)is not int or spent<0 or spent>maximum:raise ValueError('actual Study Point drain exceeds the acquired Bookworm pool')
+ return {'maximum':maximum,'drained':spent,'available':maximum-spent,'rest_epoch':epoch,'authority':source(engine,BOOKWORM,edition)}
+
+
+def _drain_study(engine,trainer,source_id):
+ pool=study_points(engine,trainer)
+ if not pool['available']:raise ValueError('Bookworm Study Points exhausted until an actual Extended Rest')
+ row={'amount':1,'source_id':source_id,'rest_epoch':pool['rest_epoch'],'authority':pool['authority'],'at':engine.elapsed_seconds}
+ state(trainer,create=True).setdefault('study_drains',[]).append(row);return row
+
 
 
 def uid(name):
@@ -71,20 +283,29 @@ def feature_rank(trainer,feature):
  return value
 
 
-def qualify(e,trainer,feature):
+def qualify(e,trainer,feature,*,edition=None,available=True):
  """Printed prerequisites against the actual sheet: field, parent Features, Edges and skill ranks."""
  import pokemon_activities as P
  d=DEFINITIONS[feature]
  if feature==WARFARE and __import__('hobbyist').provider(trainer,WARFARE) is not None:
   FEATURES.conscious_trainer(trainer);RF.source(e)
   return d
- RF.require(e,trainer,feature,d['field'],static=feature==PUSHER)
+ RF.require(e,trainer,feature,d['field'],static=feature==PUSHER,available=available)
  pre=d.get('prerequisites',{})
- for parent in pre.get('feats',()):qualify(e,trainer,parent)
- for edge in pre.get('edges',()):P._feature(e,trainer,edge)
+ for parent in pre.get('feats',()):qualify(e,trainer,parent,available=available)
+ for edge in pre.get('edges',()):
+  if edge=='pokebot_training':
+   if not any(FEATURES.owned(trainer,uid) for uid in ('edge/포켓봇-훈련','feat/포켓봇-훈련')):raise ValueError('Engineer requires actual Pokebot Training')
+  else:P._feature(e,trainer,'basic_balls' if edge=='poke_ball_crafter' else edge)
  skills=pre.get('skills')
+ selected=edition or trainer.spec.get('researcher_editions',{}).get(feature,{}).get('edition','book')
+ if feature in (BREADTH,BOOKWORM,WELL_READ):_source_authority(e.r,feature,selected)
+ if selected=='local_csv' and feature in (OVERCLOCK,EFFICIENT):skills=[['기술학',4]]
  if skills and not any(_rank(e,trainer,skill)>=rank for skill,rank in skills):
   raise ValueError(d['english']+' requires its printed skill rank: '+' or '.join(skill+' '+str(rank) for skill,rank in skills))
+ for skill,rank in pre.get('all_skills',()):
+  if _rank(e,trainer,skill)<rank:raise ValueError(d['english']+' requires every printed skill rank')
+ if selected=='local_csv' and feature==ECHOES:qualify(e,trainer,BREADTH,available=available)
  if 'rank_skills' in pre:
   rank=feature_rank(trainer,feature)
   for number in range(1,rank+1):

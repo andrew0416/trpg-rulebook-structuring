@@ -77,6 +77,8 @@ def sync(engine,c):
     if c.hp>0:__import__('berserker').faint_boundary(engine,c)
     if c.hp<=0 and not dying and not press:
         press=__import__('berserker').faint_boundary(engine,c)
+    if c.hp<=0 and not dying and not press:
+        press=__import__('enduring_soul').faint_boundary(engine,c)
     if c.hp<=0 and not press:
         faint(engine,c)
         if c.faint_recovery_seconds is not None:

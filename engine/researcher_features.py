@@ -52,10 +52,11 @@ def research_fields(actor):
  if selected is None:raise ValueError('actual acquired Researcher fields required')
  return tuple(selected)
 
-def researcher(e,actor,field,*,static=False):
+def researcher(e,actor,field,*,static=False,available=None):
  import acquired_features as ACQUIRED
  ACQUIRED.validate_class_slots(actor)
- if static:
+ if type(static)is not bool or (available is not None and type(available)is not bool):raise ValueError('explicit Researcher availability required')
+ if static or available is False:
   if actor.kind!='trainer':raise ValueError('actual Researcher trainer required')
  else:FEATURES.conscious_trainer(actor)
  source(e)
@@ -67,8 +68,8 @@ def researcher(e,actor,field,*,static=False):
  if max(S.rank(e.r,actor,skill)[2] for skill in sorted(S.EDUCATION_SKILLS))<3:raise ValueError('Researcher requires a Novice Education skill')
  return selected
 
-def require(e,actor,uid,field,*,static=False):
- researcher(e,actor,field,static=static)
+def require(e,actor,uid,field,*,static=False,available=None):
+ researcher(e,actor,field,static=static,available=available)
  if not FEATURES.owned(actor,uid):raise ValueError('actual acquired Researcher feature required: '+uid)
 
 def prepare_training(e,actor,targets,choices):

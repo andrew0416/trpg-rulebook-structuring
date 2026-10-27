@@ -22,7 +22,7 @@ def policy(rules):
 def validate(actor):
     entries=actor.spec.get('edges',[])
     if type(entries) not in (list,tuple):raise ValueError('actual acquired Edge list required')
-    if not any(value in NAMES for value in entries):return False
+    if not any(value in NAMES for value in entries):return __import__('study_books').iron_mind(actor)
     return Q.owned_skill_edge(actor,SOURCE,policy(actor.r),prerequisite_reason='Iron Mind requires Novice Focus')
 
 

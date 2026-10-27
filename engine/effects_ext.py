@@ -157,6 +157,9 @@ def h_copy_item(engine, a, t, e, ctx):
 
 
 def h_item_restore(engine, a, t, e, ctx):
+    if ctx.get('source_id')=='move/리사이클':
+        __import__('recycle_move').apply(engine,a,t,e,ctx)
+        return None
     a.counters["item_restore"] = a.counters.get("item_restore", 0) + 1
     engine.log(f"    {a.name}: 소모한 도구 효과 1회 재사용 가능")
 
@@ -325,6 +328,7 @@ def h_hp_share(engine, a, t, e, ctx):
 
 
 def h_delayed_heal(engine, a, t, e, ctx):
+    if ctx.get('source_id')=='move/희망사항':return __import__('wish_move').schedule(engine,a,t,e,ctx)
     engine.delayed.append({"kind": "heal", "who": t, "turns": 1, "effect": e, "src": "delayed_heal", "healing_source_kind": ctx.get("healing_source_kind","unspecified")})
     engine.log(f"    {t.name}: 다음 턴 끝에 회복 예약 ({e.get('fraction_of_max')})")
 
@@ -1829,8 +1833,10 @@ def end_of_turn(engine, c):
     __import__('type_ace').end_turn(engine,c)
     __import__('type_ace').fire_boundary(engine,c)
     HEAVY.ensure_clear(engine)
+    __import__('wish_move').end_turn(engine,c)
     VORTEX.turn_end(engine,c)
     for d in list(engine.delayed):
+        if d['kind']=='wish':continue
         if d["who"] is not c:
             continue
         d["turns"] -= 1

@@ -467,20 +467,23 @@ def _target_daily_key(engine, owner, target):
     )
 
 
-def emergency_care(engine, trainer, target):
+def emergency_care(engine, trainer, target, *, book_provider=False):
     """Use the exact tool-backed Daily x3 Extended recovery atomically."""
     index = _actor_index(engine)
     if index.get(trainer.entity_id) is not trainer or index.get(target.entity_id) is not target:
         raise ValueError("actual registered trainer and target required")
-    if acquired_source(trainer, EMERGENCY_CARE) is None:
+    book=book_provider is True and __import__('study_books').active(trainer,'first_aid',2)
+    if book_provider and not book:raise ValueError('actual rank-two First Aid Manual required')
+    if not book and acquired_source(trainer, EMERGENCY_CARE) is None:
         raise ValueError("Emergency Care Expertise acquisition required")
     if target.kind not in ("trainer", "pokemon") or target.dead:
         raise ValueError("Emergency Care Expertise requires a living trainer or Pokemon")
     import item_stock as STOCK
     STOCK.prepare(engine, trainer, "item/응급치료키트", allow_empty=False)
-    frequency = {"kind": "daily", "uses": 3}
+    provider_source=__import__('study_books').ITEMS['first_aid'] if book else EMERGENCY_CARE
+    frequency = {"kind": "daily", "uses": 1 if book else 3}
     target_frequency = {"kind": "daily", "uses": 1}
-    if not FREQUENCY.activation_allowed(trainer, EMERGENCY_CARE, frequency, engine=engine):
+    if not FREQUENCY.activation_allowed(trainer, provider_source, frequency, engine=engine):
         raise ValueError("Emergency Care Expertise Daily x3 exhausted")
     target_key = _target_daily_key(engine, trainer, target)
     medical = acquired_source(trainer, MEDICAL_TECHNIQUE) is not None
@@ -489,10 +492,10 @@ def emergency_care(engine, trainer, target):
     import state_grants as GRANTS
 
     def apply(staged_engine, staged_trainer, staged_target):
-        if acquired_source(staged_trainer, EMERGENCY_CARE) is None:
+        if not (book and __import__('study_books').active(staged_trainer,'first_aid',2)) and acquired_source(staged_trainer, EMERGENCY_CARE) is None:
             raise ValueError("Emergency Care Expertise acquisition ended before use")
         STOCK.prepare(staged_engine, staged_trainer, "item/응급치료키트", allow_empty=False)
-        if not FREQUENCY.activation_allowed(staged_trainer, EMERGENCY_CARE, frequency, engine=staged_engine):
+        if not FREQUENCY.activation_allowed(staged_trainer, provider_source, frequency, engine=staged_engine):
             raise ValueError("Emergency Care Expertise Daily x3 exhausted")
         staged_target_key = _target_daily_key(staged_engine, staged_trainer, staged_target)
         medical_now = acquired_source(staged_trainer, MEDICAL_TECHNIQUE) is not None
@@ -509,7 +512,7 @@ def emergency_care(engine, trainer, target):
         healed = staged_engine.heal(staged_target, staged_target.base_max_hp, source_kind="feature")
         before = STATUS.afflictions(staged_target)
         STATUS.cure_group(staged_engine, staged_target)
-        FREQUENCY.consume_activation(staged_trainer, EMERGENCY_CARE, frequency, engine=staged_engine)
+        FREQUENCY.consume_activation(staged_trainer, provider_source, frequency, engine=staged_engine)
         if not medical_now:
             FREQUENCY.consume_activation(staged_trainer, staged_target_key, target_frequency, engine=staged_engine)
         return {

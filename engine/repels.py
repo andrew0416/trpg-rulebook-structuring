@@ -125,6 +125,7 @@ def _record(e,user,target,r,payment,*,hit,natural):
             'reason':r.aim['reason'],'approaches':{}}
     rows[identity]=record
     __import__('researcher_fields').spray_exposure(e,user,target,r.source_id,hit=direct and bool(hit))
+    __import__('study_books').anarchist(e,user,target,repel=True,hit=direct and bool(hit))
     receipt=PAID.finish(user,payment,target_id=target.entity_id,
         outcome='applied' if record['affected'] else 'no_effect',
         results=[{'kind':'repel_use','id':identity}])

@@ -445,6 +445,8 @@ def _continue_party(e,a,request_id):
         progress['send_cursor']+=1
         if intent['recall']:
             __import__('initiative_schedule').replace_party(e,index[intent['recall'][0]],target,source=row['result'].get('feature_plan',{}).get('source') or SOURCE,request_id=request_id)
+            if len(intent['recall'])==len(intent['send'])==1:
+                __import__('wish_move').replaced(e,index[intent['recall'][0]],target,request_id=request_id)
     import marsupial_state as MARSUPIAL
     MARSUPIAL.sync(e)
     row=a.spec[KEY][request_id];row.pop('pending');result=row['result']
@@ -462,6 +464,8 @@ def resume_escape(engine,trainer,request_id):
 
 
 def validate_world(engine,index):
+    __import__('recycle_move').validate_world(engine,index)
+    __import__('wish_move').validate_world(engine,index)
     for actor in index.values():
         policy=actor.spec.get(POLICY)
         if policy is None:continue

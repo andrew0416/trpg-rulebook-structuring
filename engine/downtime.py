@@ -652,6 +652,7 @@ def _extended_rest_benefits(engine,c,log):
     import resolution_transaction as REQUESTS
     parent='rest:'+REQUESTS.request_fingerprint({'owner':c.entity_id,'interval':c.spec.get('rest_interval')})
     AP.extended_rest(c,request_id=parent)
+    __import__('study_books').after_extended_rest(engine,c)
     FREQ.restore_daily_moves(engine,c,request_id=parent)
     log.append(f'{c.name}: 연속4시간 휴식 → 지속 상태 {len(cured)}개 치료, 제거된 AP 및 조건을 충족한 하루 기술 복원')
 
@@ -738,6 +739,17 @@ def _rest_many(engine,combatants,minutes,log=None,*,rest_id=None):
         healing=BANDAGES.rest_healing(engine,c,previous=previous,rest_id=rest_id,blocks=blocks,
             block_minutes=heal_rule['per_minutes'],fraction=heal_rule['fraction'],heavy_threshold=heavy)
         plans.append((c,record,blocks,spent,before_total,healing))
+    import study_books as BOOKS
+    with BOOKS.rest_scope(engine,plans,minutes,rest_id):
+        plans=[(c,record,blocks,spent,before,BANDAGES.rest_healing(engine,c,previous=c.spec.get('rest_interval'),rest_id=rest_id,
+            blocks=blocks,block_minutes=heal_rule['per_minutes'],fraction=heal_rule['fraction'],heavy_threshold=heavy,
+            caretaker=BOOKS.care_owner(engine,c,rest_id) is not None)) for c,record,blocks,spent,before,healing in plans]
+        return _commit_rest_many(engine,actors,plans,minutes,log)
+
+
+def _commit_rest_many(engine,actors,plans,minutes,log):
+    """The admitted shared interval remains one atomic native rest operation."""
+    rule=engine.r.mech('combat/resting')
     engine.advance_time(minutes*60,actors)
     gains=[]
     for c,record,blocks,spent,before_total,healing in plans:

@@ -226,6 +226,9 @@ def appraise(engine, actor, *, instance_id, fixed=None, **check_options):
     if not TURN.can_act(engine, actor) or not ACTION.status_permission(engine, actor, 'free'):
         return False
     # The native observed roll stays observed, even when it fails identification.
+    book=__import__('study_books').identify_mushroom(engine,actor,obj)
+    if book is not None:
+        return book
     roll = engine.skill_roll(actor, '생존', fixed=fixed, **check_options)
     check = __import__('skill_feature_actions').resolve_check(engine,actor,'생존',20,roll,check_options)
     if check.passed:
@@ -287,10 +290,11 @@ def apply_mushroom(engine, actor, uid, plan):
     if plan['stats'] != _derive_stats(uid, plan['faces']) or plan['item_id'] != uid:
         raise ValueError('actual Mushroom origin plan required')
     cured = []
+    protected=__import__('study_books').fungi(engine,actor)
     if uid == 'item/작은버섯':
-        engine.lose_hp(actor, 5, source=uid)
+        if not protected:engine.lose_hp(actor, 5, source=uid)
     elif uid == 'item/큰버섯':
-        engine.apply_status(actor, '독', source=uid)
+        if not protected:engine.apply_status(actor, '독', source=uid)
     else:
         import boss_transitions as BOSS
         for condition in ('화상', '마비', '독'):
@@ -301,7 +305,7 @@ def apply_mushroom(engine, actor, uid, plan):
                 cured.append(condition)
     delta = -1 if uid == 'item/향기버섯' else 1
     changed = []
-    if delta > 0 or cured:
+    if delta > 0 or cured and not protected:
         for stat in plan['stats']:
             engine.change_stage(actor, stat, delta)
             changed.append(stat)
