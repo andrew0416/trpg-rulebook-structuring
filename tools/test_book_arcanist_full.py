@@ -475,8 +475,9 @@ class ArcanistFullTests(unittest.TestCase):
         f.equip('english_own_living_weapon');f.turn(f.a)
         prepared=WA.prepare(f.e,f.p,f.e.r.move('move/상처내기'),weapon_id=f.key)
         marker=deepcopy(prepared['_living_borrow']);borrower_id=f.p.entity_id;target_id=f.t.entity_id
-        for boundary,pattern in (('holder','physical weapon Move permission'),
-                ('borrower_prepare','ordinary weapon move requires an equipped granting weapon'),
+        for boundary,pattern in (('holder','selected physical weapon does not grant this move'),
+                ('holder_prepare','physical weapon Move permission'),
+                ('borrower_prepare','selected physical weapon does not grant this move'),
                 ('borrower_adapt','Living Weapon borrowed authority changed'),
                 ('codec','physical weapon Move permission')):
             def attempt():
@@ -485,6 +486,8 @@ class ArcanistFullTests(unittest.TestCase):
                     G.materialize(a,'moves');borrower=W.actor_index(e)[borrower_id]
                     if boundary=='holder':
                         return e.use_move_on(a,W.actor_index(e)[target_id],'move/강타',e.everyone,weapon_id=f.key,set_damage=True)
+                    if boundary=='holder_prepare':
+                        return WA.prepare(e,a,e.r.move('move/강타'),weapon_id=f.key)
                     if boundary=='borrower_prepare':
                         return WA.prepare(e,borrower,e.r.move('move/강타'),weapon_id=f.key)
                     if boundary=='borrower_adapt':

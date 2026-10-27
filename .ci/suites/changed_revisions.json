@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "id": "changed_revisions",
-  "purpose": "Repair the five original class restoration failures while retaining all219 declarations. Restore equipped Move projection and permanent consumed-Glyph participation rejection; authenticate cached weapon permissions against actual native/physical/paid sources; use real Cone2 recipient geometry. Include three new native cache regressions and23 additional existing weapon/Prime/source guards. No canonical publication or completion credit.",
+  "purpose": "Retain all245 integration and source-guard declarations; correct only two stale test expectations. Assert current native Living Weapon rejection routes and actual mapped Flame Burst hit/cardinal splash/receipts, retaining unsupported-source, incomplete-body and mapless rejection. Add four existing Flame Burst boundary tests. Runtime, fixed verifier/H and private fixtures are unchanged. No canonical publication or completion credit.",
   "completion_credit": 0,
-  "required_unique_count": 245,
+  "required_unique_count": 249,
   "provenance": {
     "remote_base": "26d67e33dea546ff013eaf8f2e2339bb902778d8",
     "aa_source": "csv-ability-transitions-finish-1026aa/source-integration03",
@@ -34,6 +34,16 @@
       "retained_declarations": 219,
       "new_native_regressions": 3,
       "additional_existing_guards": 23
+    },
+    "repair03": {
+      "runtime_head": "2b9c2343494c3954fa7c4fc9b71ba2f3ef39b2cf",
+      "diagnostic_parent": "86c390c305ffc74a1155cc6487120f364ee4956d",
+      "original_run": 40445708399,
+      "original_unique_pass": 243,
+      "original_unique_fail": 2,
+      "runtime_changes": 0,
+      "new_test_ids": 0,
+      "additional_existing_guards": 4
     }
   },
   "completed": {
@@ -169,7 +179,11 @@
     "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests": {
       "tests": [
         "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_actual_primary_miss_spends_one_move_without_any_splash",
-        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_unknown_remote_body_and_mapless_contact_do_not_silently_narrow_the_splash"
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_unknown_remote_body_and_mapless_contact_do_not_silently_narrow_the_splash",
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_actual_crafted_hit_splashes_cardinal_trainers_pokemon_and_adjacent_user_once",
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_primary_and_adjacent_user_faint_do_not_cancel_the_remaining_actual_splash",
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_unbound_hit_label_cannot_forge_the_native_primary_producer",
+        "tools.test_flame_burst_native_consumer.FlameBurstNativeConsumerTests.test_changed_selected_payload_or_source_is_rejected_before_any_native_payment"
       ]
     },
     "tools.test_book_rune_master_full.RuneMasterFullTests": {

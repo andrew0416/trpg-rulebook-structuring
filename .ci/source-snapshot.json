@@ -24,9 +24,9 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "published-class-source-repair02",
-  "active_repair_scope": "Repair the five original class restoration failures while retaining all219 declarations. Restore equipped Move projection and permanent consumed-Glyph participation rejection; authenticate cached weapon permissions against actual native/physical/paid sources; use real Cone2 recipient geometry. Include three new native cache regressions and23 additional existing weapon/Prime/source guards. No canonical publication or completion credit.",
-  "active_repair_required_tests": 245,
+  "active_repair": "published-class-test-contract-repair03",
+  "active_repair_scope": "Retain all245 integration and source-guard declarations; correct only two stale test expectations. Assert current native Living Weapon rejection routes and actual mapped Flame Burst hit/cardinal splash/receipts, retaining unsupported-source, incomplete-body and mapless rejection. Add four existing Flame Burst boundary tests. Runtime, fixed verifier/H and private fixtures are unchanged. No canonical publication or completion credit.",
+  "active_repair_required_tests": 249,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -77,14 +77,14 @@
   "phase2_metadata_methods_mandatory": 0,
   "phase2_additional_procedural_runners": 0,
   "unaffected_previous_PASS_reused": 0,
-  "selected_method_obligations": 245,
+  "selected_method_obligations": 249,
   "partial_prerequisite_refresh": true,
   "full_method_scope_executed": false,
   "source_fresh_native_prerequisites": 1404,
   "native_prerequisite_run": "40241811271",
   "activation_current_evidence_current": false,
   "previous_activation_evidence": "historical_only_not_current",
-  "active_repair_source_commit": "1a8012e6d9a14ed1ffe3bf165a41ac488a78249d",
+  "active_repair_source_commit": "86c390c305ffc74a1155cc6487120f364ee4956d",
   "active_repair_source_plan_path": ".ci/suites/changed_revisions.json",
   "historical_source_contract_repair": {
     "source_commit": "2f8975c41bd76cf48c904df85cf92a489430dbbc",
@@ -99,8 +99,8 @@
       "453bd89e31defaf1943491b444ae46f70a419a9d"
     ],
     "merge_commit": "a8e047d2af3459bd09d0c2af8f4fd6781fbcb9d1",
-    "native_route": "Existing ci_validate and unchanged ci_remote_h; exact current-run/head packet245 with original authenticated fixture/policy restoration.",
-    "native_result": "Prior95/H accepted at739; original219 failures and repaired219's214PASS/5FAIL are preserved. This repair245 candidate has not executed.",
+    "native_route": "Existing ci_validate and unchanged ci_remote_h; exact current-run/head packet249 with original authenticated fixture/policy restoration.",
+    "native_result": "Original245 at2b produced243PASS/2FAIL; exact diagnostic identified stale Living rejection and unsupported Flame Burst assertions. This test-only repair249 has not executed.",
     "canonical_completed_field_is_historical": true,
     "canonical_source_equivalence": false,
     "full_method_scope_executed": false,
@@ -130,7 +130,7 @@
       "Berserker",
       "Rune Master"
     ],
-    "declared_unique_tests": 245,
+    "declared_unique_tests": 249,
     "private_bundle_changed": false,
     "verifier_changed": false,
     "H_changed": false,
@@ -145,6 +145,16 @@
       "retained_declarations": 219,
       "new_native_regressions": 3,
       "additional_existing_guards": 23
+    },
+    "repair03": {
+      "runtime_head": "2b9c2343494c3954fa7c4fc9b71ba2f3ef39b2cf",
+      "diagnostic_parent": "86c390c305ffc74a1155cc6487120f364ee4956d",
+      "original_run": 40445708399,
+      "original_unique_pass": 243,
+      "original_unique_fail": 2,
+      "runtime_changes": 0,
+      "new_test_ids": 0,
+      "additional_existing_guards": 4
     }
   },
   "previous_class_restoration_runs": [
@@ -160,6 +170,13 @@
       "run": 40435639222,
       "unique_pass": 214,
       "unique_fail": 5,
+      "unique_error": 0
+    },
+    {
+      "head": "2b9c2343494c3954fa7c4fc9b71ba2f3ef39b2cf",
+      "run": 40445708399,
+      "unique_pass": 243,
+      "unique_fail": 2,
       "unique_error": 0
     }
   ]

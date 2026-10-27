@@ -1,4 +1,4 @@
-"""Five physical weapon contracts plus an explicit incomplete alchemy boundary."""
+"""Five physical weapon contracts plus sourced native alchemy boundaries."""
 from copy import deepcopy
 import json
 from pathlib import Path
@@ -129,7 +129,11 @@ class OptionalWeaponFrameworkTests(unittest.TestCase):
                 self.assertNotIn('move/렌딩-스펠', a.moves)
 
     def test_alchemy_prepared_exceptions_and_native_targetset_blocker_remain_explicit(self):
-        e, a, foe, _ = self.fixture(element='물', occult=6)
+        from tools.native_scenario_fixture import prepare_body,assert_rejected_unchanged
+        import attack_damage_history as HISTORY,body_state as BODY,effects as EFFECTS
+        e, a, foe, other = self.fixture(element='물', occult=6)
+        for actor in (a,foe,other):
+            prepare_body(e,actor,size='중형',offsets=[(0,0)],reason='actual complete mapped alchemy recipient body')
         uid = self.weapon(e, a, 'recipe/nine-flames', kind='대형 근접무기',
                           moves=['move/렌딩-스펠', 'move/베인'], item_id='crafted_item/나인플레임의-스태프')
         FW.bond(e, a, uid, family='arcane')
@@ -144,10 +148,31 @@ class OptionalWeaponFrameworkTests(unittest.TestCase):
         ability = CRAFTED.definition(self.r, 'crafted_item/나인플레임의-스태프')['abilities'][0]
         self.assertIn(ability, a.abilities)
         self.start(e, a)
-        before = self.snapshot(e)
-        with self.assertRaisesRegex(EffectContractError, 'explicit native target-set binding'):
-            e.use_move_on(a, foe, 'move/불꽃튀기기', e.everyone, weapon_id=uid)
-        self.assertEqual(self.snapshot(e), before)
+        splash={'type':'hp_loss','value':5,'target':'cardinally adjacent to target'}
+        unsupported=assert_rejected_unchanged(e,lambda:EFFECTS.preflight_effects(e,a,foe,[splash],'move/몸통박치기'),
+            reason_pattern='explicit native target-set binding')
+        self.assertIsInstance(unsupported,EffectContractError)
+        other.spec.pop('footprint');other.spec['size']=None
+        self.assertFalse(BODY.projection(other)['geometry_complete'])
+        assert_rejected_unchanged(e,lambda:e.use_move_on(a,foe,'move/불꽃튀기기',e.everyone,weapon_id=uid),
+            reason_pattern='full observed body geometry')
+        prepare_body(e,other,size='중형',offsets=[(0,0)],reason='actual complete adjacent body now observed')
+        mapped_grid=e.grid;e.grid=None
+        try:
+            assert_rejected_unchanged(e,lambda:EFFECTS.preflight_effects(e,a,foe,[splash],'move/불꽃튀기기'),
+                reason_pattern='mapped cardinal body geometry')
+        finally:e.grid=mapped_grid
+        hp={actor.entity_id:actor.hp for actor in (a,foe,other)}
+        with patch.object(Engine,'d20',return_value=17):
+            damage=e.use_move_on(a,foe,'move/불꽃튀기기',e.everyone,weapon_id=uid,set_damage=True)
+        self.assertGreater(damage,0)
+        self.assertEqual(foe.hp,hp[foe.entity_id]-damage)
+        self.assertEqual(HISTORY.amount(HISTORY.last_damage(foe)),damage)
+        for adjacent in (a,other):self.assertEqual(adjacent.hp,hp[adjacent.entity_id]-5)
+        self.assertEqual((a.move_uses['move/불꽃튀기기'],a.budget['standard']),(1,0))
+        receipts=[row for row in e._effect_dispatch_receipts.values()
+                  if row['source_id']=='move/불꽃튀기기' and row['effect'].get('type')=='hp_loss']
+        self.assertEqual(len(receipts),1);self.assertEqual(receipts[0]['status'],'completed')
         restored = self.restore(e)
         ra = WORLD.actor_index(restored)[a.entity_id]
         self.assertEqual(restored._physical_objects[uid]['equipped_by'], ra.entity_id)
