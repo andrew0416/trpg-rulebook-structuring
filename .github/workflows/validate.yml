@@ -200,8 +200,8 @@ jobs:
           if ($taskSummaries.Count -ne 1) { throw 'One original native summary is required' }
           $taskSummary = Get-Content -LiteralPath $taskSummaries[0].FullName -Raw | ConvertFrom-Json
           $taskReport = @($taskSummary.reports)
-          if ($taskReport.Count -ne 1 -or -not $taskReport[0].successful -or $taskReport[0].tests_run -ne 86 -or $taskReport[0].collected_count -ne 86 -or $taskReport[0].status_counts.pass -ne 86) {
-            throw 'The whole 86-case AA and affected-boundary declaration did not pass'
+          if ($taskReport.Count -ne 1 -or -not $taskReport[0].successful -or $taskReport[0].tests_run -ne 91 -or $taskReport[0].collected_count -ne 91 -or $taskReport[0].status_counts.pass -ne 91) {
+            throw 'The whole 91-case AA and affected-boundary declaration did not pass'
           }
       - name: Preserve encrypted diagnostics and original physical evidence
         if: ${{ always() }}
@@ -251,22 +251,22 @@ jobs:
           New-Item -ItemType Directory -Path $taskTemp -ErrorAction Stop | Out-Null
           $taskHeaders = @{ Authorization = 'Bearer ' + $env:GH_TOKEN; Accept = 'application/vnd.github+json'; 'X-GitHub-Api-Version' = '2022-11-28' }
           $taskApi = 'https://api.github.com/repos/andrew0416/trpg-rulebook-structuring'
-          $taskRun = Invoke-RestMethod -Uri ($taskApi + '/actions/runs/40418653432') -Headers $taskHeaders
-          if ($taskRun.head_sha -cne 'a1da20e44f2a5701eeacd81eb0245c44f1d57115' -or $taskRun.status -cne 'completed' -or $taskRun.conclusion -cne 'failure' -or $taskRun.run_attempt -ne 1) { throw 'Original run binding differs' }
-          $taskArtifact = Invoke-RestMethod -Uri ($taskApi + '/actions/artifacts/12697176527') -Headers $taskHeaders
-          if ($taskArtifact.name -cne 'implementation-aa-40418653432-1' -or $taskArtifact.size_in_bytes -ne 214563513 -or $taskArtifact.expired -or $taskArtifact.workflow_run.id -ne 40418653432 -or $taskArtifact.workflow_run.head_sha -cne $taskRun.head_sha -or $taskArtifact.digest -cne 'sha256:a82bf0501b937f2f48175856c84b7216a25269f971ebd114b52590f827330c0a') { throw 'Original artifact binding differs' }
+          $taskRun = Invoke-RestMethod -Uri ($taskApi + '/actions/runs/40423412026') -Headers $taskHeaders
+          if ($taskRun.head_sha -cne '61ee6c7717e407a2ab392b3a6fcd175af2101cfb' -or $taskRun.status -cne 'completed' -or $taskRun.conclusion -cne 'failure' -or $taskRun.run_attempt -ne 1) { throw 'Original run binding differs' }
+          $taskArtifact = Invoke-RestMethod -Uri ($taskApi + '/actions/artifacts/12699017644') -Headers $taskHeaders
+          if ($taskArtifact.name -cne 'implementation-aa-40423412026-1' -or $taskArtifact.size_in_bytes -ne 214521340 -or $taskArtifact.expired -or $taskArtifact.workflow_run.id -ne 40423412026 -or $taskArtifact.workflow_run.head_sha -cne $taskRun.head_sha -or $taskArtifact.digest -cne 'sha256:9d0aaa8de217f3cbb3a537243a22a3140ed39d78c4c4cdd41530541c4850a3da') { throw 'Original artifact binding differs' }
           $taskZip = Join-Path $taskTemp 'original-artifact.zip'
-          Invoke-WebRequest -Uri ($taskApi + '/actions/artifacts/12697176527/zip') -Headers $taskHeaders -OutFile $taskZip
-          if ((Get-Item -LiteralPath $taskZip).Length -ne 214563513) { throw 'Original artifact size differs' }
+          Invoke-WebRequest -Uri ($taskApi + '/actions/artifacts/12699017644/zip') -Headers $taskHeaders -OutFile $taskZip
+          if ((Get-Item -LiteralPath $taskZip).Length -ne 214521340) { throw 'Original artifact size differs' }
           $taskArchive = [IO.Compression.ZipFile]::OpenRead($taskZip)
           try {
-            $taskEntries = @($taskArchive.Entries | Where-Object { $_.FullName -ceq '975dc9e146374a5387565077cdeb28c6/diagnostics.zip.enc' })
-            if ($taskEntries.Count -ne 1 -or $taskEntries[0].Length -ne 858468) { throw 'One bound encrypted diagnostic is required' }
+            $taskEntries = @($taskArchive.Entries | Where-Object { $_.FullName -ceq 'bfb3df26f20941b2a191587239d43f33/diagnostics.zip.enc' })
+            if ($taskEntries.Count -ne 1 -or $taskEntries[0].Length -ne 835421) { throw 'One bound encrypted diagnostic is required' }
             $taskInput = $taskEntries[0].Open()
             $taskOutput = [IO.File]::Open((Join-Path $taskTemp 'diagnostics.zip.enc'), [IO.FileMode]::CreateNew)
             try { $taskInput.CopyTo($taskOutput) } finally { $taskOutput.Dispose(); $taskInput.Dispose() }
           } finally { $taskArchive.Dispose() }
-          if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $taskTemp 'diagnostics.zip.enc')).Hash.ToLowerInvariant() -cne 'a8c327af22a378dd5e6b96788d864105f9f56dc5b590ff6dbf1c88ceab5a71f2') { throw 'Encrypted diagnostic digest differs' }
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $taskTemp 'diagnostics.zip.enc')).Hash.ToLowerInvariant() -cne 'b9d1a7f35bc0de078c0db04f9ea99573d5e03e4d92ed0c30c337be0ca3cedd45') { throw 'Encrypted diagnostic digest differs' }
       - name: Reduce authenticated diagnostics to public IDs and source frames only
         shell: pwsh
         env:
@@ -292,17 +292,17 @@ jobs:
               temporary = Path(os.environ['RUNNER_TEMP']).resolve()
               if root.drive.upper() != 'D:' or temporary.drive.upper() != 'D:':
                   raise ValueError('D-only diagnostic paths required')
-              head = 'a1da20e44f2a5701eeacd81eb0245c44f1d57115'
+              head = '61ee6c7717e407a2ab392b3a6fcd175af2101cfb'
               def git(*args):
                   return subprocess.check_output(['git', *args], cwd=root, stderr=subprocess.DEVNULL)
               if git('rev-parse', 'HEAD^').decode().strip() != head:
                   raise ValueError('The diagnostic proposal must directly follow its bound source')
               packet = json.loads(git('show', head + ':.ci/suites/changed_revisions.json'))
               public_ids = {name for row in packet['completed'].values() for name in row['tests']}
-              if len(public_ids) != 86 or packet['required_unique_count'] != 86:
+              if len(public_ids) != 91 or packet['required_unique_count'] != 91:
                   raise ValueError('Original public declaration differs')
               tracked = {name for name in git('ls-tree', '-rz', '--name-only', head).decode('utf-8').split('\0') if name.endswith('.py')}
-              prefix = 'D:/trpg-rulebook-structuring/ci/40418653432-1-changed_revisions/'
+              prefix = 'D:/trpg-rulebook-structuring/ci/40423412026-1-changed_revisions/'
               error_types = {'AssertionError', 'AttributeError', 'FileNotFoundError', 'ImportError',
                              'IndexError', 'KeyError', 'LookupError', 'ModuleNotFoundError',
                              'NotImplementedError', 'OSError', 'OverflowError', 'PermissionError',
@@ -352,9 +352,9 @@ jobs:
                   if len(reports) != 1 or reports[0].file_size > 8388608:
                       raise ValueError('One bounded original verifier report required')
                   report = json.loads(archive.read(reports[0]))
-              if set(report['collected']) != public_ids or len(report['collected']) != 86 or report['tests_run'] != 62:
+              if set(report['collected']) != public_ids or len(report['collected']) != 91 or report['tests_run'] != 91:
                   raise ValueError('Original verifier scope differs')
-              if len(report['failures']) != 7 or len(report['errors']) != 37:
+              if len(report['failures']) != 2 or len(report['errors']) != 2:
                   raise ValueError('Original failure counts differ')
               reduced = []
               for kind in ('failures', 'errors'):
@@ -365,9 +365,9 @@ jobs:
                       if not item['test_ids']:
                           raise ValueError('Failure row has no original public test mapping')
                       reduced.append(dict(kind=kind, **item))
-              result = dict(kind='redacted_original_failure_diagnostic_only', source_run=40418653432,
+              result = dict(kind='redacted_original_failure_diagnostic_only', source_run=40423412026,
                             source_commit=head, diagnostic_commit=os.environ['GITHUB_SHA'],
-                            evidence_id='975dc9e146374a5387565077cdeb28c6', game_runs=0, clause_credit=0,
+                            evidence_id='bfb3df26f20941b2a191587239d43f33', game_runs=0, clause_credit=0,
                             self_check_passed=True, physical_acceptance=False, failures=reduced)
               with (root / 'aa-diagnostics.json').open('x', encoding='utf-8') as stream:
                   json.dump(result, stream, ensure_ascii=False, indent=2)
