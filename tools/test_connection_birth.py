@@ -80,7 +80,8 @@ class ConnectionSpecialBirthTests(unittest.TestCase):
   def observe(engine,child,egg,*,reason):
    self.assertIs(W.actor_index(engine)[child.entity_id],child)
    self.assertEqual(child.spec['trainer_id'],self.t.entity_id)
-   self.assertIn('move/저주',child.spec['moves']);self.assertEqual(child.spec['vitamin_bonus'],{'spa':2,'hp':1,'def':1})
+   self.assertNotIn('move/저주',child.spec['moves']);self.assertIn('move/저주',child.spec['inheritance_moves'])
+   self.assertEqual(child.spec['vitamin_bonus'],{'spa':2,'hp':1,'def':1})
    seen.append(list(child.spec['abilities']));return native(engine,child,egg,reason=reason)
   with patch.object(C,'birth',side_effect=observe):
    child=RF.hatch_artificial(self.e,self.t,row['egg_entity_id'],name='Coil',reason='actual hatch')['pokemon']

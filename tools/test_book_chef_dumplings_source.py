@@ -285,7 +285,7 @@ class DumplingsSourceTests(unittest.TestCase):
                 e, chef = w['engine'], w['chef']
                 spicy = FIX.cook(e, chef, recipe='tasty_snack', snack='매운맛 랩')
                 berry = FIX.cook(e, chef, recipe='preserves', origin='item/오카열매')
-                self.reject(e, lambda: FIX.cook(e, chef, recipe='dumplings', ingredient_1={'batch_id': spicy['batch_id']}, ingredient_2={'batch_id': berry['batch_id']}), 'GM trade-in policy before mixing')
+                self.reject(e, lambda: FIX.cook(e, chef, recipe='dumplings', ingredient_1={'batch_id': spicy['batch_id']}, ingredient_2={'batch_id': berry['batch_id']}), 'GM trade-in policy before use')
                 self.assertEqual((CHEF.batches(chef)[spicy['batch_id']]['count'], CHEF.batches(chef)[berry['batch_id']]['count']), (1, 2))
 
     def test_suppressant_component_consent_survives_actual_attack_hit_and_setup_trigger_choices(self):
@@ -1165,8 +1165,10 @@ class DumplingsSourceTests(unittest.TestCase):
             e.use_move_on(foe,p,'move/몸통박치기',e.everyone,set_damage=True)
         self.assertTrue(foe.fainted);self.assertLessEqual(foe.hp,0)
         used=FIX.receipt(p)['benefit']
-        self.assertEqual(used['damage_receipt'],observed)
-        self.assertEqual(HISTORY.last_damage(p)['receipt'],{key:value for key,value in observed.items() if key!='native_damage'})
+        actual_receipt={key:value for key,value in observed.items() if key not in ('actual_damage_type','type_multiplier')}
+        self.assertEqual(used['damage_receipt'],actual_receipt)
+        self.assertEqual((used['actual_damage_type'],used['multiplier']),(observed['actual_damage_type'],observed['type_multiplier']))
+        self.assertEqual(HISTORY.last_damage(p)['receipt'],{key:value for key,value in actual_receipt.items() if key!='native_damage'})
         self.assertEqual(used['damage_receipt']['requested'],HISTORY.last_damage(p)['receipt']['requested'])
         self.assertEqual(len(p.spec['food_consumption_receipts']),1)
         self.assertEqual(len(used['composite']),1)
@@ -1334,7 +1336,9 @@ class DumplingsSourceTests(unittest.TestCase):
             current.take_damage(target, 2)
             self.assertEqual(target.temp_hp, 10)
             self.assertEqual([row['source']['kind'] for row in target.custom_conditions[TEMP.STATE]['contributions']], ['food'])
-            current.advance_time(900)
+            current.end_of_turn(current._active_turn_actor);current.end_round()
+            self.assertTrue(current.encounter_active);self.assertIsNone(current.round_start_seconds)
+            current.advance_time(900)  # Actual combat continues, with no open ten-second round.
             self.assertEqual(target.temp_hp, 10)
             current.end_encounter(current.everyone)
             current.advance_time(299)

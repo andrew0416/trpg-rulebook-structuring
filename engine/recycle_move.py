@@ -1,5 +1,6 @@
 """Recycle an admitted native immediate-item effect, never its spent stock."""
 from functools import wraps
+from inspect import Parameter, signature
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
@@ -43,6 +44,11 @@ def native_move(function):
         finally:
             if previous is None:del engine._recycle_choice
             else:engine._recycle_choice=previous
+    public = signature(function)
+    parameters = list(public.parameters.values())
+    position = next((i for i, parameter in enumerate(parameters) if parameter.kind is Parameter.VAR_KEYWORD), len(parameters))
+    parameters.insert(position, Parameter('recycle_receipt_id', Parameter.KEYWORD_ONLY, default=None))
+    run.__signature__ = public.replace(parameters=parameters)
     return run
 
 

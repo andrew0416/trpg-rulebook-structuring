@@ -340,9 +340,12 @@ def _weight_value(row,base):
     value=row["base"]
     if row["sources"]:
         if value is None:value=base
-        if type(value)is not int:raise ValueError("weight modification requires known base weight")
+        if value is not None and type(value)is not int:raise ValueError("weight modification requires known base weight")
         for op in row["sources"].values():
-            value=op["value"] if op["mode"]=="set" else max(op["minimum"],value+op["value"])
+            if op["mode"]=="set":value=op["value"]
+            else:
+                if type(value)is not int:raise ValueError("weight modification requires known base weight")
+                value=max(op["minimum"],value+op["value"])
     return value
 
 

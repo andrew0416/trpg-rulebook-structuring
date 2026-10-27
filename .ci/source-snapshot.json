@@ -24,9 +24,9 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "full1252-notyet-hold-triage3",
-  "active_repair_scope": "Reproduce only the three original Not Yet HeavyPending failures with test-local observation of the actual native hold failure lists. Runtime remains original89, all original test operations/guards stay, and observations remain in encrypted raw reports. This ordinary3-case diagnosis does not replace or complete the original1252 obligation and earns no clause credit; separate synthetic7 remain.",
-  "active_repair_required_tests": 3,
+  "active_repair": "full1252-failure-repairs01",
+  "active_repair_scope": "Revalidate the repaired full1252 restoration failures and actual shared-runtime impacts as an exact226-ID/35-class ordinary union. Include all50 original nonpassing IDs,100 original PASS impacts,72 additional existing public tests and4 new native regressions. Original1252/1202PASS evidence and prior276 remain separate preserved evidence, not an automatic whole-snapshot acceptance; synthetic7 remain separate and clause credit is zero.",
+  "active_repair_required_tests": 226,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -42,7 +42,7 @@
   "separately_pending_frequency_equivalence_methods": 1029,
   "separately_pending_procedural_runners": 21,
   "ordinary_shard_count": 18,
-  "active_repair_phase": "protected_hold_observation",
+  "active_repair_phase": "native_source_and_fixture_repairs",
   "active_repair_procedural_runners": 0,
   "full_method_obligations": 13847,
   "ordinary_methods_separate_run": 40141538702,
@@ -77,14 +77,14 @@
   "phase2_metadata_methods_mandatory": 0,
   "phase2_additional_procedural_runners": 0,
   "unaffected_previous_PASS_reused": 0,
-  "selected_method_obligations": 3,
+  "selected_method_obligations": 226,
   "partial_prerequisite_refresh": true,
   "full_method_scope_executed": false,
   "source_fresh_native_prerequisites": 1404,
   "native_prerequisite_run": "40241811271",
   "activation_current_evidence_current": false,
   "previous_activation_evidence": "historical_only_not_current",
-  "active_repair_source_commit": "b3b5b78925a693fca43129bca01449c33533ff39",
+  "active_repair_source_commit": "032ae287a0f4b919359da7b1c16e9ed47c676280",
   "active_repair_source_plan_path": ".ci/suites/changed_revisions.json",
   "historical_source_contract_repair": {
     "source_commit": "2f8975c41bd76cf48c904df85cf92a489430dbbc",
@@ -439,5 +439,98 @@
       "active_repair_phase": "full_source_restoration_after_repairs"
     },
     "historical_fields": "All other previous fields and historical667/18/276/1252/4115 counts and source pins remain unchanged; no accepted total is recalculated."
+  },
+  "full1252_failure_repairs_preparation": {
+    "status": "SOURCE_REVIEWED226_PREPARED_FOR_ROOT_AUTHORIZED_REMOTE_VALIDATION_UNEXECUTED",
+    "base_commit": "032ae287a0f4b919359da7b1c16e9ed47c676280",
+    "runtime_preimage": "89b94c801cbeee6d5c1b1e340930f2b3d0957ec4",
+    "source_candidate": "branch-integration-1027ai/full1252-repairs-composed01",
+    "source_handoff": "branch-integration-1027ai/full1252-repairs-composed01/HANDOFF.json",
+    "source_upload_manifest": "branch-integration-1027ai/full1252-repairs-composed01/review/SOURCE-UPLOAD.json",
+    "source_delta_against032": {"paths":23,"runtime":7,"tests":16,"additions":266,"deletions":61,"authority":"Root final current032 source upload manifest; temporary observer removal included"},
+    "upload_manifest": "branch-integration-1027ai/full1252-repairs-composed01/review/UPLOAD.json (Root prepares against032 before upload)",
+    "source_files": 23,
+    "source_runtime_files": 7,
+    "source_test_files": 16,
+    "source_delta_against89": {
+      "additions": 263,
+      "deletions": 44,
+      "authority": "Root final source composition report; upload delta includes temporaryobserver removal against032 and is separately reviewed byRoot"
+    },
+    "selection": "branch-integration-1027ai/full1252-repairs-controls01/required-repair-tests.json",
+    "additional_declarations": "branch-integration-1027ai/full1252-repairs-controls01/additional-declaration-provenance.json",
+    "required_unique_count": 226,
+    "required_class_groups": 35,
+    "counts": {
+      "original_nonpassing": 50,
+      "original_nonpassing_missing": 0,
+      "original_pass_impacts": 100,
+      "selected_original1252": 150,
+      "additional_existing_public_ids": 72,
+      "new_native_methods": 4,
+      "outside_original1252": 76,
+      "between_owner_duplicate_ids": 0
+    },
+    "owners": {
+      "wish_recycle": 36,
+      "researcher_birth_and_sharedfixture": 20,
+      "food": 14,
+      "books_status_world": 9,
+      "breather": 3,
+      "enduring_connection_heavy_notyet": 144
+    },
+    "new_test_ids": [
+      "tools.test_csv_food_common_intake.CsvFoodCommonIntake.test_core_confusion_actual_turn_save_consumes_recovery_choice_and_cures_once",
+      "tools.test_category2_state_grants.StateGrantTests.test_unknown_weight_accepts_known_replacement_and_restores_without_inventing_base",
+      "tools.test_enduring_soul_native_resume.NativeResumeTests.test_actual_temp_hp_provenance_does_not_admit_malformed_metadata_or_unknown_clock",
+      "tools.test_book_enduring_soul_csv.EnduringSoulCsvTests.test_not_yet_heavy_accepts_only_its_actual_suspended_parent_turn"
+    ],
+    "original_full_result": {
+      "run": 40499062622,
+      "job": 122171859011,
+      "head": "89b94c801cbeee6d5c1b1e340930f2b3d0957ec4",
+      "collected": 1252,
+      "executed": 1252,
+      "unique_pass": 1202,
+      "unique_fail": 9,
+      "unique_error": 41,
+      "raw_failures": 13,
+      "raw_errors": 53,
+      "inputs_unchanged": true,
+      "H": "H_REJECTED",
+      "ordinary_verified": 0,
+      "preserved": true
+    },
+    "diagnostics": {
+      "first_frames": 40525520294,
+      "heavy_classification": 40531652245,
+      "latest_notyet_diagnostic": 40536886637,
+      "latest_diagnostic_status": "success, original public result read byRoot",
+      "meaning": "Original diagnosis only. Three observer tests are not repairPASS; all original50 remain mandatory in this226."
+    },
+    "temporary_observer_removal": "Root final23-source overlay removes the test-only observer imports/helper/threecallsites in both Enduring test files when uploaded against032. The normal public tests and new genuine negative remain. This CI preparation does not edit either test file.",
+    "repairs": "Exact source-choice wrapper signatures; core Researcher fixture and real birth choices; source-owned CoreConfusion saving admission and food fixtures; source-owned Anarchist turn timing and existing lifetime/World expectations; forwarding native Breather callback scope; staged Transform/Connection and known replacement overunknown weight; strict temporaryHP provenance metadata; Heavy admission only for its actual suspended NotYet parent and stack.",
+    "selection_boundary": "No blanket unchanged1252 rerun or failing-only reduction. Preserve owner historical scopes and valid unchanged evidence; rerun actual failure and source impacts. Heavy standard37/production50/target8 are actual helper-consumer class scopes, unrelated to original ledger40.",
+    "budget": {
+      "native_timeout_seconds": 10800,
+      "aa_native_job_timeout_minutes": 195,
+      "generic_job_timeout_minutes": 105,
+      "default_native_timeout_seconds": 5400,
+      "fit_or_speedup_claim": false
+    },
+    "execution_route": "Unchanged ordinary verifier/H and full original physical input/evidence capture. No diagnostic_profile, synthetic substitution, thin capture, newSecret or privateinput transfer.",
+    "source_preparation": "Existing7 synthetic preparation boundary checks and actual authenticated PDF extraction unchanged and separate from native evidence.",
+    "current_diagnostic_route": "Existing aa_diagnostics remains exact032 source bound to the preceding NotYet triage and intentionally refuses unrelated repair heads; not dispatched by this candidate.",
+    "canonical_publication": false,
+    "completion_credit": 0,
+    "prior_active_repair": {
+      "active_repair": "full1252-notyet-hold-triage3",
+      "active_repair_scope": "Reproduce only the three original Not Yet HeavyPending failures with test-local observation of the actual native hold failure lists. Runtime remains original89, all original test operations/guards stay, and observations remain in encrypted raw reports. This ordinary3-case diagnosis does not replace or complete the original1252 obligation and earns no clause credit; separate synthetic7 remain.",
+      "active_repair_required_tests": 3,
+      "selected_method_obligations": 3,
+      "active_repair_source_commit": "b3b5b78925a693fca43129bca01449c33533ff39",
+      "active_repair_phase": "protected_hold_observation"
+    },
+    "historical_fields": "All original667/18/276/1252/4115 history, sourcepins, storedhistorical completion totals and ledgerdenominators remain unchanged. The previousobserver3 preparation remains as history and is not repurposed as accepted repair evidence."
   }
 }

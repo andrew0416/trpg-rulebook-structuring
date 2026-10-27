@@ -360,15 +360,18 @@ def h_execute(engine, a, t, e, ctx):
 
 def h_transform(engine, a, t, e, ctx):
     import state_grants as GRANTS
-    source=GRANTS.effect_source(a,ctx,"transform")
-    row=GRANTS._source(a,source,"effect",owner_id=a.spec.get("id"),lifetime=e.get("duration") or e.get("until") or "legacy_unspecified",rule_id=ctx.get("source_id"))
-    row["copied_actor_id"]=t.spec.get("id")
-    GRANTS.overlay(a,source,moves=list(t.moves),abilities=list(t.abilities))
-    GRANTS.scalar(a,"_types",list(t.types),source)
-    GRANTS.scalar(a,"_weight_class",t.weight_class,source)
-    a.custom_conditions["transformed"]={"source":source,"copied_actor_id":t.spec.get("id"),"lifetime":row["lifetime"]}
-    GRANTS.reconcile(engine,a)
-    engine.log(f"    {a.name} → {t.name}으로 변신 (타입 {a.types}, 기술 {len(a.moves)}개, 스탯 불변)")
+    def apply(staged,actor,donor):
+        context=GRANTS._stage_transition_payload(engine,staged,ctx)
+        source=GRANTS.effect_source(actor,context,"transform")
+        row=GRANTS._source(actor,source,"effect",owner_id=actor.spec.get("id"),lifetime=e.get("duration") or e.get("until") or "legacy_unspecified",rule_id=context.get("source_id"))
+        row["copied_actor_id"]=donor.spec.get("id")
+        GRANTS.overlay(actor,source,moves=list(donor.moves),abilities=list(donor.abilities))
+        GRANTS.scalar(actor,"_types",list(donor.types),source)
+        GRANTS.scalar(actor,"_weight_class",donor.weight_class,source)
+        actor.custom_conditions["transformed"]={"source":source,"copied_actor_id":donor.spec.get("id"),"lifetime":row["lifetime"]}
+        GRANTS.reconcile(staged,actor)
+        staged.log(f"    {actor.name} → {donor.name}으로 변신 (타입 {actor.types}, 기술 {len(actor.moves)}개, 스탯 불변)")
+    return GRANTS.transition(engine,a,apply,participants=(t,),include_rulings=True)
 
 
 def h_free_maneuver(engine, a, t, e, ctx):

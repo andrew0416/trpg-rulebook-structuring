@@ -18,7 +18,8 @@ import state_codec as CODEC
 import world_entities as WORLD
 
 FIELDS = [['apothecary', 'artificer'], ['botany', 'chemistry'], ['climatology', 'paleontology'], ['pokemon_caretaking', 'general']]
-ALL_FEATURES = [uid for uid in RFS.DEFINITIONS] + [RF.PUSHER, RF.SKILL_TRAINER]
+# This core crafting/Pokemon fixture does not acquire the optional General Books feats.
+ALL_FEATURES = [uid for uid, definition in RFS.DEFINITIONS.items() if definition['field'] != 'general'] + [RF.PUSHER, RF.SKILL_TRAINER]
 EDGES = ['edge/원예가', 'edge/보석-지식', 'edge/스프레이-제작자', 'edge/고생물학자', 'edge/고난이도-스킬']
 def fixture_edges():
     return list(EDGES)

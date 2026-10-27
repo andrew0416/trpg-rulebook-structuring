@@ -357,7 +357,16 @@ def anarchist(engine,user,target,*,repel,hit):
   key,used=_event(user,'anarchist_blind',scope='scene',target=target.entity_id)
   if not used:
    import effect_lifetimes as L,combat_timing as T
-   record=L.prepare(engine,user,target,{'type':'apply_status','status':'실명','until':"end of target's next turn"},SOURCE)
+   until="end of target's next turn"
+   if engine.encounter_active:
+    record=L.prepare(engine,user,target,{'type':'apply_status','status':'실명','until':until},SOURCE)
+   else:
+    # This Book's actual Repel application waits for the recipient's next turn.
+    W.require_actors(engine,user,target)
+    if engine.round_start_seconds is not None:raise ValueError('noncombat Book effect cannot invent an open-round clock')
+    serial=C.integer(target.custom_conditions.get('combat_turn_serial',0),'actual Book target turn serial',0)
+    record={'source':SOURCE,'effect_contract':True,'timing_text':until,
+            'turn_owner':target,'turn_deadline':serial+1,'encounter_end':True}
    record['statuses']=['실명'];T.install(engine,target,record)
    _state(user,True)['events'].append(key);out['blinded']=True
  if hit and active(user,'anarchist',2):

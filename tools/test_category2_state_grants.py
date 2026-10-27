@@ -349,6 +349,43 @@ class StateGrantTests(unittest.TestCase):
         self.assertEqual(self.c.accuracy_stage,3)
 
 
+    def test_unknown_weight_accepts_known_replacement_and_restores_without_inventing_base(self):
+        import state_codec as CODEC,world_entities as WORLD
+        self.assertIsNone(self.c.weight_class);self.assertNotIn('weight_class',self.c.spec)
+        def apply(source,value,mode='set'):
+            def change(e,actor):
+                G._source(actor,source,'effect')
+                G.weight(actor,value,source,mode=mode)
+            return G.transition(self.e,self.c,change)
+        before=self.e.export_state()
+        for value,mode in ((1,'add'),(True,'set'),(2.0,'set')):
+            with self.subTest(value=value,mode=mode):
+                with self.assertRaises(ValueError):apply('fixture:invalid-weight',value,mode)
+                self.assertEqual(self.e.export_state(),before)
+        for invalid_base in (True,2.0,'unknown'):
+            with self.subTest(invalid_base=invalid_base):
+                with self.assertRaisesRegex(ValueError,'known base weight'):
+                    G._weight_value({'base':invalid_base,'sources':{'copy':{'mode':'set','value':3,'minimum':1}}},None)
+        with self.assertRaisesRegex(ValueError,'known base weight'):
+            G._weight_value({'base':None,'sources':{'first':{'mode':'add','value':1,'minimum':1},
+                                                    'later':{'mode':'set','value':3,'minimum':1}}},None)
+        apply('fixture:known-weight-copy',3)
+        apply('fixture:later-weight',1,'add')
+        self.assertEqual(self.c.weight_class,4);self.assertNotIn('weight_class',self.c.spec)
+        paid=self.e.export_state()
+        with self.assertRaisesRegex(ValueError,'identity collision'):apply('fixture:known-weight-copy',4)
+        with self.assertRaisesRegex(ValueError,'known base weight'):
+            G.transition(self.e,self.c,lambda e,c:G.revoke(c,'fixture:known-weight-copy',engine=e))
+        self.assertEqual(self.e.export_state(),paid)
+        saved=self.e.gm.snapshot('known-replacement');self.e.gm.restore(saved)
+        loaded=CODEC.load_engine(self.rules,self.e.export_state())
+        restored=WORLD.actor_index(loaded)[self.c.entity_id]
+        for engine,actor in ((self.e,self.c),(loaded,restored)):
+            self.assertEqual(actor.weight_class,4)
+            for source in ('fixture:later-weight','fixture:known-weight-copy'):
+                G.transition(engine,actor,lambda e,c,source=source:G.revoke(c,source,engine=e))
+            self.assertIsNone(actor.weight_class);self.assertNotIn('weight_class',actor.spec)
+
     def test_weight_contributions_recompute_after_each_source_ends(self):
         import effects as FX
         self.c.spec["weight_class"]=4

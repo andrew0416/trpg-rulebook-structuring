@@ -249,13 +249,18 @@ class ConnectionKeywordTests(unittest.TestCase):
 
     def test_transform_learns_in_form_then_restores_exact_previous_list(self):
         self.temporary('변신');before=list(self.p.spec['moves'])
+        self.assertIsNone(self.p.weight_class);self.assertNotIn('weight_class',self.p.spec)
         self.e.use_move(self.p,self.donor,self.rules.move_id('변신'))
         self.assertIn(self.bite,self.p.moves);self.assertEqual(self.p.spec['moves'],before)
+        self.assertEqual(self.p.weight_class,self.donor.weight_class)
+        saved=self.e.gm.snapshot('actual-transform');self.e.gm.restore(saved)
+        self.assertIn(self.bite,self.p.moves);self.assertEqual(self.p.weight_class,self.donor.weight_class)
         self.assertNotIn(self.bite,self.p.spec.get('move_learning',{}))
         loaded=CODEC.load_engine(self.rules,json.loads(json.dumps(CODEC.dump_engine(self.e))))
         target=W.actor_index(loaded)[self.p.entity_id]
         self.assertIn(self.bite,target.moves)
         loaded.gm.recall(target,reason='Transform explicit previous Move List restoration')
+        self.assertIsNone(target.weight_class);self.assertNotIn('weight_class',target.spec)
         self.assertEqual(target.spec['moves'],before)
         self.assertEqual(set(M.known(self.rules,{'moves':target.moves})),set(M.known(self.rules,{'moves':before})))
         self.assertNotIn(self.bite,target.moves)

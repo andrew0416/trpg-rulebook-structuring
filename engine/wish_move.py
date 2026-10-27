@@ -2,6 +2,7 @@
 from copy import deepcopy
 from contextlib import contextmanager
 from functools import wraps
+from inspect import Parameter, signature
 import csv
 import hashlib
 import io
@@ -108,6 +109,11 @@ def native_move(function):
                 del engine._wish_choice
             else:
                 engine._wish_choice = previous
+    public = signature(function)
+    parameters = list(public.parameters.values())
+    position = next((i for i, parameter in enumerate(parameters) if parameter.kind is Parameter.VAR_KEYWORD), len(parameters))
+    parameters.insert(position, Parameter('wish_edition', Parameter.KEYWORD_ONLY, default=None))
+    run.__signature__ = public.replace(parameters=parameters)
     return run
 
 

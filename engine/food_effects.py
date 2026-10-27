@@ -1314,7 +1314,8 @@ def _consume_buff(e,actor,*,buff_id,action_kind=None,action_reason=None,save_con
  if effect['kind']=='save_bonus':
   if action_kind is not None or action_reason is not None:raise ValueError('exchange during an actual save adds no separate invented action')
   if not isinstance(save_condition,str) or not save_condition:raise ValueError('actual saving-check condition to receive the optional buff required')
-  if save_condition!='네트' and not any(x.get('type')=='save' for x in e.r.condition_effects(save_condition)):raise ValueError('native saving-check consumer required')
+  if (save_condition!='네트' and not any(x.get('type')=='save' for x in e.r.condition_effects(save_condition))
+      and not (save_condition=='혼란' and __import__('confusion_attacks').core(e))):raise ValueError('native saving-check consumer required')
   if 'food_save_choice' in actor.spec:raise ValueError('a selected food buff already awaits its actual save')
   actor.spec['food_save_choice']={'buff_id':buff_id,'condition':save_condition}
   return {'status':'prepared_for_actual_save','buff_id':buff_id,'condition':save_condition}

@@ -280,7 +280,7 @@ class WarperWishTests(unittest.TestCase):
         self.assertEqual(self.a.move_uses.get(WARPER.COAT, 0), 0)
         self.assertEqual(self.b.move_uses.get(WISH.SOURCE, 0), 0)
         self.assertFalse(self.e.delayed)
-        self.assertFalse(self.e._move_completions)
+        self.assertFalse(getattr(self.e, '_move_completions', {}))
         self.e.use_move(self.b, self.a, WISH.SOURCE, wish_edition='csv-row623')
         self.assertEqual(len([row for row in self.e.delayed if row.get('kind') == 'wish']), 1)
 

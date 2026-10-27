@@ -1,6 +1,5 @@
 """Only Enduring Soul's actual CSV differences and touched Book boundaries."""
 from copy import deepcopy
-from contextlib import contextmanager
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -19,19 +18,6 @@ import trainer_retraining as RETRAIN
 import endure as ENDURE,enduring_soul as NOTYET,initiative_interrupts as INTERRUPTS
 import ability_transitions as AB,move_state as MOVES,state_grants as GRANTS
 from native_scenario_fixture import assert_rejected_unchanged
-
-
-@contextmanager
-def observe_actual_heavy_hold(test):
- import heavy_standard_adapter as STANDARD,heavy_injury_adapter as HEAVY
- actual=STANDARD.hold;contexts=[]
- def record(engine,token,packet,reason):
-  context=packet.get('context_evidence',{})
-  contexts.append({key:deepcopy(context.get(key,[])) for key in ('failures','native_suffix_failures')})
-  return actual(engine,token,packet,reason)
- with patch.object(STANDARD,'hold',record):
-  try:yield
-  except HEAVY.HeavyPending:test.fail(str(contexts))
 
 
 class EnduringSoulCsvTests(unittest.TestCase):
@@ -380,11 +366,56 @@ class EnduringSoulCsvTests(unittest.TestCase):
   self.answer('not_yet',{'move_id':'move/화염방사','target_id':self.foreign.entity_id})
   self.reject(lambda:self.e.lose_hp(self.p,self.p.hp,source='condition/독'),'actual known');self.valid()
 
+ def test_not_yet_heavy_accepts_only_its_actual_suspended_parent_turn(self):
+  import heavy_injury_adapter as HEAVY
+  self.not_yet();self.e.gm.set_injuries(self.p,2,reason='actual injuries before the live pre-faint boundary')
+  actual=HEAVY.inert_turn_bookkeeping;observed=[]
+  def inspect(engine,subject):
+   active=engine._active_turn_actor
+   selected=None if active is None else INTERRUPTS.selected_move_frame(engine,active)
+   if selected is None or selected[1]['source']!=B.NOT_YET or subject is not selected[0]['parent']:
+    return actual(engine,subject)
+   current,request=selected
+   window=getattr(engine,INTERRUPTS.KEY)['windows'][current['window_id']]
+   trigger=window['trigger'];live=active._enduring_not_yet_live
+   self.assertIs(subject.custom_conditions['blessing_ignore_turn_open'],True)
+   self.assertIsNot(active,subject);self.assertTrue(actual(engine,subject))
+   frames=getattr(engine,INTERRUPTS.KEY)['frames']
+   try:
+    frames.append(dict(current))
+    self.assertFalse(actual(engine,subject))
+   finally:frames.pop()
+   for record,key,value in ((current,'parent',active),(window,'parent',active),(trigger,'owner',active),
+                            (current,'request_id','not-a-native-request'),(current,'status','closing'),
+                            (request,'source','feat/not-not-yet'),(request,'status','ready'),
+                            (window,'round',engine.round_no+1),(window,'signature','0'*64)):
+    previous=record[key]
+    try:
+     record[key]=value
+     self.assertFalse(actual(engine,subject))
+    finally:record[key]=previous
+   previous=live.parent
+   try:
+    live.parent=active;self.assertFalse(actual(engine,subject))
+   finally:live.parent=previous
+   try:
+    active._enduring_not_yet_live=deepcopy(live.proof)
+    self.assertFalse(actual(engine,subject))
+   finally:active._enduring_not_yet_live=live
+   observed.append(subject.entity_id)
+   return actual(engine,subject)
+  with patch.object(HEAVY,'inert_turn_bookkeeping',inspect),patch.object(Engine,'d20',return_value=10):
+   self.e.lose_hp(self.p,self.p.hp,source='condition/독')
+  self.assertTrue(observed);self.assertEqual(set(observed),{self.foreign.entity_id})
+  self.assertEqual(self.latest(self.p,'move/몸통박치기')['phase'],'complete')
+  self.assertEqual(self.p.pending_action_loss,NOTYET.LOSS);self.assertIn('기절',self.p.conditions)
+  self.assertIs(self.e._active_turn_actor,self.foreign);self.restore();self.valid()
+
  def test_not_yet_minus_true_max_is_inclusive_but_below_it_never_offers(self):
   for below in (False,True):
    with self.subTest(below=below):
     self.setUp();self.not_yet()
-    with patch.object(Engine,'d20',return_value=10),observe_actual_heavy_hold(self):
+    with patch.object(Engine,'d20',return_value=10):
      self.e.lose_hp(self.p,self.p.hp+self.p.base_max_hp+int(below),source='condition/독')
     if below:
      self.assertNotIn(B.NOT_YET,F.state(self.a)['activations']);self.assertNotIn(INTERRUPTS.KEY,vars(self.e))
@@ -400,7 +431,7 @@ class EnduringSoulCsvTests(unittest.TestCase):
   self.not_yet();self.e.apply_status(self.a,'잠듦')
   self.e.lose_hp(self.p,self.p.hp,source='condition/독');self.assertNotIn(B.NOT_YET,F.state(self.a)['activations'])
   self.e.cure_status(self.a,'잠듦');self.e.heal(self.p,self.p.base_max_hp,source_kind='move')
-  with patch.object(Engine,'d20',return_value=10),observe_actual_heavy_hold(self):self.e.lose_hp(self.p,self.p.hp,source='condition/독')
+  with patch.object(Engine,'d20',return_value=10):self.e.lose_hp(self.p,self.p.hp,source='condition/독')
   self.assertEqual(F.state(self.a)['activations'][B.NOT_YET]['used'],1)
   event=next(row for row in self.e._heavy_events.values() if row['kind']=='action_taken')
   self.assertEqual(event['status'],'applied');self.assertTrue(event['continuation_reified'])

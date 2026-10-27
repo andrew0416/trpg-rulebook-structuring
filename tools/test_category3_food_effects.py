@@ -125,7 +125,7 @@ class FoodTests(unittest.TestCase):
   self.herb();buff=self.p.buffs[0]
   from native_scenario_fixture import assert_rejected_unchanged
   assert_rejected_unchanged(self.e,
-   lambda:self.e.consume_food_buff(self.p,buff_id=buff['id'],save_condition='혼란'),
+   lambda:self.e.consume_food_buff(self.p,buff_id=buff['id'],save_condition='풀죽음'),
    reason_pattern='native saving-check consumer required')
   self.e.consume_food_buff(self.p,buff_id=buff['id'],save_condition='얼음')
   self.e.apply_status(self.p,'마비');self.e.start_round([self.p]);self.e.start_of_turn(self.p,initiative_count=20);self.assertEqual(len(self.p.buffs),1)
@@ -198,7 +198,20 @@ class FoodTests(unittest.TestCase):
   hit=self.e.accuracy_check(self.q,self.p,move,fixed_roll=20)[0];self.assertTrue(hit);self.assertEqual(len(self.p.buffs),1)
   damage=self.e.roll_damage(self.q,self.p,move,set_damage=True);self.assertGreater(damage,0);self.assertFalse(self.p.buffs)
  def test_unsupported_berry_never_uses_legacy_immediate_effect_without_digestion(self):
-  self.a.spec['items']['스타열매']=1;before=self.state();result=self.e.use_item(self.a,'스타열매',self.p,duration_minutes=1,duration_reason='individual berry adapter pending');self.assertIsInstance(result,C.PendingDecision);self.assertEqual(before,self.state())
+  from unittest.mock import patch
+  self.a.spec['items']['스타열매']=1;before=self.state()
+  # Missing individual adapters must still hold before any stock or time is spent.
+  with patch.object(FOOD,'snack_effect',return_value=None):
+   result=self.e.use_item(self.a,'스타열매',self.p,duration_minutes=1,duration_reason='individual berry adapter unavailable')
+  self.assertIsInstance(result,C.PendingDecision);self.assertEqual(before,self.state())
+  stages=deepcopy(self.p.stages);rng=self.e.rng.getstate();at=self.e.elapsed_seconds
+  result=self.e.use_item(self.a,'스타열매',self.p,duration_minutes=1,duration_reason='actual supported Starf digestion intake')
+  self.assertEqual(result['status'],'digestion_buff_gained')
+  buff=FOOD.get_buff(self.p,result['buff_id'])
+  self.assertEqual((buff['item'],buff['effect']['kind']),('item/스타열매','berry_random_stage'))
+  self.assertEqual((self.a.spec['items']['스타열매'],self.e.elapsed_seconds),(0,at+60))
+  self.assertEqual((self.p.stages,self.e.rng.getstate()),(stages,rng))
+  self.assertFalse(self.p.spec.get('food_consumption_receipts'))
  def test_book_baby_food_adds_twenty_percent_exact_floor_to_actual_xp_at_level15(self):
   import downtime as DT
   self.baby('book_xp20_level15',15);before=self.p.spec.get('exp',DT.exp_for_level(self.rules,15));DT.gain_exp_combatant(self.e,self.p,9);self.assertEqual(self.p.spec['exp']-before,10)

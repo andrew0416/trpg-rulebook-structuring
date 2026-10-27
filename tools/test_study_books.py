@@ -424,7 +424,7 @@ class StudyBooksTests(unittest.TestCase):
   value=json.loads((ROOT/'data/examples/egg-creation.json').read_text(encoding='utf8'))[0]
   value['species']['parents']=[0];value['inheritance'].update(kind='declared',moves=[],tutoring_policy='core');value['hatch']['level']=10
   egg=self.e.create_declared_egg(self.t,[mother,father],value,request_id='actual/daycare-egg',compatible=True,species='치코리타',inheritance_moves=[],reason='actual male species enabled by studied Egg Group')
-  child=self.e.hatch_declared_egg(self.t,egg['entity_id'],name='child',ready=True,reason='observed actual hatch',choices={'gender':'female','nature':'노력','abilities':[],'moves':[],'special_appearance':False,'inheritance_moves':[]})['pokemon']
+  child=self.e.hatch_declared_egg(self.t,egg['entity_id'],name='child',ready=True,reason='observed actual hatch',choices={'gender':'female','nature':'노력','abilities':['심록'],'moves':[],'special_appearance':False,'inheritance_moves':[]})['pokemon']
   self.assertEqual(B.first_inheritance_level(child,20),10)
   import growth_milestones as GROWTH
   self.assertIn('inheritance:10',child.spec[GROWTH.KEY]);self.assertNotIn('inheritance:20',child.spec[GROWTH.KEY])
@@ -491,14 +491,16 @@ class StudyBooksTests(unittest.TestCase):
     self.fresh();p=self.pokemon()
     if ending=='other_vulnerability':self.e.apply_status(p,'취약')
     self.e.apply_status(p,'풀죽음',source='move/박치기')
+    applied_at=self.e.elapsed_seconds
     if ending=='cure':self.e.cure_status(p,'풀죽음')
     elif ending=='recall':self.e.gm.recall(p,reason='actual recall')
     elif ending=='faint':self.e.gm.faint(p,reason='actual fainting')
     elif ending=='scene':self.e.end_scene([self.t,p])
     elif ending=='manual_vulnerability_cure':self.e.cure_status(p,'취약')
     if ending in ('cure','recall','faint','scene'):self.assertFalse(CI.records(p,'풀죽음'))
-    if ending in ('cure','recall','faint'):self.assertIn('취약',p.conditions)
-    if ending in ('scene','manual_vulnerability_cure'):self.assertNotIn('취약',p.conditions)
+    if ending=='scene':self.assertEqual(self.e.elapsed_seconds,applied_at)
+    if ending in ('cure','recall','faint','scene'):self.assertIn('취약',p.conditions)
+    if ending=='manual_vulnerability_cure':self.assertNotIn('취약',p.conditions)
     self.t,p=self.restore(self.t,p)
     self.e.advance_time(10,[p])
     self.assertEqual('취약' in p.conditions,ending=='other_vulnerability')
@@ -658,6 +660,7 @@ class StudyBooksTests(unittest.TestCase):
   self.assertTrue(self.e.validate_state()['valid'])
   self.t,p=self.restore(self.t,p)
   self.assertIn('실명',self.t.conditions);self.assertFalse(self.e.encounter_active)
+  self.e.advance_time(10,[self.t,p]);self.assertIn('실명',self.t.conditions)
   self.e.start_round([self.t,p]);self.e.start_of_turn(p,initiative_count=20);self.e.end_of_turn(p)
   self.assertIn('실명',self.t.conditions)
   self.e.start_of_turn(self.t,initiative_count=10);self.e.end_of_turn(self.t)

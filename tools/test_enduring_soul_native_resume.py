@@ -1,4 +1,5 @@
 """Actual Heavy Standard suffix and the two outstanding Not Yet boundaries."""
+from copy import deepcopy
 import unittest
 from unittest.mock import patch
 import tools.test_book_enduring_soul_csv as FIX
@@ -54,13 +55,30 @@ class NativeResumeTests(unittest.TestCase):
     assert_rejected_unchanged(self.e,lambda:HEAVY.finish(self.e,object(),hit=True,dealt=1),reason_pattern='receipt absent')
     self.valid()
 
+ def test_actual_temp_hp_provenance_does_not_admit_malformed_metadata_or_unknown_clock(self):
+  self.ordinary();TEMP.grant(self.e,self.p,3,provenance={'source':'actual test protection'})
+  saved=deepcopy(self.p.custom_conditions[TEMP.STATE])
+  self.assertTrue(HEAVY_EVENTS.inert_turn_bookkeeping(self.e,self.p))
+  for mutation in ('boolean_time','nonpassive_provenance','extra_event_key','unknown_lifetime_key','uncertain_birth'):
+   with self.subTest(mutation=mutation):
+    try:
+     state=self.p.custom_conditions[TEMP.STATE]
+     if mutation=='boolean_time':state['grant_events'][0]['at']=True
+     elif mutation=='nonpassive_provenance':state['grant_events'][0]['provenance']['callback']=lambda:None
+     elif mutation=='extra_event_key':state['grant_events'][0]['unreviewed']=True
+     elif mutation=='unknown_lifetime_key':state['unreviewed']=True
+     else:state['uncertain_birth']=True
+     self.assertFalse(HEAVY_EVENTS.inert_turn_bookkeeping(self.e,self.p))
+    finally:self.p.custom_conditions[TEMP.STATE]=deepcopy(saved)
+  self.assertTrue(HEAVY_EVENTS.inert_turn_bookkeeping(self.e,self.p));self.valid()
+
  def test_actual_heavy_loss_failure_rolls_back_not_yet_move_damage_cost_injury_and_rng(self):
   self.not_yet();self.e.gm.set_injuries(self.p,2,reason='actual existing injuries before HP-marker crossing')
   original=Engine._lose_hp
   def fail(e,actor,amount,source='damage',**options):
    if source=='heavily_injured_standard':raise ValueError('late actual Heavy native loss failure')
    return original(e,actor,amount,source,**options)
-  with patch.object(Engine,'_lose_hp',fail),patch.object(Engine,'d20',return_value=10),FIX.observe_actual_heavy_hold(self):
+  with patch.object(Engine,'_lose_hp',fail),patch.object(Engine,'d20',return_value=10):
    assert_rejected_unchanged(self.e,lambda:self.e.lose_hp(self.p,self.p.hp,source='condition/독'),
        reason_pattern='late actual Heavy native loss failure')
   self.valid()

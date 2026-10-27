@@ -119,9 +119,12 @@ class RemainingPublishedIntegrationTests(unittest.TestCase):
     next(pair for pair in encoded_record if pair[0]==field)[1]=value
     next(pair for pair in encoded_object if pair[0]=='owner_id')[1]='trainer/unresolved-book-owner'
     untouched=deepcopy(supplied)
-    with self.assertRaisesRegex(CODEC.StateCodecError,'world reference integrity:.*study_books') as error:
+    # Receipt authentication rejects before the World findings collector runs.
+    restore_pattern=message if damage=='receipt' else 'world reference integrity:.*study_books'
+    with self.assertRaisesRegex(CODEC.StateCodecError,restore_pattern) as error:
      CODEC.load_engine(h.rules,supplied)
-    self.assertIn(message,str(error.exception));self.assertIn('dangling_object_owner_id',str(error.exception))
+    self.assertIn(message,str(error.exception))
+    if damage=='physical':self.assertIn('dangling_object_owner_id',str(error.exception))
     self.assertEqual(supplied,untouched)
     snap=h.e.gm.snapshots[checkpoint]
     saved_row=snap['combatants'][id(h.t)]['spec'][BOOKS.KEY]['studies'][0]
@@ -130,9 +133,11 @@ class RemainingPublishedIntegrationTests(unittest.TestCase):
      if damage=='receipt':saved_row['reason']='tampered actual paid Book receipt'
      else:saved_obj[BOOKS.OBJECT]['book']='joy_cooking'
      saved_obj['owner_id']='trainer/unresolved-book-owner'
-     with self.assertRaisesRegex(GAMEPLAY.WorldIntegrityError,'world reference integrity:.*study_books') as error:
+     restore_error=ValueError if damage=='receipt' else GAMEPLAY.WorldIntegrityError
+     with self.assertRaisesRegex(restore_error,restore_pattern) as error:
       h.e.gm.restore(checkpoint,reason='reject actual Book checkpoint corruption')
-     self.assertIn(message,str(error.exception));self.assertIn('dangling_object_owner_id',str(error.exception))
+     self.assertIn(message,str(error.exception))
+     if damage=='physical':self.assertIn('dangling_object_owner_id',str(error.exception))
     finally:
      saved_row['reason']=studies[0]['reason'];saved_obj[BOOKS.OBJECT]['book']='study_manual'
      saved_obj['owner_id']=h.t.entity_id
@@ -199,12 +204,12 @@ class RemainingPublishedIntegrationTests(unittest.TestCase):
   wrong_pin=dict(pins);wrong_pin['input/ch04-trainer-classes.md']='0'*64
   with self.assertRaisesRegex(ValueError,'source binding'):
    LESSONS._vim_rules(h.r,rows,wrong_pin)
-  actual=h.r.feat_effects
-  def changed_effects(uid):
-   effects,header=actual(uid)
+  actual=type(h.r).feat_effects
+  def changed_effects(rules,uid):
+   effects,header=actual(rules,uid)
    return ([],header) if uid==LESSONS.VIM else (effects,header)
   vars(h.r).pop('_feature_ability_lessons',None)
-  with patch.object(h.r,'feat_effects',side_effect=changed_effects):
+  with patch.object(type(h.r),'feat_effects',changed_effects):
    h.reject(lambda:h.teach(),'extracted declaration')
   self.assertEqual(h.p.spec['tutor_points'],5);h.valid()
 
@@ -243,7 +248,7 @@ class RemainingPublishedIntegrationTests(unittest.TestCase):
   value['hatch']['level']=10
   egg=h.e.create_declared_egg(h.t,[mother,father],value,request_id='boundary/daycare-policyless',
       compatible=True,species='치코리타',inheritance_moves=[inherited],reason='actual paid Daycare egg')
-  choices={'gender':'female','nature':'노력','abilities':[],'moves':[],
+  choices={'gender':'female','nature':'노력','abilities':['심록'],'moves':[],
            'special_appearance':False,'inheritance_moves':[inherited]}
   child=h.e.hatch_declared_egg(h.t,egg['entity_id'],name='native policyless child',ready=True,
       reason='actual observed hatch',choices=choices)['pokemon']

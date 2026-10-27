@@ -289,7 +289,28 @@ def inert_turn_bookkeeping(engine,actor):
     serial=value.get('combat_turn_serial',0)
     if type(serial) is not int or serial<0:return False
     if 'blessing_ignore_turn_open' in value:
-        if value['blessing_ignore_turn_open'] is not True or engine._active_turn_actor is not actor:return False
+        if value['blessing_ignore_turn_open'] is not True:return False
+        if engine._active_turn_actor is not actor:
+            import initiative_interrupts as INTERRUPTS,enduring_soul as ENDURING
+            try:
+                active=engine._active_turn_actor
+                if active is None or not ENDURING.conscious(active):return False
+                selected=INTERRUPTS.selected_move_frame(engine,active)
+                if selected is None:return False
+                INTERRUPTS.validate_world(engine,__import__('world_entities').actor_index(engine))
+                current,request=selected
+                window=getattr(engine,INTERRUPTS.KEY)['windows'][current['window_id']]
+                trigger=window['trigger']
+                if (current['mode']!='reaction' or current['parent'] is not actor or
+                        current['request_id']!=request['id'] or request['status']!='open' or
+                        request['source']!=ENDURING.SOURCE or window['id']!=current['window_id'] or
+                        type(window['cursor']) is not int or window['cursor']!=0 or len(window['requests'])!=1 or
+                        window['parent'] is not actor or window['round']!=engine.round_no or
+                        window['signature']!=INTERRUPTS._signature(trigger,window['requests'])):return False
+                actual=ENDURING.authorize_trigger(engine,{key:trigger[key] for key in ('kind','actor_id','request_id')})
+                if actual!=trigger or actual['owner'] is not actor:return False
+                ENDURING.authorize_request(engine,active,request,trigger)
+            except (ValueError,TypeError,KeyError,IndexError):return False
     state=value.get(TEMP_HP.STATE)
     if state is None:
         if type(actor.temp_hp) is not int or actor.temp_hp!=0:return False
@@ -297,7 +318,8 @@ def inert_turn_bookkeeping(engine,actor):
         # A label alone is not expiry evidence; sourced/stacked/GM pools stay held.
         fields={'kind','source','clock_basis','minimum_seconds','maximum_seconds',
                 'birth_round','uncertain_birth','contributions'}
-        if type(state) is not dict or set(state)!=fields:return False
+        if type(state) is not dict or set(state) not in (fields,fields|{'grant_events'}):return False
+        if 'grant_events' in state and (type(state['grant_events']) is not list or not _passive(state['grant_events'])):return False
         if (state['kind']!='rule_grant' or state['clock_basis']!=TEMP_HP.CLOCK
                 or state['uncertain_birth'] is not False):return False
         rows=state['contributions']

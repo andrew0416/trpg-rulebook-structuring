@@ -129,8 +129,8 @@ class JointMovementTests(unittest.TestCase):
   options=self.options(path=[(x,2) for x in range(3,10)])
   options['assistance'].update(approach_path=[(1,2),(2,2)],helper_path=[(x,2) for x in range(2,9)])
   departure=M.departure
-  def terrain(e,c,q,h):
-   permitted=departure(e,c,q,h)
+  def terrain(e,c,q,h,**kwargs):
+   permitted=departure(e,c,q,h,**kwargs)
    if c.entity_id==self.h.entity_id and c.pos==(1,2):e.grid.slow.add((2,2))
    return permitted
   with patch.object(M,'departure',side_effect=terrain):

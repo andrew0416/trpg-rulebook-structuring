@@ -77,6 +77,17 @@ class CsvReuseWishTests(unittest.TestCase):
             lambda: self.e.use_move(self.p, self.t, WISH.SOURCE, wish_edition='future'),
             lambda: self.e.use_move(self.p, self.t, 'struggle', wish_edition='ptu105')],
             reason_pattern=['exact Wish edition', 'exact Wish edition'])
+        before = CODEC.dump_engine(self.e)
+        for grouped in (False, True):
+            with self.subTest(strict_native_arguments=grouped):
+                with self.assertRaises(TypeError):
+                    if grouped:
+                        self.e.use_move_on(self.p, self.t, WISH.SOURCE, self.e.gm.everyone,
+                            wish_edition='ptu105', recycle_receipt_id=None, unreviewed_source_choice=True)
+                    else:
+                        self.e.use_move(self.p, self.t, WISH.SOURCE,
+                            wish_edition='ptu105', recycle_receipt_id=None, unreviewed_source_choice=True)
+                self.assertEqual(CODEC.dump_engine(self.e), before)
         self.e.use_move_on(self.p, self.t, WISH.SOURCE, self.e.gm.everyone,
             wish_edition='csv-row623')
         self.assertEqual(self.p.budget['standard'], 0)
@@ -231,7 +242,10 @@ class CsvReuseWishTests(unittest.TestCase):
                 self.e.end_of_turn(actor)
                 self.next_round(actor)
                 before = actor.hp
-                self.e.use_move(actor, actor, RECYCLE.SOURCE, recycle_receipt_id=identity)
+                if role == 'trainer' and physical:
+                    self.e.use_move_on(actor, actor, RECYCLE.SOURCE, self.e.gm.everyone, recycle_receipt_id=identity)
+                else:
+                    self.e.use_move(actor, actor, RECYCLE.SOURCE, recycle_receipt_id=identity)
                 self.assertEqual(actor.hp, min(actor.max_hp, before + 20))
                 self.assertEqual(actor.spec['items']['상처약'], count)
                 self.assertEqual(actor.budget['standard'], 0)
