@@ -137,7 +137,8 @@ class TaskmasterTests(unittest.TestCase):
         for unpreventable in (False,True):
             for kind in ('loss','percentage'):
                 before=self.p.hp;self.e.lose_hp(self.p,17,source='actual nonattack effect',loss_kind=kind,unpreventable=unpreventable)
-                self.assertEqual(self.p.hp,before)
+                self.assertEqual(self.p.hp,before-(17 if unpreventable else 0))
+        before=self.p.hp
         self.e.lose_hp(self.p,1,source='actual setting effect',loss_kind='hp_setting')
         self.assertEqual(self.p.hp,before-1);self.valid()
         self.setup();self.train();self.injury(self.p,5);self.combat(self.b)

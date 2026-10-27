@@ -223,7 +223,7 @@ def owned_rule_count(actor,source_id):
     """
     if type(source_id) is not str:
         raise ValueError('exact trainer Edge/Feature/Class source required')
-    supplemental = not source_id.startswith(('edge/','feat/','class/'))
+    supplemental = source_id not in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS) and not source_id.startswith(('edge/','feat/','class/'))
     if supplemental and actor.r.selection.units.get(source_id,{}).get('kind')!='entity:feat':
         raise ValueError('exact trainer Edge/Feature/Class source required')
     supported=source_id in ('feat/훈련-상황','feat/작열','feat/패싱-왈츠')
@@ -239,7 +239,7 @@ def owned_rule_count(actor,source_id):
         prefix=source_id.rsplit('/',1)[0]+'/'
         names=_names(actor,prefix)
         return sum(_resolve(actor,value,prefix,names)==source_id for value in entries if value in names)
-    if source_id.startswith('class/'):
+    if source_id.startswith('class/') or source_id in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS):
         return sum(row['source_id']==source_id for row in class_instances(actor))
     if source_id.startswith('feat/'):
         return sum(row['source_id']==source_id for row in feature_instances(actor))
