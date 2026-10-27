@@ -477,7 +477,7 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.11'
-      - name: Download only the bound original NotYet3 failure artifact
+      - name: Download only the bound original full226 failure artifact
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -487,26 +487,26 @@ jobs:
           New-Item -ItemType Directory -Path $taskTemp -ErrorAction Stop | Out-Null
           $taskHeaders = @{ Authorization = 'Bearer ' + $env:GH_TOKEN; Accept = 'application/vnd.github+json'; 'X-GitHub-Api-Version' = '2022-11-28' }
           $taskApi = 'https://api.github.com/repos/andrew0416/trpg-rulebook-structuring'
-          $taskRun = Invoke-RestMethod -Uri ($taskApi + '/actions/runs/40534018458') -Headers $taskHeaders
-          if ($taskRun.head_sha -cne 'c55231cfd749b9db082ce3cc73b8c83ff2d0aabf' -or $taskRun.status -cne 'completed' -or $taskRun.conclusion -cne 'failure' -or $taskRun.run_attempt -ne 1) { throw 'Original run binding differs' }
-          $taskJob = Invoke-RestMethod -Uri ($taskApi + '/actions/jobs/122294250824') -Headers $taskHeaders
-          if ($taskJob.id -ne 122294250824 -or $taskJob.run_id -ne 40534018458 -or $taskJob.head_sha -cne $taskRun.head_sha -or $taskJob.status -cne 'completed' -or $taskJob.conclusion -cne 'failure') { throw 'Original job binding differs' }
-          $taskArtifact = Invoke-RestMethod -Uri ($taskApi + '/actions/artifacts/12747796291') -Headers $taskHeaders
-          if ($taskArtifact.name -cne 'implementation-aa-40534018458-1' -or $taskArtifact.size_in_bytes -ne 214848944 -or $taskArtifact.expired -or $taskArtifact.workflow_run.id -ne 40534018458 -or $taskArtifact.workflow_run.head_sha -cne $taskRun.head_sha -or $taskArtifact.digest -cne 'sha256:54e0a505a7f105bf3fbd6e8fb63934f9743a8598d4503e473bb973588fc9356d') { throw 'Original artifact binding differs' }
+          $taskRun = Invoke-RestMethod -Uri ($taskApi + '/actions/runs/40541644877') -Headers $taskHeaders
+          if ($taskRun.head_sha -cne '309ef62478b610e2e297c545c141cb1f7d2d37f4' -or $taskRun.status -cne 'completed' -or $taskRun.conclusion -cne 'failure' -or $taskRun.run_attempt -ne 1) { throw 'Original run binding differs' }
+          $taskJob = Invoke-RestMethod -Uri ($taskApi + '/actions/jobs/122321298633') -Headers $taskHeaders
+          if ($taskJob.id -ne 122321298633 -or $taskJob.run_id -ne 40541644877 -or $taskJob.head_sha -cne $taskRun.head_sha -or $taskJob.status -cne 'completed' -or $taskJob.conclusion -cne 'failure') { throw 'Original job binding differs' }
+          $taskArtifact = Invoke-RestMethod -Uri ($taskApi + '/actions/artifacts/12752891660') -Headers $taskHeaders
+          if ($taskArtifact.name -cne 'implementation-aa-40541644877-1' -or $taskArtifact.size_in_bytes -ne 215094528 -or $taskArtifact.expired -or $taskArtifact.workflow_run.id -ne 40541644877 -or $taskArtifact.workflow_run.head_sha -cne $taskRun.head_sha -or $taskArtifact.digest -cne 'sha256:da2907d409abdf3eb097b6d74d7bbe2cfe0ea29ec43dcc315171ff14fa15803a') { throw 'Original artifact binding differs' }
           $taskZip = Join-Path $taskTemp 'original-artifact.zip'
-          Invoke-WebRequest -Uri ($taskApi + '/actions/artifacts/12747796291/zip') -Headers $taskHeaders -OutFile $taskZip
-          if ((Get-Item -LiteralPath $taskZip).Length -ne 214848944) { throw 'Original artifact size differs' }
+          Invoke-WebRequest -Uri ($taskApi + '/actions/artifacts/12752891660/zip') -Headers $taskHeaders -OutFile $taskZip
+          if ((Get-Item -LiteralPath $taskZip).Length -ne 215094528) { throw 'Original artifact size differs' }
           $taskArchive = [IO.Compression.ZipFile]::OpenRead($taskZip)
           try {
-            $taskPrefix = '4914f73a3fa441d487239c5712dcde69/'
+            $taskPrefix = '4e87b49d54a64444aeaaa37e84066693/'
             $taskExpected = @{
-              ($taskPrefix + 'diagnostics.zip.enc') = 844977
-              ($taskPrefix + 'evidence.zip.enc') = 213610425
+              ($taskPrefix + 'diagnostics.zip.enc') = 956654
+              ($taskPrefix + 'evidence.zip.enc') = 213735294
               ($taskPrefix + 'input-comparison.json') = 68
               ($taskPrefix + 'input-sha256-after.json') = 384436
               ($taskPrefix + 'input-sha256.json') = 384436
-              ($taskPrefix + 'run.json') = 4907
-              ($taskPrefix + 'summary.json') = 1462
+              ($taskPrefix + 'run.json') = 4889
+              ($taskPrefix + 'summary.json') = 51089
               'remote-h/h-proof.json.enc' = 739
               'remote-h/h-summary.json' = 427
             }
@@ -516,13 +516,13 @@ jobs:
               if (-not $taskSeen.Add($taskEntry.FullName) -or -not ($taskExpected.Keys -ccontains $taskEntry.FullName) -or $taskEntry.Length -ne $taskExpected[$taskEntry.FullName]) { throw 'Original artifact shape differs' }
             }
             $taskEntries = @($taskArchive.Entries | Where-Object { $_.FullName -ceq ($taskPrefix + 'diagnostics.zip.enc') })
-            if ($taskEntries.Count -ne 1 -or $taskEntries[0].Length -ne 844977) { throw 'One bound encrypted diagnostic is required' }
+            if ($taskEntries.Count -ne 1 -or $taskEntries[0].Length -ne 956654) { throw 'One bound encrypted diagnostic is required' }
             $taskInput = $taskEntries[0].Open()
             $taskOutput = [IO.File]::Open((Join-Path $taskTemp 'diagnostics.zip.enc'), [IO.FileMode]::CreateNew)
             try { $taskInput.CopyTo($taskOutput) } finally { $taskOutput.Dispose(); $taskInput.Dispose() }
           } finally { $taskArchive.Dispose() }
-          if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $taskTemp 'diagnostics.zip.enc')).Hash.ToLowerInvariant() -cne 'd633ddf27ed8da81918a66be80c2df6db815f0af5a6ab781f9a7bbc57e2298ef') { throw 'Encrypted diagnostic digest differs' }
-      - name: Reduce original NotYet3 failures to public IDs and source frames only
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $taskTemp 'diagnostics.zip.enc')).Hash.ToLowerInvariant() -cne '7749135fb52b55559e1405b8e6a62bb3ec8a2469d166a83eaa0e2a0a56d6125f') { throw 'Encrypted diagnostic digest differs' }
+      - name: Reduce original full226 failures to public IDs and source frames only
         shell: pwsh
         env:
           PTK_FIXTURE_KEY: ${{ secrets.PTK_FIXTURE_KEY }}
@@ -539,7 +539,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Authenticated diagnostic decryption failed' }
           } finally { Remove-Item Env:PTK_FIXTURE_KEY -ErrorAction SilentlyContinue }
           $taskCode = @'
-          import ast, hashlib, json, os, re, subprocess, zipfile
+          import hashlib, json, os, re, subprocess, zipfile
           from pathlib import Path
 
           def main():
@@ -547,15 +547,15 @@ jobs:
               temporary = Path(os.environ['RUNNER_TEMP']).resolve()
               if root.drive.upper() != 'D:' or temporary.drive.upper() != 'D:':
                   raise ValueError('D-only diagnostic paths required')
-              head = 'c55231cfd749b9db082ce3cc73b8c83ff2d0aabf'
-              evidence_id = '4914f73a3fa441d487239c5712dcde69'
+              head = '309ef62478b610e2e297c545c141cb1f7d2d37f4'
+              evidence_id = '4e87b49d54a64444aeaaa37e84066693'
               def git(*args):
                   return subprocess.check_output(['git', *args], cwd=root, stderr=subprocess.DEVNULL)
               if git('rev-parse', 'HEAD^').decode().strip() != head:
-                  raise ValueError('The diagnostic must directly follow its exact NotYet3 source')
+                  raise ValueError('The diagnostic proposal must directly follow its bound source')
               if git('diff', '--name-only', head, 'HEAD').decode().splitlines() != ['.github/workflows/validate.yml']:
                   raise ValueError('Only the diagnostic workflow may change before this read')
-              packet_blob = '11f363fb73ccf9d6a30b0f8089555ad90594f485'
+              packet_blob = '1daeeb40f16a6673d21f6daba5b4ce93fba46c58'
               if git('rev-parse', head + ':.ci/suites/changed_revisions.json').decode().strip() != packet_blob:
                   raise ValueError('Original public packet Git object differs')
               packet_bytes = git('show', head + ':.ci/suites/changed_revisions.json')
@@ -563,15 +563,15 @@ jobs:
               declared = [name for group, row in packet['completed'].items() for name in row['tests']
                           if isinstance(name, str) and name.startswith(group + '.')]
               public_ids = set(declared)
-              if (len(declared) != 3 or len(public_ids) != 3 or packet['required_unique_count'] != 3
-                      or sum(len(row['tests']) for row in packet['completed'].values()) != 3
+              if (len(declared) != 226 or len(public_ids) != 226 or packet['required_unique_count'] != 226
+                      or sum(len(row['tests']) for row in packet['completed'].values()) != 226
                       or packet['completion_credit'] != 0
                       or any(re.fullmatch(r'(?:tools|tests)\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+\.test_[A-Za-z0-9_]+', name) is None for name in declared)):
                   raise ValueError('Original public declaration differs')
               outer_shape = {evidence_id + '/' + name: size for name, size in {
-                  'diagnostics.zip.enc': 844977, 'evidence.zip.enc': 213610425,
+                  'diagnostics.zip.enc': 956654, 'evidence.zip.enc': 213735294,
                   'input-comparison.json': 68, 'input-sha256-after.json': 384436,
-                  'input-sha256.json': 384436, 'run.json': 4907, 'summary.json': 1462}.items()}
+                  'input-sha256.json': 384436, 'run.json': 4889, 'summary.json': 51089}.items()}
               outer_shape.update({'remote-h/h-proof.json.enc': 739, 'remote-h/h-summary.json': 427})
               def shape(archive, expected):
                   entries = archive.infolist()
@@ -593,20 +593,20 @@ jobs:
               if (summary['schema_version'] != 1 or summary['suite'] != 'changed_revisions'
                       or summary['report_count'] != 1 or len(summary['reports']) != 1
                       or summary['verifier_status'] != 'fail' or summary['verifier_exit_code'] != 1):
-                  raise ValueError('Original NotYet3 summary differs')
+                  raise ValueError('Original full226 summary differs')
               public_report = summary['reports'][0]
               public_tests = public_report['tests']
               if (public_report['kind'] != 'run' or public_report['successful'] is not False
-                      or public_report['tests_run'] != 3 or public_report['collected_count'] != 3
+                      or public_report['tests_run'] != 226 or public_report['collected_count'] != 226
                       or public_report['undisplayed_test_count'] != 0 or public_report['discovery_error_count'] != 0
-                      or public_report['status_counts'] != {'fail': 3}
-                      or public_report['result_counts'] != dict(skipped=0, expected_failures=0, unexpected_successes=0, failures=3, errors=0)
-                      or len(public_tests) != 3 or {row['id'] for row in public_tests} != public_ids
+                      or public_report['status_counts'] != {'error': 4, 'fail': 5, 'pass': 217}
+                      or public_report['result_counts'] != dict(skipped=0, expected_failures=0, unexpected_successes=0, failures=5, errors=5)
+                      or len(public_tests) != 226 or {row['id'] for row in public_tests} != public_ids
                       or any(row['status'] not in ('pass', 'fail', 'error') for row in public_tests)):
-                  raise ValueError('Original NotYet3 public result differs')
+                  raise ValueError('Original full226 public result differs')
               public_status = {row['id']: row['status'] for row in public_tests}
-              if {status: sum(value == status for value in public_status.values()) for status in ('pass', 'fail', 'error')} != {'pass': 0, 'fail': 3, 'error': 0}:
-                  raise ValueError('Original NotYet3 public status mapping differs')
+              if {status: sum(value == status for value in public_status.values()) for status in ('pass', 'fail', 'error')} != {'pass': 217, 'fail': 5, 'error': 4}:
+                  raise ValueError('Original full226 public status mapping differs')
               if (comparison != dict(unchanged=True, changed_paths=[], read_errors={})
                       or not isinstance(before, dict) or not before or before != after
                       or any(not isinstance(name, str) or not isinstance(sha, str) or re.fullmatch(r'[0-9a-f]{64}', sha) is None for name, sha in before.items())):
@@ -616,29 +616,29 @@ jobs:
                       raise ValueError('Original frozen public input differs')
               if before['.ci/suites/changed_revisions.json'] != hashlib.sha256(packet_bytes).hexdigest():
                   raise ValueError('Original frozen packet differs')
-              full_evidence = dict(file='evidence.zip.enc', sha256='7e326f1a8214b46c92db11dabb243a7c4a3b6286351ab7097f5ba8c924cce2bb', raw_file_count=13)
-              small_evidence = dict(file='diagnostics.zip.enc', sha256='d633ddf27ed8da81918a66be80c2df6db815f0af5a6ab781f9a7bbc57e2298ef', raw_file_count=12, complete_input_capture=False)
+              full_evidence = dict(file='evidence.zip.enc', sha256='c6c4d0c7930152edd87ca57e306abd962076d58653e779f23fe2846385e3c4ed', raw_file_count=13)
+              small_evidence = dict(file='diagnostics.zip.enc', sha256='7749135fb52b55559e1405b8e6a62bb3ec8a2469d166a83eaa0e2a0a56d6125f', raw_file_count=12, complete_input_capture=False)
               outcome = run['verifier_outcome']
-              stage = 'D:/trpg-rulebook-structuring/ci/40534018458-1-changed_revisions'
+              stage = 'D:/trpg-rulebook-structuring/ci/40541644877-1-changed_revisions'
               command = outcome['command']
               normalized = [value.replace('\\', '/') for value in command] if isinstance(command, list) and all(isinstance(value, str) for value in command) else []
               if (run['git_sha'] != head or run['evidence_id'] != evidence_id or run['suite'] != 'changed_revisions'
                       or run['status'] != 'fail' or run['exit_code'] != 1 or run['native_timeout_seconds'] != 10800
                       or run['inputs_unchanged'] is not True or run['evidence_status'] != 'encrypted'
                       or run['marksman_source_preparation']['status'] != 'prepared' or run['marksman_source_preparation']['page_index'] != 329
-                      or outcome['status'] != 'fail' or outcome['exit_code'] != 1 or outcome['elapsed_seconds'] != 33.10899999999998
+                      or outcome['status'] != 'fail' or outcome['exit_code'] != 1 or outcome['elapsed_seconds'] != 1445.203
                       or run['execution_stage'].replace('\\', '/') != stage
-                      or run['ci']['GITHUB_SHA'] != head or run['ci']['GITHUB_RUN_ID'] != '40534018458' or run['ci']['GITHUB_RUN_ATTEMPT'] != '1'
+                      or run['ci']['GITHUB_SHA'] != head or run['ci']['GITHUB_RUN_ID'] != '40541644877' or run['ci']['GITHUB_RUN_ATTEMPT'] != '1'
                       or run['encrypted_evidence'] != dict(full_evidence, diagnostics=small_evidence)
                       or len(normalized) != 14 or normalized[1:8] != ['-B', '-u', '-X', 'utf8', stage + '/tools/ci_physical.py', '--stage', stage]
                       or normalized[8] != '--inputs' or normalized[9] != normalized[13] + '/input-sha256.json'
                       or normalized[10:13] != ['--target', '.ci/suites/changed_revisions.json', '--output']
                       or not normalized[13].endswith('/output/ci/' + evidence_id)):
-                  raise ValueError('Original NotYet3 execution binding differs')
-              if h_summary != dict(status='H_REJECTED', run='40534018458', attempt='1', head=head,
+                  raise ValueError('Original full226 execution binding differs')
+              if h_summary != dict(status='H_REJECTED', run='40541644877', attempt='1', head=head,
                                    suite='changed_revisions', checker_sha256='8df797f3faf505643e68ce05148d4ba3af36d47efe72ed08a0ef72aa5bd4ce07',
                                    ordinary_verified=0, native_runs=0, completion_credit=0,
-                                   encrypted_h_proof_sha256='ea6e1a57e7ef6dffacdea459876dc0ddf4ec447553395887072613c9e3ef3137'):
+                                   encrypted_h_proof_sha256='f65150b79c5b491c1c01cd69cef6ccdf8c97d515254647d99e0f34678a1ce56b'):
                   raise ValueError('Original rejected H binding differs')
 
               tracked = {name for name in git('ls-tree', '-rz', '--name-only', head).decode('utf-8').split('\0') if name.endswith('.py')}
@@ -648,6 +648,14 @@ jobs:
                              'NotImplementedError', 'OSError', 'OverflowError', 'PermissionError',
                              'RecursionError', 'RuntimeError', 'StopIteration', 'TypeError',
                              'UnboundLocalError', 'UnicodeDecodeError', 'ValueError', 'ZeroDivisionError'}
+              public_pending_types = {
+                  'heavy_injury_adapter.HeavyPending': ('engine/heavy_injury_adapter.py', 'class HeavyPending(RuntimeError):'),
+                  'passive_events.PassiveEventPending': ('engine/passive_events.py', 'class PassiveEventPending(RuntimeError):')}
+              for name, (path, declaration) in public_pending_types.items():
+                  body = git('show', head + ':' + path)
+                  if (before.get(path) != hashlib.sha256(body).hexdigest()
+                          or declaration not in body.decode('utf-8').splitlines()):
+                      raise ValueError('Exact public pending exception source differs')
               source_lines = {}
               def line_count(path):
                   if path not in source_lines:
@@ -671,132 +679,12 @@ jobs:
                               frames.append({'path': path, 'line': number})
                   error = next((line.split(':', 1)[0] for line in reversed(trace.splitlines())
                                 if line.split(':', 1)[0] in error_types), 'unclassified')
+                  terminal = next((line for line in reversed(trace.splitlines()) if line.strip()), '')
+                  pending_name = terminal.split(':', 1)[0]
+                  if pending_name in public_pending_types:
+                      error = pending_name
                   return {'test_ids': ids, 'exception_type': error, 'frames': frames[-80:],
                           'omitted_frame_count': max(0, len(frames) - 80)}
-
-              # Exact source-bound observer failures only; never emit raw context values.
-              observer_ids = {
-                  'tools.test_book_enduring_soul_csv.EnduringSoulCsvTests.test_not_yet_minus_true_max_is_inclusive_but_below_it_never_offers',
-                  'tools.test_book_enduring_soul_csv.EnduringSoulCsvTests.test_not_yet_scene_once_sleeping_owner_and_injury_death_do_not_grant_extra_moves',
-                  'tools.test_enduring_soul_native_resume.NativeResumeTests.test_actual_heavy_loss_failure_rolls_back_not_yet_move_damage_cost_injury_and_rng'}
-              if observer_ids != public_ids:
-                  raise ValueError('Exact NotYet3 observer declaration differs')
-              source_text = {}
-              def bound_line(path, number):
-                  if path not in source_text:
-                      body = git('show', head + ':' + path)
-                      if before.get(path) != hashlib.sha256(body).hexdigest():
-                          raise ValueError('Heavy diagnostic source binding differs')
-                      source_text[path] = body.decode('utf-8').splitlines()
-                  if not 0 < number <= len(source_text[path]):
-                      raise ValueError('Heavy diagnostic source line differs')
-                  return source_text[path][number - 1]
-              observer_source = 'tools/test_book_enduring_soul_csv.py'
-              if (bound_line(observer_source, 25).strip() != 'def observe_actual_heavy_hold(test):'
-                      or 'actual=STANDARD.hold;contexts=[]' not in bound_line(observer_source, 27)
-                      or "contexts.append({key:deepcopy(context.get(key,[])) for key in ('failures','native_suffix_failures')})" not in bound_line(observer_source, 30)
-                      or 'return actual(engine,token,packet,reason)' not in bound_line(observer_source, 31)
-                      or "with patch.object(STANDARD,'hold',record):" not in bound_line(observer_source, 32)
-                      or 'except HEAVY.HeavyPending:test.fail(str(contexts))' not in bound_line(observer_source, 34)):
-                  raise ValueError('Exact actual-hold observer source differs')
-              literal_codes = [
-                  ("actor_not_ordinary_conscious_on_field", "engine/heavy_standard_adapter.py", 339),
-                  ("actor:custom_conditions", "engine/heavy_standard_adapter.py", 343),
-                  ("actor:foreign_rules_reference", "engine/heavy_standard_adapter.py", 310),
-                  ("actor:missing_native_budget", "engine/heavy_injury_adapter.py", 261),
-                  ("actor:noncanonical_last_target", "engine/heavy_standard_adapter.py", 314),
-                  ("actual_conscious_native_standard_missing", "engine/heavy_standard_adapter.py", 136),
-                  ("actual_standard_payment_missing", "engine/heavy_standard_adapter.py", 43),
-                  ("attacker_standard_heavy_consequence_unresolved", "engine/heavy_injury_adapter.py", 377),
-                  ("empty_field_authority_or_effects_changed", "engine/heavy_standard_adapter.py", 330),
-                  ("engine_subclass_not_reviewed", "engine/heavy_injury_adapter.py", 341),
-                  ("equipment_changed_actor_resources_or_condition", "engine/heavy_standard_adapter.py", 41),
-                  ("external_native_observer", "engine/heavy_standard_adapter.py", 166),
-                  ("external_rule_observer", "engine/heavy_standard_adapter.py", 22),
-                  ("extra_or_unknown_roster_interactions", "engine/heavy_injury_adapter.py", 413),
-                  ("instance_callback", "engine/heavy_standard_adapter.py", 187),
-                  ("native_damage_bound_semantics_changed", "engine/heavy_standard_adapter.py", 194),
-                  ("native_loss_changes_injury_boundary", "engine/heavy_standard_adapter.py", 215),
-                  ("native_loss_crosses_death_boundary", "engine/heavy_standard_adapter.py", 220),
-                  ("native_loss_opens_a_new_faint_boundary", "engine/heavy_standard_adapter.py", 216),
-                  ("native_suffix_actor_feature", "engine/heavy_standard_adapter.py", 178),
-                  ("native_suffix_custom_condition", "engine/heavy_standard_adapter.py", 173),
-                  ("native_suffix_nonplain_stats", "engine/heavy_standard_adapter.py", 179),
-                  ("native_suffix_stab_bound_not_reviewed", "engine/heavy_standard_adapter.py", 188),
-                  ("native_type_binding_missing", "engine/heavy_injury_adapter.py", 339),
-                  ("no_actual_own_combat_turn", "engine/heavy_standard_adapter.py", 15),
-                  ("noncanonical_empty_field_handler", "engine/heavy_standard_adapter.py", 333),
-                  ("noncanonical_log_sink", "engine/heavy_standard_adapter.py", 182),
-                  ("noncanonical_rulings_type", "engine/heavy_standard_adapter.py", 159),
-                  ("noncanonical_runtime_type", "engine/heavy_standard_adapter.py", 117),
-                  ("nonplain_empty_field_effects", "engine/heavy_standard_adapter.py", 316),
-                  ("nonplain_move_data", "engine/heavy_standard_adapter.py", 100),
-                  ("nonplain_public_move_inputs", "engine/heavy_standard_adapter.py", 82),
-                  ("nonpositive_actor_has_no_actual_selected_interrupt", "engine/heavy_standard_adapter.py", 138),
-                  ("not_empty_mech_native_struggle", "engine/heavy_injury_adapter.py", 373),
-                  ("not_exact_zero_damage_targetless_whirlwind", "engine/heavy_standard_adapter.py", 328),
-                  ("not_ordinary_single_activation", "engine/heavy_standard_adapter.py", 337),
-                  ("not_reviewed_hp_independent_native_suffix", "engine/heavy_standard_adapter.py", 155),
-                  ("ordinary_active_combat_context_missing", "engine/heavy_standard_adapter.py", 336),
-                  ("other_trainer_native_interaction", "engine/heavy_standard_adapter.py", 212),
-                  ("overridden_native_method", "engine/heavy_standard_adapter.py", 169),
-                  ("rng_instance_state_not_native", "engine/heavy_standard_adapter.py", 185),
-                  ("rules_subclass_not_reviewed", "engine/heavy_injury_adapter.py", 342),
-                  ("rulings:hooks", "engine/heavy_injury_adapter.py", 410),
-                  ("self_target_interaction", "engine/heavy_injury_adapter.py", 376),
-                  ("target_marker_faint_or_massive_not_excluded", "engine/heavy_standard_adapter.py", 200),
-                  ("target_resource_interactions", "engine/heavy_standard_adapter.py", 180),
-                  ("unknown_rng_provider", "engine/heavy_standard_adapter.py", 183),
-                  ('pre_reservation_context_missing', 'engine/heavy_standard_adapter.py', 387),
-                  ('actor_changed_before_observed_activation', 'engine/heavy_standard_adapter.py', 390)]
-              allowed_codes = set()
-              for code, path, number in literal_codes:
-                  line = bound_line(path, number)
-                  if '.append(' + repr(code) + ')' not in line and '.append("' + code + '")' not in line:
-                      raise ValueError('Reviewed literal failure code differs')
-                  allowed_codes.add(code)
-              for code, number in (('rules:nonpassive_state:root', 142),
-                                   ('actor:nonpassive_state:_enduring_not_yet_live', 146)):
-                  if repr(code) not in bound_line('engine/heavy_standard_adapter.py', number):
-                      raise ValueError('Reviewed literal context code differs')
-                  allowed_codes.add(code)
-              if ('for label,c in (("attacker",attacker),("target",target)):' not in bound_line('engine/heavy_injury_adapter.py', 388)
-                      or "failures.append(label+':custom_conditions')" not in bound_line('engine/heavy_injury_adapter.py', 398)):
-                  raise ValueError('Reviewed finite context code labels differ')
-              allowed_codes.update(('attacker:custom_conditions', 'target:custom_conditions'))
-              def heavy_codes(trace):
-                  line = next((line for line in reversed(trace.splitlines()) if line.startswith('AssertionError: ')), None)
-                  if line is None:
-                      return {'status': 'no_literal_payload'}
-                  payload = line[len('AssertionError: '):]
-                  if len(payload) > 65536:
-                      return {'status': 'payload_bound_exceeded'}
-                  try:
-                      contexts = ast.literal_eval(payload)
-                  except (ValueError, SyntaxError, TypeError, RecursionError, MemoryError):
-                      return {'status': 'not_supported_literal'}
-                  if type(contexts) is not list or len(contexts) > 16:
-                      return {'status': 'context_shape_mismatch'}
-                  if not contexts:
-                      return {'status': 'no_observed_standard_hold', 'context_count': 0}
-                  found = {'failures': set(), 'native_suffix_failures': set()}
-                  unknown = {'failures': 0, 'native_suffix_failures': 0}
-                  keys = {'failures', 'upper_damage', 'checked', 'context', 'prepared_difference', 'native_suffix_failures'}
-                  for context in contexts:
-                      if type(context) is not dict or set(context) - keys or 'failures' not in context:
-                          return {'status': 'context_shape_mismatch'}
-                      for field in found:
-                          values = context.get(field, [])
-                          if type(values) is not list or len(values) > 256 or any(type(value) is not str for value in values):
-                              return {'status': 'failure_list_shape_mismatch'}
-                          for value in values:
-                              if value in allowed_codes:
-                                  found[field].add(value)
-                              else:
-                                  unknown[field] += 1
-                  return {'status': 'classified', 'context_count': len(contexts),
-                          'codes': {field: sorted(values) for field, values in found.items()},
-                          'unknown_code_counts': unknown}
               marker = 'PRIVATE_VALUE_MUST_NOT_LEAVE'
               case = sorted(public_ids)[0]
               synthetic = ('Traceback (most recent call last):\n  File "' + prefix +
@@ -812,21 +700,13 @@ jobs:
               assert reduce(case, marker + ': private', set(), lambda path: 0)['exception_type'] == 'unclassified'
               holder = case.rsplit('.', 1)[0]
               assert reduce('setUpClass (' + holder + ')', '', set(), lambda path: 0)['test_ids'] == sorted(name for name in public_ids if name.startswith(holder + '.'))
-              heavy_sample = heavy_codes('AssertionError: ' + repr([{
-                  'failures': ['attacker:custom_conditions', 'actor:nonpassive_state:' + marker, 'native_suffix_custom_condition' + marker],
-                  'native_suffix_failures': ['native_suffix_custom_condition'],
-                  'upper_damage': 123, 'checked': [marker], 'context': marker,
-                  'prepared_difference': {'private': marker}}]))
-              assert heavy_sample['status'] == 'classified' and heavy_sample['context_count'] == 1
-              assert heavy_sample['codes'] == {'failures': ['attacker:custom_conditions'], 'native_suffix_failures': ['native_suffix_custom_condition']}
-              assert heavy_sample['unknown_code_counts'] == {'failures': 2, 'native_suffix_failures': 0}
-              assert marker not in json.dumps(heavy_sample) and 'upper_damage' not in heavy_sample
-              assert heavy_codes('AssertionError: not_a_literal()') == {'status': 'not_supported_literal'}
-              assert heavy_codes('AssertionError: ' + repr([marker])) == {'status': 'context_shape_mismatch'}
-              assert heavy_codes('AssertionError: []') == {'status': 'no_observed_standard_hold', 'context_count': 0}
-              assert heavy_codes('AssertionError: ' + 'x' * 65537) == {'status': 'payload_bound_exceeded'}
+              for name in public_pending_types:
+                  pending_sample = reduce(case, name + ': ' + marker, set(), lambda path: 0)
+                  assert pending_sample['exception_type'] == name and marker not in json.dumps(pending_sample)
+              assert reduce(case, 'heavy_injury_adapter.HeavyPending: ' + marker + '\nRuntimeError: ' + marker,
+                            set(), lambda path: 0)['exception_type'] == 'RuntimeError'
 
-              # shortcut: this exact completed NotYet3 observation only; review before another run.
+              # shortcut: this exact completed full226 failure only; review before another run.
               with zipfile.ZipFile(temporary / 'diagnostics.zip') as archive:
                   entries = archive.infolist()
                   names = [item.filename for item in entries]
@@ -859,14 +739,13 @@ jobs:
                       raise ValueError('One bounded original verifier report required')
                   report = json.loads(archive.read(report_info))
               if (report['kind'] != 'run' or report['successful'] is not False
-                      or len(report['collected']) != 3 or set(report['collected']) != public_ids
-                      or report['tests_run'] != 3 or report['discovery_errors']
+                      or len(report['collected']) != 226 or set(report['collected']) != public_ids
+                      or report['tests_run'] != 226 or report['discovery_errors']
                       or report['skipped'] or report['expected_failures'] or report['unexpected_successes']
-                      or len(report['failures']) != 3 or len(report['errors']) != 0):
-                  raise ValueError('Original completed NotYet3 report differs')
+                      or len(report['failures']) != 5 or len(report['errors']) != 5):
+                  raise ValueError('Original completed full226 report differs')
               reduced = []
               failing_ids, error_ids = set(), set()
-              observer_payload_ids = []
               for kind, status, target_ids in (('failures', 'fail', failing_ids), ('errors', 'error', error_ids)):
                   for row in report[kind]:
                       if (not isinstance(row, dict) or not isinstance(row.get('id'), str) or len(row['id']) > 65536
@@ -875,35 +754,23 @@ jobs:
                       item = reduce(row['id'], row['traceback'], tracked, line_count)
                       if not item['test_ids'] or any(public_status[name] != status for name in item['test_ids']):
                           raise ValueError('Original failure row public mapping differs')
-                      frame_keys = {(frame['path'], frame['line']) for frame in item['frames']}
-                      if (kind != 'failures' or len(item['test_ids']) != 1
-                              or item['test_ids'][0] not in observer_ids or item['exception_type'] != 'AssertionError'
-                              or (observer_source, 34) not in frame_keys):
-                          raise ValueError('Exact NotYet3 assertion observer row/frame differs')
-                      item['heavy_failure_identifiers'] = heavy_codes(row['traceback'])
-                      observer_payload_ids.extend(item['test_ids'])
                       target_ids.update(item['test_ids'])
                       reduced.append(dict(kind=kind, **item))
-              if len(observer_payload_ids) != 3 or set(observer_payload_ids) != observer_ids:
-                  raise ValueError('Exact three observed failure rows differ')
-              if (len(failing_ids) != 3 or len(error_ids) != 0 or failing_ids & error_ids
+              if (len(failing_ids) != 5 or len(error_ids) != 4 or failing_ids & error_ids
                       or failing_ids != {name for name, status in public_status.items() if status == 'fail'}
                       or error_ids != {name for name, status in public_status.items() if status == 'error'}):
                   raise ValueError('Original unique failure mapping differs')
-              result = dict(kind='redacted_original_notyet3_hold_identifiers_only', source_run=40534018458,
-                            source_job=122294250824, source_attempt=1, declared_public_id_count=3,
+              result = dict(kind='redacted_original_full226_failure_frames_only', source_run=40541644877,
+                            source_job=122321298633, source_attempt=1, declared_public_id_count=226,
                             original_public_packet_blob_oid=packet_blob,
                             source_commit=head, diagnostic_commit=os.environ['GITHUB_SHA'],
                             evidence_id=evidence_id, game_runs=0, native_reruns=0, verifier_reruns=0, h_reruns=0,
                             clause_credit=0, ordinary_verified=0, self_check_passed=True, physical_acceptance=False,
                             original_input_maps_compared_equal=True, original_h_status='H_REJECTED',
                             original_verifier_status='fail', original_verifier_exit_code=1, original_report_count=1,
-                            original_tests_run=3, original_unique_pass=0, original_unique_fail=3, original_unique_error=0,
-                            raw_failure_rows=3, raw_error_rows=0, diagnostic_not_new_test_evidence=True,
-                            full1252_repair_scope_still_pending=True, failures=reduced,
-                            diagnostic_extension='notyet_hold_identifiers_v1', notyet_observer_rows=3,
-                            observed_context_payload_rows=3, reviewed_failure_code_count=len(allowed_codes),
-                            unknown_code_values_disclosed=False)
+                            original_tests_run=226, original_unique_pass=217, original_unique_fail=5, original_unique_error=4,
+                            raw_failure_rows=5, raw_error_rows=5, diagnostic_not_new_test_evidence=True,
+                            full_restoration_scope_still_pending=True, failures=reduced)
               with (root / 'aa-diagnostics.json').open('x', encoding='utf-8') as stream:
                   json.dump(result, stream, ensure_ascii=False, indent=2)
 
@@ -912,11 +779,11 @@ jobs:
           except BaseException:
               print('Bounded diagnostic reduction failed; raw evidence remains private.')
               raise SystemExit(1)
-          print('Redacted original NotYet3 failure frames saved; native/verifier/H reruns=0, clause credit=0.')
+          print('Redacted original full226 failure frames saved; native/verifier/H reruns=0, clause credit=0.')
           '@
           python -I -B -X utf8 -c $taskCode
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Preserve only redacted public NotYet3 hold identifiers
+      - name: Preserve only redacted public full226 failure frames
         if: ${{ success() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
