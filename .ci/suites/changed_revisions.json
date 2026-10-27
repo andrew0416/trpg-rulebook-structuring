@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "id": "changed_revisions",
-  "purpose": "Restore published Arcanist, Berserker and Rune Master sources and their actual acquisition, cost, receipt, native Move and lifetime consumers on the integrated source branch. Retain all native95 declarations; include the full historical71 union, actual changed-boundary guards, and two new native regressions for Arcanist continuation aliases and the selected legacy Rage lifetime. Canonical publication and full2352 acceptance remain pending.",
+  "purpose": "Repair the five original class restoration failures while retaining all219 declarations. Restore equipped Move projection and permanent consumed-Glyph participation rejection; authenticate cached weapon permissions against actual native/physical/paid sources; use real Cone2 recipient geometry. Include three new native cache regressions and23 additional existing weapon/Prime/source guards. No canonical publication or completion credit.",
   "completion_credit": 0,
-  "required_unique_count": 219,
+  "required_unique_count": 245,
   "provenance": {
     "remote_base": "26d67e33dea546ff013eaf8f2e2339bb902778d8",
     "aa_source": "csv-ability-transitions-finish-1026aa/source-integration03",
@@ -24,6 +24,16 @@
       "new_native_regressions": 2,
       "selection": "Union of original declarations and source-reviewed actual-recipient, AP, activation, source selection, movement, CQM and Swarm boundaries. Selected IDs are not PASS or completion credit.",
       "private_inputs": "Reuse the unchanged authenticated encrypted bundle and existing policy Secret. The exact legacy self-target Rage declaration is normalized by the production catalog owner using its selected CSV source pin."
+    },
+    "repair02": {
+      "base": "6a561e5805aaf090322b85fb3e4b5e5f519a291f",
+      "diagnostic_parent": "1a8012e6d9a14ed1ffe3bf165a41ac488a78249d",
+      "original_failure_run": 40435639222,
+      "original_unique_pass": 214,
+      "original_unique_fail": 5,
+      "retained_declarations": 219,
+      "new_native_regressions": 3,
+      "additional_existing_guards": 23
     }
   },
   "completed": {
@@ -253,7 +263,10 @@
         "tools.test_book_arcanist_full.ArcanistFullTests.test_investment_duplicate_wrong_form_second_binding_replacement_and_rollback",
         "tools.test_book_arcanist_full.ArcanistFullTests.test_investment_real_temporary_funding_expiry_ends_same_reservation",
         "tools.test_book_arcanist_full.ArcanistFullTests.test_investment_source_withdrawal_releases_only_actual_owned_reservation",
-        "tools.test_book_arcanist_full.ArcanistFullTests.test_pending_grouped_weapon_move_restores_native_activation_aliases_and_pays_once"
+        "tools.test_book_arcanist_full.ArcanistFullTests.test_pending_grouped_weapon_move_restores_native_activation_aliases_and_pays_once",
+        "tools.test_book_arcanist_full.ArcanistFullTests.test_physical_weapon_cached_move_cannot_bypass_actual_source_with_or_without_paid_investment",
+        "tools.test_book_arcanist_full.ArcanistFullTests.test_ordinary_weapon_cached_move_requires_native_choices_and_preserves_legacy_restore",
+        "tools.test_book_arcanist_full.ArcanistFullTests.test_living_weapon_cached_move_cannot_bypass_native_borrowing_consumers"
       ]
     },
     "tools.test_core_general_ap_contract.GeneralAPContractTests": {
@@ -282,7 +295,11 @@
         "tools.test_category2_optional_weapon_framework.OptionalWeaponFrameworkTests.test_bond_replacement_failure_and_unheld_ten_metre_recall_both_families",
         "tools.test_category2_optional_weapon_framework.OptionalWeaponFrameworkTests.test_unwilling_holder_opposed_tie_loss_success_and_no_physical_copy",
         "tools.test_category2_optional_weapon_framework.OptionalWeaponFrameworkTests.test_failed_held_recall_rolls_back_native_disarm_carrier_rng_and_shift",
-        "tools.test_category2_optional_weapon_framework.OptionalWeaponFrameworkTests.test_bond_replacement_and_forged_prepared_bonus_are_rejected_at_consumer"
+        "tools.test_category2_optional_weapon_framework.OptionalWeaponFrameworkTests.test_bond_replacement_and_forged_prepared_bonus_are_rejected_at_consumer",
+        "tools.test_category2_optional_weapon_framework.OptionalWeaponFrameworkTests.test_exact_sources_four_forms_prices_and_arcane_quality_grants",
+        "tools.test_category2_optional_weapon_framework.OptionalWeaponFrameworkTests.test_alchemy_prepared_exceptions_and_native_targetset_blocker_remain_explicit",
+        "tools.test_category2_optional_weapon_framework.OptionalWeaponFrameworkTests.test_arcane_native_disarm_and_atomic_attack_recall_failures",
+        "tools.test_category2_optional_weapon_framework.OptionalWeaponFrameworkTests.test_weapon_defense_reaches_existing_native_telekinetic_disarm"
       ]
     },
     "tools.test_native_return_continuation.NativeReturnContinuationTests": {
@@ -380,6 +397,61 @@
       "tests": [
         "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests.test_native_brightest_flame_late_acquisition_projection_failure_is_atomic",
         "tools.test_fire_burn_reachability_revision.FireBurnReachabilityTests.test_native_brightest_flame_late_paid_withdrawal_failure_restores_every_owner_projection"
+      ]
+    },
+    "tools.test_weapon_rank_loss_restore.WeaponRankLossRestoreTests": {
+      "tests": [
+        "tools.test_weapon_rank_loss_restore.WeaponRankLossRestoreTests.test_low_rank_physical_loadout_restores_without_regranting_borrowed_move"
+      ]
+    },
+    "tools.test_living_weapon_caps_shield_source_revision.LivingWeaponCapsShieldSourceRevisionTests": {
+      "tests": [
+        "tools.test_living_weapon_caps_shield_source_revision.LivingWeaponCapsShieldSourceRevisionTests.test_trainer_master_and_weapon_borrowing_remain_legal_at_six_seven_and_ten",
+        "tools.test_living_weapon_caps_shield_source_revision.LivingWeaponCapsShieldSourceRevisionTests.test_complete_borrowing_variants_restore_and_feed_actual_other_weapon_attacks",
+        "tools.test_living_weapon_caps_shield_source_revision.LivingWeaponCapsShieldSourceRevisionTests.test_same_move_other_source_cannot_bypass_english_choice_and_rank_permissions_remain_live"
+      ]
+    },
+    "tools.test_core_living_weapon.CoreLivingWeaponTests": {
+      "tests": [
+        "tools.test_core_living_weapon.CoreLivingWeaponTests.test_current_donor_rank_changes_and_other_actual_weapon_permissions_are_live"
+      ]
+    },
+    "tools.test_foot_weapon_category_source_revision.FootWeaponCategorySourceRevisionTests": {
+      "tests": [
+        "tools.test_foot_weapon_category_source_revision.FootWeaponCategorySourceRevisionTests.test_actual_use_rechecks_rank_after_grant_before_spending_then_recovers"
+      ]
+    },
+    "tools.test_generated_weapon_cold_restore.GeneratedWeaponColdRestoreTests": {
+      "tests": [
+        "tools.test_generated_weapon_cold_restore.GeneratedWeaponColdRestoreTests.test_actual_fresh_rules_reconstructs_both_sources_and_executes_without_reequip_events",
+        "tools.test_generated_weapon_cold_restore.GeneratedWeaponColdRestoreTests.test_finite_persisted_weapon_ids_match_frozen_encoding_after_owner_move_and_cold_restore",
+        "tools.test_generated_weapon_cold_restore.GeneratedWeaponColdRestoreTests.test_forged_native_definition_or_identity_is_rejected_without_mutating_supplied_rules_or_payload",
+        "tools.test_generated_weapon_cold_restore.GeneratedWeaponColdRestoreTests.test_late_second_source_admission_failure_leaves_no_partial_catalog_on_caller",
+        "tools.test_generated_weapon_cold_restore.GeneratedWeaponColdRestoreTests.test_selected_weapon_parent_exclusion_cannot_be_bypassed_by_saved_declarations"
+      ]
+    },
+    "tools.test_cannon_weapon_repair.CannonWeaponRepair": {
+      "tests": [
+        "tools.test_cannon_weapon_repair.CannonWeaponRepair.test_unconfigured_item_keeps_native_cannon_and_one_weapon_identity"
+      ]
+    },
+    "tools.test_category2_state_grants.StateGrantTests": {
+      "tests": [
+        "tools.test_category2_state_grants.StateGrantTests.test_independent_move_after_equipment_grant_survives",
+        "tools.test_category2_state_grants.StateGrantTests.test_runtime_overlay_never_rewrites_permanent_moves",
+        "tools.test_category2_state_grants.StateGrantTests.test_unknown_move_grant_preflight_changes_nothing"
+      ]
+    },
+    "tools.test_category2_special_entities.SpecialTests": {
+      "tests": [
+        "tools.test_category2_special_entities.SpecialTests.test_glyph_does_not_duplicate_original_unown_participation",
+        "tools.test_category2_special_entities.SpecialTests.test_destroyed_glyph_identity_cannot_reactivate"
+      ]
+    },
+    "tools.test_core_prime_unown.CorePrimeUnownTests": {
+      "tests": [
+        "tools.test_core_prime_unown.CorePrimeUnownTests.test_absorbed_actual_identity_is_blocked_on_turn_move_command_movement_ball_and_party_actions",
+        "tools.test_core_prime_unown.CorePrimeUnownTests.test_managed_party_counts_combined_members_once_and_cannot_send_or_place_them"
       ]
     }
   }

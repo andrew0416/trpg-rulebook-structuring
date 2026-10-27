@@ -538,6 +538,8 @@ def prime_member_host(e,actor):
 
 def require_prime_independent(e,actor):
     if prime_member_host(e,actor) is not None:raise ValueError('joined Prime Unown member cannot act, be targeted or be placed independently')
+    if any(row.get('kind')=='glyph' and row.get('unown_id')==actor.entity_id for row in getattr(e,'_physical_objects',{}).values()):
+        raise ValueError('Glyph source Unown is permanently consumed and cannot participate independently')
 
 
 def sync_prime_placements(e):

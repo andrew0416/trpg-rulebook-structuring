@@ -24,9 +24,9 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "published-three-class-source-recovery",
-  "active_repair_scope": "Restore published Arcanist, Berserker and Rune Master sources and their actual acquisition, cost, receipt, native Move and lifetime consumers on the integrated source branch. Retain all native95 declarations; include the full historical71 union, actual changed-boundary guards, and two new native regressions for Arcanist continuation aliases and the selected legacy Rage lifetime. Canonical publication and full2352 acceptance remain pending.",
-  "active_repair_required_tests": 219,
+  "active_repair": "published-class-source-repair02",
+  "active_repair_scope": "Repair the five original class restoration failures while retaining all219 declarations. Restore equipped Move projection and permanent consumed-Glyph participation rejection; authenticate cached weapon permissions against actual native/physical/paid sources; use real Cone2 recipient geometry. Include three new native cache regressions and23 additional existing weapon/Prime/source guards. No canonical publication or completion credit.",
+  "active_repair_required_tests": 245,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -77,14 +77,14 @@
   "phase2_metadata_methods_mandatory": 0,
   "phase2_additional_procedural_runners": 0,
   "unaffected_previous_PASS_reused": 0,
-  "selected_method_obligations": 219,
+  "selected_method_obligations": 245,
   "partial_prerequisite_refresh": true,
   "full_method_scope_executed": false,
   "source_fresh_native_prerequisites": 1404,
   "native_prerequisite_run": "40241811271",
   "activation_current_evidence_current": false,
   "previous_activation_evidence": "historical_only_not_current",
-  "active_repair_source_commit": "739da9a09bd48aa53e721c08416114fe88c2b3b4",
+  "active_repair_source_commit": "1a8012e6d9a14ed1ffe3bf165a41ac488a78249d",
   "active_repair_source_plan_path": ".ci/suites/changed_revisions.json",
   "historical_source_contract_repair": {
     "source_commit": "2f8975c41bd76cf48c904df85cf92a489430dbbc",
@@ -99,8 +99,8 @@
       "453bd89e31defaf1943491b444ae46f70a419a9d"
     ],
     "merge_commit": "a8e047d2af3459bd09d0c2af8f4fd6781fbcb9d1",
-    "native_route": "Existing ci_validate and unchanged ci_remote_h; current-run/head packet219 and original authenticated fixture/policy restoration.",
-    "native_result": "Prior native95 and H passed at739da9a; this class3 candidate has not yet executed.",
+    "native_route": "Existing ci_validate and unchanged ci_remote_h; exact current-run/head packet245 with original authenticated fixture/policy restoration.",
+    "native_result": "Prior95/H accepted at739; original219 failures and repaired219's214PASS/5FAIL are preserved. This repair245 candidate has not executed.",
     "canonical_completed_field_is_historical": true,
     "canonical_source_equivalence": false,
     "full_method_scope_executed": false,
@@ -130,12 +130,38 @@
       "Berserker",
       "Rune Master"
     ],
-    "declared_unique_tests": 219,
+    "declared_unique_tests": 245,
     "private_bundle_changed": false,
     "verifier_changed": false,
     "H_changed": false,
     "canonical_publication": false,
-    "completion_credit": 0
-  }
+    "completion_credit": 0,
+    "repair02": {
+      "base": "6a561e5805aaf090322b85fb3e4b5e5f519a291f",
+      "diagnostic_parent": "1a8012e6d9a14ed1ffe3bf165a41ac488a78249d",
+      "original_failure_run": 40435639222,
+      "original_unique_pass": 214,
+      "original_unique_fail": 5,
+      "retained_declarations": 219,
+      "new_native_regressions": 3,
+      "additional_existing_guards": 23
+    }
+  },
+  "previous_class_restoration_runs": [
+    {
+      "head": "89ac1bb5f1f4ce7955c446a8a2139c8f941a67db",
+      "run": 40432672480,
+      "unique_pass": 167,
+      "unique_fail": 2,
+      "unique_error": 50
+    },
+    {
+      "head": "6a561e5805aaf090322b85fb3e4b5e5f519a291f",
+      "run": 40435639222,
+      "unique_pass": 214,
+      "unique_fail": 5,
+      "unique_error": 0
+    }
+  ]
 }
 

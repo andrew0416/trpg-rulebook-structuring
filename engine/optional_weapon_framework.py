@@ -267,6 +267,50 @@ def move_limit(engine, actor, weapon):
     return len(row['moves']) if row and row['arcane'] else None
 
 
+def _validate_available_moves(engine, actor, entry, profile):
+    """A cached permission cannot extend its actual native equipment sources."""
+    weapon=entry['weapon'];uid=weapon.get('framework_instance',weapon.get('recipe_instance'))
+    if engine.r._runtime_weapon_declarations.get(entry.get('struggle_id'))!=weapon:
+        raise ValueError('physical weapon Move permission lost its native producer')
+    if profile is None:
+        grade=weapon.get('grade','간단');slot=weapon.get('slot','주요손').replace(' ','')
+        limit=0 if grade=='조잡' else 2 if grade=='좋음' and slot!='반대손' else 1
+        if actor.kind=='pokemon':limit=min(limit,1)
+        # Retained equipment may outlive its current Skill qualification.
+        supplied=weapon.get('moves',[])
+        if not isinstance(supplied,list) or any(not isinstance(name,str) for name in supplied):
+            raise ValueError('physical weapon Move permission lost its native choices')
+        declared=supplied[:limit]
+        choices=[name if name in engine.r.moves else next((mid for mid,row in engine.r.moves.items()
+            if row['name'].rstrip('!')==name.rstrip('!')),None) for name in declared]
+        allowed={entry['struggle_id'],*choices}
+    else:
+        if entry.get('instance_id')!=uid:
+            raise ValueError('physical weapon Move permission lost its actual instance')
+        allowed={entry['struggle_id'],*profile['moves']}
+        import optional_physical_equipment as OPTIONAL
+        item_id=engine._physical_objects[uid].get('item_rule_id')
+        crafted=set(OPTIONAL.definition(engine.r,item_id).get('moves',())) if item_id in OPTIONAL.KINDS else set()
+        if set(entry.get('crafted_grants',()))-crafted:
+            raise ValueError('physical weapon Move permission lost its crafted source')
+        allowed.update(crafted)
+        import arcanist as ARCA
+        investment=actor.spec.get(ARCA.BIND)
+        if investment is not None and investment['instance_id']==uid:
+            binding=ARCA.binding(engine,actor)
+            grant=actor.spec.get(G.KEY,{}).get('sources',{}).get(binding['instance']+':weapon')
+            if grant is not None:
+                if (any(grant.get(key)!=value for key,value in {'kind':'feature','owner_id':actor.entity_id,
+                        'lifetime':'while_equipped','rule_id':ARCA.INVEST,'move_mode':'permission'}.items())
+                        or grant.get('grants',{}).get('moves')!=binding['moves']):
+                    raise ValueError('physical weapon Move permission lost its paid investment source')
+                allowed.update(grant['grants']['moves'])
+    values=entry.get('available_moves')
+    if (type(values)is not list or any(type(value)is not str for value in values)
+            or len(set(values))!=len(values) or set(values)-allowed):
+        raise ValueError('physical weapon Move permission differs from its actual source')
+
+
 def crafted_weapon(engine, plan, weapon):
     obj = engine._physical_objects[plan['instance_id']]
     if PROFILE not in obj:
@@ -364,12 +408,13 @@ def adapt_move(engine, actor, move):
     import wielder_capability as WIELDER
     if not LIVING.require_weapon(engine,actor,entry['weapon']):WIELDER.require_weapon(engine,actor,entry['weapon'])
     row = profile_for_weapon(engine, actor, entry['weapon'])
-    if row is None:
-        return move
+    _validate_available_moves(engine,actor,entry,row)
     grant_source = (SOURCE if entry.get('item_id') == 'item/몬스터볼-캐논'
                     else entry.get('item_id', SOURCE))
     if move.get('id') not in entry.get('available_moves', ()) or attack.get('source') != grant_source:
         raise ValueError('weapon attack is not granted by this physical source')
+    if row is None:
+        return move
     obj = engine._physical_objects[entry['instance_id']]
     if obj.get('equipped_by') != actor.entity_id and not __import__('telekinetic').remote_weapon(engine,actor,entry['weapon']):
         raise ValueError('attack requires the current physical weapon holder')
@@ -673,8 +718,9 @@ def validate_world(engine, index):
             if any(uid not in index for uid in history['targets']):
                 raise ValueError('weapon hit history target is absent')
         for entry in actor.custom_conditions.get('equipped_weapons', {}).values():
-            if entry['weapon'].get('framework_instance') or entry['weapon'].get('recipe_instance'):
-                profile_for_weapon(engine, actor, entry['weapon'])
+            profile=profile_for_weapon(engine, actor, entry['weapon'])
+            _validate_available_moves(engine,actor,entry,profile)
+            if profile is not None:
                 # Retain the actual equipped object/loadout after a live Skill loss.
                 # Its next native use still requires current qualification.
                 validate_loadout(engine, actor, entry['weapon'],require_qualification=False)

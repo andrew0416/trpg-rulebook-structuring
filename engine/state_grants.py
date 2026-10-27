@@ -75,6 +75,9 @@ def effective(c, field, *, include_suppressed=False, only=None):
     for row in st.get("sources", {}).values():
         if not MOVES_STATE.source_active(c.spec,row):continue
         result.extend(row["grants"].get(field, []))
+    if field=='moves':
+        for equipped in c.custom_conditions.get('equipped_weapons',{}).values():
+            result.extend(equipped['available_moves'])
     if field=='capabilities':
         import move_capabilities as MOVE_CAPABILITIES
         result.extend(row['capability'] for row in MOVE_CAPABILITIES.contributions(c))
