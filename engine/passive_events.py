@@ -114,6 +114,8 @@ def _continuation_facts(e,ev,frame):
                             for scope in frame['scopes']]
     if 'source_choices' in frame:
         facts['source_choices']=frame['source_choices']
+    telekinetic=__import__('telekinetic').continuation_choice(e,ev)
+    if telekinetic is not None:facts['telekinetic_overload']=telekinetic
     if frame.get('kind')=='recipient_return':
         import action_lifecycle as ACTION
         action=ACTION.move_frame(e,e._move_completions[args['completion_id']])
@@ -521,7 +523,7 @@ def deliver(e,event_id,*,_resume_activation=True):
             event=staged._passive_events[event_id]
             import pass_moves as PASS, action_lifecycle as ACTION, move_completion as COMPLETE
             COMPLETE.validate_return_continuation(staged,event)
-            with ACTION.resume_move(staged,event,enabled=_resume_activation), PASS.restored_scope(staged,event):
+            with ACTION.resume_move(staged,event,enabled=_resume_activation), PASS.restored_scope(staged,event), __import__('telekinetic').restored_scope(staged,event):
                 paired=__import__('conquerors_march').resume_pair_wait(staged,event)
                 if paired is not None:return paired['result']
                 if event['phase']=='accuracy_boundary':

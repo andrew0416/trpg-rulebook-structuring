@@ -167,7 +167,8 @@ def register_item(engine, c, item_name=None, *, source_instance_id=None, as_held
     import optional_physical_equipment as OPTIONAL_EQUIPMENT
     optional_plan=OPTIONAL_EQUIPMENT.prepare_register(engine,c,canonical_id,source_instance_id)
     import fashion_items as FASHION
-    fashion_plan=FASHION.prepare_register(engine,c,canonical_id,source_instance_id)
+    fashion_plan=FASHION.prepare_register(engine,c,canonical_id,source_instance_id,projection=projection)
+    header=FASHION.registration_header(header,fashion_plan)
     import held_item_reactions as HELD_REACTIONS
     reaction_plan=HELD_REACTIONS.prepare_register(engine,c,canonical_id)
     for effect in effs:
@@ -339,8 +340,16 @@ def _passive_registration(engine, actor, record):
     """
     item_id = record.get("item_id")
     import fashion_items as FASHION
-    if FASHION.definition(engine.r, item_id) is not None:
+    if item_id in FASHION.HOMEBREW_ITEM_IDS and FASHION.definition(engine.r, item_id) is not None:
         return False
+    if item_id in FASHION.BOOK_ITEMS:
+        plan = FASHION.prepare_register(engine, actor, item_id, record.get('instance_id'), projection=record.get('projection'))
+        source = actor.spec.get(GRANTS.KEY, {}).get('sources', {}).get(record.get('state_source'))
+        actual = source.get('fashion_contract') if source else None
+        if actual != plan and (source is not None or actual is not None):
+            raise ValueError('Book Fashion suppression requires its actual source contract')
+        if plan and plan.get('contract') == 'book':
+            return False
     effects, header = engine.r.item_effects(item_id)
     if header.get("use") == "consumable" or header.get("category") in ("약", "음식"):
         return False
@@ -388,7 +397,7 @@ def synchronize_equipment_suppression(engine, actors=None):
                 elif suspended:
                     saved=dict(record);reg.pop(key)
                     register_item(engine,actor,saved['name'],source_instance_id=saved.get('instance_id'),
-                                  as_held=saved.get('held_slot') is not None,held_slot=saved.get('held_slot'))
+                                  as_held=saved.get('held_slot') is not None,held_slot=saved.get('held_slot'),projection=saved.get('projection'))
     finally:
         del engine._equipment_suppression_reconciling
     return True
@@ -816,6 +825,9 @@ def project_owned_pokemon_features(engine, owner, targets):
                 continue
             for target in targets:
                 count += bool(_register_feature_effect(engine, owner, target, name, header, index, effect))
+    import fashionista as FASHIONISTA
+    for target in targets:
+        FASHIONISTA.reconcile_incense(engine, target)
     return count
 
 

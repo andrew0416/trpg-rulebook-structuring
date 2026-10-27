@@ -24,9 +24,9 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "repair108-final-fixture-followup01",
-  "active_repair_scope": "Revalidate the last two fixture failures from original108 through exactly7 existing native IDs/4classes: Heavy observer1 and Steelheart source/recipient contracts6. Include both original failures,2 original PASS controls and3 additional existing source-variant tests. Runtime/sharedfixture/newmethods0; retain original106PASS and earlier108/226/1252/276 evidence separately. The separate7 synthetic preparation checks are not native IDs or clause credit.",
-  "active_repair_required_tests": 7,
+  "active_repair": "published-restoration02-after-final01",
+  "active_repair_scope": "Validate the next already-published source restoration cohort after the completed seven-case fixture repair: exact409 native IDs/61classes/59modules, preserving original owner80+261+68 with400 existing declarations and9 new methods. Preserve current G.weight and original-accuracy repairs. Earlier7/108/226/1252/276 evidence remains separately recorded; this is new409 execution scope, not cumulative PASS or clause credit. Synthetic preparation7 remains separate.",
+  "active_repair_required_tests": 409,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -42,7 +42,7 @@
   "separately_pending_frequency_equivalence_methods": 1029,
   "separately_pending_procedural_runners": 21,
   "ordinary_shard_count": 18,
-  "active_repair_phase": "two_fixture_corrections",
+  "active_repair_phase": "next_published_source_restoration",
   "active_repair_procedural_runners": 0,
   "full_method_obligations": 13847,
   "ordinary_methods_separate_run": 40141538702,
@@ -77,14 +77,14 @@
   "phase2_metadata_methods_mandatory": 0,
   "phase2_additional_procedural_runners": 0,
   "unaffected_previous_PASS_reused": 0,
-  "selected_method_obligations": 7,
+  "selected_method_obligations": 409,
   "partial_prerequisite_refresh": true,
   "full_method_scope_executed": false,
   "source_fresh_native_prerequisites": 1404,
   "native_prerequisite_run": "40241811271",
   "activation_current_evidence_current": false,
   "previous_activation_evidence": "historical_only_not_current",
-  "active_repair_source_commit": "fc70db0b8e2db3bb964eb371ebed9ebc7920e903",
+  "active_repair_source_commit": "f5a76aac2c30ccecd265743939340eaf73c05c82",
   "active_repair_source_plan_path": ".ci/suites/changed_revisions.json",
   "historical_source_contract_repair": {
     "source_commit": "2f8975c41bd76cf48c904df85cf92a489430dbbc",
@@ -723,5 +723,141 @@
       "active_repair_phase": "native_accuracy_fingerprint_and_fixture_corrections"
     },
     "historical_fields": "All original667/18/276/1252/226/108/4115 preparations, sourcepins, results and stored historical completion totals remain unchanged. New native7 count is separate from existing synthetic7 and does not erase earlier obligations."
+  },
+  "published_restoration02_after_final_preparation": {
+    "status": "SOURCE_REVIEWED409_SOURCE38_AND_LATEST_F5_CONTROLS_PREPARED_UNEXECUTED",
+    "base_commit": "f5a76aac2c30ccecd265743939340eaf73c05c82",
+    "source_candidate": "branch-integration-1027ai/published-restoration02-after-final01",
+    "source_handoff": "branch-integration-1027ai/published-restoration02-after-final01/HANDOFF.json",
+    "source_upload_manifest": "branch-integration-1027ai/published-restoration02-after-final01/review/SOURCE-UPLOAD.json",
+    "source_delta_againstf5": {
+      "paths": 38,
+      "runtime": 29,
+      "tests": 9,
+      "modified_existing": 31,
+      "new_paths": 7,
+      "additions": 2244,
+      "deletions": 123,
+      "authority": "Root final source manifest; every per-file delta matches reviewed restoration02 scope"
+    },
+    "selection": "branch-integration-1027ai/published-restoration02-after-final01/prepared-ci/SELECTION.json",
+    "original_selection": "branch-integration-1027ai/published-restoration02-composed/review/required-restoration02-tests.json",
+    "original_prepared409_packet": "branch-integration-1027ai/published-restoration02-composed/prepared-ci/.ci/suites/changed_revisions.json",
+    "required_unique_count": 409,
+    "required_class_groups": 61,
+    "required_source_modules": 59,
+    "counts": {
+      "owner_input_occurrences": 409,
+      "owner_duplicates": 0,
+      "existing_declared_ids": 400,
+      "new_methods": 9,
+      "original_selector_missing": 0,
+      "original_selector_extra": 0,
+      "old_prepared_packet_missing": 0,
+      "old_prepared_packet_extra": 0,
+      "existing_declaration_unmatched": 0,
+      "new_methods_missing_class_or_def": 0,
+      "selected_modules_missing": 0
+    },
+    "owners": {
+      "creation_language_mount_pokemaniac": 80,
+      "items_materials_fashion": 261,
+      "csv_mentor_telekinetic_tornado": 68
+    },
+    "new_test_ids": [
+      "tools.test_csv_pokemon_training_finish.CsvPokemonTrainingTests.test_named_definition_adapter_preserves_existing_rows_and_rejects_conflicts",
+      "tools.test_book_fashionista_csv_full.FashionistaCSVFullTests.test_focus_band_preserves_explicit_unpreventable_loss_without_roll_or_scene_use",
+      "tools.test_book_fashionista_csv_full.FashionistaCSVFullTests.test_selected_core_item_without_fashionista_class_source_keeps_observed_holder_activation",
+      "tools.test_mentor_expand_csv.ExpandCsvTests.test_existing_contract_link_conflicts_cannot_change_csv_identity_or_effect",
+      "tools.test_telekinetic_csv.CSVTests.test_declared_seven_plus_focus_native_acquisition_and_restore_preserve_strict_rank_membership",
+      "tools.test_telekinetic_csv_pending_restore.CsvPsyshockContinuationTests.test_actual_defense_wait_cold_resume_preserves_csv_area_and_one_native_payment",
+      "tools.test_telekinetic_csv_pending_restore.CsvPsyshockContinuationTests.test_actual_pending_pays_once_and_rejects_saved_source_choice_or_payment_binding_changes",
+      "tools.test_telekinetic_csv_pending_restore.CsvPsyshockContinuationTests.test_book_psychic_supported_waits_restore_actual_push_and_original_overload_cost",
+      "tools.test_telekinetic_csv_pending_restore.CsvPsyshockContinuationTests.test_actual_faint_during_paid_csv_defense_wait_cancels_without_refund_or_new_damage"
+    ],
+    "source_review": "Root preserves G.weight repair and current Engine original-accuracy +5/-3 while merging the reviewed future Fashion/TK hooks. Remaining37 source bodies match the after-repairs candidate;7 newpaths absent fromf5. Current nine new method class/def locations and59 effective modules rechecked without importing.",
+    "existing_declaration_review": "All400 original existing IDs rematched against the named current public final_revisions packets and explicit canonical historical verification declarations; missing0. This is declaration provenance only, not reused behavioral PASS for the changed source.",
+    "preceding_seven_result": {
+      "run": 40562787937,
+      "job": 122396019670,
+      "head": "f5a76aac2c30ccecd265743939340eaf73c05c82",
+      "collected": 7,
+      "executed": 7,
+      "unique_pass": 7,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "discovery_errors": 0,
+      "declared_difference": 0,
+      "inputs_unchanged": true,
+      "H": "H_PHYSICAL_ACCEPTED",
+      "ordinary_verified": 7,
+      "H_native_reruns": 0,
+      "suite_seconds": 41.21873729999999,
+      "record": "branch-integration-1027ai/repair108-final-composed01/review/RESULT.json",
+      "scope": "Previous seven actual tests only; does not verify409."
+    },
+    "retained_earlier_results": [
+      {
+        "run": 40554102869,
+        "required": 108,
+        "pass": 106,
+        "fail": 2,
+        "error": 0,
+        "status": "original_failure_retained"
+      },
+      {
+        "run": 40541644877,
+        "required": 226,
+        "pass": 217,
+        "fail": 5,
+        "error": 4,
+        "status": "original_failure_retained"
+      },
+      {
+        "run": 40499062622,
+        "required": 1252,
+        "pass": 1202,
+        "fail": 9,
+        "error": 41,
+        "status": "original_failure_retained"
+      },
+      {
+        "run": 40492283991,
+        "required": 276,
+        "pass": 276,
+        "fail": 0,
+        "error": 0,
+        "H": "H_PHYSICAL_ACCEPTED",
+        "status": "original_success_scope_retained"
+      }
+    ],
+    "input_closures": [
+      "../../published-creation-class-restoration02/review/input-closure.json",
+      "../../published-item-fashion-restoration02/review/input-closure.json",
+      "../../published-csv-class-restoration02/review/input-closure.json"
+    ],
+    "scope_boundary": "Already-published implementation restoration and explicit current source-contract impacts only. Keep original2352/include/dedupe/protected40, unresolved rules and private-input distinctions. Do not replace immutable historical scopes or sum overlapping run counts into completion.",
+    "budget": {
+      "native_timeout_seconds": 10800,
+      "aa_native_job_timeout_minutes": 195,
+      "generic_job_timeout_minutes": 105,
+      "default_native_timeout_seconds": 5400,
+      "fit_or_speedup_claim": false
+    },
+    "execution_route": "Unchanged ordinary verifier/H and full original physical input/evidence capture. No diagnostic_profile, thin capture, synthetic substitution, newSecret or privateinput transfer.",
+    "source_preparation": "Existing7 synthetic preparation boundary checks and authenticated PDF extraction unchanged and separate from409 native IDs.",
+    "current_diagnostic_route": "Existing aa_diagnostics remains bound to original9dd/108 failure and its exactfc70 diagnostic child. It is inherited unchanged fromf5, intentionally rejects unrelated heads and is not dispatched here.",
+    "canonical_publication": false,
+    "completion_credit": 0,
+    "prior_active_repair": {
+      "active_repair": "repair108-final-fixture-followup01",
+      "active_repair_scope": "Revalidate the last two fixture failures from original108 through exactly7 existing native IDs/4classes: Heavy observer1 and Steelheart source/recipient contracts6. Include both original failures,2 original PASS controls and3 additional existing source-variant tests. Runtime/sharedfixture/newmethods0; retain original106PASS and earlier108/226/1252/276 evidence separately. The separate7 synthetic preparation checks are not native IDs or clause credit.",
+      "active_repair_required_tests": 7,
+      "selected_method_obligations": 7,
+      "active_repair_source_commit": "fc70db0b8e2db3bb964eb371ebed9ebc7920e903",
+      "active_repair_phase": "two_fixture_corrections"
+    },
+    "historical_fields": "All earlier667/18/276/1252/226/108/7/4115 preparations, sourcepins, actual results and stored historical completion totals stay unchanged. New409 is a distinct future native scope; prior failures are not relabeledPASS."
   }
 }

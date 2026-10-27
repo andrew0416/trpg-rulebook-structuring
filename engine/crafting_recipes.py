@@ -239,15 +239,18 @@ def prepare_materials(engine,actor,groups,*,count=1,inputs=None,allow_zero_value
     """Pure aggregate payment plan; the caller owns action, time and output."""
     W.require_actors(engine,actor);R.validate(actor);C.integer(count,'produced count',1)
     recipe={'materials':material_groups(groups,allow_zero_value=allow_zero_value)};_selected(engine,R.SOURCE);sources={R.SOURCE}
+    csv_materials=R.csv_materials(engine.r)
+    if csv_materials:sources.add(R.CSV_SOURCE)
     inputs={} if inputs is None else inputs
     if type(inputs) is not dict or any(k not in {x['id'] for x in recipe['materials']} for k in inputs):raise ValueError('only declared recipe input groups may be selected')
     payments=[];debits=Counter()
     for group in recipe['materials']:
         selection=inputs.get(group['id'],{'option':0,'scrap_value':0})
-        if type(selection) is not dict or set(selection) not in ({'option','scrap_value'},{'option','scrap_value','instances'}):raise ValueError('exact recipe material selection required')
+        if type(selection) is not dict or set(selection) not in ({'option','scrap_value'},{'option','scrap_value','instances'},{'option','scrap_value','shop'}):raise ValueError('exact recipe material selection required')
         C.integer(selection['option'],'recipe material alternative',0,len(group['options'])-1)
         C.integer(selection['scrap_value'],'scrap cost',0)
         option=group['options'][selection['option']];amount=option['amount']*count
+        if 'shop' in selection and (not csv_materials or option['kind']!='value'):raise ValueError('shop only purchases CSV monetary recipe materials')
         payment={'group':group['id'],'option':selection['option'],'kind':option['kind'],'amount':amount}
         if 'instances' in selection:
             if option['kind']!='item' or selection['scrap_value']:raise ValueError('physical inputs require the declared counted item')
@@ -260,9 +263,13 @@ def prepare_materials(engine,actor,groups,*,count=1,inputs=None,allow_zero_value
             continue
         if option['kind']=='value':
             scrap=selection['scrap_value']
-            if (scrap and not option['scrap']) or (scrap!=amount and not option['money']):raise ValueError('recipe does not permit that money/scrap substitution')
-            cost=R.prepare_cost(actor,option['category'],amount,scrap)
+            category=R.material_kind(option['category']) if csv_materials else option['category']
+            if csv_materials and group['id'] not in inputs:
+                scrap=min(amount,actor.spec.get('crafting_scrap',{}).get(category,0)-debits['crafting_scrap',category])
+            if not csv_materials and ((scrap and not option['scrap']) or (scrap!=amount and not option['money'])):raise ValueError('recipe does not permit that money/scrap substitution')
+            cost=R.prepare_cost(actor,category,amount,scrap,shop=selection.get('shop'))
             payment.update(category=cost.kind,scrap=cost.scrap,money=cost.money)
+            if csv_materials:payment.update(materials_edition='csv-homebrew',purchased_material_value=cost.money,shop=cost.shop)
             debits['crafting_scrap',cost.kind]+=cost.scrap;debits['money',None]+=cost.money
         else:
             if selection['scrap_value']:raise ValueError('monetary scrap cannot pay counted recipe ingredients')
@@ -285,7 +292,7 @@ def pay_materials(engine,actor,payments):
     payments=deepcopy(payments)
     for payment in payments:
         if payment['kind']=='value':
-            R.pay_cost(actor,R.ValueCost(payment['category'],payment['amount'],payment['scrap'],payment['money']))
+            R.pay_cost(actor,R.ValueCost(payment['category'],payment['amount'],payment['scrap'],payment['money'],payment.get('shop')))
         elif payment['kind']=='physical_item':
             import item_stock as STOCK
             payment['stock']=STOCK.debit(engine,actor,payment['stock'])

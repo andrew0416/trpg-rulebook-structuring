@@ -659,7 +659,9 @@ def fainted(engine, actor):
         other = _actor(engine, marker["owner_id"]) if isinstance(marker, dict) and marker.get("kind") == "as_one_mount" else None
     if other is not None and not other.fainted:
         import keep_fighting as KEEP
-        other.hp = KEEP.replace_hp(engine,other,other.hp,0,source='C2CSV/item-data:80:5',loss_kind='as_one',amount=other.hp)
+        before = other.hp
+        proposed = KEEP.replace_hp(engine,other,before,0,source='C2CSV/item-data:80:5',loss_kind='as_one',amount=before)
+        other.hp = __import__('fashion_items').replace_hp(engine,other,before,proposed)
         import life as LIFE
         if other.hp<=0:LIFE.faint(engine, other)
 

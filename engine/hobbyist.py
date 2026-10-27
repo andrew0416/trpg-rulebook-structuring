@@ -264,13 +264,20 @@ def _non_skill(engine,actor,feature,options):
 
 
 def general_snapshot(engine,actor,feature,selection):
- if selection is not None:raise ValueError('this General Feature has no acquisition choice')
- return {'skills':{s:S.rank(engine.r,actor,s)[2] for s in engine.r.skill_policy['skills']},
+ result={'skills':{s:S.rank(engine.r,actor,s)[2] for s in engine.r.skill_policy['skills']},
          'parents':{p:owned(actor,p) for p in FEATURE_PARENTS.get(feature,())}}
+ if feature=='feat/포켓몬매니아':
+  result.update(selection=deepcopy(selection),source=__import__('pokemon_activities').pokemaniac_source(engine.r,selection))
+ elif selection is not None:raise ValueError('this General Feature has no acquisition choice')
+ return result
 
 
 def general_qualification(actor,feature,snapshot,prerequisite_source):
- if prerequisite_source is not None or set(snapshot)!={'skills','parents'} or set(snapshot['skills'])!=set(actor.r.skill_policy['skills']) or set(snapshot['parents'])!=set(FEATURE_PARENTS.get(feature,())):raise ValueError('exact General Feature acquisition prerequisites required')
+ fields={'skills','parents'}
+ if feature=='feat/포켓몬매니아' and set(snapshot)!=fields:
+  fields|={'selection','source'}
+  __import__('pokemon_activities').pokemaniac_snapshot_source(actor.r,snapshot)
+ if prerequisite_source is not None or set(snapshot)!=fields or set(snapshot['skills'])!=set(actor.r.skill_policy['skills']) or set(snapshot['parents'])!=set(FEATURE_PARENTS.get(feature,())):raise ValueError('exact General Feature acquisition prerequisites required')
  if any(type(v)is not int or v<1 for v in snapshot['skills'].values()):raise ValueError('actual declared skill ranks required')
  checks=[Q.check('trainer','prerequisite',actor.kind=='trainer','actual Trainer required')]
  checks.extend(Q.check(p,'prerequisite',n==1,'actual General Feature Edge prerequisite required: '+p) for p,n in snapshot['parents'].items())
@@ -282,6 +289,7 @@ def general_qualification(actor,feature,snapshot,prerequisite_source):
 
 
 def child_qualification(actor,feature,snapshot,authority):
+ if feature=='feat/포켓몬매니아':__import__('pokemon_activities').pokemaniac_snapshot_source(actor.r,snapshot)
  if type(authority)is not dict or set(authority)!={'hobbyist_parent','kind'}:raise ValueError('exact acquired Hobbyist provider authority required')
  facts=snapshot.get('hobbyist_qualification')
  if type(facts)is not dict or set(facts)!={'non_skill','provider'}:raise ValueError('actual Hobbyist child acquisition observations required')
@@ -303,6 +311,10 @@ def child_qualification(actor,feature,snapshot,authority):
 
 def _child_snapshot(engine,actor,feature,options):
  # Preserve existing consumer snapshots where the consumer reads source choices.
+ if feature=='feat/포켓몬매니아':
+  selection=options.get('selection')
+  if set(options)-{'selection'}:raise ValueError('Pokemaniac child accepts only its reviewed source selection')
+  return {'selection':deepcopy(selection),'source':__import__('pokemon_activities').pokemaniac_source(engine.r,selection)}
  if feature in __import__('versatility').FEATURES:return __import__('versatility').acquisition_snapshot(engine,actor,feature,options.get('selection'))
  if feature in __import__('focused_command').FEATURES:return __import__('focused_command').acquisition_snapshot(engine,actor,feature)
  if feature==__import__('walk_it_off').FEATURE:return __import__('walk_it_off').acquisition_snapshot(engine,actor,options.get('selection'))

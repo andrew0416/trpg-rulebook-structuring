@@ -3605,7 +3605,7 @@ class Engine:
     def lose_hp(self, c, amount, source="damage", *, unpreventable=False, loss_kind="loss"):
         import ability_state_projection as PROJECTION,state_grants as GRANTS
         import keep_fighting as KEEP
-        if PROJECTION.hp_change_interested(c) or KEEP.interested(self,c) or __import__('enduring_soul').interested(self,c) or __import__('type_ace').hp_interested(self,c) or c.spec.get('perseverance_choice') or __import__('berserker').acquired(c,__import__('berserker').FIGHT):
+        if PROJECTION.hp_change_interested(c) or KEEP.interested(self,c) or __import__('enduring_soul').interested(self,c) or __import__('type_ace').hp_interested(self,c) or c.spec.get('perseverance_choice') or __import__('berserker').acquired(c,__import__('berserker').FIGHT) or __import__('fashion_items').focus_interested(self,c):
             return GRANTS.transition(self,c,lambda e,actor:e._lose_hp(actor,amount,source,unpreventable=unpreventable,loss_kind=loss_kind),include_rulings=True,include_grid=self.grid is not None)
         return self._lose_hp(c,amount,source,unpreventable=unpreventable,loss_kind=loss_kind)
 
@@ -3644,6 +3644,7 @@ class Engine:
         if not unpreventable:
             proposed=__import__('endure').replace_hp(self,c,before,proposed,source=source,loss_kind=loss_kind)
             proposed=KEEP.replace_hp(self,c,before,proposed,source=source,loss_kind=loss_kind,amount=amount,unpreventable=False)
+            proposed=__import__('fashion_items').replace_hp(self,c,before,proposed)
         c.hp = proposed
         import bandages as BANDAGES
         __import__('type_ace').hp_changed(self,c,before,maxhp)
@@ -3669,7 +3670,7 @@ class Engine:
         import control_mount as MOUNT,state_grants as GRANTS,ability_state_projection as PROJECTION
         projection_hp=PROJECTION.hp_change_interested(c)
         import keep_fighting as KEEP
-        keep_hp=KEEP.interested(self,c) or __import__('enduring_soul').interested(self,c) or __import__('type_ace').hp_interested(self,c) or bool(c.spec.get('perseverance_choice'))
+        keep_hp=KEEP.interested(self,c) or __import__('enduring_soul').interested(self,c) or __import__('type_ace').hp_interested(self,c) or bool(c.spec.get('perseverance_choice')) or __import__('fashion_items').focus_interested(self,c)
         if MOUNT.managed_subject(c) or '잠듦' in c.conditions or projection_hp or keep_hp:
             return GRANTS.transition(self,c,lambda e,target:e._take_damage(target,amount),include_rulings=projection_hp or keep_hp,include_grid=(projection_hp or keep_hp) and self.grid is not None)
         return self._take_damage(c,amount)
@@ -3701,7 +3702,8 @@ class Engine:
         import keep_fighting as KEEP
         proposed=__import__('endure').replace_hp(self,c,before,before-amount,source='attack_damage',loss_kind='damage')
         proposed = KEEP.replace_hp(self,c,before,proposed,source='attack_damage',loss_kind='damage',amount=amount)
-        c.hp = __import__('capture_specialist').replace_knockout(self,c,before,proposed)
+        proposed = __import__('capture_specialist').replace_knockout(self,c,before,proposed)
+        c.hp = __import__('fashion_items').replace_hp(self,c,before,proposed,move_damage=True)
         __import__('type_ace').hp_changed(self,c,before,maxhp)
         __import__('athlete').hp_changed(self,c,before,maxhp)
         BANDAGES.on_hp_change(self,c,before,c.hp)
@@ -4137,6 +4139,7 @@ class Engine:
         import area_targets as AREA
         import stat_ace as STAT
         move = STAT.bind(self,attacker,move)
+        move = __import__('telekinetic').project_move(self,attacker,move)
         if move_id=='move/일렉트로빔' and aim is None:aim=primary.pos
         move = AREA.bind(self,attacker,move,aim)
         move=__import__('native_area_hit_effects').bind(self,attacker,primary,move)
@@ -4517,6 +4520,7 @@ class Engine:
         move = PASS.bind(self,attacker,move)
         import stat_ace as STAT
         move = STAT.bind(self,attacker,move)
+        move = __import__('telekinetic').project_move(self,attacker,move)
         move = AREA.bind(self,attacker,move,aim)
         import struggle_capabilities as STRUGGLE
         move = STRUGGLE.prepare(self,attacker,move,struggle_choice)
@@ -4812,6 +4816,7 @@ class Engine:
         REACTIVE_ABILITIES.begin_move(self,attacker,target,move,completion_id)
         import event_effects as EVENTS
         EVENTS.begin_move_use(self,attacker,target,move,mm)
+        __import__('telekinetic').begin_move(self,attacker,target,move,completion_id)
         import optional_state_effect_contracts as OPTIONAL_STATE
         OPTIONAL_STATE.begin_move(self,attacker,target,move,completion_id)
         FX.fire_event(self, attacker, {"event": "on_move_use", "move": move}, target)

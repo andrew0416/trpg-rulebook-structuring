@@ -93,12 +93,18 @@ def set_capabilities(e,c,values,*,basis,reason_text):
  else:probe._movement_value=values.get('land',4)+delta
  import move_capabilities as MOVE_CAPABILITIES
  probe.spec[MOVE_CAPABILITIES.TOTALS_KEY]=MOVE_CAPABILITIES.observe_totals(probe)
+ import pokemon_capability_edges as CAP_EDGES
+ if any(row.get('source')==CAP_EDGES.MOUNT and row.get('status')=='active' for row in c.spec.get('learned_poke_edges',[])):
+  probe.spec['learned_poke_edges']=deepcopy(c.spec['learned_poke_edges'])
+  CAP_EDGES.reconcile_named(probe,reason=reason_text)
  result=capabilities(e,probe,environment=False)
  import environment_derive as ED
  result=ED.movement(e,c,result)
  before={'movement':deepcopy(c.spec.get('movement')),'basis':c.spec.get('movement_basis','current')}
  c.spec['movement']=deepcopy(values);c.spec['movement_basis']=basis
  c.spec[MOVE_CAPABILITIES.TOTALS_KEY]=probe.spec[MOVE_CAPABILITIES.TOTALS_KEY]
+ for field in ('tutor_points','learned_poke_edges'):
+  if field in probe.spec and probe.spec[field]!=c.spec.get(field):c.spec[field]=deepcopy(probe.spec[field])
  c.__dict__.pop('movement',None)
  if basis=='trainer_base':c._movement_delta=delta
  else:c._movement_value=values.get('land',4)+delta

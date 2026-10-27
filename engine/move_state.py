@@ -456,6 +456,7 @@ def describe(rules,spec,*,moves=None,abilities=None,require_routes=False):
  occupancy=SLOTS.occupancy({'total':caps['total'],'taught':caps['taught']},
   [{'id':mid,'source':'observed move ownership','weights':{'total':2 if mid in vms or mid in personals else 1,
     'taught':2 if classes[mid]=='vm' else 0 if (__import__('researcher_fields').pool_exempt(spec,mid) or __import__('chronicler').tutor_pool_exempt(rules,spec,mid)) else 1 if classes[mid]=='taught' else 0}} for mid in selected],
+  reservations=__import__('pokemon_capability_edges').slot_reservations(rules,spec),
   exemptions={'total':caps['exempt']})
  slot_count=occupancy['used']['total']
  vitamins=vitamin_state(rules,spec) if vms or personals else None

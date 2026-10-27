@@ -183,7 +183,7 @@ def craftable(engine,trainer):
  return [row['id'] for row in RECIPES if qualifies(engine,trainer,row['id'])]
 
 
-def craft(engine,trainer,recipe_id,*,seconds,reason,count=1,inputs=None,product_policy=None,event_id=None,incense_move=None):
+def craft(engine,trainer,recipe_id,*,seconds,reason,count=1,inputs=None,product_policy=None,event_id=None,incense_move=None,contest_stat=None):
  """Craft one printed Fashionista recipe through the shared crafting owners.
 
  Parfumier: when the maker owns Parfumier and the recipe is an Incense Held Item,
@@ -192,6 +192,10 @@ def craft(engine,trainer,recipe_id,*,seconds,reason,count=1,inputs=None,product_
  require(engine,trainer);row=recipe_row(recipe_id);_text(reason,'crafting reason')
  if not qualifies(engine,trainer,recipe_id):raise ValueError('Fashionista recipe requirements are not met: '+recipe_id)
  declaration=recipe(engine,trainer,recipe_id,seconds=seconds)
+ import fashion_items as FASHION
+ contest_item=row['output']['item_id'] in (FASHION.CONTEST_FASHION,'item/멋진-옷')
+ if contest_stat is not None and (not contest_item or contest_stat not in FASHION.CONTEST_STATS):raise ValueError('printed Contest Fashion or Fancy Clothes stat required')
+ if contest_item and product_policy is not None and contest_stat is None:raise ValueError('assign the crafted Contest Fashion or Fancy Clothes stat')
  parfumier=acquired(trainer,PARFUMIER) if row.get('incense') else None
  mid=None
  if parfumier is not None:
@@ -202,6 +206,12 @@ def craft(engine,trainer,recipe_id,*,seconds,reason,count=1,inputs=None,product_
  def apply(e,t):
   import crafting_recipes as RECIPES_CORE
   result=RECIPES_CORE.craft(e,t,declaration,count=count,inputs=inputs,reason=reason,product_policy=product_policy,event_id=event_id)
+  if contest_stat is not None:
+   t.spec['crafting_products'][result['production_id']]['transformation']['result']['fashionista_contest_stat']=contest_stat
+   for identity in result['product_instance_ids']:
+    obj=e._physical_objects[identity]
+    if obj.get('fashionista_contest_stat') not in (None,contest_stat):raise ValueError('crafted contest stat is immutable')
+    obj['fashionista_contest_stat']=contest_stat
   if mid is not None:
    for identity in result['product_instance_ids']:
     obj=e._physical_objects[identity]
@@ -211,9 +221,25 @@ def craft(engine,trainer,recipe_id,*,seconds,reason,count=1,inputs=None,product_
    e.log('  '+t.name+': 조향사 향로 기술 선택 '+mid,PARFUMIER)
   return result
  return G.transition(engine,trainer,apply)
+def contest_assignment(engine,obj):
+ """Only the actual committed Fashionista product authenticates its chosen stat."""
+ if not isinstance(obj,dict) or 'fashionista_contest_stat' not in obj:return None
+ import world_entities as W,fashion_items as FASHION
+ origin=obj.get('crafting_origin',{});maker=W.actor_index(engine).get(origin.get('maker_id'))
+ product=maker.spec.get('crafting_products',{}).get(origin.get('production_id'),{}) if maker else {}
+ result=product.get('transformation',{}).get('result',{})
+ stat=obj['fashionista_contest_stat']
+ if (stat not in FASHION.CONTEST_STATS or result.get('fashionista_contest_stat')!=stat
+     or obj.get('id') not in result.get('product_instance_ids',[]) or result.get('recipe_source')!=CLASS
+     or result.get('item_id')!=obj.get('item_rule_id')
+     or result.get('recipe_id') not in ('fashionista/contest-fashion','fashionista/fancy-clothes')):
+  raise ValueError('actual crafted contest stat source changed')
+ return stat
 
 
 # ---------------------------------------------------------------- Parfumier
+
+
 def incense_choice(obj):
  choice=obj.get(INCENSE) if isinstance(obj,dict) else None
  if choice is None:return None
@@ -280,6 +306,9 @@ def effect_semantics(engine,item_id):
  rows=set()
  for effect in effects:
   if not isinstance(effect,dict) or effect.get('type') in INERT_EFFECTS:continue
+  # These two printed targets name the same wearer, not another recipient.
+  effect=dict(effect)
+  if effect.get('target') in ('self','holder'):effect['target']='self'
   rows.add(json.dumps(I.normalize(effect),ensure_ascii=False,sort_keys=True))
  return rows
 
@@ -308,11 +337,12 @@ def accessory_slot(engine,actor,item_id,effects,options,occupied,registrations):
 
 
 def validate_projection(projection):
- if type(projection) is not dict or set(projection)-{'wardrobe_instance_id'}!={'source_id','registration_key','owner_id','rule_id','lifetime','clause_id'}:
+ if type(projection) is not dict or set(projection)-{'wardrobe_instance_id','contest_stat'}!={'source_id','registration_key','owner_id','rule_id','lifetime','clause_id'}:
   raise ValueError('exact Fashionista item projection required')
  for key,value in projection.items():_text(value,'projection '+key)
  if projection['rule_id'] not in (MAKEOVER,DRESS) or not projection['source_id'].startswith((MAKEOVER_PREFIX,DRESS_PREFIX)):raise ValueError('unknown item projection source')
  if 'wardrobe_instance_id' in projection and projection['rule_id']!=DRESS:raise ValueError('only Dress projects an actual stored item')
+ if 'contest_stat' in projection and (projection['rule_id']!=MAKEOVER or projection['contest_stat'] not in __import__('fashion_items').CONTEST_STATS):raise ValueError('printed Makeover contest stat required')
  return projection
 
 
@@ -364,13 +394,41 @@ def _can_equip(engine,target,item_id):
  import items as I
  effects,header=engine.r.item_effects(item_id)
  if effects is None:raise ValueError('selected item rule required: '+str(item_id))
+ import fashion_items as FASHION
+ if item_id in FASHION.BOOK_ITEMS:header=FASHION.registration_header(header,FASHION.book_definition(engine.r,item_id))
  if target.kind=='trainer':
   if '포켓몬 전용' in str(header.get('desc','')) or any(isinstance(e,dict) and e.get('type')=='restriction' and e.get('only')=='pokemon' for e in effects):return False
   return bool(I.item_slot_options(header,effects)) or (header.get('use')=='equipment' and bool(header.get('slot')))
  return header.get('use')=='held' or header.get('category')=='포켓몬 도구'
+def projected_equipment_header(engine,actor,registration):
+ """Authenticate the feature projection before classifying its printed slot type."""
+ projection=registration.get('projection');validate_projection(projection)
+ if (getattr(actor,'_item_reg',{}).get(projection['registration_key']) is not registration
+     or registration.get('state_source')!=projection['source_id']):raise ValueError('actual Fashion projection registration required')
+ import fashion_items as FASHION,world_entities as W
+ FASHION._projection(engine,actor,registration['item_id'],projection)
+ owner=W.actor_index(engine).get(projection['owner_id'])
+ if projection['rule_id']==MAKEOVER:
+  record=makeover_record(actor)
+  bound=owner.spec.get('ap_bound')
+  if (record is None or any(record[key]!=projection[key] for key in ('source_id','registration_key','owner_id'))
+      or record['item_id']!=registration['item_id'] or not isinstance(bound,dict) or bound.get(record['source_id'])!=record['ap']):
+   raise ValueError('actual bound Makeover source required')
+ else:
+  facts=(dress_record(actor) or {}).get('fashionista_dress',{})
+  if facts.get('owner_id')!=owner.entity_id or projection['registration_key'] not in facts.get('registration_keys',[]):
+   raise ValueError('actual timed Dress projection required')
+ source=actor.spec.get(G.KEY,{}).get('sources',{}).get(projection['source_id'])
+ if source is not None and (source.get('identity_evidence')!='feature_projection'
+     or source.get('projection')!={k:v for k,v in projection.items() if k!='source_id'}):raise ValueError('Fashion projection source changed')
+ effects,header=engine.r.item_effects(registration['item_id'])
+ if effects is None:raise ValueError('selected projected equipment required')
+ return effects,FASHION.registration_header(header,FASHION.book_definition(engine.r,registration['item_id']))
 
 
 # ---------------------------------------------------------------- Dashing Makeover
+
+
 def makeover_record(actor):
  row=actor.spec.get(MAKEOVER_KEY)
  if row is None:return None
@@ -379,7 +437,7 @@ def makeover_record(actor):
  return row
 
 
-def makeover(engine,trainer,target,item_id,*,recipe_id,seconds,reason):
+def makeover(engine,trainer,target,item_id,*,recipe_id,seconds,reason,contest_stat=None):
  """2 AP bound Extended action: the target gains the chosen craftable item's effects without a slot."""
  import action_points as AP,world_entities as W,pokemon_activities as P
  require(engine,trainer,MAKEOVER);W.require_actors(engine,target);_text(reason,'Dashing Makeover reason')
@@ -387,6 +445,9 @@ def makeover(engine,trainer,target,item_id,*,recipe_id,seconds,reason):
  if target.kind not in d['targets']:raise ValueError('Dashing Makeover targets one Trainer or Pokemon')
  row=recipe_row(recipe_id)
  if row['output']['item_id']!=item_id or not qualifies(engine,trainer,recipe_id):raise ValueError('Dashing Makeover projects only an Equipment or Held Item you can currently craft')
+ if item_id==__import__('fashion_items').CONTEST_FASHION:
+  if contest_stat not in __import__('fashion_items').CONTEST_STATS:raise ValueError('projected Contest Fashion needs its assigned stat')
+ elif contest_stat is not None:raise ValueError('contest stat belongs to Contest Fashion')
  C.integer(seconds,'actual Extended Dashing Makeover seconds',1)
  if makeover_record(target) is not None:raise ValueError('a target may be under the effect of only one Dashing Makeover at a time')
  if not _can_equip(engine,target,item_id):raise ValueError('the target could not normally equip that item')
@@ -403,10 +464,12 @@ def makeover(engine,trainer,target,item_id,*,recipe_id,seconds,reason):
   AP.charge(t,d['ap'],mode='bind',instance_id=sid)
   key='makeover:'+t.entity_id
   projection={'source_id':sid,'registration_key':key,'owner_id':t.entity_id,'rule_id':MAKEOVER,'lifetime':'bound_ap','clause_id':clause(MAKEOVER)}
+  if contest_stat is not None:projection['contest_stat']=contest_stat
+  q.spec[MAKEOVER_KEY]={'source_id':sid,'registration_key':key,'owner_id':t.entity_id,'item_id':item_id,'recipe_id':recipe_id,
+   'acquisition':acquired(t,MAKEOVER)['request_id'],'clause_id':clause(MAKEOVER),'ap':d['ap'],'at':e.elapsed_seconds,'effects':0,'reason':reason}
   n=I.register_item(e,q,item_id,projection=projection)
   if key not in getattr(q,'_item_reg',{}):raise ValueError('Dashing Makeover projection was refused by the item owner')
-  q.spec[MAKEOVER_KEY]={'source_id':sid,'registration_key':key,'owner_id':t.entity_id,'item_id':item_id,'recipe_id':recipe_id,
-   'acquisition':acquired(t,MAKEOVER)['request_id'],'clause_id':clause(MAKEOVER),'ap':d['ap'],'at':e.elapsed_seconds,'effects':n,'reason':reason}
+  q.spec[MAKEOVER_KEY]['effects']=n
   e.log('  '+t.name+': 근사한 단장 → '+q.name+' '+item_id+' (효과 '+str(n)+'개, 2 AP 지속)',MAKEOVER)
   return deepcopy(q.spec[MAKEOVER_KEY])
  return G.transition(engine,trainer,apply,participants=(target,) if target is not trainer else ())
@@ -750,20 +813,21 @@ def dress_to_impress(engine,trainer,pokemon,*,communication=None):
   ORDERS.spend(e,t,DRESS,action=d['action'],subject=q.entity_id,communication=delivery)
   F.consume_activation(t,DRESS,d['frequency'],engine=e);F.consume_activation(t,DRESS+':'+q.entity_id,d['per_pokemon'],engine=e)
   keys=[];installed=[]
+  record={'source':DRESS,'count_deadline':(e.round_no+1,count),'encounter_end':True,
+   'fashionista_dress':{'owner_id':t.entity_id,'acquisition':acquired(t,DRESS)['request_id'],'clause_id':clause(DRESS),'registration_keys':keys,'items':installed,'round':e.round_no,'count':count}}
+  T.install(e,q,record)
   for entry in stored:
    if any(r.get('item_id')==entry['item_id'] and not r.get('projection') for r in getattr(q,'_item_reg',{}).values()):
     raise ValueError('the Chic Pokemon already benefits from that item: '+entry['item_id'])
    sid=DRESS_PREFIX+q.entity_id+':'+entry['instance_id'];key='dress:'+entry['slot_id']
    projection={'source_id':sid,'registration_key':key,'owner_id':t.entity_id,'rule_id':DRESS,'lifetime':'round','clause_id':clause(DRESS),
     'wardrobe_instance_id':entry['instance_id']}
+   keys.append(key);installed.append({'slot_id':entry['slot_id'],'instance_id':entry['instance_id'],'item_id':entry['item_id'],'effects':0})
    # A projected Choice item never enters the active slot, so the printed suppression (and its conditional stage boost) does not start here.
    resolved={'can receive 억압':False} if entry['item_id'] in CHOICE_ITEMS else None
    n=I.register_item(e,q,entry['item_id'],projection=projection,resolved_conditions=resolved)
    if key not in getattr(q,'_item_reg',{}):raise ValueError('Dress to Impress projection was refused by the item owner: '+entry['item_id'])
-   keys.append(key);installed.append({'slot_id':entry['slot_id'],'instance_id':entry['instance_id'],'item_id':entry['item_id'],'effects':n})
-  record={'source':DRESS,'count_deadline':(e.round_no+1,count),'encounter_end':True,
-   'fashionista_dress':{'owner_id':t.entity_id,'acquisition':acquired(t,DRESS)['request_id'],'clause_id':clause(DRESS),'registration_keys':keys,'items':installed,'round':e.round_no,'count':count}}
-  T.install(e,q,record)
+   installed[-1]['effects']=n
   e.log('  '+t.name+': 인상적인 복장 → '+q.name+' 보관 도구 '+str(len(installed))+'개 한 라운드 활성',DRESS)
   return deepcopy(record['fashionista_dress'])
  return G.transition(engine,trainer,apply,participants=(pokemon,),include_rulings=True)
@@ -815,7 +879,10 @@ def validate(engine):
    registration=getattr(actor,'_item_reg',{}).get(record['registration_key'])
    if registration is None or registration.get('item_id')!=record['item_id'] or registration.get('state_source')!=record['source_id'] or registration.get('projection',{}).get('source_id')!=record['source_id']:
     raise ValueError('Dashing Makeover projection registration changed')
-   if record['source_id'] not in actor.spec.get(G.KEY,{}).get('sources',{}):raise ValueError('Dashing Makeover projection lost its live source')
+   if record['source_id'] not in actor.spec.get(G.KEY,{}).get('sources',{}):
+    import equipment_suppression as SUPPRESSION
+    reasons=SUPPRESSION.reasons(engine,actor,record['registration_key'],registration)
+    if not reasons or registration.get(SUPPRESSION.KEY)!={'reasons':reasons}:raise ValueError('Dashing Makeover projection lost its live source')
    bound=owner.spec.get('ap_bound')
    if not isinstance(bound,dict) or bound.get(record['source_id'])!=record['ap']:raise ValueError('Dashing Makeover lost its bound AP reservation')
    if record['source_id']!=MAKEOVER_PREFIX+owner.entity_id+':'+actor.entity_id:raise ValueError('Dashing Makeover identity changed')

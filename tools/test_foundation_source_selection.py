@@ -247,15 +247,29 @@ class SourceSelectionTests(unittest.TestCase):
 
  def test_expand_horizons_feature_does_not_admit_same_named_unresolved_edge(self):
   from ruleset import UnresolvedRuleSelection
+  feature='feat/시야-넓히기';edge='poke_edge/unreviewed-expand-alias'
+  unit=deepcopy(self.rules.selection.units['poke_edge/시야-넓히기'])
+  unit.update(id=edge,source_group='기타/홈브류');unit['source']['record_span']=[65,65]
+  selection=RuleSelection(self.rules.ruleset,[deepcopy(self.rules.selection.units[feature]),unit])
+  self.assertEqual(selection.resolve(feature),feature)
+  with self.assertRaisesRegex(UnresolvedRuleSelection,'unknown_variant_lineage'):selection.resolve(edge)
+  with self.assertRaises(UnresolvedRuleSelection):selection.resolve_name('시야 넓히기')
+
+ def test_expand_horizons_reviewed_csv_keeps_distinct_source_and_name_ambiguity(self):
+  from ruleset import UnresolvedRuleSelection
   feature='feat/시야-넓히기';edge='poke_edge/시야-넓히기'
   selected=self.rules.select_source_definition(feature)
   self.assertEqual(selected['selected_id'],feature)
   self.assertEqual(selected['source']['file'],'ch04-trainer-classes.md')
-  with self.assertRaisesRegex(UnresolvedRuleSelection,'unknown_variant_lineage'):
-   self.rules.select_source_definition(edge)
+  csv=self.rules.select_source_definition(edge)
+  self.assertEqual(csv['selected_id'],edge)
+  self.assertEqual(csv['source']['file'],'db/poke-edges.csv')
+  self.assertEqual(csv['verified_reference']['sha256'],'8e4bbb735033db781ca011f98885c1b5fe1b900da75a196b9e6f8734ceff946d')
+  self.assertEqual(self.rules.selection.dependencies[edge],(feature,))
   with self.assertRaises(UnresolvedRuleSelection):
    self.rules.selection.resolve_name('시야 넓히기')
   self.assertEqual(self.rules.selection.resolve_name('시야 넓히기',('feat/',)),feature)
+  self.assertEqual(self.rules.selection.resolve_name('시야 넓히기',('poke_edge/',)),edge)
   self.assertEqual(self.rules.selection.units[edge]['source']['record_span'],[64,64])
 
  def shock_package(self):

@@ -82,6 +82,7 @@ def effective(c, field, *, include_suppressed=False, only=None):
         import move_capabilities as MOVE_CAPABILITIES
         result.extend(row['capability'] for row in MOVE_CAPABILITIES.contributions(c))
         result.extend(__import__('survivalist_class').capability_contributions(c))
+        result=__import__('pokemon_capability_edges').named_capabilities(c,result)
     overlays = [r[field] for r in st.get("overlays", {}).values() if field in r]
     if overlays:
         result = overlays[-1]

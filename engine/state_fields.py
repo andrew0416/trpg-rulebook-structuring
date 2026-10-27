@@ -317,6 +317,11 @@ def base_patch(c, changes, *, reason, source="gm/state", request_id=None, expect
         PARAMETERS.reconcile(probe,reason=reason)
         for field in ('tutor_points','learned_poke_edges'):
             if field in proposed and proposed[field]!=c.spec.get(field):derived_changes[field]=deepcopy(proposed[field])
+    if c.kind=='pokemon' and set(changes)&{'level','stats','size','movement'}:
+        probe=copy(c);probe.spec=proposed
+        __import__('pokemon_capability_edges').reconcile_named(probe,reason=reason)
+        for field in ('tutor_points','learned_poke_edges'):
+            if field in proposed and proposed[field]!=c.spec.get(field):derived_changes[field]=deepcopy(proposed[field])
     if c.kind == "pokemon" and "skills" in changes:
         import pokemon_skill_edges as POKE_EDGES
         POKE_EDGES.refund_excess(c.r,proposed,reason=reason)

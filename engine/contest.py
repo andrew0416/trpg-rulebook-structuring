@@ -326,6 +326,9 @@ class ContestEngine:
                 engine.r._selected_rule(source)
                 if source not in choices:
                     raise ValueError("Equipped introduction bonus needs a chosen contest stat")
+                assignments = {__import__('fashionista').contest_assignment(engine, getattr(engine, '_physical_objects', {}).get(row.get('instance_id'))) for row in actor._item_reg.values() if row.get('item_id') == source}
+                if assignments - {None, choices[source]}:
+                    raise ValueError('Introduction stat differs from the actual crafted assigned stat')
                 sources.add(source)
                 bonuses.append({"source_id": source, "stat": choices[source]})
         grooming = pokemon.spec.get("grooming", {})

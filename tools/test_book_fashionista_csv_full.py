@@ -76,9 +76,12 @@ class FashionistaCSVFullTests(unittest.TestCase):
                   if row.get('fashionista_skill') and FA.qualifies(self.e, self.t, row['id'])}
         self.assertEqual(actual, expected)
         self.rejected(lambda:self.basic('command'), 'requirements are not met')
-        for item_id in FASHION.ITEM_IDS:
+        for item_id in FASHION.HOMEBREW_ITEM_IDS:
             with self.assertRaises(ValueError):
                 self.rules.item_effects(item_id)
+        for item_id in FASHION.CORE_ITEM_IDS:
+            effects, header = self.rules.item_effects(item_id)
+            self.assertIsNotNone(effects);self.assertEqual(header['id'], item_id)
         for recipe, item_id in expected.items():
             self.assertEqual(self.craft(recipe)['item_id'], item_id)
         self.assertEqual(self.t.spec['money'], 19000)
@@ -97,7 +100,7 @@ class FashionistaCSVFullTests(unittest.TestCase):
         self.rejected(lambda:self.e.activate_fashion_item(self.q, item), 'already activated')
         I.unregister_item(self.e, self.q, registration_key=HELD.entries(self.q)[0]['registration_key'])
         I.equip_held(self.e, self.q, item, source_instance_id='second-book-cute')
-        self.rejected(lambda:self.e.activate_fashion_item(self.q, item), 'scene activation is exhausted')
+        self.rejected(lambda:self.e.activate_fashion_item(self.q, item), 'already activated')
         I.unregister_item(self.e, self.q, registration_key=HELD.entries(self.q)[0]['registration_key'])
         I.equip_held(self.e, self.q, item, source_instance_id='basic:1')
         with self.assertRaisesRegex(ValueError, 'matching equipped Fashion contest stat'):
@@ -110,6 +113,25 @@ class FashionistaCSVFullTests(unittest.TestCase):
         self.e.end_round()
         self.combat(self.q)
         self.assertEqual(LIFETIMES.numeric(self.q, 'evasion_modifier'), 0)
+
+    def test_selected_core_item_without_fashionista_class_source_keeps_observed_holder_activation(self):
+        from ruleset import RuleFilter
+        profile = deepcopy(self.rules.ruleset.profile)
+        profile['exclude_units'] = list(dict.fromkeys([*profile.get('exclude_units', []), FA.CLASS]))
+        selected = RuleFilter(profile, 'core-item-without-fashionista-class')
+        with patch.object(RuleFilter, 'load', return_value=selected):
+            rules = Rules(fixture.ROOT)
+        previous = self.rules;self.rules = rules;self.addCleanup(setattr, self, 'rules', previous)
+        self.setup()
+        with self.assertRaises(ValueError):
+            self.rules._selected_rule(FA.CLASS)
+        self.hold(self.q, 'observed-selected-core-cute', 'item/귀여운-패션')
+        self.assertIsNone(FA.acquired(self.t, FA.CLASS))
+        self.combat(self.q)
+        self.e.activate_fashion_item(self.q, 'item/귀여운-패션')
+        self.assertEqual(LIFETIMES.numeric(self.q, 'evasion_modifier'), 2)
+        self.restore();self.valid()
+        self.rejected(lambda:self.e.activate_fashion_item(self.q, 'item/귀여운-패션'), 'already activated')
 
     def test_book_elegant_enemy_stage_loss_reaction_is_free_scene_once_without_maker_restriction(self):
         self.acquire()
@@ -319,6 +341,15 @@ class FashionistaCSVFullTests(unittest.TestCase):
         self.hold(self.p, 'isolated-sash', 'item/기합의띠')
         self.e.take_damage(self.p, self.p.base_max_hp)
         self.assertTrue(self.p.fainted)
+        self.valid()
+
+    def test_focus_band_preserves_explicit_unpreventable_loss_without_roll_or_scene_use(self):
+        self.hold(self.p, 'unpreventable-band', 'item/기합의머리띠')
+        with patch.object(Engine, 'd20', return_value=20) as rolled:
+            self.e.lose_hp(self.p, self.p.base_max_hp, source='actual unpreventable HP loss', unpreventable=True)
+        rolled.assert_not_called()
+        self.assertTrue(self.p.fainted)
+        self.assertNotIn('focus:item/기합의머리띠', self.p.spec.get('frequency_state', {}).get('activations', {}))
         self.valid()
 
     def test_makeover_focus_band_has_no_physical_body_and_revokes_at_bound_ap_end(self):
@@ -583,18 +614,24 @@ class FashionistaCSVFullTests(unittest.TestCase):
         self.hold(self.p, 'ordinary-cute', 'item/귀여운-패션')
         ordinary = next(iter(self.p._item_reg.values()))
         source = self.p.spec[GRANTS.KEY]['sources'][ordinary['state_source']]
-        source['fashion_contract'] = FASHION.book_definition(self.rules, 'item/귀여운-패션')
+        # This selected catalog already binds the unsuffixed item to Core2043.
+        selected = deepcopy(source['fashion_contract'])
+        self.assertEqual(selected['contract'], 'book')
+        source['fashion_contract'] = dict(selected, contract='inventory')
         with self.assertRaisesRegex(ValueError, 'actual source contract'):
             I._passive_registration(self.e, self.p, ordinary)
-        source.pop('fashion_contract')
+        source['fashion_contract'] = selected
         self.room('move/매직룸')
-        self.assertIn(SUPPRESSION.KEY, ordinary)
+        self.assertNotIn(SUPPRESSION.KEY, ordinary)
         self.assertNotIn(SUPPRESSION.KEY, next(iter(self.q._item_reg.values())))
         self.combat(self.q)
         self.e.activate_fashion_item(self.q, 'item/귀여운-패션')
         self.restore()
         self.assertEqual(LIFETIMES.numeric(self.q, 'evasion_modifier'), 2)
         self.room('move/원더룸')
+        self.assertIsNotNone(FIELD.active(self.e, '신비'))
+        self.assertNotIn(SUPPRESSION.KEY, next(iter(self.p._item_reg.values())))
+        FIELD.clear(self.e)
         self.assertNotIn(SUPPRESSION.KEY, next(iter(self.p._item_reg.values())))
         self.valid()
 
@@ -625,6 +662,9 @@ class FashionistaCSVFullTests(unittest.TestCase):
         self.e.activate_fashion_item(self.p, 'item/귀여운-패션')
         self.assertEqual(LIFETIMES.numeric(self.p, 'evasion_modifier'), 2)
         self.room('move/원더룸')
+        self.assertIsNotNone(FIELD.active(self.e, '신비'))
+        self.assertFalse(list(FASHION._equipment(self.e, self.q, FASHION.FOCUS_ITEMS)))
+        FIELD.clear(self.e)
         self.assertEqual(len(list(FASHION._equipment(self.e, self.q, FASHION.FOCUS_ITEMS))), 1)
         self.assertIsNone(next(iter(self.q._item_reg.values()))['instance_id'])
         self.restore()
@@ -645,6 +685,9 @@ class FashionistaCSVFullTests(unittest.TestCase):
         self.assertFalse(list(FASHION._equipment(self.e, self.p, FASHION.FOCUS_ITEMS)))
         self.restore()
         self.room('move/원더룸')
+        self.assertIsNotNone(FIELD.active(self.e, '신비'))
+        self.assertFalse(list(FASHION._equipment(self.e, self.p, FASHION.FOCUS_ITEMS)))
+        FIELD.clear(self.e)
         self.assertEqual(len(list(FASHION._equipment(self.e, self.p, FASHION.FOCUS_ITEMS))), 1)
         self.assertEqual(len(HELD.entries(self.p)), 0)
         self.assertEqual(len(FA.wardrobe_items(self.e, self.p)), 1)

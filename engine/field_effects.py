@@ -651,6 +651,13 @@ def passive_equipment_suppressed(engine, actor, registration=None):
     state = active(engine, "신비")
     if state is None:
         return False
+    if registration is not None and registration.get('projection') is not None:
+        import fashionista as FASHIONISTA,items as ITEMS
+        effects,header=FASHIONISTA.projected_equipment_header(engine,actor,registration)
+        if actor.kind == 'pokemon':
+            return header.get('use') == 'held'
+        if actor.kind == 'trainer':
+            return ['장신구'] in ITEMS.item_slot_options(header,effects)
     if actor.kind == "pokemon":
         return registration is None or registration.get("held_slot") is not None
     if actor.kind == "trainer":

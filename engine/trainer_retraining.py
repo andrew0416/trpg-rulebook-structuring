@@ -163,6 +163,7 @@ def _native_dependencies(engine, actor, owned):
             if not set(parents)<=set(owned):raise ValueError('actual retained Telepath prerequisite required')
             result[child]=list(parents)
     for child,parents in __import__('telekinetic').PARENTS.items():
+        if child in owned:parents=__import__('telekinetic').prerequisite_parents(actor,child)
         if child in owned and parents:
             if not set(parents)<=set(owned):raise ValueError('actual retained Telekinetic prerequisite required')
             result[child]=list(parents)

@@ -1,6 +1,7 @@
 """Core Telekinetic source adapters over acquisition, equipment and combat owners."""
 from copy import deepcopy
 from functools import wraps
+from contextlib import contextmanager
 from pathlib import Path
 import json
 import common_checks as C, state_grants as G, world_entities as W
@@ -9,6 +10,7 @@ import combat_timing as TIME, skill_modifiers as SK
 CLASS='class/염동력자';ALPHA='feat/pk-알파';OMEGA='feat/pk-오메가'
 POWER='feat/정신의-힘';COMBAT='feat/pk-전투';BURST='feat/텔레키네틱-버스트';OVERLOAD='feat/초능력-과부하'
 KINESIS='move/숟가락휘기';BARRIER='move/배리어';PSYCHIC='move/사이코키네시스';LIFT='move/텔레키네시스'
+PSYSHOCK='move/사이코쇼크'
 INTERFERENCE='ability/간섭-core';PLAYTEST='ability/간섭-playtest';LEVITATE='ability/부유'
 SOURCE_SHA256='a1a4a213074bc6166507db3e0d4c04ded02c04168c4798c636a4d53911494ac4'
 EXTRACT='data/verification/telekinetic-core-source-excerpts.txt'
@@ -19,6 +21,28 @@ DEFINITIONS={u:{'span':list(s),'catalog_span':[3124,3124] if u==CLASS else list(
  'clause_id':'C04-116' if u==COMBAT else 'input/ch04-trainer-classes.md:'+str(s[0])+'-'+str(s[1]),
  'minimum_rank':{CLASS:3,COMBAT:4,OMEGA:5,BURST:5,OVERLOAD:6}.get(u,0),'stat_tags':['spa'],
  'choices':[INTERFERENCE,PLAYTEST,LEVITATE] if u==POWER else [],'tags':['Weapon'] if u==COMBAT else []} for u,s in FEATURES.items()}
+CSV_VARIANTS={CLASS:495,ALPHA:496,COMBAT:499,BURST:500,OVERLOAD:501}
+CSV_SHA256='4435ff1c462a211564c85d2c1c9a2ac6e7c790c7545e1ad7056d32888b2367bd'
+
+def csv_source(rules,u):
+ from source_context import verified_source
+ if u not in CSV_VARIANTS:raise ValueError('reviewed Telekinetic CSV difference required')
+ n=CSV_VARIANTS[u];uid='C2CSV/input/db/feats.csv:R'+str(n)+':main'
+ rules.ruleset.require({'id':uid,'source':{'file':'db/feats.csv','record_span':[n,n]}})
+ source={'file':'input/db/feats.csv','sha256':CSV_SHA256}
+ verified_source(rules,source,label='Telekinetic CSV')
+ return dict(source,edition='local_csv',record=n,clause_id=uid)
+
+def local_csv(a,u):
+ row=acquired(a,u)
+ if row is None or row['snapshot'].get('selection') is None or u==POWER:return False
+ if row['snapshot']['selection']!={'edition':'local_csv'} or row['snapshot'].get('source')!=csv_source(a.r,u):raise ValueError('immutable actual Telekinetic CSV source required')
+ return True
+
+def prerequisite_parents(a,u):
+ return () if u==COMBAT and local_csv(a,u) else PARENTS[u]
+
+def overload_ap(a):return 1 if local_csv(a,OVERLOAD) else 2
 
 def records(a,feature=None,active=False):
  import trainer_feature_acquisition as T
@@ -33,19 +57,32 @@ def acquisition_snapshot(e,a,u,rank,selection):
  if u==POWER:
   if selection not in (INTERFERENCE,PLAYTEST,LEVITATE):raise ValueError('choose exactly one sourced Interference or Levitate Ability')
   e.r._selected_rule(selection)
- elif selection is not None:raise ValueError('this Telekinetic Feature has no selection')
+ elif selection is not None:
+  if selection!={'edition':'local_csv'}:raise ValueError('exact Telekinetic CSV edition selection required')
+  csv_source(e.r,u)
  elemental=__import__('elemental_connection').choices(e,a) if u==CLASS else ()
  iron=any(SK.key(x) in {SK.key(v) for v in ('edge/강철의-정신','강철의 정신','Iron Mind')} for x in a.spec.get('edges',[]))
- return {'rank':SK.rank(e.r,a,'집중')[2],'parents':[r['request_id'] for r in records(a,active=True) if r['feature_id'] in PARENTS[u]],'psychic_connection':'에스퍼' in elemental,'iron_mind':iron,'selection':selection}
+ parents=() if u==COMBAT and selection is not None else PARENTS[u]
+ result={'rank':SK.rank(e.r,a,'집중')[2],'parents':[r['request_id'] for r in records(a,active=True) if r['feature_id'] in parents],'psychic_connection':'에스퍼' in elemental,'iron_mind':iron,'selection':deepcopy(selection)}
+ if u!=POWER and selection is not None:
+  result['source']=csv_source(e.r,u)
+  if u==COMBAT:result['telekinetic']=bool({SK.key(x) for x in G.effective_capabilities(a)}&{SK.key(x) for x in ('염력','Telekinetic','capability/염력')})
+ return result
 
 def qualification(a,u,snapshot,prerequisite_source):
  import acquisition_qualification as Q
- if prerequisite_source is not None or type(snapshot)is not dict or set(snapshot)!={'rank','parents','psychic_connection','iron_mind','selection'}:raise ValueError('actual Telekinetic acquisition observations required')
- C.integer(snapshot['rank'],'Focus rank',1,6)
+ fields={'rank','parents','psychic_connection','iron_mind','selection'}
+ csv=type(snapshot)is dict and u!=POWER and snapshot.get('selection') is not None
+ if csv:
+  fields|={'source'}|({'telekinetic'} if u==COMBAT else set())
+  if snapshot['selection']!={'edition':'local_csv'} or snapshot.get('source')!=csv_source(a.r,u):raise ValueError('immutable actual Telekinetic CSV source required')
+ if prerequisite_source is not None or type(snapshot)is not dict or set(snapshot)!=fields:raise ValueError('actual Telekinetic acquisition observations required')
+ C.integer(snapshot['rank'],'Focus rank',1)
+ if snapshot['rank'] not in {row['rank'] for row in SK._declared_ranks(a.r)[0].values()}:raise ValueError('declared ordinary Focus rank required')
  known={r['request_id']:r['feature_id'] for r in records(a) if r['feature_id'] in PARENTS[u]}
  if type(snapshot['parents'])is not list or not set(snapshot['parents'])<=set(known):raise ValueError('actual Telekinetic parent receipts required')
- parent=set(PARENTS[u])<={known[x] for x in snapshot['parents']}
- choice=snapshot['selection'] in (INTERFERENCE,PLAYTEST,LEVITATE) if u==POWER else snapshot['selection'] is None
+ parent=(snapshot['telekinetic'] is True and snapshot['parents']==[]) if csv and u==COMBAT else set(PARENTS[u])<={known[x] for x in snapshot['parents']}
+ choice=snapshot['selection'] in (INTERFERENCE,PLAYTEST,LEVITATE) if u==POWER else csv or snapshot['selection'] is None
  return Q.require(u,'native','acquire',[Q.check('trainer','prerequisite',a.kind=='trainer','actual Trainer required'),Q.check('parent','prerequisite',parent,'actual Telekinetic parent required'),Q.check('rank','prerequisite',snapshot['rank']>=DEFINITIONS[u]['minimum_rank'],'printed Focus rank required'),Q.check('edges','prerequisite',u!=CLASS or snapshot['psychic_connection'] and snapshot['iron_mind'],'Psychic Elemental Connection and Iron Mind required'),Q.check('selection','selection',choice,'one immutable Power of the Mind selection required')])
 
 def after_acquire(e,a,u,sid):
@@ -53,6 +90,7 @@ def after_acquire(e,a,u,sid):
  if u not in (CLASS,OMEGA):G.stat(a,'spa',1,sid,operation_id='acquisition_stat_tag')
  if u in (CLASS,ALPHA,OMEGA):
   __import__('static_feature_state_grants').register_all(e,a);__import__('class_move_grants').register_all(e,a)
+ if u==CLASS and local_csv(a,u):G.grant_moves(a,[KINESIS],sid,'feature',owner_id=a.entity_id,lifetime='while_owned',rule_id=u)
  if u==POWER:
   selected=acquired(a,u)['snapshot']['selection'];a.spec.setdefault('feature_choices',{})[u]=[selected]
   name={INTERFERENCE:'간섭 [Core p321]',PLAYTEST:'간섭 [Playtest]',LEVITATE:'부유'}[selected]
@@ -169,7 +207,7 @@ def end_combat(e,a,*,instance_id=None,event_id=None,source_loss=False):
 def burst(e,a,t,kind,**options):
  require(e,a,BURST)
  def apply(se,c,target):
-  pay(se,c,BURST,'swift',1)
+  pay(se,c,BURST,'swift',2 if local_csv(c,BURST) else 1)
   return __import__('telekinetic_combat')._native(se,c,target,kind,action_cost='included',**dict(defender_skill=options.pop('defender_skill'),fixed_accuracy=options.pop('fixed_accuracy',None),challenger_options=options.pop('challenger_options',None),defender_options=options.pop('defender_options',None),item_name=options.pop('item_name',None),prevent_with_ap=options.pop('prevent_with_ap',None),follow_steps=options.pop('follow_steps',0)))
  if kind not in ('trip','push','disarm'):raise ValueError('one printed Telekinetic Burst maneuver required')
  return G.transition(e,a,apply,participants=(t,))
@@ -179,16 +217,126 @@ def evasion_policy(e,decision=None,*,adjudication=False):
  document=json.loads((Path(e.r.root)/path).read_text(encoding='utf8'))
  return e.r.resolve_source_policy(document,decisions={} if decision is None else {'evasion_owner':decision})
 
-def cast(e,a,t,mid,*,segments=None,overload=False,evasion_owner=None,push_direction=None):
- if mid not in (BARRIER,KINESIS,PSYCHIC,LIFT):raise ValueError('one exact Telekinetic Move required')
+def cast(e,a,t,mid,*,segments=None,overload=False,evasion_owner=None,push_direction=None,aim=None):
+ if mid not in (BARRIER,KINESIS,PSYCHIC,LIFT,PSYSHOCK):raise ValueError('one exact Telekinetic Move required')
  if type(overload)is not bool:raise ValueError('explicit Overload choice required')
+ if mid==PSYSHOCK and (not overload or not local_csv(a,OVERLOAD)):raise ValueError('Psyshock Overload requires its actual CSV acquisition')
+ if mid==PSYSHOCK and any(value is not None for value in (segments,evasion_owner,push_direction)):raise ValueError('Psyshock Overload does not use other Telekinetic Move choices')
+ if mid!=PSYSHOCK and aim is not None:raise ValueError('Telekinetic aim belongs to the CSV Psyshock area')
  choice={'segments':segments,'overload':overload,'evasion_owner':evasion_owner,'push_direction':push_direction}
+ waiting=[]
  def apply(se,c,target):
   if 'telekinetic_move_choice' in c.spec:raise ValueError('one actual Telekinetic Move at a time')
   c.spec['telekinetic_move_choice']=deepcopy(choice)
-  try:return se.use_move(c,target,mid)
+  try:
+   if mid!=PSYSHOCK:return se.use_move(c,target,mid)
+   return se.use_move_on(c,target,mid,se.everyone,aim=aim)
+  except Exception as error:
+   if G.record_native_pending(se,error,waiting):return None
+   raise
   finally:c.spec.pop('telekinetic_move_choice',None)
- return G.transition(e,a,apply,participants=(t,),include_grid=e.grid is not None,include_rulings=True)
+ result=G.transition(e,a,apply,participants=(t,),include_grid=e.grid is not None,include_rulings=True)
+ if waiting:
+  exception,event_id=waiting[0];raise exception(event_id)
+ return result
+
+def project_move(e,a,move):
+ if move['id']!=PSYSHOCK or not a.spec.get('telekinetic_move_choice',{}).get('overload'):return move
+ require(e,a,OVERLOAD)
+ if not local_csv(a,OVERLOAD):raise ValueError('Psyshock Overload requires its actual CSV acquisition')
+ out=deepcopy(move);out['range']='4, 폭발 2'
+ out['_class_move_range']={'raw':out['range'],'origin':4,'shape':'blast','size':2,'parsed':True}
+ return out
+
+def begin_move(e,a,target,move,completion_id):
+ choice=a.spec.get('telekinetic_move_choice')
+ if choice is None or move['id'] not in (BARRIER,KINESIS,PSYCHIC,LIFT,PSYSHOCK):return
+ import move_activation as ACTIVATION
+ ACTIVATION._require_started_event_use(e,a,target,move['id'],scope_error='Telekinetic choice needs its actual native Move')
+ row=e._move_completions[completion_id]
+ if row['actor'] is not a or row['move_id']!=move['id'] or target not in row['targets'] or target.entity_id not in row['started'] or row['phase']!='targets':
+  raise ValueError('actual started Telekinetic completion recipient required')
+ if 'telekinetic_overload' in row:
+  value=_overload_binding(e,row,current=True)
+  if value['choice']!=choice:raise ValueError('Telekinetic continuation choice changed')
+  return
+ if type(choice)is not dict or set(choice)!={'segments','overload','evasion_owner','push_direction'} or type(choice['overload'])is not bool:
+  raise ValueError('exact native Telekinetic choice required')
+ acquisition=None;payment=None
+ if choice['overload']:
+  require(e,a,OVERLOAD);acquisition=acquired(a,OVERLOAD)['request_id']
+ if move['id']==PSYSHOCK:
+  if not choice['overload'] or not local_csv(a,OVERLOAD):raise ValueError('actual CSV Psyshock Overload acquisition required')
+  if any(choice[key] is not None for key in ('segments','evasion_owner','push_direction')):raise ValueError('exact Psyshock Overload choice required')
+  pay(e,a,OVERLOAD,'swift',overload_ap(a))
+  payment={'action':'swift','ap':1,'action_index':len(a._action_history)-1}
+ row['telekinetic_overload']={'move_id':move['id'],'move_source':deepcopy(row['move'].get('_source')),
+  'acquisition':acquisition,'choice':deepcopy(choice),'payment':payment}
+ _overload_binding(e,row,current=True)
+
+def _overload_binding(e,row,*,current=False):
+ """Validate native cast selection; Book costs remain in their existing owner."""
+ value=row.get('telekinetic_overload')
+ if value is None:return None
+ a=row['actor'];mid=row['move_id']
+ if (type(value)is not dict or set(value)!={'move_id','move_source','acquisition','choice','payment'} or
+     mid not in (BARRIER,KINESIS,PSYCHIC,LIFT,PSYSHOCK) or value['move_id']!=mid or row['move']['id']!=mid or
+     type(value['move_source'])is not dict or value['move_source']!=row['move'].get('_source') or
+     value['move_source']!=e.r.move(mid).get('_source') or type(value['choice'])is not dict or
+     set(value['choice'])!={'segments','overload','evasion_owner','push_direction'} or type(value['choice']['overload'])is not bool):
+  raise ValueError('Telekinetic native source choice changed')
+ choice=value['choice'];record=None
+ if choice['overload']:
+  matches=[item for item in records(a,OVERLOAD) if item['request_id']==value['acquisition']]
+  if len(matches)!=1:raise ValueError('Telekinetic choice lost its actual Overload acquisition')
+  record=matches[0]
+ elif value['acquisition'] is not None:raise ValueError('ordinary Telekinetic choice cannot invent Overload acquisition')
+ waiting=getattr(e,'_passive_events',{}).get(getattr(e,'_passive_pending',None))
+ active=current or row['phase'] not in ('complete','interrupted') or waiting is not None and waiting.get('completion_id')==row['id']
+ if active and row['turn_serial']!=a.custom_conditions.get('combat_turn_serial',0):
+  raise ValueError('Telekinetic pending choice left its actual turn')
+ if mid==PSYSHOCK:
+  if (record is None or record['snapshot'].get('selection')!={'edition':'local_csv'} or
+      record['snapshot'].get('source')!=csv_source(e.r,OVERLOAD) or
+      any(choice[key] is not None for key in ('segments','evasion_owner','push_direction')) or
+      row['move'].get('_class_move_range')!={'raw':'4, 폭발 2','origin':4,'shape':'blast','size':2,'parsed':True}):
+   raise ValueError('Psyshock Overload acquisition or range changed')
+  payment=value['payment']
+  if type(payment)is not dict or set(payment)!={'action','ap','action_index'} or payment['action']!='swift' or type(payment['ap'])is not int or payment['ap']!=1:
+   raise ValueError('Psyshock Overload native payment changed')
+  index=C.integer(payment['action_index'],'Psyshock native Swift history index',0)
+  if active and (index>=len(a._action_history) or a._action_history[index]!='swift'):
+   raise ValueError('Psyshock Overload lost its native Swift payment')
+ elif value['payment'] is not None:raise ValueError('Book Telekinetic cost belongs to its native effect owner')
+ if current and choice['overload']:
+  if not (a.fainted or a.dead):require(e,a,OVERLOAD)
+  current_record=acquired(a,OVERLOAD)
+  if e.r._selected_rule(OVERLOAD)!=OVERLOAD or current_record is None or current_record['request_id']!=value['acquisition']:
+   raise ValueError('Telekinetic current Overload acquisition changed')
+ return value
+
+def continuation_choice(e,event):
+ row=getattr(e,'_move_completions',{}).get(event.get('completion_id'))
+ return None if row is None else _overload_binding(e,row)
+
+@contextmanager
+def restored_scope(e,event):
+ row=getattr(e,'_move_completions',{}).get(event.get('completion_id'))
+ value=None if row is None else _overload_binding(e,row)
+ if value is None:
+  yield
+  return
+ if row['phase'] in ('complete','interrupted') and not event.get('continuation') and not row.get('activation_continuation'):
+  yield
+  return
+ _overload_binding(e,row,current=True)
+ a=row['actor'];previous=a.spec.get('telekinetic_move_choice')
+ if previous is not None and previous!=value['choice']:raise ValueError('Telekinetic continuation source choice differs')
+ a.spec['telekinetic_move_choice']=deepcopy(value['choice'])
+ try:yield
+ finally:
+  if previous is None:a.spec.pop('telekinetic_move_choice',None)
+  else:a.spec['telekinetic_move_choice']=previous
 
 def pending(e,a,mid):
  if mid not in (BARRIER,LIFT,PSYCHIC):return None
@@ -220,7 +368,7 @@ def preflight_move(e,a,t,move):
   require(e,a,OVERLOAD)
   if mid==KINESIS:raise ValueError('choose Kinesis Overload on its actual armed reaction; Swift is paid after the Interrupt returns')
   if __import__('initiative_interrupts').frame(e) is not None or e._active_turn_actor is not a:raise ValueError('Psionic Overload Swift requires its own ordinary turn')
-  if mid not in (KINESIS,BARRIER,PSYCHIC,LIFT):raise ValueError('Overload requires the named Psychic or another Telekinetic Move')
+  if mid not in (KINESIS,BARRIER,PSYCHIC,LIFT) and not(mid==PSYSHOCK and local_csv(a,OVERLOAD)):raise ValueError('Overload requires the named Psychic or another Telekinetic Move')
 
 def segment_plan(e,a,segments,overload):
  from grid import cheb
@@ -253,7 +401,7 @@ def segment_plan(e,a,segments,overload):
 def after_hit(e,a,t,move,completion):
  mid=move['id'];choice=a.spec.get('telekinetic_move_choice',{});over=choice.get('overload',False)
  if mid not in (KINESIS,BARRIER,PSYCHIC,LIFT):return
- if over:pay(e,a,OVERLOAD,'swift',2)
+ if over:pay(e,a,OVERLOAD,'swift',overload_ap(a))
  if mid==BARRIER:
   edges=segment_plan(e,a,choice.get('segments'),over)
   ids=[]
@@ -281,7 +429,7 @@ def kinesis_overload(e,a,event):
  import combat_move_reactions as REACTIONS,initiative_interrupts as I
  require(e,a,OVERLOAD);REACTIONS.validate_event(e,a,event)
  if event['source']!=KINESIS or event['status']!='complete' or event.get('overload_spent') or not event.get('overload') or event['turn_owner_id']!=a.entity_id or e._active_turn_actor is not a or I.frame(e) is not None or e._ordinary_turn_rounds.get(a)!=e.round_no:raise ValueError('Kinesis Overload requires its completed actual reaction during its own ordinary turn')
- pay(e,a,OVERLOAD,'swift',2)
+ pay(e,a,OVERLOAD,'swift',overload_ap(a))
  e.apply_status(W.actor_index(e)[event['attacker_id']],'혼란',source=OVERLOAD,applied_by=a)
  event['overload_spent']=True;REACTIONS._seal(event)
 
@@ -383,6 +531,7 @@ def native_move(fn):
  return run
 
 def validate_world(e,index):
+ for row in getattr(e,'_move_completions',{}).values():_overload_binding(e,row)
  for a in index.values():
   for row in TIME.records(a):
    if 'lifted' in row:

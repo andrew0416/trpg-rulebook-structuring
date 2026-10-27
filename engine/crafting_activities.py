@@ -177,7 +177,7 @@ def feed_poffin(e,actor,*,batch_id,target,minutes,reason,accepted=True):
  target.spec.setdefault('poffin_consumption',[]).append({'batch_id':batch_id,'from_trainer':actor.spec['id'],'stat':batch['contest_stat'],'effective':effective,'benefit_source':POFFINS.GRACE if effective and has_grace and len(history)>=cap-2 else 'contest/poffins','owner_id':target.spec.get('trainer_id')})
  return {'activity':'feed_poffin','effective':effective,'contest_stat':batch['contest_stat']}
 
-def _dismantle(e,actor,*,item,count=1,scrap_kind=None,scrap_reason=None,held_selection=None):
+def _dismantle(e,actor,*,item,count=1,scrap_kind=None,scrap_reason=None,held_selection=None,recipe=None):
  _p()._outside(e);C.integer(count,'intact item count',1)
  effects,header=e.r.item_effects(item)
  if not header.get('id'):raise ValueError('actual selected intact item definition required')
@@ -190,14 +190,58 @@ def _dismantle(e,actor,*,item,count=1,scrap_kind=None,scrap_reason=None,held_sel
   key=header['id']
  else:key=item if type(inventory.get(item)) is int and inventory[item]>=count else _inventory(actor,name,count)
  if any(x in actor.spec.get('damaged_items',[]) for x in (name,'item/'+name,header['id'],key)):raise ValueError('only intact inventory items can be dismantled')
- price=header.get('price',KIT_PRICES.get(name));category=RESOURCES.item_kind(header,declared=scrap_kind,reason=scrap_reason)
+ csv=RESOURCES.csv_materials(e.r)
+ price=header.get('price',KIT_PRICES.get(name));category=(RESOURCES.csv_item_kind if csv else RESOURCES.item_kind)(header,declared=scrap_kind,reason=scrap_reason)
  C.integer(price,'source item price',1)
  if not category:raise ValueError('source crafting category required')
- _selected(e,header['id']);value=__import__('study_books').dismantle_value(e,actor,stock,price,count)
+ _selected(e,header['id'])
+ if csv:
+  if recipe is None:
+   # Actual producer receipts supply authored recipes without a second registry.
+   owners=[actor]
+   if stock is not None:
+    index=__import__('world_entities').actor_index(e)
+    for entry in stock.get('entries',[stock]):
+     obj=getattr(e,'_physical_objects',{}).get(entry.get('instance_id'),{})
+     maker=index.get(obj.get('crafting_origin',{}).get('maker_id'))
+     if maker is not None and maker not in owners:owners.append(maker)
+   recipes=[]
+   for owner in owners:
+    for record in RESOURCES.validate(owner):
+     result=record['result'];definition=result.get('recipe_definition')
+     if result.get('item_id')==header['id'] and definition is not None and definition not in recipes:recipes.append(definition)
+   if len(recipes)>1:raise ValueError('explicit source recipe required for ambiguous dismantling value')
+   if recipes:recipe=recipes[0]
+  base=None
+  if recipe is not None:
+   recipe=RECIPES_CORE.declaration(recipe)
+   if recipe['output']['item_id']!=header['id']:raise ValueError('dismantling recipe belongs to another actual item')
+   _selected(e,recipe['source'])
+   options=[g['options'][0] for g in recipe['materials']]
+   if any(len(g['options'])!=1 for g in recipe['materials']):raise ValueError('explicit dismantling recipe material alternative required')
+   if options and all(x['kind']=='value' for x in options):
+    if any(RESOURCES.material_kind(x['category'])!=category for x in options):raise ValueError('dismantling recipe material category differs')
+    base=sum(x['amount'] for x in options)
+  elif name in (*RECIPES,*RESTORATIVE_RECIPES,*MEAL_RECIPES):
+   _,uid=_recipe_item(e,header['id'])
+   if name in RECIPES:source= _p().FEATURES[RECIPES[name][0]][0];kind,base=RECIPES[name][1:3]
+   elif name in RESTORATIVE_RECIPES:source=RESEARCH_SOURCE;kind,base='약',100
+   else:source=CHEF_SOURCE;kind,base='음식',MEAL_RECIPES[name][1]
+   _selected(e,source)
+   if RESOURCES.material_kind(kind)!=category:raise ValueError('dismantling recipe material category differs')
+  if base is None:
+   _p()._text(scrap_reason,'explicit item-to-material suitability judgment')
+   value=price//2*count
+  else:value=base*9//10*count
+ else:
+  if recipe is not None:raise ValueError('dismantling recipe valuation requires CSV materials edition')
+  value=__import__('study_books').dismantle_value(e,actor,stock,price,count)
  if stock is not None:stock=STOCK.debit(e,actor,stock)
  else:actor.spec['items'][key]-=count
  wallet=actor.spec.setdefault('crafting_scrap',{});wallet[category]=wallet.get(category,0)+value
- return {'activity':'dismantle','category':category,'value':value,'classification_reason':scrap_reason,**({'input_stock':stock} if stock else {})}
+ result={'activity':'dismantle','category':category,'value':value,'classification_reason':scrap_reason,**({'input_stock':stock} if stock else {})}
+ if csv:result.update(materials_edition='csv-homebrew',valuation='recipe90' if base is not None else 'shop50',unit_basis=base if base is not None else price,dismantle_recipe=recipe)
+ return result
 
 RESEARCH_SOURCE='ch04-trainer-classes/프로페셔널-클래스/연구원-연구-분야'
 CHEF_SOURCE='ch04-trainer-classes/프로페셔널-클래스'
@@ -259,9 +303,9 @@ def _recipe(e,actor,item,*,item_id,inventory_key,seconds):
  return {'id':'native:'+item_id,'source':source,'output':{'item_id':item_id,'key':inventory_key},
    'requirements':rows,'materials':[{'id':'cost','options':[{'kind':'value','category':category,'amount':unit,'scrap':True,'money':True}]}],'seconds':seconds}
 
-def _craft_item(e,actor,*,item=None,recipe=None,count=1,scrap_value=0,minutes=None,reason,inputs=None):
+def _craft_item(e,actor,*,item=None,recipe=None,count=1,scrap_value=None,minutes=None,reason,inputs=None,friendly_shop=None):
  if recipe is not None:
-  if item is not None or minutes is not None or scrap_value:raise ValueError('authored recipe uses its own timing and material selections')
+  if item is not None or minutes is not None or scrap_value or friendly_shop is not None:raise ValueError('authored recipe uses its own timing and material selections')
   return RECIPES_CORE.perform(e,actor,recipe,count=count,inputs=inputs,reason=reason)
  if inputs is not None:raise ValueError('native recipe material selection uses scrap_value')
  _duration(e,minutes,reason)
@@ -269,7 +313,28 @@ def _craft_item(e,actor,*,item=None,recipe=None,count=1,scrap_value=0,minutes=No
  ambiguous=len([uid for uid in e.r.selection.names.get(item,()) if uid.startswith('item/')])>1
  inventory_key=item_id if requested==item_id or ambiguous else item
  recipe=_recipe(e,actor,item,item_id=item_id,inventory_key=inventory_key,seconds=minutes*60)
- return RECIPES_CORE.perform(e,actor,recipe,count=count,inputs={'cost':{'option':0,'scrap_value':scrap_value}},reason=reason)
+ selection={} if scrap_value is None and friendly_shop is None else {'cost':{'option':0,'scrap_value':0 if scrap_value is None else scrap_value,**({'shop':friendly_shop} if friendly_shop is not None else {})}}
+ return RECIPES_CORE.perform(e,actor,recipe,count=count,inputs=selection,reason=reason)
+
+
+def _trade_materials(e,actor,*,category,value,direction,friendly_shop):
+ _p()._outside(e)
+ if not RESOURCES.csv_materials(e.r):raise ValueError('material trade requires CSV homebrew edition')
+ category=RESOURCES.material_kind(category);C.integer(value,'traded material value',1)
+ shop=RESOURCES.material_shop(friendly_shop)
+ if direction not in ('buy','sell'):raise ValueError('material trade direction must be buy or sell')
+ money=C.integer(actor.spec.get('money',0),'owned money',0)
+ balance=actor.spec.get('crafting_scrap',{}).get(category,0)
+ if direction=='buy' and money<value or direction=='sell' and balance<value:raise ValueError('insufficient actual material trade balance')
+ paid=value if direction=='buy' else -(value//2)
+ actor.spec['money']=money-paid
+ actor.spec.setdefault('crafting_scrap',{})[category]=balance+(value if direction=='buy' else -value)
+ return {'activity':'trade_materials','category':category,'value':value,'direction':direction,'money_spent':paid,'shop':shop,'materials_edition':'csv-homebrew'}
+
+
+def trade_materials(e,actor,**options):
+ import transformation_use as T
+ return T.dispatch(e,actor,'trade_materials',**options)
 
 def cook_poffins(e,actor,**options):
  import transformation_use as T
@@ -292,7 +357,7 @@ def craft_gem(e,actor,**options):
  import transformation_use as T
  return T.dispatch(e,actor,'craft_gem',**options)
 
-ACTIVITIES={'dowse':dowse,'cook_poffins':cook_poffins,'feed_poffin':feed_poffin,'dismantle':dismantle,'craft_item':craft_item}
+ACTIVITIES={'dowse':dowse,'cook_poffins':cook_poffins,'feed_poffin':feed_poffin,'dismantle':dismantle,'craft_item':craft_item,'trade_materials':trade_materials}
 
 
 def _craft_gem(e,actor,*,color,gem_type,minutes,reason):

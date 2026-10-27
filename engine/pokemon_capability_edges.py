@@ -27,6 +27,7 @@ def records(spec):
 
 
 def validate(rules,spec,*,allow_lost_prerequisite=False):
+    validate_named(rules,spec)
     seen=set()
     for row in records(spec):
         import poke_edge_variants as VARIANTS
@@ -168,3 +169,137 @@ def _teach(e,owner,target,edge,capability,from_grooming,from_training,safe=None)
     projection(e.r,target.spec)
     return {'activity':'teach_edge','edge':source,'capability':choice,'bonus':RULES[source]['amount'],
             'point_cost':1,'seconds':0 if (from_grooming or from_training) else 3600}
+
+
+# Named capabilities share the existing investment receipt and withdrawal owner.
+LANGUAGE='poke_edge/언어-학습'
+MOUNT='poke_edge/탑승-훈련'
+NAMED=(LANGUAGE,MOUNT)
+
+
+def named_records(spec):
+    rows=spec.get('learned_poke_edges',[])
+    if not isinstance(rows,list) or any(not isinstance(row,dict) for row in rows):raise ValueError('Poke Edge investments must be records')
+    return [row for row in rows if row.get('source') in NAMED]
+
+
+def validate_named(rules,spec):
+    seen=set()
+    for row in named_records(spec):
+        import poke_edge_variants as V
+        V.validate_receipt(rules,row,history=row.get('source')==MOUNT)
+        source=row['source']
+        if spec.get('kind')!='pokemon' or rules._selected_rule(source)!=source:
+            raise ValueError('selected named-capability Pokemon Edge required')
+        cost=2 if source==LANGUAGE else 1
+        F.integer(row.get('point_cost'),'named capability payment',cost,cost)
+        if row.get('effect_storage')!='derived':raise ValueError('source-owned named capability contribution required')
+        snapshot=row.get('qualification')
+        if type(snapshot)is not dict or set(snapshot)!={'shiny','size','power'} or type(snapshot['shiny'])is not bool:
+            raise ValueError('actual acquisition-time shiny/size/Power observations required')
+        if source==LANGUAGE:
+            F.integer(row.get('slot_cost'),'Language reserved Move slots',1,1)
+            if not snapshot['shiny'] or row.get('training_source')!='pokemon/creation':
+                raise ValueError('Language Edge requires actual shiny creation and one reserved Move slot')
+        elif not mount_qualified(snapshot['size'],snapshot['power'],snapshot['shiny']):
+            raise ValueError('Mount Training acquisition prerequisites were not met')
+        if row.get('status')=='active':
+            if source in seen:raise ValueError('one active named-capability Edge investment required')
+            seen.add(source)
+        elif row.get('status')=='refunded':
+            refund=row.get('refund')
+            if type(refund)is not dict or refund.get('source')!='input/ch05-pokemon.md:274' or not refund.get('reason') or refund.get('points')!=cost:
+                raise ValueError('actual named capability prerequisite refund required')
+        else:raise ValueError('explicit named capability investment lifetime required')
+
+
+def mount_qualified(size,power,shiny):
+    sizes={'소형':0,'Small':0,'중형':1,'Medium':1,'대형':2,'Large':2,'거대':3,'거대형':3,'Huge':3,
+           '초거대':4,'초거대형':4,'Gigantic':4}
+    tier=sizes.get(size)
+    if tier is None:raise ValueError('actual sourced Pokemon size required for Mount Training')
+    if type(shiny)is not bool:raise ValueError('actual shiny status must be boolean')
+    if tier>3 or (shiny and tier>=2):return True
+    F.integer(power,'actual Mount Training Power',1)
+    return (tier==1 and shiny and power>=8) or (tier==2 and power>=8) or (tier==3 and power>=6)
+
+
+def named_capabilities(actor,values):
+    rows=named_records(actor.spec)
+    if not rows:return values
+    validate_named(actor.r,actor.spec)
+    result=list(values)
+    if any(row['source']==LANGUAGE and row['status']=='active' for row in rows):result.append('언어')
+    if any(row['source']==MOUNT and row['status']=='active' for row in rows):
+        import re
+        mounted=[(value,re.fullmatch(r'(?:탑승|Mountable)\s*(\d+)',value,re.I)) for value in result]
+        base=max((int(match.group(1)) for _,match in mounted if match),default=0)
+        result=[value for value,match in mounted if not match]+['탑승 '+str(base+1)]
+    return result
+
+
+def slot_reservations(rules,spec):
+    rows=named_records(spec)
+    if not rows:return []
+    validate_named(rules,spec)
+    return [{'id':LANGUAGE,'source':LANGUAGE,'weights':{'total':1}} for row in rows
+            if row['source']==LANGUAGE and row['status']=='active']
+
+
+def creation_choices(rules,spec,choices):
+    if choices is None:return
+    if type(choices)is not list or any(type(choice)is not str for choice in choices) or len(choices)!=len(set(choices)):
+        raise ValueError('distinct actual creation Poke Edge selections required')
+    import poke_edge_variants as V,pokemon_teaching as T
+    for choice in choices:
+        definition=V.resolve(rules,choice)
+        if definition is None or definition['policy']!=LANGUAGE:raise ValueError('only the shiny-creation Language Edge belongs to creation choices')
+        if spec.get('shiny') is not True:raise ValueError('Language Edge can only be selected during shiny Pokemon creation')
+        if named_records(spec):raise ValueError('fresh creation cannot replay existing named-capability investments')
+        if T._balance(spec)<2:raise ValueError('Language Edge costs two actual Tutor Points')
+        spec.setdefault('learned_poke_edges',[]).append({'source':LANGUAGE,'status':'active','point_cost':2,
+            'effect_storage':'derived','slot_cost':1,'trainer_id':spec.get('trainer_id'),
+            'acquired_level':spec['level'],'training_source':'pokemon/creation','completed_at':0,
+            'qualification':{'shiny':True,'size':spec.get('size'),'power':None},
+            'definition_origin':{'clause_id':definition['clause_id'],'rule_id':definition['rule_id'],'record':definition['record']}})
+        T._debit_points(spec,2)
+        __import__('move_state').validate_spec(rules,spec)
+
+
+def _mount_power(actor):
+    if actor.spec.get('size') in ('초거대','초거대형','Gigantic') or (actor.spec.get('shiny') is True and actor.spec.get('size') in ('대형','Large','거대','거대형','Huge')):
+        return None
+    return __import__('capability_actions').power(actor)
+
+
+def teach_named(e,owner,target,definition,*,from_grooming=False,from_training=False,safe=None):
+    import pokemon_teaching as T
+    T._pokemon(e,owner,target);source=definition['policy']
+    if source==LANGUAGE:raise ValueError('Language Edge can only be selected during actual shiny Pokemon creation')
+    if source!=MOUNT:raise ValueError('reviewed named-capability Edge required')
+    T.source(e.r,source,T.POINTS)
+    validate_named(e.r,target.spec)
+    if any(row['source']==source and row['status']=='active' for row in named_records(target.spec)):
+        raise ValueError('Mount Training already acquired')
+    shiny=target.spec.get('shiny',False);size=target.spec.get('size');power=_mount_power(target)
+    if not mount_qualified(size,power,shiny):raise ValueError('Mount Training size/Power/shiny prerequisites are not met')
+    if T._balance(target.spec)<1:raise ValueError('Mount Training costs one actual Tutor Point')
+    if T.credit_mode(from_grooming,from_training):T.training_credit(e,owner,target,source,from_training=from_training)
+    else:T.edge_training_hour(e,owner,target,source,source,safe=safe)
+    T._debit_points(target.spec,1)
+    target.spec.setdefault('learned_poke_edges',[]).append({'source':source,'status':'active','point_cost':1,
+        'effect_storage':'derived','trainer_id':owner.entity_id,'acquired_level':target.level,
+        'qualification':{'shiny':shiny,'size':size,'power':power},
+        'training_source':'edge/미용사' if from_grooming else 'input/ch05-pokemon.md:229' if from_training else 'input/ch05-pokemon.md:274','completed_at':e.elapsed_seconds})
+    if T.credit_mode(from_grooming,from_training):T.consume_credit(target,source,from_training=from_training)
+    return {'activity':'teach_edge','edge':source,'point_cost':1,'seconds':0 if (from_grooming or from_training) else 3600}
+
+
+def reconcile_named(actor,*,reason):
+    rows=[row for row in named_records(actor.spec) if row['source']==MOUNT and row['status']=='active']
+    if not rows:return
+    validate_named(actor.r,actor.spec);power=_mount_power(actor)
+    if mount_qualified(actor.spec.get('size'),power,actor.spec.get('shiny',False)):return
+    __import__('acquisition_withdrawal').refund_native_investments(actor.spec,rows,
+        source='input/ch05-pokemon.md:274',reason=reason,
+        lost_prerequisite={'size':actor.spec.get('size'),'power':power,'shiny':actor.spec.get('shiny',False)})

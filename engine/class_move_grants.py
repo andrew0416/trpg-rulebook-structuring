@@ -223,7 +223,8 @@ def plan(engine, actor, uid):
     if uid in FIXED:
         if chosen is not None:
             raise ValueError("fixed class move source has no selectable moves")
-        groups = [_pair(engine.r, FIXED[uid], FIXED[uid])]
+        pair = ('사이코쇼크','배리어') if uid=='feat/pk-알파' and __import__('telekinetic').local_csv(actor,uid) else FIXED[uid]
+        groups = [_pair(engine.r, pair, pair)]
     elif uid in (AURA,AURA_MASTERY):
         groups = [_pair(engine.r, chosen, ("판별", "진공파", "발경") if uid==AURA else ("파동탄","기합구슬","드레인펀치","힘껏펀치"))]
     else:

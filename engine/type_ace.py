@@ -17,7 +17,7 @@ CLASS='class/타입-에이스';REFRESH='feat/타입-리프레쉬';SYNC='feat/기
 STRATAGEMS=frozenset(u for u,d in DEFINITIONS.items() if d.get('bound_ap'))
 ENGLISH={d['english']:u for u,d in DEFINITIONS.items()}
 KEY='type_ace_history'
-CSV_VARIANTS={'feat/이상한-황홀감':246,'feat/사막의-심장':270,'feat/생명의-샘':299}
+CSV_VARIANTS={'feat/이상한-황홀감':246,'feat/사막의-심장':270,'feat/생명의-샘':299,'feat/토네이도-차지':764}
 CSV_SHA256='4435ff1c462a211564c85d2c1c9a2ac6e7c790c7545e1ad7056d32888b2367bd'
 MINDBREAK_CONDITIONS=frozenset(('악몽','혼란','저주','사슬묶기','풀죽음','헤롱헤롱','난동','억압'))
 CQM_CHOICE='close_quarters_source'
@@ -123,7 +123,7 @@ def csv_source(rules,feature):
  from source_context import verified_source
  if feature not in CSV_VARIANTS:raise ValueError('select a reviewed Type Ace CSV difference')
  number=CSV_VARIANTS[feature];key='C2CSV/input/db/feats.csv:R'+str(number)+':main'
- rules.ruleset.require({'id':key,'source':{'file':'db/feats.csv','record_span':[number,number]}})
+ rules.ruleset.require({'id':key,'title':'토네이도 차지[홈브류]' if number==764 else '', 'source':{'file':'db/feats.csv','record_span':[number,number]}})
  source={'file':'input/db/feats.csv','sha256':CSV_SHA256}
  verified_source(rules,source,label='Type Ace CSV')
  return dict(source,edition='local_csv',record=number,clause_id=key)
@@ -1501,6 +1501,7 @@ def _tornado(p):return next((r for r in __import__('combat_timing').records(p) i
 
 def tornado(engine,a,p):
  feature=uid('Tornado Charge');require(engine,a,p,feature)
+ if local_csv(a,feature) and '비행' not in p.types:raise ValueError('CSV Tornado Charge requires an actual Flying Pokemon')
  import movement_actions as M
  if engine._active_turn_actor is not p or getattr(p,'_action_history',[]):raise ValueError('actual gains-initiative boundary before actions required')
  def apply(e,t,q):

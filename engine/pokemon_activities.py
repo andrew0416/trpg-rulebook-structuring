@@ -34,6 +34,32 @@ DISPOSITION_SOURCE='ch05-pokemon/포켓몬-성향'
 DISPOSITION_KR={'file':'input/ch05-pokemon.md','sha256':'bdfb5d39fec8fede32cac615a7788301336aaceefc46079c8ed7014ea76d174b'}
 DISPOSITION_EN={'file':'source-audit/pokemon-relationships-fishing-core-1.05.txt','sha256':'9d49406f11a1cf694ea6c376c2aa142a1f7e43a03abd6d7471a6884316bc024f'}
 REPAIR_CSV='C2CSV/input/db/edges.csv:R17:main'
+MANIAC='feat/포켓몬매니아'
+MANIAC_BOOK='input/ch03-skills-edges-feats.md:897-901'
+MANIAC_CSV='C2CSV/input/db/feats.csv:R49:main'
+
+def pokemaniac_source(rules,selection=None):
+ """Only the two reviewed source contracts; no automatic CSV precedence."""
+ from source_context import verified_source
+ if selection is not None and (type(selection)is not dict or set(selection)!={'edition'} or selection['edition'] not in ('core','local_csv')):raise ValueError('exact reviewed Pokemaniac edition selection required')
+ edition='core' if selection is None else selection['edition']
+ if rules._selected_rule(MANIAC)!=MANIAC or any(uid in rules.ruleset.unit_versions for uid in (MANIAC,MANIAC_BOOK,MANIAC_CSV)):raise ValueError('selected Pokemaniac source needs its own activity policy')
+ authority={'file':'input/ch03-skills-edges-feats.md','sha256':'b94e43349794836391501f9aac10009d20746bf946ea0c4b5ff3adf85e982d23'}
+ verified_source(rules,authority,label='Pokemaniac')
+ if edition=='local_csv':
+  authority={'file':'input/db/feats.csv','sha256':'4435ff1c462a211564c85d2c1c9a2ac6e7c790c7545e1ad7056d32888b2367bd'}
+  verified_source(rules,authority,label='local CSV Pokemaniac')
+  rules.ruleset.require({'id':MANIAC_CSV,'source':{'file':'db/feats.csv','record_span':[49,49]}})
+  return dict(authority,edition=edition,clause_id=MANIAC_CSV,record=49)
+ return dict(authority,edition=edition,clause_id=MANIAC_BOOK,span=[897,901])
+
+def pokemaniac_snapshot_source(rules,snapshot):
+ source=pokemaniac_source(rules,snapshot.get('selection'))
+ # Historical Book declarations/receipts have no additional source choice.
+ if 'source' in snapshot:
+  if snapshot['source']!=source:raise ValueError('actual acquired Pokemaniac source changed')
+ elif snapshot.get('selection') is not None:raise ValueError('actual Pokemaniac source selection receipt required')
+ return source
 
 def _text(value,name):
  if not isinstance(value,str) or not value.strip():raise ValueError(name+' required')
@@ -302,22 +328,41 @@ def disposition_ruling(e,actor,*,target,disposition,reason,allow_retry=False,gro
 
 
 def pokemaniac(e,actor,*,target,**roll):
- """ch03:897-901: native Standard action and DC10; no information on failure."""
+ """One native check/cost owner for the Book and independent CSV49."""
  _feature(e,actor,'maniac');_pokemon(target)
- import state_grants as G,world_entities as WORLD
+ import state_grants as G,world_entities as WORLD,pokemon_entities as ENTITIES
+ import trainer_feature_acquisition as ACQUISITION
  WORLD.require_actors(e,actor,target)
- missing=[x for x in ('nature',) if x not in target.spec]
+ records=ACQUISITION.static_acquisitions(actor,MANIAC,active=True)
+ if len(records)>1:raise ValueError('one actual Pokemaniac source required')
+ source=pokemaniac_snapshot_source(e.r,records[0][1]['snapshot']) if records else pokemaniac_source(e.r)
+ missing=[x for x in ('nature',) if target.spec.get(x) is None]
  if missing:return C.PendingDecision('GM target information missing: '+','.join(missing))
  C.integer(target.level,'Pokemon level',1)
  _text(target.spec['nature'],'Pokemon nature')
  if not isinstance(target.types,(list,tuple)) or any(not isinstance(value,str) or not value for value in target.types):raise ValueError('Pokemon types must be identity text')
  if not isinstance(target.abilities,(list,tuple)) or any(not isinstance(value,str) or not value for value in target.abilities):raise ValueError('Pokemon abilities must be identity text')
  info={'level':target.level,'types':list(target.types),'nature':target.spec['nature'],'abilities':list(target.abilities)}
- check=G.transition(e,actor,lambda se,sa,st:_check(se,sa,__import__('hobbyist').direct_skill(sa,'feat/포켓몬매니아','포켓몬학'),10,roll,action='standard',context=('pokemaniac',st.spec.get('id'))),participants=(target,))
+ dc=10;origin=None
+ if source['edition']=='local_csv':
+  origin=ENTITIES.origin_information(e,target)
+  if isinstance(origin,C.PendingDecision):return origin
+  info.update(special=origin['special'],original_species_changes=deepcopy(origin['changes']))
+  C.integer(actor.level,'Trainer level',1,50);M.validate_source(e.r)
+  dc=M.ceil_ratio(target.level-actor.level,5)+10
+ # The existing observed-roll owner rejects replacing either source or facts
+ # after an already paid first roll, including a pending helper/reroll choice.
+ context=('pokemaniac',target.spec['id'],source,info,origin)
+ check=G.transition(e,actor,lambda se,sa,st:_check(se,sa,__import__('hobbyist').direct_skill(sa,MANIAC,'포켓몬학'),dc,roll,action='standard',context=context),participants=(target,))
  if isinstance(check,C.PendingDecision):return check
  return {'activity':'pokemaniac','check':check,'information':info if check.passed else None}
 
-ACTIVITIES={'repair_ball':repair_ball,'breed':breed,'pokemon_interaction':pokemon_interaction,
+def observe_pokemon_origin(e,actor,*,target,special,original_species,changes,reason):
+ import pokemon_entities as ENTITIES,world_entities as WORLD
+ WORLD.require_actors(e,actor,target)
+ return ENTITIES.observe_origin(e,target,special=special,original_species=original_species,changes=changes,reason=reason)
+
+ACTIVITIES={'observe_pokemon_origin':observe_pokemon_origin,'repair_ball':repair_ball,'breed':breed,'pokemon_interaction':pokemon_interaction,
  'befriend':befriend,'disposition_ruling':disposition_ruling,'pokemaniac':pokemaniac}
 
 

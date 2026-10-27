@@ -409,7 +409,10 @@ def build_runtime_selection(rules):
             source['sha256']=expected
         additional=source.get('additional_files',[])
         if additional:source['additional_snapshots']={file:source_snapshots[file] for file in additional if file in source_snapshots}
+    import mentor
+    expand_csv=mentor.bind_expand_csv_source(rules,catalog)
     selection = RuleSelection(rules.ruleset, catalog.values())
+    if expand_csv:selection.dependencies[mentor.EXPAND_CSV]=(mentor.EXPAND,)
     selection.source_audit_snapshots = {row['id']:{row['official_source']['extract']:row['official_source']['sha256']}
         for row in getattr(rules,'core_abilities',{}).values()
         if str(row.get('official_source',{}).get('extract','')).startswith('source-audit/')}

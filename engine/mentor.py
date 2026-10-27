@@ -7,6 +7,7 @@ import json
 CLASS='class/멘토'
 LESSONS='feat/수업'
 EXPAND='feat/시야-넓히기'
+EXPAND_CSV='poke_edge/시야-넓히기'
 GUIDANCE='feat/지침'
 MOVE_TUTOR='feat/기술-가르침'
 EGG_TUTOR='feat/교배-가르침'
@@ -19,6 +20,36 @@ TECHNIQUES={name:'C2CSV/input/db/class-data.csv:R'+str(n)+':technique' for name,
             zip(('changing','empowered','corrective','versatile'),range(16,20))}
 LESSON_SKILLS=dict(zip(('changing','empowered','corrective','versatile'),('직감','매력','협박','포켓몬학')))
 SOURCE_SHA256='a1a4a213074bc6166507db3e0d4c04ded02c04168c4798c636a4d53911494ac4'
+
+
+def bind_expand_csv_source(rules,catalog):
+    """Review only CSV64's extracted identity; do not admit miscellaneous edges."""
+    path=Path(rules.root)/'data/mentor-source-contract.json'
+    if EXPAND_CSV not in catalog or EXPAND not in catalog or not path.exists():return False
+    data=json.loads(path.read_text(encoding='utf-8'))
+    expected={'id':EXPAND_CSV,'file':'db/poke-edges.csv','record_span':[64,64],
+        'sha256':'8e4bbb735033db781ca011f98885c1b5fe1b900da75a196b9e6f8734ceff946d',
+        'feature':EXPAND,'feature_file':'ch04-trainer-classes.md','feature_lines':[627,631],
+        'point_cost':0,'points':3,'action':'extended'}
+    # The authenticated older contract omits only this published CSV64 link.
+    link=data.get('expand_csv',expected)
+    if (type(link)is not dict or set(link)-{'review'}!=set(expected) or
+            json.dumps({key:link[key] for key in expected},sort_keys=True,allow_nan=False)!=
+            json.dumps(expected,sort_keys=True,allow_nan=False) or
+            data['source_hashes'].get('input/ch04-trainer-classes.md')!=SOURCE_SHA256):
+        raise ValueError('reviewed Expand Horizons CSV/Book identity changed')
+    unit=catalog[EXPAND_CSV];feature=catalog[EXPAND]
+    if (link['id']!=EXPAND_CSV or link['feature']!=EXPAND or
+            link['file']!='db/poke-edges.csv' or link['record_span']!=[64,64] or
+            link['feature_file']!='ch04-trainer-classes.md' or link['feature_lines']!=[627,631] or
+            unit['source'].get('file')!=link['file'] or unit['source'].get('record_span')!=link['record_span'] or
+            unit['source'].get('sha256',link['sha256'])!=link['sha256'] or
+            feature['source'].get('file')!=link['feature_file'] or feature['source'].get('lines')!=link['feature_lines']):
+        raise ValueError('reviewed Expand Horizons CSV/Book identity changed')
+    unit['source_group']=None
+    unit['source'].update(sha256=link['sha256'],additional_files=[link['feature_file']],
+        additional_snapshots={link['feature_file']:data['source_hashes']['input/'+link['feature_file']]})
+    return True
 
 
 def contract(rules):
@@ -160,11 +191,17 @@ def _extended(engine,actor,target,source_id,seconds,context):
     JOBS.run_fixed(engine,actor,(target,),seconds=seconds,source=source_id,context=context)
 
 
-def expand(engine,actor,target,*,request_id,seconds,reason):
+def expand(engine,actor,target,*,request_id,seconds,reason,source_id=EXPAND):
     import state_grants as G,resolution_transaction as TX
+    if source_id not in (EXPAND,EXPAND_CSV):raise ValueError('exact Expand Horizons input source required')
     intent={'teacher':actor.entity_id,'target':target.entity_id,'seconds':seconds,'reason':reason}
+    if source_id==EXPAND_CSV:intent['input_source']=source_id
     def apply(e,a,p):
         _participants(e,a,p);_require(a,EXPAND)
+        admission=None
+        if source_id==EXPAND_CSV:
+            _require(a,CLASS)
+            admission=e.r.select_source_definition(EXPAND_CSV)
         prior=TX.replay_result(p.spec.get('mentor_expansion_requests',{}),request_id,intent)
         if prior is not None:return prior['result']
         if p.spec.get('trainer_id')!=a.entity_id:raise ValueError('Expand Horizons requires your own Pokemon')
@@ -174,6 +211,7 @@ def expand(engine,actor,target,*,request_id,seconds,reason):
         if type(reason)is not str or not reason.strip():raise ValueError('actual Mentor application reason required')
         _extended(e,a,p,EXPAND,seconds,{'request_id':request_id})
         result={'source':EXPAND,'teacher_id':a.entity_id,'target_id':p.entity_id,'points':3,'before':balance,'after':T._balance(p.spec)+3}
+        if admission is not None:result.update(input_source=admission,point_cost=0)
         p.spec['tutor_points']=result['after']
         p.spec.setdefault('mentor_expansion_history',[]).append(dict(result,request_id=request_id,at=e.elapsed_seconds))
         p.spec.setdefault('mentor_expansion_requests',{})[request_id]={'intent':deepcopy(intent),'result':deepcopy(result)}
