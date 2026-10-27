@@ -476,22 +476,22 @@ jobs:
           New-Item -ItemType Directory -Path $taskTemp -ErrorAction Stop | Out-Null
           $taskHeaders = @{ Authorization = 'Bearer ' + $env:GH_TOKEN; Accept = 'application/vnd.github+json'; 'X-GitHub-Api-Version' = '2022-11-28' }
           $taskApi = 'https://api.github.com/repos/andrew0416/trpg-rulebook-structuring'
-          $taskRun = Invoke-RestMethod -Uri ($taskApi + '/actions/runs/40432672480') -Headers $taskHeaders
-          if ($taskRun.head_sha -cne '89ac1bb5f1f4ce7955c446a8a2139c8f941a67db' -or $taskRun.status -cne 'completed' -or $taskRun.conclusion -cne 'failure' -or $taskRun.run_attempt -ne 1) { throw 'Original run binding differs' }
-          $taskArtifact = Invoke-RestMethod -Uri ($taskApi + '/actions/artifacts/12702809485') -Headers $taskHeaders
-          if ($taskArtifact.name -cne 'implementation-aa-40432672480-1' -or $taskArtifact.size_in_bytes -ne 214843668 -or $taskArtifact.expired -or $taskArtifact.workflow_run.id -ne 40432672480 -or $taskArtifact.workflow_run.head_sha -cne $taskRun.head_sha -or $taskArtifact.digest -cne 'sha256:3ece6ce1c8c5a9e6dbb3701bfb0b727363212432f45d7fb15ede20100b08144a') { throw 'Original artifact binding differs' }
+          $taskRun = Invoke-RestMethod -Uri ($taskApi + '/actions/runs/40435639222') -Headers $taskHeaders
+          if ($taskRun.head_sha -cne '6a561e5805aaf090322b85fb3e4b5e5f519a291f' -or $taskRun.status -cne 'completed' -or $taskRun.conclusion -cne 'failure' -or $taskRun.run_attempt -ne 1) { throw 'Original run binding differs' }
+          $taskArtifact = Invoke-RestMethod -Uri ($taskApi + '/actions/artifacts/12705890371') -Headers $taskHeaders
+          if ($taskArtifact.name -cne 'implementation-aa-40435639222-1' -or $taskArtifact.size_in_bytes -ne 214802105 -or $taskArtifact.expired -or $taskArtifact.workflow_run.id -ne 40435639222 -or $taskArtifact.workflow_run.head_sha -cne $taskRun.head_sha -or $taskArtifact.digest -cne 'sha256:8261e3ac5d60b160cc660418f321ed5ea95491c9b874528e9c35792cf22e519e') { throw 'Original artifact binding differs' }
           $taskZip = Join-Path $taskTemp 'original-artifact.zip'
-          Invoke-WebRequest -Uri ($taskApi + '/actions/artifacts/12702809485/zip') -Headers $taskHeaders -OutFile $taskZip
-          if ((Get-Item -LiteralPath $taskZip).Length -ne 214843668) { throw 'Original artifact size differs' }
+          Invoke-WebRequest -Uri ($taskApi + '/actions/artifacts/12705890371/zip') -Headers $taskHeaders -OutFile $taskZip
+          if ((Get-Item -LiteralPath $taskZip).Length -ne 214802105) { throw 'Original artifact size differs' }
           $taskArchive = [IO.Compression.ZipFile]::OpenRead($taskZip)
           try {
-            $taskEntries = @($taskArchive.Entries | Where-Object { $_.FullName -ceq '2459a49f102d41ddb336b8a420f9aabe/diagnostics.zip.enc' })
-            if ($taskEntries.Count -ne 1 -or $taskEntries[0].Length -ne 932340) { throw 'One bound encrypted diagnostic is required' }
+            $taskEntries = @($taskArchive.Entries | Where-Object { $_.FullName -ceq '912ca5208aea4ff398f8dd34249c44ee/diagnostics.zip.enc' })
+            if ($taskEntries.Count -ne 1 -or $taskEntries[0].Length -ne 911481) { throw 'One bound encrypted diagnostic is required' }
             $taskInput = $taskEntries[0].Open()
             $taskOutput = [IO.File]::Open((Join-Path $taskTemp 'diagnostics.zip.enc'), [IO.FileMode]::CreateNew)
             try { $taskInput.CopyTo($taskOutput) } finally { $taskOutput.Dispose(); $taskInput.Dispose() }
           } finally { $taskArchive.Dispose() }
-          if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $taskTemp 'diagnostics.zip.enc')).Hash.ToLowerInvariant() -cne '75fdb8f52cd35e6db36322ded6a755b79a57a4dde5153c5b8f3d14ebccc09fa2') { throw 'Encrypted diagnostic digest differs' }
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $taskTemp 'diagnostics.zip.enc')).Hash.ToLowerInvariant() -cne '595212520baf9c6fb010a348fa8d7ba313ff3d538343cd20167b371c754acf88') { throw 'Encrypted diagnostic digest differs' }
       - name: Reduce authenticated diagnostics to public IDs and source frames only
         shell: pwsh
         env:
@@ -517,7 +517,7 @@ jobs:
               temporary = Path(os.environ['RUNNER_TEMP']).resolve()
               if root.drive.upper() != 'D:' or temporary.drive.upper() != 'D:':
                   raise ValueError('D-only diagnostic paths required')
-              head = '89ac1bb5f1f4ce7955c446a8a2139c8f941a67db'
+              head = '6a561e5805aaf090322b85fb3e4b5e5f519a291f'
               def git(*args):
                   return subprocess.check_output(['git', *args], cwd=root, stderr=subprocess.DEVNULL)
               if git('rev-parse', 'HEAD^').decode().strip() != head:
@@ -527,7 +527,7 @@ jobs:
               if len(public_ids) != 219 or packet['required_unique_count'] != 219:
                   raise ValueError('Original public declaration differs')
               tracked = {name for name in git('ls-tree', '-rz', '--name-only', head).decode('utf-8').split('\0') if name.endswith('.py')}
-              prefix = 'D:/trpg-rulebook-structuring/ci/40432672480-1-changed_revisions/'
+              prefix = 'D:/trpg-rulebook-structuring/ci/40435639222-1-changed_revisions/'
               error_types = {'AssertionError', 'AttributeError', 'FileNotFoundError', 'ImportError',
                              'IndexError', 'KeyError', 'LookupError', 'ModuleNotFoundError',
                              'NotImplementedError', 'OSError', 'OverflowError', 'PermissionError',
@@ -579,7 +579,7 @@ jobs:
                   report = json.loads(archive.read(reports[0]))
               if set(report['collected']) != public_ids or len(report['collected']) != 219 or report['tests_run'] != 219:
                   raise ValueError('Original verifier scope differs')
-              if len(report['failures']) != 2 or len(report['errors']) != 56:
+              if len(report['failures']) != 5 or len(report['errors']) != 0:
                   raise ValueError('Original failure counts differ')
               reduced = []
               for kind in ('failures', 'errors'):
@@ -590,9 +590,9 @@ jobs:
                       if not item['test_ids']:
                           raise ValueError('Failure row has no original public test mapping')
                       reduced.append(dict(kind=kind, **item))
-              result = dict(kind='redacted_original_failure_diagnostic_only', source_run=40432672480,
+              result = dict(kind='redacted_original_failure_diagnostic_only', source_run=40435639222,
                             source_commit=head, diagnostic_commit=os.environ['GITHUB_SHA'],
-                            evidence_id='2459a49f102d41ddb336b8a420f9aabe', game_runs=0, clause_credit=0,
+                            evidence_id='912ca5208aea4ff398f8dd34249c44ee', game_runs=0, clause_credit=0,
                             self_check_passed=True, physical_acceptance=False, failures=reduced)
               with (root / 'aa-diagnostics.json').open('x', encoding='utf-8') as stream:
                   json.dump(result, stream, ensure_ascii=False, indent=2)
