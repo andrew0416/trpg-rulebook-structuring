@@ -24,9 +24,9 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "repair226-followup01",
-  "active_repair_scope": "Revalidate the nine actual failures/errors from original226 plus the repaired native accuracy/recipient and rules-fingerprint boundaries as an exact108-ID/17-class ordinary union. Include all9 nonpassing IDs,24 original PASS impacts,74 additional existing public tests and1 new Vim cache/override regression. Preserve original226/217PASS,1252 and276 evidence separately; no full-snapshot acceptance or clause credit is inferred.",
-  "active_repair_required_tests": 108,
+  "active_repair": "repair108-final-fixture-followup01",
+  "active_repair_scope": "Revalidate the last two fixture failures from original108 through exactly7 existing native IDs/4classes: Heavy observer1 and Steelheart source/recipient contracts6. Include both original failures,2 original PASS controls and3 additional existing source-variant tests. Runtime/sharedfixture/newmethods0; retain original106PASS and earlier108/226/1252/276 evidence separately. The separate7 synthetic preparation checks are not native IDs or clause credit.",
+  "active_repair_required_tests": 7,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -42,7 +42,7 @@
   "separately_pending_frequency_equivalence_methods": 1029,
   "separately_pending_procedural_runners": 21,
   "ordinary_shard_count": 18,
-  "active_repair_phase": "native_accuracy_fingerprint_and_fixture_corrections",
+  "active_repair_phase": "two_fixture_corrections",
   "active_repair_procedural_runners": 0,
   "full_method_obligations": 13847,
   "ordinary_methods_separate_run": 40141538702,
@@ -77,14 +77,14 @@
   "phase2_metadata_methods_mandatory": 0,
   "phase2_additional_procedural_runners": 0,
   "unaffected_previous_PASS_reused": 0,
-  "selected_method_obligations": 108,
+  "selected_method_obligations": 7,
   "partial_prerequisite_refresh": true,
   "full_method_scope_executed": false,
   "source_fresh_native_prerequisites": 1404,
   "native_prerequisite_run": "40241811271",
   "activation_current_evidence_current": false,
   "previous_activation_evidence": "historical_only_not_current",
-  "active_repair_source_commit": "65e8a75234964f0c207e212345d6c32e466038e8",
+  "active_repair_source_commit": "fc70db0b8e2db3bb964eb371ebed9ebc7920e903",
   "active_repair_source_plan_path": ".ci/suites/changed_revisions.json",
   "historical_source_contract_repair": {
     "source_commit": "2f8975c41bd76cf48c904df85cf92a489430dbbc",
@@ -550,7 +550,15 @@
     "source_candidate": "branch-integration-1027ai/repair226-followup-composed01",
     "source_handoff": "branch-integration-1027ai/repair226-followup-composed01/HANDOFF.json",
     "source_upload_manifest": "branch-integration-1027ai/repair226-followup-composed01/review/SOURCE-UPLOAD.json",
-    "source_delta_against65": {"paths":7,"runtime":2,"tests":5,"additions":96,"deletions":18,"new_paths":0,"authority":"Root final source manifest and direct source review; no shared collision"},
+    "source_delta_against65": {
+      "paths": 7,
+      "runtime": 2,
+      "tests": 5,
+      "additions": 96,
+      "deletions": 18,
+      "new_paths": 0,
+      "authority": "Root final source manifest and direct source review; no shared collision"
+    },
     "independent_review": "Wish/Admission reviewed byrepair_boss_capture, Heavy byrepair_conditions andVim byreview_order_variants; Root read all four source patches. No remaining actionable source finding reported; actual native validation still required.",
     "source_candidates": [
       "branch-integration-1027ai/repair226-wish-admission01",
@@ -633,5 +641,87 @@
       "active_repair_phase": "native_source_and_fixture_repairs"
     },
     "historical_fields": "All prior667/18/276/1252/226/4115 preparations, sourcepins, results and stored historical completion totals remain unchanged. New smaller execution scope does not erase or automatically accept original obligations."
+  },
+  "repair108_final_fixture_followup_preparation": {
+    "status": "SOURCE_REVIEWED7_NATIVE_TEST_ONLY_FOLLOWUP_ROOT_SOURCE_AND_CI_FROZEN_UNEXECUTED",
+    "base_commit": "fc70db0b8e2db3bb964eb371ebed9ebc7920e903",
+    "runtime_preimage": "9dddc9cba53e72857f98df75d84c4996f63925dd",
+    "source_candidate": "branch-integration-1027ai/repair108-final-composed01",
+    "source_handoff": "branch-integration-1027ai/repair108-final-composed01/HANDOFF.json",
+    "source_upload_manifest": "branch-integration-1027ai/repair108-final-composed01/review/SOURCE-UPLOAD.json",
+    "source_delta_againstfc70": {
+      "paths": 2,
+      "runtime": 0,
+      "tests": 2,
+      "shared_fixture_changes": 0,
+      "new_methods": 0,
+      "additions": 33,
+      "deletions": 6,
+      "authority": "Root final source manifest and direct patch review; Steelheart independently reviewed"
+    },
+    "selection": "branch-integration-1027ai/repair108-final-controls01/required-native-tests.json",
+    "required_unique_count": 7,
+    "required_class_groups": 4,
+    "counts": {
+      "owner_sum": 7,
+      "duplicates": 0,
+      "original2_nonpassing_included": 2,
+      "original2_nonpassing_missing": 0,
+      "selected_original108": 4,
+      "selected_original_pass": 2,
+      "selected_original_fail": 2,
+      "selected_original_error": 0,
+      "additional_existing_ids": 3,
+      "new_methods": 0
+    },
+    "owners": {
+      "heavy_observer": 1,
+      "steelheart_source_contracts": 6
+    },
+    "new_test_ids": [],
+    "original_result": {
+      "run": 40554102869,
+      "job": 122365393328,
+      "head": "9dddc9cba53e72857f98df75d84c4996f63925dd",
+      "collected": 108,
+      "executed": 108,
+      "unique_pass": 106,
+      "unique_fail": 2,
+      "unique_error": 0,
+      "declared_difference": 0,
+      "inputs_unchanged": true,
+      "preserved": true
+    },
+    "diagnostic": {
+      "run": 40559812956,
+      "job": 122385493787,
+      "head": "fc70db0b8e2db3bb964eb371ebed9ebc7920e903",
+      "status": "success, exact source frames read byRoot and owners",
+      "native_reruns": 0,
+      "meaning": "Diagnosis only, never repairPASS."
+    },
+    "repairs": "Heavy method preserves rawdef0/log observer/pending/noHeavy semantics while asserting native effectivefloor1 and observed damage40/HP10. Steelheart method selects and checks real incoming/outgoing source variants with native hit/recipient receipt/replay/restore; no runtime default or guard change.",
+    "selection_boundary": "Original106PASS remains unchanged source evidence. Sharedfixture/runtime0 means no new automatic full108 rerun. Both original failures and all six selected source-choice contracts are mandatory. This subset does not automatically accept every earlier scope or the canonical tree.",
+    "budget": {
+      "native_timeout_seconds": 10800,
+      "aa_native_job_timeout_minutes": 195,
+      "generic_job_timeout_minutes": 105,
+      "default_native_timeout_seconds": 5400,
+      "fit_or_speedup_claim": false
+    },
+    "execution_route": "Unchanged ordinary verifier/H and full original physical input/evidence capture. No diagnostic_profile, thin capture, synthetic substitution, newSecret or privateinput transfer.",
+    "source_preparation": "Existing7 synthetic preparation boundary checks and authenticated PDF extraction unchanged. Native count is7, not14.",
+    "current_diagnostic_route": "Existing aa_diagnostics remains exactfc70 workflow bound to original9dd/108 failure and intentionally rejects unrelated followup heads; not dispatched by this candidate.",
+    "canonical_publication": false,
+    "completion_credit": 0,
+    "prior_active_repair": {
+      "active_repair": "repair226-followup01",
+      "active_repair_scope": "Revalidate the nine actual failures/errors from original226 plus the repaired native accuracy/recipient and rules-fingerprint boundaries as an exact108-ID/17-class ordinary union. Include all9 nonpassing IDs,24 original PASS impacts,74 additional existing public tests and1 new Vim cache/override regression. Preserve original226/217PASS,1252 and276 evidence separately; no full-snapshot acceptance or clause credit is inferred.",
+      "active_repair_required_tests": 108,
+      "selected_method_obligations": 108,
+      "active_repair_source_commit": "65e8a75234964f0c207e212345d6c32e466038e8",
+      "active_repair_phase": "native_accuracy_fingerprint_and_fixture_corrections"
+    },
+    "historical_fields": "All original667/18/276/1252/226/108/4115 preparations, sourcepins, results and stored historical completion totals remain unchanged. New native7 count is separate from existing synthetic7 and does not erase earlier obligations."
   }
 }

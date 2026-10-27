@@ -344,9 +344,10 @@ class Tests(unittest.TestCase):
   with self.assertRaises(H.HeavyPending):e.use_move(a,b,'struggle',set_damage=True)
   # Native graph copies can replay append; every observation must see real HP.
   self.assertTrue(seen);self.assertEqual(set(seen),{50})
-  self.assertEqual((b.hp,b.stats['def']),(9,0))
+  self.assertEqual((b.hp,b.stats['def'],b.staged('def')),(10,0,1))
   self.assertEqual((a.budget['standard'],a.move_uses['struggle']),(0,1))
   p=e._heavy_events[e._heavy_pending]
+  self.assertEqual((p['before']['hp'],p['amount'],p['observed_after']['hp']),(50,40,10))
   self.assertEqual(p['status'],'pending');self.assertNotIn('heavy_consequence',p)
   self.assertIn('noncanonical_log_sink',p['context_evidence']['failures'])
  def test_045_shared_passive_contract_rejects_attack_name_and_registry_observers(self):
