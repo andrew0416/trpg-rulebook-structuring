@@ -37,7 +37,9 @@ def preparation_scope(fn):
     sig=signature(fn)
     @wraps(fn)
     def run(*args,**kwargs):
-        supplied=sig.bind(*args,**kwargs).arguments
+        bound=sig.bind(*args,**kwargs)
+        args,kwargs=bound.args,bound.kwargs
+        supplied=bound.arguments
         engine=supplied.get('self',supplied.get('engine'))
         parent=_PREPARED.get();activation=supplied.get('_activation')
         world,original_activation=_root_context(engine,activation)

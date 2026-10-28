@@ -195,7 +195,8 @@ def attack_stat(e,actor,move,current):
 
 def active_ability(actor,uid):
  unit=actor.r.selection.units.get(uid)
- return bool(unit and unit['title'] in actor.abilities and __import__('ability_transitions').active(actor,uid))
+ import ability_transitions as ABILITIES
+ return bool(unit and any(ABILITIES.ability_id(actor.r,value)==uid for value in actor.abilities) and ABILITIES.active(actor,uid))
 
 
 def storm_bonus(e,actor,move):

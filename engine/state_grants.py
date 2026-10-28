@@ -735,7 +735,16 @@ def remove_owned(e,c,source_id):
 def _ability_key(rules,name):
     import move_state as MOVES_STATE
     slot=MOVES_STATE.ability_registration(rules,name)
-    return slot['name'] if slot else getattr(rules,'ability_alias',{}).get(name,name)
+    if slot:return slot['name']
+    if name.startswith('ability/'):
+        selected=rules._selected_rule(name)
+        if selected!=name:raise ValueError('exact ability ID requires its selected source, not a replacement')
+        canonical=rules.selection.units[selected]['title']
+        if (rules.selection.resolve_name(canonical,('ability/',))!=selected
+                or getattr(rules,'ability_alias',{}).get(canonical,canonical)!=canonical):
+            raise ValueError('exact ability ID requires its unambiguous selected title')
+        return canonical
+    return getattr(rules,'ability_alias',{}).get(name,name)
 
 
 def ensure_ability(e,c,name):
@@ -746,7 +755,7 @@ def ensure_ability(e,c,name):
         return False
     import move_state as MOVES_STATE
     registration=MOVES_STATE.ability_registration(e.r,name)
-    canonical=registration['name'] if registration else getattr(e.r,'ability_alias',{}).get(name,name)
+    canonical=registration['name'] if registration else _ability_key(e.r,name)
     # Resolve before initializing grant storage or binding conditional effects.
     # Reviewed exact registrations may disambiguate a name; bare names may not.
     if registration is None and name in getattr(e.r,'unresolved_abilities',{}):
@@ -758,7 +767,7 @@ def ensure_ability(e,c,name):
         selected=registration['source_id'] if registration else e.r.selection.resolve_name(canonical,('ability/',))
         e.r.selection.require_supported_version(selected)
     import core_weather_abilities as CORE_WEATHER
-    CORE_WEATHER.bind(e,c,name)
+    CORE_WEATHER.bind(e,c,canonical)
     st=state(c)
     if canonical in st["ability_receipts"]:return False
     source_id="ability:"+canonical
@@ -768,7 +777,7 @@ def ensure_ability(e,c,name):
         import chronicler as CHRONICLER
         CHRONICLER.perception_definition(e.r,selected)
         effects=[effect for effect in effects if effect['type']=='evasion_mod']
-    callback=(lambda:e._register_abilities_one(c,registration['name'],selected_id=registration['source_id'])) if registration else (lambda:e._register_abilities_one(c,name))
+    callback=(lambda:e._register_abilities_one(c,registration['name'],selected_id=registration['source_id'])) if registration else (lambda:e._register_abilities_one(c,canonical if name.startswith('ability/') else name))
     apply_owned(e,c,source_id,callback,effects=effects)
     st["ability_receipts"][canonical]=source_id
     import base_stage_abilities as BASE_ABILITIES
@@ -853,7 +862,6 @@ def preflight_revoke(c, source_id):
     if overlays:remaining=overlays[-1]
     import ability_transitions as ABILITY_TRANSITIONS
     remaining=ABILITY_TRANSITIONS.project(c,remaining,ignored_sources=sources)
-    aliases=getattr(c.r,"ability_alias",{})
     canonical_remaining={_ability_key(c.r,name) for name in remaining}
     sources.update(receipt for name,receipt in st["ability_receipts"].items() if name not in canonical_remaining)
     import acquisition_withdrawal as WITHDRAWAL
@@ -868,7 +876,7 @@ def preflight_revoke(c, source_id):
             raise UnresolvedRuleSelection(name,c.r.unresolved_abilities[name])
         if hasattr(c.r,"selection"):
             registration=MOVES_STATE.ability_registration(c.r,name)
-            selected=registration["source_id"] if registration else c.r.selection.resolve_name(aliases.get(name,name),("ability/",))
+            selected=registration["source_id"] if registration else c.r.selection.resolve_name(_ability_key(c.r,name),("ability/",))
             c.r.selection.require_supported_version(selected)
     for field,row in st["numbers"].items():
         if sources.intersection(row["sources"]) and row["bounds"] is not None and _get(c,field)!=row["visible"]:

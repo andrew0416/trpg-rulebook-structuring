@@ -40,7 +40,8 @@ def capabilities(e,c,*,environment=True):
   import move_capabilities as MOVE_CAPABILITIES
   result=MOVE_CAPABILITIES.current_values(c,result,MODES+('free_float','high_jump','long_jump'))
  if basis=='base' and c.kind=='pokemon':
-  if '부유' in c.abilities or 'Levitate' in c.abilities:
+  import ability_transitions as ABILITIES
+  if any(ABILITIES.ability_id(e.r,value)=='ability/부유' for value in c.abilities):
    if c.abilities_suppressed:raise ValueError('suppressed Levitate capability duration needs an explicit current sheet ruling')
    if e.r._selected_rule('ability/부유')!='ability/부유':raise ValueError('selected Levitate variant needs its own capability policy')
    result['levitate']=result.get('levitate',0)+(2 if result.get('levitate',0)>0 else 4)

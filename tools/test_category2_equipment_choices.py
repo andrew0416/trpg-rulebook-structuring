@@ -296,17 +296,17 @@ class EquipmentTests(unittest.TestCase):
   e,a,b,mid=self.f.fixture('트릭');self.assertIsInstance(e.use_move_on(a,b,mid,e.everyone),C.PendingDecision)
   with self.assertRaises(ValueError):e.use_move(a,b,mid)
   self.assertFalse(a.move_uses)
- def reaction(self,name,move='몸통박치기',seed=0,occupied=False):
+ def reaction(self,name,move='몸통박치기',seed=0,occupied=False,*,stored=None):
   held=(None,'선제공격손톱') if name=='매지션' else ('선제공격손톱',None)
   if occupied:held=('선제공격손톱','예리한손톱')
-  e,a,b,mid=self.f.fixture(move,held=held,seed=seed);holder=a if name=='매지션' else b;G.replace_baseline(e,holder,'abilities',[name])
+  e,a,b,mid=self.f.fixture(move,held=held,seed=seed);holder=a if name=='매지션' else b;G.replace_baseline(e,holder,'abilities',[name if stored is None else stored])
   e.gm.add_combatant(a,side='party',reason='observed reaction attacker side')
   e.gm.add_combatant(b,side='foe',reason='observed reaction target side')
   e.use_move(a,b,mid);return e,a,b,holder
  def test_each_actual_hit_reaction_accepts_declines_and_charges_scene_once(self):
-  for name in ('나쁜손버릇','매지션'):
+  for name,stored in ((name,value) for name in ('나쁜손버릇','매지션') for value in (name,'ability/'+name)):
    for accept in (True,False):
-    e,a,b,holder=self.reaction(name);rows=E.pending(e);self.assertEqual(len(rows),1);row=rows[0]
+    e,a,b,holder=self.reaction(name,stored=stored);self.assertIn(stored,holder.abilities);rows=E.pending(e);self.assertEqual(len(rows),1);row=rows[0]
     self.assertEqual(row['native_trigger']['event'],E.REACTIONS['ability/'+name]);before=deepcopy(holder.spec.get('frequency_state',{}))
     E.resolve(e,holder,row['id'],accept=accept);self.assertFalse(E.pending(e));E.resolve(e,holder,row['id'],accept=accept)
     self.assertEqual(holder.item,'선제공격손톱' if accept else None)
@@ -314,19 +314,21 @@ class EquipmentTests(unittest.TestCase):
     if not accept:self.assertEqual(holder.spec.get('frequency_state',{}),before)
     self.valid(e)
  def test_reaction_false_trigger_miss_ranged_area_and_occupied_do_not_offer(self):
-  for name in ('나쁜손버릇','매지션'):
-   e,a,b,holder=self.reaction(name,seed=2);self.assertFalse(E.pending(e))
-   e,a,b,holder=self.reaction(name,occupied=True);self.assertFalse(E.pending(e))
+  for name,stored in ((name,value) for name in ('나쁜손버릇','매지션') for value in (name,'ability/'+name)):
+   e,a,b,holder=self.reaction(name,seed=2,stored=stored);self.assertFalse(E.pending(e))
+   e,a,b,holder=self.reaction(name,occupied=True,stored=stored);self.assertFalse(E.pending(e))
   e,a,b,holder=self.reaction('나쁜손버릇',move='물대포');self.assertFalse(E.pending(e))
   e,a,b,holder=self.reaction('매지션',move='불태우기');self.assertFalse(any(x['mode']=='reaction' for x in E.pending(e)))
  def test_each_reaction_pending_gm_and_codec_then_source_removal_rejects(self):
-  for name in ('나쁜손버릇','매지션'):
-   e,a,b,holder=self.reaction(name);row=E.pending(e)[0];e.gm.snapshot('reaction')
+  for name,stored in ((name,value) for name in ('나쁜손버릇','매지션') for value in (name,'ability/'+name)):
+   e,a,b,holder=self.reaction(name,stored=stored);row=E.pending(e)[0];e.gm.snapshot('reaction')
    E.resolve(e,holder,row['id'],accept=True);e.gm.restore('reaction',reason='restore hit-owned free choice')
    loaded=self.roundtrip(e);who=W.actor_index(loaded)[holder.entity_id];newrow=E.pending(loaded)[0]
    E.resolve(loaded,who,newrow['id'],accept=True);self.assertEqual(who.item,'선제공격손톱');self.valid(loaded)
-   e,a,b,holder=self.reaction(name);row=E.pending(e)[0];G.replace_baseline(e,holder,'abilities',[])
-   with self.assertRaises(ValueError):E.resolve(e,holder,row['id'],accept=True)
+   e,a,b,holder=self.reaction(name,stored=stored);row=E.pending(e)[0];G.replace_baseline(e,holder,'abilities',[])
+   before=e.export_state();before_log=list(e.log_lines)
+   with self.assertRaisesRegex(ValueError,'reaction ability no longer available'):E.resolve(e,holder,row['id'],accept=True)
+   self.assertEqual(e.export_state(),before);self.assertEqual(e.log_lines,before_log)
    self.assertIsNone(holder.item)
 
 if __name__=='__main__':unittest.main(verbosity=2)

@@ -229,7 +229,8 @@ def resolve(e,chooser,choice_id,*,selection=None,choice=None,accept=None,consent
             if any(value is None for value in row['permissions'].values()):row['phase']='removal_consent';return _consent_pending(row)
     import frequency as FREQ
     if mode=='reaction' and accept:
-        if actor.fainted or actor.abilities_suppressed or row['source'].split('/',1)[1] not in actor.abilities:raise ValueError('reaction ability no longer available')
+        import ability_transitions as ABILITIES
+        if actor.fainted or actor.abilities_suppressed or not any(ABILITIES.ability_id(e.r,value)==row['source'] for value in actor.abilities):raise ValueError('reaction ability no longer available')
         if not FREQ.activation_allowed(actor,row['source'],e.r.ability_freq.get(row['source'].split('/',1)[1]),engine=e,action_actor=actor):raise ValueError('reaction frequency exhausted')
     def apply(staged,actual,other):
         saved=actual.custom_conditions[RECORDS][choice_id]
@@ -265,7 +266,8 @@ def resolve(e,chooser,choice_id,*,selection=None,choice=None,accept=None,consent
 def offer_reaction(e,actor,event,target,source):
     if target is None or event.get("event")!=REACTIONS[source]:return None
     name=source.split("/",1)[1]
-    if actor.fainted or actor.abilities_suppressed or name not in actor.abilities or HELD.any_held(actor) or not HELD.any_held(target):return None
+    import ability_transitions as ABILITIES
+    if actor.fainted or actor.abilities_suppressed or not any(ABILITIES.ability_id(e.r,value)==source for value in actor.abilities) or HELD.any_held(actor) or not HELD.any_held(target):return None
     move=event.get("move")
     if not isinstance(move,dict) or move.get("id") not in e.r.moves:return None
     if source=="ability/나쁜손버릇" and "근접" not in str(move.get("range","")):return None

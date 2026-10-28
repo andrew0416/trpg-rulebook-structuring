@@ -90,9 +90,11 @@ def operation(kind,*fields):
         sig=signature(fn)
         @wraps(fn)
         def run(engine,*args,**kwargs):
-            if not getattr(engine,'_execution_trace_enabled',False):return fn(engine,*args,**kwargs)
+            bound=sig.bind(engine,*args,**kwargs)
+            call_args,call_kwargs=bound.args,bound.kwargs
+            if not getattr(engine,'_execution_trace_enabled',False):return fn(*call_args,**call_kwargs)
             import source_context as SC
-            bound=sig.bind(engine,*args,**kwargs);bound.apply_defaults()
+            bound.apply_defaults()
             number=getattr(engine,'_execution_trace_sequence',0)+1
             engine._execution_trace_sequence=number
             identity='native-trace:'+str(number)
@@ -110,7 +112,7 @@ def operation(kind,*fields):
             try:
                 with SC.capture_reads(engine.r) as reads:
                     try:
-                        result=fn(engine,*args,**kwargs)
+                        result=fn(*call_args,**call_kwargs)
                         row.update(state='returned',result=_value(result))
                         return result
                     except Exception as exc:

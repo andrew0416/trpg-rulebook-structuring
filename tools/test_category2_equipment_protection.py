@@ -131,8 +131,8 @@ class ProtectionTests(unittest.TestCase):
    self.assertIs(SF.event(e,a,'native-roll').first,first);self.assertIs(SF.event(e,a,'native-roll').final,final)
    self.assertEqual((first.faces,final.faces),observed_values)
  def test_protection_restore_and_actual_source_revocation_have_no_stale_lock(self):
-  for name,item in (('점착','선제공격손톱'),('대파의달인','대파')):
-   e,a,b,mid=self.fixture(held=(None,item),abilities=((),(name,)));e.gm.snapshot('protected');e.gm.restore('protected',reason='restore selected source protection')
+  for name,item in (('점착','선제공격손톱'),('대파의달인','대파'),('ability/점착','선제공격손톱'),('ability/대파의달인','대파')):
+   e,a,b,mid=self.fixture(held=(None,item),abilities=((),(name,)));self.assertIn(name,b.abilities);e.gm.snapshot('protected');e.gm.restore('protected',reason='restore selected source protection')
    loaded=self.roundtrip(e);who=W.actor_index(loaded)[b.entity_id]
    with self.assertRaises((P.ProtectedEquipment,P.EquipmentConsentRequired)):I.drop_item(loaded,who)
    G.replace_baseline(loaded,who,'abilities',[]);I.drop_item(loaded,who);self.assertIsNone(who.item);self.valid(loaded)

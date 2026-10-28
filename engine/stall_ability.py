@@ -18,9 +18,9 @@ def registration(rules, source):
 
 
 def active(actor):
-    if actor.kind != 'pokemon' or NAME not in actor.abilities:
-        return False
     import ability_transitions as ABILITIES
+    if actor.kind != 'pokemon' or not any(ABILITIES.ability_id(actor.r,value)==SOURCE for value in actor.abilities):
+        return False
     return registration(actor.r, SOURCE) and ABILITIES.active(actor, SOURCE)
 
 

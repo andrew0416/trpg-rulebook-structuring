@@ -239,7 +239,10 @@ class TelekineticTests(unittest.TestCase):
   self.cast(overload=True);hp=self.b.hp;self.close();self.assertEqual(self.b.hp,hp);self.turn(self.b);self.close();self.assertEqual(self.b.hp,hp-self.e.tick(self.b));self.e.end_round();self.assertEqual(self.b.hp,hp-self.e.tick(self.b));self.restore();self.valid()
 
  def test_power_trainer_levitate_actual_ground_immunity_four_and_existing_plus_two(self):
-  self.family(TK.POWER);self.assertEqual(MOVEMENT.capabilities(self.e,self.a)['levitate'],4);self.e.gm.set_movement_capabilities(self.a,dict(self.a.spec['movement'],levitate=5),basis='current',reason='independent positive Levitate capability');self.assertEqual(MOVEMENT.capabilities(self.e,self.a)['levitate'],7)
+  self.family(TK.POWER);self.assertEqual(MOVEMENT.capabilities(self.e,self.a)['levitate'],4)
+  self.e.gm.set_ability(self.a,TK.LEVITATE,reason='same independently owned Levitate by exact source');self.assertIn(TK.LEVITATE,self.a.abilities);self.assertNotIn('부유',self.a.abilities)
+  self.assertEqual(MOVEMENT.capabilities(self.e,self.a)['levitate'],4)
+  self.e.gm.set_movement_capabilities(self.a,dict(self.a.spec['movement'],levitate=5),basis='current',reason='independent positive Levitate capability');self.assertEqual(MOVEMENT.capabilities(self.e,self.a)['levitate'],7)
   self.begin(self.b);hp=self.a.hp
   with patch.object(Engine,'d20',return_value=18):self.e.use_move(self.b,self.a,'move/지진',set_damage=True)
   self.assertEqual(self.a.hp,hp);self.restore();self.valid()

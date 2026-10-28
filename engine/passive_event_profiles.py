@@ -23,7 +23,8 @@ def register_profile(e,selected_id):
 def eligibility(e,ev,rule_id):
     a,t=ev["actor"],ev["target"]
     if rule_id!=RULE:return "pending","source_adapter_not_implemented"
-    if NAME not in a.abilities:return "pending","source_listener_no_longer_owned"
+    import ability_transitions as ABILITIES
+    if not any(ABILITIES.ability_id(e.r,value)==RULE for value in a.abilities):return "pending","source_listener_no_longer_owned"
     if ev["owner_before"] != ev["owner_after"]:
         return "pending","owner_state_changed_during_move_order_unresolved"
     if type(ev["hit"]) is not bool:return "pending","hit_evidence_unknown"
