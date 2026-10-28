@@ -71,7 +71,7 @@ def validate_core_ability(rules,row):
 def run_away(actor,condition=None):
  import ability_transitions as AB
  for uid,statuses in (('ability/도주',('둔화','구속','수렁')),('ability/도주-playtest',('수렁',))):
-  if uid in actor.r.selection.units and actor.r.selection.units[uid]['title'] in actor.abilities and AB.active(actor,uid) and (condition is None or condition in statuses):return uid
+  if uid in actor.r.selection.units and any(AB.ability_id(actor.r,value)==uid for value in actor.abilities) and AB.active(actor,uid) and (condition is None or condition in statuses):return uid
  return None
 
 def immune(actor):

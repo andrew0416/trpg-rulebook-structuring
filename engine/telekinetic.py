@@ -445,7 +445,8 @@ def lifted(a):return [r for r in TIME.records(a) if 'lifted' in r]
 
 def movement(e,a,result):
  if lifted(a):return dict(result,**{m:4 if m=='levitate' else 0 for m in __import__('movement_actions').MODES})
- if a.kind=='trainer' and not a.abilities_suppressed and '부유' in a.abilities:
+ import ability_transitions as ABILITIES
+ if a.kind=='trainer' and not a.abilities_suppressed and any(ABILITIES.ability_id(e.r,value)==LEVITATE for value in a.abilities):
   result=dict(result);result['levitate']=result.get('levitate',0)+(2 if result.get('levitate',0)>0 else 4)
  return result
 

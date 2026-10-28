@@ -60,14 +60,16 @@ class MovementTests(unittest.TestCase):
   self.a.moves=['move/구멍파기'];self.e.gm.set_movement_capabilities(self.a,{'land':6,'burrow':7},basis='current',reason='sheet includes learned bonus')
   self.assertEqual(self.e.move_profile(self.a,movement_mode='burrow')[0],7)
  def test_actual_levitate_ability_new_four_existing_plus_two(self):
-  self.a.abilities=['부유'];self.base();self.assertEqual(self.e.move_profile(self.a,movement_mode='levitate')[0],4)
-  self.base({'land':6,'levitate':3});self.assertEqual(self.e.move_profile(self.a,movement_mode='levitate')[0],5)
-  self.a.abilities=[];self.assertEqual(self.e.move_profile(self.a,movement_mode='levitate')[0],3)
+  for ability in ('부유','ability/부유','Levitate'):
+   self.setUp();__import__('state_grants').replace_baseline(self.e,self.a,'abilities',[ability]);self.assertIn(ability,self.a.abilities)
+   self.base();self.assertEqual(self.e.move_profile(self.a,movement_mode='levitate')[0],4)
+   self.base({'land':6,'levitate':3});self.assertEqual(self.e.move_profile(self.a,movement_mode='levitate')[0],5)
+   __import__('state_grants').replace_baseline(self.e,self.a,'abilities',[]);self.assertEqual(self.e.move_profile(self.a,movement_mode='levitate')[0],3)
  def test_invalid_basis_selected_source_and_suppressed_ability_do_not_rewrite_sheet(self):
   before=deepcopy(self.a.spec)
   with self.assertRaises(ValueError):self.e.gm.set_movement_capabilities(self.a,{'land':True},basis='base',reason='invalid')
   self.assertEqual(self.a.spec,before)
-  self.a.abilities=['부유'];self.base();self.a.abilities_suppressed=True
+  self.a.abilities=['ability/부유'];self.base();self.a.abilities_suppressed=True
   with self.assertRaises(ValueError):self.e.move_profile(self.a)
  def test_native_sprint_cost_standard_once_and_extends_actual_shift(self):
   self.turn();rng=self.e.rng.getstate();self.assertTrue(self.e.sprint(self.a,source_policy="ch06_once"));self.assertEqual(self.a.budget['standard'],0)

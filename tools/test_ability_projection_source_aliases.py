@@ -89,6 +89,15 @@ class ProjectionSourceAliasTests(unittest.TestCase):
         self.assertIn('엽록소 [Playtest]', actor.spec['state_grants']['ability_receipts'])
         engine.gm.set_weather('sunny', rounds=5, reason='selected playtest is not core stages')
         self.assertEqual(actor.stages['spe'], 0)
+        engine.gm.set_ability(actor, '엽록소 [Playtest]', reason='repeat the selected edition by name')
+        self.assertEqual(actor.spec['abilities'], [PLAYTEST])
+        engine.gm.set_ability(actor, '엽록소 [Playtest]', add=False, reason='remove the selected edition by name')
+        self.assertEqual(actor.spec['abilities'], [])
+        self.assertNotIn(PLAYTEST, A.known(actor))
+        engine.gm.set_ability(actor, '엽록소 [Playtest]', reason='observe the selected edition again')
+        engine.gm.set_ability(actor, PLAYTEST, reason='repeat the selected edition by ID')
+        self.assertEqual(actor.spec['abilities'], ['엽록소 [Playtest]'])
+        self.assertEqual(set(A.project_components(actor)), {PLAYTEST})
         self.assertTrue(engine.validate_state()['valid'])
 
     def test_explicit_excluded_projection_ID_stays_fail_closed_and_read_only(self):
@@ -111,18 +120,21 @@ class ProjectionSourceAliasTests(unittest.TestCase):
                 self.assertIn(core, A.project_components(actor))
                 self.assertTrue(any(effect.get('_rule_id') == core and effect.get('type') == 'gain_keyword'
                     and effect.get('keyword') == '우선' for effect in actor.registry))
-        before = engine.export_state()
+        before = engine.export_state(); before_logs = list(engine.log_lines)
         for requested in (excluded, '질풍날개 [썬문]'):
-            with self.subTest(excluded=requested):
-                with self.assertRaises(ExcludedRuleSelection):
-                    engine.gm.set_ability(actor, requested, reason='explicit excluded edition request')
-                self.assertEqual(engine.export_state(), before)
+            for add in (True, False):
+                with self.subTest(excluded=requested, add=add):
+                    with self.assertRaises(ExcludedRuleSelection):
+                        engine.gm.set_ability(actor, requested, add=add, reason='explicit excluded edition request')
+                    self.assertEqual(engine.export_state(), before)
+                    self.assertEqual(engine.log_lines, before_logs)
         for changed in (core, excluded):
             unit = self.core.selection.units[changed]
             with self.subTest(changed_source=changed), patch.dict(unit, source=dict(unit['source'], record_span=[1, 1])):
                 with self.assertRaisesRegex(ValueError, 'catalog definition changed'):
                     engine.gm.set_ability(actor, core, reason='changed actual source must fail before mutation')
             self.assertEqual(engine.export_state(), before)
+            self.assertEqual(engine.log_lines, before_logs)
         with self.assertRaisesRegex(ValueError, 'no reviewed registration'):
             ACQUIRED.registration(Rules(ROOT, ruleset='all'), excluded)
 
@@ -195,6 +207,86 @@ class ProjectionSourceAliasTests(unittest.TestCase):
         self.assertEqual(engine.export_state(), before)
         with self.assertRaises(UnresolvedRuleSelection):
             CAP.registration(Rules(ROOT, ruleset='all'), 'Gluttony')
+        rules = Rules(ROOT, ruleset='all'); engine, actor = self.actor(rules, CORE)
+        before = engine.export_state(); before_logs = list(engine.log_lines)
+        for add in (True, False):
+            with self.subTest(add=add):
+                with self.assertRaises(UnresolvedRuleSelection):
+                    engine.gm.set_ability(actor, 'Gluttony', add=add, reason='ambiguous observed ability')
+                self.assertEqual(engine.export_state(), before)
+                self.assertEqual(engine.log_lines, before_logs)
+
+    def test_gm_ability_alias_dedup_and_cross_remove_preserve_baseline_order_and_independent_grant(self):
+        import state_grants as G
+        for stored, requested in ((CORE, '엽록소'), ('엽록소', CORE)):
+            with self.subTest(stored=stored, requested=requested):
+                engine, actor = self.actor(self.core, stored)
+                self.assertEqual(G._ability_key(self.core, stored), '엽록소')
+                self.assertIn('엽록소', actor.spec[G.KEY]['ability_receipts'])
+                self.assertNotIn(CORE, actor.spec[G.KEY]['ability_receipts'])
+                engine.gm.set_weather('sunny', rounds=5, reason='actual generic ability native effect')
+                self.assertEqual(actor.stages['spe'], 4)
+                engine.gm.set_ability(actor, '질풍날개', reason='actual unrelated permanent ability')
+                baseline = [stored, '질풍날개']
+                self.assertEqual(actor.spec['abilities'], baseline)
+                receipts = deepcopy(actor.spec[G.KEY]['ability_receipts'])
+                for alias in (requested, stored):
+                    engine.gm.set_ability(actor, alias, reason='repeat observation of the same permanent ability')
+                    self.assertEqual(actor.spec['abilities'], baseline)
+                    self.assertEqual(actor.spec[G.KEY]['ability_receipts'], receipts)
+                    self.assertEqual(actor.stages['spe'], 4)
+                def hide(staged, subject):
+                    G.overlay(subject, 'gm:observed-ability-overlay', abilities=[])
+                    G.reconcile(staged, subject)
+                G.transition(engine, actor, hide)
+                self.assertEqual(actor.abilities, [])
+                self.assertEqual(actor.stages['spe'], 0)
+                G.revoke(actor, 'gm:observed-ability-overlay', engine=engine)
+                self.assertEqual(actor.spec['abilities'], baseline)
+                self.assertEqual(actor.spec[G.KEY]['ability_receipts'], receipts)
+                self.assertEqual(actor.stages['spe'], 4)
+                if stored == CORE:
+                    before = engine.export_state(); before_logs = list(engine.log_lines)
+                    with patch.dict(self.core.selection.units[CORE], title='unreviewed generic ability title'):
+                        with self.assertRaises(UnresolvedRuleSelection):
+                            engine.gm.set_ability(actor, CORE, reason='generic ID must retain its selected title')
+                    self.assertEqual(engine.export_state(), before)
+                    self.assertEqual(engine.log_lines, before_logs)
+                independent = 'gm:independent-chlorophyll'
+                G.grant(actor, 'abilities', '엽록소', independent, 'gm', rule_id=CORE)
+                engine.register_abilities_one(actor, '엽록소')
+                grant = deepcopy(actor.spec[G.KEY]['sources'][independent])
+                engine.gm.set_ability(actor, requested, add=False, reason='actual permanent ability removal by alternate identity')
+                self.assertEqual(actor.spec['abilities'], ['질풍날개'])
+                self.assertIn(CORE, A.known(actor))
+                self.assertEqual(actor.spec[G.KEY]['sources'][independent], grant)
+                self.assertEqual(actor.stages['spe'], 4)
+                engine.gm.snapshot('ability baseline removed')
+                engine.gm.restore('ability baseline removed', reason='restore exact independent ability source')
+                saved = json.loads(json.dumps(engine.export_state(), ensure_ascii=False))
+                restored = Engine.import_state(Rules(ROOT, ruleset='core'), saved)
+                actual = WORLD.actor_index(restored)[actor.entity_id]
+                self.assertEqual(actual.spec['abilities'], ['질풍날개'])
+                self.assertEqual(actual.spec[G.KEY]['sources'][independent], grant)
+                self.assertIn(CORE, A.known(actual))
+                self.assertEqual(actual.spec[G.KEY]['ability_receipts'], receipts)
+                self.assertEqual(actual.stages['spe'], 4)
+                G.revoke(actual, independent, engine=restored)
+                self.assertNotIn(CORE, A.known(actual))
+                self.assertNotIn('엽록소', actual.spec[G.KEY]['ability_receipts'])
+                self.assertEqual(actual.stages['spe'], 0)
+                self.assertIn('ability/질풍날개', A.known(actual))
+                self.assertTrue(restored.validate_state()['valid'])
+                profile = deepcopy(restored.r.ruleset.profile)
+                profile['exclude_units'] = [*profile.get('exclude_units', []), CORE]
+                restored.r.ruleset = RuleFilter(profile, name=restored.r.ruleset.name)
+                restored.r._apply_ruleset()
+                with self.assertRaises(ExcludedRuleSelection):
+                    restored.r.selection.resolve(CORE)
+                before = deepcopy(actual.spec); before_logs = list(restored.log_lines)
+                self.assertEqual(actual.stages['spe'], 0)
+                self.assertEqual(actual.spec, before)
+                self.assertEqual(restored.log_lines, before_logs)
 
 
 if __name__ == '__main__':

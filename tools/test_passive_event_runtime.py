@@ -12,11 +12,11 @@ RULE="ability/자기과신"
 class Cases(unittest.TestCase):
  @classmethod
  def setUpClass(cls):cls.rules=Rules(str(ROOT),ruleset="core")
- def fixture(self,seed=0,register=True):
+ def fixture(self,seed=0,register=True,*,ability='자기과신'):
   e=Engine(self.rules,seed=seed)
   def c(name,side,abilities):
    x=Combatant(self.rules,dict(name=name,kind="pokemon",level=20,stats={s:30 for s in ("hp","atk","def","spa","spd","spe")},moves=["struggle"],abilities=abilities,types=[]));x.side=side;return x
-  a,b=c("a","party",["자기과신"]),c("b","enemy",[])
+  a,b=c("a","party",[ability]),c("b","enemy",[])
   e.everyone=e.gm.everyone=[a,b]
   if register:e.register_abilities(a)
   e.start_round([a,b]);e.start_of_turn(a);b.hp=8
@@ -35,10 +35,11 @@ class Cases(unittest.TestCase):
   expected=copy.deepcopy(old);expected['sequence']+=1;expected['rise_window']['events'].append(event)
   self.assertEqual(new,expected)
  def test_001_real_source_native_KO_no_fake_action(self):
-  e,a,b=self.fixture();owner_ap=copy.deepcopy(a.spec);self.run_move(e,a,b)
-  self.assertEqual(a.stages["atk"],1);self.assertEqual(a._action_history,["standard"]);self.assertEqual(a.move_uses["struggle"],1)
-  self.assertEqual(a.spec.get("ap_spent",0),0);self.assertEqual(a.spec.get("ap_removed",0),0)
-  self.assertEqual(self.ev(e)["status"],"applied");self.assertFalse(self.ev(e)["outcomes"][RULE]["source_action_created"])
+  for ability in ('자기과신',RULE,'Moxie'):
+   e,a,b=self.fixture(ability=ability);self.assertIn(ability,a.abilities);owner_ap=copy.deepcopy(a.spec);self.run_move(e,a,b)
+   self.assertEqual(a.stages["atk"],1);self.assertEqual(a._action_history,["standard"]);self.assertEqual(a.move_uses["struggle"],1)
+   self.assertEqual(a.spec.get("ap_spent",0),0);self.assertEqual(a.spec.get("ap_removed",0),0)
+   self.assertEqual(self.ev(e)["status"],"applied");self.assertFalse(self.ev(e)["outcomes"][RULE]["source_action_created"])
  def test_002_actual_natural_critical_evidence(self):
   e,a,b=self.fixture(seed=5);self.run_move(e,a,b);v=self.ev(e)
   self.assertEqual(v["natural_roll"],20);self.assertTrue(v["critical"]);self.assertTrue(v["hit"]);self.assertEqual(a.stages["atk"],1)
@@ -69,7 +70,7 @@ class Cases(unittest.TestCase):
    with self.assertRaises(PE.PassiveEventPending):call()
   self.assertEqual(before,self.ledger(a));self.assertEqual(e.everyone,[a,b]);self.assertEqual(e.elapsed_seconds,0)
  def test_010_suppressed_is_not_new_ability_use(self):
-  e,a,b=self.fixture();a.abilities_suppressed=True;self.run_move(e,a,b);self.assertEqual(a.stages["atk"],0)
+  e,a,b=self.fixture(ability=RULE);a.abilities_suppressed=True;self.run_move(e,a,b);self.assertEqual(a.stages["atk"],0)
  def test_011_fainted_actor_refused_without_occurrence(self):
   e,a,b=self.fixture();e.lose_hp(a,200);self.run_move(e,a,b);self.assertFalse(e._passive_events);self.assertEqual(b.hp,8)
  def test_012_register_and_delivery_are_idempotent(self):

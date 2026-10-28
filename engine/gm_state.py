@@ -614,12 +614,15 @@ class GMState:
 
     def set_ability(self, c, name, add=True, reason=""):
         import state_grants as GRANTS
+        import ability_transitions as ABILITIES
         before = list(c.abilities)
         baseline = list(c.spec.get("abilities", []))
-        if add and name not in baseline:
+        selected = ABILITIES.ability_id(self.e.r, name)
+        matches = [value for value in baseline if ABILITIES.ability_id(self.e.r, value) == selected]
+        if add and not matches:
             baseline.append(name)
-        elif not add and name in baseline:
-            baseline.remove(name)
+        elif not add:
+            baseline = [value for value in baseline if value not in matches]
         GRANTS.replace_baseline(self.e, c, "abilities", baseline)
         self._rec("영구 특성", before, list(c.abilities), reason, c)
 

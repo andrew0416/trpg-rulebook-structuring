@@ -30,7 +30,7 @@ class TraceTests(unittest.TestCase):
   self.assertEqual(row['resolution']['status'],'PolicyNotApplicable')
  def test_native_calculation_provenance_and_hp_paths_survive_restore(self):
   e,a,b,doc,key=FIX.Subscriptions().fixture();e.enable_execution_trace()
-  e.use_move(a,b,'struggle',set_damage=True)
+  e.use_move(attacker=a,target=b,move_id='struggle',set_damage=True)
   rows=e.execution_traces();json.dumps(rows)
   calc=next(x for x in rows if x['kind']=='damage_calculation')
   self.assertEqual(calc['state'],'returned');self.assertTrue(calc['calculations'])
@@ -70,6 +70,35 @@ class TraceTests(unittest.TestCase):
   self.assertEqual(row['state'],'raised');self.assertEqual(row['resource_changes'],[])
   e.enable_execution_trace(False);e.lose_hp(a,0)
   self.assertEqual(len(e.execution_traces()),1)
+ def test_named_damage_arguments_preserve_native_contract_and_strict_rejection_in_both_trace_modes(self):
+  for enabled in (False,True):
+   for mixed in (False,True):
+    with self.subTest(trace=enabled,mixed=mixed):
+     e,a,b,doc,key=FIX.Subscriptions().fixture();e.enable_execution_trace(enabled)
+     move=e.r.move('struggle')
+     public=dict(attacker=a,target=b,move=move,set_damage=True)
+     missing=dict(public);missing.pop('move')
+     before=dump_engine(e)
+     for args,kwargs in (((),dict(public,unreviewed_option=True)),((a,),public),((),missing)):
+      with self.assertRaises(TypeError):e.resolve_attack_damage(*args,**kwargs)
+      self.assertEqual(dump_engine(e),before)
+      self.assertEqual(e.execution_traces(),[])
+     hp=b.hp
+     result=(e.resolve_attack_damage(a,target=b,move=move,set_damage=True) if mixed else
+             e.resolve_attack_damage(**public))
+     self.assertGreater(result,0);self.assertLess(b.hp,hp)
+     rows=e.execution_traces()
+     if enabled:
+      application=next(row for row in rows if row['kind']=='attack_damage_application')
+      calc=next(row for row in rows if row['kind']=='damage_calculation')
+      self.assertEqual((application['state'],application['result']),('returned',result))
+      self.assertIsNone(application['parent_id']);self.assertEqual(calc['parent_id'],application['trace_id'])
+      self.assertIs(application['inputs']['crit'],False)
+      self.assertTrue(any(row.get('selected_id')=='combat/damage-formula' for row in calc['source_reads']))
+      self.assertTrue(any(row['entity_id']==b.entity_id and row['resource']=='hp' and row['after']==b.hp
+                          for row in application['resource_changes']))
+     else:self.assertEqual(rows,[])
+     restored=load_engine(e.r,dump_engine(e));self.assertEqual(restored.execution_traces(),rows)
  def test_pending_declaration_is_not_reported_as_execution(self):
   import copy,passive_events as PE
   e,a,b,doc,key=FIX.Subscriptions().fixture()
@@ -86,7 +115,7 @@ class TraceTests(unittest.TestCase):
   import passive_events as PE
   fixture=FIX.Subscriptions();e,a,b,doc,key=fixture.fixture()
   middle=fixture.accuracy_listener(e,a,doc);e.enable_execution_trace()
-  with self.assertRaises(PE.PassiveEventPending):e.use_move(a,b,'struggle',set_damage=True)
+  with self.assertRaises(PE.PassiveEventPending):e.use_move(a,target=b,move_id='struggle',set_damage=True)
   eid=e._passive_pending;first=e.execution_traces()
   self.assertEqual(first[-1]['state'],'pending')
   self.assertFalse(any(x['kind']=='damage_application' for x in first))

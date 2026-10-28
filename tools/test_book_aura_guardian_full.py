@@ -131,11 +131,13 @@ class AuraGuardianTests(AuraScene,unittest.TestCase):
   self.assertEqual(self.a.hp,before);self.assertEqual(self.a.move_uses['move/판별'],1);self.assertEqual(self.t.move_uses['move/몸통박치기'],1);self.valid()
  def test_scrappy_actual_ghost_dual_type_matchup(self):
   self.acquire(A.CLASS,moves=['move/발경','move/판별']);self.acquire(A.POWER,rank=1,ability=A.SCRAPPY);self.e.gm.set_types(self.t,['고스트','바위'],reason='actual Ghost Rock foe');self.begin()
+  self.assertTrue(A.active_ability(self.a,A.SCRAPPY));self.e.gm.set_ability(self.a,A.SCRAPPY,reason='same Scrappy source by exact ID');self.assertIn(A.SCRAPPY,self.a.abilities);self.assertNotIn(self.rules.selection.units[A.SCRAPPY]['title'],self.a.abilities)
   self.assertGreater(self.use(self.a,self.t,'move/발경'),0);self.valid()
  def test_actual_core_and_playtest_aura_storm_have_distinct_damage_contracts(self):
   for profile,uid in [('core',A.STORM),('playtest',A.STORM_TEST)]:
    with self.subTest(profile=profile):
     self.rules=Rules(ROOT,ruleset=profile);self.setup();self.family(A.CLASS);self.acquire(A.POWER,rank=1,ability=uid);self.begin()
+    self.assertTrue(A.active_ability(self.a,uid));self.e.gm.set_ability(self.a,uid,reason='same selected Aura Storm by exact ID');self.assertIn(uid,self.a.abilities);self.assertNotIn(self.rules.selection.units[uid]['title'],self.a.abilities)
     base=self.use(self.a,self.t,'move/진공파');self.next_round();self.e.gm.set_injuries(self.a,value=1,reason='actual injury');self.e.gm.set_hp(self.a,value=self.a.base_max_hp//2,reason='actual real half HP, independent of injury healing cap')
     changed=self.use(self.a,self.t,'move/진공파');self.assertGreater(changed,base)
     self.assertEqual(A.storm_bonus(self.e,self.a,self.rules.move('move/물대포')),3 if profile=='playtest' else 0)
@@ -161,6 +163,9 @@ class AuraGuardianTests(AuraScene,unittest.TestCase):
 
  def test_twisted_power_actual_ability_adds_half_other_stat_but_sword_does_not_stack(self):
   self.acquire(A.CLASS,moves=['move/발경','move/판별']);self.e.gm.set_ability(self.a,'트위스트파워',reason='actual separately acquired Twisted Power');self.begin();self.decision('twisted_power',True)
+  self.assertTrue(A.active_ability(self.a,'ability/트위스트파워'))
+  self.e.gm.set_ability(self.a,'트위스트파워',add=False,reason='replace the permanent observed representation')
+  self.e.gm.set_ability(self.a,'ability/트위스트파워',reason='same Twisted Power source by exact ID');self.assertIn('ability/트위스트파워',self.a.abilities);self.assertNotIn('트위스트파워',self.a.abilities)
   dealt=self.use(self.a,self.t,'move/발경');other=__import__('arithmetic_policy').ratio(self.a.staged('spa'),2)
   self.assertEqual(dealt,__import__('arithmetic_policy').product(max(1,15+self.a.staged('atk')+other-self.t.staged('def')),1.5))
   self.family(A.SWORD);self.next_round();self.decision('sword_of_body_and_soul','물리');dealt=self.use(self.a,self.t,'move/발경')

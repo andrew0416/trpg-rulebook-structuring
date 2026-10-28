@@ -3,8 +3,8 @@ class ProtectedEquipment(ValueError):pass
 class EquipmentConsentRequired(ValueError):pass
 
 def active(e,actor,source):
-    name=source.split("/",1)[1]
-    if actor.abilities_suppressed or name not in actor.abilities:return False
+    import ability_transitions as ABILITIES
+    if actor.abilities_suppressed or not any(ABILITIES.ability_id(e.r,value)==source for value in actor.abilities):return False
     if e.r._selected_rule(source)!=source:raise ValueError("selected equipment-protection variant needs its own policy")
     return True
 

@@ -118,9 +118,12 @@ def refresh(actor):
     raw[GUARD] = True
     try:
         desired = 0
-        if NAME in raw.get('abilities', []) and not raw.get('abilities_suppressed', False):
+        import ability_transitions as ABILITIES
+        if (not raw.get('abilities_suppressed', False)
+                and any(ABILITIES.ability_id(engine.r,value)==RULE for value in raw.get('abilities', []))):
             selected = engine.r.selection.resolve_name(NAME, ('ability/',))
-            if selected == RULE and __import__('effects').effective_weather(engine,actor) == 'sunny':
+            if (selected == RULE and ABILITIES.active(actor,RULE)
+                    and __import__('effects').effective_weather(engine,actor) == 'sunny'):
                 engine.r.selection.require_supported_version(RULE)
                 definition = engine.r.core_abilities[RULE]
                 desired = definition['native_contract']['delta']

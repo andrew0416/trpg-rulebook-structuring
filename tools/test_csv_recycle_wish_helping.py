@@ -80,16 +80,17 @@ class CsvReuseWishTests(unittest.TestCase):
         before = CODEC.dump_engine(self.e)
         for grouped in (False, True):
             with self.subTest(strict_native_arguments=grouped):
-                with self.assertRaises(TypeError):
-                    if grouped:
-                        self.e.use_move_on(self.p, self.t, WISH.SOURCE, self.e.gm.everyone,
-                            wish_edition='ptu105', recycle_receipt_id=None, unreviewed_source_choice=True)
-                    else:
-                        self.e.use_move(self.p, self.t, WISH.SOURCE,
-                            wish_edition='ptu105', recycle_receipt_id=None, unreviewed_source_choice=True)
-                self.assertEqual(CODEC.dump_engine(self.e), before)
-        self.e.use_move_on(self.p, self.t, WISH.SOURCE, self.e.gm.everyone,
-            wish_edition='csv-row623')
+                method = self.e.use_move_on if grouped else self.e.use_move
+                public = dict(attacker=self.p, move_id=WISH.SOURCE, wish_edition='ptu105', recycle_receipt_id=None)
+                public['primary' if grouped else 'target'] = self.t
+                if grouped:public['everyone'] = self.e.gm.everyone
+                missing = dict(public);missing.pop('move_id')
+                for positional, keywords in (((), dict(public, unreviewed_source_choice=True)),
+                                             ((self.p,), public), ((), missing)):
+                    with self.assertRaises(TypeError):method(*positional, **keywords)
+                    self.assertEqual(CODEC.dump_engine(self.e), before)
+        self.e.use_move_on(self.p, primary=self.t, move_id=WISH.SOURCE, everyone=self.e.gm.everyone,
+            wish_edition='csv-row623', recycle_receipt_id=None)
         self.assertEqual(self.p.budget['standard'], 0)
         self.assertEqual(self.p.move_uses[WISH.SOURCE], 1)
         row = next(r for r in self.e.delayed if r.get('kind') == 'wish')
@@ -126,7 +127,9 @@ class CsvReuseWishTests(unittest.TestCase):
         self.assertLess(before + self.t.max_hp // 2, self.t.max_hp)
         self.assertGreater(self.t.base_max_hp // 2, self.t.max_hp // 2)
         self.begin(self.p)
-        self.cast(self.p, self.t, 'csv-row623')
+        self.e.use_move(attacker=self.p, target=self.t, move_id=WISH.SOURCE, wish_edition='csv-row623')
+        self.assertEqual((self.p.budget['standard'], self.p.move_uses[WISH.SOURCE]), (0, 1))
+        self.assertEqual(next(row['edition'] for row in self.e.delayed if row.get('kind') == 'wish'), 'csv-row623')
         self.e.end_of_turn(self.p)
         self.next_round(self.t)
         self.e.end_of_turn(self.t)
@@ -243,9 +246,10 @@ class CsvReuseWishTests(unittest.TestCase):
                 self.next_round(actor)
                 before = actor.hp
                 if role == 'trainer' and physical:
-                    self.e.use_move_on(actor, actor, RECYCLE.SOURCE, self.e.gm.everyone, recycle_receipt_id=identity)
+                    self.e.use_move_on(attacker=actor, primary=actor, move_id=RECYCLE.SOURCE,
+                                      everyone=self.e.gm.everyone, recycle_receipt_id=identity)
                 else:
-                    self.e.use_move(actor, actor, RECYCLE.SOURCE, recycle_receipt_id=identity)
+                    self.e.use_move(actor, target=actor, move_id=RECYCLE.SOURCE, recycle_receipt_id=identity)
                 self.assertEqual(actor.hp, min(actor.max_hp, before + 20))
                 self.assertEqual(actor.spec['items']['상처약'], count)
                 self.assertEqual(actor.budget['standard'], 0)

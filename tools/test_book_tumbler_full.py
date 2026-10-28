@@ -53,7 +53,8 @@ class TumblerTests(TumblerScene,unittest.TestCase):
   self.begin();hp=self.a.hp;self.jump((2,3));self.assertEqual(self.a.hp,hp)
   self.assertFalse(self.t.aoo_used);self.assertFalse(self.u.aoo_used)
  def test_run_away_suppression_and_restore(self):
-  self.acquire(T.CLASS);self.e.gm.set_move(self.t,'move/위액',reason='actual learned suppression Move');self.begin(self.t)
+  self.acquire(T.CLASS);self.e.gm.set_ability(self.a,'ability/도주',reason='same independently owned Run Away by exact source');self.assertIn('ability/도주',self.a.abilities);self.assertNotIn('도주',self.a.abilities)
+  self.e.gm.set_move(self.t,'move/위액',reason='actual learned suppression Move');self.begin(self.t)
   __import__('ability_transitions').select(self.e,self.t,self.a,'move/위액',ability='ability/도주',reason='actual selected source');self.use(self.t,self.a,'move/위액')
   self.assertTrue(self.e.apply_status(self.a,'수렁'));self.restore();self.valid()
  def test_quick_actual_hit_spends_one_ap_and_moves_two(self):
@@ -158,7 +159,10 @@ class TumblerTests(TumblerScene,unittest.TestCase):
   for profile,name,immune in [('core','도주',True),('playtest','도주 [Playtest]',False)]:
    with self.subTest(profile=profile):
     self.rules=Rules(ROOT,ruleset=profile);self.setup();self.acquire(T.CLASS)
-    self.assertIn(name,self.a.abilities);self.assertEqual(bool(self.e.immune_to(self.a,'둔화')),immune);self.assertTrue(self.e.immune_to(self.a,'수렁'));self.valid()
+    self.assertIn(name,self.a.abilities);self.assertEqual(bool(self.e.immune_to(self.a,'둔화')),immune);self.assertTrue(self.e.immune_to(self.a,'수렁'))
+    source='ability/도주' if profile=='core' else 'ability/도주-playtest'
+    self.e.gm.set_ability(self.a,source,reason='same actual selected Run Away by exact ID');self.assertIn(source,self.a.abilities);self.assertNotIn(name,self.a.abilities)
+    self.assertEqual(bool(self.e.immune_to(self.a,'둔화')),immune);self.assertTrue(self.e.immune_to(self.a,'수렁'));self.valid()
  def test_low_rank_acrobat_sheet_does_not_bypass_edge_requirement(self):
   self.setup(rank=2);self.reject(lambda:self.acquire(T.CLASS),'rank')
  def test_burst_tampered_count_and_closure_rejected_on_restore(self):

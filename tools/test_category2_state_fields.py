@@ -27,6 +27,42 @@ class Tests(unittest.TestCase):
         self.assertEqual(identity, self.a.entity_id)
         self.assertEqual("new name", self.a.spec["name"])
 
+    def test_builders_detach_move_and_ability_lists_without_changing_creation_choices(self):
+        for kind in ("pokemon", "trainer"):
+            for via_extra in (False, True):
+                for has_struggle in (False, True):
+                    with self.subTest(kind=kind, via_extra=via_extra, has_struggle=has_struggle):
+                        moves = ["move/흡수"] + (["struggle"] if has_struggle else [])
+                        abilities = ["엽록소"] if kind == "pokemon" else []
+                        supplied = {"moves": moves, "abilities": abilities}
+                        before = deepcopy(supplied)
+                        options = {"extra": supplied} if via_extra else supplied
+                        if kind == "pokemon":
+                            make = lambda: builder.build_pokemon(self.r, "뚜벅쵸", 25, **options)
+                        else:
+                            make = lambda: builder.build_trainer(self.r, "independent", 9,
+                                {key: 10 for key in S.STATS}, **options)
+                        first, second = make(), make()
+                        expected_moves = before["moves"] + ([] if via_extra or has_struggle else ["struggle"])
+                        self.assertNotEqual(first["id"], second["id"])
+                        for field, expected in (("moves", expected_moves), ("abilities", before["abilities"])):
+                            self.assertEqual(first[field], expected)
+                            self.assertEqual(second[field], expected)
+                            self.assertIsNot(first[field], supplied[field])
+                            self.assertIsNot(first[field], second[field])
+                            first[field].clear()
+                            self.assertEqual(supplied[field], before[field])
+                            self.assertEqual(second[field], expected)
+                            supplied[field].append("caller-only-list-probe")
+                            self.assertEqual(first[field], [])
+                            self.assertEqual(second[field], expected)
+        pending = builder.build_pokemon(self.r, "뚜벅쵸", 25)
+        self.assertEqual(pending["abilities"], [])
+        self.assertIsNone(pending["growth_milestone_choices"]["ability:creation"]["selection"])
+        soulless = builder.build_pokemon(self.r, "껍질몬", 10)
+        self.assertEqual(soulless["abilities"], ["불가사의부적"])
+        self.assertNotIn("ability:creation", soulless.get("growth_milestone_choices", {}))
+
     def test_evolution_preserves_individual_id(self):
         spec = builder.build_pokemon(self.r, "뚜벅쵸", 25, name="nickname")
         uid = spec["id"]

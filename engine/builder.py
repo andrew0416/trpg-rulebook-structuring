@@ -3,7 +3,7 @@ import state_fields as STATE_FIELDS
 전투원 생성기: 종 + 레벨 → 전투원 spec (룰북 '포켓몬 스탯 분배' pokemon/stat-build 를 따른다).
   - 스탯 포인트 = level + 10 (A층 단위에서 읽음), 성격(up +2 / down -2, HP 는 ±1), 기본 스탯의 대소 관계를 보존하며 분배
   - 기술: 학습 데이터(learnset_links)의 레벨업 기술 가운데 level 이하, 가장 늦게 배운 6개 (지정하면 그대로)
-  - 특성: 학습 데이터의 '기본 특성' 첫 번째 (지정 가능), 재능·이동·크기·체급·스킬은 종 데이터에서
+  - 특성: 미지정 시 기본 특성 선택을 보류하며, Soulless는 출처에 정해진 기본값을 사용. 재능·이동·크기·체급·스킬은 종 데이터에서
   - 커스텀 종(data/custom/species/*.json)도 같은 경로로 들어온다 (Rules.species 에 합쳐짐, 출처 'custom')
 사용: build_pokemon(rules, "뚜벅쵸", 13, name="뚜벅초 A", nature="끈기", strategy="special", wild=True, pos=(9, 7))
 """
@@ -142,6 +142,8 @@ def build_pokemon(rules, species, level, name=None, nature=None, strategy="balan
             spec["movement_basis"] = "current"
         if "power" in (extra.get("movement") or {}) and "power_basis" not in extra:
             spec["power_basis"] = "current"
+    spec["moves"] = copy.copy(spec["moves"])
+    spec["abilities"] = copy.copy(spec["abilities"])
     from actor_templates import validate_soulless_default
     validate_soulless_default(rules,spec)
     EXAMPLES.validate_spec(rules,spec)
@@ -206,6 +208,8 @@ def build_trainer(rules, name, level, stats, moves=None, skills=None, items=None
             spec["power_basis"] = "current"
         if spec["power_basis"] != "derived" and "power_policy" not in extra:
             spec.pop("power_policy", None)
+    spec["moves"] = copy.copy(spec["moves"])
+    spec["abilities"] = copy.copy(spec["abilities"])
     return spec
 
 

@@ -91,8 +91,12 @@ class CsvLearnsetFormTests(unittest.TestCase):
         c, = self.reload(c); DT.gain_exp_combatant(self.e,c,'to next level',stat_choices={2:'hp'})
         self.assertEqual(c.level,2); self.assertEqual(len(c.spec['form_growth_allocations']['plans']),4); self.valid()
     def test_rotom_actual_appliance_projects_types_skills_capabilities_size_and_learning_source(self):
-        import ability_state_projection as P
+        import ability_state_projection as P, movement_actions as MOVEMENT
         c = self.forms('rotom',level=40)
+        self.assertEqual((c.spec['movement_basis'],c.spec['movement']['levitate']),('base',4))
+        self.assertIn('ability/폴터가이스트-playtest',c.abilities)
+        self.assertFalse({'부유','ability/부유'}.intersection(c.abilities))
+        self.assertEqual(MOVEMENT.capabilities(self.e,c,environment=False)['levitate'],4)
         appliance = N.prepare_object(self.e, 'washer', kind='physical_object', owner_id=c.entity_id,
                                      location={'kind':'unknown'}, reason='actual compatible washing machine')
         appliance['rotom_appliance_form'] = '워시로토무'
@@ -104,7 +108,11 @@ class CsvLearnsetFormTests(unittest.TestCase):
         self.assertEqual(c.types,['전기','물']); self.assertEqual((c.spec['size'],c.weight_class),('중형',3))
         self.assertIn('물줄기',G.effective(c,'capabilities')); self.assertEqual(c.spec['skills'],{k:str(v['rank'])+'d6'+format(int(v.get('mod',0)),'+d') for k,v in self.r.species_skills['워시로토무'].items()})
         self.assertEqual(species_lookup(self.r,c.spec['species'])['name'],'워시로토무')
+        self.assertEqual(MOVEMENT.capabilities(self.e,c,environment=False)['levitate'],4)
         c, = self.reload(c); C.inhabit_appliance(self.e,c,'로토무')
+        self.assertEqual(MOVEMENT.capabilities(self.e,c,environment=False)['levitate'],6)
+        c, = self.reload(c)
+        self.assertEqual((c.spec['movement']['levitate'],MOVEMENT.capabilities(self.e,c,environment=False)['levitate']),(4,6))
         self.assertIn('ability/부유',c.abilities); self.assertNotIn('ability/저수',c.abilities); self.assertNotIn('move/하이드로펌프',c.moves)
         self.assertEqual(c.spec[P.KEY]['ability/폴터가이스트-playtest']['observation'],{'form':'로토무'})
         N.assert_rejected_unchanged(self.e,lambda:P.activate(self.e,c,'ability/폴터가이스트-playtest',choice='히트로토무',reason='wrong nonbase form must not alias'),reason_pattern='actual current form')
@@ -124,11 +132,19 @@ class CsvLearnsetFormTests(unittest.TestCase):
         self.assertEqual(species_lookup(self.r,c.spec['species'])['name'],'GM 공기청정로토무')
         c,=self.reload(c); C.inhabit_appliance(self.e,c,'로토무'); self.assertIn('ability/부유',c.abilities); self.assertIn('ability/방음',c.abilities); self.valid()
     def test_giratina_actual_reverse_world_and_fragment_boundaries(self):
+        import movement_actions as MOVEMENT
         c=self.forms('giratina')
+        self.assertEqual(MOVEMENT.capabilities(self.e,c,environment=False)['levitate'],0)
         for world,fragment,form in ((True,False,'기라티나 오리진폼'),(False,True,'기라티나 오리진폼'),(False,False,'기라티나 어나더폼')):
             C.observe_form_environment(self.e,c,reason='GM observes actual Reverse World presence',reverse_world=world,reverse_fragment=fragment)
             self.assertEqual(c.form,form)
+            if world:c,=self.reload(c)
+            self.assertEqual((c.spec['movement_basis'],c.spec['movement']['levitate']),('base',0))
+            movement=MOVEMENT.capabilities(self.e,c,environment=False)
+            self.assertEqual(movement['levitate'],4 if form=='기라티나 오리진폼' else 0)
+            self.assertEqual(movement['sky'],10)
         c,=self.reload(c); self.assertEqual(c.form,'기라티나 어나더폼'); self.valid()
+        self.assertEqual(MOVEMENT.capabilities(self.e,c,environment=False)['levitate'],0)
     def test_shaymin_actual_flower_sun_ice_and_native_ice_move_hit(self):
         import move_completion as COMPLETE, passive_events as PASSIVE, move_defense_reactions as DEFENSE
         from grid import Grid
