@@ -183,8 +183,19 @@ jobs:
             if ($taskSummaries.Count -ne 1) { throw 'One original native summary is required' }
             $taskSummary = Get-Content -LiteralPath $taskSummaries[0].FullName -Raw | ConvertFrom-Json
             $taskReport = @($taskSummary.reports)
-            if ($taskReport.Count -ne 1 -or -not $taskReport[0].successful -or $taskReport[0].tests_run -ne 12 -or $taskReport[0].collected_count -ne 12 -or $taskReport[0].status_counts.pass -ne 12) {
-              throw 'The exact 12-case field and birth repair scope did not pass; local and synthetic evidence are separate'
+            $taskPacket = Get-Content -LiteralPath .ci/suites/changed_revisions.json -Raw | ConvertFrom-Json
+            $taskDeclared = @($taskPacket.completed.PSObject.Properties | ForEach-Object { $_.Value.tests })
+            $taskRequired = @($taskDeclared | Sort-Object -Unique)
+            $taskExpected = $taskPacket.required_unique_count
+            if (($taskExpected -isnot [int] -and $taskExpected -isnot [long]) -or $taskExpected -le 0 -or $taskDeclared.Count -ne $taskRequired.Count -or $taskRequired.Count -ne $taskExpected) {
+              throw 'The reviewed changed-impact packet has an invalid exact scope'
+            }
+            if ($taskReport.Count -ne 1 -or -not $taskReport[0].successful -or $taskReport[0].tests_run -ne $taskExpected -or $taskReport[0].collected_count -ne $taskExpected -or $taskReport[0].status_counts.pass -ne $taskExpected) {
+              throw 'The exact reviewed changed-impact scope did not pass; local and synthetic evidence are separate'
+            }
+            $taskActual = @($taskReport[0].tests | ForEach-Object { $_.id } | Sort-Object -Unique)
+            if ($taskActual.Count -ne $taskExpected -or @(Compare-Object $taskRequired $taskActual).Count) {
+              throw 'The actual report IDs differ from the reviewed changed-impact packet'
             }
           }
       - name: Check original ordinary evidence with unchanged independent H

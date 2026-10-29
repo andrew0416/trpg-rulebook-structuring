@@ -968,7 +968,12 @@
     "private_fixture_members_preserved": 1558,
     "historical_scope_preserved": true,
     "fixture_bookkeeping_note": "Historical canonical_completed and private fixture bookkeeping are retained; this is not remote clause acceptance.",
-    "fixture_zip_sha256": "571af06e965a3140a36295312bad6e2de5af1fbab9cb3fabd45e83a9cc1d4433",
-    "encrypted_bundle_sha256": "4d606d0d0ecdfb8c82175ba2f5ca78754b66e1c315f1ed6e72745ae5a25931e1"
+    "fixture_zip_sha256": "6275034933e124a37f950667c8ee49d6d6691427b961be5a52eb3134fb9de5c6",
+    "encrypted_bundle_sha256": "59feb3fb2d06ae316b6bd830fcb33748bb154bc3a62f7cd6932349e25f6c42e6",
+    "private_fixture_members_added": 1,
+    "private_fixture_new_paths": [
+      "data/type-expertise-source-contract.json"
+    ],
+    "ci_scope_guard": "Exact count and IDs read from reviewed packet, replacing obsolete hardcoded12."
   }
 }

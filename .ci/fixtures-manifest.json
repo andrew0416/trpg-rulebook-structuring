@@ -1112,6 +1112,11 @@
       "size": 32226
     },
     {
+      "path": "data/type-expertise-source-contract.json",
+      "size": 2827,
+      "sha256": "5984f6a1f994593413d5bc846a4853309a82a684b19134c25886892c3514aaf3"
+    },
+    {
       "path": "data/type-sync-policy.json",
       "sha256": "d690f82ad96f72fa985a14a2dcc25ce8eb3aba43dd52d7a2d0e40218eef32475",
       "size": 1115
