@@ -87,6 +87,125 @@ class ConditionSaveTimingTests(unittest.TestCase):
                 self.assertEqual((effect["dc"], effect["timing"], effect["on_success"]), (dc, "end_of_turn", "cure"))
                 self.assertNotIn("_success_src", effect)
 
+    def assert_parser_rows_with_curated_versions(self, saved, policies, required):
+        expected = {x['id']: self.parser.mechanize(x) for x in self.entities}
+        actual = {x['id']: copy.deepcopy(x) for x in saved}
+        self.assertEqual(len(actual), len(saved))
+        for uid, version in required:
+            self.assertIn(version, actual[uid]['mech']['data'])
+        for uid, versions in policies.items():
+            data = actual[uid]['mech']['data']
+            for version, policy in versions.items():
+                if version in data:
+                    # Validate the entire source-derived payload (including
+                    # authority and number/bool types) before excluding a key.
+                    self.assertEqual(
+                        json.dumps(data[version], sort_keys=True, ensure_ascii=False, allow_nan=False),
+                        json.dumps(policy, sort_keys=True, ensure_ascii=False, allow_nan=False))
+                    del data[version]
+        self.assertEqual({uid: actual[uid] for uid in expected}, expected)
+        self.assertEqual(set(actual) - set(expected), {'condition/조이기'})
+        return actual
+
+    def test_curated_policy_allowlist_rejects_other_data_changes(self):
+        sys.path.insert(0, str(ROOT / 'engine'))
+        from engine import Rules
+        profiles = ('core', 'core-csv-status-1.05', 'core-csv-frozen-homebrew')
+        rules = {name: Rules(ROOT, ruleset=name) for name in profiles}
+        policies = {'condition/혼란': {
+            'core-1.05': {
+                'effects': [{'type': 'core_confusion_start_turn', 'self_hit_max': 8,
+                             'normal_max': 15, 'cure_min': 16, 'attack': 'typeless_physical_struggle',
+                             'resistance_steps': 1, 'no_other_actions': True}],
+                'authority': {'document': 'PTU 1.05 Core', 'page': 247}},
+            'february-2016': {
+                'effects': [{k: v for k, v in effect.items() if not k.startswith('_')}
+                            for effect in self.parser.mechanize(
+                                next(x for x in self.entities if x['name'] == '혼란'))['mech']['data']['effects']],
+                'authority': {'document': 'PTU February 2016 Playtest v2', 'page': 2}}}}
+        # Independent canonical oracles: the four recorded CSV payload pins and
+        # the complete reviewed TM113/S-001 Frozen contract, not adapter output.
+        csv_fingerprints = {
+            '마비': '2f38fa2d46648e52f7db15f71e18f107b748c471a2155d9436c19beb8f6b57b0',
+            '풀죽음': 'd5bae86ea96de599398030ceae79861d0351b24b1446247ddb609f04b7c5cadf',
+            '헤롱헤롱': '8421ee5cae23d2e83b8014c1b922266e5d19e177f643aae75b13e86f5fca3a07',
+            '억압': 'e20ea16374ee288007bd759b86a033ca28d2c3cd40a3ed55eb8edbae362b1b5f',
+        }
+        frozen_policy = {
+            'effects': [
+                {'type': 'no_actions'}, {'type': 'evasion_disabled'},
+                {'type': 'save', 'dc': 12, 'timing': 'end_of_turn', 'on_success': 'cure'},
+                {'type': 'immunity', 'types': ['얼음'], 'actor_kind': 'pokemon'},
+                {'type': 'save_modifier', 'if_type': '불꽃', 'dc': 8},
+                {'type': 'cured_by_damage_of_types', 'types': ['불꽃', '격투', '바위', '강철']},
+                {'type': 'save_modifier', 'weather': {'쾌청': 2, '싸라기눈': -4}}],
+            'authority': {
+                'file': 'input/db/tm.csv', 'row': 113, 'columns': [4, 5],
+                'sha256': 'dd06395776044c0c13e698420aead38907d6969f475caf8485ec2cd1a2259f44',
+                'timing_authority': 'PTU 1.05 Core p246: end of each turn; S-001 fills omitted Korean timing only'}}
+        # Use the real production-installed views, not editions presumed to
+        # exist in the private JSON or an invented replacement source body.
+        for profile, names, version in (
+                ('core-csv-status-1.05', ('마비', '풀죽음', '헤롱헤롱', '억압'), 'csv-core-1.05'),
+                ('core-csv-frozen-homebrew', ('얼음',), 'csv-homebrew')):
+            for name in names:
+                uid = 'condition/' + name
+                selected = rules[profile].mech(uid)
+                self.assertEqual(selected['_version'], version)
+                payload = copy.deepcopy(rules[profile].units[uid]['mech']['data'][version])
+                if version == 'csv-core-1.05':
+                    self.assertEqual(hashlib.sha256(json.dumps(
+                        payload, ensure_ascii=False, sort_keys=True, separators=(',', ':'),
+                        allow_nan=False).encode()).hexdigest(), csv_fingerprints[name])
+                else:
+                    self.assertEqual(
+                        json.dumps(payload, sort_keys=True, ensure_ascii=False, allow_nan=False),
+                        json.dumps(frozen_policy, sort_keys=True, ensure_ascii=False, allow_nan=False))
+                self.assertEqual(selected['effects'], payload['effects'])
+                policies.setdefault(uid, {})[version] = payload
+        views = {profile: [copy.deepcopy(view.units[row['id']]) for row in self.saved]
+                 for profile, view in rules.items()}
+        required = {profile: {('condition/혼란', 'core-1.05'), ('condition/혼란', 'february-2016')} |
+                    {(uid, version) for uid, version in view.ruleset.unit_versions.items()
+                     if version in policies.get(uid, {})} for profile, view in rules.items()}
+        for profile, saved in views.items():
+            self.assert_parser_rows_with_curated_versions(saved, policies, required[profile])
+            self.assertEqual(self.save(next(x for x in saved if x['id'] == 'condition/마비'))['dc'], 11)
+        self.assertEqual(next(e['dc'] for e in rules['core'].condition_effects('마비') if e['type'] == 'save'), 11)
+        self.assertEqual(next(e['dc'] for e in rules['core-csv-status-1.05'].condition_effects('마비') if e['type'] == 'save'), 5)
+        self.assertEqual(next(e['dc'] for e in rules['core'].condition_effects('얼음') if e['type'] == 'save'), 16)
+        self.assertEqual(next(e['dc'] for e in rules['core-csv-frozen-homebrew'].condition_effects('얼음') if e['type'] == 'save'), 12)
+        cases = [
+            ('core', '마비', ('effects', 1, 'timing'), 'end_of_turn'),
+            ('core', '혼란', ('effects', 3, 'dc'), 15),
+            ('core', '혼란', ('core-1.05', 'effects', 0, 'cure_min'), 17),
+            ('core', '혼란', ('core-1.05', 'authority', 'page'), 248),
+            ('core', '혼란', ('february-2016', 'effects', 3, 'timing'), 'start_of_turn'),
+            ('core', '혼란', ('february-2016', 'authority', 'unreviewed'), True),
+            ('core', '혼란', ('core-1.05',), None),
+            ('core', '혼란', ('unreviewed-version',), {}),
+            ('core', '마비', ('core-1.05',), {}),
+            ('core-csv-status-1.05', '마비', ('csv-core-1.05', 'effects', 1, 'dc'), 6),
+            ('core-csv-status-1.05', '억압', ('csv-core-1.05', 'authority', 'row'), 87),
+            ('core-csv-status-1.05', '마비', ('csv-core-1.05', 'authority', 'unreviewed'), True),
+            ('core-csv-status-1.05', '헤롱헤롱', ('csv-core-1.05',), None),
+            ('core-csv-frozen-homebrew', '얼음', ('csv-homebrew', 'effects', 2, 'timing'), 'start_of_turn'),
+            ('core-csv-frozen-homebrew', '얼음', ('csv-homebrew', 'authority', 'row'), 112),
+            ('core-csv-frozen-homebrew', '얼음', ('csv-homebrew', 'effects', 6, 'weather', '쾌청'), 3),
+        ]
+        for profile, name, path, value in cases:
+            with self.subTest(profile=profile, condition=name, path=path):
+                saved = copy.deepcopy(views[profile])
+                node = next(x for x in saved if x['id'] == 'condition/' + name)['mech']['data']
+                for key in path[:-1]:
+                    node = node[key]
+                if value is None:
+                    del node[path[-1]]
+                else:
+                    node[path[-1]] = value
+                with self.assertRaises(AssertionError):
+                    self.assert_parser_rows_with_curated_versions(saved, policies, required[profile])
+
     def assert_parser_rows_with_reviewed_confusion_versions(self, saved):
         expected = {x["id"]: self.parser.mechanize(x) for x in self.entities}
         actual = {x["id"]: copy.deepcopy(x) for x in saved}
@@ -127,7 +246,7 @@ class ConditionSaveTimingTests(unittest.TestCase):
         self.assertEqual(set(actual) - set(expected), {"condition/조이기"})
         return actual
 
-    def test_curated_policy_allowlist_rejects_other_data_changes(self):
+    def test_saved_curated_policy_allowlist_rejects_other_data_changes(self):
         # Metadata-only mutations: no engine import, execution or new rules.
         cases = [
             ("condition/마비", ("effects", 1, "timing"), "end_of_turn"),

@@ -34,6 +34,7 @@ class ActionPointTests(unittest.TestCase):
         e.r.feats_mech[rid]={'name':'ap-audit','coverage':'full','header':header,'effects':effects}
         a.spec['feats']=[rid]
         ITEMS.register_feats(e,a)
+        if action!='free':e.start_round([a,b]);e.start_of_turn(a)
         return e,a,b,rid
     def fire(self,e,a,b,rid,automatic=False):
         if automatic:FX.fire_event(e,a,{'event':'on_move_use','move':{'name':'audit'}},b)
@@ -98,7 +99,6 @@ class ActionPointTests(unittest.TestCase):
         for truth in (True,False):
             with self.subTest(truth=truth):
                 e,a,b,rid=self.fixture(action='standard',frequency=quota,condition='target was asleep')
-                e.start_round(e.everyone);e.start_of_turn(a,initiative_count=20)
                 result=ITEMS.manual_feat(e,a,rid,b)
                 self.assertEqual(result,(0,1));self.assertEqual(b.injuries,0)
                 receipt=next(t for t,row in e._effect_dispatch_receipts.items() if row['status']=='condition_unknown')
@@ -121,7 +121,6 @@ class ActionPointTests(unittest.TestCase):
             with self.subTest(drift=drift):
                 quota={'kind':'scene','uses':1,'action':'standard'}
                 e,a,b,rid=self.fixture(action='standard',frequency=quota,condition='target was asleep')
-                e.start_round(e.everyone);e.start_of_turn(a,initiative_count=20)
                 ITEMS.manual_feat(e,a,rid,b)
                 receipt=next(t for t,row in e._effect_dispatch_receipts.items() if row['status']=='condition_unknown')
                 if drift=='source':
@@ -170,7 +169,6 @@ class ActionPointTests(unittest.TestCase):
         for truth in (True,False):
             with self.subTest(truth=truth):
                 e,a,b,rid=self.fixture(action='standard',frequency=quota,condition='target was asleep')
-                e.start_round(e.everyone);e.start_of_turn(a,initiative_count=20)
                 result=ITEMS.manual_feat(e,a,rid,b)
                 self.assertEqual(result,(0,1))
                 restored=Engine.import_state(e.r,json.loads(json.dumps(e.export_state(),ensure_ascii=False)))
@@ -188,7 +186,6 @@ class ActionPointTests(unittest.TestCase):
         import frequency as FREQ
         quota={'kind':'scene','uses':1,'action':'standard'}
         e,a,b,rid=self.fixture(action='standard',automatic=True,frequency=quota,condition='target was asleep')
-        e.start_round(e.everyone);e.start_of_turn(a,initiative_count=20)
         self.fire(e,a,b,rid,True)
         receipt=next(t for t,row in e._effect_dispatch_receipts.items() if row['status']=='condition_unknown')
         self.assertEqual((a.budget['standard'],a.spec['ap_spent'],b.injuries),(0,2,0))
@@ -243,13 +240,11 @@ class ActionPointTests(unittest.TestCase):
         self.assertEqual(b.injuries,0);self.assertEqual(a.spec['ap_removed'],6)
     def test_insufficient_action_does_not_charge_ap(self):
         e,a,b,rid=self.fixture(action='standard')
-        e.start_round(e.everyone);e.start_of_turn(a,initiative_count=20)
         a.budget['standard']=0
         self.fire(e,a,b,rid)
         self.assertEqual(b.injuries,0);self.assertEqual(a.spec.get('ap_spent',0),0)
     def test_action_cost_and_ap_both_spent(self):
         e,a,b,rid=self.fixture(action='standard')
-        e.start_round(e.everyone);e.start_of_turn(a,initiative_count=20)
         self.fire(e,a,b,rid)
         self.assertEqual(b.injuries,1);self.assertEqual(a.budget['standard'],0);self.assertEqual(a.spec.get('ap_spent'),2)
     def test_no_effect_resolved_does_not_charge(self):
@@ -267,7 +262,6 @@ class ActionPointTests(unittest.TestCase):
         self.assertEqual((done,held),(0,1));self.assertEqual(len(e.gm_prompts),1)
     def test_pending_gm_choice_does_not_spend_ap_or_action(self):
         e,a,b,rid=self.fixture(action='standard')
-        e.start_round(e.everyone);e.start_of_turn(a,initiative_count=20)
         for rec in a.registry:
             if rec.get('type')=='feat_manual':rec['effects']=[{'type':'gm','choice':'audit GM choice'}]
         self.fire(e,a,b,rid)

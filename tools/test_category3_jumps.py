@@ -80,7 +80,7 @@ class JumpTests(unittest.TestCase):
   self.assertEqual(out['effective_limits'],{'high_jump':0,'long_jump':3});self.assertEqual(self.a.budget['shift'],0);self.assertEqual(self.e.rng.getstate(),before)
  def test_trainer_base_derivation_supplies_jump_values_without_sheet_totals(self):
   self.a.kind='trainer';self.a.spec['kind']='trainer'
-  self.e.gm.set_movement_capabilities(self.a,{'power':6},basis='trainer_base',reason='actual trainer skill-derived capability fixture')
+  self.e.gm.set_movement_capabilities(self.a,{'land':6,'power':6},basis='trainer_base',reason='actual trainer skill-derived capability fixture')
   self.turn();out=self.jump((3,1),apex_height=1)
   self.assertEqual(out['effective_limits'],{'high_jump':1,'long_jump':2});self.assertEqual(self.a.budget['shift'],0)
  def test_learned_move_supplies_actual_high_jump_contribution(self):

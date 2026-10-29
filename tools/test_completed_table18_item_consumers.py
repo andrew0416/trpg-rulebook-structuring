@@ -1,4 +1,5 @@
 """Actual producer/consumer counterexamples for the eight frozen CSV items."""
+from pathlib import Path
 from copy import deepcopy
 import json,unittest
 from unittest.mock import patch
@@ -99,7 +100,7 @@ class Table18ItemConsumers(unittest.TestCase):
         self.assertEqual(receipt['source'],'C2CSV/inventory:70:1')
 
     def test_essence_actual_selected_augmentation_reaches_hp_permissions_and_restore(self):
-        r=Rules('D:/trpg-rulebook-structuring/ptk-structure-experiment',ruleset='polygon')
+        r=Rules(Path(__file__).resolve().parents[1],ruleset='polygon')
         a=Combatant(r,build_pokemon(r,'이브이',20,moves=['move/섀도볼'],abilities=[]))
         e=Engine(r,seed=18100);e.gm.add_combatant(a)
         WORLD.register_object(e,'table18/implant',location={'kind':'unknown'},reason='actual installed augmentation')

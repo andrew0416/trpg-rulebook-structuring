@@ -14,7 +14,7 @@ class ActionMetadataTests(unittest.TestCase):
 
     def fixture(self, automatic, case):
         helper=_fixture_test_action_points.ActionPointTests()
-        e,a,b,rid=helper.fixture(amount=2,automatic=automatic,action='free')
+        e,a,b,rid=helper.fixture(amount=2,automatic=automatic,action='standard' if case in ('standard','compound_cost') else 'free')
         rec=next(x for x in (a.ability_triggers if automatic else a.registry)
                  if x.get('_feat') or x.get('type')=='feat_manual')
         if case=='missing_header':

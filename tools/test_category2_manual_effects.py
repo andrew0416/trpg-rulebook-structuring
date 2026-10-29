@@ -25,7 +25,7 @@ class ManualEffectTests(unittest.TestCase):
   m=re.fullmatch(r'(\d+)d(\d+)(?:\+(\d+))?',expr);faces=[1]*(int(m[1])*times)
   return sum(faces)+int(m[3] or 0)*times,faces
  def attack(self,move='화염방사',roll=18):
-  with patch.object(self.e,'d20',return_value=roll):return self.e.use_move(self.p,self.other,'move/'+move,set_damage=True)
+  with patch.object(type(self.e),'d20',return_value=roll):return self.e.use_move(self.p,self.other,'move/'+move,set_damage=True)
  def test_registration_exact_duplicates_and_both_actor_roles(self):
   self.assertFalse(self.e.gm_prompts);self.assertFalse(N.live(self.a));self.assertFalse(N.live(self.p))
   self.assertEqual(M.ability_registration(self.r,'배터리')['source_id'],'ability/배터리')
@@ -66,7 +66,7 @@ class ManualEffectTests(unittest.TestCase):
   self.attack('몸통박치기',roll=1);self.assertEqual(N.live(self.p)[0]['id'],uid)
   self.e.end_of_turn(self.p);self.start(self.p);self.attack('울음소리',roll=1);self.assertEqual(len(N.live(self.p)),1)
   self.e.end_of_turn(self.p);self.start(self.p)
-  with patch.object(self.e,'roll_expr',side_effect=AssertionError('no damage on miss')):self.attack(roll=1)
+  with patch.object(type(self.e),'roll_expr',side_effect=AssertionError('no damage on miss')):self.attack(roll=1)
   self.assertFalse(N.live(self.p));self.assertFalse(self.p.spec[N.HISTORY][-1]['applications']);self.valid()
  def test_normal_electric_and_critical_use_one_source_bonus_roll(self):
   for electric,crit in [(False,False),(True,False),(False,True),(True,True)]:
@@ -76,7 +76,7 @@ class ManualEffectTests(unittest.TestCase):
    baseline=self.e.roll_damage(self.p,self.other,self.r.move('move/화염방사'),crit=crit,set_damage=True)
    if electric:self.p.type_override_next='전기'
    hp=self.other.hp
-   with patch.object(self.e,'roll_expr',side_effect=self.dice) as rolls:self.attack(roll=20 if crit else 18)
+   with patch.object(type(self.e),'roll_expr',side_effect=self.dice) as rolls:self.attack(roll=20 if crit else 18)
    self.assertEqual(hp-self.other.hp,baseline+(9 if electric else 6))
    self.assertEqual(rolls.call_args_list,[call(expr)]);observation=self.p.spec[N.HISTORY][-1]['applications'][0]
    self.assertEqual(observation['total'],9 if electric else 6);self.assertEqual(len(observation['faces']),3 if electric else 2)
@@ -85,7 +85,7 @@ class ManualEffectTests(unittest.TestCase):
   from grid import Grid
   self.e.grid=Grid(8,8);self.a.pos=(1,0);self.p.pos=(0,0);self.other.pos=(2,0)
   self.known(self.p,'스피드스타');self.start(self.a);self.give();self.receiver_turn();self.a.pos=(2,0);self.other.pos=(1,0)
-  with patch.object(self.e,'roll_expr',side_effect=self.dice) as rolls,patch.object(self.e,'d20',return_value=18):self.e.use_move_on(self.p,self.other,'move/스피드스타',[self.p,self.a,self.other])
+  with patch.object(type(self.e),'roll_expr',side_effect=self.dice) as rolls,patch.object(type(self.e),'d20',return_value=18):self.e.use_move_on(self.p,self.other,'move/스피드스타',[self.p,self.a,self.other])
   self.assertEqual(sum(c.args[0]=='2d6+4' for c in rolls.call_args_list),1)
   record=self.p.spec[N.HISTORY][-1];self.assertEqual(len(record['applications']),1);self.assertEqual(set(record['applications'][0]['target_ids']),{self.a.entity_id,self.other.entity_id})
   self.assertFalse(hasattr(self.e,'_event_use_scopes'));self.valid()
@@ -95,7 +95,7 @@ class ManualEffectTests(unittest.TestCase):
   self.e.end_scene(self.e.gm.everyone);self.start(self.a)
   receipt=self.give();self.assertEqual(receipt['used'],1);self.assertEqual(len(N.live(self.p)),3)
   G.replace_baseline(self.e,self.a,'abilities',[]);self.receiver_turn()
-  with patch.object(self.e,'roll_expr',side_effect=self.dice) as rolls:self.attack()
+  with patch.object(type(self.e),'roll_expr',side_effect=self.dice) as rolls:self.attack()
   self.assertEqual(len(rolls.call_args_list),3);self.assertFalse(N.live(self.p));self.assertEqual(len(self.p.spec[N.HISTORY]),3);self.valid()
  def test_gm_and_durable_restore_foreign_source_and_frequency(self):
   self.known(self.p,'화염방사');self.start(self.a);receipt=self.give();snapshot=self.e.gm.snapshot();self.receiver_turn();self.attack(roll=1);self.e.gm.restore(snapshot)
@@ -113,7 +113,7 @@ class ManualEffectTests(unittest.TestCase):
   with self.assertRaises(ValueError):self.e.gm.restore(bad)
   with self.assertRaises(ValueError):CODEC.load_engine(self.r,payload)
   self.assertEqual(before,self.snap())
-  with patch.object(self.e,'roll_expr',side_effect=self.dice):self.attack()
+  with patch.object(type(self.e),'roll_expr',side_effect=self.dice):self.attack()
   record=self.p.spec[N.HISTORY][-1];record['applications'][0]['faces'][0]=True
   with self.assertRaises(ValueError):self.e.gm.snapshot()
   with self.assertRaises(ValueError):CODEC.dump_engine(self.e)

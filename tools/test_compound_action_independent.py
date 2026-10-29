@@ -1,6 +1,7 @@
 """Independent compound cost caller tests; payloads isolate common contracts, not leaf effects."""
 from pathlib import Path
 import copy,hashlib,json,sys,unittest
+from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 from engine import Rules,Engine,Combatant
@@ -48,17 +49,20 @@ class Independent(unittest.TestCase):
    self.assertTrue(T.spend(e,a,M.ActionCost(components)))
    self.assertEqual(a.budget,{'standard':0,'shift':0,'swift':0});self.assertFalse(a.took_standard);self.assertEqual(len(a._action_history),1)
  def test_explicit_standard_reserved_before_conversion(self):
+  e,a,b,rid=self.fixture();a.budget={'standard':1,'shift':1,'swift':0}
   for components in [('standard','swift'),('swift','standard')]:
-   e,a,b,rid=self.fixture();a.budget={'standard':1,'shift':1,'swift':0};before=self.state(e,a,b)
+   before=self.state(e,a,b)
    self.assertFalse(T.spend(e,a,M.ActionCost(components)));self.assertEqual(self.state(e,a,b),before)
  def test_actual_callers_hold_late_unknown_priority_and_true_conflict(self):
   for automatic in (False,True):
+   e,a,b,rid=self.fixture(automatic)
+   records=a.ability_triggers if automatic else a.registry
+   record=next(x for x in records if x.get('_feat') or x.get('type')=='feat_manual')
    for raw,action in [('장면 x1 - 기본 행동+신속 행동+우선','standard'),('장면 x1 - 기본 행동+신속 행동','free')]:
-    e,a,b,rid=self.fixture(automatic)
-    records=a.ability_triggers if automatic else a.registry
-    record=next(x for x in records if x.get('_feat') or x.get('type')=='feat_manual')
-    record['activation_header']['frequency'].update(raw=raw,action=action)
-    before=self.state(e,a,b);self.fire(e,a,b,rid,automatic);self.assertEqual(self.state(e,a,b),before)
+    with patch.dict(record['activation_header']['frequency'],raw=raw,action=action):
+     header_before=copy.deepcopy(record['activation_header']['frequency'])
+     before=self.state(e,a,b);self.fire(e,a,b,rid,automatic);self.assertEqual(self.state(e,a,b),before)
+     self.assertEqual(record['activation_header']['frequency'],header_before)
  def test_snapshot_restore_preserves_compound_record_and_single_frequency(self):
   e,a,b,rid=self.fixture();e.gm.snapshot('before');self.fire(e,a,b,rid,False)
   expected=self.state(e,a,b);e.gm.snapshot('after');e.gm.restore('before');self.fire(e,a,b,rid,False)
@@ -68,7 +72,8 @@ for automatic in (False,True):
  for case in ('success','missing_swift','missing_standard','shift_zero','ap_short','exhausted','paralysis','sleep_selfcure','frozen','fainted','other_turn','heavy','unknown_effect'):
   def test(self,automatic=automatic,case=case):
    effects=[{'type':'cure_status','status':['잠듦'],'target':'self'}] if case=='sleep_selfcure' else ([{'type':'unresolved_fixture_effect'}] if case=='unknown_effect' else None)
-   e,a,b,rid=self.fixture(automatic,effects=effects)
+   if case=='paralysis':e,a,b,rid=self.fixture(automatic,raw='장면 x1 - 기본 행동 + 이동 행동',effects=effects)
+   else:e,a,b,rid=self.fixture(automatic,effects=effects)
    if case=='missing_swift':a.budget['swift']=0
    elif case=='missing_standard':a.budget['standard']=0
    elif case=='shift_zero':a.budget['shift']=0
@@ -89,6 +94,15 @@ for automatic in (False,True):
    else:
     self.assertEqual(self.state(e,a,b),before)
     if case=='heavy':self.assertTrue(any('중상' in x and '보류' in x for x in e.log_lines))
+    if case=='paralysis':
+     # The explicit limit forbids two restricted categories, not Standard plus Swift.
+     e,a,b,rid=self.fixture(automatic);a._turn_action_limit={'choose_one_of':['standard','shift']}
+     self.fire(e,a,b,rid,automatic)
+     self.assertEqual(a.budget,{'standard':0,'shift':1,'swift':0})
+     self.assertEqual(a.spec.get('ap_spent'),2);self.assertEqual(b.injuries,1)
+     self.assertEqual(F.state(a)['activations'][rid]['used'],1);self.assertTrue(a.took_standard)
+     self.assertEqual(a._action_history,[{'kind':'compound','components':['standard','swift']}])
+     self.assertTrue(a._restricted_action_taken)
   setattr(Independent,'test_'+('trigger_' if automatic else 'manual_')+case,test)
 
 if __name__=='__main__':

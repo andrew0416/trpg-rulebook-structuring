@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "engine"), str(ROOT / "tools")]
@@ -61,6 +62,8 @@ class OptionalStateEffectEightTests(unittest.TestCase):
             (ally2, (4, 0), "party"), (enemy, (2, 0), "foe"),
         ):
             engine.gm.add_combatant(actor, pos=pos, side=side, reason="optional state-effect fixture")
+        for ally in (ally1,ally2):
+            engine.gm.observe_sensory_environment(owner,ally,paths={"auditory":True},present=True,reason="actual errata Order delivery")
         engine.begin_encounter(engine.everyone)
         engine.start_round(engine.everyone)
         engine.start_of_turn(owner, initiative_count=20)
@@ -158,12 +161,77 @@ class OptionalStateEffectEightTests(unittest.TestCase):
         self.assertEqual((target.staged("atk"), target.staged("spe")),
                          (before[0] // 2, before[1] // 2))
         record = OPTIONAL.records(target)[0]
-        self.assertEqual(record["expires_round"], e.round_no + 2)
+        self.assertEqual(record["expires_round"], e.round_no + 3)
         e.round_no = record["expires_round"]
         OPTIONAL.finish_round(e)
         self.assertEqual((target.stages["atk"], target.stages["spe"]), (2, 2))
         self.assertFalse(OPTIONAL.records(target))
         self.assertGreater(target.staged("atk"), before[0])
+
+    def test_colossus_next_three_actual_rounds_end_after_the_third_upcoming_round(self):
+        import action_points as AP
+        e, owner, target, _, _ = self.fixture('feat/메이저-기프트-거신의-행진')
+        before = (target.staged('atk'), target.staged('spe'))
+        ap = AP.available(owner)
+        e.activate_optional_state_effect(owner, 'SB-099', target=target)
+        record = deepcopy(OPTIONAL.records(target)[0])
+        self.assertEqual((AP.available(owner), owner.budget['standard']), (ap - 2, 0))
+        self.assertEqual(record['round_counting'], 'following_rounds_v1')
+        e.end_of_turn(owner)
+        for _ in range(3):
+            e.end_round()
+            self.assertEqual(OPTIONAL.records(target), [record])
+            self.assertEqual((target.stages['atk'], target.stages['spe']), (0, 0))
+            e.start_round(e.everyone)
+        self.assertEqual(e.round_no, record['created_round'] + 3)
+        e.at_initiative_count(20)
+        e.at_initiative_count(1)
+        self.assertEqual((target.staged('atk'), target.staged('spe')),
+                         (before[0] // 2, before[1] // 2))
+        self.assertEqual(OPTIONAL.records(target), [record])
+        e.end_round()
+        self.assertFalse(OPTIONAL.records(target))
+        self.assertEqual((target.stages['atk'], target.stages['spe']), (2, 2))
+        self.assertTrue(e.validate_state()['valid'])
+
+    def test_colossus_actual_legacy_and_new_producers_keep_deadlines_through_gm_and_fresh_rules(self):
+        import world_entities as WORLD
+        for legacy in (False, True):
+            with self.subTest(legacy=legacy):
+                e, owner, target, _, _ = self.fixture('feat/메이저-기프트-거신의-행진')
+                # Execute the actual former producer, rather than editing a
+                # historical record or pretending it selected a new policy.
+                basis = None if legacy else OPTIONAL.COLOSSUS_ROUND_COUNTING
+                with patch.object(OPTIONAL, 'COLOSSUS_ROUND_COUNTING', basis):
+                    e.activate_optional_state_effect(owner, 'SB-099', target=target)
+                record = deepcopy(OPTIONAL.records(target)[0])
+                self.assertEqual('round_counting' in record, not legacy)
+                self.assertEqual(record['expires_round'], record['created_round'] + (2 if legacy else 3))
+                e.gm.snapshot('colossus-original')
+                e.end_of_turn(owner)
+                e.end_round()
+                e.gm.restore('colossus-original')
+                self.assertEqual(OPTIONAL.records(target), [record])
+                saved = e.export_state()
+                loaded = Engine.import_state(Rules(ROOT, ruleset='all'), json.loads(json.dumps(saved)))
+                for actual in (e, loaded):
+                    actual_target = WORLD.actor_index(actual)[target.entity_id]
+                    actual_owner = WORLD.actor_index(actual)[owner.entity_id]
+                    self.assertEqual(OPTIONAL.records(actual_target), [record])
+                    self.assertTrue(actual.validate_state()['valid'])
+                    actual.end_of_turn(actual_owner)
+                    while actual.round_no < record['expires_round']:
+                        actual.end_round()
+                        self.assertEqual(OPTIONAL.records(actual_target), [record])
+                        actual.start_round(actual.everyone)
+                    actual.end_round()
+                    self.assertFalse(OPTIONAL.records(actual_target))
+                    self.assertEqual((actual_target.stages['atk'], actual_target.stages['spe']), (2, 2))
+                # A lone deadline edit cannot silently change either basis.
+                restored = Engine.import_state(Rules(ROOT, ruleset='all'), json.loads(json.dumps(saved)))
+                restored_target = WORLD.actor_index(restored)[target.entity_id]
+                OPTIONAL.records(restored_target)[0]['expires_round'] += 1
+                self.assertFalse(restored.validate_state()['valid'])
 
     def test_colossus_march_low_stats_keep_one_after_its_actual_halving(self):
         import state_fields as F
@@ -321,6 +389,36 @@ class OptionalStateEffectEightTests(unittest.TestCase):
         self.assertLessEqual(a.evasion("물리"), 9)
         CONTINUITY.publish(self, "SB-110", (e, owner, a, b, foe), "active")
 
+    def test_black_yin_both_source_choices_keep_their_movement_after_stage_reset(self):
+        import state_codec as CODEC
+        for variant, expected in (("korean_to_one", 1), ("english_decrease_one", 7)):
+            with self.subTest(variant=variant):
+                e, owner, a, _, _ = self.fixture("feat/제크로무의-메이저-기프트-검은-음")
+                prepared = OPTIONAL.black_yin_source_options(e.r)
+                choice = {"value": variant, "reason": "Explicit table selection of the conflicting Black Yin source",
+                          "scope": prepared["decision_scope"]}
+                e.activate_optional_state_effect(owner, "SB-110", targets=(a,), choice=choice)
+                self.assertEqual(EXT.movement_profile(e, a, 8, 0)[0], expected)
+                e.end_of_turn(owner)
+                e.gm.recall(a, reason="actual recipient recall keeps the selected movement lifetime")
+                e.gm.send_out(a)
+                self.assertEqual(EXT.movement_profile(e, a, 8, 0)[0], expected)
+                e = CODEC.load_engine(Rules(str(e.r.root), ruleset="all"),
+                                      json.loads(json.dumps(CODEC.dump_engine(e))))
+                a = next(actor for actor in e.everyone if actor.entity_id == a.entity_id)
+                self.assertEqual(EXT.movement_profile(e, a, 8, 0)[0], expected)
+                self.assertEqual(OPTIONAL.records(a)[0]["source_choice"]["receipt"]["values"]["variant"], variant)
+
+    def test_black_yin_stale_source_scope_refuses_before_action_or_effect(self):
+        import native_scenario_fixture as NATIVE
+        e, owner, a, _, _ = self.fixture("feat/제크로무의-메이저-기프트-검은-음")
+        scope = deepcopy(OPTIONAL.black_yin_source_options(e.r)["decision_scope"])
+        scope["policy_id"] = "unrelated-source-policy"
+        choice = {"value": "english_decrease_one", "reason": "actual conflicting-source choice", "scope": scope}
+        NATIVE.assert_rejected_unchanged(e,
+            lambda: e.activate_optional_state_effect(owner, "SB-110", targets=(a,), choice=choice),
+            reason_pattern="scope")
+
     def test_three_round_blessings_keep_activation_count_when_owner_turn_changes(self):
         import state_codec as CODEC
         e, owner, a, _, _ = self.fixture("feat/레시라무의-메이저-기프트-하얀-양")
@@ -346,7 +444,23 @@ class OptionalStateEffectEightTests(unittest.TestCase):
 
     def test_aiming_down_sights_consumes_only_next_ranged_weapon_attack_or_next_turn(self):
         feature = "feat/시야-아래-조준"
-        e, owner, _, _, enemy = self.fixture(feature)
+        from unittest.mock import patch
+        import native_scenario_fixture as NATIVE
+        import fast_combat as FAST
+        def scene():
+            declarations=[]
+            for key,pos,side in (("owner",(2,2),"party"),("enemy",(8,2),"foe")):
+                declarations.append({'key':key,'kind':'trainer','sheet':{
+                    'name':key,'level':30,'stats':dict.fromkeys(('hp','atk','def','spa','spd','spe'),30),
+                    'moves':['move/몸통박치기'],'abilities':[],'pos':pos,'side':side,
+                    'extra':{'feats':[feature] if key=='owner' else [],'skills':{'전투':4},
+                             'movement':{'land':4,'power':2},'movement_basis':'current'}},
+                    'body':{'size':'중형','offsets':[(0,0)],'reason':'actual long-range aiming actors'}})
+            engine,actors=NATIVE.prepare_scene(ROOT,ruleset='all',seed=2468,
+                grid={'width':16,'height':10},actors=declarations)
+            engine.start_round(engine.everyone);engine.start_of_turn(actors['owner'],initiative_count=20)
+            return engine,actors['owner'],actors['enemy']
+        e, owner, enemy = scene()
         e.activate_optional_state_effect(owner, "FAN-104")
         ordinary = self.rules.move("move/몸통박치기")
         self.assertEqual(OPTIONAL.attack_modifiers(owner, ordinary), (0, 0))
@@ -354,7 +468,7 @@ class OptionalStateEffectEightTests(unittest.TestCase):
         import turn as TURN
         import weapon_actions as WEAPONS
         bow = TURN.equip_weapon(e, owner, {
-            "name": "actual short-range bow", "kind": "단거리 사격무기",
+            "name": "actual long-range bow", "kind": "장거리 사격무기",
             "grade": "간단", "slot": "주요손", "moves": [],
         })
         ranged = WEAPONS.prepare(e, owner, e.r.move(bow), bow)
@@ -363,9 +477,12 @@ class OptionalStateEffectEightTests(unittest.TestCase):
         self.assertTrue(hit)
         self.assertEqual(natural, 18)
         self.assertTrue(critical)
+        self.assertTrue(OPTIONAL.records(owner, feature))
+        with patch.object(FAST, 'roll', return_value=18):
+            e.use_move(owner, enemy, bow, weapon_id=bow, set_damage=True)
         self.assertFalse(OPTIONAL.records(owner, feature))
 
-        e, owner, _, _, _ = self.fixture(feature)
+        e, owner, _ = scene()
         e.activate_optional_state_effect(owner, "FAN-104")
         e.end_of_turn(owner)
         e.end_round()

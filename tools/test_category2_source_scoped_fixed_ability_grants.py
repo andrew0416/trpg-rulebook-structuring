@@ -214,12 +214,22 @@ class SourceScopedFixedAbilityGrantTests(unittest.TestCase):
             shadow = Path(tmp)
             plan_path = ROOT / "data/verification/category2-edge-work-plan.json"
             plan = json.loads(plan_path.read_text(encoding="utf-8"))
+            # Rebase only this shadow fixture; original ledger and proof bytes stay unchanged.
+            historical_log = r"C:\Users\admin\Documents\ChatGPT\trpg-rulebook-structuring\work\reuse-partials\resume-core-1257\dementia-printed-band-repair\execution\union-03.log"
+            fixture_log = "data/verification/fixture-inputs/dementia-printed-band/union-03.log"
+            for route in plan["post_foundation_reuse"]["itemized_audit"]["routes"].values():
+                for proof in route["evidence"]:
+                    if proof["log"] == historical_log:
+                        self.assertEqual(hashlib.sha256((ROOT / fixture_log).read_bytes()).hexdigest(), proof["sha256"])
+                        proof["log"] = fixture_log
             files = {p for p in (ROOT / "input").rglob("*") if p.is_file()}
             files.update(ROOT / "data/verification" / name for _, name, _ in PROGRESS_SOURCES)
-            files.update((plan_path, ROOT / "data/verification/category2-scope-freeze.json"))
+            files.add(ROOT / "data/verification/category2-scope-freeze.json")
             files.update(ROOT / proof["log"] for route in plan["post_foundation_reuse"]["itemized_audit"]["routes"].values()
                          for proof in route["evidence"])
             _copy_shadow_files(ROOT, shadow, files)
+
+            (shadow / plan_path.relative_to(ROOT)).write_text(json.dumps(plan, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
             paths = {
                 "classes": ("category2-class-clause-status.json", "entries", "source_clause_id"),
@@ -270,3 +280,4 @@ class SourceScopedFixedAbilityGrantTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

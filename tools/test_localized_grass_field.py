@@ -9,7 +9,7 @@ from grid import Grid
 import field_effects as FIELD
 import state_codec as CODEC
 
-ROOT=Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
+ROOT=Path(__file__).resolve().parents[1]
 
 class LocalGrassTests(unittest.TestCase):
     @classmethod

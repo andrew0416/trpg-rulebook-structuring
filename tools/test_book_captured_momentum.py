@@ -190,6 +190,8 @@ class CapturedMomentumTests(unittest.TestCase):
             # Isolate each existing native bind consumer with its ordinary action
             # budget supplied by this fixture; the AP came from real ball capture.
             self.a.budget['standard']=1
+            self.e.gm.observe_sensory_environment(self.a,self.pet,paths={'auditory':True},present=True,
+                reason='actual allied recipient hears the current native Stratagem Order')
             if mode=='class':
                 self.a.spec['feats'].append(CP.TRICK_SHOT)
                 self.assertEqual(CP.activate(self.e,self.a,self.pet,CP.TRICK_SHOT),(1,0))

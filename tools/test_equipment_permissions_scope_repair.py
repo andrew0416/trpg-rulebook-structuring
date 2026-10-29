@@ -18,7 +18,7 @@ from native_scenario_fixture import assert_rejected_unchanged
 import equipment_scope_chain_fixture as CHAIN
 
 
-ROOT = Path(r"D:/trpg-rulebook-structuring/ptk-structure-experiment")
+ROOT = Path(__file__).resolve().parents[1]
 CANNONS = (("item/잽-블래스터", "move/전자포"), ("item/인페르노-캐논", "move/연옥"))
 COATS = ("item/보강된-트렌치코트", "item/보강된-특수-트렌치코트")
 ARMORS = ("item/마찰저하복", "item/특수마찰저하복")

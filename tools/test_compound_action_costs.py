@@ -1,5 +1,6 @@
 """Conjunctive costs through actual feature callers; no leaf-effect coverage claim."""
 import copy,hashlib,json,sys,unittest
+from unittest.mock import patch
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
@@ -31,7 +32,9 @@ class CompoundCostTests(unittest.TestCase):
   helper,e,a,b,rid=self.fixture(automatic);r=self.rec(a,automatic)
   if case=='missing_standard':a.budget['standard']=0
   elif case=='missing_swift':a.budget['swift']=0
-  elif case=='paralysis':a._turn_action_limit={'choose_one_of':['standard','shift']}
+  elif case=='paralysis':
+   e.end_of_turn(a);e.end_round();e.apply_status(a,'마비');e.start_round([a,b])
+   with patch.object(e,'d20',return_value=10):e.start_of_turn(a,initiative_count=20)
   elif case=='sleep':a.conditions.add('잠듦')
   elif case=='frozen':a.conditions.add('얼음')
   elif case=='wrong_turn':e._active_turn_actor=b
@@ -43,7 +46,7 @@ class CompoundCostTests(unittest.TestCase):
    FREQ.consume_activation(a,rid,r['frequency'],engine=e)
   before=self.snapshot(e,a,b)
   helper.fire(e,a,b,rid,automatic)
-  if case=='success':
+  if case in ('success','paralysis'):
    self.assertEqual(a.budget,{'standard':0,'shift':1,'swift':0})
    self.assertEqual(a.spec['ap_spent'],2);self.assertEqual(b.injuries,1)
    self.assertEqual(a._action_history,[{'kind':'compound','components':['standard','swift']}])
@@ -73,11 +76,14 @@ class CompoundCostTests(unittest.TestCase):
   self.assertFalse(a.took_standard)
   self.assertEqual(a._action_history,[{'kind':'compound','components':['shift','swift']}])
  def test_failed_first_or_last_component_is_atomic(self):
+  _,e,a,b,_=self.fixture()
   for components in [('standard','swift'),('swift','standard')]:
    for missing in ('standard','swift'):
-    _,e,a,b,_=self.fixture();a.budget[missing]=0;before=self.snapshot(e,a,b)
-    self.assertFalse(TURN.spend(e,a,META.ActionCost(components)))
-    self.assertEqual(self.snapshot(e,a,b),before)
+    with patch.dict(a.budget,{missing:0}):
+     before=self.snapshot(e,a,b);rng=e.rng.getstate()
+     self.assertFalse(TURN.spend(e,a,META.ActionCost(components)))
+     self.assertEqual(self.snapshot(e,a,b),before)
+     self.assertEqual(e.rng.getstate(),rng)
  def test_movement_not_inferred_from_shift_cost(self):
   _,e,a,b,_=self.fixture();a.budget={'standard':1,'shift':0,'swift':1}
   self.assertTrue(TURN.spend(e,a,META.ActionCost(('shift','swift'))))

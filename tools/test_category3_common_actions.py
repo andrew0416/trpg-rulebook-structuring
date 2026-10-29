@@ -126,6 +126,7 @@ class Category3CommonActionTests(unittest.TestCase):
         self.assertEqual((result.check.total,result.check.dc,result.check.passed),(12,18,False))
     def test_extra_team_participant_does_not_change_dc(self):
         c=self.actor('추가 참가자','불능')
+        self.e.gm.add_combatant(c,reason='actual additional team contributor')
         result=self.team(participants=[self.a,self.b,c],
               participant_options=[{'fixed':[2,2,2]},{'fixed':[1,1,2,2]},{'fixed':[6]}])
         self.assertIsNotNone(result.check)
@@ -273,6 +274,8 @@ class Category3CommonActionTests(unittest.TestCase):
                 self.assertEqual((loaded.rng.getstate(),actor.spec,tuple(loaded._extended_checks['durable-native']['interval_ids'])),before)
     def test_pre_roll_ap_bonus_self_and_pokemon_skill_accuracy_survives_codec_once(self):
         self.e.everyone=self.e.gm.everyone
+        # ch06:85, Core 1.05 p.221 "your Pokemon's": the boosted Pokemon is the paying trainer's own.
+        self.b.spec['trainer_id']=self.a.entity_id
         for beneficiary_key,rank in [('a',3),('b',4)]:
             for kind in ['skill','accuracy']:
                 beneficiary=getattr(self,beneficiary_key);roll_id=beneficiary_key+':'+kind;available=AP.available(self.a)

@@ -6,7 +6,7 @@ import unittest
 
 
 STAGE = Path(__file__).resolve().parents[1]
-ROOT = Path(r"D:\trpg-rulebook-structuring\ptk-structure-experiment")
+ROOT = STAGE
 sys.path[:0] = [str(STAGE / "engine"), str(ROOT / "engine"), str(ROOT / "tools")]
 
 from builder import build_trainer
@@ -36,7 +36,8 @@ class OptionalCatalogNineTests(unittest.TestCase):
     def actor(self, name, *, types=("노말",)):
         stats = dict.fromkeys(("hp", "atk", "def", "spa", "spd", "spe"), 25)
         spec = build_trainer(self.r, name, 30, stats, extra={
-            "moves": ["move/몸통박치기"], "abilities": [], "edges": [],
+            "moves": ["move/몸통박치기"], "abilities": [], "edges": ["edge/원소-교감"],
+            "edge_choices": {"edge/원소-교감": "노말"},
             "features": ["feat/아케인-훈련"], "feats": ["feat/아케인-훈련"],
             "skills": {"전투": 4, "오컬트학": 4, "집중": 3, "명령": 3},
             "movement": {"land": 6}, "movement_basis": "current", "types": list(types),
@@ -103,7 +104,8 @@ class OptionalCatalogNineTests(unittest.TestCase):
         engine = Engine(rules, seed=113811)
         stats = dict.fromkeys(("hp", "atk", "def", "spa", "spd", "spe"), 25)
         spec = build_trainer(rules, "inactive-source-owner", 30, stats, extra={
-            "moves": ["move/몸통박치기"], "abilities": [], "edges": [], "features": [], "feats": [],
+            "moves": ["move/몸통박치기"], "abilities": [], "edges": ["edge/원소-교감"],
+            "edge_choices": {"edge/원소-교감": "노말"}, "features": [], "feats": [],
             "skills": {"전투": 4}, "movement": {"land": 6}, "movement_basis": "current",
         })
         actor = Combatant(rules, spec)

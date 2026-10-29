@@ -1,6 +1,7 @@
 """Actual Roost plus shared source-owned type operations and real boundaries."""
 from pathlib import Path
 from copy import deepcopy
+from unittest.mock import patch
 import json,sys,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 from engine import Rules,Engine,Combatant
@@ -113,8 +114,12 @@ class TimedTypeTests(unittest.TestCase):
    a.moves.append('move/'+name)
    before=(a.budget.copy(),a.move_uses.copy(),a.types[:],a.hp,b.hp,e.rng.getstate())
    with self.subTest(move=name):
-    with patch.dict(e.r.moves_reviewed,{'move/'+name:dict(e.r.moves_reviewed['move/'+name],type_lifetime_ready=False)}):
-     with self.assertRaises(CONTRACTS.EffectContractError):e.use_move(a,b,'move/'+name)
+    # These four native moves are now reviewed. Test the admission boundary
+    # with review explicitly absent, without rejecting their real definitions.
+    mid='move/'+name
+    unreviewed=dict(e.r.moves_reviewed[mid],type_lifetime_ready=False)
+    with patch.dict(e.r.moves_reviewed,{mid:unreviewed}):
+     with self.assertRaises(CONTRACTS.EffectContractError):e.use_move(a,b,mid)
     self.assertEqual(before,(a.budget,a.move_uses,a.types,a.hp,b.hp,e.rng.getstate()))
   for payload in ({'add_type':'물','lose_type':'불꽃'},{'add_type':'물','fallback':'노말'},{'set_type':'unresolved option'},{'add_type':'물','unknown_semantics':True}):
    with self.subTest(payload=payload):

@@ -64,6 +64,10 @@ def scene(rules, *, seed=11, feats=CORE_FEATURES, grid=(12, 8), ally=False, foe_
     world['foe'] = foe
     for uid in feats:
         acquire(engine, trainer, uid)
+    for sender in (trainer, *([world["ally"]] if ally else [])):
+        for target in engine.everyone:
+            if target is not sender and target.side==sender.side:
+                engine.gm.observe_sensory_environment(sender,target,paths={"auditory":True},present=True,reason="actual audible Guide Order")
     return world
 
 

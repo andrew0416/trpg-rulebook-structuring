@@ -25,7 +25,12 @@ import world_entities as W
 class ChefCookingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.rules = Rules(ROOT, ruleset='all')
+        from ruleset import RuleFilter
+        profile = deepcopy(RuleFilter.load(ROOT, 'all').profile)
+        profile['exclude_units'] = list(profile.get('exclude_units', [])) + ['chef/dumplings-no-nesting-errata']
+        selected = RuleFilter(profile, 'all-with-original-book-dumplings')
+        with patch.object(RuleFilter, 'load', return_value=selected):
+            cls.rules = Rules(ROOT, ruleset='all')
 
     def setUp(self):
         previous = self.rules.rulings

@@ -16,7 +16,8 @@ class AbilityRegistrationShapes(unittest.TestCase):
                      for profile in ('core', 'playtest')}
 
     def test_native_exact_ids_and_aliases_use_actual_single_source_registration(self):
-        cases = [('playtest', 'ability/먹보-playtest', ('먹보 [Playtest]', 'Gluttony')),
+        cases = [('core', 'ability/먹보', ('먹보', 'Core Gluttony', 'Gluttony')),
+                 ('playtest', 'ability/먹보-playtest', ('먹보 [Playtest]', 'Gluttony')),
                  ('playtest', 'ability/꿀파기-playtest', ('꿀파기 [Playtest]',)),
                  ('core', 'ability/클러스터마인드', ('클러스터마인드', 'Cluster Mind')),
                  ('core', 'ability/눈덮인달마', ('눈덮인달마',))]
@@ -37,7 +38,7 @@ class AbilityRegistrationShapes(unittest.TestCase):
                 self.assertEqual(A.ability_id(r, name), 'ability/화학의힘')
 
     def test_unselected_native_version_still_rejects(self):
-        for name in ('먹보 [Playtest]', 'Gluttony', 'ability/먹보-playtest'):
+        for name in ('먹보 [Playtest]', 'ability/먹보-playtest'):
             with self.subTest(name=name):
                 with self.assertRaises(ValueError):
                     A.ability_id(self.rules['core'], name)

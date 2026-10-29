@@ -58,12 +58,14 @@ class CompleteMoveSlotTests(unittest.TestCase):
   with self.assertRaisesRegex(ValueError,'TM/Tutor'):teach('잠꼬대')
   self.assertEqual(before(),state)
   self.e.gm.set_ability(pupil,'ability/기부자',reason='actual original CSV40 acquired ability')
+  # Connection keyword (official PTU 1.05 p.310): gaining Giver learns its Present.
+  self.assertEqual(M.describe(self.r,pupil.spec)['classifications']['move/프레젠트'],'granted')
   self.assertEqual(teach('잠꼬대')['classification'],'taught')
   self.assertEqual(pupil.spec['tutor_points'],0);self.assertEqual(self.e.elapsed_seconds,240)
   self.assertEqual((M.describe(self.r,pupil.spec)['taught_count'],M.describe(self.r,pupil.spec)['taught']),(4,None))
   receipt=pupil.spec['move_learning']['move/잠꼬대']
   self.assertEqual(receipt['teacher_id'],teacher.entity_id);self.assertEqual(receipt['paid_tp'],2)
-  for mid in ('move/몸통박치기','move/째려보기'):self.e.gm.set_move(pupil,mid,reason='actual independent natural learned move')
+  for mid in ('move/몸통박치기',):self.e.gm.set_move(pupil,mid,reason='actual independent natural learned move')
   self.assertEqual(M.describe(self.r,pupil.spec)['slot_count'],6);state=before()
   with self.assertRaisesRegex(ValueError,'exceed sourced capacity'):self.e.gm.set_move(pupil,'move/연막',reason='invalid seventh permanent move')
   self.assertEqual(before(),state)

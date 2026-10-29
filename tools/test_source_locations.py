@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime,timezone
 ROOT=Path(__file__).resolve().parents[1]
 from source_locations import validate_record,SHEETS
-UNIT_PATH=Path(sys.argv[1]) if len(sys.argv)>1 else ROOT/'output/ruleunits.jsonl'
+UNIT_PATH=Path(sys.argv[1]) if __name__=='__main__' and len(sys.argv)>1 else ROOT/'output/ruleunits.jsonl'
 class ProvenanceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

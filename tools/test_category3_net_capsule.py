@@ -25,8 +25,8 @@ class NetTests(unittest.TestCase):
   for actor in (self.a,self.q):self.e.gm.set_footprint(actor,[(0,0)],reason='observed one-cell Net Cap fixture body')
  def fire(self,face=20,**kw):return self.act('net_capsule',target=self.p,fixed_accuracy=face,**kw)
  def test_actual_cannon_equipment_uses_both_hands_and_ammunition(self):
+  self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.a,initiative_count=20)
   self.assertEqual(self.a._item_reg['캡슐캐논']['slots'],['주요손','반대손'])
-  self.e.start_round([self.a,self.p,self.q]);self.e.start_of_turn(self.a)
   r=self.fire();self.assertTrue(r['hit']);self.assertEqual(self.a.spec['items']['네트캡슐'],4);self.assertEqual(self.a.budget['standard'],0);self.assertIsNotNone(NET.active(self.p))
  def test_unowned_unequipped_or_single_hand_cannon_cannot_fire(self):
   for mutation in ('unowned','unequipped','one_hand','overlap'):
@@ -63,7 +63,7 @@ class NetTests(unittest.TestCase):
    self.assertFalse(getattr(self.a,'_item_reg',{}))
   finally:self.rules=original
  def test_miss_consumes_actual_standard_and_capsule_without_state(self):
-  self.e.start_round([self.a,self.p,self.q]);self.e.start_of_turn(self.a)
+  self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.a,initiative_count=20)
   r=self.fire(1);self.assertEqual(r['status'],'missed');self.assertIsNone(NET.active(self.p));self.assertEqual(self.a.budget['standard'],0);self.assertFalse(self.p.conditions)
  def test_outside_combat_shot_and_removal_ignore_stale_turn_budgets(self):
   self.assertFalse(self.e.encounter_active)
@@ -90,7 +90,7 @@ class NetTests(unittest.TestCase):
   self.e.gm.set_footprint(self.p,[(0,0)],reason='actual unchanged Phasing body')
   G.grant(self.p,'capabilities','Phasing','fixture:net-phasing','fixture')
   self.e.change_body_mode(self.p,'phasing',reason='actual target enters native Phasing')
-  self.e.start_round([self.a,self.p,self.q]);self.e.start_of_turn(self.a)
+  self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.a,initiative_count=20)
   self.e.apply_status(self.a,'혼란')
   self.e.boost_roll(self.a,self.a,roll_id='rejected-net',kind='accuracy')
   def observed():
@@ -105,7 +105,7 @@ class NetTests(unittest.TestCase):
    self.assertIsNone(NET.active(self.p))
  def test_paid_hit_and_miss_keep_one_native_action_and_ap_roll(self):
   for face in (1,20):
-   self.setUp();self.e.start_round([self.a,self.p,self.q]);self.e.start_of_turn(self.a)
+   self.setUp();self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.a,initiative_count=20)
    self.e.boost_roll(self.a,self.a,roll_id='paid-net',kind='accuracy')
    result=self.fire(face,accuracy_roll_id='paid-net')
    self.assertEqual((result['hit'],result['status']),(face==20,'attached' if face==20 else 'missed'))
@@ -129,9 +129,9 @@ class NetTests(unittest.TestCase):
    move={'id':'ball','name':'plain attack','class':'변화','type':'노말','ac':6}
    hit,_,_=self.e.accuracy_check(self.p,self.q,move,fixed_roll=9);self.assertEqual(hit,penalty==0)
  def test_standard_save_power_dc15_equality_and_failed_cost_retained(self):
-  self.fire();self.e.start_round([self.a,self.p,self.q]);self.e.start_of_turn(self.p)
+  self.fire();self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.p,initiative_count=10)
   r=self.e.remove_net(self.p,fixed=9);self.assertFalse(r['removed']);self.assertEqual(r['check']['total'],14);self.assertEqual(self.p.budget['standard'],0);self.assertEqual(len(NET.active(self.p)['removal_checks']),1)
-  self.e.end_of_turn(self.p);self.e.end_round();self.e.start_round([self.a,self.p,self.q]);self.e.start_of_turn(self.p)
+  self.e.end_of_turn(self.p);self.e.end_round();self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.p,initiative_count=10)
   r=self.e.remove_net(self.p,fixed=10);self.assertTrue(r['removed']);self.assertEqual(r['check']['dc'],15);self.assertIsNone(NET.active(self.p));self.assertFalse(self.p.conditions)
  def test_save_modifier_adds_to_power_and_no_natural_twenty_special_rule(self):
   self.fire();self.p.save_mod=2;r=self.e.remove_net(self.p,fixed=8);self.assertEqual((r['check']['total'],r['removed']),(15,True))
@@ -141,10 +141,10 @@ class NetTests(unittest.TestCase):
   with self.assertRaises(ValueError):self.e.remove_net(self.a,fixed=20)
   self.assertEqual(before,self.state())
  def test_unavailable_standard_sleep_faint_and_invalid_save_preserve_source_and_rng(self):
-  self.fire();self.e.start_round([self.a,self.p,self.q]);self.e.start_of_turn(self.p)
+  self.fire();self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.p,initiative_count=10)
   self.assertFalse(self.e.remove_net(self.p,fixed=9)['removed'])  # The real failed removal spends this turn's Standard.
   rng=self.e.rng.getstate();self.assertIs(self.e.remove_net(self.p),False);self.assertEqual(self.e.rng.getstate(),rng)
-  self.e.end_of_turn(self.p);self.e.end_round();self.e.start_round([self.a,self.p,self.q]);self.e.start_of_turn(self.p)
+  self.e.end_of_turn(self.p);self.e.end_round();self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.p,initiative_count=10)
   rng=self.e.rng.getstate()
   for status in ('잠듦','얼음'):
    self.p.conditions.add(status);self.assertIs(self.e.remove_net(self.p),False);self.p.conditions.remove(status);self.assertEqual(self.p.budget['standard'],1)
@@ -152,7 +152,7 @@ class NetTests(unittest.TestCase):
   with self.assertRaises(ValueError):self.e.remove_net(self.p,fixed=21)
   self.assertEqual(self.e.rng.getstate(),rng)
  def test_actual_encounter_native_turn_fire_then_self_removal(self):
-  self.e.start_round([self.a,self.p,self.q]);self.e.start_of_turn(self.a);self.fire();self.e.end_of_turn(self.a);self.e.start_of_turn(self.p)
+  self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.a,initiative_count=20);self.fire();self.e.end_of_turn(self.a);self.e.start_of_turn(self.p)
   result=self.e.remove_net(self.p,fixed=10);self.assertTrue(result['removed']);self.assertEqual(self.p.budget['standard'],0);self.assertEqual(self.p._action_history.count('standard'),1)
  def test_extended_automatic_removal_requires_explicit_actual_time_and_survives_scene(self):
   self.fire();self.e.end_scene([self.a,self.p,self.q]);self.assertIsNotNone(NET.active(self.p));self.assertIn('둔화',self.p.conditions);rng=self.e.rng.getstate()
@@ -210,7 +210,7 @@ class NetTests(unittest.TestCase):
  def test_selected_source_replacement_and_duplicate_nets_fail_before_cost(self):
   original=self.e.r._selected_rule
   try:
-   self.e.r._selected_rule=lambda uid:uid+'/unreviewed' if uid==NET.SOURCE else original(uid);before=self.state()
+   self.e.r._selected_rule=lambda uid, *args, **kwargs: uid + '/unreviewed' if uid == NET.SOURCE else original(uid, *args, **kwargs);before=self.state()
    with self.assertRaises(ValueError):self.fire()
    self.assertEqual(before,self.state())
   finally:self.e.r._selected_rule=original

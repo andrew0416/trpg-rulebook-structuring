@@ -15,7 +15,7 @@ class MovementActionTests(unittest.TestCase):
             return Combatant(self.rules,dict(name=name,kind=k,level=1,stats={s:10 for s in ('hp','atk','def','spa','spd','spe')},types=[],moves=[],abilities=[],pos=pos,size='Medium',movement={'land':2}))
         e=Engine(self.rules);c=actor('mover',kind,(0,0));t=actor('target','pokemon',(12,0))
         e.grid=Grid(20,1);e.everyone=[c,t];e.gm.everyone=[c,t]
-        TURN.reset_budget(e,c);return e,c,t
+        e.start_round(e.everyone);e.start_of_turn(c,initiative_count=20);return e,c,t
     def test_trainer_second_movement_is_not_standard_downgrade(self):
         e,c,t=self.pair();e.approach(c,t);self.assertEqual(c.pos,(2,0))
         before=copy.deepcopy(c.budget);e.approach(c,t)

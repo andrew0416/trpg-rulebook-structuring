@@ -26,7 +26,7 @@ class ToolBindingTests(unittest.TestCase):
 
     def block(self,uid='tool',material='ordinary_electronics',event='water'):
         return self.e.gm.observe_environmental_attack(self.a,uid,event_id=event,
-            move_id='move/하이드로펌프',material=material,exposed=True,reason='actual unprotected tool failure')
+            move_id='move/하이드로펌프',actual_type='물',material=material,exposed=True,reason='actual unprotected tool failure')
 
     def test_failed_tool_blocks_all_native_costs_effects_and_execution_until_scene(self):
         self.tool();self.block();before=dump_engine(self.e)

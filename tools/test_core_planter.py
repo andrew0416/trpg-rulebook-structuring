@@ -10,7 +10,7 @@ import common_checks as C
 import cultivation_state as P,cultivation_growth as G,cultivation_harvest as H
 import planter_capability as PLANTER,state_grants as GRANTS,state_codec as CODEC
 
-ROOT=Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
+ROOT=Path(__file__).resolve().parents[1]
 
 
 class CorePlanterTests(unittest.TestCase):

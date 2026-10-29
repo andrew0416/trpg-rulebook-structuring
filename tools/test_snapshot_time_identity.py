@@ -41,7 +41,9 @@ class SnapshotIdentityTests(unittest.TestCase):
             e.end_of_turn(b);self.assertEqual(b.hp,1+b.max_hp//2);self.assertEqual(e.delayed,[])
 
     def test_nested_engine_references_to_actors_keep_identity(self):
-        e,a,b=self.fixture();e.field={'owners':(a,b),'nested':[{'target':b}]};e.hazards={(1,1):{'owner':a}}
+        from grid import Grid
+        e,a,b=self.fixture();e.grid=Grid(3,3)
+        e.field={'owners':(a,b),'nested':[{'target':b}]};e.hazards={(1,1):{'owner':a}}
         e.gm.snapshot();e.gm.restore()
         self.assertIs(e.field['owners'][0],a);self.assertIs(e.field['nested'][0]['target'],b)
         self.assertIs(e.hazards[(1,1)]['owner'],a)
@@ -52,27 +54,39 @@ class SnapshotIdentityTests(unittest.TestCase):
         self.assertIs(e.delayed[0]['attacker'],a);self.assertEqual(a.hp,17)
 
     def test_cross_actor_references_are_preserved(self):
-        e,a,b=self.fixture();a.buffs={'linked_target':b};b.buffs={'linked_target':a}
-        e.gm.snapshot();a.buffs={};b.buffs={};e.gm.restore()
-        self.assertIs(a.buffs['linked_target'],b);self.assertIs(b.buffs['linked_target'],a)
+        e,a,b=self.fixture()
+        e.gm.set_custom(a,'snapshot_graph',{'linked_target':b},reason='snapshot graph fixture')
+        e.gm.set_custom(b,'snapshot_graph',{'linked_target':a},reason='snapshot graph fixture')
+        e.gm.snapshot();a.custom_conditions.pop('snapshot_graph');b.custom_conditions.pop('snapshot_graph');e.gm.restore()
+        self.assertIs(a.custom_conditions['snapshot_graph']['linked_target'],b);self.assertIs(b.custom_conditions['snapshot_graph']['linked_target'],a)
 
     def test_mutable_alias_across_engine_and_actor_is_preserved(self):
-        e,a,b=self.fixture();shared={'counter':2};a.buffs={'shared':shared};e.field={'shared':shared}
+        e,a,b=self.fixture();shared={'counter':2}
+        e.gm.set_custom(a,'snapshot_graph',shared,reason='snapshot alias fixture');e.field={'shared':shared}
         e.gm.snapshot();shared['counter']=9;e.gm.restore()
         self.assertEqual(e.field['shared']['counter'],2)
-        self.assertIs(e.field['shared'],a.buffs['shared'])
+        self.assertIs(e.field['shared'],a.custom_conditions['snapshot_graph'])
         e.field['shared']['counter']=13;e.gm.restore()
-        self.assertEqual(a.buffs['shared']['counter'],2)
+        self.assertEqual(a.custom_conditions['snapshot_graph']['counter'],2)
 
     def test_source_state_mutation_does_not_change_snapshot(self):
-        e,a,b=self.fixture();self.delayed(e,a,b);a.buffs={'nested':[2]};e.gm.snapshot()
-        e.delayed[0]['turns']=90;a.buffs['nested'].append(3);e.gm.restore()
-        self.assertEqual(e.delayed[0]['turns'],1);self.assertEqual(a.buffs['nested'],[2])
+        e,a,b=self.fixture();self.delayed(e,a,b)
+        e.gm.set_custom(a,'snapshot_graph',{'nested':[2]},reason='snapshot isolation fixture');e.gm.snapshot()
+        e.delayed[0]['turns']=90;a.custom_conditions['snapshot_graph']['nested'].append(3);e.gm.restore()
+        self.assertEqual(e.delayed[0]['turns'],1);self.assertEqual(a.custom_conditions['snapshot_graph']['nested'],[2])
 
     def test_item_modifier_alias_within_actor_stays_live(self):
-        e,a,b=self.fixture();modifier={'value':3};a.modifiers=[modifier];a._item_reg={'example':{'mods':[modifier]}}
+        import items as ITEMS
+        import world_entities as WORLD
+        e,a,b=self.fixture()
+        WORLD.register_object(e,'snapshot-alias-item',location={'kind':'unknown'},
+            reason='snapshot modifier alias fixture',kind='item_instance',
+            item_rule_id='item/예리한손톱',owner_id=a.entity_id)
+        ITEMS.register_item(e,a,'예리한손톱',source_instance_id='snapshot-alias-item')
+        # Retain a legacy graph alias on a real native item registration.
+        a._item_reg['예리한손톱']['mods']=[a.modifiers[-1]]
         e.gm.snapshot();e.gm.restore()
-        self.assertIs(a._item_reg['example']['mods'][0],a.modifiers[0])
+        self.assertIs(a._item_reg['예리한손톱']['mods'][0],a.modifiers[-1])
 
     def test_clock_offset_and_recovery_timer_rewind_together(self):
         e,a,b=self.fixture();b.hp=0;e.heal(b,1,source_kind='ordinary_item')
@@ -113,3 +127,4 @@ if __name__=='__main__':
         results=result.rows,input_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in paths},whole_rule_certified=False)
     (ROOT/'output/snapshot-time-identity-tests.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     raise SystemExit(0 if result.wasSuccessful() else 1)
+

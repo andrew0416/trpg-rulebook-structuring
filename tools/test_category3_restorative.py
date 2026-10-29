@@ -39,7 +39,7 @@ class RestorativeTests(unittest.TestCase):
   with self.assertRaises(ValueError):self.e.use_item(self.a,'상처약',self.p)
   self.assertEqual(before,self.state());self.a.spec['skills']['의학']='초보';original=self.e.r._selected_rule
   try:
-   self.e.r._selected_rule=lambda uid:uid+'/unselected' if uid==R.MEDIC else original(uid);before=self.state()
+   self.e.r._selected_rule=lambda uid, *args, **kwargs: uid + '/unselected' if uid == R.MEDIC else original(uid, *args, **kwargs);before=self.state()
    with self.assertRaises(ValueError):self.e.use_item(self.a,'상처약',self.p)
    self.assertEqual(before,self.state())
   finally:self.e.r._selected_rule=original

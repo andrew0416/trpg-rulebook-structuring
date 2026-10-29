@@ -75,13 +75,19 @@ class Tests(unittest.TestCase):
         with self.assertRaises(ValueError):self.carry(105)
         self.assertEqual(self.a.spec,before);self.assertEqual(self.e.rng.getstate(),rng)
     def test_heavy_endpoints_require_gm_and_cannot_override_other_intervals(self):
-        for weight in [34,52]:
-            before=deepcopy(self.a.spec)
-            with self.assertRaises(ValueError):self.carry(weight)
-            self.assertEqual(self.a.spec,before)
-        self.carry(52,boundary_band='heavy');self.assertEqual(CAP.load(self.a)['band'],'heavy')
-        self.carry(52,boundary_band='staggering');self.assertEqual(CAP.load(self.a)['band'],'staggering')
-        with self.assertRaises(ValueError):self.carry(60,boundary_band='normal')
+        # Historical method ID retained; the source defines both endpoints.
+        for weight in (34, 52):
+            self.e.gm.set_carried_objects(self.a,
+                [{'id':'endpoint-'+str(weight), 'weight_kg':weight}], 'actual endpoint load')
+            self.assertEqual(CAP.load(self.a)['band'],'heavy')
+            self.assertEqual(CAP.accuracy(self.a),-2)
+        self.carry(52,boundary_band='heavy')
+        self.assertEqual(CAP.load(self.a)['band'],'heavy')
+        for weight,band in ((34,'normal'),(52,'staggering'),(60,'normal')):
+            before=deepcopy((self.a.spec,self.e._physical_objects));rng=self.e.rng.getstate()
+            with self.assertRaises(ValueError):self.carry(weight,boundary_band=band)
+            self.assertEqual((self.a.spec,self.e._physical_objects),before)
+            self.assertEqual(self.e.rng.getstate(),rng)
     def test_objects_sum_identity_invalid_weight_and_missing_power(self):
         self.e.gm.set_carried_objects(self.a,[{'id':'one','weight_kg':30},{'id':'two','weight_kg':30}],'two actual loads')
         self.assertEqual(CAP.load(self.a)['band'],'staggering')

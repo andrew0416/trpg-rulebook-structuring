@@ -9,6 +9,7 @@ sys.path.insert(0,str(ROOT/'engine'));sys.path.insert(0,str(ROOT/'tools'))
 from engine import Engine,Rules,Combatant
 import common_checks as C
 from audit_common_probabilities import probability
+from native_scenario_fixture import assert_rejections_unchanged
 CLAUSES=[*(f'C3-CORE-{n:03}' for n in (8,9,10,13,15,25,49,50,73)),'C3-EX-031','C3-EX-007']
 
 class Category3DeclarationTests(unittest.TestCase):
@@ -19,6 +20,7 @@ class Category3DeclarationTests(unittest.TestCase):
         self.a=Combatant(self.rules,{'name':'행위자','kind':'trainer','level':20,
           'stats':{'hp':10,'atk':5,'def':5,'spa':5,'spd':5,'spe':5},
           'skills':{'은신':'초보','교활':'숙련','육상':'초보','일반지식':'전문'}})
+        self.e.gm.add_combatant(self.a)
         self.declaration={'action':'도시에서 뒤따른다','intent':'대상에게 들키지 않는다',
           'method':'군중에 섞여 동행인 척한다','proposed_skill':'은신'}
     def act(self,**kw):
@@ -119,6 +121,13 @@ class Category3DeclarationTests(unittest.TestCase):
         for decl in ('attack',{}, {'action':''},{'action':'걷는다','unrecognized':True},{'action':'걷는다','intent':2}):
             with self.assertRaises(ValueError):self.act(declaration=decl)
         self.assertEqual(self.e.rng.getstate(),before)
+    def test_skill_checks_require_registered_actor_target_and_helper(self):
+        outsider=Combatant(self.rules,dict(deepcopy(self.a.spec),id='trainer/unregistered',name='미등록'))
+        assert_rejections_unchanged(self.e,[
+            lambda:self.e.common_action(outsider,'육상',10,mode='skill',fixed=[1]*3),
+            lambda:self.e.plan_skill_check(self.a,'육상',purpose='membership boundary',target=outsider,fixed=[1]*3),
+            lambda:self.e.common_action(self.a,'육상',10,mode='skill',helper=outsider,fixed=[1]*3),
+        ],reason_pattern='execution requires actual registered actor/target')
     def test_gm_context_penalty_is_optional_and_preserves_task_dc(self):
         ordinary=self.act()
         penalized=self.act(penalty_count=1,fixed_penalties=[3])
@@ -181,7 +190,10 @@ class Category3DeclarationTests(unittest.TestCase):
         rules.ruleset=RuleFilter({'sources':['core'],'variants':[],'exclude_units':['edge/학자']})
         rules._apply_ruleset()
         e=Engine(rules,seed=149)
-        with self.assertRaises(ValueError):e.skill_roll(self.a,'의학')
+        spec=deepcopy(self.a.spec);spec['edges']=[]
+        actor=Combatant(rules,spec);e.gm.add_combatant(actor)
+        actor.spec['edges']=['Scholar']
+        with self.assertRaises(ValueError):e.skill_roll(actor,'의학')
     def test_scholar_does_not_accept_fabricated_choices_or_repeat_stack(self):
         self.a.spec['edges']=['학자']
         self.a.spec['edge_choices']={'학자':['육상']}
@@ -209,6 +221,7 @@ if __name__=='__main__':
     files += ['engine/arithmetic.py', 'engine/arithmetic_policy.py', 'engine/effect_contracts.py', 'engine/effect_lifetimes.py', 'engine/maneuver_grants.py', 'engine/move_activation.py', 'engine/native_rule_policy.py', 'data/native-rule-policy.json']
 
     files += ['engine/action_lifecycle.py', 'engine/action_metadata.py', 'engine/action_points.py', 'engine/adjudication_guidance.py', 'engine/ap_roll_bonus.py', 'engine/bandages.py', 'engine/bound_ap.py', 'engine/builder.py', 'engine/capability_actions.py', 'engine/combat_maneuvers.py', 'engine/combat_social_edges.py', 'engine/combat_stage_sources.py', 'engine/combat_timing.py', 'engine/common_action_checks.py', 'engine/common_checks.py', 'engine/contest.py', 'engine/contest_features.py', 'engine/context_actions.py', 'engine/crafting_activities.py', 'engine/custom_species.py', 'engine/damage_reactions.py', 'engine/demo_rulings.py', 'engine/downtime.py', 'engine/effects.py', 'engine/effects_ext.py', 'engine/elemental_connection.py', 'engine/encounter.py', 'engine/enduring_awareness.py', 'engine/engine.py', 'engine/environmental_effects.py', 'engine/focus_tasks.py', 'engine/food_effects.py', 'engine/frequency.py', 'engine/gm_console.py', 'engine/gm_state.py', 'engine/grid.py', 'engine/heavy_injury_adapter.py', 'engine/heavy_injury_kernel.py', 'engine/heavy_standard_adapter.py', 'engine/initiative.py', 'engine/injury_recovery.py', 'engine/items.py', 'engine/jump_actions.py', 'engine/league_agenda.py', 'engine/league_runtime.py', 'engine/life.py', 'engine/maneuver_edges.py', 'engine/movement_actions.py', 'engine/net_capsule.py', 'engine/observed_resolution.py', 'engine/passive_event_profiles.py', 'engine/passive_events.py', 'engine/physical_limits.py', 'engine/physics_maneuvers.py', 'engine/pokemon_activities.py', 'engine/pokemon_requests.py', 'engine/precise_actions.py', 'engine/researcher_features.py', 'engine/resolution_transaction.py', 'engine/rest_intervals.py', 'engine/restorative_items.py', 'engine/root_admission.py', 'engine/root_children.py', 'engine/root_common_checks.py', 'engine/root_common_engine.py', 'engine/root_inputs.py', 'engine/root_machine.py', 'engine/root_resolution.py', 'engine/root_scheduler.py', 'engine/ruleset.py', 'engine/rulings.py', 'engine/skill_feature_actions.py', 'engine/skill_maneuver_actions.py', 'engine/skill_modifiers.py', 'engine/skill_stunts.py', 'engine/skill_targets.py', 'engine/survivalist_features.py', 'engine/temporary_hp.py', 'engine/test_builder.py', 'engine/test_contest.py', 'engine/test_downtime.py', 'engine/test_effects.py', 'engine/test_gm_state.py', 'engine/test_grid.py', 'engine/test_items.py', 'engine/test_maintenance.py', 'engine/test_playthrough.py', 'engine/test_rules.py', 'engine/test_ruleset.py', 'engine/test_rulings.py', 'engine/test_turn.py', 'engine/trainer_capabilities.py', 'engine/turn.py', 'engine/weapon_actions.py', 'engine/wild_equipment.py', 'data/content-source-identities.json', 'data/context-check-policy.json', 'data/skill-check-policy.json', 'data/adjudication-guidance.json', 'data/rulesets.json']
+    files += ['tools/native_scenario_fixture.py']
     report={'generated_at':datetime.now(timezone.utc).isoformat(),'successful':result.wasSuccessful(),'scope':CLAUSES,
        'results':result.rows,'input_hashes':{f:hashlib.sha256((ROOT/f).read_bytes()).hexdigest() for f in files}}
     (ROOT/'output/category3-declaration-tests.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')

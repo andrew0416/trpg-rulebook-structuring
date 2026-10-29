@@ -75,7 +75,7 @@ class OptionalMoveModeTests(unittest.TestCase):
         ally = self.add_target((11, 11), ally=True)
         ally.injuries = 2
         ally.hp = 10
-        expected = 10 + ally.max_hp//2
+        expected = min(ally.max_hp, 10 + ally.base_max_hp//2)
         mid = 'move/꽃가루경단'
         self.select(mid)
         observed = []
@@ -239,15 +239,17 @@ class OptionalMoveModeTests(unittest.TestCase):
     def test_exact_source_policy_and_changed_definition_refusal(self):
         from unittest.mock import patch
         policy = MODES.policy(self.r)
+        all_rules = Rules(str(ROOT), ruleset='all')
         registry = json.loads((ROOT/'data/verification/category2-csv-abilities-moves-status.json').read_text(encoding='utf-8'))
         rows = {row['row_id']: row for row in registry['rows']}
         self.assertEqual({row['clause_id'] for row in policy['moves'].values()},
             {'C2CSV-MOVE-R0016', 'C2CSV-MOVE-R0042', 'C2CSV-MOVE-R0307',
-             'C2CSV-MOVE-R0669', 'C2CSV-MOVE-R0752', 'C2CSV-MOVE-R0632'})
+             'C2CSV-MOVE-R0669', 'C2CSV-MOVE-R0752', 'C2CSV-MOVE-R0632',
+             'C2CSV-MOVE-R0301', 'C2CSV-MOVE-R1064'})
         for mid, entry in policy['moves'].items():
             self.assertEqual(entry['source_row_sha256'], rows[entry['clause_id']]['source_row_sha256'])
             self.assertEqual(entry['source_effect'], rows[entry['clause_id']]['source_effect'])
-            self.assertIsNotNone(MODES.definition(self.r, mid))
+            self.assertIsNotNone(MODES.definition(all_rules, mid))
         before = deepcopy(self.p.spec)
         with patch.object(self.r, 'move_mech', return_value=({'effects_exec': []}, 'changed')):
             with self.assertRaisesRegex(ValueError, 'definition changed'):
@@ -263,7 +265,7 @@ class OptionalMoveModeTests(unittest.TestCase):
         self.e.gm.add_combatant(trainer)
         self.e.start_of_turn(trainer, initiative_count=15)
         self.p.hp = 10
-        expected = min(self.p.max_hp, 10+self.p.max_hp//2)
+        expected = min(self.p.max_hp, 10+self.p.base_max_hp//2)
         self.e.gm.choose_optional_move_effect(trainer, 'move/꽃가루경단', reason='known trainer Move')
         self.e.use_move(trainer, self.p, 'move/꽃가루경단')
         self.assertEqual(self.p.hp, expected)

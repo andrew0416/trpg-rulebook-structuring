@@ -13,7 +13,7 @@ ROOT=Path(__file__).resolve().parents[1]
 class SnowAliasTests(_fixture_test_category2_homebrew_weather.Tests):
  @classmethod
  def setUpClass(cls):
-  cls.r=Rules(ROOT,ruleset='all');cls.core=Rules(ROOT,ruleset='core')
+  cls.r=Rules(ROOT,ruleset='all');cls.core=Rules(ROOT,ruleset='core');cls.errata=Rules(ROOT,ruleset='core+errata')
   cls._weather_fixture_rulings=deepcopy(cls.r.rulings)
 
  def test_actual_selected_snowscape_generates_hail_and_existing_conditions_read_the_alias(self):

@@ -52,7 +52,7 @@ class RangeSourceTests(unittest.TestCase):
         e.d20=roll;e.use_move_on(a,b,m,[a,b,c])
         self.assertEqual((b.injuries,c.injuries),(0,0));self.assertEqual(len(rolls),1)
     def test_area_no_roll_when_action_rejected(self):
-        e,a,b,c,m=self.area();a.budget={'standard':0}
+        e,a,b,c,m=self.area();e.start_round([a,b,c]);e.start_of_turn(a);a.budget={'standard':0}
         e.d20=lambda:(_ for _ in ()).throw(AssertionError('rejected activation must not roll'))
         e.use_move_on(a,b,m,[a,b,c]);self.assertEqual((b.injuries,c.injuries),(0,0))
     def test_original_wall_cone_only_upper_target_hit(self):

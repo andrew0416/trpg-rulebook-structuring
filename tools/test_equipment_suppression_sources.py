@@ -49,11 +49,11 @@ class SuppressionTests(unittest.TestCase):
    self.install('move/매직룸')
    record=next(iter(self.a._item_reg.values()))
    self.assertEqual(len(record[S.KEY]['reasons']),2)
-   if remove_field_first:self.install('move/원더룸')
+   if remove_field_first:FIELD.clear(self.e)
    else:self.klutz(self.a,False)
    self.assertEqual(self.a.initiative_bonus,0)
    if remove_field_first:self.klutz(self.a,False)
-   else:self.install('move/원더룸')
+   else:FIELD.clear(self.e)
    self.assertEqual(self.a.initiative_bonus,10)
    I.synchronize_equipment_suppression(self.e)
    self.assertEqual(self.a.initiative_bonus,10)
@@ -98,7 +98,7 @@ class SuppressionTests(unittest.TestCase):
   uid=self.equip(self.e,self.a,'item/선제공격손톱','restore-claw')
   self.klutz(self.a);self.install('move/매직룸')
   self.e.gm.snapshot('both')
-  self.klutz(self.a,False);self.install('move/원더룸')
+  self.klutz(self.a,False);FIELD.clear(self.e)
   self.e.gm.restore('both');self.assertEqual(self.a.initiative_bonus,0)
   fresh=self.selected_rules()
   loaded=Engine.import_state(fresh,json.loads(json.dumps(self.e.export_state())))
@@ -108,7 +108,7 @@ class SuppressionTests(unittest.TestCase):
   row[S.KEY]['reasons'][-1]['holder_id']=t.entity_id
   with self.assertRaises(ValueError):loaded.export_state()
   row[S.KEY]=old
-  FIELD.install(loaded,a,fresh.move_mech('move/원더룸')[0]['effects_exec'][0],'move/원더룸')
+  FIELD.clear(loaded)
   I.transfer_equipment(loaded,a,t,uid)
   self.assertEqual((a.initiative_bonus,t.initiative_bonus),(0,10))
   self.assertEqual(loaded._physical_objects[uid]['equipped_by'],t.entity_id)
@@ -163,15 +163,16 @@ class SuppressionTests(unittest.TestCase):
     self.assertEqual(S.reasons(self.e,self.a,'forged',fake),[])
     self.a._item_reg['forged']=fake
     with self.assertRaises(ValueError):S.upgrade_legacy(self.e,W.actor_index(self.e))
-    fake[S.KEY]={'reasons':[{'kind':'field','source':self.e.field['source_id'],'holder_id':self.a.entity_id,'registration_key':'forged'}]}
+    fake[S.KEY]={'reasons':[{'kind':'field','source':FIELD.active(self.e,'신비')['source_id'],'holder_id':self.a.entity_id,'registration_key':'forged'}]}
     with self.assertRaises(ValueError):S.validate(self.e,W.actor_index(self.e))
     del self.a._item_reg['forged']
-  marker=deepcopy(row[I.MAGIC_ROOM_KEY]);row.pop(S.KEY)
-  row[I.MAGIC_ROOM_KEY]['field_source']='move/원더룸'
-  with self.assertRaises(ValueError):S.upgrade_legacy(self.e,W.actor_index(self.e))
-  self.assertNotIn(S.KEY,row)
-  row[I.MAGIC_ROOM_KEY]=marker
-  S.upgrade_legacy(self.e,W.actor_index(self.e))
+   marker=deepcopy(row[I.MAGIC_ROOM_KEY]);row.pop(S.KEY)
+   row[I.MAGIC_ROOM_KEY]['field_source']='move/원더룸'
+   with self.assertRaises(ValueError):S.upgrade_legacy(self.e,W.actor_index(self.e))
+   self.assertNotIn(S.KEY,row)
+   row[I.MAGIC_ROOM_KEY]=marker
+   S.upgrade_legacy(self.e,W.actor_index(self.e))
+
 
  def test_shared_profile_restores_after_failure_and_legacy_then_holder_cold_roundtrip(self):
   import state_codec as CODEC

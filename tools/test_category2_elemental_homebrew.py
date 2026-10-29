@@ -30,16 +30,21 @@ class HomebrewElementalTests(unittest.TestCase):
   self.p.types=['물'];self.assertEqual(self.roll().total,12)
   self.p.types=['불꽃','비행'];self.assertEqual(self.roll().total,14)
  def test_no_unprinted_mystic_exclusion_or_repeat_permission(self):
-  self.a.spec['edges'].append(E.MYSTIC);ITEMS.register_feats(self.e,self.a)
+  self.a.spec['edges'].append(E.MYSTIC)
+  with self.assertRaisesRegex(ValueError,'mutually exclusive'):ITEMS.register_feats(self.e,self.a)
+  with self.assertRaisesRegex(ValueError,'mutually exclusive'):self.roll()
+  self.a.spec['edges'][-1]=E.HB_MYSTIC;ITEMS.register_feats(self.e,self.a)
   self.assertEqual(self.roll().total,14)
   self.a.spec['edges'].append(E.HOMEBREW)
   with self.assertRaisesRegex(ValueError,'one acquired'):self.roll()
  def test_distinct_core_policy_is_not_an_alias_or_a_double_bonus(self):
   self.a.spec['edges'].append(E.SOURCE);self.a.spec['edge_choices'][E.SOURCE]='물'
-  self.assertEqual(self.roll().total,14);self.assertEqual(self.roll(target=self.other).total,14)
-  self.a.spec['edge_choices'][E.SOURCE]='불꽃';before=self.e.rng.getstate()
-  with self.assertRaisesRegex(ValueError,'stacking'):self.roll()
+  before=self.e.rng.getstate()
+  with self.assertRaisesRegex(ValueError,'family source selection'):self.roll()
   self.assertEqual(self.e.rng.getstate(),before)
+  query=E.family_source_choices(self.e,self.a)
+  E.observe_family_source(self.e,self.a,{'value':E.HOMEBREW+'|','reason':'actual HB alternative is active','scope':query['decision_scope']})
+  self.assertEqual(self.roll().total,14);self.assertEqual(self.roll(target=self.other).total,12)
  def test_invalid_choice_ownership_and_actor_kind_refuse_before_rng(self):
   for change in ('missing','invalid','duplicate','unowned','pokemon'):
    self.setUp();before=self.e.rng.getstate()

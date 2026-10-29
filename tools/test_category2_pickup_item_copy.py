@@ -90,11 +90,11 @@ class PickupItemCopyTests(unittest.TestCase):
         self.add(engine, target, "선제공격손톱", "second", "held:2")
         self.assertIn("청소부", GRANTS.effective_capabilities(user))
         before = deepcopy((user.spec, user.budget, engine._physical_objects, engine.log_lines))
-        with self.assertRaises(ValueError):
-            engine.activate_ability(user, "픽업", target)
-        self.assertEqual((user.spec, user.budget, engine._physical_objects, engine.log_lines), before)
+        pending = engine.activate_ability(user, "픽업", target)
+        self.assertEqual(pending.basis["chooser_id"], target.entity_id)
+        self.assertEqual((user.budget, engine._physical_objects, engine.log_lines), before[1:])
         initial = user.initiative_bonus
-        receipt = engine.activate_ability(user, "픽업", target, held_selection="second")
+        receipt = engine.resolve_pickup_choice(target, pending.basis["choice_id"], selection="second")
         self.assertEqual(receipt["original_instance_id"], "second")
         self.assertEqual(receipt["destination_slot"], "held:1")
         self.assertEqual(user.initiative_bonus, initial + 10)
@@ -171,6 +171,51 @@ class PickupItemCopyTests(unittest.TestCase):
         self.assertFalse(HELD.entries(user))
         self.assertFalse(HELD.entries(target))
         self.valid(engine)
+
+    def test_sticky_original_survives_pickup_expiry_and_both_native_restores(self):
+        engine, user, target = self.fixture(item='상처약', target_abilities=('점착',))
+        receipt = engine.activate_ability(user,'픽업',target,held_selection='original')
+        before = deepcopy(engine._physical_objects['original'])
+        engine.gm.snapshot('protected original')
+        engine.end_encounter([user,target])
+        self.assertEqual(engine._physical_objects['original'],before)
+        self.assertIn('destroyed',engine._physical_objects[receipt['copy_instance_id']])
+        self.assertEqual(user.spec[PICKUP.HISTORY][0]['original_terminal'],'retained_protected')
+        engine.gm.restore('protected original',reason='restore actual linked copies before boundary')
+        loaded = self.roundtrip(engine);actors=WORLD.actor_index(loaded)
+        loaded.end_encounter(list(actors.values()))
+        self.assertEqual(loaded._physical_objects['original'],before)
+        self.assertEqual(HELD.entries(actors[target.entity_id])[0]['instance_id'],'original')
+        self.assertEqual(actors[user.entity_id].spec[PICKUP.HISTORY][0]['original_terminal'],'retained_protected')
+        self.assertFalse(actors[user.entity_id].spec[PICKUP.ACTIVE]);self.valid(loaded)
+
+    def test_pickup_original_protection_is_evaluated_at_boundary_not_at_copy_time(self):
+        for originally_protected in (False,True):
+            with self.subTest(originally_protected=originally_protected):
+                engine,user,target=self.fixture(item='상처약',target_abilities=('점착',) if originally_protected else ())
+                receipt=engine.activate_ability(user,'픽업',target,held_selection='original')
+                GRANTS.replace_baseline(engine,target,'abilities',[] if originally_protected else ['점착'])
+                engine.end_encounter([user,target])
+                self.assertEqual('destroyed' in engine._physical_objects['original'],originally_protected)
+                self.assertIn('destroyed',engine._physical_objects[receipt['copy_instance_id']])
+                self.assertEqual(user.spec[PICKUP.HISTORY][0]['original_terminal'],
+                                 'destroyed' if originally_protected else 'retained_protected')
+                self.valid(engine)
+
+    def test_transferred_original_uses_current_holder_sticky_protection(self):
+        engine,user,target,receiver,_=self.fixture_owner.fixture(
+            '몸통박치기',held=(None,None,None),abilities=((),(),()))
+        GRANTS.replace_baseline(engine,user,'abilities',['픽업'])
+        GRANTS.replace_baseline(engine,receiver,'abilities',['점착'])
+        self.add(engine,target,'상처약','original')
+        engine.start_round([user,target,receiver]);engine.start_of_turn(user)
+        receipt=engine.activate_ability(user,'픽업',target,held_selection='original')
+        ITEMS.transfer_equipment(engine,target,receiver,'original')
+        before=deepcopy(engine._physical_objects['original'])
+        engine.end_encounter([user,target,receiver])
+        self.assertEqual(engine._physical_objects['original'],before)
+        self.assertEqual(HELD.entries(receiver)[0]['instance_id'],'original')
+        self.assertIn('destroyed',engine._physical_objects[receipt['copy_instance_id']]);self.valid(engine)
 
     def test_consumed_copy_uses_item_stock_and_preserves_original(self):
         engine, user, target = self.fixture(item="상처약")

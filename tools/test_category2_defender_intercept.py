@@ -150,18 +150,38 @@ class DefenderInterceptTests(unittest.TestCase):
         f.fresh()
 
     def test_actual_pass_producer_holds_unsupported_reactive_scope_atomically(self):
+        # Retain the historical ID: direct use still cannot invent Pass authority,
+        # while the actual Pass producer now owns the paid reactive continuation.
+        import pass_moves as PASS, move_completion as COMPLETE
         f=self.fixture();self.acquire(f);f.watch()
         f.a.moves[0]=f.a.spec['moves'][0]='move/풀베기'
         before=f.e.export_state()
-        # Pass does not transfer its borrowed activation authority into this
-        # reactive native transaction. Do not fabricate a pending continuation.
-        with self.assertRaisesRegex(ValueError,'actual native producer authority'):
-            f.e.use_pass_move(f.a,'move/풀베기',(4,2),event_id='defender-pass/pending',
-                object_adjudications={},source='gm/observed-object-hits',
-                reason='actual complete Pass path crosses the watched ally')
+        with self.assertRaisesRegex(ValueError,'Pass Move requires use_pass_move'):
+            f.e.use_move(f.a,f.t,'move/풀베기')
         self.assertEqual(f.e.export_state(),before)
+        hp=(f.t.hp,f.r.hp)
+        with patch.object(type(f.e),'d20',return_value=20):
+            with self.assertRaises(PASSIVE.PassiveEventPending):
+                f.e.use_pass_move(f.a,'move/풀베기',(4,2),event_id='defender-pass/pending',
+                    object_adjudications={},source='gm/observed-object-hits',
+                    reason='actual complete Pass path crosses the watched ally')
+            self.assertEqual((f.t.hp,f.r.hp),hp)
+            self.assertEqual(f.a.move_uses['move/풀베기'],1)
+            self.assertEqual((f.a.budget['standard'],f.a.budget['shift']),(0,0))
+            options=self.faces(f)
+            # The paid Pass has already placed its attacker at (4,2).
+            options['shove_destination']=[4,3]
+            f.choose(f.e._passive_pending,options=options)
+        row=getattr(f.e,PASS.KEY)['defender-pass/pending']
+        self.assertEqual(row['phase'],'complete')
+        self.assertEqual(COMPLETE.actual_recipients(f.e._move_completions[row['completion_id']]),[f.r])
+        self.assertEqual(f.t.hp,hp[0]);self.assertLess(f.r.hp,hp[1])
+        self.assertEqual(f.a.move_uses['move/풀베기'],1)
+        self.assertEqual(f.a._action_history,['standard','shift'])
+        self.assertEqual(RESOURCES.pending(f.r),{'shift':1})
         self.assertIsNone(getattr(f.e,'_passive_pending',None))
         self.assertFalse(getattr(f.e,'_pass_move_scope',None))
+        self.assertTrue(f.e.validate_state()['valid'])
 
     def test_later_athletics_rank_reduction_preserves_qualified_acquisition_cost(self):
         f=self.fixture();self.acquire(f);f.r.spec['skills']['Athletics']=3
@@ -219,8 +239,8 @@ class DefenderInterceptTests(unittest.TestCase):
 
     def test_withdrawal_during_paid_native_movement_wait_retains_past_shift_then_defaults_full(self):
         f=self.fixture();self.acquire(f);f.watch();event=f.waiting();original=MOVE.departure
-        def block(engine,actor,cell,height):
-            result=original(engine,actor,cell,height)
+        def block(engine,actor,cell,height,**scopes):
+            result=original(engine,actor,cell,height,**scopes)
             if actor.entity_id==f.r.entity_id and cell==(3,3):engine.grid.blocking.add(cell)
             return result
         with patch.object(MOVE,'departure',side_effect=block):

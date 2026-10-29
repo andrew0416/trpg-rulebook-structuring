@@ -79,9 +79,16 @@ class MomentOfActionTests(unittest.TestCase):
         items.register_feats(self.e,self.a)
         self.assertTrue(TRAINING.register_owned(self.e,self.a,M.TRAINING))
         self.assertTrue(TRAINING.owns(self.a,M.TRAINING))
+        from builder import build_pokemon
+        partner=Combatant(self.e.r,build_pokemon(self.e.r,'이브이',20,moves=[],abilities=[],
+            extra={'trainer_id':self.a.entity_id}))
+        self.e.gm.add_combatant(partner,reason='actual owned recipient for the book Training Order')
+        self.e.gm.observe_loyalty(partner,6,reason='actual willing trained partner')
+        self.audible(partner)
         self.e.start_round(self.e.everyone);self.e.at_initiative_count(20)
-        self.e.manual_feat(self.a,M.TRAINING,self.a)
-        self.assertEqual(TRAINING.bonus(self.a,'save'),2)
+        self.e.manual_feat(self.a,M.TRAINING,partner)
+        self.assertEqual(TRAINING.bonus(partner,'save'),2)
+        self.assertEqual(TRAINING.bonus(self.a,'save'),0)
         self.assertEqual(self.a.pending_action_loss,{'standard':1})
         self.unchanged(lambda:self.acquire(M.FEATURE,'duplicate'))
         self.setup(acquire=False,combat=False);self.acquire(M.TRAINING)
