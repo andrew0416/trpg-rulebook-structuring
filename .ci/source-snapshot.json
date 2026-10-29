@@ -25,8 +25,8 @@
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
   "active_repair": "authority-repair-integration-1029",
-  "active_repair_scope": "Original reviewed106-ID scope plus4 focused exception-copy regressions. Preserve original105PASS/1ERROR run as rejected; repaired report-shadow source/count checks and exact exception state/memo/rollback behavior are included. No clause credit or whole-project coverage claim.",
-  "active_repair_required_tests": 110,
+  "active_repair_scope": "Original reviewed106-ID scope plus focused rule-selection/effect-contract exception-copy and actual delayed-damage occurrence regressions. Original105PASS/1ERROR run remains rejected. Preserve source, recipient, paid, pending and physical-evidence guards; no clause credit or whole-project coverage claim.",
+  "active_repair_required_tests": 121,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -963,7 +963,7 @@
     "base_main": "ed89311fe4aee538fa58908587427a6e4827127b",
     "local_canonical_completed": 1798,
     "completion_credit": 0,
-    "public_python_files": 203,
+    "public_python_files": 205,
     "private_fixture_members_replaced": 11,
     "private_fixture_members_preserved": 1558,
     "historical_scope_preserved": true,
@@ -983,15 +983,15 @@
       "changed_file_counts_after_recovery": {
         "ci_or_encrypted_bundle": 6,
         "production_runtime": 96,
-        "test": 102,
+        "test": 104,
         "python_support": 5
       },
       "affected_native_methods": 87,
       "procedural_units": [
         "script:engine/test_effects.py"
       ],
-      "validation_status": "Original remote106:105PASS/1ERROR, complete physical capture, independent H rejected. Missing historical log dependency removed from denominator-only shadow; exact3 local controls passed. Procedural rerun exposed rule-selection exception deepcopy failure; both selection exceptions repaired and exact4 local controls passed. Remote110 plus original procedural04 required on repaired head; all original failures retained.",
-      "remote_unique_methods": 110
+      "validation_status": "Original remote106 had105PASS/1ERROR with complete capture and H rejection. Report-shadow dependency repaired (local3PASS); rule-selection copy repaired(local4PASS); typed effect-contract copy repaired(local4PASS); shared delayed/resisted calculation now uses actual invocation facts(local8PASS including stronger RNG-prefix guard). All local captures complete and originals retained. Required original106 plus focusedregressions and original procedural04 await finalremote validation; no new private input.",
+      "remote_unique_methods": 121
     }
   }
 }

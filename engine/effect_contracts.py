@@ -42,6 +42,10 @@ class EffectContractError(ValueError):
  def __init__(self,source,index,issue):
   self.source_id=source;self.effect_index=index;self.issue=issue
   super().__init__(f'{issue.category}: {source}[{index}] {issue.field}: {issue.detail}')
+ def __reduce__(self):
+  # Display args cannot be replayed as the source/index/Issue constructor.
+  from copyreg import __newobj__
+  return (__newobj__, (type(self), *self.args), self.__dict__)
 
 @dataclass(frozen=True)
 class Outcome:

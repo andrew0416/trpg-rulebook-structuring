@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "id": "changed_revisions",
-  "purpose": "Original reviewed106-ID scope plus4 focused exception-copy regressions. Preserve original105PASS/1ERROR run as rejected; repaired report-shadow source/count checks and exact exception state/memo/rollback behavior are included. No clause credit or whole-project coverage claim.",
+  "purpose": "Original reviewed106-ID scope plus focused rule-selection/effect-contract exception-copy and actual delayed-damage occurrence regressions. Original105PASS/1ERROR run remains rejected. Preserve source, recipient, paid, pending and physical-evidence guards; no clause credit or whole-project coverage claim.",
   "completion_credit": 0,
-  "required_unique_count": 110,
+  "required_unique_count": 121,
   "provenance": {
     "base_main": "ed89311fe4aee538fa58908587427a6e4827127b",
     "local_source": "authority-validation12",
@@ -25,11 +25,16 @@
       "original_native_run": 40831545521,
       "original_procedural_failure_runs": [
         40831548507,
-        40833150192
+        40833150192,
+        40836157579
       ],
       "local_report_shadow_controls": 3,
       "local_rule_selection_copy_controls": 4,
-      "additional_private_inputs": 0
+      "additional_private_inputs": 0,
+      "local_effect_contract_controls": 4,
+      "local_delayed_damage_and_strengthened_rng_controls": 8,
+      "original_scope_preserved": 106,
+      "current_exact_union": 121
     }
   },
   "completed": {
@@ -149,6 +154,25 @@
         "tools.test_rule_selection_copy.RuleSelectionCopyTests.test_deepcopy_uses_callers_memo_for_custom_state_aliases",
         "tools.test_rule_selection_copy.RuleSelectionCopyTests.test_pickle_preserves_both_refusals_args_and_cyclic_custom_state",
         "tools.test_rule_selection_copy.RuleSelectionCopyTests.test_native_failed_selection_receipt_survives_gm_staging_and_rollback"
+      ]
+    },
+    "effect_contract_copy_regression": {
+      "tests": [
+        "tools.test_effect_contract_copy.EffectContractCopyTests.test_deepcopy_and_pickle_preserve_issue_args_and_shared_custom_state",
+        "tools.test_effect_contract_copy.EffectContractCopyTests.test_actual_attack_refusal_receipt_survives_staging_rollback_and_gm_add",
+        "tools.test_upper_effect_contracts.Tests.test_unknown_never_miss_exception_rejects_before_move_cost_and_at_accuracy",
+        "tools.test_upper_effect_contracts.Tests.test_never_miss_only_false_exception_authorizes_hit"
+      ]
+    },
+    "delayed_damage_occurrence_regression": {
+      "tests": [
+        "tools.test_damage_observation_identity.DamageObservationIdentityTests.test_resistance_floors_use_actual_move_for_none_empty_and_stale_output",
+        "tools.test_resistance_source_guard.ResistanceSourceGuard.test_blessed_resilience_remains_when_unrelated_ability_is_suppressed",
+        "tools.test_resistance_source_guard.ResistanceSourceGuard.test_svalinn_ally_resistance_remains_when_ally_ability_is_suppressed",
+        "tools.test_category2_delayed_attacks.DelayedAttackTests.test_target_turn_end_hits_with_absent_fainted_user",
+        "tools.test_category2_delayed_attacks.DelayedAttackTests.test_json_roundtrip_preserves_pending_queue_and_executes",
+        "tools.test_category2_delayed_attacks.DelayedAttackTests.test_legacy_turn_end_roll_and_post_damage_failures_restore_exact_state",
+        "tools.test_authority_earned_status_choices.EarnedStatusChoiceTests.test_population_unresisted_choice_changes_this_damage_without_lingering_bonus"
       ]
     }
   }

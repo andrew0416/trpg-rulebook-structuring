@@ -3477,7 +3477,8 @@ class Engine:
             self.log(f"    특성 저항 {resist_steps}단계 → 타입 ×{mult}", "effect/resistance_step")
         # The selected Population Bomb option belongs to this actual damage occurrence.
         # Immunity remains distinct from resistance.
-        mult=REACTIONS.resistance_floor(self,{'attacker':attacker,'target':target,'move':move},mult)
+        damage_occurrence={'attacker':attacker,'target':target,'move':move}
+        mult=REACTIONS.resistance_floor(self,damage_occurrence,mult)
         if _precision_observation is not None:_precision_observation["type_multiplier"] = mult
         other_multiplier = EXT.multiplier_hook(self, attacker, move, mm, ctx)
         adjustment = self.rulings.consume("damage", attacker.name, self)
@@ -3490,7 +3491,7 @@ class Engine:
             type_multiplier=mult, other_multiplier=other_multiplier, adjustment=adjustment, result=final)
         floor_effect = any(e.get("type") == "damage_floor" for e in mm.get("effects_exec", []))
         if _reaction_event is not None:
-            resisted_mult = REACTIONS.resistance_multiplier(self, mult,event=_reaction_event)
+            resisted_mult = REACTIONS.resistance_multiplier(self, mult,event=damage_occurrence)
             resisted = None if resisted_mult is None else DAMAGE.scale(after_defense=after_def,type_multiplier=resisted_mult,other_multiplier=other_multiplier,adjustment=adjustment)
             _reaction_event.update(damage=final, resisted_damage=resisted, attack_stat=atk_stat, context=ctx, damage_floor=floor_effect, actual_damage_type=mtype,
                 damage_formula={'after_defense':after_def,'multiplier':mult,'other_multiplier':other_multiplier,'adjustment':adjustment})
