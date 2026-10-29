@@ -252,17 +252,10 @@ class ImmediateUse(ItemUse):
 
     def commit(self, engine, r):
         import items as I
-        before_actions = len(getattr(r.user, '_action_history', []))
-        result = I._use_immediate_item(engine,r.user,r.item_name,r.target,free=r.free,
+        return I._use_immediate_item(engine,r.user,r.item_name,r.target,free=r.free,
             accepted=r.accepted,duration_minutes=r.duration_minutes,
             duration_reason=r.duration_reason,count=r.count,held_selection=r.held_selection,
             medicine_source_choice=r.medicine_source_choice)
-        if len(getattr(r.user, '_action_history', [])) > before_actions:
-            import class_actor_state_actions as CLASS_STATE_ACTIONS
-            CLASS_STATE_ACTIONS.observe_healing_item_used(
-                engine, r.user, r.target, r.item_name, result
-            )
-        return result
 
 
 class AttackUse(ItemUse):

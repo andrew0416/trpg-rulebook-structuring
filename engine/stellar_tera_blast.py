@@ -6,6 +6,8 @@ from pathlib import Path
 STATE = "stellar_blast_radiation"
 POLICY = "data/stellar-tera-blast-policy.json"
 CHOICE = "_stellar_radiation_choice"
+OBSERVATION = "stellar_blast_observation"
+ADMISSIONS = "stellar_blast_admissions"
 
 
 def _policy(rules):
@@ -49,21 +51,12 @@ def registration(rules, selected_id):
     return selected_id == _policy(rules)["ability"]["source_id"]
 
 
-def _ability_owned(rules, actor):
+def _ability_active(rules, actor):
+    """Current capability is separate from retained historical radiation."""
+    import ability_transitions as ABILITIES
     source = _policy(rules)["ability"]["source_id"]
-    name = _policy(rules)["ability"]["name"]
-    import move_state as MOVE_STATE
-    for value in actor.abilities:
-        if value in (source, name):
-            return True
-        try:
-            registration = MOVE_STATE.ability_registration(rules, value)
-        except (KeyError, ValueError):
-            registration = None
-        if registration and registration.get("source_id") == source:
-            return True
-    return False
-
+    return (not actor.abilities_suppressed and source in ABILITIES.known(actor)
+            and ABILITIES.active(actor, source))
 
 def _blank(engine, actor):
     return {
@@ -85,8 +78,111 @@ def _record(engine, actor, create=False):
         actor.spec[STATE] = record
     if record is not None:
         validate_actor(engine, actor)
+        if create and record["encounter_epoch"] != getattr(engine, "_party_encounter_epoch", 0):
+            # Only a new actual hit starts a new encounter's opportunity pool.
+            # Keep prior receipts, but never carry their active aura forward.
+            record["encounter_epoch"] = getattr(engine, "_party_encounter_epoch", 0)
+            record["active"] = None
     return record
 
+
+def _opportunity_epoch(engine, opportunity):
+    """Read the original encounter from the actual native completion producer."""
+    completion = getattr(engine, "_move_completions", {}).get(opportunity["completion_id"], {})
+    observation = completion.get(OBSERVATION)
+    return None if observation is None else observation["encounter_epoch"]
+
+def _turn_identity(turn):
+    if turn is None:
+        return None
+    return {"actor_id":turn["actor"].entity_id,"round":turn["round"],"turn_serial":turn["turn_serial"]}
+
+
+def _legacy_hit_epoch(engine, opportunity):
+    """An original combat hit in the currently open native round is current."""
+    completion = getattr(engine, "_move_completions", {}).get(opportunity["completion_id"])
+    if completion is None or not engine.encounter_active:
+        return None
+    turn = completion.get("full_turn")
+    if turn is None or turn["round"] != completion["round"] or completion["round"] != engine.round_no:
+        return None
+    import action_lifecycle as ACTION
+    # Native end_encounter clears round_start_seconds. Starting another round,
+    # including the first round of a new encounter, increments round_no.
+    if turn == ACTION.current_full_turn(engine) or engine.round_start_seconds is not None:
+        return getattr(engine, "_party_encounter_epoch", 0)
+    return None
+
+
+def _admission_epoch(engine, actor, opportunity, receipt):
+    completion = getattr(engine, "_move_completions", {}).get(opportunity["completion_id"], {})
+    admissions = completion.get(ADMISSIONS, {})
+    if type(admissions) is not dict:
+        raise ValueError("Stellar paid admissions must be a native mapping")
+    admission = admissions.get(receipt["id"])
+    if admission is None:
+        return None
+    if type(admission) is not dict or type(admission.get("activation")) is not dict:
+        raise ValueError("Stellar paid admission requires its actual activation")
+    original = admission["activation"]
+    epoch = original.get("encounter_epoch")
+    import common_checks as C
+    C.integer(epoch, "Stellar paid admission encounter", 1, getattr(engine, "_party_encounter_epoch", 0))
+    if (set(admission) != {"source","activation","hit_full_turn"}
+            or admission["source"] != _policy(engine.r)["ability"]["source_id"]
+            or original != dict(receipt, encounter_epoch=epoch)
+            or admission["hit_full_turn"] is None
+            or admission["hit_full_turn"] != _turn_identity(completion.get("full_turn"))
+            or receipt["round"] != completion["round"]
+            or receipt["activated_at"] < completion["seconds"]):
+        raise ValueError("Stellar paid legacy admission lost its actual hit/activation binding")
+    return epoch
+
+
+def _radiation_epoch(engine, actor, record, receipt):
+    """Derive legacy authority only from original native records, without writes."""
+    opportunity = next(row for row in record["opportunities"] if row["id"] == receipt["opportunity_id"])
+    epoch = _opportunity_epoch(engine, opportunity)
+    if epoch is not None:
+        return epoch
+    admitted = _admission_epoch(engine, actor, opportunity, receipt)
+    if admitted is not None:
+        return admitted
+    epochs = set()
+    current = _legacy_hit_epoch(engine, opportunity)
+    if current is not None:
+        epochs.add(current)
+    import action_lifecycle as ACTION
+    import common_checks as C
+    import type_state as TYPES
+    for completion in getattr(engine, "_move_completions", {}).values():
+        if (completion["actor"] is not actor or completion["move_id"] not in rows(engine.r)
+                or completion["phase"] not in ("targets","completion_effects","complete")
+                or not completion["started"] or completion["round"] < receipt["round"]
+                or completion["seconds"] < receipt["activated_at"]):
+            continue
+        frame = ACTION.move_frame(engine, completion)
+        if frame is None and completion["phase"] != "complete":
+            continue
+        if frame is not None and frame["source"] != completion["move_id"]:
+            continue
+        for move in (completion["move"], *completion.get("target_moves", {}).values()):
+            choice = move.get(CHOICE)
+            if not isinstance(choice, dict) or choice.get("radiation_id") != receipt["id"]:
+                continue
+            required = {"actor_id","move_id","encounter_epoch","radiation_id",
+                        "radiated_type","base_type","use_radiated_type"}
+            if (set(choice) != required or choice["actor_id"] != actor.entity_id
+                    or choice["move_id"] != completion["move_id"]
+                    or choice["radiated_type"] != receipt["radiated_type"]
+                    or type(choice["use_radiated_type"]) is not bool):
+                raise ValueError("legacy Stellar witness lost its original paid Tera choice")
+            TYPES.validate_attack(engine.r, choice["base_type"])
+            epochs.add(C.integer(choice["encounter_epoch"], "paid Tera encounter", 1,
+                                 getattr(engine, "_party_encounter_epoch", 0)))
+    if len(epochs) > 1:
+        raise ValueError("legacy Stellar native encounter witnesses disagree")
+    return next(iter(epochs)) if epochs else None
 
 def validate_actor(engine, actor):
     record = actor.spec.get(STATE)
@@ -103,10 +199,14 @@ def validate_actor(engine, actor):
             or type(record["sequence"]) is not int or record["sequence"] < 0
             or not isinstance(record["opportunities"], list) or not isinstance(record["history"], list)):
         raise ValueError("invalid Stellar Blast radiation state")
-    if not _ability_owned(engine.r, actor):
-        raise ValueError("Stellar Blast state requires the actual owned ability")
+    # Valid past occurrences survive suppression, replacement and source loss.
+
     seen = set()
     opportunity_by_id = {}
+    native_epochs = []
+    import type_state as TYPES
+    import common_checks as C
+    C.integer(record["encounter_epoch"], "Stellar pool encounter", 0, getattr(engine, "_party_encounter_epoch", 0))
     for row in record["opportunities"]:
         keys = {"id", "sequence", "completion_id", "move_id", "target_id", "types", "round", "at", "consumed"}
         if (not isinstance(row, dict) or set(row) != keys or not isinstance(row["id"], str)
@@ -120,11 +220,36 @@ def validate_actor(engine, actor):
                 or isinstance(row["at"], bool) or not isinstance(row["at"], (int, float)) or row["at"] < 0
                 or type(row["consumed"]) is not bool):
             raise ValueError("invalid actual-hit radiation opportunity")
+        TYPES.validate_types(engine.r, row["types"], label="historical Stellar opportunity types")
+        import move_completion as COMPLETE
+        completion = getattr(engine, COMPLETE.KEY, {}).get(row["completion_id"])
+        recipient = None if completion is None else next((target for target in COMPLETE.actual_recipients(completion)
+            if target.entity_id == row["target_id"]), None)
+        result = None if recipient is None else COMPLETE.recipient_result(completion, recipient)
+        if (completion is None or completion["actor"] is not actor
+                or not completion["sealed"] or completion["phase"] not in ("completion_effects", "complete")
+                or completion["move_id"] != row["move_id"] or completion["round"] != row["round"]
+                or row["id"] != "stellar-hit:%s:%s" % (completion["id"], row["target_id"])
+                or result is None or not result["hit"] or result.get("cancelled")):
+            raise ValueError("Stellar Blast history requires its actual native hit completion")
+        observation = completion.get(OBSERVATION)
+        if observation is not None:
+            if (type(observation) is not dict
+                    or set(observation) != {"source", "actor_id", "encounter_epoch", "target_types"}
+                    or observation["source"] != ability["source_id"]
+                    or observation["actor_id"] != actor.entity_id
+                    or type(observation["target_types"]) is not dict
+                    or observation["target_types"].get(row["target_id"]) != row["types"]):
+                raise ValueError("Stellar opportunity differs from its native type/encounter observation")
+            native_epochs.append(C.integer(observation["encounter_epoch"],
+                "Stellar native encounter", 1, getattr(engine, "_party_encounter_epoch", 0)))
         seen.add(row["id"])
         opportunity_by_id[row["id"]] = row
+    if native_epochs and len(native_epochs) == len(record["opportunities"]) and record["encounter_epoch"] != max(native_epochs):
+        raise ValueError("Stellar pool encounter differs from its native hit observations")
     for row in record["history"]:
         keys = {"id", "opportunity_id", "radiated_type", "activated_at", "round", "reason", "action"}
-        if (not isinstance(row, dict) or set(row) != keys or not isinstance(row["id"], str)
+        if (not isinstance(row, dict) or set(row) not in (keys, keys | {"encounter_epoch"}) or not isinstance(row["id"], str)
                 or row["opportunity_id"] not in opportunity_by_id
                 or row["radiated_type"] not in opportunity_by_id[row["opportunity_id"]]["types"]
                 or isinstance(row["activated_at"], bool) or not isinstance(row["activated_at"], (int, float))
@@ -132,6 +257,11 @@ def validate_actor(engine, actor):
                 or not isinstance(row["reason"], str) or not row["reason"].strip()
                 or row["action"] != ability["activation_action"]):
             raise ValueError("invalid Stellar Blast activation receipt")
+        TYPES.validate_types(engine.r, [row["radiated_type"]], label="historical Stellar radiation type")
+        epoch = _radiation_epoch(engine, actor, record, row)
+        if "encounter_epoch" in row and (type(row["encounter_epoch"]) is not int or epoch is None
+                                         or row["encounter_epoch"] != epoch):
+            raise ValueError("Stellar activation belongs to a different native encounter")
     active = record["active"]
     if active is not None:
         if not isinstance(active, dict) or not record["history"] or active != record["history"][-1]:
@@ -151,7 +281,7 @@ def validate_world(engine):
 def observe_completion(engine, completion):
     """Produce hit opportunities only after every completion effect succeeded."""
     actor = completion.get("actor")
-    if (not engine.encounter_active or actor is None or not _ability_owned(engine.r, actor)
+    if (not engine.encounter_active or actor is None or not _ability_active(engine.r, actor)
             or actor.fainted or actor.abilities_suppressed):
         return []
     import homebrew_state as HOME
@@ -164,12 +294,22 @@ def observe_completion(engine, completion):
         if (not result or not result["hit"] or result["cancelled"] or target.side == actor.side
                 or identity in existing):
             continue
-        types = HOME.actual_types(target, target.types)
+        import type_state as TYPES
+        types = TYPES.validate_types(engine.r, HOME.actual_types(target, target.types),
+                                     label="actual Stellar hit recipient types")
         if not types:
             continue
         pending.append((identity, target, list(types)))
     if not pending:
         return []
+    observation = {"source":_policy(engine.r)["ability"]["source_id"],
+                   "actor_id":actor.entity_id,
+                   "encounter_epoch":getattr(engine, "_party_encounter_epoch", 0),
+                   "target_types":{target.entity_id:list(types) for _,target,types in pending}}
+    previous = completion.get(OBSERVATION)
+    if previous is not None and previous != observation:
+        raise ValueError("Stellar native encounter/type observation cannot be replaced")
+    completion[OBSERVATION] = observation
     record = _record(engine, actor, True)
     additions = []
     for identity, target, types in pending:
@@ -195,6 +335,8 @@ def activate(engine, actor, opportunity_id, radiated_type, *, reason):
         raise ValueError("Stellar Blast activation reason required")
     if not engine.encounter_active or engine._active_turn_actor is not actor:
         raise ValueError("Stellar Blast is an immediate Swift action on its owner's active turn")
+    if not _ability_active(engine.r, actor):
+        raise ValueError("Stellar Blast activation requires its actual active ability")
     record = _record(engine, actor)
     if record is None or record["encounter_epoch"] != getattr(engine, "_party_encounter_epoch", 0):
         raise ValueError("current-encounter Stellar Blast hit required")
@@ -202,11 +344,18 @@ def activate(engine, actor, opportunity_id, radiated_type, *, reason):
     if len(choices) != 1 or choices[0]["consumed"]:
         raise ValueError("one unconsumed actual-hit opportunity required")
     opportunity = choices[0]
+    epoch = _opportunity_epoch(engine, opportunity)
+    if epoch is None:
+        epoch = _legacy_hit_epoch(engine, opportunity)
+    if epoch is None or epoch != record["encounter_epoch"] or epoch != getattr(engine, "_party_encounter_epoch", 0):
+        raise ValueError("Stellar activation requires its original current-encounter hit observation")
     if opportunity["round"] != engine.round_no or radiated_type not in opportunity["types"]:
         raise ValueError("choose a type of the enemy hit during this trigger window")
     import state_grants as GRANTS
     import turn as TURN
     def apply(staged, staged_actor):
+        if not _ability_active(staged.r, staged_actor):
+            raise ValueError("Stellar Blast activation requires its actual active ability")
         staged_record = _record(staged, staged_actor)
         staged_opportunity = next(row for row in staged_record["opportunities"] if row["id"] == opportunity_id)
         if not TURN.spend(staged, staged_actor, "swift", "Stellar Blast"):
@@ -215,12 +364,23 @@ def activate(engine, actor, opportunity_id, radiated_type, *, reason):
         receipt = {
             "id": "stellar-radiation:%d" % (len(staged_record["history"]) + 1),
             "opportunity_id": opportunity_id,
+            "encounter_epoch": epoch,
             "radiated_type": radiated_type,
             "activated_at": staged.elapsed_seconds,
             "round": staged.round_no,
             "reason": reason,
             "action": "swift",
         }
+        if _opportunity_epoch(staged, staged_opportunity) is None:
+            # This is a new paid admission, not a fabricated historical hit epoch.
+            if _legacy_hit_epoch(staged, staged_opportunity) != epoch:
+                raise ValueError("legacy Stellar hit no longer proves this actual activation encounter")
+            completion = staged._move_completions[staged_opportunity["completion_id"]]
+            admissions = completion.setdefault(ADMISSIONS, {})
+            if receipt["id"] in admissions:
+                raise ValueError("Stellar paid admission already recorded")
+            admissions[receipt["id"]] = {"source":_policy(staged.r)["ability"]["source_id"],
+                "activation":deepcopy(receipt),"hit_full_turn":_turn_identity(completion.get("full_turn"))}
         staged_record["history"].append(receipt)
         staged_record["active"] = receipt
         validate_actor(staged, staged_actor)
@@ -233,9 +393,12 @@ def active_radiation(engine, actor):
     record = _record(engine, actor)
     if (record is None or not engine.encounter_active
             or record["encounter_epoch"] != getattr(engine, "_party_encounter_epoch", 0)
-            or actor.fainted or actor.abilities_suppressed or not actor.on_field):
+            or actor.fainted or not actor.on_field or not _ability_active(engine.r, actor)):
         return None
-    return record["active"]
+    active = record["active"]
+    if active is None or _radiation_epoch(engine, actor, record, active) != getattr(engine, "_party_encounter_epoch", 0):
+        return None
+    return active
 
 
 def _choice(engine, actor, move):
@@ -355,6 +518,14 @@ def _legacy_radiation(engine, actor, move):
             or engine.r._selected_rule(source) != source):
         raise ValueError("legacy pending Tera Blast lost its actual selected source")
     active = active_radiation(engine, actor)
+    if active is None:
+        record = _record(engine, actor) or {}
+        retained = record.get("active")
+        if (retained is not None and engine.encounter_active and actor.on_field and not actor.fainted
+                and _ability_active(engine.r, actor)
+                and record.get("encounter_epoch") == getattr(engine, "_party_encounter_epoch", 0)
+                and _radiation_epoch(engine, actor, record, retained) is None):
+            raise ValueError("legacy paid Stellar projection needs its original encounter witness")
     return active if active is not None and any(
         active["activated_at"] <= row["seconds"] and active["round"] <= row["round"]
         for row in paid) else None
@@ -400,10 +571,9 @@ def stab_membership_type(engine, actor, target, move, actual_type):
 def _within_aura(owner, attacker):
     if owner is attacker:
         return True
-    if owner.pos is None or attacker.pos is None:
-        return False
-    from grid import cheb
-    return cheb(owner.pos, attacker.pos) <= 2
+    import world_entities as WORLD
+    distance = WORLD.distance_known(owner, attacker)
+    return distance is not None and distance <= 2
 
 
 def damage_roll_bonus(engine, attacker, actual_type):

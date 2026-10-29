@@ -62,7 +62,7 @@ def policy(engine,actor,target,document,*,purpose,context=None,decisions=None):
     evidence=dict(requirement,provider_id=provider_id,actual_count=count)
     if count<minimum:return dict(prepared,status='PolicyRollPlanDenied',provider_acquisition=evidence)
     options=declaration['options']
-    if type(options) is not dict or set(options)-{'mods','helper_rank','fixed','penalty_count','fixed_penalties','roll_id','helper_bonus','skill_context','skill_stunt'}:
+    if type(options) is not dict or set(options)-{'mods','helper_rank','fixed','penalty_count','fixed_penalties','roll_id','helper_bonus','skill_context','skill_stunt','helper_source'}:
         raise ValueError('explicit supported native roll options required')
     replacement=declaration.get('replacement')
     if replacement is not None and (type(replacement) is not dict or replacement.get('source')!=prepared['selected_id']):
@@ -157,14 +157,14 @@ def resolve(engine, requests, procedure, *, request_id=None, observed_choices=No
         if type(request) is not dict or set(request)!={'actor','target','provider','skill','purpose','replacement','options','expected_plan'}:
             raise ValueError('exact scoped execution request required')
         options=deepcopy(request['options'])
-        if type(options) is not dict or set(options)-{'mods','helper_rank','fixed','penalty_count','fixed_penalties','roll_id','helper_bonus','skill_context','skill_stunt'}:
+        if type(options) is not dict or set(options)-{'mods','helper_rank','fixed','penalty_count','fixed_penalties','roll_id','helper_bonus','skill_context','skill_stunt','helper_source'}:
             raise ValueError('ordinary native roll options required')
         actor=request['actor'];target=request['target'];provider=request['provider']
         current=(deepcopy(request['expected_plan']) if prior_sequence is not None else
                  plan(engine,actor,request['skill'],purpose=request['purpose'],target=target,provider=provider,
                       replacement=request['replacement'],**options))
         if current!=request['expected_plan']:raise ValueError('stale or mismatched roll plan; prepare again')
-        if kind in ('team','weighted_team') and (options.get('helper_rank',0)!=0 or options.get('helper_bonus') not in (None,0)):
+        if kind in ('team','weighted_team') and (options.get('helper_rank',0)!=0 or options.get('helper_bonus') not in (None,0) or options.get('helper_source') is not None):
             raise ValueError('team-plus-assistance requires a sourced extension')
         if options.get('roll_id') is not None:identities.append(options['roll_id'])
         actors.append(actor.entity_id)
@@ -180,8 +180,10 @@ def resolve(engine, requests, procedure, *, request_id=None, observed_choices=No
     if kind=='opposed' and procedure['status_quo_defender_id']!=actors[1]:raise ValueError('actual status-quo defender must be second participant')
     if observed_choices is not None and (len(identities)!=len(requests) or set(observed_choices)-set(identities)):
         raise ValueError('observed sequence requires distinct participant IDs and bound choices')
-    def execute(staged,rolls=None):
-        if rolls is None:rolls=[staged.skill_roll(actor,skill,**options) for actor,skill,options,_ in prepared]
+    def observe(staged,prepared):
+        return [staged.skill_roll(actor,skill,**options) for actor,skill,options,_ in prepared]
+    def execute(staged,prepared,rolls=None):
+        if rolls is None:rolls=observe(staged,prepared)
         if kind=='dc':
             actor,skill,options,_=prepared[0]
             identity=SF._observed(staged,actor,rolls[0],options)[0] if actor.entity_id in getattr(staged,'_let_me_help_offers',{}) else options.get('roll_id')
@@ -204,14 +206,14 @@ def resolve(engine, requests, procedure, *, request_id=None, observed_choices=No
                 for actor,_,options,_ in prepared]
         if request_id is None:return result,None
         # Allocate the durable receipt while RNG/logs/events are still staged.
-        next_records=dict(records)
+        next_records=dict(getattr(staged,'_roll_context_requests',{}))
         next_records[request_id]={'intent':signature,'result':deepcopy(result)}
         return dict(result,replayed=False),next_records
     if observed_choices is None:
-        result,next_records=ACTION._staged_rolls(engine,execute,actors=[a for a,_,_,_ in prepared])
+        result,next_records=ACTION._rolls_before_help(engine,execute,observe,actors=[a for a,_,_,_ in prepared],payload=(prepared,))
     else:
         result,next_records=SF.sequence(engine,sequence_key,{'intent':signature},
-            [(actor,skill,options) for actor,skill,options,_ in prepared],lambda rolls:execute(engine,rolls))
+            [(actor,skill,options) for actor,skill,options,_ in prepared],lambda rolls:execute(engine,prepared,rolls))
     if next_records is not None:engine._roll_context_requests=next_records
     return result
 
@@ -304,11 +306,17 @@ def execute_policies(engine, submissions, procedure, *, request_id):
     if len(requests)!=len(submissions):
         return {'status':'PolicyRollsDenied' if any(p['status']=='PolicyRollPlanDenied' for p in policies) else 'PolicyRollsPending',
                 'policies':policies,'consumed':False}
-    def execute(staged):
+    def execute(staged,requests):
         outcome=resolve(staged,requests,procedure)
         result={'status':'PolicyRollsCompleted','request_id':request_id,'policies':deepcopy(policies),'outcome':outcome,'consumed':True}
-        next_records=dict(records);next_records[request_id]={'intent':signature,'result':deepcopy(result)}
+        next_records=dict(getattr(staged,'_roll_policy_requests',{}));next_records[request_id]={'intent':signature,'result':deepcopy(result)}
         return result,next_records
-    result,next_records=ACTION._staged_rolls(engine,execute)
+    actors=[request['actor'] for request in requests]
+    if ACTION._has_help_offers(engine,actors):
+        # resolve owns the private roll prefix and the subsequent durable Help
+        # boundary. Do not enclose that observed decision in a second rollback.
+        result,next_records=execute(engine,requests)
+    else:
+        result,next_records=ACTION._staged_rolls(engine,execute,actors=actors,payload=(requests,))
     engine._roll_policy_requests=next_records
     return dict(result,replayed=False)

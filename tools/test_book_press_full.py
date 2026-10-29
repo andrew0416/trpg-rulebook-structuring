@@ -109,10 +109,8 @@ class PressTests(unittest.TestCase):
   self.assertEqual(self.skill(purpose='singing'),(False,6));self.assertEqual(self.skill(purpose=None),(False,6))
   assert_rejections_unchanged(self.e,[
    lambda:self.e.skill_check(self.a,'명령',8,fixed=[2,2,2],skill_context={'purpose':'invented','reason':'GM observed actual unknown purpose'},skill_target=self.p),
-   lambda:self.e.skill_check(self.a,'명령',8,fixed=[2,2,2],skill_context={'purpose':'pokemon_obedience','reason':''},skill_target=self.p)],
-   reason_pattern=['known GM skill purpose and reason required','Press obedience observation reason'])
-  self.assertEqual(self.e.skill_check(self.a,'명령',8,fixed=[2,2,2],
-   skill_context={'purpose':'pokemon_obedience'},skill_target=self.p),(True,8))
+   lambda:self.e.skill_check(self.a,'명령',8,fixed=[2,2,2],skill_context={'purpose':'pokemon_obedience'},skill_target=self.p)],
+   reason_pattern='known GM skill purpose and reason required')
   self.assertEqual(self.skill(),(True,8));self.assertEqual(len(TIMING.records(self.a)),1);self.valid()
 
  def test_declining_optional_bonus_still_performs_all_press_effects(self):

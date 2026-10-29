@@ -240,7 +240,7 @@ def disengage(engine, c, destination, *, movement_mode=None, _telepathy_source=N
     return True
 
 
-def spend(engine, c, kind, what="", *, movement=False, sleep_cure=False, _native_move=None, _standing_up=False, _condition_recovery=None, _body_mode_return=False, _assisted_breather=None):
+def spend(engine, c, kind, what="", *, movement=False, sleep_cure=False, _native_move=None, _standing_up=False, _condition_recovery=None, _body_mode_return=False, _assisted_breather=None, _triggered_source=None):
     """행동 소비. 기본 행동이 없으면 신속/이동으로 낮출 수 없고(상위→하위만 가능), 신속이 없으면 기본 행동을 낮춰 쓴다. 성공 여부 반환."""
     from arithmetic_policy import validate_source
     validate_source(engine.r)
@@ -295,33 +295,33 @@ def spend(engine, c, kind, what="", *, movement=False, sleep_cure=False, _native
     import swarm_transitions as SWARM
     swarm_spend=SWARM.spend(engine,c,kind,_native_move)
     if swarm_spend is not None:
-        if swarm_spend:ACTION.record_action(engine,c,kind)
+        if swarm_spend:ACTION.record_action(engine,c,kind,_native_move=_native_move,_triggered_source=_triggered_source)
         return swarm_spend
     if not engine.encounter_active:
         # Ended encounters may leave a budget record; it does not constrain a
         # later outside action once the normal permissions above pass.
-        ACTION.record_action(engine, c, kind)
+        ACTION.record_action(engine,c,kind,_native_move=_native_move,_triggered_source=_triggered_source)
         return True
     if b is None:          # Outside-encounter component execution only.
-        ACTION.record_action(engine, c, kind)
+        ACTION.record_action(engine,c,kind,_native_move=_native_move,_triggered_source=_triggered_source)
         return True
     if kind == "full":
         if b.get("standard", 0) > 0 and b.get("shift", 0) > 0:
             if assisted:ASSISTANCE.consume(engine,_assisted_breather)
             b["standard"] -= 1
             b["shift"] -= 1
-            ACTION.record_action(engine, c, kind)
+            ACTION.record_action(engine,c,kind,_native_move=_native_move,_triggered_source=_triggered_source)
             return True
         engine.log(f"    {c.name}: 완전 행동에는 기본·이동 행동 모두 필요 → {what} 불가", "combat/action-economy")
         return False
     if kind == "free":
-        ACTION.record_action(engine, c, kind)
+        ACTION.record_action(engine,c,kind,_native_move=_native_move,_triggered_source=_triggered_source)
         return True
     if __import__('trickster').extra_standard(engine,c,kind,_native_move):return True
     if b.get(kind, 0) > 0:
         b[kind] -= 1
         if movement:c._regular_shift_movement_used = True
-        ACTION.record_action(engine, c, kind)
+        ACTION.record_action(engine,c,kind,_native_move=_native_move,_triggered_source=_triggered_source)
         return True
     if kind in ("swift", "shift") and b.get("standard", 0) > 0:      # 기본 행동을 낮춰서 사용 (downgrade)
         # ch07:50 and :79 (PTU pp227-228): distinguish movement from
@@ -332,7 +332,7 @@ def spend(engine, c, kind, what="", *, movement=False, sleep_cure=False, _native
             engine.log(f"    {c.name}: {reason} → {what} 불가", "combat/action-economy")
             return False
         b["standard"] -= 1
-        ACTION.record_action(engine, c, kind)
+        ACTION.record_action(engine,c,kind,_native_move=_native_move,_triggered_source=_triggered_source)
         engine.log(f"    {c.name}: 기본 행동을 {'신속' if kind == 'swift' else '이동'} 행동으로 낮춰 사용 ({what})", "combat/action-economy")
         return True
     engine.log(f"    {c.name}: {'기본' if kind == 'standard' else '이동' if kind == 'shift' else '신속'} 행동이 남지 않음 → {what} 불가", "combat/action-economy")
@@ -369,7 +369,9 @@ def spend_compound(engine, c, cost, what="", *, movement=False, sleep_cure=False
         # Feature activation cannot silently inherit that confluence proof.
         engine.log(f"    {c.name}: 복합 재주 Standard 중상 적용 시점 미확정 → 보류", "common/heavy-injury")
         return False
-    budget = getattr(c, "budget", None)
+    # Per-turn tokens end with the encounter; outside actions still pass every
+    # permission above and their source's separate AP/frequency payment.
+    budget = getattr(c, "budget", None) if engine.encounter_active else None
     planned = None if budget is None else dict(budget)
     if planned is not None:
         import action_resources as RESOURCES
@@ -511,6 +513,23 @@ WEAPON_KIND = {   # ch09 장비/무기: 소형 근접 DB+1 / 대형 근접 AC+1 
     "발 무기": {"range": "근접, 대상 1", "db": 1, "ac": 1}}
 
 
+def _weapon_move_sources(c):
+    """Import live-only legacy ownership without promoting equipment permissions."""
+    import state_grants as GRANTS,move_state as MOVES
+    if GRANTS.KEY in c.spec:
+        GRANTS.state(c)
+        return
+    weapons=list(c.custom_conditions.get('equipped_weapons',{}).values())
+    base=MOVES.move_union(c.r,c.spec.get('moves',[]))
+    gear=MOVES.move_union(c.r,*(row['available_moves'] for row in weapons))
+    independent=MOVES.move_union(c.r,c.custom_conditions.get('independently_acquired_moves',[]),
+                                 *(row.get('independently_known',[]) for row in weapons))
+    observed=MOVES.move_union(c.r,*([value] for value in c.moves))
+    legacy=[value for value in observed if value not in base and
+            (value not in gear or value in independent)]
+    GRANTS.state(c)['legacy']['moves']=legacy
+
+
 def equip_weapon(engine, c, weapon):
     """Publish physical equipment and its generated rule identity atomically."""
     import state_grants as GRANTS
@@ -584,6 +603,7 @@ def _equip_weapon(engine, c, weapon):
             raise ValueError("unknown selected weapon move")
         if framework_limit is None:WEAPONS.validate_grant(engine,c,weapon,wid)
         available.append(wid)
+    _weapon_move_sources(c)
     __import__('ruleset').capture_runtime_weapon(engine.r,mid,weapon['name']+' 발버둥')
     engine.r.moves[mid] = generated_move
     engine.r.moves_mech[mid] = generated_mechanics
@@ -597,11 +617,11 @@ def _equip_weapon(engine, c, weapon):
     independent.update(m for entry in ledger.values() for m in entry.get("independently_known",[]))
     independently_known = [m for m in [mid,*available] if m in baseline and (m not in prior_granted or m in independent)]
     granted = [m for m in [mid,*available] if m not in baseline]
-    for m in granted:
-        if m not in c.moves:c.moves.append(m)
+
     ledger[mid] = {"weapon":weapon,"slots":slots,"struggle_id":mid,"available_moves":[mid,*available],"introduced_moves":granted,"independently_known":independently_known,"source":source}
     c.custom_conditions["equipped_weapons"] = ledger
     c.weapon = weapon
+    __import__('state_grants').materialize(c,'moves')
     FRAMEWORK.on_equip(engine,c,mid)
     if held is not None:
         HELD.commit(c,held,item_id=None,instance_id=weapon['instance_id'],registration_key=None)
@@ -617,6 +637,7 @@ def unequip_weapon(engine, c, key, *, _living_detach=False):
     record = ledger[key]
     if record['weapon'].get('living_actor') and not _living_detach:
         raise ValueError('Living Weapon separation requires either participant Swift action')
+    _weapon_move_sources(c)
     import optional_weapon_framework as FRAMEWORK
     FRAMEWORK.on_unequip(engine,c,record)
     if c.kind=='pokemon' and not record['weapon'].get('living_actor'):
@@ -625,14 +646,10 @@ def unequip_weapon(engine, c, key, *, _living_detach=False):
         if held is None:raise ValueError('Wielder weapon and actual held slot disagree')
         HELD.remove(c,held['slot_id'])
     ledger.pop(key)
-    preserved = set(c.spec.get("moves",[])) | set(c.custom_conditions.get("independently_acquired_moves",[]))
-    preserved.update(record.get("independently_known",[]))
-    preserved.update(m for entry in ledger.values() for m in entry["available_moves"])
-    preserved.update(m for entry in getattr(c,"_item_reg",{}).values() for m in entry.get("moves",[]))
-    for move in record["available_moves"]:
-        if move not in preserved and move in c.moves:c.moves.remove(move)
+
     c.weapon = next((entry["weapon"] for entry in ledger.values()),None)
     if not ledger:c.custom_conditions.pop("equipped_weapons",None)
+    __import__('state_grants').materialize(c,'moves')
     return record["weapon"]
 
 

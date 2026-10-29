@@ -1280,6 +1280,11 @@ def event_matches(spec, ev):
     return True
 
 
+def accepted_activation(result):
+    """A retained conditional occurrence owns its producer's original cost."""
+    return bool(result[0] or any(outcome.status=='condition_unknown' for outcome in result.outcomes))
+
+
 @__import__("cheerleader").native_action
 def fire_event(engine, c, ev, other=None):
     """Combatant 의 특성 중 발동조건이 ev 와 맞는 것의 나머지 effect 를 실행. 빈도(장면 x N / 하루) 는 counters 로 센다."""
@@ -1340,7 +1345,7 @@ def fire_event(engine, c, ev, other=None):
         done, held = result
         # A real suspended occurrence has already accepted this activation.
         # Retain its original action/AP/frequency once while its fact is pending.
-        accepted = bool(done or any(outcome.status == 'condition_unknown' for outcome in result.outcomes))
+        accepted = accepted_activation(result)
         if ab.get("_feat"):
             if accepted:
                 AP.spend(c, ap_cost, header, ab.get("cost_effects", ab["effects"]))

@@ -88,6 +88,36 @@ class CompoundCostTests(unittest.TestCase):
   _,e,a,b,_=self.fixture();a.budget={'standard':1,'shift':0,'swift':1}
   self.assertTrue(TURN.spend(e,a,META.ActionCost(('shift','swift'))))
   self.assertFalse(a._regular_shift_movement_used)
+ def test_outside_compound_preserves_spent_budget_and_still_pays_ap(self):
+  for automatic in (False,True):
+   with self.subTest(automatic=automatic):
+    helper,e,a,b,rid=self.fixture(automatic)
+    helper.fire(e,a,b,rid,automatic)
+    self.assertEqual((a.budget['standard'],a.budget['swift']),(0,0))
+    e.end_of_turn(a);e.end_encounter(round_elapsed_seconds=10)
+    self.assertFalse(e.encounter_active);self.assertIsNone(e._active_turn_actor)
+    budget=copy.deepcopy(a.budget);spent=a.spec['ap_spent'];injuries=b.injuries
+    history=len(a._action_history);rng=e.rng.getstate()
+    helper.fire(e,a,b,rid,automatic)
+    self.assertEqual(a.budget,budget)
+    self.assertEqual(a.spec['ap_spent'],spent+2);self.assertEqual(b.injuries,injuries+1)
+    self.assertEqual(len(a._action_history),history+1)
+    self.assertEqual(a._action_history[-1],{'kind':'compound','components':['standard','swift']})
+    self.assertEqual(e.rng.getstate(),rng)
+ def test_outside_compound_status_or_ap_refusal_preserves_state(self):
+  for automatic in (False,True):
+   for case in ('sleep','frozen','ap_short'):
+    with self.subTest(automatic=automatic,case=case):
+     helper,e,a,b,rid=self.fixture(automatic)
+     helper.fire(e,a,b,rid,automatic)
+     e.end_of_turn(a);e.end_encounter(round_elapsed_seconds=10)
+     if case=='sleep':a.conditions.add('잠듦')
+     elif case=='frozen':a.conditions.add('얼음')
+     else:a.spec['ap_spent']=6
+     before=self.snapshot(e,a,b);rng=e.rng.getstate()
+     helper.fire(e,a,b,rid,automatic)
+     self.assertEqual(self.snapshot(e,a,b),before)
+     self.assertEqual(e.rng.getstate(),rng)
  def test_snapshot_restores_single_compound_record(self):
   helper,e,a,b,rid=self.fixture();before=self.snapshot(e,a,b);e.gm.snapshot('compound')
   helper.fire(e,a,b,rid);e.gm.restore('compound');self.assertEqual(self.snapshot(e,a,b),before)

@@ -150,7 +150,7 @@ class CompleteMoveSlotTests(unittest.TestCase):
     self.assertEqual(result['source'],uid);self.assertEqual(c.budget['swift'],swift-1)
     self.assertEqual(c.budget['standard'],standard);self.assertEqual(c.form,'달마모드')
     self.assertEqual(M.describe(self.r,c.spec)['slot_count'],1)
-    self.assertNotIn(borrowed,M.owned_list(c.spec,'moves',c.moves))
+    self.assertNotIn(borrowed,M.owned_list(c.spec,'moves',c.moves,rules=c.r))
     self.e.use_move(c,target,borrowed)
     self.assertEqual(c.move_uses.get(borrowed),1);self.assertEqual(c.budget['standard'],standard-1)
     self.e.gm.snapshot('csv-form-active')

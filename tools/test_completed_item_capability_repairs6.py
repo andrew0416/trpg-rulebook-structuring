@@ -243,7 +243,7 @@ class ItemCapabilityRepairs6(unittest.TestCase):
         row=CAP.configure_tinkerer(e,actor,weapon_class='large_melee',proficient_move='move/강타',steel=True)
         self.assertNotIn('move/강타',actor.spec['moves'])
         self.assertIn('move/강타',G.effective(actor,'moves'))
-        self.assertNotIn('move/강타',MOVES.owned_list(actor.spec,'moves',actor.moves))
+        self.assertNotIn('move/강타',MOVES.owned_list(actor.spec,'moves',actor.moves,rules=actor.r))
         self.assertTrue(row['intrinsic']);self.assertTrue(row['unstealable']);self.assertFalse(HELD.any_held(actor))
         import items as ITEMS,turn as TURN
         before=e.export_state()
@@ -268,8 +268,8 @@ class ItemCapabilityRepairs6(unittest.TestCase):
         self.assertEqual(HELD.capacity(actor)['maximum'],0)
         G.set_baseline(actor,'capabilities',[])
         self.assertIsNone(CAP.tinkerer_weapon(actor));self.assertNotIn('move/백스윙',G.effective(actor,'moves'))
-        self.assertNotIn('move/백스윙',MOVES.effective_list(actor.spec,'moves'))
-        self.assertNotIn('move/백스윙',MOVES.owned_list(actor.spec,'moves',actor.moves))
+        self.assertNotIn('move/백스윙',MOVES.effective_list(actor.spec,'moves',rules=actor.r))
+        self.assertNotIn('move/백스윙',MOVES.owned_list(actor.spec,'moves',actor.moves,rules=actor.r))
         with self.assertRaises(ValueError):WEAPONS.prepare(e,actor,self.r.move('move/백스윙'))
 
     def test_tinkerer_level_held_slot_and_predicate_cannot_self_activate(self):
@@ -283,11 +283,11 @@ class ItemCapabilityRepairs6(unittest.TestCase):
         self.assertTrue(HELD.any_held(actor))
         forged={'required_capability':'A','grants':{'capabilities':['A'],'moves':['move/강타']}}
         spec={'capabilities':[],'moves':[],'state_grants':{'sources':{'self':forged}}}
-        self.assertFalse(MOVES.source_active(spec,forged));self.assertEqual(MOVES.effective_list(spec,'moves'),[])
+        self.assertFalse(MOVES.source_active(spec,forged));self.assertEqual(MOVES.effective_list(spec,'moves',rules=self.r),[])
         spec['state_grants']['sources']['other']={'required_capability':'B','grants':{'capabilities':['A']}}
         spec['state_grants']['sources']['self']['grants']['capabilities']=['B']
         self.assertFalse(MOVES.source_active(spec,forged))
-        self.assertEqual(MOVES.owned_list(spec,'moves',['move/강타']),[])
+        self.assertEqual(MOVES.owned_list(spec,'moves',['move/강타'],rules=self.r),[])
         actor.spec['state_grants']['sources']['condition/self']=forged
         self.assertNotIn('B',G.effective(actor,'capabilities'))
         self.assertNotIn('move/강타',G.effective(actor,'moves'))

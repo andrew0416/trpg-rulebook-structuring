@@ -654,7 +654,8 @@ def get_buff(actor,buff_id):
  if buff.get('source') not in (FOOD,MEDICINE):raise ValueError('buff producer needs source-specific consumer')
  return buff
 
-def consumption_allowed(e,actor,buff):
+def consumption_allowed(e,actor,buff,*,optional=False):
+ """Optional eligibility skips unavailable exchanges; malformed evidence still raises."""
  selected(e,buff['source'])
  if e.encounter_active:C.integer(getattr(e,'_party_encounter_epoch',0),'actual food encounter epoch',1)
  import csv_item_food_contracts as CSV
@@ -663,20 +664,29 @@ def consumption_allowed(e,actor,buff):
  protected=csv_choice is not None and csv_choice['kind']=='dynamax_mushroom'
  if protected and not CSV.designated_form_authorized(e,actor,buff):raise ValueError('Dynamax Mushroom requires its actual designated native form entry')
  import ability_target_limits as TARGET_LIMITS
- if not protected and TARGET_LIMITS.blocked(e,actor,'food_buff'):raise ValueError('Unnerve forbids Digestion Buff consumption')
+ blocked=not protected and TARGET_LIMITS.blocked(e,actor,'food_buff')
+ if blocked and not optional:
+  raise ValueError('Unnerve forbids Digestion Buff consumption')
  for key in ('food_buff_consumed','lim:food_buff_consumed'):C.integer(actor.counters.get(key,0),'actual food consumption counter',0)
  receipts=actor.spec.get('food_consumption_receipts',[])
  if not isinstance(receipts,list) or any(not isinstance(x,dict) for x in receipts):raise ValueError('actual food consumption receipts required')
  if any(x.get('buff_id')==buff['id'] for x in receipts):raise ValueError('Digestion Buff already consumed')
+ if blocked:return False
  exempt=buff.get(INSTANCES.KEY,{}).get('capacity',ordinary_capacity()).get('scene_usage_exempt',False)
  limits=food_limits(e,actor)
  if not protected and not exempt and limits:
   if 'per_encounter' in limits and e.encounter_active:
    used,uncertain=_core_usage(e,actor)
-   if used>=limits['per_encounter']:raise ValueError('core Gluttony encounter Digestion Buff quota reached')
-   if uncertain:raise ValueError('actual current core Gluttony quota observation required for legacy food receipts')
+   if used>=limits['per_encounter']:
+    if optional:return False
+    raise ValueError('core Gluttony encounter Digestion Buff quota reached')
+   if uncertain:
+    if optional:return False
+    raise ValueError('actual current core Gluttony quota observation required for legacy food receipts')
   elif 'per_scene' in limits and actor.counters.get('lim:food_buff_consumed',0)>=limits['per_scene']:
+   if optional:return False
    raise ValueError('Gluttony scene Digestion Buff quota reached')
+ return True
 
 def consumed_this_scene(e,actor):
  """Read actual exchanges in the existing frequency scene, never a lifetime flag."""

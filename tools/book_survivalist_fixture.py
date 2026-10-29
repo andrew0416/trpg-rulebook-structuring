@@ -288,3 +288,5 @@ def arctic_transition(world):
     yield 'hail-foe', {'hp_before': hp, 'hp_after': foe.hp, 'loss': engine.tick_loss(foe)}
     engine.end_of_turn(foe)
     engine.end_encounter()
+
+

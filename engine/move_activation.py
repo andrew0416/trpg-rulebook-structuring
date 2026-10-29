@@ -86,7 +86,8 @@ def suspend(e,scope,error):
  if event is None:return False
  while event.get('defense_parent'):event=e._passive_events[event['defense_parent']]
  if event.get('completion_id')!=scope.get('completion_id'):
-  event=__import__('conquerors_march').counter_parent(e,event,scope['completion_id'])
+  event=(__import__('conquerors_march').counter_parent(e,event,scope['completion_id'])
+         or __import__('taskmaster_gambit').counter_parent(e,event,scope['completion_id']))
   if event is None:return False
  elif not event.get('continuation'):return False
  row=e._move_completions[scope['completion_id']]

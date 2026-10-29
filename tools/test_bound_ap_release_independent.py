@@ -143,6 +143,7 @@ class Independent(unittest.TestCase):
  def test_020_ended_snapshot_restore_keeps_heavy_path_and_duplicate_guard(self):
   e,a,b,m,o=self.fixture(native=True);self.release_all(e,a,o);b.injuries=5;b.hp=50
   e.gm.snapshot('ended');e.use_move(a,b,'struggle',set_damage=True);e.gm.restore('ended')
+  self.assertFalse(e._heavy_pending);self.assertEqual(b.hp,50)
   before=self.projection(e,a);z=self.release(e,a,'new')
   self.assertEqual(z.reason,'effect_already_ended');self.assertEqual(before,self.projection(e,a))
   e.use_move(a,b,'struggle',set_damage=True)

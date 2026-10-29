@@ -2,6 +2,7 @@
 from copy import deepcopy
 from contextvars import ContextVar
 import common_checks as C
+import skill_modifiers as SKILL_RANKS
 import trainer_feature_acquisition as TFA
 import capture_techniques as CT
 import acquired_features as A
@@ -169,6 +170,22 @@ def validate_effect_origin(actor,row):
         if event['state']!='issued' or event['effect_id']!=row['id'] or event['acquisition_request_id']!=origin['acquisition_request_id']:
             raise ValueError('Momentum effect and consumed capture-success choice disagree')
 
+def _validate_skill_observations(actor,plan):
+    ranks=plan['skills']
+    if type(ranks)is not dict or set(ranks)!=set(CT.SKILLS):
+        raise ValueError('exact six skill rank evidence required')
+    for value in ranks.values():
+        SKILL_RANKS.validate_rank_value(actor.r,value,kind='effective',label='captured skill rank')
+    if 'ordinary_skills' in plan:
+        ordinary=plan['ordinary_skills']
+        if type(ordinary)is not dict or set(ordinary)!=set(CT.SKILLS):
+            raise ValueError('exact six ordinary skill observations required')
+        for value in ordinary.values():
+            SKILL_RANKS.validate_rank_value(actor.r,value,label='captured ordinary skill rank')
+    if plan['book_modifier']!=-max(ranks.values()):
+        raise ValueError('actual capture roll skill observation changed')
+
+
 def validate_record(actor,row,*,terminal=False,consuming=False):
     E.validate(row,actor=actor,terminal=terminal);validate_effect_origin(actor,row)
     payload=row['effect'];choice=payload.get('choice')
@@ -178,8 +195,8 @@ def validate_record(actor,row,*,terminal=False,consuming=False):
         raise ValueError('next roll is limited to this encounter')
     if choice=='accuracy' and (payload['amount']!=2 or payload['capture_plan'] is not None):raise ValueError('Momentum accuracy must be +2')
     if choice=='capture':
-        plan=payload['capture_plan'];ranks=plan['skills']
-        if set(ranks)!=set(CT.SKILLS) or any(type(v) is not int or v not in (1,2,3,4,5,6,8) for v in ranks.values()) or plan['book_modifier']!=-max(ranks.values()):raise ValueError('exact six skill rank evidence required')
+        plan=payload['capture_plan']
+        _validate_skill_observations(actor,plan)
         if plan['procedure'] not in ({'source':'pokemon/capture-rate','sides':20,'comparison':'>='},{'source':'core_105/capture-p214','sides':100,'comparison':'<='}):raise ValueError('Momentum selected capture procedure changed')
         basis=plan['basis']
         expected=__import__('arithmetic_policy').ratio(-plan['book_modifier'],5) if basis['kind']=='selected_errata' else plan['book_modifier'] if basis['kind']=='core_original' else basis['modifier']
@@ -199,8 +216,8 @@ def validate_record(actor,row,*,terminal=False,consuming=False):
         E.text(application['target_id'],'actual roll target')
         if choice=='accuracy':C.integer(application['natural'],'actual accuracy face',1,20);E.text(application['move_id'],'actual accuracy Move')
         else:
-            observed=application['capture_plan'];ranks=observed['skills']
-            if set(ranks)!=set(CT.SKILLS) or any(type(v) is not int or v not in (1,2,3,4,5,6,8) for v in ranks.values()) or observed['book_modifier']!=-max(ranks.values()):raise ValueError('actual capture roll skill observation changed')
+            observed=application['capture_plan']
+            _validate_skill_observations(actor,observed)
             if observed['basis']!=payload['capture_plan']['basis'] or observed['procedure']!=payload['capture_plan']['procedure']:raise ValueError('actual capture procedure differs from granted policy')
             expected=__import__('arithmetic_policy').ratio(-observed['book_modifier'],5) if observed['basis']['kind']=='selected_errata' else observed['book_modifier'] if observed['basis']['kind']=='core_original' else observed['basis']['modifier']
             if observed['modifier']!=expected:raise ValueError('actual capture modifier changed')

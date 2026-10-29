@@ -26,7 +26,6 @@ ARMORS = ("item/마찰저하복", "item/특수마찰저하복")
 
 class EquipmentPermissionsScopeRepairTests(unittest.TestCase):
     prepare_chained_cases = classmethod(CHAIN.prepare_cases)
-
     @classmethod
     def setUpClass(cls):
         cls.all_rules = Rules(str(ROOT), ruleset="all")

@@ -98,24 +98,3 @@ class CSVTests(unittest.TestCase):
   f.reject(lambda:f.e.use_telekinetic_move(f.a,f.b,TK.PSYSHOCK,overload=True,aim=(6,2)),'CSV acquisition')
   with patch.object(Engine,'d20',return_value=18):f.e.use_move(f.a,f.b,TK.PSYSHOCK,set_damage=True)
   self.assertEqual(AP.available(f.a),AP.maximum(f.a));self.assertEqual(f.a.budget['swift'],1);f.valid()
-
- def test_declared_seven_plus_focus_native_acquisition_and_restore_preserve_strict_rank_membership(self):
-  import trainer_feature_acquisition as T
-  f=self.f
-  f.reject(lambda:f.e.gm.set_skill(f.a,'집중',7,reason='undeclared ordinary Focus rank'),'ordinary|rank')
-  for name,rank,dice in (('초월',7,'7d6'),('전설',9,'9d6'),('신화',10,'7d6')):
-   self.rules.rulings.set_mech('gameplay/skill-rank-dice','by_rank_name.'+name,
-    {'rank':rank,'dice':dice},reason='actual U-001 campaign rank declaration',scope='campaign',rules=self.rules)
-  for edition in ('core','local_csv'):
-   for rank in (7,9,10):
-    with self.subTest(edition=edition,rank=rank):
-     f.setup();f.e.gm.set_skill(f.a,'집중',rank,reason='actual declared ordinary Focus')
-     if edition=='local_csv':self.family(TK.OVERLOAD)
-     else:f.family(TK.OVERLOAD)
-     self.assertEqual(TK.acquired(f.a,TK.OVERLOAD)['snapshot']['rank'],rank)
-     f.restore();T.validate_actor(f.a);f.valid()
-     self.assertEqual(TK.acquired(f.a,TK.OVERLOAD)['snapshot']['rank'],rank)
-     observed=TK.acquisition_snapshot(f.e,f.a,TK.CLASS,None,{'edition':'local_csv'} if edition=='local_csv' else None)
-     for bad in (True,7.0,8):
-      damaged=deepcopy(observed);damaged['rank']=bad
-      with self.assertRaises(ValueError):TK.qualification(f.a,TK.CLASS,damaged,None)

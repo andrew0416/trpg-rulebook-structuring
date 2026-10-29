@@ -13,9 +13,9 @@ ROOT=Path(__file__).resolve().parents[1]
 
 
 class RuneFixture:
-    def scene(self,*,edition='supplement',occult=5,acquire=True,trainer_level=40):
+    def scene(self,*,edition='supplement',occult=5,acquire=True):
         self.edition=edition;self.e=Engine(self.rules,seed=102673);self.e.grid=Grid(30,16)
-        self.a=Combatant(self.rules,build_trainer(self.rules,'actual Rune Master',trainer_level,
+        self.a=Combatant(self.rules,build_trainer(self.rules,'actual Rune Master',40,
             {'hp':100,'atk':35,'def':5,'spa':20,'spd':5,'spe':20},moves=[],abilities=[],
             extra={'id':'trainer/rune','classes':[],'feats':[],'skills':{'오컬트학':occult,'명령':6,'매력':3},'movement':{'land':6},'size':'중형','exp_bank':100}))
         self.b=Combatant(self.rules,build_trainer(self.rules,'actual remote target',40,

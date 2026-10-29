@@ -148,8 +148,8 @@
     },
     {
       "path": "data/category2-special-state-policy.json",
-      "sha256": "1e5aa1f873553f0185081a19d152b6a9aa107c0c309ac46939f4d3140b5eacd4",
-      "size": 207591
+      "sha256": "637327d9591170abd642d37ff7890dea2150ab06aab820dc62b41d476fdee175",
+      "size": 205063
     },
     {
       "path": "data/chef-definitions.json",
@@ -203,8 +203,8 @@
     },
     {
       "path": "data/conditions.json",
-      "sha256": "680e6e38f5f4d4ae5c2e4ec159cea3d1afbf2449f682a01445dd71d515d45ec1",
-      "size": 49910
+      "sha256": "11e2ee6f7063197a98fef66de8b74442117ece35ee6a2341209fa4d46dd08a1e",
+      "size": 52645
     },
     {
       "path": "data/content-source-identities.json",
@@ -283,8 +283,8 @@
     },
     {
       "path": "data/declarative-move-contract-policy.json",
-      "sha256": "49a5a7d98a0e64313503545bc2a4c783c597ae56cf5101be049e1d1fa27f39bc",
-      "size": 7520
+      "sha256": "77336cac9b0049acff75c49013b9e1325c48689d3fcc2e3bf04754bb284f6bfa",
+      "size": 8489
     },
     {
       "path": "data/defense-curl-policy.json",
@@ -353,7 +353,7 @@
     },
     {
       "path": "data/event-effect-policy.json",
-      "sha256": "49a42e66b63935686f5d77d2a420753e67826a489eb5d446c752acde79e3007c",
+      "sha256": "0d02bce0ad0cba1420d7c1194cb1e0a2106f5409a3af1e2e568827e158530107",
       "size": 17834
     },
     {
@@ -648,8 +648,8 @@
     },
     {
       "path": "data/items-mech.json",
-      "sha256": "871105167ed9c118ed4089044986d95a7b07aaa50041cbf1b1cc88efe007b895",
-      "size": 425938
+      "sha256": "d3c567711c21ee377bbf7dc86e15a6f9a94c4f96d59ee65f13ed00ee97d3496c",
+      "size": 429362
     },
     {
       "path": "data/items-reviewed.json",
@@ -708,8 +708,8 @@
     },
     {
       "path": "data/mentor-source-contract.json",
-      "sha256": "3f2e6e894bbd7d5da2426ddb7b92b380e8375e015cf3d5b8db9c62d4d26370a5",
-      "size": 1662
+      "sha256": "aa5ddc0d69b6bd4a0ace25b6f20175793b193513f4ed8d2907e6a28ab40d8a69",
+      "size": 2186
     },
     {
       "path": "data/mettle-source-review.json",
@@ -798,8 +798,8 @@
     },
     {
       "path": "data/native-area-hit-effects.json",
-      "sha256": "ce3dc66f64354eda6185f5d28cf5f59e3e4b9feb1873b8100f07df4a38f01c21",
-      "size": 15238
+      "sha256": "23cba7b5cf89501f46f5448bb6221128a6674f9f6c049fe61a55c77e25d1985d",
+      "size": 19002
     },
     {
       "path": "data/native-class-reaction-policy.json",
@@ -853,8 +853,8 @@
     },
     {
       "path": "data/poke-edge-variants.json",
-      "sha256": "180e49073d8d7956a9d647e57ab5dbf6adfa7f32397a513e66ba72265ce11f5f",
-      "size": 30901
+      "sha256": "6f9a8f8b7ff8d39080259301aafe7a2b9837b8724249044aca2a310f819bb0b1",
+      "size": 31774
     },
     {
       "path": "data/pokemon-machines.json",
@@ -893,8 +893,8 @@
     },
     {
       "path": "data/researcher-fields-definitions.json",
-      "sha256": "5424d6699a29ad551ee2598433aa1ce10b344edaa733829af5bbfab0cb524cc8",
-      "size": 12813
+      "sha256": "2a5b989fecde19682b879148b98293f2dceca96c604a11e7e86c3966a5168fd5",
+      "size": 14723
     },
     {
       "path": "data/review-verdicts.json",
@@ -923,8 +923,8 @@
     },
     {
       "path": "data/rulesets.json",
-      "sha256": "4e03a38a4702ff7cd301770ff12459e49f9632c821a0e690b0e2a3251c62606d",
-      "size": 4807
+      "sha256": "2d1162616d785fae69829fb4c88b8547d6f6554357007257c8d2dd700280baf5",
+      "size": 6168
     },
     {
       "path": "data/scene-feature-ability-grant-policy.json",
@@ -943,8 +943,8 @@
     },
     {
       "path": "data/setup-move-state-policy.json",
-      "sha256": "c7919f4e02fdf27d27ade0d9dcf7b3c49b70ffdc097821913553204c0449154b",
-      "size": 3503
+      "sha256": "c3a38b7ff5372bb35e21abbf28ec0156e4782f3188339c6fd2dcf58010706e35",
+      "size": 3940
     },
     {
       "path": "data/skill-check-policy.json",
@@ -1110,6 +1110,11 @@
       "path": "data/type-ace-definitions.json",
       "sha256": "215cef6a717b30cd16ebcfb107117498d0c1eb577a0efcaba45f9cf74bb9c075",
       "size": 32226
+    },
+    {
+      "path": "data/type-expertise-source-contract.json",
+      "size": 2827,
+      "sha256": "5984f6a1f994593413d5bc846a4853309a82a684b19134c25886892c3514aaf3"
     },
     {
       "path": "data/type-sync-policy.json",

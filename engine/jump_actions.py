@@ -159,10 +159,14 @@ def jump(e,c,destination,*,jump_id,apex_height=0,landing_altitude=0,difficult=No
  probe.budget=getattr(probe,'budget',None)
  staged.log_lines=[]
  if not inflight and (not c.on_field or c.captured or not prepaid and not TURN.spend(staged,probe,'shift','점프',movement=True)):return False
- def resolve(roll_engine,observed=None):
+ def observe(roll_engine,c,plans):
+  if not plans:return []
+  _,skill,_,opts=plans[0]
+  return [roll_engine.skill_roll(c,skill,**opts)]
+ def resolve(roll_engine,c,plans,observed=None):
   checks={};effective=dict(cap)
   for index,(key,skill,dc,opts) in enumerate(plans):
-   roll=observed[index] if observed is not None else roll_engine.skill_roll(c,skill,**opts)
+   roll=observed[index] if observed is not None and index<len(observed) else roll_engine.skill_roll(c,skill,**opts)
    SF.finish(roll_engine,c,opts.get('roll_id'))
    check=SF.resolve_check(roll_engine,c,skill,dc,roll,opts);checks[key]=check
    if key=='boost' and check.passed:effective[boost]+=1
@@ -192,11 +196,11 @@ def jump(e,c,destination,*,jump_id,apex_height=0,landing_altitude=0,difficult=No
    return False
  if featured:
   try:
-   checks,effective,failed=SF.sequence(e,'jump:'+c.spec['id']+':'+jump_id,basis,[(c,skill,opts) for _,skill,_,opts in plans],lambda rolls:resolve(e,rolls),stop_after=lambda index,roll:not SF.resolve_check(e,c,plans[index][1],plans[index][2],roll,plans[index][3]).passed)
+   checks,effective,failed=SF.sequence(e,'jump:'+c.spec['id']+':'+jump_id,basis,[(c,skill,opts) for _,skill,_,opts in plans],lambda rolls:resolve(e,c,plans,rolls),stop_after=lambda index,roll:not SF.resolve_check(e,c,plans[index][1],plans[index][2],roll,plans[index][3]).passed)
   finally:
    if 'jump:'+c.spec['id']+':'+jump_id in getattr(e,'_skill_sequences',{}) and any(opts.get('roll_id') in e._ap_rolls and e._ap_rolls[opts['roll_id']].get('skill_event') is not None for _,_,_,opts in plans):commit_shift()
  else:
-  checks,effective,failed=COMMON._staged_rolls(e,resolve,actors=(c,));commit_shift()
+  checks,effective,failed=COMMON._rolls_before_help(e,resolve,observe if plans else None,actors=(c,),payload=(c,plans));commit_shift()
  c.spec.pop('_jump_inflight',None)
  record={'destination':destination,'landing_altitude':landing_altitude,'apex_height':apex_height,'base_limits':cap,'effective_limits':effective,'requested':requested,'boost':boost,'checks':checks,'reason':reason_text,'failed':failed,'whole_shift':True,'running_start':running_start,'running_reason':running_reason,'running_bonus_included':running_bonus_included}
  if wall is not None:record['wall_run']=deepcopy(wall)

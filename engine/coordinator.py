@@ -102,7 +102,7 @@ def qualification(actor,feature,snapshot,prerequisite_source):
  if type(selection)is not dict or set(selection)!={'source_contract'}:raise ValueError('exact Coordinator source choice required')
  source(actor.r,selection['source_contract'],feature)
  if type(snapshot['skills'])is not dict or set(snapshot['skills'])!=set(CF.SKILLS):raise ValueError('actual Coordinator acquisition skills required')
- for n in snapshot['skills'].values():C.integer(n,'acquired Coordinator skill rank',1,8)
+ for n in snapshot['skills'].values():SK.validate_rank_value(actor.r,n,label='acquired Coordinator skill rank')
  if type(snapshot['parents'])is not dict or set(snapshot['parents'])!=set(PARENTS[feature]):raise ValueError('printed Coordinator parent set required')
  historical={r['request_id']:r['feature_id'] for r in records(actor,active=False)}
  for parent,ref in snapshot['parents'].items():
@@ -536,7 +536,8 @@ def recipient_prefix(engine,event_id,attacker,target,move_id,prefix=None):
  event=engine._passive_events.get(event_id)
  if event is None:return None
  if prefix is not None:
-  if damage_offer(engine,attacker) is None and not __import__('conquerors_march').lean_interested(engine,target):return None
+  if (damage_offer(engine,attacker) is None and not __import__('conquerors_march').lean_interested(engine,target)
+      and not getattr(engine,'_taskmaster_gambit',None)):return None
   row={'actor_id':attacker.entity_id,'target_id':target.entity_id,'move_id':move_id,'event_id':event_id,'prefix':prefix}
   row['sha256']=__import__('root_resolution').fingerprint(_prefix_facts(engine,row));event['coordinator_recipient_prefix']=row
   return prefix
@@ -595,26 +596,43 @@ def choose_damage(engine,native,row,event):
   __import__('contest').ContestEngine._stage_feature_cost(engine,trainer,0,CLASS)
  except Exception as error:
   native['coordinator_choice_error']=str(error);native.update(status='pending',reason='coordinator_damage_pending');engine._passive_pending=native['id'];raise P.PassiveEventPending(native['id']) from error
- # Reroll exactly the observed dice; retain every actual source modifier and
- # recompute the shared defense/scaling formula before any HP application.
- rerolled=[POOLS.pool(engine.rng,p['count'],sides=p['sides'],offset=p['offset']) for p in row['pools']]
- delta=sum(p['total'] for p in rerolled)-sum(p['total'] for p in row['pools'])
- formula=event['coordinator_formula'];dice=formula['dice']+delta
- total=dice+formula['attack']+formula['modifiers']
- new_fountain=__import__('type_ace').fountain(engine,actor,event['move'],total)
- defended=DAMAGE.defend(dice=dice,attack=formula['attack'],modifiers=formula['modifiers']+(new_fountain-total),defense=formula['defense'],reduction=formula['reduction'])
- normal=event['damage_formula'];normal['after_defense']=defended['after_defense']
- damage=DAMAGE.scale(after_defense=defended['after_defense'],type_multiplier=normal['multiplier'],other_multiplier=normal['other_multiplier'],adjustment=normal['adjustment'])
- resisted_mult=__import__('damage_reactions').resistance_multiplier(engine,normal['multiplier'])
- event.update(damage=damage,resisted_damage=None if resisted_mult is None else DAMAGE.scale(after_defense=defended['after_defense'],type_multiplier=resisted_mult,other_multiplier=normal['other_multiplier'],adjustment=normal['adjustment']))
- CF.trigger_free_action(engine,trainer,CLASS);F.consume_activation(trainer,key,{'kind':'scene'},engine=engine)
- row.update(decision=True,chosen_damage=damage,rerolled_pools=rerolled)
- row['selected_event']={'damage':event['damage'],'resisted_damage':event['resisted_damage'],'damage_formula':deepcopy(normal)}
- row['sha256']=_damage_seal(row)
- trainer.spec.pop('coordinator_damage_offer',None)
- engine.log('  '+actor.name+': Coordinator Damage Roll '+str(row['first_damage'])+' → '+str(damage),CLASS)
+ # The first roll is already observed. Only the accepted private reroll and
+ # its actual payment are atomic; failure must leave that first roll pending.
+ event_id=native['id']
+ def accept(staged,sponsor):
+  actual=staged._passive_events[event_id]['coordinator_damage']
+  pokemon=W.actor_index(staged)[actual['actor_id']]
+  memo={id(a):a for a in W.actor_index(staged).values()};memo[id(staged)]=staged
+  selected=deepcopy(actual['reaction_event'],memo)
+  CF.trigger_free_action(staged,sponsor,CLASS)
+  F.consume_activation(sponsor,key,{'kind':'scene'},engine=staged)
+  # No reroll dice are drawn before the actual Free Action succeeds. Formula,
+  # costs, global action side effects and private RNG all share this commit.
+  rerolled=[POOLS.pool(staged.rng,p['count'],sides=p['sides'],offset=p['offset']) for p in actual['pools']]
+  delta=sum(p['total'] for p in rerolled)-sum(p['total'] for p in actual['pools'])
+  formula=selected['coordinator_formula'];dice=formula['dice']+delta
+  total=dice+formula['attack']+formula['modifiers']
+  new_fountain=__import__('type_ace').fountain(staged,pokemon,selected['move'],total)
+  defended=DAMAGE.defend(dice=dice,attack=formula['attack'],modifiers=formula['modifiers']+(new_fountain-total),defense=formula['defense'],reduction=formula['reduction'])
+  normal=selected['damage_formula'];normal['after_defense']=defended['after_defense']
+  damage=DAMAGE.scale(after_defense=defended['after_defense'],type_multiplier=normal['multiplier'],other_multiplier=normal['other_multiplier'],adjustment=normal['adjustment'])
+  resisted_mult=__import__('damage_reactions').resistance_multiplier(staged,normal['multiplier'],event=selected)
+  selected.update(damage=damage,resisted_damage=None if resisted_mult is None else DAMAGE.scale(after_defense=defended['after_defense'],type_multiplier=resisted_mult,other_multiplier=normal['other_multiplier'],adjustment=normal['adjustment']))
+  actual.update(decision=True,chosen_damage=damage,rerolled_pools=rerolled)
+  actual['selected_event']={'damage':selected['damage'],'resisted_damage':selected['resisted_damage'],'damage_formula':deepcopy(normal)}
+  actual['sha256']=_damage_seal(actual)
+  sponsor.spec.pop('coordinator_damage_offer',None)
+  staged.log('  '+pokemon.name+': Coordinator Damage Roll '+str(actual['first_damage'])+' → '+str(damage),CLASS)
+  return damage
+ try:
+  damage=G.transition(engine,trainer,accept,participants=(),include_rulings=True,include_grid=engine.grid is not None)
+ except Exception as error:
+  current=engine._passive_events[event_id]
+  current['coordinator_choice_error']=str(error);current.update(status='pending',reason='coordinator_damage_pending')
+  engine._passive_pending=event_id
+  raise P.PassiveEventPending(event_id) from error
+ event.update(engine._passive_events[event_id]['coordinator_damage']['selected_event'])
  return damage
-
 
 def restore_damage_choice(engine,trainer,*,decision):
  W.require_actors(engine,trainer)

@@ -218,7 +218,7 @@ if __name__=='__main__':
     verify_source_connection_inputs(ROOT)
     result=unittest.TextTestRunner(verbosity=2,resultclass=Result).run(connected_source_suite(unittest.defaultTestLoader.loadTestsFromTestCase(FrequencyTests),CASES))
     paths=[x for folder,glob in [('engine','*.py'),('data','*.json')] for x in (ROOT/folder).glob(glob)]
-    paths += [ROOT/'tools/frequency_source_connection_fixture.py',ROOT/'tools/frequency_source_connection_contract.json',ROOT/'tools/synthetic_rule_fixture.py',Path(__file__),ROOT/'output/source-audit/2026-10-10/ptu-core-1.05.pdf',ROOT/'output/source-audit/2026-10-10/xlsx-cells.json']+[ROOT/'input'/x for x in ['ch03-skills-edges-feats.md','ch07-combat.md','ch10-index-reference.md']]
+    paths += [ROOT/'tools/frequency_source_connection_fixture.py',ROOT/'tools/frequency_source_connection_contract.json',ROOT/'tools/chained_case_lifecycle.py',ROOT/'tools/synthetic_rule_fixture.py',Path(__file__),ROOT/'output/source-audit/2026-10-10/ptu-core-1.05.pdf',ROOT/'output/source-audit/2026-10-10/xlsx-cells.json']+[ROOT/'input'/x for x in ['ch03-skills-edges-feats.md','ch07-combat.md','ch10-index-reference.md']]
     report=dict(scope='24 integration/boundary checks plus 1004 source-linked frequency-clause checks. Not complete move certification.',source_cases={f'FREQ-test_source_move_{i:04d}':c['id'] for i,c in enumerate(CASES)},generated_at=datetime.now(timezone.utc).isoformat(),results=result.rows,input_hashes={x.relative_to(ROOT).as_posix():hashlib.sha256(x.read_bytes()).hexdigest() for x in paths})
     (ROOT/'output/frequency-tests.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     sys.exit(0 if result.wasSuccessful() else 1)

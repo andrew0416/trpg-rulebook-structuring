@@ -1,6 +1,7 @@
 """Hex Maniac choices over acquired sources, native activations and frequency."""
 from copy import deepcopy
 import common_checks as C
+import skill_modifiers as SKILL_RANKS
 import state_grants as G
 
 CLASS='class/오컬트마니아';STUDIES='feat/오컬트-마니아-연구'
@@ -46,7 +47,7 @@ def acquisition_snapshot(e,actor,feature,rank,selection):
 def qualification(actor,feature,snapshot,prerequisite_source):
  import acquisition_qualification as Q
  if prerequisite_source is not None or type(snapshot)is not dict or set(snapshot)!={'rank','rank_number','parents','studies_rank','selection'}:raise ValueError('actual Hex Maniac acquisition observations required')
- C.integer(snapshot['rank'],'actual Occult Education rank',1,6)
+ SKILL_RANKS.validate_rank_value(actor.r,snapshot['rank'],label='actual Occult Education rank')
  C.integer(snapshot['studies_rank'],'actual Studies prerequisite rank',0,3)
  rank=snapshot['rank_number'];selection=snapshot['selection'];parent=DEFINITIONS[feature]['parent']
  if feature==CLASS:

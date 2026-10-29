@@ -28,6 +28,22 @@ def known(rules,spec):
  return result
 
 
+def move_union(rules,*groups):
+ """Validate each source list, then merge its selected Move identities."""
+ if rules is None:raise ValueError('actual Rules required for sourced Move projection')
+ result=[]
+ for values in groups:
+  if not isinstance(values,(list,tuple)):raise ValueError('source Move list required')
+  known(rules,{'moves':values})
+  result.extend(value if value=='struggle' else rules.move_id(value) for value in values)
+ return list(dict.fromkeys(result))
+
+
+def _list_union(field,groups,rules):
+ if field=='moves':return move_union(rules,*groups)
+ return list(dict.fromkeys(value for values in groups for value in values))
+
+
 def current_natural_evidence(rules,spec):
  """Current species/level evidence, without asserting how the move was learned."""
  _source(rules)
@@ -195,16 +211,19 @@ CSV_SLOT_FEATURES={
 SLOT_POLICIES={**{uid:uid for uid in SLOT_FEATURES},**CSV_SLOT_FEATURES}
 
 
-def effective_list(spec,field,live=None):
+def effective_list(spec,field,live=None,*,rules=None):
  st=spec.get('state_grants',{})
- base=list(spec.get(field,[]))
- legacy=st.get('legacy',{}).get(field,[]) if st else [v for v in live or [] if v not in base]
- result=base+list(legacy)
+ base=_list_union(field,[spec.get(field,[])],rules)
+ if st:legacy=st.get('legacy',{}).get(field,[])
+ else:
+  observed=[_list_union(field,[[value]],rules)[0] for value in live or ()]
+  legacy=[value for value in observed if value not in base]
+ groups=[base,legacy]
  for row in st.get('sources',{}).values():
-  if not source_active(spec,row):continue
-  result.extend(row.get('grants',{}).get(field,[]))
- overlays=[row[field] for row in st.get('overlays',{}).values() if field in row]
- return list(dict.fromkeys(overlays[-1] if overlays else result))
+  if source_active(spec,row):groups.append(row.get('grants',{}).get(field,[]))
+ result=_list_union(field,groups,rules)
+ overlays=[_list_union(field,[row[field]],rules) for row in st.get('overlays',{}).values() if field in row]
+ return overlays[-1] if overlays else result
 
 
 def source_active(spec,row):
@@ -224,22 +243,22 @@ def source_active(spec,row):
  return required in (overlays[-1] if overlays else caps)
 
 
-def owned_list(spec,field,live=None):
+def owned_list(spec,field,live=None,*,rules=None):
  st=spec.get('state_grants',{})
- result=list(spec.get(field,[]))+list(st.get('legacy',{}).get(field,[]))
+ groups=[spec.get(field,[]),st.get('legacy',{}).get(field,[])]
  for row in st.get('sources',{}).values():
   if field=='moves' and row.get('move_mode')=='permission':continue
-  if not source_active(spec,row):continue
-  result.extend(row.get('grants',{}).get(field,[]))
- # Raw imported current values remain explicit unknown ownership; values
- # explained by a display overlay or permission never become learned moves.
+  if source_active(spec,row):groups.append(row.get('grants',{}).get(field,[]))
+ result=_list_union(field,groups,rules)
+ # Live values are a derived union. Only unexplained values are an imported
+ # ownership source; overlays and even inactive permissions cannot become it.
  if live is not None:
-  explained=effective_list(spec,field)
-  # Inactive permissions still explain stale materialized display values;
-  # losing their prerequisite cannot turn that cache into unknown learning.
-  for row in st.get('sources',{}).values():explained.extend(row.get('grants',{}).get(field,[]))
-  result.extend(v for v in live if v not in explained)
- return list(dict.fromkeys(result))
+  explained=effective_list(spec,field,rules=rules)
+  for row in st.get('sources',{}).values():
+   explained.extend(_list_union(field,[row.get('grants',{}).get(field,[])],rules))
+  observed=[_list_union(field,[[value]],rules)[0] for value in live]
+  result=_list_union(field,[result,[value for value in observed if value not in explained]],rules)
+ return result
 
 
 GIVER_IDS=('ability/기부자','ability/기부자-2')
@@ -328,7 +347,7 @@ def capacities(rules,spec,*,abilities=None):
  import special_entities as SPECIAL
  snapshot=spec.get(SPECIAL.PRIME_KEY)
  if snapshot and SPECIAL.prime_definition(rules,snapshot)['hidden_powers']=='all_additional':
-  current=set(effective_list(spec,'moves'))
+  current=set(effective_list(spec,'moves',rules=rules))
   for mid in SPECIAL.prime_moves(rules,snapshot):
    if mid in current:exempt[mid]=SPECIAL.PRIME_PREFIX+snapshot['id']
   sources.append({'rule_id':SPECIAL.PRIME_SOURCE,'record_id':snapshot['id']})
@@ -374,7 +393,7 @@ def vm_moves(rules,spec):
  learning=spec.get('move_learning',{})
  if not isinstance(learning,dict):raise ValueError('move learning provenance must be a mapping')
  result=[]
- for mid in known(rules,{'moves':list(dict.fromkeys(list(spec.get('moves',[]))+list(spec.get('state_grants',{}).get('legacy',{}).get('moves',[]))))}):
+ for mid in known(rules,{'moves':move_union(rules,spec.get('moves',[]),spec.get('state_grants',{}).get('legacy',{}).get('moves',[]))}):
   record=learning.get(mid)
   if not isinstance(record,dict) or record.get('method')!='vm':continue
   if record.get('source')!=VM_SOURCE or rules._selected_rule(VM_SOURCE)!=VM_SOURCE:
@@ -429,8 +448,8 @@ def classifications(rules,spec,*,require_routes=True):
 def describe(rules,spec,*,moves=None,abilities=None,require_routes=False):
  caps=capacities(rules,spec,abilities=abilities)
  baseline=classifications(rules,spec,require_routes=require_routes)
- current=effective_list(spec,'moves') if moves is None else moves
- selected=known(rules,{'moves':owned_list(spec,'moves',moves)})
+ current=effective_list(spec,'moves',rules=rules) if moves is None else moves
+ selected=known(rules,{'moves':owned_list(spec,'moves',moves,rules=rules)})
  classes={};natural=natural_moves(rules,spec) if spec.get('kind')!='trainer' else set();active_vms=set(vm_moves(rules,spec))
  for mid in selected:
   if mid in baseline:classes[mid]=baseline[mid]
@@ -491,7 +510,7 @@ def validate_spec(rules,spec,*,moves=None,abilities=None,require_routes=False):
  import advanced_connection as CONNECTION
  CONNECTION.validate_protection(rules,spec)
  import example_species as EXAMPLES
- EXAMPLES.validate_spec(rules,spec,moves=owned_list(spec,'moves',moves))
+ EXAMPLES.validate_spec(rules,spec,moves=owned_list(spec,'moves',moves,rules=rules))
  import special_entities as SPECIAL
  SPECIAL.validate_prime_spec(rules,spec,moves=moves or ())
  # New native tutoring receipts retain the admission at the learning level,
@@ -545,7 +564,7 @@ def preflight_baseline(actor,field,values):
   old=spec.get(field,[])
   st.setdefault('legacy',{})[field]=[v for v in st.get('legacy',{}).get(field,[]) if v not in values and v not in old]
  spec[field]=list(dict.fromkeys(values))
- validate_spec(actor.r,spec,moves=effective_list(spec,'moves',actor.moves),abilities=effective_list(spec,'abilities',actor.abilities))
+ validate_spec(actor.r,spec,moves=effective_list(spec,'moves',actor.moves,rules=actor.r),abilities=effective_list(spec,'abilities',actor.abilities))
 
 
 def preflight_move_grants(actor,values,source_id,kind,metadata):
@@ -581,7 +600,7 @@ def preflight_revoke(actor,source_ids):
   st.get('sources',{}).pop(source,None);st.get('overlays',{}).pop(source,None)
  __import__('ace_trainer').forget_missing(actor.r,spec,at=0,reason='preflight actual learned source withdrawal')
  import advanced_connection as CONNECTION
- remaining=set(known(actor.r,{'moves':owned_list(spec,'moves')}))
+ remaining=set(known(actor.r,{'moves':owned_list(spec,'moves',rules=actor.r)}))
  if set(CONNECTION.bound_moves(actor.r,actor.spec))-remaining:
   raise ValueError('a Connection Move cannot be forgotten through source revocation')
  CONNECTION.validate_protection(actor.r,spec)
@@ -655,7 +674,7 @@ def select_foiling(engine,owner,target,move_id,*,reason,feature=FOILING):
  _require_slot_feature(owner,uid)
  if target.kind!='pokemon' or target.spec.get('trainer_id')!=owner.entity_id:raise ValueError('Foiling Foliage requires your actual Pokemon')
  mid=engine.r.move_id(move_id)
- if mid not in known(engine.r,{'moves':owned_list(target.spec,'moves',target.moves)}):raise ValueError('selected Foiling Foliage move must be currently learned')
+ if mid not in known(engine.r,{'moves':owned_list(target.spec,'moves',target.moves,rules=target.r)}):raise ValueError('selected Foiling Foliage move must be currently learned')
  import state_grants as G
  key='feature:'+owner.entity_id+':'+uid
  def apply(e,c):

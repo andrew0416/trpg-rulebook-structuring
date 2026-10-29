@@ -90,11 +90,11 @@ def links(e,c):
  return [{'link':deepcopy(row),'object':deepcopy(e._physical_objects[uid])} for uid,row in c.spec.get(KEY,{}).items()]
 
 
-def warp(e,c,stone_id,*,reason):
+def prepare_warp(e,c,stone_id,*,reason):
  """Grounded mapped Keystone Warp; unresolved geometry never spends an action."""
  import movement_actions as MOVE,turn as TURN,body_state as BODY
  actual(e,c);capable(c);text(reason,'Keystone destination observation')
- validate_world(e,W.actor_index(e));MOVE.boundary(e,'keystone_warp')
+ validate_world(e,W.actor_index(e))
  if stone_id not in c.spec.get(KEY,{}):raise ValueError('destination must be synchronized with this Pokemon')
  obj=e._physical_objects[stone_id];W.require_usable_object(obj)
  loc=W.effective_location(e,obj);origin=W.location_of(c)
@@ -116,13 +116,31 @@ def warp(e,c,stone_id,*,reason):
  for other in e.everyone:
   if other is not c and other.on_field and not other.captured and not other.fainted and other.spec.get('_movement_altitude',0)==0 and occupied.intersection(BODY.cells(other,require_complete=True)):
    raise ValueError('Keystone arrival overlaps an actual body')
- if e.encounter_active and (c.injuries>=5 and not __import__('taskmaster').ignores_acting_loss(c)):return C.PendingDecision('heavy-injury Standard Keystone action needs reviewed action composition')
+
+ return {'source':SOURCE,'stone_id':stone_id,'origin':c.pos,'destination':destination,
+         'path':(c.pos,destination),'distance':distance,'reason':reason}
+
+
+def continue_warp(e,c,plan,progress):
+ import movement_actions as MOVE,turn as TURN
+ actual_plan=prepare_warp(e,c,plan['stone_id'],reason=plan['reason'])
+ if isinstance(actual_plan,C.PendingDecision) or actual_plan!=plan:
+  raise ValueError('original paid Keystone destination or source is no longer established')
  if not c.on_field or c.captured or not TURN.movement_permission(e,c):return False
- if not TURN.spend(e,c,'standard','쐐기돌 점멸'):return False
- if not MOVE.departure(e,c,destination,0):return False
- before=c.pos;c.pos=destination;c.airborne=False;c.spec['_movement_altitude']=0
- row={'source':SOURCE,'stone_id':stone_id,'origin':before,'destination':destination,'distance':distance,'reason':reason}
- e.log(c.name+': 쐐기돌 점멸 '+str(distance)+'m → '+stone_id,SOURCE)
+ if not MOVE._paid_departure(e,c,plan['destination'],0,progress):return False
+ # The actual reaction may have moved a body or the destination stone.
+ if prepare_warp(e,c,plan['stone_id'],reason=plan['reason'])!=plan:
+  raise ValueError('paid Keystone geometry changed during departure')
+ before=c.pos;c.pos=plan['destination'];c.airborne=False;c.spec['_movement_altitude']=0
+ progress.update(next=1,distance=plan['distance'],position=c.pos,altitude=0,phase='entering')
+ row={key:value for key,value in plan.items() if key!='path'}
+ e.log(c.name+': 쐐기돌 점멸 '+str(plan['distance'])+'m → '+plan['stone_id'],SOURCE)
  import effects_ext as EXT
- EXT.on_enter_cell(e,c,destination,previous_position=before)
+ EXT.on_enter_cell(e,c,c.pos,previous_position=before)
+ progress['phase']='complete'
  return row
+
+
+def warp(e,c,stone_id,*,reason):
+ import movement_actions as MOVE
+ return MOVE.run_command(e,c,'keystone',{'stone_id':stone_id,'reason':reason})

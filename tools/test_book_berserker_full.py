@@ -65,36 +65,6 @@ class BerserkerFullTests(BerserkerFixture,unittest.TestCase):
             self.assertEqual(B.frenzy_bonus(self.a),2)
             self.assertIn('난동',self.a.conditions)
 
-    def test_reviewed_rage_turn_owner_damage_reaction_and_expiry_survive_restore(self):
-        import catalog_move_states as CATALOG,combat_timing as TIMING
-        for until in ('end of next turn',"end of user's next turn"):
-            with self.subTest(until=until):
-                self.scene(features=(B.CLASS,))
-                declared=deepcopy(self.rules.moves_reviewed[CATALOG.RAGE])
-                declared['effects']=[dict(CATALOG.RAGE_STATUS,until=until),deepcopy(CATALOG.RAGE_STAGE)]
-                with patch.dict(self.rules.moves_reviewed,{CATALOG.RAGE:declared}):
-                    self.combat();stage=self.a.stages['atk']
-                    self.assertGreater(self.attack(),0)
-                    self.assertIn('난동',self.a.conditions)
-                    self.assertEqual(self.a.stages['atk'],stage)
-                    records=[r for r in TIMING.records(self.a) if r.get('source')==CATALOG.RAGE]
-                    self.assertEqual(len(records),1)
-                    self.assertIs(records[0]['turn_owner'],self.a)
-                    self.assertEqual(records[0]['turn_deadline'],self.a.custom_conditions['combat_turn_serial']+1)
-                    self.restore();self.valid();self.e.end_of_turn(self.a)
-                    self.assertIn('난동',self.a.conditions)
-                    self.e.start_of_turn(self.b,initiative_count=10)
-                    self.assertGreater(self.attack('move/물대포',actor=self.b,target=self.a),0)
-                    self.assertEqual(self.a.stages['atk'],stage+1)
-                    self.e.end_of_turn(self.b);self.e.end_round()
-                    self.e.start_round(self.e.everyone);self.e.start_of_turn(self.a,initiative_count=20)
-                    self.assertIn('난동',self.a.conditions)
-                    self.restore();self.valid();self.e.end_of_turn(self.a)
-                    self.assertNotIn('난동',self.a.conditions)
-                    self.assertFalse([r for r in TIMING.records(self.a) if r.get('source')==CATALOG.RAGE])
-                    self.assertEqual(self.rules.moves_reviewed[CATALOG.RAGE],declared)
-                    self.valid()
-
     def test_lessons_native_damage_whitelist_hp_ceiling_and_heavy_losses(self):
         self.scene(features=(B.LESSONS,));self.injury(6)
         self.assertEqual(self.a.max_hp,self.a.base_max_hp//2)

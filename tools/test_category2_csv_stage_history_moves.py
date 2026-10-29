@@ -129,6 +129,54 @@ class CSVStageHistoryMoveTests(unittest.TestCase):
                          {self.foe.entity_id, self.other.entity_id})
         self.assertTrue(record["use"]["completion_id"].startswith("move-complete:"))
 
+    def test_post_stage_effects_require_known_enemies_and_never_select_user(self):
+        cases = [('party', 'enemy', True), ('party', 'party', False),
+                 ('party', None, False), (None, 'enemy', False), (None, None, False)]
+        for move, status in ((self.alluring, '혼란'), (self.jealousy, '화상')):
+            for user_side, target_side, affected in cases:
+                with self.subTest(move=move, user=user_side, target=target_side):
+                    self.setUp()
+                    for i, actor in enumerate((self.other, self.ally, self.far)):
+                        self.e.gm.set_position(actor, (12+i, 12), reason="isolate effect relation from flanking")
+                    self.user.side, self.foe.side = user_side, target_side
+                    self.rise_on_turn(self.foe)
+                    self.start(self.user)
+                    self.e.change_stage(self.user, 'atk', 1)
+                    self.e.gm.choose_post_resolution_stage_effect(
+                        self.user, move, reason='actual optional post-stage choice')
+                    self.use(self.user, self.foe, move, damage=0)
+                    self.assertEqual(status in self.foe.conditions, affected)
+                    self.assertNotIn(status, self.user.conditions)
+                    self.assertEqual(self.user.move_uses[move], 1)
+
+    def test_recalled_pokemon_with_real_stage_history_is_not_post_stage_recipient(self):
+        from builder import build_pokemon
+        import world_entities as WORLD
+        for move, status in ((self.alluring, '혼란'), (self.jealousy, '화상')):
+            with self.subTest(move=move):
+                self.setUp()
+                recalled=Combatant(self.r,build_pokemon(self.r,'이브이',20,
+                    name='actual recalled stage recipient',moves=[],abilities=[],
+                    side='enemy',pos=(3,4),extra={'trainer_id':self.foe.entity_id}))
+                self.e.gm.add_combatant(recalled,reason='actual enemy Pokemon before recall')
+                self.rise_on_turn(recalled)
+                original_history=STAGES.rises_since_turn_start(recalled)
+                self.assertTrue(original_history,'candidate requires actual native stage-rise evidence')
+                self.e.gm.recall(recalled,reason='separately authorized actual return to its Ball')
+                self.assertFalse(recalled.on_field)
+                self.assertIs(WORLD.actor_index(self.e)[recalled.entity_id],recalled)
+                self.assertEqual(recalled.pos,(3,4))
+                self.assertEqual(STAGES.rises_since_turn_start(recalled),original_history,
+                    'candidate premise: recall must retain the historical rise window; absence refutes this trigger')
+                self.rise_on_turn(self.foe)
+                self.start(self.user)
+                self.e.gm.choose_post_resolution_stage_effect(self.user,move,
+                    reason='actual optional effect with one available foe and one recalled subject')
+                self.use(self.user,self.foe,move,damage=0)
+                self.assertIn(status,self.foe.conditions,'positive available enemy must receive the native effect')
+                self.assertNotIn(status,recalled.conditions,'recalled body cannot become a new area-effect recipient')
+                self.assertFalse(recalled.on_field,'effect must not undo the separate authorized recall')
+
     def test_no_choice_or_current_positive_snapshot_does_not_invent_eligibility(self):
         self.foe.stages["atk"] = 3
         self.start(self.user)

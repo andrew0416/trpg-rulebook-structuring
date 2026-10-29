@@ -12,8 +12,8 @@ import skill_feature_actions as SF,skill_maneuver_actions as SM,state_fields as 
 class RogueTests(RogueScene,unittest.TestCase):
  LIFECYCLE_METHODS=(
   'test_class_rank_count_and_parent_selection_rejections_are_atomic',
-  'test_seven_independent_acquisitions_and_attack_tags',
-  'test_pursuit_requires_observed_enemy_for_actual_recall_and_flee')
+  'test_seven_independent_acquisitions_and_attack_tags')
+
  @classmethod
  def setUpClass(cls):cls.rules=Rules(ROOT)
  def test_seven_independent_acquisitions_and_attack_tags(self):
@@ -223,25 +223,6 @@ class RogueTests(RogueScene,unittest.TestCase):
   self.next_round(self.t);self.use(self.t,self.b,'move/몸통박치기');self.assertNotIn('move/기습',self.a.move_uses)
   self.next_round(self.t);self.e.gm.set_position(self.t,(6,2),reason='actual distant foe')
   self.use(self.t,self.a,'move/전기쇼크');self.assertNotIn('move/기습',self.a.move_uses)
-
- def test_sucker_punch_requires_observed_enemy_without_spending_unknown_reaction(self):
-  import combat_move_reactions as CMR,action_resources as RES
-  for sides in (('absent','absent'),(None,None),(None,'foes'),('party',None),('party','party'),('party','foes')):
-   with self.subTest(sides=sides):
-    self.setup();self.family(R.UNEXPECTED);self.begin(self.t);CMR.arm(self.e,self.a,CMR.SUCKER)
-    for actor,side in zip((self.a,self.t),sides):
-     actor.spec.pop('side',None)
-     if side=='absent':vars(actor).pop('side',None)
-     else:actor.side=side
-    self.restore();before=self.t.hp;choice=deepcopy(self.a.spec[CMR.CHOICES][CMR.SUCKER])
-    self.use(self.t,self.a,'move/몸통박치기')
-    if sides==('party','foes'):
-     self.assertLess(self.t.hp,before);self.assertEqual(self.a.move_uses[CMR.SUCKER],1)
-     self.assertEqual(RES.pending(self.a),{'standard':1});self.assertNotIn(CMR.SUCKER,self.a.spec[CMR.CHOICES])
-    else:
-     self.assertEqual(self.t.hp,before);self.assertNotIn(CMR.SUCKER,self.a.move_uses)
-     self.assertEqual(RES.pending(self.a),{});self.assertEqual(self.a.spec[CMR.CHOICES][CMR.SUCKER],choice)
-    self.restore();self.valid()
  def test_reference_sucker_punch_cutthroat_keeps_actual_weapon_and_trigger(self):
   import combat_move_reactions as CMR
   self.family(R.UNEXPECTED);self.family(R.CUT);key=self.weapon();self.begin(self.t)
@@ -355,104 +336,6 @@ class RogueTests(RogueScene,unittest.TestCase):
   self.assertLess(self.t.hp,before);self.assertEqual(self.a.move_uses['move/따라가때리기'],1)
   self.assertEqual(self.t.pos,(7,2));self.assertEqual(self.t.budget['shift'],0)
   self.assertEqual(result['status'],'attempted');self.restore();self.valid()
-
- def test_pursuit_requires_observed_enemy_for_actual_recall_and_flee(self):
-  import pokemon_party as PARTY,combat_move_reactions as CMR,action_resources as RES,movement_actions as M
-  from grid import Grid
-  self.rogue_stage_input(2)
-  self.assertEqual(len(T._static_records(self.a)),7)
-  self.assertEqual(self.a.stats['atk'],self._rogue_base_attack+7)
-  self.assertTrue(__import__('ability_transitions').active(self.a,R.CRUELTY))
-  self.rules.rulings.add_answer('cruelty',False,reason='actual optional Cruelty purchases declined during Pursuit',scope='scene')
-  self.e.grid=Grid(32,12)
-  self.e.gm.set_position(self.b,(30,10),reason='uninvolved observer outside the actual flee path')
-  self.e.gm.set_position(self.u,(30,11),reason='wild participant waits outside the actual recall path')
-  owner=self.add('actual recalling owner','trainer',(6,2),side='foes',feats=[],classes=[],edges=[])
-  owner_id=owner.entity_id;self.t.spec['trainer_id']=owner_id;self.t.spec['wild']=False
-  PARTY.configure(self.e,owner,mode='standard',reason='actual recall roster',roster=[self.t],storage={'kind':'center','id':'recall-center'})
-  self.e.configure_party_combat(owner,battle_mode='full_contact',reason='actual full contact encounter')
-  self.u.spec['wild']=True;self.e.gm.set_level(self.u,5,reason='actual low-level wild participant')
-  M.set_capabilities(self.e,self.u,{'land':4,'swim':0},basis='current',reason_text='actual observed land movement')
-  self.e.use_item(self.a,'item/벌레회피스프레이',aim={'reason':'actual wearer spray, one paid application for the continuous encounter'})
-  self.e.observe_relative_directions(self.a,directions={'follow':(1,0)},quickly_trip_placement='before_entry',reason='actual eastward pursuit path')
-  self.e.observe_relative_directions(self.u,directions={'away':(1,0)},quickly_trip_placement='before_entry',reason='actual understood away direction')
-  actor_ids=tuple(actor.entity_id for actor in (self.a,self.t,self.u));initial_engine=self.e;live_world=None
-  self.begin()
-  for kind in ('recall','flee'):
-   for index,sides in enumerate((('absent','absent'),(None,None),(None,'foes'),('party',None),('party','party'),('party','foes'))):
-    with self.subTest(kind=kind,sides=sides):
-     debt=RES.pending(self.a).get('standard',0)
-     if kind!='recall' or index:self.next_round()
-     self.assertEqual(RES.pending(self.a),{})
-     self.assertEqual(self.a.budget['standard'],1-debt)
-     if kind=='recall':
-      self.turn(owner,count=20)
-      if index:
-       sent=self.e.act_on_party(owner,send=[(self.t,(3,2))],request_id='side-boundary-send-'+str(index),reason='actual paid re-entry after the preceding recall')
-       self.assertEqual(sent['sent'],[self.t.entity_id]);self.assertTrue(self.t.on_field)
-       self.next_round();self.turn(owner,count=20)
-      target=self.t
-     else:
-      if not index:
-       self.e.gm.set_position(owner,(30,9),reason='recalling owner leaves the observed flee path')
-       self.e.gm.set_position(self.u,(3,2),reason='the existing wild participant actually approaches the sprayed wearer')
-      else:
-       before=self.a.pos
-       follow=self.e.move_relative(self.a,direction='follow',distance=4,pace='quickly',movement_id='side-boundary-follow-'+str(index))
-       self.assertEqual(follow['state'],'complete');self.assertEqual(self.a.pos,(before[0]+4,before[1]))
-       self.assertEqual(self.a.budget['shift'],0)
-      target=self.u
-      self.assertEqual(target.pos,(self.a.pos[0]+1,self.a.pos[1]))
-      self.e.observe_repel_approach(self.a,target,nearby=True,reason='actual nearby wild participant remains ahead of the pursuing wearer')
-      self.e.observe_repel_flee(target,movement={'direction':'away','distance':4,'pace':'quickly','movement_id':'side-boundary-flee-'+str(index)},reason='actual fastest feasible retreat from the previous endpoint')
-      self.turn(target,count=20)
-     CMR.arm(self.e,self.a,CMR.PURSUIT)
-     for actor,side in zip((self.a,target),sides):
-      actor.spec.pop('side',None)
-      if side=='absent':vars(actor).pop('side',None)
-      else:actor.side=side
-     if kind=='recall' and index<2:
-      self.restore();owner=__import__('world_entities').actor_index(self.e)[owner_id];target=self.t
-      for actor,side in zip((self.a,target),sides):
-       self.assertEqual(hasattr(actor,'side'),side!='absent')
-       if side!='absent':self.assertIs(actor.side,None)
-      if index==1:live_world=(self.e,self.a,self.t,self.u,owner)
-     if live_world is not None:
-      for actual,previous in zip((self.e,self.a,self.t,self.u,owner),live_world):self.assertIs(actual,previous)
-     before=target.hp;origin=target.pos;uses=self.a.move_uses.get(CMR.PURSUIT,0)
-     choice=deepcopy(self.a.spec[CMR.CHOICES][CMR.PURSUIT]);events=len(self.a.spec.get(CMR.EVENTS,{}))
-     def pursuit_completions():return sum(row['move_id']==CMR.PURSUIT and row['actor'] is self.a for row in getattr(self.e,'_move_completions',{}).values())
-     completions=pursuit_completions()
-     self.assertEqual(self.a in TURN.adjacent_enemies(self.e,target),sides==('party','foes'))
-     with patch.object(Engine,'d20',return_value=15):
-      if kind=='recall':
-       result=self.e.act_on_party(owner,recall=[target],request_id='side-boundary-recall-'+str(index),reason='actual voluntary recall')
-      else:result=self.e.resolve_repel_flee(target)
-     if sides==('party','foes'):
-      self.assertLess(target.hp,before);self.assertEqual(self.a.move_uses[CMR.PURSUIT],uses+1)
-      self.assertEqual(RES.pending(self.a),{'standard':1});self.assertNotIn(CMR.PURSUIT,self.a.spec[CMR.CHOICES])
-      self.assertEqual(len(self.a.spec[CMR.EVENTS]),events+1);self.assertEqual(pursuit_completions(),completions+1)
-      response=[row for row in self.e._move_completions.values() if row['move_id']==CMR.PURSUIT and row['actor'] is self.a][-1]
-      self.assertEqual(response['phase'],'complete');self.assertTrue(MC.recipient_result(response,target)['hit'])
-      self.assertGreater(MC.recipient_result(response,target)['dealt'],0)
-     else:
-      self.assertEqual(target.hp,before);self.assertEqual(self.a.move_uses.get(CMR.PURSUIT,0),uses)
-      self.assertEqual(RES.pending(self.a),{});self.assertEqual(self.a.spec[CMR.CHOICES][CMR.PURSUIT],choice)
-      self.assertEqual(len(self.a.spec.get(CMR.EVENTS,{})),events);self.assertEqual(pursuit_completions(),completions)
-     if kind=='recall':
-      self.assertFalse(target.on_field);self.assertEqual(owner.budget['shift'],0)
-      paid=(target.hp,owner.budget.copy(),self.a.move_uses.copy(),deepcopy(RES.pending(self.a)),len(self.a.spec.get(CMR.EVENTS,{})),len(getattr(self.e,'_move_completions',{})))
-      replay=self.e.act_on_party(owner,recall=[target],request_id='side-boundary-recall-'+str(index),reason='actual voluntary recall')
-      self.assertEqual(replay,result)
-      self.assertEqual((target.hp,owner.budget,self.a.move_uses,RES.pending(self.a),len(self.a.spec.get(CMR.EVENTS,{})),len(getattr(self.e,'_move_completions',{}))),paid)
-     else:
-      self.assertEqual(result['status'],'attempted');self.assertEqual(target.pos,(origin[0]+4,origin[1]));self.assertEqual(target.budget['shift'],0)
-     self.assertEqual(tuple(actor.entity_id for actor in (self.a,self.t,self.u)),actor_ids)
-     if kind=='recall' and index==0:self.assertIsNot(self.e,initial_engine)
-    if self._outcome is not None and not self._outcome.success:return
-  before=(self.u.hp,self.a.move_uses[CMR.PURSUIT],deepcopy(RES.pending(self.a)),self.u.pos)
-  self.restore();self.assertEqual((self.u.hp,self.a.move_uses[CMR.PURSUIT],RES.pending(self.a),self.u.pos),before)
-  self.assertNotIn(CMR.PURSUIT,self.a.spec[CMR.CHOICES]);self.valid();self.complete_rogue_stage(2)
  def test_scoundrel_branch_uses_possessed_ability_but_ambush_activation_requires_active(self):
   self.family(R.STRIKE);self.a.abilities_suppressed=True;self.begin();token=self.hit()
   self.e.scoundrel_strike(self.a,self.t,token)

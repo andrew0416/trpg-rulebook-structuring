@@ -330,6 +330,8 @@ def _free_action(engine, actor, source):
 
 def _consume_scene(engine, actor, row, registration, obj, *, target_id=None, trigger):
     import frequency as FREQ
+    if row['kind'] == 'cool':
+        _save_history(engine, actor)
     key = "fashion:" + (row['item_id'] if row.get('contract') == 'book' else _identity(registration))
     declaration = {"kind": "scene", "uses": 1}
     if not FREQ.activation_allowed(actor, key, declaration, engine=engine, action_actor=actor):
@@ -343,6 +345,11 @@ def _consume_scene(engine, actor, row, registration, obj, *, target_id=None, tri
                "round": engine.round_no, "at": engine.elapsed_seconds, "trigger": trigger}
     if target_id is not None:
         receipt["target_id"] = target_id
+    if row["kind"] == "cool":
+        # Book source metadata can disappear on unequip; keep its native issuance.
+        history = actor.spec.setdefault(STATE, {}).setdefault("history", [])
+        receipt["activation_id"] = "fashion-save:" + actor.entity_id + ":" + str(len(history) + 1)
+        history.append(deepcopy(receipt))
     state["scene_activation"] = receipt
     state.setdefault("history", []).append(deepcopy(receipt))
     return receipt
@@ -444,16 +451,140 @@ def all_roll_modifier(actor):
     return TIMING.all_roll_modifier(actor)
 
 
+def _save_receipt(engine, actor, receipt):
+    fields = {"item_id", "clause_id", "instance_id", "wearer_id", "maker_id", "scene", "round", "at", "trigger"}
+    if (type(receipt) is not dict or set(receipt) not in (fields, fields | {"activation_id"})
+            or receipt.get("wearer_id") != actor.entity_id
+            or receipt.get("item_id") not in ("item/기막힌-패션", "item/근사한-패션-1")
+            or receipt.get("trigger") != "voluntary battle activation"
+            or any(type(receipt.get(key)) is not str or not receipt[key]
+                   for key in ("clause_id", "instance_id", "wearer_id"))
+            or receipt["maker_id"] is not None and (type(receipt["maker_id"]) is not str or not receipt["maker_id"])):
+        raise ValueError("Fashion save activation lost its actual wearer/source/instance")
+    import common_checks as C, frequency as FREQ
+    FREQ.validate(actor)
+    bounds = {"scene": actor.spec.get("frequency_state", {}).get("scene", 0),
+              "round": engine.round_no, "at": engine.elapsed_seconds}
+    for field, maximum in bounds.items():
+        C.integer(receipt[field], "Fashion save activation " + field, 0, maximum)
+    if "activation_id" in receipt and (type(receipt["activation_id"]) is not str
+            or not receipt["activation_id"].startswith("fashion-save:" + actor.entity_id + ":")):
+        raise ValueError("Fashion save activation identity changed")
+
+
+def _save_occurrence(receipt):
+    # Match _consume_scene: Core is once per wearer/item rule, HB per instance.
+    item = receipt["item_id"] if receipt["item_id"] in CORE_ITEM_IDS else receipt["instance_id"]
+    return receipt["wearer_id"], "fashion:" + item, receipt["scene"]
+
+
+def _save_history(engine, actor):
+    if STATE not in actor.spec:
+        return None
+    state = actor.spec[STATE]
+    if type(state) is not dict or set(state) != {"history"} or type(state["history"]) is not list:
+        raise ValueError("Fashion save issuance history changed")
+    seen = set()
+    previous = None
+    for sequence, receipt in enumerate(state["history"], 1):
+        _save_receipt(engine, actor, receipt)
+        if receipt.get("activation_id") != "fashion-save:" + actor.entity_id + ":" + str(sequence):
+            raise ValueError("Fashion save issuance sequence changed")
+        occurrence = _save_occurrence(receipt)
+        if occurrence in seen:
+            raise ValueError("Fashion save duplicates one actual scene activation")
+        seen.add(occurrence)
+        if previous is not None and any(receipt[field] < previous[field] for field in ("scene", "round", "at")):
+            raise ValueError("Fashion save issuance precedes an earlier retained activation")
+        paid = actor.spec.get("frequency_state", {}).get("activations", {}).get(occurrence[1])
+        # A later scene may replace the quota projection; an earlier or missing
+        # payment cannot prove this newly retained native occurrence.
+        if (not isinstance(paid, dict) or paid.get("kind") != "scene" or paid.get("used") != 1
+                or type(paid.get("period")) is not int or paid["period"] < receipt["scene"]):
+            raise ValueError("Fashion save issuance lacks its actual paid scene quota")
+        previous = receipt
+    return state["history"]
+
+
+def _validate_save(engine, actor, row, *, consumed=False):
+    fields = {"source", "clause_id", "instance_id", "value", "activation_receipt"}
+    if (type(row) is not dict or set(row) != fields | ({"consumed_at"} if consumed else set())
+            or type(row.get("value")) is not int or row["value"] != 4):
+        raise ValueError("Fashion next-save receipt changed")
+    receipt = row["activation_receipt"]
+    _save_receipt(engine, actor, receipt)
+    if any(row[key] != receipt[original] for key, original in
+           (("source", "item_id"), ("clause_id", "clause_id"), ("instance_id", "instance_id"))):
+        raise ValueError("Fashion save benefit differs from its actual activation")
+    if not consumed:
+        source = definition(engine.r, row["source"])
+        if source is None or source["kind"] != "cool" or source["clause_id"] != row["clause_id"]:
+            raise ValueError("Fashion next-save source changed")
+    else:
+        import common_checks as C
+        C.integer(row["consumed_at"], "Fashion save consumption time", receipt["at"], engine.elapsed_seconds)
+    history = _save_history(engine, actor)
+    if "activation_id" in receipt:
+        if history is None or sum(original == receipt for original in history) != 1:
+            raise ValueError("Fashion save benefit lacks its original retained activation")
+    elif history and not consumed:
+        # Every modern Cool issuance replaces the single pending save slot.
+        raise ValueError("Fashion save benefit lost its retained activation identity")
+    # Homebrew keeps its original physical issuance even after transfer/removal.
+    if row["source"] in HOMEBREW_ITEM_IDS:
+        obj = getattr(engine, "_physical_objects", {}).get(row["instance_id"])
+        state = obj.get(STATE) if isinstance(obj, dict) else None
+        if (not isinstance(obj, dict) or obj.get("item_rule_id") != row["source"]
+                or type(state) is not dict or type(state.get("history")) is not list
+                or sum(original == receipt for original in state["history"]) != 1):
+            raise ValueError("Fashion save benefit differs from its original physical history")
+    elif "activation_id" not in receipt:
+        histories = []
+        for source in actor.spec.get("state_grants", {}).get("sources", {}).values():
+            if STATE not in source:
+                continue
+            state = source[STATE]
+            if (type(state) is not dict or type(state.get("history")) is not list
+                    or any(type(original) is not dict for original in state["history"])):
+                raise ValueError("Fashion save Book activation history changed")
+            if any(all(original.get(field) == receipt[field] for field in
+                       ("item_id", "instance_id", "wearer_id", "scene")) for original in state["history"]):
+                histories.append(state["history"])
+        if histories and sum(original == receipt for history in histories for original in history) != 1:
+            raise ValueError("Fashion save benefit differs from its original Book history")
+        # Legacy unequipped Book saves retain only their issuer-bound receipt.
+    return _save_occurrence(receipt)
+
+
+def validate_world(engine):
+    import world_entities as WORLD
+    for actor in WORLD.actor_index(engine).values():
+        _save_history(engine, actor)
+        history = actor.spec.get("fashion_save_history", [])
+        if type(history) is not list:
+            raise ValueError("Fashion save consumption history changed")
+        consumed = set()
+        for row in history:
+            identity = _validate_save(engine, actor, row, consumed=True)
+            if identity in consumed:
+                raise ValueError("Fashion save activation was consumed more than once")
+            consumed.add(identity)
+        pending = actor.spec.get("fashion_next_save")
+        if pending is not None and _validate_save(engine, actor, pending) in consumed:
+            raise ValueError("Fashion save activation was already consumed")
+    return True
+
+
 def consume_save_bonus(engine, actor):
     row = actor.spec.get("fashion_next_save")
     if row is None:
         return 0
-    if (not isinstance(row, dict) or set(row) != {"source", "clause_id", "instance_id", "value", "activation_receipt"}
-            or row.get("value") != 4):
-        raise ValueError("Fashion next-save receipt changed")
-    source = definition(engine.r, row["source"])
-    if source is None or source["kind"] != "cool" or source["clause_id"] != row["clause_id"]:
-        raise ValueError("Fashion next-save source changed")
+    identity = _validate_save(engine, actor, row)
+    history = actor.spec.get("fashion_save_history", [])
+    if type(history) is not list:
+        raise ValueError("Fashion save consumption history changed")
+    if any(_validate_save(engine, actor, old, consumed=True) == identity for old in history):
+        raise ValueError("Fashion save activation was already consumed")
     actor.spec.pop("fashion_next_save")
     actor.spec.setdefault("fashion_save_history", []).append({**deepcopy(row), "consumed_at": engine.elapsed_seconds})
     engine.log("    " + actor.name + ": 근사한 패션 내성 +4 소비", row["source"])

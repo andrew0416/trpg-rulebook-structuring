@@ -131,6 +131,54 @@ class CsvLearnsetFormTests(unittest.TestCase):
         self.assertEqual(c.types,['전기','독']); self.assertEqual((c.spec['size'],c.weight_class),('중형',3))
         self.assertEqual(species_lookup(self.r,c.spec['species'])['name'],'GM 공기청정로토무')
         c,=self.reload(c); C.inhabit_appliance(self.e,c,'로토무'); self.assertIn('ability/부유',c.abilities); self.assertIn('ability/방음',c.abilities); self.valid()
+    def test_unowned_rotom_appliance_uses_actual_map_cell_and_roundtrips(self):
+        c = self.forms('rotom')
+        obj = N.prepare_object(self.e, 'unowned-washer', kind='physical_object',
+            location={'kind':'grid', 'cell':list(c.pos)}, reason='actual nearby unowned appliance')
+        obj['rotom_appliance_form'] = '워시로토무'
+        use = lambda: C.inhabit_appliance(self.e, c, '워시로토무', appliance_id='unowned-washer')
+        for location in ({'kind':'unknown'},
+                {'kind':'grid', 'cell':[c.pos[0]+1,c.pos[1]], 'pos':list(c.pos)},
+                {'kind':'grid', 'cell':list(c.pos), 'map_id':'another-map'}):
+            with self.subTest(location=location):
+                W.observe_location(self.e, self.e._physical_objects['unowned-washer'], location, reason='actual appliance location')
+                N.assert_rejected_unchanged(self.e, use, reason_pattern='reach its appliance')
+        W.observe_location(self.e, self.e._physical_objects['unowned-washer'], {'kind':'grid', 'cell':list(c.pos)},
+                           reason='actual same-map same-cell appliance')
+        use(); self.assertEqual(c.form, '워시로토무')
+        c, = self.reload(c)
+        self.assertEqual(W.distance_known(self.e._physical_objects['unowned-washer'], c), 0)
+        C.inhabit_appliance(self.e, c, '로토무')
+        C.inhabit_appliance(self.e, c, '워시로토무', appliance_id='unowned-washer')
+        self.assertEqual(c.form, '워시로토무'); self.valid()
+
+    def test_unowned_flower_and_bottle_require_same_map_cell_without_mutation_on_refusal(self):
+        for family, item, expected in (('shaymin','그라시데아꽃','쉐이미 스카이폼'),
+                                       ('hoopa','굴레의항아리','굴레를 벗어난 후파')):
+            with self.subTest(family=family):
+                self.setUp(); c = self.forms(family)
+                uid = 'unowned-form-item'
+                N.prepare_object(self.e, uid, kind='item_instance', item_rule_id='item/'+item,
+                    location={'kind':'grid', 'cell':list(c.pos)}, reason='actual nearby unowned form item')
+                def use():
+                    if family == 'shaymin':
+                        return C.observe_form_environment(self.e, c, reason='actual sun and flower',
+                            sunlight=True, gracidea_instance=uid, choose_sky=True)
+                    return C.uncork_prison_bottle(self.e, c, uid, reason='actual nearby uncorked Bottle')
+                for location in ({'kind':'unknown'},
+                        {'kind':'grid', 'cell':[c.pos[0]+1,c.pos[1]], 'pos':list(c.pos)},
+                        {'kind':'grid', 'cell':list(c.pos), 'map_id':'another-map'}):
+                    with self.subTest(location=location):
+                        W.observe_location(self.e, self.e._physical_objects[uid], location, reason='actual form item location')
+                        N.assert_rejected_unchanged(self.e, use, reason_pattern='not accessible')
+                W.observe_location(self.e, self.e._physical_objects[uid], {'kind':'grid', 'cell':list(c.pos)},
+                                   reason='actual same-map same-cell form item')
+                use(); self.assertEqual(c.form, expected)
+                c, = self.reload(c)
+                self.assertEqual(c.form, expected)
+                self.assertEqual(W.distance_known(self.e._physical_objects[uid], c), 0)
+                self.assertIsNone(self.e._physical_objects[uid].get('owner_id')); self.valid()
+
     def test_giratina_actual_reverse_world_and_fragment_boundaries(self):
         import movement_actions as MOVEMENT
         c=self.forms('giratina')

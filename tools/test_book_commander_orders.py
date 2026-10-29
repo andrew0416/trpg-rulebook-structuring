@@ -105,7 +105,7 @@ class CommanderOrderTests(CommanderFixture,unittest.TestCase):
                 self.assertEqual((payment['action'],payment['source']['pages']),('standard',[60,60]))
                 self.assertEqual(payment['source']['sha256'],C.CORE_SHA)
                 self.assertNotIn('priority_receipt',result)
-                self.rejected(lambda:self.e.manual_feat(self.a,uid,self.p,adjustment={'edition':'core'}),'target already has a live Training Order')
+                self.rejected(lambda:self.e.manual_feat(self.a,uid,self.a,adjustment={'edition':'core'}),'Standard action unavailable')
                 self.restore();self.valid();self.assertEqual(len(TRAIN.active(self.p)),1)
                 self.next_round();self.assertEqual(TRAIN.active(self.p),[])
 

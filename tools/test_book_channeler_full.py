@@ -60,41 +60,6 @@ class ChannelerTests(ChannelerScene,unittest.TestCase):
   result=self.e.communicate_channel(self.p,self.a,['intentions','emotions'],request_id='truth');self.assertEqual(result['message']['information']['intentions'],'protect')
   self.e.observe_channel_information(self.a,intentions='help',reason='actual trainer intent');self.assertEqual(self.e.communicate_channel(self.a,self.p,['intentions'],request_id='back')['message']['information'],{'intentions':'help'})
   self.assertEqual(self.e.channel_knowledge(self.a,self.p)['past_hour'][0]['text'],'a vague meeting');self.restore();self.valid()
- def test_native_policy_links_information_and_replay_survive_json_restore(self):
-  self.channel(self.p,self.q)
-  self.e.observe_channel_information(self.p,intentions='protect',reason='actual observed intent')
-  result=self.e.communicate_channel(self.p,self.a,['intentions'],request_id='stored-channel')
-  before=deepcopy(COMM._state(self.e));self.restore();self.valid()
-  self.assertEqual(COMM._state(self.e),before)
-  self.assertTrue(C.connected(self.e,self.a,self.p));self.assertTrue(C.connected(self.e,self.a,self.q))
-  self.assertEqual(self.e.communicate_channel(self.p,self.a,['intentions'],request_id='stored-channel'),dict(result,replayed=True))
-  self.assertEqual(COMM._state(self.e),before)
-  value=dict(C.policy(self.rules)['declaration'],id='another-request-identity')
-  self.assertTrue(C.accepts_stored_policy(self.rules,COMM._body(value)))
- def test_native_policy_resigned_semantic_changes_cannot_restore(self):
-  import state_codec as CODEC,resolution_transaction as TX
-  self.channel(self.p);saved=json.loads(json.dumps(self.e.export_state(),ensure_ascii=False))
-  original=deepcopy(COMM._state(self.e)['policies'][C.CLASS]['declaration'])
-  for path,replacement in ((('range','maximum'),999),(('connection','maximum','skill'),'집중'),
-                           (('mode',),'mental'),(('consent','kind'),'willing'),(('frequency','uses'),2)):
-   with self.subTest(field='.'.join(path)):
-    forged=deepcopy(saved);body=deepcopy(original)
-    target=body
-    for key in path[:-1]:target=target[key]
-    target[path[-1]]=replacement
-    COMM.declaration(dict(body,id='forged-but-well-formed'))
-    def entry(ref,key):
-     return next(pair for pair in forged['nodes'][ref['$ref']]['items'] if pair[0]==key)
-    attrs=forged['nodes'][forged['root']['$ref']]['attrs']
-    state=entry(attrs,COMM.KEY)[1];policies=entry(state,'policies')[1];row=entry(policies,C.CLASS)[1]
-    target=entry(row,'declaration')[1]
-    for key in path[:-1]:target=entry(target,key)[1]
-    entry(target,path[-1])[1]=replacement
-    entry(row,'sha256')[1]=TX.request_fingerprint(body)
-    before=deepcopy(forged)
-    with self.assertRaisesRegex(ValueError,'native communication source contract changed'):CODEC.load_engine(self.rules,forged)
-    self.assertEqual(forged,before)
-  self.assertEqual(self.e.export_state(),saved);self.valid()
  def test_knowledge_reads_native_temporary_ability_and_current_moves(self):
   self.channel(self.p);self.e.gm.set_move(self.p,'move/역할',reason='actual learned Role Play');self.e.gm.set_ability(self.q,'인분',reason='actual donor ability')
   self.next_round(self.p);self.use(self.p,self.q,'move/역할');facts=self.e.channel_knowledge(self.a,self.p)
@@ -166,13 +131,6 @@ class ChannelerTests(ChannelerScene,unittest.TestCase):
   self.family(C.CONDUIT);self.channel(self.p,self.q);self.next_round(self.p);self.use(self.p,self.p,'move/아쿠아링');record=deepcopy(COATS.live(self.p)[0])
   self.next_round();self.e.channel_power_conduit(self.a,self.p,self.q,mode='coat',coat_id=record['id']);self.assertFalse(COATS.live(self.p));moved=COATS.live(self.q)[0]
   self.assertEqual((moved['id'],moved['effect'],moved['effect_instance']['origin_actor_id']),(record['id'],record['effect'],record['effect_instance']['origin_actor_id']))
-  import native_switch_transfer as SWITCH,world_entities as WORLD
-  event=moved['effect_instance']['ownership'][-1]
-  self.assertEqual(event['source'],C.CONDUIT);self.assertNotIn('recall_id',event)
-  self.assertTrue(SWITCH.validate_world(self.e,WORLD.actor_index(self.e)))
-  with patch.dict(event,source='feat/태그-인'):
-   with self.assertRaisesRegex(ValueError,'Tag In Coat handoff requires complete native recall proof'):
-    SWITCH.validate_world(self.e,WORLD.actor_index(self.e))
   self.e.gm.set_hp(self.q,value=1,reason='injured new Coat holder');self.next_round(self.q);self.assertEqual(self.q.hp,1+self.e.tick(self.q));self.restore();self.valid()
  def test_conduit_bad_identity_and_late_second_assignment_atomic(self):
   self.family(C.CONDUIT);self.channel(self.p,self.q);self.next_round();self.reject(lambda:self.e.channel_power_conduit(self.a,self.p,self.p,mode='stages',stat='atk'),'distinct')

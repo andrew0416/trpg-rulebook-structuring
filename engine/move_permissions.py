@@ -88,8 +88,8 @@ def activate_rider(engine,actor,move_id):
  mount=W.actor_index(engine).get(actor.spec.get('mount_id'))
  if mount is None or mount is actor:raise ValueError('actual currently mounted Pokemon required')
  mid=engine.r.move_id(move_id)
- if mid is None or mid not in M.known(engine.r,{'moves':M.owned_list(mount.spec,'moves',mount.moves)}):raise ValueError('chosen move must be learned by the actual mount')
- if mid in M.known(engine.r,{'moves':M.owned_list(actor.spec,'moves',actor.moves)}):raise ValueError('Rider may select only a move the user has not learned')
+ if mid is None or mid not in M.known(engine.r,{'moves':M.owned_list(mount.spec,'moves',mount.moves,rules=mount.r)}):raise ValueError('chosen move must be learned by the actual mount')
+ if mid in M.known(engine.r,{'moves':M.owned_list(actor.spec,'moves',actor.moves,rules=actor.r)}):raise ValueError('Rider may select only a move the user has not learned')
  def apply(e,c,donor):
   import frequency as F,turn as TURN,combat_timing as TIMING
   uid=reg['source_id'];row=policies(e.r)[uid];key='ability:'+RIDER
@@ -117,7 +117,7 @@ def frequency_owner(engine,actor,move_id):
  mount=W.actor_index(engine).get(rows[0]['mount_id'])
  if mount is None or mount is actor:raise ValueError('borrowed move frequency owner missing')
  if actor.spec.get('mount_id')!=mount.entity_id:raise ValueError('borrowed move requires its actual current mount')
- if move_id not in M.known(engine.r,{'moves':M.owned_list(mount.spec,'moves',mount.moves)}):raise ValueError('mount no longer knows borrowed move')
+ if move_id not in M.known(engine.r,{'moves':M.owned_list(mount.spec,'moves',mount.moves,rules=mount.r)}):raise ValueError('mount no longer knows borrowed move')
  if M.ability_registration(engine.r,rows[0]['source'])['name']!=RIDER:raise ValueError('borrowed frequency source mismatch')
  return mount
 

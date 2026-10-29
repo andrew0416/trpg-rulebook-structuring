@@ -79,12 +79,12 @@ class DeltaEvolutionTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError,'know Dragon Ascent'):self.activate()
                     self.assertEqual(self.state(),before)
                 if mode=='learned':
-                    self.assertIn(mid,MOVES.known(self.r,{'moves':MOVES.owned_list(self.p.spec,'moves')}))
+                    self.assertIn(mid,MOVES.known(self.r,{'moves':MOVES.owned_list(self.p.spec,'moves',rules=self.p.r)}))
 
     def test_learning_loss_after_activation_preserves_scene_then_requires_learning_next_scene(self):
         mid=self.r.move_id('화룡점정');self.turn(self.t);self.activate()
         self.e.gm.set_move(self.p,mid,add=False,reason='actual move forgotten after successful transformation')
-        self.assertNotIn(mid,MOVES.known(self.r,{'moves':MOVES.owned_list(self.p.spec,'moves')}))
+        self.assertNotIn(mid,MOVES.known(self.r,{'moves':MOVES.owned_list(self.p.spec,'moves',rules=self.p.r)}))
         self.assertEqual(self.p.form,'mega/레쿠쟈');self.reload()
         self.e.end_encounter();self.assertEqual(self.p.form,'mega/레쿠쟈')
         self.e.end_scene();self.turn(self.t);before=self.state()

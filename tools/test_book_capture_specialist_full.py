@@ -439,7 +439,7 @@ class CaptureSpecialistFullTests(unittest.TestCase):
   e.pokemon_activity(a,'fishing',phase='start',rod='대단한낚싯대',attachment='루어')
   bite=e.pokemon_activity(a,'fishing',phase='wait',roll_d20=11)
   self.assertEqual((bite['bite_bonus'],bite['bite_total']),(4,15))
-  reel=e.pokemon_activity(a,'fishing',phase='reel',target=t,fixed=[1]*5,escape_d20=20)
+  reel=e.pokemon_activity(a,'fishing',phase='reel',target=t,fixed=[1]*5)
   self.assertEqual(reel['check'].total,7)
   self.assertEqual(a.spec['items']['루어'],1)
 

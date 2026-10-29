@@ -319,6 +319,9 @@ def select_damage(engine,event):
             __import__('priority_actions')._move(engine.r,move['id']);continue
         if event['damage']<=0:break
         before=event['damage'];mult=event['damage_formula']['multiplier'];after_mult=_damage_multiplier(engine.r,r,mult)
+        unadjusted_mult=after_mult
+        after_mult=R.resistance_floor(engine,event,after_mult)
+        if after_mult!=unadjusted_mult and after_mult==mult:continue
         if after_mult is None:raise ValueError('Blessing resistance requires a supported actual multiplier')
         f=event['damage_formula'];reduced=max(0,M.product(f['after_defense'],after_mult,f['other_multiplier'])+f['adjustment'])
         beneficiary=attacker if r['effect']['kind']=='team_damage_effectiveness' else target
@@ -328,7 +331,7 @@ def select_damage(engine,event):
         r['decisions'].append(observation)
         if selected:
             event['damage']=reduced;f['multiplier']=after_mult
-            next_mult=R.resistance_multiplier(engine,after_mult)
+            next_mult=R.resistance_multiplier(engine,after_mult,event=event)
             event['resisted_damage']=None if next_mult is None else max(0,M.product(f['after_defense'],next_mult,f['other_multiplier'])+f['adjustment'])
             event['context']['multiplier']=after_mult
             engine.log('    shared Blessing '+r['id']+': '+str(before)+' -> '+str(reduced)+'; remaining '+str(remaining(r)),r['source'])

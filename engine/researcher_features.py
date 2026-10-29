@@ -134,7 +134,7 @@ class PokemonSkillRoll(C.SkillRoll):
  def __post_init__(self):
   C.integer(self.rank,'base Pokemon skill dice',1)
   count=self.rank if self.dice_count is None else C.integer(self.dice_count,'actual Pokemon skill dice',1)
-  C.validate_request(1,self.modifier,self.helper_rank,len(self.penalties),self.helper_bonus)
+  C.validate_resolved_request(self.modifier,self.helper_rank,len(self.penalties),self.helper_bonus)
   object.__setattr__(self,'faces',C.dice(self.faces,count))
   object.__setattr__(self,'penalties',C.dice(self.penalties))
 

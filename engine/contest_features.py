@@ -135,7 +135,6 @@ import ap_roll_bonus as AP_ROLL
 import frequency as FREQ
 import turn as TURN
 import heavy_injury_adapter as HEAVY
-from resolution_transaction import resolve_transaction
 
 STUNT='feat/액션-히어로-스턴트'
 FRIENDS='feat/우리-친구-하자'
@@ -177,50 +176,31 @@ def style_stat_dice(e,trainer,pokemon):
  if not owned(trainer,STYLE):return {}
  return {stat:2 for stat in style_expert(e,trainer)}
 
-def trigger_free_action(e,trainer,source):
- # ch07:57 / PTU p227: Free Actions may be used when their Trigger occurs.
- # This internal producer calls us only after verifying its actual trigger.
- # Ordinary turn ownership is not a prerequisite for a triggered Free Action.
+def require_trigger_free_action(e,trainer):
+ """Check existing triggered-Free eligibility without recording an action."""
  HEAVY.ensure_clear(e);conscious_trainer(trainer)
  e.r.mech('combat/action-economy')
  if not TURN.can_act(e,trainer) or not ACTION.status_permission(e,trainer,'free'):
   raise ValueError('triggered Free Action unavailable')
- ACTION.record_action(e,trainer,'free')
+ __import__('initiative_interrupts').require_recorded_action(e,trainer,'free')
+
+
+def trigger_free_action(e,trainer,source):
+ # ch07:57 / PTU p227: this producer has already verified its actual trigger.
+ # Ordinary turn ownership is not a prerequisite for a triggered Free Action.
+ require_trigger_free_action(e,trainer)
+ ACTION.record_action(e,trainer,'free',_triggered_source=source)
  e.log('  '+trainer.name+': 발동조건 충족, 자유 행동 '+source,source)
 
-def _feature_transaction(e,trainer,operation,action_actor=None):
- def resolve(_subjects,rng):
-  actor=copy(trainer);actor.spec=deepcopy(trainer.spec)
-  actor._action_history=deepcopy(getattr(trainer,'_action_history',[]))
-  if hasattr(trainer,'budget'):actor.budget=deepcopy(trainer.budget)
-  secondary=None
-  if action_actor is not None:
-   secondary=copy(action_actor)
-   if hasattr(action_actor,'budget'):secondary.budget=deepcopy(action_actor.budget)
-   secondary._action_history=deepcopy(getattr(action_actor,'_action_history',[]))
-  # Every live alias of a participant must name its one staged actor. A shallow
-  # engine copy leaves the original in everyone/gm while the turn owns a clone.
-  import world_entities as WORLD
-  import state_grants as GRANTS
-  memo={id(subject):subject for subject in WORLD.actors(e)}
-  memo.update(GRANTS._transition_token_anchors(e))
-  memo.update({id(e.r):e.r,id(e.rulings):e.rulings,id(e.rng):rng,id(trainer):actor})
-  if secondary is not None:memo[id(action_actor)]=secondary
-  staged=deepcopy(e,memo);staged.log_lines=[]
-  result=operation(staged,actor,secondary) if secondary is not None else operation(staged,actor)
-  action_state=None if secondary is None else {field:deepcopy(getattr(secondary,field,None)) for field in ('budget','_action_history','took_standard','_standard_action_round','_restricted_action_taken')}
-  committed_refs={id(subject):subject for subject in WORLD.actors(e)}
-  committed_refs.update(GRANTS._transition_token_anchors(e))
-  committed_refs.update({id(e.r):e.r,id(actor):trainer})
-  if secondary is not None:committed_refs[id(secondary)]=action_actor
-  return deepcopy((result,staged.log_lines,staged._ap_rolls,actor.spec,actor._action_history,getattr(actor,'_restricted_action_taken',False),actor in staged._time_actors,action_state),committed_refs)
- result,logs,ap_rolls,spec,history,restricted,tracked,action_state=resolve_transaction([],e.rng,resolve)
- e.log_lines.extend(logs);e._ap_rolls.clear();e._ap_rolls.update(ap_rolls)
- trainer.spec.clear();trainer.spec.update(spec);trainer._action_history=history;trainer._restricted_action_taken=restricted
- if tracked and trainer not in e._time_actors:e._time_actors.append(trainer)
- if action_state is not None:
-  for field,value in action_state.items():setattr(action_actor,field,value)
- return result
+def _feature_transaction(e,trainer,operation,action_actor=None,*,payload=()):
+ """Use the native graph commit guard for private feature calculations."""
+ import state_grants as G
+ participants=() if action_actor is None else (action_actor,)
+ def apply(staged,actor,*subjects):
+  inputs=G._stage_transition_payload(e,staged,payload)
+  return operation(staged,actor,*subjects,*inputs)
+ return G.transition(e,trainer,apply,participants=participants,
+                     include_rulings=True,include_grid=e.grid is not None)
 
 def _friendship_pool(e,trainer,pokemon,options,count):
  """The source grants its own pool; it never borrows an ordinary Charm rank.
@@ -236,7 +216,7 @@ def _friendship_pool(e,trainer,pokemon,options,count):
  import combat_timing as TIMING
  import researcher_features as RF
  owner(trainer,pokemon);require(e,trainer,FRIENDS)
- allowed={'mods','helper_rank','penalty_count','fixed_penalties','roll_id','helper_bonus','feature','feature_options','skill_context','skill_stunt','skill_target'}
+ allowed={'mods','helper_rank','penalty_count','fixed_penalties','roll_id','helper_bonus','feature','feature_options','skill_context','skill_stunt','skill_target','helper_source'}
  if set(options)-allowed:raise ValueError('unsupported friendship roll options')
  if options.get('feature') is not None or options.get('feature_options') is not None:raise ValueError('ordinary selected skill features do not replace the granted friendship pool')
  M.validate_source(e.r);ENVIRONMENT.ensure_clear(e)
@@ -246,7 +226,8 @@ def _friendship_pool(e,trainer,pokemon,options,count):
  BLESSINGS.validate_sleep_check(e,pokemon,skill,context)
  e.r.mech('gameplay/skill-check');AP_ROLL.bonus(e,pokemon,options.get('roll_id'),'skill')
  mods=options.get('mods',0);helper=options.get('helper_rank',0);penalty_count=options.get('penalty_count',0)
- C.validate_request(1,mods,helper,penalty_count,options.get('helper_bonus'))
+ SKILL.validate_helper(e,pokemon,helper,options.get('helper_bonus'),options.get('helper_source'))
+ C.validate_resolved_request(mods,helper,penalty_count,options.get('helper_bonus'))
  resolved=SKILL.modifiers(e.r,pokemon,skill,mods)
  for additions in (SURVIVALIST.modifier(e,pokemon,skill,shared_skill_context),ELEMENTAL.modifier(e,pokemon,skill,options.get('skill_target')),BLESSINGS.modifiers(e,pokemon,skill,context)):
   resolved['modifier']+=sum(row[1] for row in additions);resolved['sources']+=additions
@@ -309,16 +290,16 @@ def skill_feature(e,trainer,pokemon,feature,skill,dc,*,context=None,decision=Non
    raise ValueError('Reliable Performance is an explicitly chosen pre-roll replacement')
   if roll_options.get('fixed') is not None:raise ValueError('average replacement does not accept fabricated die faces')
   prepared=e._prepare_skill_roll(pokemon,skill,**roll_options)
-  def resolve(staged,actor):
+  def resolve(staged,actor,subject,prepared,options):
    _pay_reliable(staged,actor)
    penalties=prepared[4]
-   if penalties is None:penalties=C.dice(POOLS.pool(staged.rng,roll_options.get('penalty_count',0))['faces'])
-   modifier=prepared[5]['modifier']+AP_ROLL.bonus(staged,pokemon,roll_options.get('roll_id'),'skill')
-   rolled=ContentSkillRoll(RELIABLE,prepared[2],(),M.ratio(prepared[5].get('dice_count',prepared[2])*7,2),modifier,roll_options.get('helper_rank',0),penalties,roll_options.get('helper_bonus'))
-   AP_ROLL.complete(staged,pokemon,roll_options.get('roll_id'),'skill')
-   staged.log(f'  {pokemon.name}: 신뢰의 공연, 기본값 {rolled.base}, 총합 {rolled.total}',RELIABLE)
+   if penalties is None:penalties=C.dice(POOLS.pool(staged.rng,options.get('penalty_count',0))['faces'])
+   modifier=prepared[5]['modifier']+AP_ROLL.bonus(staged,subject,options.get('roll_id'),'skill')
+   rolled=ContentSkillRoll(RELIABLE,prepared[2],(),M.ratio(prepared[5].get('dice_count',prepared[2])*7,2),modifier,options.get('helper_rank',0),penalties,options.get('helper_bonus'))
+   AP_ROLL.complete(staged,subject,options.get('roll_id'),'skill')
+   staged.log(f'  {subject.name}: 신뢰의 공연, 기본값 {rolled.base}, 총합 {rolled.total}',RELIABLE)
    return {'source':RELIABLE,'roll':rolled,'check':C.against_dc(rolled,dc),'replacement':'skill_rank_average'}
-  return _feature_transaction(e,trainer,resolve)
+  return _feature_transaction(e,trainer,resolve,pokemon,payload=(prepared,roll_options))
  if feature==STUNT:
   if not isinstance(context,dict) or context.get('source')!='ordinary' or context.get('dramatic_risk') is not True:
    raise ValueError('Stunt requires an explicit GM dramatic-risk ordinary check; combat maneuvers, intercepts, Moves and Abilities are excluded')
@@ -327,14 +308,14 @@ def skill_feature(e,trainer,pokemon,feature,skill,dc,*,context=None,decision=Non
   if decision is not None or reroll_faces is not None or reroll_penalties is not None:raise ValueError('Stunt is a pre-roll replacement, not a reroll')
   plan=_poffin_plan(e,trainer,pokemon,skill,'근사함',roll_options)
   quota=__import__('style_expert').frequency(trainer,feature)
-  def resolve(staged,actor):
+  def resolve(staged,actor,subject,plan,context):
    if not FREQ.activation_allowed(actor,feature,quota,engine=staged):raise ValueError('Action Hero Stunt daily uses exhausted')
    trigger_free_action(staged,actor,feature)
-   rolled=_poffin_roll(staged,pokemon,skill,feature,plan)
+   rolled=_poffin_roll(staged,subject,skill,feature,plan)
    check=C.against_dc(rolled,dc)
    FREQ.consume_activation(actor,feature,quota,engine=staged)
    return {'source':feature,'roll':rolled,'check':check,'context':deepcopy(context)}
-  return _feature_transaction(e,trainer,resolve)
+  return _feature_transaction(e,trainer,resolve,pokemon,payload=(plan,context))
  if feature==MISTAKES:
   return _mistakes(e,trainer,pokemon,skill,dc,decision,reroll_faces,reroll_penalties,roll_options)
  raise ValueError('unsupported contest skill feature')
@@ -364,11 +345,11 @@ def _mistakes(e,trainer,pokemon,skill,dc,decision,reroll_faces,reroll_penalties,
  if old is None:
   # Known source/action/input errors must not expose a speculative first roll.
   staged=copy(e);staged.log_lines=[];staged._time_actors=list(getattr(e,'_time_actors',[]));shadow=copy(trainer);shadow.spec=deepcopy(trainer.spec);shadow._action_history=deepcopy(getattr(trainer,'_action_history',[]))
-  if getattr(staged,'_active_turn_actor',None) is trainer:staged._active_turn_actor=shadow
   if not FREQ.activation_allowed(shadow,MISTAKES,quota,engine=staged):raise ValueError('Learn From Your Mistakes daily uses exhausted')
-  trigger_free_action(staged,shadow,MISTAKES)
-  # This transaction is private: no external callback or first-result exposure.
-  first=_feature_transaction(e,trainer,lambda staged,shadow:staged.skill_roll(pokemon,skill,**options))
+  require_trigger_free_action(staged,trainer)
+  # The first Mistakes result is private; nested native choices use the shared commit guard.
+  first=_feature_transaction(e,trainer,lambda staged,shadow,subject,inputs:staged.skill_roll(subject,skill,**inputs),
+                             pokemon,payload=(options,))
   old=OBS.begin(e._ap_rolls,key,'contest_skill:'+MISTAKES,(trainer,pokemon),declaration,{'first':first,'poffin_bonus':bonus},references=tuple(x for x in (options.get('skill_target'),) if x is not None))
  check=C.against_dc(first,dc)
  if check.passed:
@@ -378,18 +359,22 @@ def _mistakes(e,trainer,pokemon,skill,dc,decision,reroll_faces,reroll_penalties,
  if not chosen:
   SF.finish(e,pokemon,key)
   return OBS.complete(old,{'source':MISTAKES,'first_roll':first,'roll':first,'check':check,'rerolled':False,'roll_id':key})
- def reroll(staged,shadow):
+ def reroll(staged,shadow,subject,observed):
+  owner(shadow,subject);require(staged,shadow,MISTAKES)
+  style_training(staged,shadow,'슬기로움')
+  if __import__('style_expert').frequency(shadow,MISTAKES)!=quota:
+   raise ValueError('Learn From Your Mistakes source quota changed after observation')
   if not FREQ.activation_allowed(shadow,MISTAKES,quota,engine=staged):raise ValueError('Learn From Your Mistakes daily uses exhausted')
   trigger_free_action(staged,shadow,MISTAKES)
   faces=C.dice(POOLS.pool(staged.rng,count)['faces'],count) if reroll_faces is None else reroll_faces
-  penalties=C.dice(POOLS.pool(staged.rng,len(first.penalties))['faces'],len(first.penalties)) if reroll_penalties is None else reroll_penalties
+  penalties=C.dice(POOLS.pool(staged.rng,len(observed.penalties))['faces'],len(observed.penalties)) if reroll_penalties is None else reroll_penalties
   # Use the actual original rank/pool/modifiers; AP, helper and other bonuses
   # are not re-read or applied again after observing the failure.
-  result=replace(first,faces=faces,penalties=penalties,modifier=first.modifier+bonus)
+  result=replace(observed,faces=faces,penalties=penalties,modifier=observed.modifier+bonus)
   FREQ.consume_activation(shadow,MISTAKES,quota,engine=staged)
-  staged.log(f'  {pokemon.name}: 실수로부터 배운다 {first.total} → {result.total}, 포핀 +{bonus}',MISTAKES)
+  staged.log(f'  {subject.name}: 실수로부터 배운다 {observed.total} → {result.total}, 포핀 +{bonus}',MISTAKES)
   return result
- final=_feature_transaction(e,trainer,reroll)
+ final=_feature_transaction(e,trainer,reroll,pokemon,payload=(first,))
  SF.finish(e,pokemon,key)
  return OBS.complete(old,{'source':MISTAKES,'first_roll':first,'roll':final,'check':C.against_dc(final,dc),'rerolled':True,'poffin_bonus':bonus,'roll_id':key})
 
@@ -416,7 +401,9 @@ def prepare_reliable_accuracy(e,trainer,pokemon):
  staged=copy(e);staged.log_lines=[]
  actor=copy(trainer);actor.spec=deepcopy(trainer.spec)
  actor._action_history=deepcopy(getattr(trainer,'_action_history',[]))
- _pay_reliable(staged,actor)
+ require_trigger_free_action(staged,trainer)
+ AP.spend(actor,2)
+ staged.log('  '+actor.name+': 발동조건 충족, 자유 행동 '+RELIABLE,RELIABLE)
  return staged.log_lines
 
 
@@ -465,13 +452,13 @@ def friendship_check(e,trainer,performer,target,*,dc,roll_options):
  options['skill_target']=target
  plan=_poffin_plan(e,trainer,performer,'매력','귀여움',options)
  quota=__import__('style_expert').frequency(trainer,FRIENDS)
- def resolve(staged,actor):
+ def resolve(staged,actor,subject,plan):
   if not FREQ.activation_allowed(actor,FRIENDS,quota,engine=staged):raise ValueError('Let Us Be Friends selected frequency exhausted')
   if not TURN.spend(staged,actor,'free','우리 친구 하자!'):
    raise ValueError('trainer Free action unavailable for Let Us Be Friends')
   # ch04:1283-1287 grants this target's attempt as the Free feature's effect.
   # It names no extra Pokemon Standard cost or general out-of-turn permission.
-  rolled=_poffin_roll(staged,performer,'매력',FRIENDS,plan)
+  rolled=_poffin_roll(staged,subject,'매력',FRIENDS,plan)
   FREQ.consume_activation(actor,FRIENDS,quota,engine=staged)
   return C.against_dc(rolled,dc)
- return _feature_transaction(e,trainer,resolve)
+ return _feature_transaction(e,trainer,resolve,performer,payload=(plan,))

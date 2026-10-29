@@ -308,6 +308,53 @@ class AceTrainerFullTests(unittest.TestCase):
             row=self.attack('move/파도타기',targets=[self.foe,self.q]);self.assertEqual(len(row['targets']),2)
             self.assertNotIn(A.MARKER,A.prepare(self.e,self.q,base));self.restore();self.valid()
 
+    def test_shock_and_awe_requires_known_hostility_after_actual_miss(self):
+        cases=[('party','enemy',True),('party','party',False),
+               ('party',None,False),(None,'enemy',False),(None,None,False)]
+        for user_side,target_side,affected in cases:
+            with self.subTest(user=user_side,target=target_side):
+                self.setup();self.teach('shock_and_awe','move/파도타기')
+                for i,actor in enumerate([self.t,*self.ps[1:]]):
+                    self.e.gm.set_position(actor,(15+i,12),reason='isolate actual attack recipients')
+                self.p.side,self.foe.side=user_side,target_side
+                before=self.foe.evasion('특수')
+                row=self.attack('move/파도타기',face=1)
+                self.assertFalse(row['results'][self.foe.entity_id]['hit'])
+                self.assertEqual(self.foe.evasion('특수'),before-(1 if affected else 0))
+                self.assertFalse(A.timed(self.p,'shock_and_awe'))
+
+    def test_double_curse_extra_target_requires_known_foe_without_restricting_primary(self):
+        cases=[('party','enemy',True),('party','party',False),
+               ('party',None,False),(None,'enemy',False),(None,None,False)]
+        for user_side,extra_side,allowed in cases:
+            with self.subTest(user=user_side,extra=extra_side):
+                self.setup();self.teach('double_curse','move/이상한빛')
+                for i,actor in enumerate([self.t,*self.ps[2:]]):
+                    self.e.gm.set_position(actor,(15+i,12),reason='isolate actual Technique recipients')
+                self.e.gm.set_position(self.foe,(6,2),reason='actual primary recipient')
+                self.e.gm.set_position(self.q,(3,5),reason='actual extra recipient')
+                self.p.side,self.q.side=user_side,extra_side
+                self.begin()
+                if not allowed:
+                    before=(deepcopy(self.p.budget),deepcopy(self.p.move_uses),
+                            set(self.foe.conditions),set(self.q.conditions))
+                    with self.assertRaisesRegex(ValueError,'Double Curse selects actual foes'):
+                        self.e.use_move_on(self.p,self.foe,'move/이상한빛',[self.foe,self.q])
+                    self.assertEqual((self.p.budget,self.p.move_uses,
+                                      self.foe.conditions,self.q.conditions),before)
+                else:
+                    with patch.object(Engine,'d20',return_value=18):
+                        self.e.use_move_on(self.p,self.foe,'move/이상한빛',[self.foe,self.q])
+                    self.assertTrue(all('혼란' in target.conditions for target in (self.foe,self.q)))
+                    self.assertEqual(self.p.move_uses['move/이상한빛'],1)
+        self.setup();self.teach('double_curse','move/이상한빛')
+        for i,actor in enumerate([self.t,*self.ps[2:]]):
+            self.e.gm.set_position(actor,(15+i,12),reason='isolate actual Technique recipients')
+        self.e.gm.set_position(self.foe,(6,2),reason='known enemy extra target')
+        self.e.gm.set_position(self.q,(3,5),reason='allied ordinary primary target')
+        self.attack('move/이상한빛',target=self.q,targets=[self.q,self.foe])
+        self.assertTrue(all('혼란' in target.conditions for target in (self.q,self.foe)))
+
     def test_shock_and_awe_on_miss_foes_only_evasion_save_user_next_turn(self):
         self.teach('shock_and_awe','move/파도타기');ev=self.foe.evasion('특수');save=__import__('effects_ext').save_dc(self.e,self.foe,'마비',11)
         row=self.attack('move/파도타기',face=1,targets=[self.foe,self.q])

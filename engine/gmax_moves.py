@@ -169,7 +169,7 @@ def exit(engine, actor, *, reason):
 def _known_base_move(rules, actor, base_move_id):
     import move_state
     move = rules.move(base_move_id)
-    if base_move_id not in move_state.owned_list(actor.spec, "moves", actor.moves):
+    if base_move_id not in move_state.owned_list(actor.spec, "moves", actor.moves,rules=actor.r):
         raise ValueError("G-Max derivation requires an actually learned base Move")
     if move.get("class") not in ("물리", "특수", "Physical", "Special"):
         raise ValueError("G-Max base Move must have a physical or special class")

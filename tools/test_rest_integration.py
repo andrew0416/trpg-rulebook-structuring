@@ -46,7 +46,7 @@ class RestIntegrationTests(unittest.TestCase):
 
     def assert_rejected_unchanged(self, e, actors, callback, exception=ValueError):
         before = self.state(e, actors)
-        with patch.object(e, "advance_time", wraps=e.advance_time) as clock:
+        with patch.object(Engine, "advance_time", autospec=True, side_effect=Engine.advance_time) as clock:
             with self.assertRaises(exception):
                 callback()
             clock.assert_not_called()
@@ -180,7 +180,7 @@ class RestIntegrationTests(unittest.TestCase):
     def test_parallel_group_uses_single_interval_and_actor_specific_carry(self):
         e, (a, b) = self.fixture(2)
         DT.rest(e, a, 15, rest_id="nap")
-        with patch.object(e, "advance_time", wraps=e.advance_time) as clock:
+        with patch.object(Engine, "advance_time", autospec=True, side_effect=Engine.advance_time) as clock:
             self.assertEqual(DT.rest_many(e, [a, b], 15, rest_id="nap"), [5, 0])
             self.assertEqual(clock.call_count, 1)
         self.assertEqual((a.hp, b.hp, e.elapsed_seconds), (6, 1, 1800))

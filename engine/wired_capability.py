@@ -168,7 +168,7 @@ def require_native_move(e, actor, mid):
     # never becomes an unknown learned move in owned_list after withdrawal.
     R.boundary(e, 'native_move')
     import move_state as M
-    known = M.known(e.r, {'moves': M.owned_list(actor.spec, 'moves', actor.moves)})
+    known = M.known(e.r, {'moves': M.owned_list(actor.spec, 'moves', actor.moves,rules=actor.r)})
     allowed = M.known(e.r, {'moves': G.effective(actor, 'moves')})
     if mid not in known and mid not in allowed:
         raise ValueError('Wired Move needs a current Rotom/device/GM/cord permission or independent learned source')

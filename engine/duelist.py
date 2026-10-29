@@ -273,7 +273,7 @@ def expend(engine,trainer,pokemon,*,amount,move=None,communication=None):
         if momentum(p)<amount:raise ValueError('insufficient Momentum')
         quota=_quota(e,p,EXPEND,1) if amount==3 else None
         if amount!=2:
-            if move not in MOVES.known(e.r,{'moves':MOVES.owned_list(p.spec,'moves',p.moves)}) or F.move_frequency(e,move,p)[0]!=('every_other_turn' if amount==1 else 'scene'):
+            if move not in MOVES.known(e.r,{'moves':MOVES.owned_list(p.spec,'moves',p.moves,rules=p.r)}) or F.move_frequency(e,move,p)[0]!=('every_other_turn' if amount==1 else 'scene'):
                 raise ValueError('one known Move of the printed frequency required')
             if not p.move_uses.get(move):raise ValueError('selected Move has no spent use to restore')
         elif move is not None:raise ValueError('the d20 option does not restore a Move')
@@ -451,7 +451,7 @@ def seize(engine,trainer,pokemon,*,event_id,move,target,**options):
         if _owner(e,p,SEIZE) is not a or not tagged(e,p,t):raise ValueError('Seize attacks only this Duelist tagged foe')
         actual,row=overflow_trigger(e,event_id,allow_completed=True)
         if actual is not p or row['status']!='pending' or momentum(p)!=6:raise ValueError('unspent actual overflow required')
-        if move not in MOVES.known(e.r,{'moves':MOVES.owned_list(p.spec,'moves',p.moves)}):raise ValueError('actual known attack required')
+        if move not in MOVES.known(e.r,{'moves':MOVES.owned_list(p.spec,'moves',p.moves,rules=p.r)}):raise ValueError('actual known attack required')
         import exhaust_moves as EXHAUST
         if not EXHAUST.preflight(e,p,e.r.move(move),count_use=True):raise ValueError('selected Exhaust Move requires its actual unspent action eligibility')
         q=_quota(e,a,SEIZE,2);pq=_quota(e,p,SEIZE,1)
@@ -471,7 +471,12 @@ def seize(engine,trainer,pokemon,*,event_id,move,target,**options):
         I.finish(e)
         overflow_trigger(e,event_id,allow_completed=True)[1]['status']='completed'
         return result
-    result=G.transition(engine,trainer,apply,participants=(pokemon,target),include_rulings=True,include_grid=engine.grid is not None)
+    def scoped(e,a,p,t):
+        _,receipt=overflow_trigger(e,event_id,allow_completed=True)
+        parent=getattr(e,'_move_completions',{}).get(receipt.get('origin',{}).get('completion'))
+        with ACTION.completion_reaction(e,a,SEIZE,parent,receipt=receipt):
+            return apply(e,a,p,t)
+    result=G.transition(engine,trainer,scoped,participants=(pokemon,target),include_rulings=True,include_grid=engine.grid is not None)
     if pending:raise pending[0][0](pending[0][1])
     return result
 
@@ -568,3 +573,12 @@ def validate_world(engine,index):
 def _gain_seal(row):
     import trainer_feature_acquisition as TFA
     return TFA._digest('duelist/gain/v1',{key:row[key] for key in ('id','origin','before','round','scene')})
+
+
+def completion_reaction_origin(engine,actor,source,completion,receipt):
+    if source!=SEIZE:return False
+    if not isinstance(receipt,dict):raise ValueError('actual Seize overflow receipt required')
+    pokemon,actual=overflow_trigger(engine,receipt['id'],allow_completed=True)
+    if actual is not receipt or _owner(engine,pokemon,SEIZE) is not actor or receipt['origin'].get('completion')!=completion['id']:
+        raise ValueError('Seize must retain its actual completed hit origin')
+    return True

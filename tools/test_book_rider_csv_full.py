@@ -21,6 +21,7 @@ class RiderFullTests(unittest.TestCase):
         'test_csv_selection_is_exact_idempotent_and_book_remains_pass_only',
         'test_csv_all_five_families_keep_dash_and_pass_in_real_native_hits',
     )
+
     CSV_STAGE_CONTRACT=(
         {'stage':'source_drift','input':'one mounted world, no paid Order',
          'output':'same world and RNG; wrong current CSV SHA rejected before cost'},
@@ -31,6 +32,7 @@ class RiderFullTests(unittest.TestCase):
          'output':'five real two-target Dash+Pass hits; each input uses[mid]+1, Standard 1->0',
          'restore':'one cold load contains every accumulated Book/CSV/family receipt; completed last Pass replays without cost'},
     )
+
     CSV_FAMILY_CONTRACT=(
         {'family':'대시','origin':(0,0),'destination':(4,0),'recipients':('enemy','other')},
         {'family':'파열','origin':(4,0),'destination':(0,0),'recipients':('other','enemy')},
@@ -58,72 +60,6 @@ class RiderFullTests(unittest.TestCase):
                 if not inserted:ordered.extend(stages);inserted=True
             else:ordered.append(case)
         return ordered
-
-    @classmethod
-    def setUpClass(cls):cls.rules=Rules(ROOT,ruleset='all')
-
-    def setUp(self):
-        self.original_answers=deepcopy(self.rules.rulings.answers)
-        self.original_hooks={key:list(value) for key,value in self.rules.rulings.hooks.items()}
-        self.original_effects=deepcopy(self.rules.rulings.effects)
-        self.original_ruling_log=deepcopy(self.rules.rulings.log)
-
-    def tearDown(self):
-        self.rules.rulings.answers[:]=self.original_answers
-        self.rules.rulings.hooks={key:list(value) for key,value in self.original_hooks.items()}
-        self.rules.rulings.effects=deepcopy(self.original_effects)
-        self.rules.rulings.log[:]=self.original_ruling_log
-
-    def setup(self,*,run_up=True,mounted=True,feature=None):
-        self.tearDown()
-        self.h=BASE.ConquerorsMarchTests();self.h.rules=self.rules
-        self.h.setup(run_up=run_up,mounted=mounted,moves=list(BASE.FAMILY_MOVES.values()))
-        self.sync()
-        self.a.spec['skills']['격투']=3
-        if feature is not None:
-            self.h.acquire(M.RIDE_AS_ONE)
-            if feature in (CM.REPRISAL,CM.OVERRUN):
-                SF.base_patch(self.a,{'skills':{'곡예':5,'육상':3,'격투':3,'명령':3}},reason='actual Expert Rider qualification')
-            self.h.acquire(feature)
-        self.enemy.spec['moves']=[AREA,'move/몸통박치기'];self.enemy.moves=list(self.enemy.spec['moves'])
-
-    def sync(self):
-        self.e,self.a,self.p,self.enemy,self.other=self.h.e,self.h.a,self.h.p,self.h.enemy,self.h.other
-    def acquire(self,uid):return self.h.acquire(uid)
-    def restore(self):self.h.restore();self.sync()
-    def valid(self):self.h.valid()
-    def answer(self,key,value):self.e.rulings.add_answer(key,value,reason='explicit actual player reaction choice',scope='session')
-    def snapshot(self):return deepcopy((CODEC.dump_engine(self.e),self.e.rng.getstate()))
-    def reject(self,fn):
-        before=self.snapshot()
-        with self.assertRaises(ValueError):fn()
-        self.assertEqual(self.snapshot(),before)
-    def combat(self,actor):self.h.start();self.e.start_of_turn(actor)
-    def area(self,*,roll=15,mid=AREA):
-        with patch.object(Engine,'d20',return_value=roll):
-            return self.e.use_move_on(self.enemy,self.a,mid,self.e.everyone,set_damage=True)
-    def gm_floor(self,mid):
-        floors=[effect for effect in self.e.r.move_mech('move/칼등치기')[0]['effects_exec'] if effect['type']=='damage_floor']
-        self.assertEqual(len(floors),1)
-        self.e.rule_effect(mid,'add',deepcopy(floors[0]),reason='Explicit GM table override: this attack uses the core False Swipe floor; not a printed PTU combination',scope='campaign')
-        self.assertTrue(any(row['kind']=='effect' and mid in row['what'] for row in self.e.rulings.log))
-    def listener(self,actor,key):
-        from hashlib import sha256
-        source='input/'+self.rules.selection.units['combat/struggle']['source']['file']
-        doc={'schema':1,'id':'event/rider-'+key,'variants':[{
-            'rule_id':'combat/struggle','source':{'file':source,'sha256':sha256((ROOT/source).read_bytes()).hexdigest()},
-            'inputs':{'hit':{'authority':'context','type':'boolean','question':'Native hit'},
-                      'choice':{'authority':'gm','type':'boolean','question':'Actual reaction choice'}},
-            'when':{'op':'eq','left':{'$input':'hit'},'right':True},
-            'values':{'effects':[{'type':'stage_change','stat':'atk','delta':1,'target':'self'}]}}]}
-        return self.e.subscribe_source_policy(actor,key,doc,event='move_resolved',inputs={'hit':'hit'})
-    def choose_listener(self,event,actor,listener):
-        return self.e.choose_passive_event(event,actor,listener,
-            {'decisions':{'choice':{'value':True,'reason':'actual native listener choice'}}})
-    def lesson(self,**kw):
-        opts=dict(target=self.p,feature=CM.RAMMING,ability=CM.RUN_UP,seconds=45,reason='observed complete Extended Run Up lesson')
-        opts.update(kw)
-        return self.e.pokemon_activity(self.a,'teach_feature_ability',**opts)
 
     def build_csv_drift_input(self):
         self.setup()
@@ -224,6 +160,72 @@ class RiderFullTests(unittest.TestCase):
         with patch.object(Engine,'d20',return_value=15),patch.object(Engine,'_apply_hit_recipient',observe):
             self.h.pass_move(BASE.FAMILY_MOVES['대시'],event='march/pass/book',destination=(0,0))
         self.assertEqual(seen,[self.other.entity_id,self.enemy.entity_id]);self.valid()
+
+    @classmethod
+    def setUpClass(cls):cls.rules=Rules(ROOT,ruleset='all')
+
+    def setUp(self):
+        self.original_answers=deepcopy(self.rules.rulings.answers)
+        self.original_hooks={key:list(value) for key,value in self.rules.rulings.hooks.items()}
+        self.original_effects=deepcopy(self.rules.rulings.effects)
+        self.original_ruling_log=deepcopy(self.rules.rulings.log)
+
+    def tearDown(self):
+        self.rules.rulings.answers[:]=self.original_answers
+        self.rules.rulings.hooks={key:list(value) for key,value in self.original_hooks.items()}
+        self.rules.rulings.effects=deepcopy(self.original_effects)
+        self.rules.rulings.log[:]=self.original_ruling_log
+
+    def setup(self,*,run_up=True,mounted=True,feature=None):
+        self.tearDown()
+        self.h=BASE.ConquerorsMarchTests();self.h.rules=self.rules
+        self.h.setup(run_up=run_up,mounted=mounted,moves=list(BASE.FAMILY_MOVES.values()))
+        self.sync()
+        self.a.spec['skills']['격투']=3
+        if feature is not None:
+            self.h.acquire(M.RIDE_AS_ONE)
+            if feature in (CM.REPRISAL,CM.OVERRUN):
+                SF.base_patch(self.a,{'skills':{'곡예':5,'육상':3,'격투':3,'명령':3}},reason='actual Expert Rider qualification')
+            self.h.acquire(feature)
+        self.enemy.spec['moves']=[AREA,'move/몸통박치기'];self.enemy.moves=list(self.enemy.spec['moves'])
+
+    def sync(self):
+        self.e,self.a,self.p,self.enemy,self.other=self.h.e,self.h.a,self.h.p,self.h.enemy,self.h.other
+    def acquire(self,uid):return self.h.acquire(uid)
+    def restore(self):self.h.restore();self.sync()
+    def valid(self):self.h.valid()
+    def answer(self,key,value):self.e.rulings.add_answer(key,value,reason='explicit actual player reaction choice',scope='session')
+    def snapshot(self):return deepcopy((CODEC.dump_engine(self.e),self.e.rng.getstate()))
+    def reject(self,fn):
+        before=self.snapshot()
+        with self.assertRaises(ValueError):fn()
+        self.assertEqual(self.snapshot(),before)
+    def combat(self,actor):self.h.start();self.e.start_of_turn(actor)
+    def area(self,*,roll=15,mid=AREA):
+        with patch.object(Engine,'d20',return_value=roll):
+            return self.e.use_move_on(self.enemy,self.a,mid,self.e.everyone,set_damage=True)
+    def gm_floor(self,mid):
+        floors=[effect for effect in self.e.r.move_mech('move/칼등치기')[0]['effects_exec'] if effect['type']=='damage_floor']
+        self.assertEqual(len(floors),1)
+        self.e.rule_effect(mid,'add',deepcopy(floors[0]),reason='Explicit GM table override: this attack uses the core False Swipe floor; not a printed PTU combination',scope='campaign')
+        self.assertTrue(any(row['kind']=='effect' and mid in row['what'] for row in self.e.rulings.log))
+    def listener(self,actor,key):
+        from hashlib import sha256
+        source='input/'+self.rules.selection.units['combat/struggle']['source']['file']
+        doc={'schema':1,'id':'event/rider-'+key,'variants':[{
+            'rule_id':'combat/struggle','source':{'file':source,'sha256':sha256((ROOT/source).read_bytes()).hexdigest()},
+            'inputs':{'hit':{'authority':'context','type':'boolean','question':'Native hit'},
+                      'choice':{'authority':'gm','type':'boolean','question':'Actual reaction choice'}},
+            'when':{'op':'eq','left':{'$input':'hit'},'right':True},
+            'values':{'effects':[{'type':'stage_change','stat':'atk','delta':1,'target':'self'}]}}]}
+        return self.e.subscribe_source_policy(actor,key,doc,event='move_resolved',inputs={'hit':'hit'})
+    def choose_listener(self,event,actor,listener):
+        return self.e.choose_passive_event(event,actor,listener,
+            {'decisions':{'choice':{'value':True,'reason':'actual native listener choice'}}})
+    def lesson(self,**kw):
+        opts=dict(target=self.p,feature=CM.RAMMING,ability=CM.RUN_UP,seconds=45,reason='observed complete Extended Run Up lesson')
+        opts.update(kw)
+        return self.e.pokemon_activity(self.a,'teach_feature_ability',**opts)
 
     def test_ramming_actual_extended_payment_permanent_grant_and_codec(self):
         self.setup(run_up=False,mounted=False)

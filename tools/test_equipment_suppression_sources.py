@@ -173,6 +173,7 @@ class SuppressionTests(unittest.TestCase):
    row[I.MAGIC_ROOM_KEY]=marker
    S.upgrade_legacy(self.e,W.actor_index(self.e))
 
+
  def test_shared_profile_restores_after_failure_and_legacy_then_holder_cold_roundtrip(self):
   import state_codec as CODEC
   shared=self.r;previous=shared.ruleset;fingerprint=CODEC.rules_fingerprint(shared)

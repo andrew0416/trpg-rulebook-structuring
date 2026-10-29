@@ -117,6 +117,15 @@ def _state(actor, create=False):
     return value
 
 
+def _vacuum_interval(capabilities):
+    if type(capabilities) is not dict or set(capabilities) - {"vacuum_immunity", "vacuum_resistance"}:
+        raise ValueError("actual vacuum capability snapshot required")
+    if "vacuum_immunity" in capabilities:
+        return None
+    return policy()["vacuum_check_seconds"][
+        "vacuum_resistance" if "vacuum_resistance" in capabilities else "ordinary"]
+
+
 def observe_vacuum(engine, actor, *, exposure_id, exposed, reason):
     """Open or close one actual, region-backed vacuum exposure."""
     _text(exposure_id, "vacuum exposure identity"); _text(reason, "vacuum observation reason")
@@ -127,8 +136,7 @@ def observe_vacuum(engine, actor, *, exposure_id, exposed, reason):
         if actual["pressure"] != 0 or actual["air_available"] is not False or actual["medium"] != "airless":
             raise ValueError("vacuum exposure requires an actual zero-pressure airless region")
         capabilities = _vacuum_snapshot(actor)
-        interval = None if "vacuum_immunity" in capabilities else policy()["vacuum_check_seconds"][
-            "vacuum_resistance" if "vacuum_resistance" in capabilities else "ordinary"]
+        interval = _vacuum_interval(capabilities)
         intent = {"exposure_id": exposure_id, "actor_id": actor.entity_id, "environment": environment,
                   "capabilities": capabilities, "interval_seconds": interval, "reason": reason}
         digest = TX.request_fingerprint(intent)
@@ -239,15 +247,28 @@ def validate(actor, engine=None):
     active = state["active_vacuum"]
     if active is not None and active not in state["vacuum_exposures"]:
         raise ValueError("active vacuum exposure identity missing")
+    check_fields = {"id", "exposure_id", "due_at", "interval_seconds"}
+    result_fields = {"injury_delta", "injury_delta_requested", "injury_delta_prevented",
+                     "injuries_before", "injuries_after", "resolved_at", "reason"}
     for exposure_id, row in state["vacuum_exposures"].items():
         required = {"id", "actor_id", "intent", "intent_sha256", "started_at", "ended_at", "interval_seconds", "next_due_at", "sequence", "pending", "resolved"}
+        _text(exposure_id, "vacuum exposure identity")
         if type(row) is not dict or set(row) != required or row["id"] != exposure_id or row["actor_id"] != actor.entity_id:
             raise ValueError("exact vacuum exposure receipt required")
-        if row["intent_sha256"] != TX.request_fingerprint(row["intent"]):
+        intent = row["intent"]
+        if (type(intent) is not dict or set(intent) != {"exposure_id", "actor_id", "environment", "capabilities", "interval_seconds", "reason"}
+                or intent["exposure_id"] != exposure_id or intent["actor_id"] != actor.entity_id
+                or row["intent_sha256"] != TX.request_fingerprint(intent)):
             raise ValueError("vacuum exposure intent changed")
-        C.integer(row["started_at"], "vacuum exposure start", 0); C.integer(row["sequence"], "vacuum check sequence", 0)
-        if row["interval_seconds"] not in (None, 10, 300):
-            raise ValueError("vacuum check interval changed")
+        _text(intent["reason"], "vacuum observation reason")
+        # A historical exposure keeps its observed capability policy, even after
+        # capability loss. Live source changes are checked by preflight_advance.
+        interval = _vacuum_interval(intent["capabilities"])
+        if (row["interval_seconds"] != interval or intent["interval_seconds"] != interval
+                or interval is not None and (type(row["interval_seconds"]) is not int or type(intent["interval_seconds"]) is not int)):
+            raise ValueError("vacuum check interval differs from its capability evidence")
+        C.integer(row["started_at"], "vacuum exposure start", 0)
+        C.integer(row["sequence"], "vacuum check sequence", 0)
         if row["ended_at"] is not None:
             C.integer(row["ended_at"], "vacuum exposure end", row["started_at"])
             if active == exposure_id:
@@ -256,14 +277,51 @@ def validate(actor, engine=None):
             raise ValueError("one open vacuum exposure must be active")
         if type(row["pending"]) is not dict or type(row["resolved"]) is not list:
             raise ValueError("vacuum check ledgers required")
-        for check_id, check in row["pending"].items():
-            if (type(check) is not dict or set(check) != {"id", "exposure_id", "due_at", "interval_seconds"}
-                    or check["id"] != check_id or check["exposure_id"] != exposure_id
-                    or check["interval_seconds"] != row["interval_seconds"]):
-                raise ValueError("vacuum pending check changed")
+        if len(row["pending"]) > 1 or row["sequence"] != len(row["resolved"]) + len(row["pending"]):
+            raise ValueError("vacuum check sequence differs from actual checks")
+        expected_due = None if interval is None else row["started_at"] + (row["sequence"] + 1) * interval
+        if row["next_due_at"] != expected_due or expected_due is not None and type(row["next_due_at"]) is not int:
+            raise ValueError("vacuum next deadline differs from actual check history")
+        if interval is None and row["sequence"]:
+            raise ValueError("immune exposure cannot have vacuum injury checks")
+        if row["ended_at"] is not None and row["pending"]:
+            raise ValueError("ended exposure retains unresolved vacuum checks")
+        checks = [(check["id"], check, True) for check in row["resolved"]
+                  if type(check) is dict and "id" in check]
+        if len(checks) != len(row["resolved"]):
+            raise ValueError("actual resolved vacuum check records required")
+        checks.extend((identity, check, False) for identity, check in row["pending"].items())
+        for sequence, (check_id, check, resolved) in enumerate(checks, 1):
+            expected = {"id": exposure_id + ":check:" + str(sequence), "exposure_id": exposure_id,
+                        "due_at": row["started_at"] + sequence * interval, "interval_seconds": interval}
+            if (type(check) is not dict or set(check) != check_fields | (result_fields if resolved else set())
+                    or check_id != expected["id"] or any(check.get(key) != value for key, value in expected.items())
+                    or type(check["due_at"]) is not int or type(check["interval_seconds"]) is not int):
+                raise ValueError("vacuum check identity or due boundary changed")
+            at = check["due_at"]
+            if resolved:
+                requested = C.integer(check["injury_delta_requested"], "requested vacuum injury", 0, 1)
+                applied = C.integer(check["injury_delta"], "applied vacuum injury", 0, requested)
+                prevented = C.integer(check["injury_delta_prevented"], "prevented vacuum injury", 0, requested)
+                before = C.integer(check["injuries_before"], "vacuum injuries before", 0)
+                after = C.integer(check["injuries_after"], "vacuum injuries after", 0)
+                if applied + prevented != requested or after != before + applied:
+                    raise ValueError("vacuum injury receipt disagrees with its actual result")
+                at = C.integer(check["resolved_at"], "vacuum check resolution time", check["due_at"], check["due_at"] + interval - 1)
+                _text(check["reason"], "vacuum check result reason")
+            end = row["ended_at"] if row["ended_at"] is not None else None if engine is None else engine.elapsed_seconds
+            if end is not None and at > end:
+                raise ValueError("vacuum check claims future exposure time")
         if engine is not None and (row["started_at"] > engine.elapsed_seconds or
                                    row["ended_at"] is not None and row["ended_at"] > engine.elapsed_seconds):
             raise ValueError("vacuum receipt claims future world time")
+        if expected_due is not None:
+            if row["ended_at"] is not None and row["ended_at"] >= expected_due:
+                raise ValueError("ended vacuum exposure skipped a due check")
+            # Time advancement may validate other owners at the exact boundary
+            # immediately before advance() publishes this exposure's next check.
+            if active == exposure_id and engine is not None and engine.elapsed_seconds > expected_due:
+                raise ValueError("vacuum check deadline was skipped")
 
 
 def validate_world(engine, actors):

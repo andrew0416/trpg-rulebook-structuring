@@ -505,7 +505,7 @@ def validate_prime_spec(rules,spec,*,moves=(),complete=False):
         if rules._selected_rule(PRIME_SOURCE)!=PRIME_SOURCE:raise ValueError('selected Letter Press source required')
         expected=prime_moves(rules,snapshot)
     import move_state as M
-    present=M.effective_list(spec,'moves',moves)
+    present=M.effective_list(spec,'moves',moves,rules=rules)
     for mid in set([*present,*moves]):
         if prime_instance(rules,mid) is not None and mid not in expected:raise ValueError('Prime Hidden Power is not owned by this actual combined actor')
     sources=spec.get('state_grants',{}).get('sources',{})

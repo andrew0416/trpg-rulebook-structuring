@@ -192,7 +192,7 @@ def activation_plan(engine,trainer,pokemon,form_id,*,ring,stone=None,actor,repla
     exception=stone_exception(engine.r,row)
     if exception is not None:
         import move_state as MOVES
-        if exception['move_id'] not in MOVES.known(engine.r,{'moves':MOVES.owned_list(pokemon.spec,'moves')}):
+        if exception['move_id'] not in MOVES.known(engine.r,{'moves':MOVES.owned_list(pokemon.spec,'moves',rules=pokemon.r)}):
             raise ValueError('Delta Evolution requires this Rayquaza to know Dragon Ascent')
     ring_key,ring_row=equipped(trainer,ring)
     if (ring_row.get('item_id')!=engine.r.mega_form_policy['ring_rule'] and

@@ -1001,10 +1001,36 @@ def vitamin_equivalents(spec):
 
 
 def introduction_bonus_dice(engine,pokemon,stat):
+ """Read the actual birth grant; later ownership does not change its source."""
  row=pokemon.spec.get('researcher_contest_introduction')
- if not isinstance(row,dict) or row.get('feature')!=PLAYING_GOD:return 0
- if not pokemon.spec.get('special_appearance'):raise ValueError('Playing God contest bonus requires the shiny birth')
- return row['dice'] if row.get('stat')==stat else 0
+ if row is None:return 0
+ import world_entities as W,pokemon_entities as ENTITIES
+ W.require_actors(engine,pokemon)
+ source(engine,PLAYING_GOD)
+ identity=pokemon.spec.get('playing_god_egg_entity_id')
+ entry=ENTITIES.egg_index(engine).get(identity)
+ egg=None if entry is None else entry[1]
+ facts=pokemon.spec.get(EGG_MARK)
+ if (pokemon.kind!='pokemon' or egg is None or egg.get('source')!=SOURCE
+     or pokemon.spec.get('egg_entity_id')!=identity or egg.get('hatched') is not True
+     or egg.get('pokemon_id')!=pokemon.entity_id or type(facts)is not dict
+     or facts.get('feature')!=PLAYING_GOD or facts.get('clause_id')!=clause(PLAYING_GOD)
+     or egg.get(EGG_MARK)!=facts):
+  raise ValueError('Playing God contest bonus requires its actual birth source')
+ upgrades=facts.get('upgrades')
+ if type(upgrades)is not list or any(type(item)is not dict for item in upgrades):
+  raise ValueError('Playing God contest bonus requires actual birth upgrades')
+ shiny=[item for item in upgrades if item.get('kind')=='shiny_contest']
+ if (len(shiny)!=1 or shiny[0].get('contest_stat') not in ('근사함','아름다움','귀여움','슬기로움','강인함')
+     or pokemon.spec.get('special_appearance') is not True
+     or egg.get('gm_hatch_details',{}).get('special_appearance') is not True):
+  raise ValueError('Playing God contest bonus requires the shiny birth')
+ expected={'stat':shiny[0]['contest_stat'],
+  'dice':DEFINITIONS[PLAYING_GOD]['upgrades']['shiny_contest']['contest_bonus_dice'],
+  'feature':PLAYING_GOD,'clause_id':clause(PLAYING_GOD)}
+ if type(row)is not dict or row!=expected:
+  raise ValueError('Playing God contest bonus differs from its actual birth grant')
+ return expected['dice'] if expected['stat']==stat else 0
 
 
 # ---------------------------------------------------------------- Climatology
@@ -1509,6 +1535,8 @@ def relic_after_hit(engine,attacker,target,move,dealt):
  name=_held_relic(engine,target,'def')
  if name is None or not target.spec.get('researcher_razors_reaction'):return None
  if attacker is target or attacker.fainted:return None
+ import turn as TURN
+ if not TURN.can_act(engine,target):return None
  loss=engine.tick_loss(attacker)
  engine.lose_hp(attacker,loss,source=name)
  target.spec.setdefault('researcher_relic_reactions',[]).append({'relic':name,'attacker_id':attacker.entity_id,'move_id':move.get('id'),'hp_loss':loss,'round':engine.round_no})

@@ -293,6 +293,7 @@ def start_target(e,actor,target,move,mm,scope):
         action=getattr(e,'_native_action_stack',[])
         if action and action[-1]['actor'] is actor and action[-1]['kind']=='move':
             rows[token]['native_action_frame']=action[-1]
+            action[-1]['completion_id']=token
         import cheerleader as CHEER
         rows[token]['cheerleader_support']=CHEER.support_snapshot(e,actor) if move.get('class')=='변화' else None
         __import__('coordinator').begin_move(e,rows[token])
@@ -333,7 +334,9 @@ def start_target(e,actor,target,move,mm,scope):
     return token
 
 
-def finish_target(e,token,actor,target,*,hit,dealt,effects=(),cancelled=False,hit_prevented=False,substitute_damage_receipt=None):
+def finish_target(e,token,actor,target,*,hit,dealt,effects=(),cancelled=False,hit_prevented=False,substitute_damage_receipt=None,_defer_completion=False):
+    if type(_defer_completion) is not bool or (_defer_completion and not cancelled):
+        raise ValueError('only an actual cancellation may defer its completion hooks')
     if token is None:return
     row=getattr(e,KEY)[token]
     if row['actor'] is not actor or target.entity_id not in row['started']:
@@ -347,7 +350,7 @@ def finish_target(e,token,actor,target,*,hit,dealt,effects=(),cancelled=False,hi
     old=row['results'].get(target.entity_id)
     if old is not None:
         if old!=result:raise ValueError('completed target observation changed')
-        return refresh(e,token)
+        return row if _defer_completion else refresh(e,token)
     row['results'][target.entity_id]=result
     __import__('arcanist').after_target(e,row,target)
     __import__('ace_trainer').after_target(e,row,target)
@@ -360,7 +363,7 @@ def finish_target(e,token,actor,target,*,hit,dealt,effects=(),cancelled=False,hi
         if result['hit'] and not result['cancelled'] and not hit_prevented:
             __import__('csv_item_form_contracts').move_hit(e,target,row.get('target_moves',{}).get(target.entity_id,row['move']))
     row['effects'].extend(x for x in effects if x not in row['effects'])
-    return refresh(e,token)
+    return row if _defer_completion else refresh(e,token)
 
 
 def seal(e,scope,*,interrupted=False):
@@ -443,6 +446,7 @@ def apply_empty_field(e,actor,move,effects,cells):
     action=getattr(e,'_native_action_stack',[])
     if action and action[-1]['actor'] is actor and action[-1]['kind']=='move':
         row['native_action_frame']=action[-1]
+        action[-1]['completion_id']=token
     import optional_state_effect_contracts as OPTIONAL_STATE
     OPTIONAL_STATE.begin_move(e,actor,None,move,token)
     __import__('provocateur').begin_move(e,row)
@@ -505,6 +509,7 @@ def refresh(e,token=None):
         row['phase']='complete';row['completed_at']=e.elapsed_seconds
         __import__('fortress').completed(e,row)
         __import__('skirmisher').after_move(e,row)
+        issue_disruption_window(e,row)
         __import__('commander_orders').mark_complete(e,row)
         __import__('musician').after_completion(e,row)
         __import__('rogue').after_move(e,row)
@@ -643,6 +648,7 @@ def validate_world(e,index):
     CONFUSION.validate_actions(e,index)
     rows=getattr(e,KEY,{})
     if type(rows) is not dict:raise ValueError('move completion mapping required')
+    validate_disruption_windows(e,index)
     for token,row in rows.items():
         import action_lifecycle as ACTION
         ACTION.move_frame(e,row)
@@ -725,3 +731,338 @@ def validate_world(e,index):
     if set(pending_counts)!=expected:
         raise ValueError('delayed attack completion requires exactly one pending queue per target')
     __import__('battle_contest').validate_world(e,index)
+
+
+# A completion owns its trigger window; this actor field is only a live index.
+DISRUPTION_WINDOWS = '_type_ace_disruption_windows'
+
+
+def _disruption_owner(e, actor):
+    import type_ace as TA
+    return TA.owner(e, actor, TA.uid('Disruption Order'))
+
+
+def _bug_hit(row):
+    return (row.get('phase') == 'complete' and row.get('sealed') and
+            row.get('move', {}).get('type') == '벌레' and any(
+            result and result.get('hit') and not result.get('cancelled')
+            for result in (recipient_result(row, t) for t in actual_recipients(row))))
+
+
+def _window(e, row, *, legacy=False):
+    import frequency as F
+    boundary = row.get('skirmisher_boundary', {})
+    value = {'version': 1, 'completion_id': row['id'],
+             'full_turn': row.get('full_turn'),
+             'seconds': boundary.get('seconds', e.elapsed_seconds),
+             'scene': boundary.get('scene', F.state(row['actor'])['scene']),
+             'closed_by': None, 'legacy': legacy}
+    if legacy:
+        history = list(getattr(row['actor'], '_action_history', []))
+        before = boundary.get('history')
+        related = row.get('trickster_maneuvers', [])
+        # Old saves did not retain every action's parent. Only the exact current
+        # native trigger plus its actual paid Trickster children proves migration.
+        current = getattr(e, '_trickster_trigger', None) == row['id']
+        explained = (isinstance(before, list) and history == before + ['free'] * len(related))
+        if not current or not explained:
+            value['closed_by'] = {'reason': 'legacy trigger lineage unavailable'}
+    return value
+
+
+def _window_current(e, row, window):
+    import action_lifecycle as A, frequency as F
+    return (window['full_turn'] == A.current_full_turn(e) and
+            window['seconds'] == e.elapsed_seconds and
+            window['scene'] == F.state(row['actor'])['scene'])
+
+
+def _window_index(e, actor):
+    value = actor.custom_conditions.get(DISRUPTION_WINDOWS)
+    if value is None:
+        return None
+    if (type(value) is not list or any(type(token) is not str for token in value) or
+            len(value) != len(set(value))):
+        raise ValueError('native Disruption window index required')
+    rows = getattr(e, KEY, {})
+    for token in value:
+        row = rows.get(token)
+        if (row is None or row.get('actor') is not actor or
+                'disruption_window' not in row or row['disruption_window'].get('closed_by') is not None):
+            raise ValueError('Disruption index must reference its actual open completion')
+    return value
+
+
+def _legacy_windows(e, actor):
+    # Only called once when a pre-window actor first records a native action.
+    # Modern actors have an index even when it is empty.
+    return [(row, _window(e, row, legacy=True)) for row in getattr(e, KEY, {}).values()
+            if row.get('actor') is actor and _bug_hit(row) and 'disruption_window' not in row]
+
+
+def issue_disruption_window(e, row):
+    if not _bug_hit(row) or _disruption_owner(e, row['actor']) is None:
+        return
+    if 'disruption_window' in row:
+        return
+    actor = row['actor']
+    ids = _window_index(e, actor)
+    if ids is None:
+        ids = []; actor.custom_conditions[DISRUPTION_WINDOWS] = ids
+    row['disruption_window'] = _window(e, row)
+    ids.append(row['id'])
+
+
+def require_disruption_window(e, row):
+    if not _bug_hit(row):
+        raise ValueError('Disruption requires its actual native Bug hit')
+    window = row.get('disruption_window')
+    if window is None:
+        window = _window(e, row, legacy=True)
+    else:
+        ids = _window_index(e, row['actor'])
+        if ids is None or (window.get('closed_by') is None and row['id'] not in ids):
+            raise ValueError('actual indexed Disruption trigger required')
+    if window.get('closed_by') is not None or not _window_current(e, row, window):
+        raise ValueError('Disruption Order requires its current native hit trigger window')
+    return window
+
+
+def completion_origins(e):
+    """Only live native frames and issued source scopes identify a causal parent."""
+    result = []
+    rows = getattr(e, KEY, {})
+    for grant in getattr(e, '_action_grants', ()):
+        if len(grant) == 6 and grant[5] == 'native_completion_reaction':
+            row = rows.get(grant[3])
+            if row is None or row['actor'] is not grant[2]:
+                raise ValueError('native completion reaction identity changed')
+            result.append(row['id'])
+            result.extend(row.get('native_action_frame', {}).get('trigger_origins', ()))
+    for frame in getattr(e, '_native_action_stack', ()):
+        validate_trigger_frame(e, frame)
+        result.extend(frame.get('trigger_origins', ()))
+        row = rows.get(frame.get('completion_id'))
+        if row is not None and row.get('native_action_frame') is frame and row['phase'] == 'complete':
+            result.append(row['id'])
+    # A native Interrupt may resume without the issuing Python scope.
+    interrupts = getattr(e, '_initiative_interrupts', {})
+    for frame in interrupts.get('frames', ()):
+        window = interrupts.get('windows', {}).get(frame.get('window_id'), {})
+        trigger = window.get('trigger', {})
+        if trigger.get('kind') == 'duelist_overflow':
+            _, receipt = __import__('duelist').overflow_trigger(e, trigger['overflow_id'], allow_completed=True)
+            parent = receipt.get('origin', {}).get('completion')
+            if parent in rows:
+                result.append(parent)
+                result.extend(rows[parent].get('native_action_frame', {}).get('trigger_origins', ()))
+    return list(dict.fromkeys(result))
+
+
+def bind_trigger_frame(e, frame):
+    # A live parent is context, not permission to start an arbitrary child.
+    # Exact child declarations are issued by checked reaction producers. Moves
+    # additionally enter through already authenticated Move grants/Interrupts.
+    issued = []
+    granted = False
+    for grant in getattr(e, '_action_grants', ()):
+        if len(grant) != 6:
+            continue
+        if grant[5] == 'native_completion_reaction':
+            scope = grant[4]
+            child = scope.get('child')
+            if (child is not None and not scope['child_issued'] and child[0] is frame['actor'] and
+                    child[1:] == (frame['kind'], frame['source'])):
+                issued.append(scope)
+        elif grant[1] is frame['actor'] and grant[3] == frame['source']:
+            granted = granted or (frame['kind'] == 'move' and grant[5] != 'native_maneuver_child' or
+                       frame['kind'] == 'maneuver' and grant[5] == 'native_maneuver_child')
+    selected = __import__('initiative_interrupts').selected_move_frame(e, frame['actor'])
+    interrupted = (frame['kind'] == 'move' and selected is not None and
+                   selected[1]['move_id'] == frame['source'])
+    if not (issued or granted or interrupted):
+        return
+    origins = completion_origins(e)
+    if not origins:
+        return
+    for scope in issued:scope['child_issued'] = True
+    frame['trigger_origins'] = origins
+    for token in origins:
+        row = getattr(e, KEY, {})[token]
+        children = row.setdefault('trigger_children', [])
+        if not any(child is frame for child in children):
+            children.append(frame)
+
+
+def validate_trigger_frame(e, frame):
+    origins = frame.get('trigger_origins')
+    if 'trigger_recorded' in frame and type(frame['trigger_recorded']) is not bool:
+        raise ValueError('native trigger action observation must be boolean')
+    if origins is None:
+        return
+    if type(origins) is not list or any(type(token) is not str for token in origins) or len(origins) != len(set(origins)):
+        raise ValueError('distinct actual native trigger ancestors required')
+    for token in origins:
+        row = getattr(e, KEY, {}).get(token)
+        if (row is None or row.get('native_action_frame') is frame or
+                not any(child is frame for child in row.get('trigger_children', ()))):
+            raise ValueError('native child must retain its actual issuing completion')
+
+
+def _trigger_payment(e, actor, kind, source, move):
+    """Prove this payment, not every action occurring inside its callback."""
+    protected, payments = [], []
+    rows = getattr(e, KEY, {})
+    for grant in getattr(e, '_action_grants', ()):
+        if len(grant) != 6 or grant[5] != 'native_completion_reaction':
+            continue
+        scope = grant[4]
+        key = (actor.entity_id, kind)
+        if (source is not None and source == scope['source'] and kind == 'free' and
+                (actor is grant[1] or actor is grant[2]) and key not in scope['payments']):
+            row = rows[grant[3]]
+            protected.extend((row['id'], *row.get('native_action_frame', {}).get('trigger_origins', ())))
+            payments.append((scope, 'payments', key))
+    stack = getattr(e, '_native_action_stack', ())
+    frame = stack[-1] if stack else None
+    if frame is not None:
+        validate_trigger_frame(e, frame)
+        actual_move = move is not None and frame['source'] == move.get('id')
+        granted_move = kind == 'free' and frame.get('trigger_granted_payment') is True
+        if (frame['actor'] is actor and frame['kind'] == 'move' and
+                (actual_move or granted_move) and not frame.get('trigger_move_paid')):
+            protected.extend(frame.get('trigger_origins', ()))
+            payments.append((frame, 'trigger_move_paid', True))
+        # A native maneuver's optional reroll is a separate Free payment. Its
+        # actual pending roll must belong to that maneuver's saved request list.
+        import skill_feature_actions as SF, skill_maneuver_actions as SM
+        if source in (SF.MONKEY, SF.MONKEY_CSV) and kind == 'free' and frame['kind'] == 'maneuver':
+            owner = frame['actor']
+            active = owner.custom_conditions.get(SM.ACTIVE)
+            receipt = owner.custom_conditions.get(SM.RECEIPTS, {}).get(active, {})
+            if receipt.get('basis', {}).get('source') == frame['source'] and receipt.get('stage') == 'skill':
+                for participant, request, feature, roll_id in receipt.get('requests', ()):
+                    if participant is not actor or feature != source:
+                        continue
+                    observed = SF.event(e, actor, roll_id)
+                    key = (source, roll_id)
+                    if (observed is not None and observed.state == 'pending' and
+                            observed.feature == source and observed.request == request and
+                            key not in frame.get('trigger_feature_payments', ())):
+                        protected.extend(frame.get('trigger_origins', ()))
+                        payments.append((frame, 'trigger_feature_payments', key))
+    return set(protected), payments
+
+
+def prepare_trigger_action(e, actor, kind, *, source=None, move=None):
+    import world_entities as W
+    protected, payments = _trigger_payment(e, actor, kind, source, move)
+    plan = []
+    for actor in W.actor_index(e).values():
+        ids = _window_index(e, actor)
+        if ids is None:
+            if _disruption_owner(e, actor) is None:
+                continue
+            materialize = _legacy_windows(e, actor)
+            active = [(row, window) for row, window in materialize if window['closed_by'] is None]
+        else:
+            materialize = []
+            active = [(getattr(e, KEY)[token], getattr(e, KEY)[token]['disruption_window']) for token in ids]
+        closed = [row['id'] for row, window in active
+                  if row['id'] not in protected or not _window_current(e, row, window)]
+        plan.append((actor, materialize, closed))
+    return plan, payments
+
+
+def commit_trigger_action(e, prepared, actor, kind):
+    # Consume only after the ordinary owner actually appended its action.
+    plan, payments = prepared
+    for owner, field, value in payments:
+        if field == 'trigger_move_paid':
+            owner[field] = value
+            owner.pop('trigger_granted_payment', None)
+        else:
+            owner.setdefault(field, []).append(value)
+    for frame in getattr(e, '_native_action_stack', ()):
+        if frame.get('trigger_origins'):frame['trigger_recorded']=True
+    for owner, materialize, closed in plan:
+        ids = owner.custom_conditions.setdefault(DISRUPTION_WINDOWS, [])
+        for prior, window in materialize:
+            row=getattr(e, KEY)[prior['id']]
+            row['disruption_window'] = window
+            if window['closed_by'] is None and row['id'] not in ids:
+                ids.append(row['id'])
+        for token in closed:
+            row = getattr(e, KEY)[token]
+            row['disruption_window']['closed_by'] = {
+                'reason': 'actual unrelated action or boundary', 'actor_id': actor.entity_id,
+                'action_index': len(actor._action_history) - 1,
+                'turn_serial': actor.custom_conditions.get('combat_turn_serial', 0)}
+            if token in ids:
+                ids.remove(token)
+
+
+def validate_disruption_windows(e, index):
+    rows = getattr(e, KEY, {})
+    for actor in index.values():
+        _window_index(e, actor)
+    for token, row in rows.items():
+        window = row.get('disruption_window')
+        if window is not None:
+            if (type(window) is not dict or set(window) != {'version','completion_id','full_turn','seconds','scene','closed_by','legacy'} or
+                    window['version'] != 1 or window['completion_id'] != token or not _bug_hit(row) or
+                    window['full_turn'] != row.get('full_turn') or type(window['legacy']) is not bool):
+                raise ValueError('actual native Disruption window provenance required')
+            boundary = row.get('skirmisher_boundary', {})
+            if window['seconds'] != boundary.get('seconds') or window['scene'] != boundary.get('scene'):
+                raise ValueError('Disruption window timing differs from its native completion')
+            closed = window['closed_by']
+            if closed is not None:
+                if type(closed) is not dict or closed.get('reason') not in ('legacy trigger lineage unavailable','actual unrelated action or boundary'):
+                    raise ValueError('actual Disruption closure required')
+                if 'actor_id' in closed:
+                    actor = index.get(closed['actor_id'])
+                    if actor is None or type(closed.get('action_index')) is not int or closed['action_index'] < 0:
+                        raise ValueError('actual closing action actor/index required')
+            elif token not in (row['actor'].custom_conditions.get(DISRUPTION_WINDOWS) or ()):
+                raise ValueError('open Disruption window lost its actual index')
+        children = row.get('trigger_children', ())
+        if not isinstance(children, (list, tuple)) or len({id(frame) for frame in children}) != len(children):
+            raise ValueError('distinct actual native child frames required')
+        for frame in children:
+            if type(frame) is not dict or index.get(getattr(frame.get('actor'), 'entity_id', None)) is not frame.get('actor'):
+                raise ValueError('actual native trigger child actor required')
+            if token not in frame.get('trigger_origins', ()):
+                raise ValueError('native trigger parent and child links disagree')
+            validate_trigger_frame(e, frame)
+
+
+def disruption_frame_interested(e, actor):
+    return _disruption_owner(e, actor) is not None or bool(completion_origins(e))
+
+
+def finish_trigger_frame(e, frame):
+    """A rejected, unobserved attempt cannot leave a durable child claim."""
+    if frame.get('trigger_recorded') or frame.get('id') is not None or frame.get('deferred'):
+        return
+    for token in frame.pop('trigger_origins', ()):
+        row=getattr(e,KEY)[token]
+        children=row.get('trigger_children',[])
+        children[:]=[child for child in children if child is not frame]
+        if not children:row.pop('trigger_children',None)
+
+
+def history_watermark(e):
+    """Bound the existing len(rows)+1 native ID allocator without dict ordering."""
+    rows=getattr(e,KEY,{})
+    if set(rows)!={'move-complete:'+str(i) for i in range(1,len(rows)+1)}:return None
+    return {'sequence':len(rows),'pending':[key for key,row in rows.items() if row['phase']!='complete']}
+
+
+def after_history_watermark(e, boundary):
+    current=history_watermark(e)
+    if current is None or boundary is None or current['sequence']<boundary['sequence']:return None
+    rows=getattr(e,KEY,{})
+    if any(key not in rows for key in boundary['pending']):return None
+    keys=boundary['pending']+['move-complete:'+str(i) for i in range(boundary['sequence']+1,current['sequence']+1)]
+    return [rows[key] for key in keys]

@@ -323,7 +323,7 @@ def preflight_move(engine, actor, move_id, *, count_use=True):
     if not matches:
         return
     import move_state as MOVES
-    if move_id in MOVES.owned_list(actor.spec, "moves", actor.moves):
+    if move_id in MOVES.owned_list(actor.spec, "moves", actor.moves,rules=actor.r):
         return
     if len(matches) != 1:
         raise ValueError("one actual cannon must own this Move permission")
@@ -337,7 +337,7 @@ def begin_move_use(engine, actor, target, move_id):
     if not matches:
         return None
     import move_state as MOVES
-    if move_id in MOVES.owned_list(actor.spec, "moves", actor.moves):
+    if move_id in MOVES.owned_list(actor.spec, "moves", actor.moves,rules=actor.r):
         return None
     if len(matches) != 1:
         raise ValueError("one actual cannon must own this Move permission")

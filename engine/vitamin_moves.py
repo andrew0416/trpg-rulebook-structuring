@@ -79,7 +79,7 @@ def consume(e,user,target,uid,*,selected_move=None,selected_stat=None,owner_cons
  mid=None;base=None
  if uid==PP and not no_effect:
   mid=e.r.move_id(selected_move)
-  if mid is None or mid not in M.known(e.r,{'moves':M.owned_list(target.spec,'moves',target.moves)}):raise ValueError('PP Up requires one actually learned selected move')
+  if mid is None or mid not in M.known(e.r,{'moves':M.owned_list(target.spec,'moves',target.moves,rules=target.r)}):raise ValueError('PP Up requires one actually learned selected move')
   import frequency as F
   base=F.move_frequency(e,mid,target)
   if base[0] not in ('at_will','every_other_turn','daily','scene'):raise ValueError('PP Up selected move frequency needs its source policy')

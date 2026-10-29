@@ -475,6 +475,7 @@ def activate(engine,actor,source,*,choice=None,observation=None,reason,seconds=N
     if source==LEAFY:raise ValueError('Leafy Cloak is chosen only by actual Designer creation')
     row=definition(engine.r,source)
     if row['kind']=='creation_slots':raise ValueError('creation pattern requires one native initialization')
+    if row['kind']=='turn_choice':raise ValueError('turn choice requires the native turn-start producer')
     if choice is None:
         pending=actor.spec.get(PENDING,{}).get(source)
         if pending is None:raise ValueError('ability-state choice required')
@@ -514,8 +515,32 @@ def initialize(engine,actor,source,*,choice=None,parent_choices=(),reason):
 
 
 def start_turn(engine,actor):
+    """Consume one choice from the existing native owner-turn boundary."""
     source='ability/꼬르륵스위치'
-    if _owned(actor,source):activate(engine,actor,source,reason='turn-start form choice')
+    if not _owned(actor,source):return
+    if actor.kind!='pokemon':raise ValueError('actual active Pokemon ability required')
+    import world_entities as WORLD
+    WORLD.require_actors(engine,actor)
+    if (engine._active_turn_actor is not actor
+            or getattr(actor,'_turn_start_decisions_pending',False) is not True):
+        raise ValueError('turn choice requires the native turn-start producer')
+    serial=C.integer(actor.custom_conditions.get('combat_turn_serial'),'actual turn-choice serial',1)
+    if _records(actor).get(source,{}).get('turn_choice_serial')==serial:
+        raise ValueError('turn choice already applied for this actual turn')
+    pending=actor.spec.get(PENDING,{}).get(source)
+    if pending is None:raise ValueError('ability-state choice required')
+    _text(pending['reason'],'ability-state activation reason')
+    choice=pending['choice']
+    payload,observation=_selection(engine,actor,source,choice,pending['observation'])
+    row=definition(engine.r,source)
+    def commit(e,c):
+        out=_apply(e,c,source,choice,payload,observation,pending['reason'],
+                   lifetime=row['lifetime'],prior_form=c.form)
+        _records(c)[source]['turn_choice_serial']=serial
+        out['turn_choice_serial']=serial
+        c.spec.get(PENDING,{}).pop(source,None)
+        return out
+    return G.transition(engine,actor,commit,include_rulings=True)
 
 
 def hp_change_interested(actor):
@@ -767,6 +792,10 @@ def validate_world(engine,index):
                 raise ValueError('ability-state projection differs from reviewed source')
             if record.get('grant_source')!=_sid(source) or record.get('lifetime')!=row['lifetime']:
                 raise ValueError('ability-state projection ownership/lifetime changed')
+            if 'turn_choice_serial' in record:
+                if row['kind']!='turn_choice':raise ValueError('turn-choice receipt belongs only to its native source')
+                C.integer(record['turn_choice_serial'],'actual turn-choice serial',1,
+                          actor.custom_conditions.get('combat_turn_serial',0))
             payload=record.get('payload');_validate_targets(engine,payload)
             if source==LEAFY:expected=_leafy_payload(actor,record,current=True)
             else:expected,_=_selection(engine,actor,source,record['choice'],record.get('observation'))

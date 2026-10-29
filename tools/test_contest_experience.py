@@ -237,11 +237,45 @@ class ContestExperienceTests(unittest.TestCase):
         self.assertTrue(all(XP.KEY not in p.spec for p in pokemon if p is not actual))
 
     def test_paired_result_counts_pokemon_opponents_not_trainers(self):
-        host, cs, _, _ = self.fixture(levels=(10,)*3, paired=True)
-        self.play(host, cs, trainer_model='simultaneous',
-                  trainer_order=lambda c, t, rnd: [c, t])
-        self.assertEqual([len(host.experience_quote(c)['defeated_ids']) for c in cs], [2, 1, 0])
-        self.assertEqual([host.experience_quote(c)['amount'] for c in cs], [20, 20, 0])
+        for model in ('simultaneous', 'alternating'):
+            with self.subTest(model=model):
+                host, cs, _, _ = self.fixture(levels=(10,)*3, paired=True)
+                for c in cs:
+                    for actual in host._native_intro_bindings[c][1:3]:
+                        self.assertIn('struggle', actual.moves)
+                    self.assertNotIn('struggle', c.moves)
+                    self.assertNotIn('struggle', host._trainer_partners[c].moves)
+                self.play(host, cs, trainer_model=model,
+                          trainer_order=lambda c, t, rnd: [c, t] if model == 'simultaneous' else [c if rnd % 2 else t])
+                self.assertEqual([len(host.experience_quote(c)['defeated_ids']) for c in cs], [2, 1, 0])
+                self.assertEqual([host.experience_quote(c)['amount'] for c in cs], [20, 20, 0])
+
+    def test_paired_actual_learned_move_changes_reject_before_start_and_after_choice(self):
+        for model in ('simultaneous', 'alternating'):
+            for timing in ('before', 'choice'):
+                for participant in ('pokemon', 'trainer'):
+                    with self.subTest(model=model, timing=timing, participant=participant):
+                        host, cs, native, pokemon = self.fixture(levels=(10,)*3, paired=True)
+                        actual = host._native_intro_bindings[cs[0]][1 if participant == 'pokemon' else 2]
+                        def remove_move():
+                            native.gm.set_move(actual, self.safe[0], add=False,
+                                               reason='actual learned Move removed after Contest declaration')
+                        def choose(actor, rnd, adjacent, center):
+                            remove_move()
+                            return self.safe[1], 0
+                        if timing == 'before':
+                            remove_move()
+                        expected = 'original declaration cannot be replaced' if timing == 'before' else 'during the performance choice'
+                        with self.assertRaisesRegex(ValueError, expected):
+                            self.play(host, cs, trainer_model=model,
+                                      chooser=choose if timing == 'choice' else self.choose,
+                                      trainer_order=lambda c, t, rnd: [c, t] if model == 'simultaneous' else [c if rnd % 2 else t])
+                        self.assertNotIn(self.safe[0], actual.moves)
+                        self.assertTrue(all(XP.KEY not in p.spec for p in pokemon))
+                        if timing == 'before':
+                            self.assertIsNone(host._paired_run)
+                        else:
+                            self.assertNotEqual(host._paired_run['phase'], 'complete')
 
     def test_rotation_team_outcome_excludes_teammates_and_includes_actual_opponents(self):
         fixture = HALL_FIX.modes_fixture.RotationNativeBoundaryTests()

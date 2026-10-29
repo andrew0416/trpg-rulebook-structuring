@@ -7,6 +7,7 @@ from collections import Counter
 from copy import deepcopy
 
 import acquisition_qualification as Q
+import skill_modifiers as SKILL_RANKS
 import acquired_features as ACQUIRED
 import source_context as SOURCES
 import trainer_feature_acquisition as TFA
@@ -132,8 +133,11 @@ def prepare_retraining(engine, actor, feature_id, policy):
         before, after = policy["skills_before"], policy["skills_after"]
         if (type(before) is not dict or type(after) is not dict or set(before) != affected or set(after) != affected or
                 any(type(before[s]) is not int or type(after[s]) is not int or
-                    not 1 <= after[s] <= before[s] <= 6 or SKILL.rank(engine.r, actor, s)[2] != before[s] for s in affected)):
+                    not 1 <= after[s] <= before[s] or SKILL.rank(engine.r, actor, s)[2] != before[s] for s in affected)):
             raise ValueError("GM withdrawal requires exact current ranks and explicit resulting ranks")
+        for skill in affected:
+            SKILL_RANKS.validate_rank_value(engine.r,before[skill],label="Capture withdrawal prior rank")
+            SKILL_RANKS.validate_rank_value(engine.r,after[skill],label="Capture withdrawal resulting rank")
         WITHDRAWAL.preflight(actor, {sid for sid, _ in children})
         skills = deepcopy(actor.spec.get("skills", {}))
         canonical = {SKILL.skill_id(engine.r.skill_policy, skill) for skill in affected}
@@ -203,10 +207,11 @@ def _qualification(actor, feature_id, snapshot):
         raise ValueError("exact Capture acquisition-time observations required")
     ranks = snapshot["skills"]
     if (type(ranks) is not dict or set(ranks) != set(SKILLS) or
-            any(type(value) is not int or not 1 <= value <= 6 for value in ranks.values()) or
             any(type(snapshot[key]) is not int for key in ("rank", "level", "parent_count", "prior_rank")) or
             type(snapshot["prior_values"]) is not list or any(type(v) is not str for v in snapshot["prior_values"])):
         raise ValueError("whole ordinary Capture skill ranks and acquisition history required")
+    for value in ranks.values():
+        SKILL_RANKS.validate_rank_value(actor.r,value,label="Capture acquisition skill rank")
     rank = snapshot["rank"]
     checks = [Q.check("trainer", "prerequisite", actor.kind == "trainer", "actual trainer required")]
     if feature_id == CLASS:

@@ -63,7 +63,7 @@ def validate(actor):
 
 def exemptions(rules,spec,abilities=None):
  import move_state as M
- out={};known=set(M.known(rules,{'moves':M.owned_list(spec,'moves')}))
+ out={};known=set(M.known(rules,{'moves':M.owned_list(spec,'moves',rules=rules)}))
  for row in records(spec):
   if row['status']=='active' and owned(rules,spec,row['ability'],abilities):
    for mid in linked_moves(rules,row['ability'])&known:out[mid]=SOURCE+':'+row['ability']
@@ -97,7 +97,7 @@ def validate_protection(rules,spec):
  import move_state as M
  rows=spec.get(PROTECTION,{})
  if type(rows)is not dict:raise ValueError('Connection protection requires actual acquisition records')
- known=set(M.known(rules,{'moves':M.owned_list(spec,'moves')}))
+ known=set(M.known(rules,{'moves':M.owned_list(spec,'moves',rules=rules)}))
  for mid,row in rows.items():
   if (type(row)is not dict or set(row)!={'ability','actor_id','source','acquired_at','reason','acquisitions'}
       or row['actor_id']!=spec.get('id') or row['source']!=KEYWORD
@@ -125,7 +125,7 @@ def validate_protection(rules,spec):
 
 def bound_moves(rules,spec,abilities=None):
  import move_state as M
- known=set(M.known(rules,{'moves':M.owned_list(spec,'moves')}))
+ known=set(M.known(rules,{'moves':M.owned_list(spec,'moves',rules=rules)}))
  out={mid:row['ability'] for mid,row in spec.get(PROTECTION,{}).items()}
  for row in spec.get('move_learning_log',[]):
   if row.get('source')==KEYWORD and row.get('learning_contract')==1:out[row['move_id']]=row['connection_ability']
@@ -207,7 +207,7 @@ def _learn(engine,c,ability,linked,*,reason,transform=None,choice=None,prompt=Tr
  # Source-owned known Moves become independently learned by this new keyword gain.
  missing=sorted(linked-set(M.known(rules,destination)))
  state=M.describe(rules,c.spec)
- present=set(M.known(rules,{'moves':M.owned_list(c.spec,'moves')})) if transform is None else set(M.known(rules,destination))
+ present=set(M.known(rules,{'moves':M.owned_list(c.spec,'moves',rules=c.r)})) if transform is None else set(M.known(rules,destination))
  used=state['slot_count'] if transform is None else len(present-set(state['exempt']))
  full=state['total'] is not None and used+len(set(missing)-present)>state['total']
  points=c.spec.get('tutor_points',0)
@@ -256,12 +256,14 @@ def _learn(engine,c,ability,linked,*,reason,transform=None,choice=None,prompt=Tr
    import move_type_sync as MOVE_SYNC
    forbid_forgetting(c,[m for m in candidate['moves'] if rules.move_id(m)!=forget])
    MOVE_SYNC.forget_spec(rules,candidate,forget,at=engine.elapsed_seconds,reason=reason)
+   __import__('ace_trainer').forget_spec(rules,candidate,forget,at=engine.elapsed_seconds,reason=reason)
    candidate['moves']=[m for m in candidate['moves'] if rules.move_id(m)!=forget]
   if missing:
    L.learn_moves(rules,candidate,candidates=list(missing),selected=list(missing),method='feature',source=learning_source,
     reason=reason,details={'connection_ability':ability},replaced=forget)
-  for field in ('move_learning','move_learning_log',M.HISTORY,'move_type_sync'):
+  for field in ('move_learning','move_learning_log',M.HISTORY,'move_type_sync','signature_techniques'):
    if field in candidate:c.spec[field]=candidate[field]
+  if 'signature_techniques' in candidate:c.spec['tutor_points']=candidate['tutor_points']
   G.set_baseline(c,'moves',candidate['moves'])
   for mid in linked:
    previous=c.spec.setdefault(PROTECTION,{}).get(mid,{})

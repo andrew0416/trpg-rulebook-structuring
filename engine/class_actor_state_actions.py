@@ -127,6 +127,46 @@ def acquired_source(trainer, rule_id):
     return source
 
 
+def _medical_receipt(owner,event):
+    """Read the exact native application; legacy lookup never uses target_id."""
+    import consumption_execution as STOCK
+    payload=event['payload'];base={'item_id','item_name','native_result'}
+    if (set(payload) not in (base,base|{'payment_id'})
+            or any(type(payload.get(k)) is not str or not payload[k] for k in ('item_id','item_name'))):
+        raise ValueError('Medical Technique needs its original medicine observation')
+    # A real stock payment is not by itself the source's restorative trigger.
+    # Restore must retain the same category/identity exclusion as emission.
+    _,header=owner.r.item_effects(payload['item_name'])
+    import restorative_items as RESTORATIVE
+    if (header.get('id')!=payload['item_id'] or header.get('category')!='약'
+            or payload['item_id'] in RESTORATIVE.X_ITEMS):
+        raise ValueError('Medical Technique requires its original restorative non-X medicine')
+    result=payload['native_result']
+    if type(result) is not list or len(result)!=2 or any(type(n) is not int or n<0 for n in result):
+        raise ValueError('Medical Technique needs the actual immediate medicine result')
+    rows=STOCK.validate(owner)
+    def matches(row):
+        return (row['item_stock']['item_id']==payload['item_id'] and row['at']==event['at']
+                and row['outcome'] in ('applied','no_effect')
+                and row.get('native_immediate_result')=={'done':result[0],'held':result[1]})
+    if 'payment_id' in payload:
+        if type(payload['payment_id']) is not str:raise ValueError('actual medicine payment identity required')
+        receipt=rows.get(payload['payment_id'])
+    else:
+        # Old native events had no receipt ID. Admit only one independently
+        # matching payer/item/time/result witness. The event's mutable target
+        # never selects the witness, even when another patient was medicated.
+        candidates=[row for row in rows.values() if matches(row)]
+        if len(candidates)!=1:
+            raise ValueError('legacy Medical Technique lacks one unambiguous original medicine application')
+        receipt=candidates[0]
+    if (receipt is None or not matches(receipt) or event['owner_id']!=owner.entity_id
+            or event['trigger']!='healing_item_used' or receipt['target_id']!=event['target_id']
+            or receipt['results']!=[{'kind':'immediate_item_target','id':event['target_id']}]):
+        raise ValueError('Medical Technique must retain its original medicine user, target and result')
+    return receipt
+
+
 def _state(actor, create=False):
     value = actor.spec.get(STATE)
     if value is None and create:
@@ -143,6 +183,7 @@ def _state(actor, create=False):
         "payload", "at", "round", "status", "result",
     }
     identities = set()
+    medicine_payments = set()
     for event in value["events"]:
         if not isinstance(event, dict) or set(event) != required:
             raise ValueError("invalid class actor-state action event")
@@ -170,7 +211,25 @@ def _state(actor, create=False):
             raise ValueError("class state event status is invalid")
         if event["result"] is not None and not isinstance(event["result"], dict):
             raise ValueError("class state event result must be a mapping or null")
+        if event['source']==MEDICAL_TECHNIQUE:
+            receipt=_medical_receipt(actor,event)
+            if receipt['receipt_id'] in medicine_payments:
+                raise ValueError('one Medical Technique decision per actual medicine application')
+            medicine_payments.add(receipt['receipt_id'])
     return value
+
+
+def _retain_medical_receipts(owner):
+    """Pin independently proven legacy links at a real mutable action boundary.
+
+    Validation/import never calls this. Resolve all links before writing any;
+    an already ambiguous legacy event remains held, never target-selected.
+    """
+    state=_state(owner)
+    bindings=[(event,_medical_receipt(owner,event)['receipt_id'])
+              for event in (state or {}).get('events',[])
+              if event['source']==MEDICAL_TECHNIQUE and 'payment_id' not in event['payload']]
+    for event,identity in bindings:event['payload']['payment_id']=identity
 
 
 def validate(actor):
@@ -258,7 +317,7 @@ def observe_food_buff_consumed(engine, actor, receipt):
     return offered
 
 
-def observe_healing_item_used(engine, user, target, item_name, result):
+def observe_healing_item_used(engine, user, target, item_name, result, *, payment_id):
     """Offer Medical Technique after one actual restorative medicine action."""
     if user.kind != "trainer" or _actor_index(engine).get(user.entity_id) is not user:
         return None
@@ -270,11 +329,13 @@ def observe_healing_item_used(engine, user, target, item_name, result):
         return None
     if not isinstance(result, tuple) or len(result) != 2:
         raise ValueError("actual immediate medicine result required")
-    return _offer(engine, user, target, MEDICAL_TECHNIQUE, "healing_item_used", {
-        "item_id": item_id,
-        "item_name": item_name,
-        "native_result": list(result),
-    })
+    payload={"item_id":item_id,"item_name":item_name,"native_result":list(result),"payment_id":payment_id}
+    _medical_receipt(user,{'owner_id':user.entity_id,'target_id':target.entity_id,
+                           'trigger':'healing_item_used','payload':payload,'at':engine.elapsed_seconds})
+    for event in (_state(user) or {}).get('events',[]):
+        if event['source']==MEDICAL_TECHNIQUE and _medical_receipt(user,event)['receipt_id']==payment_id:
+            return event['id']
+    return _offer(engine,user,target,MEDICAL_TECHNIQUE,"healing_item_used",payload)
 
 
 def observe_level_up(engine, pokemon, old_level, new_level):
@@ -441,6 +502,9 @@ def resolve(engine, trainer, event_id, *, use):
     def apply(staged_engine, staged_owner):
         actors = _actor_index(staged_engine)
         event = _find_event(staged_owner, event_id)
+        # This actual accept/decline transition preserves the original witness
+        # before later uses can make an old unlinked history ambiguous.
+        _retain_medical_receipts(staged_owner)
         if not use:
             event["status"] = "declined"
             event["result"] = {"used": False}

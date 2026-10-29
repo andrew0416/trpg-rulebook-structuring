@@ -39,6 +39,281 @@ class StateGrantTests(unittest.TestCase):
             I.register_item(self.e,self.c,name)
         return name
 
+    def assert_generated_weapon_usable(self,engine,actor,mid):
+        import state_codec as CODEC,world_entities as WORLD
+        move=engine.r.move(mid)
+        self.assertEqual(move['id'],mid)
+        self.assertIsInstance(engine.r.move_mech(mid)[0],dict)
+        self.assertEqual(engine.r._selected_rule(mid),mid)
+        for mapping in (engine.r.moves,engine.r.moves_mech,engine.r.selection.units,
+                        engine.r.selection.dependencies,engine.r._runtime_weapon_declarations):
+            self.assertIn(mid,mapping)
+        self.assertIn(mid,engine.r.selection.names[move['name']])
+        self.assertIn(mid,actor.custom_conditions['equipped_weapons'])
+        self.assertEqual(actor.moves.count(mid),1)
+        restored=CODEC.load_engine(engine.r,json.loads(json.dumps(CODEC.dump_engine(engine))))
+        holder=WORLD.actor_index(restored)[actor.entity_id]
+        self.assertIn(mid,holder.custom_conditions['equipped_weapons'])
+        self.assertEqual(restored.r.move(mid)['id'],mid)
+        self.assertIsInstance(restored.r.move_mech(mid)[0],dict)
+
+    def assert_generated_weapon_absent(self,mid,name):
+        for mapping in (self.rules.moves,self.rules.moves_mech,self.rules.selection.units,
+                        self.rules.selection.dependencies,self.rules._runtime_weapon_declarations):
+            self.assertNotIn(mid,mapping)
+        self.assertNotIn(mid,self.rules.selection.names.get(name+' 발버둥',[]))
+        self.assertNotIn(mid,self.c.moves)
+        self.assertNotIn(mid,self.c.custom_conditions.get('equipped_weapons',{}))
+
+    def test_stale_transition_preserves_independent_native_weapon_publication(self):
+        import turn as TURN
+        self.e.gm.set_skill(self.c,'전투',4,reason='actual Adept weapon user')
+        staged_weapon={'name':'v2-discarded-staged-weapon','kind':'대형 근접무기','grade':'좋음','moves':['백스윙']}
+        live_weapon=dict(staged_weapon,name='v2-independent-live-weapon')
+        observed={};before_hp=self.c.hp;before_rng=self.e.rng.getstate()
+        def apply(staged,actor):
+            actor.hp-=1;staged.rng.random()
+            observed['discarded']=TURN.equip_weapon(staged,actor,staged_weapon)
+            observed['live']=G.transition(self.e,self.c,
+                lambda live,holder:TURN.equip_weapon(live,holder,live_weapon))
+        with self.assertRaisesRegex(ValueError,'original world changed before commit'):
+            G.transition(self.e,self.c,apply)
+        self.assertEqual(self.c.hp,before_hp);self.assertEqual(self.e.rng.getstate(),before_rng)
+        self.assert_generated_weapon_absent(observed['discarded'],staged_weapon['name'])
+        self.assert_generated_weapon_usable(self.e,self.c,observed['live'])
+
+    def test_stale_transition_preserves_independent_same_key_weapon_publication(self):
+        import turn as TURN
+        self.e.gm.set_skill(self.c,'전투',4,reason='actual Adept weapon user')
+        weapon={'name':'v2-overlapping-native-weapon','kind':'대형 근접무기','grade':'좋음','moves':['백스윙']}
+        observed={};before_hp=self.c.hp
+        def apply(staged,actor):
+            actor.hp-=1
+            observed['staged']=TURN.equip_weapon(staged,actor,weapon)
+            observed['live']=G.transition(self.e,self.c,
+                lambda live,holder:TURN.equip_weapon(live,holder,weapon))
+        with self.assertRaisesRegex(ValueError,'original world changed before commit'):
+            G.transition(self.e,self.c,apply)
+        self.assertEqual(observed['staged'],observed['live'])
+        self.assertEqual(self.c.hp,before_hp)
+        self.assert_generated_weapon_usable(self.e,self.c,observed['live'])
+
+    def test_independent_weapon_same_title_does_not_keep_rejected_name_binding(self):
+        import turn as TURN
+        self.e.gm.set_skill(self.c,'전투',4,reason='actual Adept weapon user')
+        staged_weapon={'name':'v2-same-display-title','kind':'대형 근접무기','grade':'좋음','moves':['백스윙']}
+        live_weapon=dict(staged_weapon,grade='간단');observed={}
+        def apply(staged,actor):
+            observed['discarded']=TURN.equip_weapon(staged,actor,staged_weapon)
+            observed['live']=G.transition(self.e,self.c,
+                lambda live,holder:TURN.equip_weapon(live,holder,live_weapon))
+        with self.assertRaisesRegex(ValueError,'original world changed before commit'):
+            G.transition(self.e,self.c,apply)
+        self.assertNotEqual(observed['discarded'],observed['live'])
+        self.assert_generated_weapon_absent(observed['discarded'],staged_weapon['name'])
+        self.assertEqual(self.rules.selection.names[live_weapon['name']+' 발버둥'],[observed['live']])
+        self.assert_generated_weapon_usable(self.e,self.c,observed['live'])
+
+    def test_failed_parent_removes_nested_staged_weapon_publication(self):
+        import turn as TURN
+        self.e.gm.set_skill(self.c,'전투',4,reason='actual Adept weapon user')
+        weapon={'name':'v2-aborted-nested-weapon','kind':'대형 근접무기','grade':'좋음','moves':['백스윙']}
+        observed={};before_hp=self.c.hp;before_rng=self.e.rng.getstate()
+        def apply(staged,actor):
+            actor.hp-=1;staged.rng.random()
+            observed['id']=G.transition(staged,actor,
+                lambda child,holder:TURN.equip_weapon(child,holder,weapon))
+            raise ValueError('actual parent refuses after nested equip')
+        with self.assertRaisesRegex(ValueError,'actual parent refuses'):
+            G.transition(self.e,self.c,apply)
+        self.assertEqual(self.c.hp,before_hp);self.assertEqual(self.e.rng.getstate(),before_rng)
+        self.assert_generated_weapon_absent(observed['id'],weapon['name'])
+
+    def test_successful_nested_staged_weapon_publication_survives_lookup_and_save(self):
+        import turn as TURN
+        self.e.gm.set_skill(self.c,'전투',4,reason='actual Adept weapon user')
+        weapon={'name':'v2-successful-nested-weapon','kind':'대형 근접무기','grade':'좋음','moves':['백스윙']}
+        before_hp=self.c.hp
+        def apply(staged,actor):
+            actor.hp-=1
+            return G.transition(staged,actor,
+                lambda child,holder:TURN.equip_weapon(child,holder,weapon))
+        mid=G.transition(self.e,self.c,apply)
+        self.assertEqual(self.c.hp,before_hp-1)
+        self.assert_generated_weapon_usable(self.e,self.c,mid)
+
+    def test_sibling_weapon_commit_survives_child_conflict_but_not_parent_abort(self):
+        import turn as TURN
+        for abort_parent in (False,True):
+            with self.subTest(abort_parent=abort_parent):
+                self.setUp();self.e.gm.set_skill(self.c,'전투',4,reason='actual Adept weapon user')
+                weapon={'name':'v2-sibling-weapon-'+str(abort_parent),'kind':'대형 근접무기','grade':'좋음','moves':['백스윙']}
+                observed={};before_hp=self.c.hp
+                def parent(staged,actor):
+                    def child(candidate,holder):
+                        holder.hp-=1
+                        observed['candidate']=TURN.equip_weapon(candidate,holder,weapon)
+                        observed['id']=G.transition(staged,actor,
+                            lambda sibling,user:TURN.equip_weapon(sibling,user,weapon))
+                    with self.assertRaisesRegex(ValueError,'original world changed before commit'):
+                        G.transition(staged,actor,child)
+                    self.assertEqual(observed['candidate'],observed['id'])
+                    self.assertIn(observed['id'],staged.r.moves)
+                    if abort_parent:raise ValueError('outer parent refuses sibling equip')
+                    return observed['id']
+                if abort_parent:
+                    with self.assertRaisesRegex(ValueError,'outer parent refuses'):
+                        G.transition(self.e,self.c,parent)
+                    self.assert_generated_weapon_absent(observed['id'],weapon['name'])
+                else:
+                    mid=G.transition(self.e,self.c,parent)
+                    self.assert_generated_weapon_usable(self.e,self.c,mid)
+                self.assertEqual(self.c.hp,before_hp)
+
+    def generated_weapon_state(self,mid,name):
+        mappings=(self.rules.moves,self.rules.moves_mech,self.rules.selection.units,
+                  self.rules.selection.dependencies,self.rules._runtime_weapon_declarations)
+        return deepcopy([(mid in mapping,mapping.get(mid)) for mapping in mappings]+
+                        [(name+' 발버둥' in self.rules.selection.names,
+                          self.rules.selection.names.get(name+' 발버둥'))])
+
+    def test_independent_original_root_keeps_its_normal_staged_weapon_child(self):
+        import turn as TURN
+        self.e.gm.set_skill(self.c,'전투',4,reason='actual Adept weapon user')
+        weapon={'name':'v2-independent-root-normal-child','kind':'대형 근접무기','grade':'좋음','moves':['백스윙']}
+        observed={};before_hp=self.c.hp
+        def outer(staged,actor):
+            actor.hp-=1
+            def independent(live,holder):
+                return G.transition(live,holder,
+                    lambda child,user:TURN.equip_weapon(child,user,weapon))
+            observed['id']=G.transition(self.e,self.c,independent)
+        with self.assertRaisesRegex(ValueError,'original world changed before commit'):
+            G.transition(self.e,self.c,outer)
+        self.assertEqual(self.c.hp,before_hp)
+        self.assert_generated_weapon_usable(self.e,self.c,observed['id'])
+
+    def test_cross_root_return_refuses_weapon_publication_before_actor_rules_or_rng_change(self):
+        import turn as TURN
+        for abort_parent in (False,True):
+            with self.subTest(abort_parent=abort_parent):
+                self.setUp();self.e.gm.set_skill(self.c,'전투',4,reason='actual Adept weapon user')
+                weapon={'name':'v2-cross-root-refusal-'+str(abort_parent),'kind':'대형 근접무기','grade':'좋음','moves':['백스윙']}
+                observed={};before_hp=self.c.hp;before_rng=self.e.rng.getstate()
+                def outer(staged,actor):
+                    def independent(candidate,holder):
+                        observed['id']=TURN.equip_weapon(candidate,holder,weapon)
+                        rules_before=self.generated_weapon_state(observed['id'],weapon['name'])
+                        actor_before=(actor.hp,list(actor.moves),deepcopy(actor.custom_conditions),staged.rng.getstate())
+                        def crossing(branch,user):
+                            user.hp-=1;branch.rng.random()
+                            return TURN.equip_weapon(branch,user,weapon)
+                        with self.assertRaisesRegex(ValueError,'suspended nonancestor graph'):
+                            G.transition(staged,actor,crossing)
+                        self.assertEqual(self.generated_weapon_state(observed['id'],weapon['name']),rules_before)
+                        self.assertEqual((actor.hp,actor.moves,actor.custom_conditions,staged.rng.getstate()),actor_before)
+                        raise ValueError('independent tentative root aborts')
+                    with self.assertRaisesRegex(ValueError,'independent tentative root aborts'):
+                        G.transition(self.e,self.c,independent)
+                    self.assert_generated_weapon_absent(observed['id'],weapon['name'])
+                    if abort_parent:raise ValueError('suspended parent also aborts')
+                if abort_parent:
+                    with self.assertRaisesRegex(ValueError,'suspended parent also aborts'):
+                        G.transition(self.e,self.c,outer)
+                else:G.transition(self.e,self.c,outer)
+                self.assertEqual(self.c.hp,before_hp);self.assertEqual(self.e.rng.getstate(),before_rng)
+                self.assert_generated_weapon_absent(observed['id'],weapon['name'])
+
+    def test_same_root_cousin_return_refuses_publication_without_orphan(self):
+        import turn as TURN
+        self.e.gm.set_skill(self.c,'전투',4,reason='actual Adept weapon user')
+        weapon={'name':'v2-cousin-return-refusal','kind':'대형 근접무기','grade':'좋음','moves':['백스윙']}
+        observed={};before_hp=self.c.hp;before_rng=self.e.rng.getstate()
+        def outer(staged,actor):
+            def first(branch,user):
+                def sibling(candidate,holder):
+                    observed['id']=TURN.equip_weapon(candidate,holder,weapon)
+                    rules_before=self.generated_weapon_state(observed['id'],weapon['name'])
+                    actor_before=(user.hp,list(user.moves),deepcopy(user.custom_conditions),branch.rng.getstate())
+                    def crossing(child,subject):
+                        subject.hp-=1;child.rng.random()
+                        return TURN.equip_weapon(child,subject,weapon)
+                    with self.assertRaisesRegex(ValueError,'suspended nonancestor graph'):
+                        G.transition(branch,user,crossing)
+                    self.assertEqual(self.generated_weapon_state(observed['id'],weapon['name']),rules_before)
+                    self.assertEqual((user.hp,user.moves,user.custom_conditions,branch.rng.getstate()),actor_before)
+                    raise ValueError('tentative sibling aborts')
+                with self.assertRaisesRegex(ValueError,'tentative sibling aborts'):
+                    G.transition(staged,actor,sibling)
+            G.transition(staged,actor,first)
+        G.transition(self.e,self.c,outer)
+        self.assertEqual(self.c.hp,before_hp);self.assertEqual(self.e.rng.getstate(),before_rng)
+        self.assert_generated_weapon_absent(observed['id'],weapon['name'])
+
+    def test_failed_child_publication_is_not_promoted_by_successful_independent_parent(self):
+        import turn as TURN
+        self.e.gm.set_skill(self.c,'전투',4,reason='actual Adept weapon user')
+        weapon={'name':'v2-failed-child-not-a-claim','kind':'대형 근접무기','grade':'좋음','moves':['백스윙']}
+        observed={};before_hp=self.c.hp;before_rng=self.e.rng.getstate()
+        def outer(staged,actor):
+            observed['outer']=TURN.equip_weapon(staged,actor,weapon)
+            def independent(candidate,holder):
+                def failing_child(child,user):
+                    observed['child']=TURN.equip_weapon(child,user,weapon)
+                    raise ValueError('child equip is refused')
+                with self.assertRaisesRegex(ValueError,'child equip is refused'):
+                    G.transition(candidate,holder,failing_child)
+                self.assertNotIn(observed['child'],holder.custom_conditions.get('equipped_weapons',{}))
+            G.transition(self.e,self.c,independent)
+            self.assertEqual(observed['outer'],observed['child'])
+            raise ValueError('outer staged equip also aborts')
+        with self.assertRaisesRegex(ValueError,'outer staged equip also aborts'):
+            G.transition(self.e,self.c,outer)
+        self.assertEqual(self.c.hp,before_hp);self.assertEqual(self.e.rng.getstate(),before_rng)
+        self.assert_generated_weapon_absent(observed['outer'],weapon['name'])
+
+    def test_stale_transition_preserves_external_gm_skill_and_rejects_staged_cost(self):
+        import skill_modifiers as SK
+        self.e.gm.set_skill(self.c,'육상',3,reason='initial actual skill')
+        original_spec=self.c.spec;before_hp=self.c.hp;before_rng=self.e.rng.getstate()
+        def apply(staged,actor):
+            actor.hp-=1;staged.rng.random()
+            self.e.gm.set_skill(self.c,'육상',4,reason='separately authorized live GM correction')
+            return 'must not publish stale candidate'
+        with self.assertRaisesRegex(ValueError,'original world changed before commit'):
+            G.transition(self.e,self.c,apply)
+        self.assertIs(self.c.spec,original_spec)
+        self.assertEqual(SK.rank(self.e.r,self.c,'육상')[2],4)
+        self.assertEqual(self.c.hp,before_hp)
+        self.assertEqual(self.e.rng.getstate(),before_rng)
+
+    def test_stale_transition_preserves_external_weather_and_rng_observation(self):
+        before_hp=self.c.hp;observed={}
+        def apply(staged,actor):
+            actor.hp-=1;staged.rng.random()
+            self.e.gm.set_weather('비',rounds=3,reason='separately authorized observed weather')
+            self.e.rng.random();observed['rng']=self.e.rng.getstate()
+        with self.assertRaisesRegex(ValueError,'original world changed before commit'):
+            G.transition(self.e,self.c,apply)
+        self.assertEqual(self.e.weather,'rain')
+        self.assertEqual(self.c.hp,before_hp)
+        self.assertEqual(self.e.rng.getstate(),observed['rng'])
+
+    def test_nested_staged_transition_with_gm_correction_still_commits_once(self):
+        import skill_modifiers as SK
+        self.e.gm.set_skill(self.c,'육상',3,reason='initial actual skill')
+        original_spec=self.c.spec;before_hp=self.c.hp
+        def apply(staged,actor):
+            staged.gm.set_skill(actor,'육상',4,reason='authorized correction within staged action')
+            def nested(inner,subject):
+                subject.hp-=1
+                return subject
+            return G.transition(staged,actor,nested)
+        result=G.transition(self.e,self.c,apply)
+        self.assertIs(result,self.c);self.assertIs(self.c.spec,original_spec)
+        self.assertEqual(SK.rank(self.e.r,self.c,'육상')[2],4)
+        self.assertEqual(self.c.hp,before_hp-1)
+
     def test_transition_replacement_splits_actor_and_engine_shared_container(self):
         shared={'value':1}
         self.c.shared_probe=shared
@@ -262,21 +537,52 @@ class StateGrantTests(unittest.TestCase):
         I.unregister_item(self.e,self.c,"a")
         self.assertEqual(self.c.accuracy_stage,-2)
 
+    def test_weapon_removal_keeps_alias_baseline_after_canonical_materialization(self):
+        import turn as TURN
+        actor = Combatant(self.rules, build_trainer(self.rules, 'alias-baseline-weapon-owner', 10,
+            dict(self.c.spec['stats']), moves=['백스윙'], skills={'전투':4}, abilities=[]))
+        self.e.everyone = self.e.gm.everyone = [actor]
+        key = TURN.equip_weapon(self.e, actor,
+            {'name':'alias-baseline-weapon', 'kind':'대형 근접무기', 'grade':'좋음', 'moves':['백스윙']})
+        self.assertNotIn('move/백스윙', actor.custom_conditions['equipped_weapons'][key]['independently_known'])
+        original = list(actor.spec['moves'])
+        G.materialize(actor, 'moves')
+        self.assertEqual(actor.moves.count('move/백스윙'), 1)
+        TURN.unequip_weapon(self.e, actor, key)
+        self.assertEqual(actor.spec['moves'], original)
+        self.assertIn('move/백스윙', actor.moves)
+        self.assertNotIn(key, actor.moves)
+
+    def test_invalid_move_overlay_rejects_before_any_field_or_ledger_mutation(self):
+        G.overlay(self.c, 'existing-overlay', moves=['move/방어'])
+        original_spec = self.c.spec
+        before = deepcopy((self.c.spec, self.c.moves, self.c.abilities, self.c.registry))
+        for source in ('existing-overlay', 'new-invalid-overlay'):
+            for values in (['몸통박치기','move/몸통박치기'],
+                           ['move/몸통박치기','move/몸통박치기'], ['move/not-registered']):
+                with self.subTest(source=source, values=values):
+                    with self.assertRaisesRegex(ValueError, 'distinct selected known moves'):
+                        G.overlay(self.c, source, abilities=['복안'], moves=values)
+                    self.assertIs(self.c.spec, original_spec)
+                    self.assertEqual((self.c.spec, self.c.moves, self.c.abilities, self.c.registry), before)
+        G.revoke(self.c, 'existing-overlay', engine=self.e)
+        self.assertEqual(self.c.moves, self.c.spec['moves'])
+
     def test_runtime_overlay_never_rewrites_permanent_moves(self):
         base=list(self.c.spec["moves"])
-        G.overlay(self.c,"transform",moves=["move/copied"])
-        self.assertEqual(self.c.moves,["move/copied"])
+        G.overlay(self.c,"transform",moves=["move/방어"])
+        self.assertEqual(self.c.moves,["move/방어"])
         self.assertEqual(self.c.spec["moves"],base)
         G.revoke(self.c,"transform",engine=self.e)
         self.assertEqual(self.c.moves,base)
 
     def test_baseline_update_preserves_unrelated_legacy_live_grants(self):
-        self.c.moves.append("move/legacy")
-        G.set_baseline(self.c,"moves",self.c.spec["moves"]+["move/permanent"])
-        self.assertIn("move/legacy",self.c.moves)
-        self.assertNotIn("move/legacy",self.c.spec["moves"])
+        self.c.moves.append("move/몸통박치기")
+        G.set_baseline(self.c,"moves",self.c.spec["moves"]+["move/튀어오르기"])
+        self.assertIn("move/몸통박치기",self.c.moves)
+        self.assertNotIn("move/몸통박치기",self.c.spec["moves"])
         G.set_baseline(self.c,"moves",self.c.spec["moves"])
-        self.assertIn("move/legacy",self.c.moves)
+        self.assertIn("move/몸통박치기",self.c.moves)
 
     def test_feature_and_item_overlap_then_owner_removal(self):
         self.item("grant-glasses",[{"type":"grant_ability","grant_ability":"복안"}])
@@ -717,6 +1023,190 @@ class StateGrantTests(unittest.TestCase):
         self.assertIs(self.c.spec['alias'],shared);self.assertIs(conditions['alias'],shared)
         self.assertEqual((self.c.spec,self.c.stats,self.c.registry,self.e.gm_prompts),before)
 
+
+    def test_adversarial_weapon_equip_projects_alias_baseline_once(self):
+        import turn as TURN,move_state as MOVES
+        for baseline in ('백스윙','move/백스윙'):
+            with self.subTest(baseline=baseline):
+                self.setUp()
+                actor=Combatant(self.rules,build_trainer(self.rules,'raw-alias-weapon-owner',10,
+                    dict(self.c.spec['stats']),moves=[baseline],skills={'전투':4},abilities=[]))
+                baseline_moves=list(actor.spec['moves'])
+                self.assertEqual(baseline_moves,[baseline,'struggle'])
+                self.e.everyone=self.e.gm.everyone=[actor]
+                key=TURN.equip_weapon(self.e,actor,
+                    {'name':'adversarial-alias-'+('canonical' if baseline.startswith('move/') else 'display'),'kind':'대형 근접무기','grade':'좋음','moves':['백스윙']})
+                self.assertEqual(actor.spec['moves'],baseline_moves)
+                self.assertCountEqual(actor.moves,['move/백스윙','struggle',key])
+                self.assertEqual([self.rules.move_id(value) for value in actor.moves].count('move/백스윙'),1,
+                    'two valid sources must project one semantic Move without manual materialization')
+                self.assertIn(key,MOVES.known(self.rules,{'moves':actor.moves}))
+
+    def test_adversarial_late_sourced_move_survives_native_weapon_drop(self):
+        import turn as TURN,move_state as MOVES
+        for mode in ('learned','permission'):
+            for late in (False,True):
+                with self.subTest(mode=mode,late=late):
+                    self.setUp();G.set_baseline(self.c,'moves',[])
+                    self.e.gm.set_skill(self.c,'전투',4,reason='actual Adept weapon user')
+                    def grant():
+                        G.grant_moves(self.c,['백스윙'],'independent-script-source','feature',
+                            rule_id='keyword/연결',mode=mode)
+                    if not late:grant()
+                    key=TURN.equip_weapon(self.e,self.c,
+                        {'name':'adversarial-grant-order-'+mode+'-'+str(late),'kind':'대형 근접무기','grade':'좋음','moves':['백스윙']})
+                    if late:grant()
+                    source=deepcopy(self.c.spec[G.KEY]['sources']['independent-script-source'])
+                    I.drop_equipment(self.e,self.c,['weapon:'+key],slots=('주요손','반대손'),consent_by=(self.c,))
+                    self.assertEqual(self.c.spec[G.KEY]['sources']['independent-script-source'],source)
+                    self.assertIn('move/백스윙',self.c.moves,'dropping gear cannot revoke another current source')
+                    self.assertNotIn(key,self.c.moves)
+                    owned=MOVES.owned_list(self.c.spec,'moves',self.c.moves,rules=self.rules)
+                    self.assertEqual(owned,['move/백스윙'] if mode=='learned' else [])
+                    G.revoke(self.c,'independent-script-source',engine=self.e)
+                    self.assertNotIn('move/백스윙',self.c.moves)
+
+    def test_adversarial_weapon_equip_respects_active_transform_move_overlay(self):
+        import turn as TURN,effects_ext as X
+        self.e.gm.set_skill(self.c,'전투',4,reason='actual Adept weapon user')
+        G.set_baseline(self.c,'moves',['몸통박치기']);self.c.spec['weight_class']=4
+        target=Combatant(self.rules,build_trainer(self.rules,'observed-transform-donor',10,
+            dict(self.c.spec['stats']),moves=['move/방어'],abilities=[],extra={'weight_class':2}))
+        donor_moves=list(target.moves)
+        self.assertEqual(donor_moves,['move/방어','struggle'])
+        self.e.everyone=self.e.gm.everyone=[self.c,target]
+        X.h_transform(self.e,self.c,target,{},
+            {'source_id':'move/변신','effect_occurrence':'adversarial-transform'})
+        source=self.c.custom_conditions['transformed']['source']
+        self.assertEqual(self.c.moves,donor_moves)
+        key=TURN.equip_weapon(self.e,self.c,
+            {'name':'adversarial-transform-weapon','kind':'대형 근접무기','grade':'좋음','moves':['백스윙']})
+        self.assertEqual(self.c.moves,donor_moves,'active replacement overlay owns the visible Move list')
+        self.assertEqual(self.c.spec['moves'],['몸통박치기'])
+        G.revoke(self.c,source,engine=self.e)
+        self.assertIn('move/몸통박치기',self.c.moves)
+        self.assertIn('move/백스윙',self.c.moves)
+        I.drop_equipment(self.e,self.c,['weapon:'+key],slots=('주요손','반대손'),consent_by=(self.c,))
+        self.assertEqual(self.c.moves,['move/몸통박치기'])
+
+    def test_weapon_projection_legacy_no_ledger_drop_does_not_promote_equipment_moves(self):
+        import turn as TURN,state_codec as CODEC,world_entities as WORLD
+        baseline_moves=list(self.c.spec['moves'])
+        self.assertEqual(baseline_moves,['struggle'])
+        self.e.gm.set_skill(self.c,'전투',4,reason='actual Adept weapon user')
+        key=TURN.equip_weapon(self.e,self.c,
+            {'name':'v3-legacy-weapon-shape','kind':'대형 근접무기','grade':'좋음','moves':['백스윙']})
+        state=self.c.spec[G.KEY]
+        self.assertFalse(any(state[field] for field in
+            ('sources','overlays','effects','ability_receipts','numbers','sets','scalar_sources')))
+        self.assertEqual(state['legacy']['moves'],[])
+        # Prior native producer shape had the weapon ledger and no grant ledger.
+        self.c.spec.pop(G.KEY)
+        I.drop_equipment(self.e,self.c,['weapon:'+key],slots=('주요손','반대손'),consent_by=(self.c,))
+        self.assertEqual(self.c.moves,baseline_moves)
+        self.assertEqual(self.c.spec[G.KEY]['legacy']['moves'],[])
+        restored=CODEC.load_engine(self.rules,json.loads(json.dumps(CODEC.dump_engine(self.e))))
+        actor=WORLD.actor_index(restored)[self.c.entity_id]
+        self.assertEqual(actor.moves,baseline_moves)
+        self.assertNotIn('move/백스윙',actor.spec[G.KEY]['legacy']['moves'])
+
+    def test_weapon_projection_forgetting_baseline_does_not_revive_equip_snapshot(self):
+        import turn as TURN,state_codec as CODEC,world_entities as WORLD
+        self.e.gm.set_skill(self.c,'전투',4,reason='actual Adept weapon user')
+        G.set_baseline(self.c,'moves',['백스윙'])
+        key=TURN.equip_weapon(self.e,self.c,
+            {'name':'v3-forgotten-baseline-weapon','kind':'대형 근접무기','grade':'좋음','moves':['백스윙']})
+        self.assertIn('move/백스윙',self.c.custom_conditions['equipped_weapons'][key]['independently_known'])
+        self.e.gm.set_move(self.c,'백스윙',add=False,reason='actual permanent Move forgetting while equipment remains')
+        self.assertEqual(self.c.spec['moves'],[])
+        self.assertIn('move/백스윙',self.c.moves,'weapon still grants temporary use before removal')
+        I.drop_equipment(self.e,self.c,['weapon:'+key],slots=('주요손','반대손'),consent_by=(self.c,))
+        self.assertEqual(self.c.moves,[],'old equip-time knowledge is not current learning authority')
+        restored=CODEC.load_engine(self.rules,json.loads(json.dumps(CODEC.dump_engine(self.e))))
+        self.assertEqual(WORLD.actor_index(restored)[self.c.entity_id].moves,[])
+
+    def test_weapon_projection_two_slots_and_live_item_source_keep_independent_moves(self):
+        import turn as TURN
+        baseline_moves=list(self.c.spec['moves'])
+        self.assertEqual(baseline_moves,['struggle'])
+        self.e.gm.set_skill(self.c,'전투',4,reason='actual Adept weapon user')
+        first=TURN.equip_weapon(self.e,self.c,
+            {'name':'v3-main-hand','kind':'소형 근접무기','grade':'좋음','slot':'주요손','moves':['강타']})
+        second=TURN.equip_weapon(self.e,self.c,
+            {'name':'v3-off-hand','kind':'소형 근접무기','grade':'좋음','slot':'반대손','moves':['강타']})
+        self.assertEqual(self.c.moves.count('move/강타'),1)
+        I.drop_equipment(self.e,self.c,['weapon:'+first],slots=('주요손','반대손'),consent_by=(self.c,))
+        self.assertIn('move/강타',self.c.moves)
+        self.assertIn(second,self.c.moves);self.assertNotIn(first,self.c.moves)
+        item=self.item('v3-overlapping-item',[{'type':'grant_move','moves':['강타']}])
+        row=self.c._item_reg[item]
+        sources=deepcopy(self.c.spec[G.KEY]['sources'])
+        self.assertTrue(any(source.get('kind')=='item' and 'move/강타' in source.get('grants',{}).get('moves',[])
+                            for source in sources.values()))
+        I.drop_equipment(self.e,self.c,['weapon:'+second],slots=('주요손','반대손'),consent_by=(self.c,))
+        self.assertEqual(self.c.spec[G.KEY]['sources'],sources)
+        self.assertIs(self.c._item_reg[item],row)
+        self.assertEqual(self.c.moves,baseline_moves+['move/강타'])
+        I.unregister_item(self.e,self.c,item)
+        self.assertEqual(self.c.moves,baseline_moves,'last independent item source removes its grant, not basic Struggle')
+
+    def test_move_union_preserves_alias_baseline_and_canonical_sources_through_restore(self):
+        import move_state as MOVES, state_codec as CODEC, world_entities as WORLD
+        G.set_baseline(self.c, 'moves', ['몸통박치기'])
+        original = deepcopy(self.c.spec['moves'])
+        G.grant_moves(self.c, ['move/몸통박치기'], 'independent-move', 'feature',
+                      owner_id=self.c.entity_id, lifetime='while_owned', rule_id='keyword/연결')
+        receipt = deepcopy(self.c.spec[G.KEY]['sources']['independent-move'])
+        self.assertEqual(self.c.spec['moves'], original)
+        self.assertEqual(receipt['grants']['moves'], ['move/몸통박치기'])
+        self.assertEqual(MOVES.owned_list(self.c.spec, 'moves', self.c.moves, rules=self.rules), ['move/몸통박치기'])
+        self.assertEqual(self.c.moves, ['move/몸통박치기'])
+        self.e.gm.restore(self.e.gm.snapshot('move-union'))
+        restored = CODEC.load_engine(self.rules, json.loads(json.dumps(CODEC.dump_engine(self.e))))
+        actor = WORLD.actor_index(restored)[self.c.entity_id]
+        self.assertEqual(actor.spec['moves'], original)
+        self.assertEqual(actor.spec[G.KEY]['sources']['independent-move'], receipt)
+        self.assertEqual(MOVES.describe(self.rules, actor.spec)['known'], ['move/몸통박치기'])
+
+    def test_move_union_rejects_duplicates_within_one_source_without_mutation(self):
+        import move_state as MOVES
+        G.set_baseline(self.c, 'moves', ['몸통박치기'])
+        before = deepcopy((self.c.spec, self.c.moves))
+        for values in (['몸통박치기', 'move/몸통박치기'], ['move/몸통박치기', 'move/몸통박치기']):
+            with self.subTest(values=values):
+                with self.assertRaisesRegex(ValueError, 'distinct selected'):
+                    MOVES.known(self.rules, {'moves':values})
+                with self.assertRaisesRegex(ValueError, 'distinct selected'):
+                    G.grant_moves(self.c, values, 'bad-source', 'feature', rule_id='keyword/연결')
+                self.assertEqual((self.c.spec, self.c.moves), before)
+                with self.assertRaisesRegex(ValueError, 'distinct selected'):
+                    G.set_baseline(self.c, 'moves', values)
+                self.assertEqual((self.c.spec, self.c.moves), before)
+        candidate = deepcopy(self.c.spec)
+        candidate[G.KEY]['sources']['malformed'] = {'kind':'feature', 'grants':{'moves':['몸통박치기','move/몸통박치기']}}
+        for read in (MOVES.owned_list, MOVES.effective_list):
+            with self.assertRaisesRegex(ValueError, 'distinct selected'):
+                read(candidate, 'moves', rules=self.rules)
+        self.assertEqual((self.c.spec, self.c.moves), before)
+
+    def test_move_union_revokes_only_one_owner_and_never_promotes_permission(self):
+        import move_state as MOVES
+        G.set_baseline(self.c, 'moves', ['몸통박치기'])
+        for source, move in (('first-owner','move/몸통박치기'), ('second-owner','몸통박치기')):
+            G.grant_moves(self.c, [move], source, 'feature', rule_id='keyword/연결')
+        second = deepcopy(self.c.spec[G.KEY]['sources']['second-owner'])
+        G.grant_moves(self.c, ['방어'], 'temporary-permission', 'feature',
+                      rule_id='keyword/연결', mode='permission')
+        G.revoke(self.c, 'first-owner', engine=self.e)
+        self.assertEqual(self.c.spec[G.KEY]['sources']['second-owner'], second)
+        self.assertEqual(MOVES.owned_list(self.c.spec, 'moves', self.c.moves, rules=self.rules), ['move/몸통박치기'])
+        G.set_baseline(self.c, 'moves', [])
+        self.assertEqual(MOVES.owned_list(self.c.spec, 'moves', self.c.moves, rules=self.rules), ['move/몸통박치기'])
+        G.revoke(self.c, 'second-owner', engine=self.e)
+        self.assertEqual(MOVES.owned_list(self.c.spec, 'moves', self.c.moves, rules=self.rules), [])
+        self.assertEqual(self.c.moves, ['move/방어'])
+        G.revoke(self.c, 'temporary-permission', engine=self.e)
+        self.assertEqual(self.c.moves, [])
 
     def test_unknown_move_grant_preflight_changes_nothing(self):
         before=deepcopy(self.c.spec)

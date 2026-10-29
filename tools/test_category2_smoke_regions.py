@@ -233,7 +233,10 @@ class SmokeTests(unittest.TestCase):
         e.start_of_turn(a, initiative_count=20)
         hp = a.hp
         uses = a.move_uses.get('move/날려버리기', 0)
-        e.use_move_on(a, a, 'move/날려버리기', e.everyone, aim=(5, 5))
+        try:
+            e.use_move_on(a, a, 'move/날려버리기', e.everyone, aim=(5, 5))
+        except __import__('heavy_injury_adapter').HeavyPending:
+            self.fail(str([row.get('context_evidence') for row in e._heavy_events.values()]))
         self.assertEqual((a.hp, a.budget['standard'],
                           a.move_uses['move/날려버리기']), (hp - 5, 0, uses + 1))
         self.assertIsNone(e._heavy_pending)

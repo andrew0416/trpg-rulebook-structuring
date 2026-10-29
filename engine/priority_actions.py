@@ -78,7 +78,7 @@ def classify(rules, move_id):
 
 
 def _owned_move(engine, actor, move_id):
-    owned = MOVES.owned_list(actor.spec, 'moves', actor.moves)
+    owned = MOVES.owned_list(actor.spec, 'moves', actor.moves,rules=actor.r)
     if move_id not in [engine.r.resolve_move(uid) for uid in owned]:
         raise ValueError('Priority requires the actual learned selected Move')
     return _move(engine.r, move_id)

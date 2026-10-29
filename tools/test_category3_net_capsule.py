@@ -26,7 +26,7 @@ class NetTests(unittest.TestCase):
  def fire(self,face=20,**kw):return self.act('net_capsule',target=self.p,fixed_accuracy=face,**kw)
  def test_actual_cannon_equipment_uses_both_hands_and_ammunition(self):
   self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.a,initiative_count=20)
-  self.assertEqual(self.a._item_reg['캡슐캐논']['slots'],['주요손','반대손']);self.a.budget={'standard':1,'shift':1,'swift':1}
+  self.assertEqual(self.a._item_reg['캡슐캐논']['slots'],['주요손','반대손'])
   r=self.fire();self.assertTrue(r['hit']);self.assertEqual(self.a.spec['items']['네트캡슐'],4);self.assertEqual(self.a.budget['standard'],0);self.assertIsNotNone(NET.active(self.p))
  def test_unowned_unequipped_or_single_hand_cannon_cannot_fire(self):
   for mutation in ('unowned','unequipped','one_hand','overlap'):
@@ -46,12 +46,14 @@ class NetTests(unittest.TestCase):
    self.setUp();r=self.fire(face);self.assertEqual(r['ac'],6);self.assertEqual(r['hit'],expected);self.assertEqual(self.a.spec['items']['네트캡슐'],4)
   self.setUp();self.a.spec['skills']['기술학']='달인';self.a.spec['edges']=['edge/거장'];self.a.spec['edge_choices']={'거장':['기술학']};self.assertEqual(self.fire(3)['ac'],2)
  def test_named_ap_accuracy_is_spent_once_and_wrong_actor_cannot_spend_ammo(self):
+  self.q.spec['trainer_id']=self.a.entity_id  # Declared starting ownership of this other registered beneficiary.
   self.e.boost_roll(self.a,self.a,roll_id='net-shot',kind='accuracy');self.assertEqual(self.a.spec['ap_spent'],1)
   r=self.fire(6,accuracy_roll_id='net-shot');self.assertTrue(r['hit']);self.assertEqual(self.e._ap_rolls['net-shot']['state'],'resolved')
   self.e.remove_net(self.p,fixed=10);before=self.state()
   with self.assertRaises(ValueError):self.fire(20,accuracy_roll_id='net-shot')
-  self.assertEqual(before,self.state());self.q.spec['trainer_id']=self.a.entity_id;self.e.boost_roll(self.a,self.q,roll_id='wrong-target',kind='accuracy');before=self.state()
-  with self.assertRaises(ValueError):self.fire(20,accuracy_roll_id='wrong-target')
+  self.assertEqual(before,self.state());self.e.boost_roll(self.a,self.q,roll_id='wrong-target',kind='accuracy');before=self.state()
+  self.assertIs(self.e._ap_rolls['wrong-target']['beneficiary'],self.q)
+  with self.assertRaisesRegex(ValueError,'another actor'):self.fire(20,accuracy_roll_id='wrong-target')
   self.assertEqual(before,self.state())
  def test_excluded_errata_source_cannot_equip_cannon(self):
   original=self.rules
@@ -62,7 +64,16 @@ class NetTests(unittest.TestCase):
   finally:self.rules=original
  def test_miss_consumes_actual_standard_and_capsule_without_state(self):
   self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.a,initiative_count=20)
-  self.a.budget={'standard':1,'shift':1,'swift':1};r=self.fire(1);self.assertEqual(r['status'],'missed');self.assertIsNone(NET.active(self.p));self.assertEqual(self.a.budget['standard'],0);self.assertFalse(self.p.conditions)
+  r=self.fire(1);self.assertEqual(r['status'],'missed');self.assertIsNone(NET.active(self.p));self.assertEqual(self.a.budget['standard'],0);self.assertFalse(self.p.conditions)
+ def test_outside_combat_shot_and_removal_ignore_stale_turn_budgets(self):
+  self.assertFalse(self.e.encounter_active)
+  self.a.budget={'standard':0,'shift':0,'swift':0};self.p.budget={'standard':0,'shift':0,'swift':0}
+  result=self.fire();self.assertTrue(result['hit']);self.assertEqual(self.a.spec['items']['네트캡슐'],4)
+  self.assertEqual(self.a.budget,{'standard':0,'shift':0,'swift':0})
+  self.assertEqual(self.a._action_history.count('standard'),1)
+  self.assertTrue(self.e.remove_net(self.p,fixed=10)['removed'])
+  self.assertEqual(self.p.budget,{'standard':0,'shift':0,'swift':0})
+  self.assertEqual(self.p._action_history.count('standard'),1);self.assertIsNone(NET.active(self.p))
  def test_invalid_face_size_range_los_and_ammo_do_not_spend(self):
   for mutation in ('face','size','range','los','ammo'):
    self.setUp();options={}
@@ -74,6 +85,44 @@ class NetTests(unittest.TestCase):
    before=self.state()
    with self.assertRaises(ValueError):self.act('net_capsule',target=self.p,**options)
    self.assertEqual(before,self.state())
+ def test_native_phasing_target_refusal_preserves_shot_action_ammo_ap_rng_and_history(self):
+  import state_grants as G
+  self.e.gm.set_footprint(self.p,[(0,0)],reason='actual unchanged Phasing body')
+  G.grant(self.p,'capabilities','Phasing','fixture:net-phasing','fixture')
+  self.e.change_body_mode(self.p,'phasing',reason='actual target enters native Phasing')
+  self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.a,initiative_count=20)
+  self.e.apply_status(self.a,'혼란')
+  self.e.boost_roll(self.a,self.a,roll_id='rejected-net',kind='accuracy')
+  def observed():
+   return deepcopy((self.state(),self.a._action_history,self.a.hp,self.a.conditions,self.p.hp,self.p.conditions,self.p.custom_conditions,self.e._ap_rolls,self.e.log_lines),{id(c):c for c in self.e.gm.everyone})
+  before=observed()
+  for fixed in (None,20):
+   with self.assertRaisesRegex(ValueError,'Phasing'):
+    self.act('net_capsule',target=self.p,fixed_accuracy=fixed,accuracy_roll_id='rejected-net')
+   self.assertEqual(observed(),before)
+   self.assertFalse(getattr(self.e,'_native_action_resolutions',{}))
+   self.assertFalse(getattr(self.e,'_native_action_stack',()))
+   self.assertIsNone(NET.active(self.p))
+ def test_paid_hit_and_miss_keep_one_native_action_and_ap_roll(self):
+  for face in (1,20):
+   self.setUp();self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.a,initiative_count=20)
+   self.e.boost_roll(self.a,self.a,roll_id='paid-net',kind='accuracy')
+   result=self.fire(face,accuracy_roll_id='paid-net')
+   self.assertEqual((result['hit'],result['status']),(face==20,'attached' if face==20 else 'missed'))
+   self.assertEqual((self.a.budget['standard'],self.a._action_history.count('standard')),(0,1))
+   self.assertEqual((self.a.spec['items']['네트캡슐'],self.a.spec['net_capsule_serial'],len(self.a.spec['net_capsule_attempts'])),(4,1,1))
+   self.assertEqual((self.a.spec['ap_spent'],self.e._ap_rolls['paid-net']['state']),(1,'resolved'))
+
+ def test_native_grounding_commits_actual_entry_effect_with_one_shot(self):
+  self.p.spec['_movement_altitude']=3;self.p.airborne=True
+  self.e.gm.place_hazard(self.p.pos,'observed landing trap',effects=[{'type':'stage_change','stat':'spe','delta':-1}],reason='actual ground trap at target landing')
+  before_hp=self.p.hp
+  result=self.fire(gm_distance=5)
+  self.assertTrue(result['hit']);self.assertEqual(self.a.spec['items']['네트캡슐'],4)
+  self.assertEqual((self.p.spec['_movement_altitude'],self.p.airborne,self.p.hp,self.p.stages['spe']),(0,False,before_hp,-1))
+  self.assertIsNotNone(NET.active(self.p))
+  self.assertNotIn(self.p.pos,self.e.hazards)
+
  def test_size_boundaries_preserve_literal_large_or_smaller_minus_three(self):
   for size,penalty,statuses in [('Small',-3,True),('Medium',-3,True),('Large',-3,False),('Huge',0,False)]:
    self.setUp();self.p.spec['size']=size;self.fire();self.assertEqual(NET.active(self.p)['size_policy'],'ptk-literal-large-or-smaller');self.assertEqual(TIMING.accuracy_modifier(self.p),penalty);self.assertEqual({'둔화','취약'}<=self.p.conditions,statuses)
@@ -93,15 +142,17 @@ class NetTests(unittest.TestCase):
   self.assertEqual(before,self.state())
  def test_unavailable_standard_sleep_faint_and_invalid_save_preserve_source_and_rng(self):
   self.fire();self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.p,initiative_count=10)
-  self.p.budget['standard']=0;rng=self.e.rng.getstate();self.assertIs(self.e.remove_net(self.p),False);self.assertEqual(self.e.rng.getstate(),rng)
-  self.p.budget['standard']=1
+  self.assertFalse(self.e.remove_net(self.p,fixed=9)['removed'])  # The real failed removal spends this turn's Standard.
+  rng=self.e.rng.getstate();self.assertIs(self.e.remove_net(self.p),False);self.assertEqual(self.e.rng.getstate(),rng)
+  self.e.end_of_turn(self.p);self.e.end_round();self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.p,initiative_count=10)
+  rng=self.e.rng.getstate()
   for status in ('잠듦','얼음'):
    self.p.conditions.add(status);self.assertIs(self.e.remove_net(self.p),False);self.p.conditions.remove(status);self.assertEqual(self.p.budget['standard'],1)
   self.p.hp=0;self.assertIs(self.e.remove_net(self.p),False);self.assertIsNotNone(NET.active(self.p));self.p.hp=10
   with self.assertRaises(ValueError):self.e.remove_net(self.p,fixed=21)
   self.assertEqual(self.e.rng.getstate(),rng)
  def test_actual_encounter_native_turn_fire_then_self_removal(self):
-  self.e.start_round([self.a,self.p,self.q]);self.e.start_of_turn(self.a);self.fire();self.e.end_of_turn(self.a);self.e.start_of_turn(self.p)
+  self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.a,initiative_count=20);self.fire();self.e.end_of_turn(self.a);self.e.start_of_turn(self.p)
   result=self.e.remove_net(self.p,fixed=10);self.assertTrue(result['removed']);self.assertEqual(self.p.budget['standard'],0);self.assertEqual(self.p._action_history.count('standard'),1)
  def test_extended_automatic_removal_requires_explicit_actual_time_and_survives_scene(self):
   self.fire();self.e.end_scene([self.a,self.p,self.q]);self.assertIsNotNone(NET.active(self.p));self.assertIn('둔화',self.p.conditions);rng=self.e.rng.getstate()

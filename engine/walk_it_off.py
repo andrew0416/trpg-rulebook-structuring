@@ -4,6 +4,7 @@ from hashlib import sha256
 from pathlib import Path
 import json
 import common_checks as C
+import skill_modifiers as SKILL_RANKS
 
 FEATURE='feat/기분전환'
 CLAUSE='C03-143'
@@ -53,7 +54,7 @@ def qualification(actor,snapshot,prerequisite_source):
     import acquisition_qualification as Q
     if prerequisite_source is not None or type(snapshot)is not dict or set(snapshot)!={'athletics','focus','selection','source'}:
         raise ValueError('actual Walk It Off acquisition observations required')
-    for field in ('athletics','focus'):C.integer(snapshot[field],'Walk It Off '+field,1,6)
+    for field in ('athletics','focus'):SKILL_RANKS.validate_rank_value(actor.r,snapshot[field],label='Walk It Off '+field)
     selection=snapshot['selection']
     if selection is not None and (type(selection)is not dict or set(selection)!={'edition'}):
         raise ValueError('one immutable Walk It Off source selection required')

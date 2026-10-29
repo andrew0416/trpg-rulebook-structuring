@@ -183,26 +183,34 @@ class TypeAceReactionTests(unittest.TestCase):
             ('악',('Clever Ruse','Devious'),'Devious','move/울음소리','move/거짓울음',False),
             ('풀',('Foiling Foliage','Cross-Pollinate'),'Cross-Pollinate','move/메가드레인','move/광합성',True),
             ('에스퍼',('Psionic Sponge','Force of Will'),'Force of Will','move/고속이동','move/빛의장막',False)]
-        for branch,features,feature,trigger,extra,nonmatching in rows:
-            with self.subTest(feature=feature):
-                self.family(branch,*features)
-                if nonmatching:self.e.gm.set_types(self.p,['노말'],reason='actual non-Grass Cross-Pollinate rejection')
-                self.e.gm.set_position(self.b,(3,2),reason='actual Social burst target')
-                self.known(self.p,trigger,extra)
-                self.combat(self.p)
-                self.native(self.p,self.p if feature=='Force of Will' else self.b,trigger)
-                actual = self.completed()
-                if nonmatching:
-                    self.rejected(lambda:self.react(feature,actual,move=extra,target=self.p),'Grass Pokemon')
+        for branch,features,feature,trigger,extra,grass_required in rows:
+            for eligible in ((False, True) if grass_required else (True,)):
+                with self.subTest(feature=feature,eligible=eligible):
+                    # Each positive has a fresh actual qualifying native hit;
+                    # changing type after a rejected non-Grass hit is no trigger.
+                    self.family(branch,*features)
+                    if not eligible:
+                        self.e.gm.set_types(self.p,['노말'],reason='actual non-Grass Cross-Pollinate rejection control')
+                    self.e.gm.set_position(self.b,(3,2),reason='actual Social burst target')
+                    self.known(self.p,trigger,extra)
+                    self.combat(self.p)
+                    self.native(self.p,self.p if feature=='Force of Will' else self.b,trigger)
+                    actual = self.completed()
+                    if not eligible:
+                        self.assertEqual(actual['move']['type'],'풀')
+                        self.assertNotEqual(actual['move']['class'],'변화')
+                        self.rejected(lambda:self.react(feature,actual,move=extra,target=self.p),
+                                      'actual Grass Pokemon required')
+                        self.assertNotIn(extra,self.p.move_uses)
+                        self.valid()
+                        continue
+                    if feature=='Force of Will':
+                        self.rejected(lambda:self.react(feature,actual,move=trigger,target=self.p),'different')
+                    self.react(feature,actual,move=extra,target=self.p if feature!='Devious' else self.b)
+                    self.assertEqual(self.p.budget['standard'],0)
+                    self.assertEqual(self.completed()['move_id'],extra)
+                    self.assertEqual(self.p.move_uses[extra],1)
                     self.valid()
-                    continue
-                if feature=='Force of Will':
-                    self.rejected(lambda:self.react(feature,actual,move=trigger,target=self.p),'different')
-                self.react(feature,actual,move=extra,target=self.p if feature!='Devious' else self.b)
-                self.assertEqual(self.p.budget['standard'],0)
-                self.assertEqual(self.completed()['move_id'],extra)
-                self.assertEqual(self.p.move_uses[extra],1)
-                self.valid()
 
     def test_psychic_resonance_encore_uses_triggering_foe_and_native_prior_move(self):
         self.family('에스퍼','Psionic Sponge','Psychic Resonance')

@@ -4,6 +4,7 @@ from copy import deepcopy
 from hashlib import sha256
 from pathlib import Path
 import common_checks as C
+import skill_modifiers as SKILL_RANKS
 import state_grants as G
 import world_entities as W
 import combat_timing as TIME
@@ -50,7 +51,7 @@ def acquisition_snapshot(e,actor,feature,rank,selection):
 def qualification(actor,feature,snapshot,prerequisite_source):
  import acquisition_qualification as Q
  if prerequisite_source is not None or type(snapshot)is not dict or set(snapshot)!={'rank','parents','oracle_features','mystic'}:raise ValueError('actual Oracle acquisition observations required')
- C.integer(snapshot['rank'],'Perception prerequisite rank',1,6);C.integer(snapshot['mystic'],'Mystic Senses count',0,1)
+ SKILL_RANKS.validate_rank_value(actor.r,snapshot['rank'],label='Perception prerequisite rank');C.integer(snapshot['mystic'],'Mystic Senses count',0,1)
  parent=DEFINITIONS[feature]['parent'];known={r['request_id'] for r in records(actor,parent)} if parent else set()
  allrows={r['request_id']:r['feature_id'] for r in records(actor)}
  if not set(snapshot['oracle_features'])<=set(allrows):raise ValueError('actual Oracle prerequisite receipts required')

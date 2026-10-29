@@ -585,6 +585,68 @@ class BattleContestTests(unittest.TestCase):
         self.assertIs(next(a for a in native.everyone if a.entity_id == trainer.entity_id), bound_trainer)
 
 
+    def _native_party_doubles(self, fainted_slots):
+        from grid import Grid
+        import pokemon_party as PARTY
+        engine, contest, trainers, teams, cid = self.fixture(size=4, format_size=2)
+        engine.grid = Grid(20, 8)
+        for side, trainer in enumerate(trainers):
+            trainer.pos = (side * 5, 3)
+        for actor in engine.everyone:
+            engine.gm.set_footprint(actor, [(0, 0)], reason="actual one-cell body")
+        for trainer, team in zip(trainers, teams):
+            PARTY.configure(engine, trainer, mode="standard", roster=list(team),
+                            storage={"kind": "center", "id": "contest-center"},
+                            reason="actual Battle Contest roster")
+            engine.configure_party_combat(trainer, battle_mode="full_contact",
+                                          reason="actual Battle Contest party actions")
+        for slot in fainted_slots:
+            engine.gm.faint(teams[0][slot], reason="observed lost active Contest slot")
+        BATTLE.begin_round(engine, cid)
+        engine.start_of_turn(trainers[0], initiative_count=50)
+        return engine, trainers[0], teams[0], cid
+
+    def test_native_party_double_healthy_switch_keeps_other_slot_replacement_right(self):
+        engine, trainer, team, cid = self._native_party_doubles((0,))
+        fainted, outgoing, incoming = team[:3]
+        self.assertEqual(self.state(engine, cid)["sides"][0]["replacement_center_due"],
+                         [fainted.entity_id])
+        options = dict(recall=[outgoing], send=[(incoming, outgoing.pos)],
+                       request_id="healthy-party-switch", reason="actual healthy slot switch")
+        receipt = engine.act_on_party(trainer, **options)
+        state = self.state(engine, cid)
+        self.assertEqual(state["sides"][0]["active"], [fainted.entity_id, incoming.entity_id])
+        self.assertEqual(state["sides"][0]["replacement_center_due"], [fainted.entity_id])
+        self.assertFalse(state["pokemon"][incoming.entity_id]["center_pending"])
+        self.assertEqual(receipt["payment"]["funded"], {"standard": 1})
+        before = deepcopy((state, trainer.budget))
+        self.assertEqual(engine.act_on_party(trainer, **options), receipt)
+        self.assertEqual((self.state(engine, cid), trainer.budget), before)
+        self.assertEqual(BATTLE.result(engine, cid)["status"], "round")
+
+    def test_native_party_double_fainted_switch_consumes_only_replaced_slot_right(self):
+        engine, trainer, team, cid = self._native_party_doubles((0, 1))
+        first, second, incoming, next_incoming = team
+        options = dict(recall=[first], send=[(incoming, first.pos)],
+                       request_id="first-fainted-switch", reason="replace first fainted slot")
+        receipt = engine.act_on_party(trainer, **options)
+        state = self.state(engine, cid)
+        self.assertEqual(state["sides"][0]["replacement_center_due"], [second.entity_id])
+        self.assertTrue(state["pokemon"][incoming.entity_id]["center_pending"])
+        self.assertFalse(state["pokemon"][next_incoming.entity_id]["center_pending"])
+        self.assertEqual(receipt["payment"]["funded"], {"shift": 1})
+        before = deepcopy((state, trainer.budget))
+        self.assertEqual(engine.act_on_party(trainer, **options), receipt)
+        self.assertEqual((self.state(engine, cid), trainer.budget), before)
+        engine.act_on_party(trainer, recall=[second], send=[(next_incoming, second.pos)],
+                            request_id="second-fainted-switch", reason="replace second fainted slot")
+        state = self.state(engine, cid)
+        self.assertEqual(state["sides"][0]["replacement_center_due"], [])
+        self.assertTrue(state["pokemon"][next_incoming.entity_id]["center_pending"])
+        self.assertEqual(len(state["party_switches"]), 2)
+        restored = CODEC.load_engine(self.rules, json.loads(json.dumps(CODEC.dump_engine(engine))))
+        self.assertEqual(self.state(restored, cid)["sides"][0]["replacement_center_due"], [])
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
 

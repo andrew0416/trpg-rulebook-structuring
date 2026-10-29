@@ -90,9 +90,10 @@ def perform(e,actor,skill,dc,options,adjudication):
    plan=e.plan_skill_check(c,s,purpose=context['purpose'],target=roll_target,**plan_options)
    opts['fixed']=plan['fixed_faces'];opts['fixed_penalties']=plan['fixed_penalties'];plans.append(plan)
  if plans:basis['roll_plans']=plans
- def resolve(staged,observed=None):
-  if observed is None:a=staged.skill_roll(actor,selected,**acting);b=staged.skill_roll(target,defending,**other)
-  else:a,b=observed
+ def observe(staged,actor,target,acting,other):
+  return [staged.skill_roll(actor,selected,**acting),staged.skill_roll(target,defending,**other)]
+ def resolve(staged,actor,target,acting,other,observed=None):
+  a,b=observe(staged,actor,target,acting,other) if observed is None else observed
   SF.finish(staged,actor,acting.get('roll_id'));SF.finish(staged,target,other.get('roll_id'))
   winner,(a,b)=SF.resolve_opposed(staged,[(actor,selected,acting),(target,defending,other)],[a,b])
   check=C.CheckResult(a.total,b.total,a.total-b.total,winner=='challenger')
@@ -101,5 +102,5 @@ def perform(e,actor,skill,dc,options,adjudication):
  if featured:
   key=acting.get('roll_id')
   if not isinstance(key,str) or not key.strip():raise ValueError('context opposed feature requires acting roll ID')
-  return SF.sequence(e,'context:'+key,dict(basis,defender_role=role),[(actor,selected,acting),(target,defending,other)],lambda rolls:resolve(e,rolls))
- return COMMON._staged_rolls(e,resolve,actors=(actor,target))
+  return SF.sequence(e,'context:'+key,dict(basis,defender_role=role),[(actor,selected,acting),(target,defending,other)],lambda rolls:resolve(e,actor,target,acting,other,rolls))
+ return COMMON._rolls_before_help(e,resolve,observe,actors=(actor,target),payload=(actor,target,acting,other))

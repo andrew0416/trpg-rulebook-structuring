@@ -107,8 +107,9 @@ class TimedTypeTests(unittest.TestCase):
   with self.assertRaises(ValueError):e.gm.restore('stored')
   self.assertEqual(before,(a.types,e.round_no,a.hp))
  def test_unreviewed_native_lifetimes_and_invalid_contracts_fail_before_cost(self):
+  from unittest.mock import patch
   e,a,b=self.world()
-  # Burn Up/Double Shock now use the actual all-target completion consumer.
+  # These four Moves now have reviewed five-target-turn lifetimes; exercise the unreviewed-source guard explicitly.
   for name in ('핼러윈','숲의저주','마법가루','물붓기'):
    a.moves.append('move/'+name)
    before=(a.budget.copy(),a.move_uses.copy(),a.types[:],a.hp,b.hp,e.rng.getstate())

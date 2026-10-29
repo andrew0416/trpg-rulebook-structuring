@@ -69,7 +69,8 @@ def knowledge(e,actor,target,topic,*,species_known=None,method=None,reason=None,
  basis['knowledge'].update(method=method,reason=reason)
  if topic in config['specific_topics'] and method!='pokedex':
   if high_rank_requirement is None:return pending('GM selects the high Pokemon Education rank threshold; source has no fixed number')
-  C.integer(high_rank_requirement,'GM high-rank requirement',2,8)
+  S.validate_rank_value(e.r,high_rank_requirement,kind='effective',label='GM high-rank requirement')
+  C.integer(high_rank_requirement,'GM high-rank requirement',2)
   basis['knowledge']['gm_high_rank_requirement']=high_rank_requirement
   if rank<high_rank_requirement:return pending('actual Pokemon Education below this explicit GM requirement; no invented failure cost')
  elif high_rank_requirement is not None:raise ValueError('high-rank threshold belongs only to very specific knowledge without Pokedex')

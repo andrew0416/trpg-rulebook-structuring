@@ -206,26 +206,78 @@ class ConditionSaveTimingTests(unittest.TestCase):
                 with self.assertRaises(AssertionError):
                     self.assert_parser_rows_with_curated_versions(saved, policies, required[profile])
 
+    def assert_parser_rows_with_reviewed_confusion_versions(self, saved):
+        expected = {x["id"]: self.parser.mechanize(x) for x in self.entities}
+        actual = {x["id"]: copy.deepcopy(x) for x in saved}
+        # The Korean-source parser does not produce the separately reviewed
+        # edition policies. Validate their entire payloads before separating
+        # only these two keys; every other stored field must still match.
+        policies = {
+            "core-1.05": {
+                "effects": [{"type": "core_confusion_start_turn", "self_hit_max": 8,
+                             "normal_max": 15, "cure_min": 16,
+                             "attack": "typeless_physical_struggle",
+                             "resistance_steps": 1, "no_other_actions": True}],
+                "authority": {"document": "PTU 1.05 Core", "page": 247}},
+            "february-2016": {
+                "effects": [
+                    {"type": "no_attack_of_opportunity"},
+                    {"type": "on_attack_roll", "die": "1d2", "fail_on": 1},
+                    {"type": "self_hp_loss",
+                     "by_move_class": {"물리": "atk/2", "특수": "spa/2", "변화": "2 ticks"},
+                     "after": "attack_resolves"},
+                    {"type": "save", "dc": 16, "timing": "end_of_turn", "on_success": "cure"}],
+                "authority": {"document": "PTU February 2016 Playtest v2", "page": 2}},
+        }
+        data = actual["condition/혼란"]["mech"]["data"]
+        for version, policy in policies.items():
+            self.assertIn(version, data)
+            self.assertEqual(data.pop(version), policy)
+        csv_editions = {
+            '마비': '2f38fa2d46648e52f7db15f71e18f107b748c471a2155d9436c19beb8f6b57b0',
+            '풀죽음': 'd5bae86ea96de599398030ceae79861d0351b24b1446247ddb609f04b7c5cadf',
+            '헤롱헤롱': '8421ee5cae23d2e83b8014c1b922266e5d19e177f643aae75b13e86f5fca3a07',
+            '억압': 'e20ea16374ee288007bd759b86a033ca28d2c3cd40a3ed55eb8edbae362b1b5f',
+        }
+        for name, digest in csv_editions.items():
+            edition = actual['condition/'+name]['mech']['data'].pop('csv-core-1.05')
+            self.assertEqual(hashlib.sha256(json.dumps(edition,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest(), digest)
+        self.assertEqual({uid: actual[uid] for uid in expected}, expected)
+        self.assertEqual(set(actual) - set(expected), {"condition/조이기"})
+        return actual
+
+    def test_saved_curated_policy_allowlist_rejects_other_data_changes(self):
+        # Metadata-only mutations: no engine import, execution or new rules.
+        cases = [
+            ("condition/마비", ("effects", 1, "timing"), "end_of_turn"),
+            ("condition/혼란", ("effects", 3, "dc"), 15),
+            ("condition/혼란", ("core-1.05", "effects", 0, "cure_min"), 17),
+            ("condition/혼란", ("core-1.05", "authority", "page"), 248),
+            ("condition/혼란", ("february-2016", "effects", 3, "timing"), "start_of_turn"),
+            ("condition/혼란", ("february-2016", "authority", "unreviewed"), True),
+            ("condition/혼란", ("core-1.05",), None),
+            ("condition/혼란", ("unreviewed-version",), {}),
+            ("condition/마비", ("core-1.05",), {}),
+            ("condition/마비", ("csv-core-1.05", "effects", 1, "dc"), 6),
+            ("condition/억압", ("csv-core-1.05", "authority", "row"), 87),
+        ]
+        for uid, path, value in cases:
+            with self.subTest(unit=uid, path=path):
+                saved = copy.deepcopy(self.saved)
+                node = next(x for x in saved if x["id"] == uid)["mech"]["data"]
+                for key in path[:-1]:
+                    node = node[key]
+                if value is None:
+                    del node[path[-1]]
+                else:
+                    node[path[-1]] = value
+                with self.assertRaises(AssertionError):
+                    self.assert_parser_rows_with_reviewed_confusion_versions(saved)
+
     def test_parsed_units_match_and_reviewed_vortex_keeps_its_separate_source(self):
         self.assertEqual(len(self.entities), 22)
         self.assertEqual(len(self.saved), 23)
-        expected = {x["id"]: self.parser.mechanize(x) for x in self.entities}
-        actual = {x["id"]: copy.deepcopy(x) for x in self.saved}
-        # The chapter parser owns the base; separately sourced versions remain exact.
-        confusion = actual["condition/혼란"]["mech"]["data"]
-        self.assertEqual(confusion.pop("core-1.05"), {
-            "effects": [{"type": "core_confusion_start_turn", "self_hit_max": 8,
-                         "normal_max": 15, "cure_min": 16, "attack": "typeless_physical_struggle",
-                         "resistance_steps": 1, "no_other_actions": True}],
-            "authority": {"document": "PTU 1.05 Core", "page": 247},
-        })
-        self.assertEqual(confusion.pop("february-2016"), {
-            "effects": [{k: v for k, v in effect.items() if not k.startswith("_")}
-                        for effect in expected["condition/혼란"]["mech"]["data"]["effects"]],
-            "authority": {"document": "PTU February 2016 Playtest v2", "page": 2},
-        })
-        self.assertEqual({uid: actual[uid] for uid in expected}, expected)
-        self.assertEqual(set(actual) - set(expected), {"condition/조이기"})
+        actual = self.assert_parser_rows_with_reviewed_confusion_versions(self.saved)
         # Vortex is sourced from the keyword chapter, outside this parser's22 rows.
         vortex = actual["condition/조이기"]
         self.assertEqual(vortex["_category3_source"], "C3-EX-095")

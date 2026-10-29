@@ -962,11 +962,14 @@ def _finish(e, args):
             child = PASSIVE.begin_recipient(e,event,recipient,hit=recipient_plan['hit'],token=token)
             state['children'][uid] = child['id']
             import precise_actions as PRECISE
-            if recipient is args['target']:
+            retained=__import__('taskmaster_gambit').retained_precision(e,child)
+            if retained is not None:
+                precision=retained
+            elif recipient is args['target']:
                 precision=args['precision_event']
             else:
                 precision=PRECISE.attacked(e,args['attacker'],recipient,args['move'],producer='Engine.use_move/defense-recipient')
-            PRECISE.accuracy(precision,recipient_plan['hit'])
+            if retained is None:PRECISE.accuracy(precision,recipient_plan['hit'])
             options.update(hit=recipient_plan['hit'],passive_event=child['id'],defense_token=token,precision_event=precision)
             try:
                 result = e._resolve_move_recipient(args['attacker'],recipient,**options)
@@ -1009,6 +1012,7 @@ def _finish(e, args):
     for receipt in receipts:
         COMPLETE.record_return(e,receipt['child_event'],hit_prevented=receipt['hit_prevented'])
     COMPLETE.record_return(e,event['id'],hit_prevented=False)
+    __import__('taskmaster_gambit').finish_parent(e,event['id'],state['total'])
     return state['total']
 
 

@@ -6,6 +6,7 @@ from datetime import datetime,timezone
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'engine'))
 from engine import Rules,Engine,Combatant
 import downtime as DT
+import world_entities as W
 
 class BoundaryTests(unittest.TestCase):
     @classmethod
@@ -69,21 +70,22 @@ class BoundaryTests(unittest.TestCase):
         self.assertEqual(c.hp,-1)
     def test_parallel_rest_advances_one_interval_for_distinct_actors(self):
         e,a=self.fixture(23,1,'A');b=Combatant(e.r,dict(a.spec,name='B',id='boundary:distinct-b'));a.hp=b.hp=1;e.everyone=e.gm.everyone=[a,b]
-        with patch.object(e,'advance_time',wraps=e.advance_time) as clock:
+        with patch.object(Engine,'advance_time',autospec=True,side_effect=Engine.advance_time) as clock:
             result=DT.rest_many(e,[a,b],30)
-        self.assertEqual(clock.call_count,1);self.assertEqual(clock.call_args.args[0],1800)
-        self.assertEqual(set(map(id,clock.call_args.args[1])),{id(a),id(b)})
+        self.assertEqual(clock.call_count,1);staged,seconds,actors=clock.call_args.args
+        self.assertEqual(seconds,1800);self.assertEqual({c.entity_id for c in actors},{a.entity_id,b.entity_id})
+        self.assertTrue(all(W.actor_index(staged)[c.entity_id] is c for c in actors))
         self.assertEqual((a.hp,b.hp),(6,6))
         self.assertEqual((a.spec['rested_minutes_today'],b.spec['rested_minutes_today']),(30,30))
     def test_parallel_duplicate_actor_not_double_credited(self):
         e,a=self.fixture(23,1);a.hp=1
-        with patch.object(e,'advance_time',wraps=e.advance_time) as clock:DT.rest_many(e,[a,a],30)
+        with patch.object(Engine,'advance_time',autospec=True,side_effect=Engine.advance_time) as clock:DT.rest_many(e,[a,a],30)
         self.assertEqual(clock.call_count,1);self.assertEqual(a.hp,6);self.assertEqual(a.spec['rested_minutes_today'],30)
     def test_separate_rest_calls_are_sequential_intervals(self):
         e,a=self.fixture(23,1,'A');b=Combatant(e.r,dict(a.spec,name='B',id='boundary:distinct-b'));e.everyone=e.gm.everyone=[a,b]
-        with patch.object(e,'advance_time',wraps=e.advance_time) as clock:
+        with patch.object(Engine,'advance_time',autospec=True,side_effect=Engine.advance_time) as clock:
             DT.rest(e,a,30);DT.rest(e,b,30)
-        self.assertEqual(clock.call_count,2);self.assertEqual(sum(call.args[0] for call in clock.call_args_list),3600)
+        self.assertEqual(clock.call_count,2);self.assertEqual(sum(call.args[1] for call in clock.call_args_list),3600)
     def test_invalid_parallel_duration_has_no_mutation(self):
         for minutes in [-1,True,1.5]:
             e,a=self.fixture();before=dict(a.spec)

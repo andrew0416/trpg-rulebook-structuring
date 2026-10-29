@@ -323,10 +323,12 @@ def fall(e,c,*,action_id,meters,intentional,reason,acrobatics=False,acrobatics_o
         return False
     if not c.abilities_suppressed and any(relevant_resistance(x) for x in c.modifiers):
         return C.PendingDecision("falling Typeless Physical damage versus applicable ability resistance/immunity needs source composition")
-    def calculate(staged,observed=None):
+    def observe_prefix(staged,c,plans):
+        return [staged.skill_roll(c,'곡예',**plans[0][2])] if plans else []
+    def calculate(staged,c,plans,observed=None):
         checks={}
         for index,(key,dc,opts) in enumerate(plans):
-            roll=observed[index] if observed is not None else staged.skill_roll(c,'곡예',**opts)
+            roll=observed[index] if observed is not None and index<len(observed) else staged.skill_roll(c,'곡예',**opts)
             checks[key]=SF.resolve_check(staged,c,'곡예',dc,roll,opts);SF.finish(staged,c,opts.get('roll_id'))
         jump=base_jump+int(bool(checks.get("jump_boost") and checks["jump_boost"].passed))
         distance=max(0,meters-__import__('martial_artist').fall_reduction(staged,c)-jump+surface_meters)
@@ -375,13 +377,16 @@ def fall(e,c,*,action_id,meters,intentional,reason,acrobatics=False,acrobatics_o
             c.spec['_fall_skill_inflight']=inflight
         if acrobatics_injury_policy is not None:inflight['injury_policy']=acrobatics_injury_policy
         sequence_key='fall:'+c.spec.get('id',c.name)+':'+action_id
+        def finish_observed(rolls):
+            # SF.sequence already owns these actual durable observations.
+            if COMMON._has_help_offers(e,(c,)):return calculate(e,c,plans,rolls)
+            return COMMON._staged_rolls(e,calculate,actors=(c,),payload=(c,plans,rolls))
         try:
-            result=SF.sequence(e,sequence_key,basis,[(c,'곡예',opts) for _,_,opts in plans],
-                lambda rolls:COMMON._staged_rolls(e,lambda staged:calculate(staged,rolls),actors=(c,)))
+            result=SF.sequence(e,sequence_key,basis,[(c,'곡예',opts) for _,_,opts in plans],finish_observed)
         finally:
             if sequence_key not in getattr(e,'_skill_sequences',{}):c.spec.pop('_fall_skill_inflight',None)
         c.spec.pop('_fall_skill_inflight',None)
-    else:result=COMMON._staged_rolls(e,calculate,actors=(c,))
+    else:result=COMMON._rolls_before_help(e,calculate,observe_prefix if plans else None,actors=(c,),payload=(c,plans))
     # Save the actual outcome before any potential adjudication boundary. A new
     # request cannot reroll this real fall merely because an exception is pending.
     result["status"]="calculated"

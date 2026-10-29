@@ -110,8 +110,10 @@ def _trigger(engine, raw):
         result=DEFENSE.authorize_trigger(engine,raw['event_id'])
         if result['owner'] is not owner:
             proof=__import__('marksman').watch_reaction_origin(engine,raw['event_id'],live=True)
+            if proof is not None:return dict(result,owner=owner,marksman_watch_source=proof)
+            proof=__import__('taskmaster_gambit').counter_reaction_origin(engine,raw['event_id'],live=True)
             if proof is None:raise ValueError('accuracy defense suspended owner changed')
-            return dict(result,owner=owner,marksman_watch_source=proof)
+            return dict(result,owner=owner,gambit_counter_source=proof)
         return result
     if raw.get('kind')=='move' and set(raw)=={'kind','event_id'}:
         import passive_events as EVENTS
@@ -808,10 +810,16 @@ def _validate_world(engine,index):
             import move_defense_reactions as DEFENSE
             defense=None if event is None else DEFENSE._defense(engine,event)
             watch=window['trigger'].get('marksman_watch_source')
+            gambit=window['trigger'].get('gambit_counter_source')
+            if gambit is not None:
+                if watch is not None or round_end:raise ValueError('one actual off-turn counter origin required')
+                proof=__import__('taskmaster_gambit').counter_reaction_origin(engine,window['trigger']['event_id'],live=False)
+                if proof!=gambit or parent is None or proof['owner_id']!=parent.entity_id:
+                    raise ValueError('actual Gambit suspended turn owner changed')
             if watch is not None:
                 proof=__import__('marksman').watch_reaction_origin(engine,window['trigger']['event_id'],live=False)
                 if proof!=watch or parent is None or proof['owner_id']!=parent.entity_id:raise ValueError('actual Overwatch suspended turn owner changed')
-            if (event is None or (not round_end and watch is None and event['actor'] is not window['parent']) or defense is None or
+            if (event is None or (not round_end and watch is None and gambit is None and event['actor'] is not window['parent']) or defense is None or
                     defense['fingerprint']!=window['trigger']['defense_fingerprint']):
                 raise ValueError('reaction accuracy declaration changed')
         elif window['trigger']['kind']=='native_accuracy':

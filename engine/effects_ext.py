@@ -214,17 +214,7 @@ def h_transfer_status(engine, a, t, e, ctx):
 
 
 def h_apply_status_choice(engine, a, t, e, ctx):
-    opts = e.get("options", [])
-    pick = None
-    for o in opts:
-        pick = _parse_status(o)
-        if pick:
-            break
-    if not pick:
-        return "선택지에 상태 이름 없음"
-    engine.log(f"    선택지 {opts} → 엔진 기본 선택: {pick} ({e.get('chooser', 'user')} 선택)")
-    for c in _who(engine, a, t, e):
-        engine.apply_status(c, pick)
+    return __import__('earned_status_choices').apply(engine,a,t,e,ctx)
 
 
 def h_move_lock(engine, a, t, e, ctx):
@@ -514,6 +504,8 @@ def h_alternate_effect(engine, a, t, e, ctx):
 def _eval_cond(engine, a, t, cond, ctx):
     """자연어 조건 가운데 전투 상태로 판단 가능한 것. 모르면 None."""
     c = str(cond)
+    if c in ('target in rain weather','target in sunny weather','target airborne (뛰어오르기/공중날기/프리폴)','target hit user super-effectively since last turn'):
+        return __import__('effect_contracts').condition_text(engine,a,t,c,ctx)
     m = re.search(r"stockpile\s*(==|>=)\s*(\d+)", c)
     if m:
         v = a.counters.get("stockpile", 0)
@@ -1081,10 +1073,16 @@ def validate_combat_move(engine, actor, move):
         __import__('multi_strike').preflight(engine,actor,move)
 
 
-def entry_move_allowed(engine, actor, move, mm):
-    """Existing actual-turn counter is reset only by real field/encounter entry."""
+def entry_move_allowed(engine, actor, move, mm, *, target=None, targetless=False):
+    """Read-only admission; paid pre_use still rechecks the actual target."""
+    if type(targetless) is not bool:raise ValueError('explicit targetless admission policy required')
     __import__('declarative_move_contracts').require_defensive_move(actor,move)
     effects=mm.get('effects_exec',[])+actor.registry
+    if not targetless and any(e.get('type')=='targeting_rule' and 'asleep' in str(e.get('valid_targets','')) for e in effects):
+        if target is None:raise ValueError('sleep-target admission requires the actual recipient')
+        if '잠듦' not in target.conditions:
+            engine.log(f"  {actor.name} {move['name']}: 잠든 대상에게만 → {target.name}은(는) 대상 불가", 'effect/targeting_rule')
+            return False
     if not any(e.get('type')=='usage_restriction' and 'first turn after entering' in str(e.get('only_if','')) for e in effects):
         return True
     import common_checks as CHECKS
@@ -1122,7 +1120,7 @@ def pre_use(engine, a, t, move, mm, *, targetless=False):
     """use_move 앞: 사용 제한·대상 규칙·기술 봉인. False 면 행동이 무효."""
     if type(targetless) is not bool:raise ValueError('explicit targetless pre-use policy required')
     validate_combat_edges(engine, a)
-    if not entry_move_allowed(engine,a,move,mm):return False
+    if not entry_move_allowed(engine,a,move,mm,target=t,targetless=targetless):return False
     effs = mm.get("effects_exec", [])
     import catalog_move_states as CATALOG
     keyword = CATALOG.move_locked(engine,a,move)
@@ -1155,9 +1153,6 @@ def pre_use(engine, a, t, move, mm, *, targetless=False):
             if targetless:
                 continue
             vt = str(e.get("valid_targets", ""))
-            if "asleep" in vt and "잠듦" not in t.conditions:
-                engine.log(f"  {a.name} {move['name']}: 잠든 대상에게만 → {t.name}은(는) 대상 불가", "effect/targeting_rule")
-                return False
             if "not self" in vt and t is a:
                 engine.log(f"  {a.name} {move['name']}: 자신은 대상 불가", "effect/targeting_rule")
                 return False
@@ -1869,11 +1864,16 @@ def end_of_turn(engine, c):
             if precision_facts.get("hit_prevented"):
                 COMPLETE.finish_target(engine,completion_id,a,c,hit=False,dealt=0)
                 continue
+            history_before={'requested':dealt,'state':__import__('combat_damage').observe(c),
+                            'heavy_sequence':engine._heavy_sequence}
             application=HEAVY.apply_attack_damage(engine, a, c, dealt, move,
                 producer=HEAVY.Producer.DELAYED_HIT,
                 remainder="remaining delayed queue and outer turn-end effects have not run; current delayed record already removed",
                 actual_damage_type=precision_facts.get("actual_damage_type"))
             if isinstance(application,dict) and application.get('source')==__import__('channeler').PAIN:dealt=0
+            else:
+                __import__('attack_damage_history').record_delayed_hit(engine,a,c,move,completion_id,
+                    history_before,precision_facts.get('actual_damage_type',move['type']),precision_facts.get('type_multiplier'))
             COMPLETE.finish_target(engine,completion_id,a,c,hit=True,dealt=dealt)
     import declarative_move_contracts as DECLARATIVE_MOVES
     DECLARATIVE_MOVES.end_turn(engine,c)

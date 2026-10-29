@@ -8,6 +8,7 @@ from copy import deepcopy
 from pathlib import Path
 import hashlib,json,re
 import common_checks as C
+import skill_modifiers as SKILL_RANKS
 import frequency as F
 import state_grants as G
 import combat_timing as TIME
@@ -76,7 +77,7 @@ def qualification(actor,feature,snapshot,prerequisite_source):
  import acquisition_qualification as Q
  fields={'guile','parents','features','selection'}|({'rank_number','previous'} if feature==BAG else set())
  if prerequisite_source is not None or type(snapshot) is not dict or set(snapshot)!=fields:raise ValueError('exact Trickster acquisition observations required')
- C.integer(snapshot['guile'],'actual Guile rank',1,6)
+ SKILL_RANKS.validate_rank_value(actor.r,snapshot['guile'],label='actual Guile rank')
  known={r['request_id'] for r in records(actor)}
  if type(snapshot['features']) is not list or len(set(snapshot['features']))!=len(snapshot['features']) or not set(snapshot['features'])<=known:raise ValueError('actual Trickster Feature acquisition receipts required')
  checks=[Q.check('trainer','prerequisite',actor.kind=='trainer','actual Trainer required'),
@@ -240,7 +241,11 @@ def maneuver(e,trainer,pokemon,target,trigger,kind,choice,**options):
  previous=getattr(e,'_trickster_maneuver',None)
  if previous is not None:raise ValueError('finish the actual Trickster maneuver before nesting another')
  e._trickster_maneuver={'trainer':trainer,'pokemon':pokemon,'target':target,'trigger':trigger,'kind':kind}
- try:return getattr(__import__('combat_maneuvers'),kind)(e,pokemon,target,choice,**options)
+ try:
+  actual=getattr(e,'_move_completions',{}).get(trigger)
+  with __import__('action_lifecycle').completion_reaction(e,trainer,CLASS,actual,
+      _child=(pokemon,'maneuver',__import__('combat_maneuvers').SOURCE if kind=='dirty_trick' else __import__('combat_maneuvers').MANIPULATE)):
+   return getattr(__import__('combat_maneuvers'),kind)(e,pokemon,target,choice,**options)
  finally:del e._trickster_maneuver
 
 
@@ -256,7 +261,11 @@ def stacked_deck(e,trainer,pokemon,target,completion,condition):
   v.custom_conditions.setdefault(STACK_KEY,[]).append(rec)
   if group==2:TIME.install(staged,v,{'source':STACK,'manual_end':True,'trickster_condition':condition,'accuracy_modifier':-2,'evasion_modifier':-2,'effect_contract':True})
   return {'status':'applied','condition':condition,'group':group}
- return G.transition(e,trainer,apply,participants=(pokemon,target),include_rulings=True)
+ def scoped(staged,t,p,*others):
+  actual=staged._move_completions[completion]
+  with __import__('action_lifecycle').completion_reaction(staged,t,STACK,actual):
+   return apply(staged,t,p,*others)
+ return G.transition(e,trainer,scoped,participants=(pokemon,target),include_rulings=True)
 
 
 def condition_ended(e,actor,condition):
@@ -329,7 +338,11 @@ def flourish(e,trainer,pokemon,completion,choice,*,stat=None):
     for condition in saved_conditions[v.entity_id]:
      v.custom_conditions.setdefault(FIRST_SAVE,[]).append({'source':FLOURISH,'condition':condition,'completion':completion,'consumed':False})
   return {'status':'applied','choice':choice}
- return G.transition(e,trainer,apply,participants=(pokemon,*targets),include_rulings=True)
+ def scoped(staged,t,p,*others):
+  actual=staged._move_completions[completion]
+  with __import__('action_lifecycle').completion_reaction(staged,t,FLOURISH,actual):
+   return apply(staged,t,p,*others)
+ return G.transition(e,trainer,scoped,participants=(pokemon,*targets),include_rulings=True)
 
 
 def encore(e,trainer,pokemon,completion,choice,*,stat=None,cells=None):
@@ -352,7 +365,11 @@ def encore(e,trainer,pokemon,completion,choice,*,stat=None,cells=None):
    p.custom_conditions[EXTRA]={'round':staged.round_no,'completion':completion,'used':False,'trainer':t}
   _charge(staged,t,ENCORE,quota={'kind':'daily','uses':3});actual['trickster_encore']=choice
   return {'status':'applied','choice':choice}
- return G.transition(e,trainer,apply,participants=(pokemon,),include_rulings=True,include_grid=True)
+ def scoped(staged,t,p,*others):
+  actual=staged._move_completions[completion]
+  with __import__('action_lifecycle').completion_reaction(staged,t,ENCORE,actual):
+   return apply(staged,t,p,*others)
+ return G.transition(e,trainer,scoped,participants=(pokemon,),include_rulings=True,include_grid=True)
 
 
 def native_frame_required(e,p,source):
@@ -383,7 +400,7 @@ def extra_standard(e,p,kind,move):
  if frequency!='at_will':raise ValueError('Encore second Standard allows At-Will only')
  row['used']=True
  frame['trickster_encore_action']=True
- __import__('action_lifecycle').record_action(e,p,'standard',_triggered_source=ENCORE)
+ __import__('action_lifecycle').record_action(e,p,'standard',_triggered_source=ENCORE,_native_move=move)
  return True
 
 
@@ -404,7 +421,11 @@ def mind_games(e,trainer,pokemon,target,completion,*,replace=None,with_condition
    try:staged.apply_status(v,with_condition)
    finally:staged._inflictor=previous
   return {'status':'applied','replacement':with_condition}
- return G.transition(e,trainer,apply,participants=(pokemon,target),include_rulings=True)
+ def scoped(staged,t,p,*others):
+  actual=staged._move_completions[completion]
+  with __import__('action_lifecycle').completion_reaction(staged,t,MIND,actual):
+   return apply(staged,t,p,*others)
+ return G.transition(e,trainer,scoped,participants=(pokemon,target),include_rulings=True)
 
 
 def escape_artist(e,trainer,pokemon,target,move_id,destination,**options):
@@ -541,3 +562,14 @@ def impromptu_scope(e,p,move=None):
  row=getattr(e,'_trickster_impromptu',None)
  event=getattr(e,'_opportunity_attack',None)
  return bool(row and row['pokemon'] is p and (move is None or row['move_id']==move['id']) and event and event.get('attacker_id')==p.entity_id and event.get('target_id')==row['target'].entity_id)
+
+
+def completion_reaction_origin(e,actor,source,row,receipt):
+ if source not in (CLASS,STACK,FLOURISH,ENCORE,MIND):return False
+ if source==MIND:require(e,actor,row['actor'],tech=MIND)
+ else:require(e,actor,row['actor'],source)
+ _completion(e,row['actor'],row['id'])
+ if source==CLASS:
+  frame=getattr(e,'_trickster_maneuver',None)
+  if not frame or frame['trigger']!=row['id'] or frame['trainer'] is not actor:raise ValueError('actual Trickster maneuver trigger required')
+ return True

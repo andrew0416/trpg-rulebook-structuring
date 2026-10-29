@@ -27,6 +27,7 @@ class ReferenceRuleTests(unittest.TestCase):
     @classmethod
     def prepare_chained_cases(cls,cases):
         return prepare_reference_cases(cls,cases,PLATES,GIFT)
+
     @classmethod
     def setUpClass(cls):
         cls.rules=Rules(str(ROOT),ruleset='all')

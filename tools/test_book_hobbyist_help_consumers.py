@@ -65,6 +65,47 @@ class HelpConsumerTests(unittest.TestCase):
   out=self.e.common_action(mode='team',skill='의학',dc=12,participants=[self.target,other],required_people=2,equal_contribution=False,no_main_actor=True,contribution_weights=[2,1],weighting_reason='GM actual unequal contributions',participant_options=[{'fixed':[1,1]},{'fixed':[1,1]}])
   self.assertTrue(out.check.passed);self.assertEqual(out.check.total,36);self.spent()
 
+ def test_weighted_team_actual_help_choice_failure_retains_first_observations_and_resumes_child(self):
+  other=self.h.actor('durable-help-team-member','trainer',(3,3),35,skills={'의학':2})
+  self.start();seen=[]
+  self.arm(decision=lambda first:seen.append(first) or 'invalid Help reply')
+  helper_before=deepcopy((getattr(self.helper,'budget',None),getattr(self.helper,'_action_history',[]),self.helper.spec))
+  with self.assertRaisesRegex(ValueError,'observed Let Me Help choice'):
+   self.e.common_action(mode='team',skill='의학',dc=12,participants=[self.target,other],
+    required_people=2,equal_contribution=False,no_main_actor=True,contribution_weights=[2,1],
+    weighting_reason='actual weighted participant contributions',
+    participant_options=[{'fixed':[1,1],'roll_id':'durable-help-member'},
+                         {'fixed':[1,1],'roll_id':'durable-other-member'}])
+  self.assertEqual(len(seen),1)
+  first=SF.event(self.e,self.target,'durable-help-member').first
+  second=SF.event(self.e,other,'durable-other-member').first
+  self.assertIs(seen[0],first);self.assertEqual((first.total,second.total),(2,2))
+  self.assertEqual(deepcopy((getattr(self.helper,'budget',None),getattr(self.helper,'_action_history',[]),self.helper.spec)),helper_before)
+  self.assertEqual(self.e._ap_rolls['durable-help-member']['help_check']['dc'],11)
+  self.arm(decision=lambda first:True)
+  # The already-issued Help check has its actual weighted threshold and roll ID.
+  self.assertEqual(self.e.skill_check(self.target,'의학',11,fixed=[1,1],roll_id='durable-help-member'),(True,17))
+  self.assertIs(SF.event(self.e,self.target,'durable-help-member').first,first)
+  self.assertIs(SF.event(self.e,other,'durable-other-member').first,second)
+  self.spent()
+
+ def test_authored_roll_policy_delegates_actual_help_boundary_and_replays_without_second_cost(self):
+  import hobbyist
+  self.start();self.arm()
+  purpose='actual authored Help-aware medical check'
+  document={'schema':1,'id':'help-consumer/native-roll-policy','variants':[{
+   'rule_id':SF.HELP,'source':{'file':'input/ch03-skills-edges-feats.md','sha256':hobbyist.GENERAL},
+   'values':{'roll_plan':{'skill':'의학','purpose':purpose,'provider_id':self.helper.entity_id,
+    'provider_requirement':{'source_id':SF.HELP,'minimum_count':1},'options':{'fixed':[1,1]}}},'inputs':{}}]}
+  submissions=[{'actor':self.target,'target':self.target,'document':document,'purpose':purpose}]
+  out=self.e.execute_source_policy_rolls(submissions,{'kind':'dc','dc':15},request_id='help-consumer/policy')
+  self.assertEqual(out['status'],'PolicyRollsCompleted')
+  self.assertEqual(out['outcome']['result']['total'],17)
+  self.assertTrue(out['outcome']['result']['passed']);self.spent()
+  before=self.e.export_state()
+  again=self.e.execute_source_policy_rolls(submissions,{'kind':'dc','dc':15},request_id='help-consumer/policy')
+  self.assertTrue(again['replayed']);self.assertEqual(self.e.export_state(),before)
+
  def test_additional_focus_keeps_distinct_automatic_observation_ids(self):
   self.start();self.arm()
   out=self.e.common_action(self.target,'의학',15,mode='focus_task',focus_dc=15,context={'kind':'stressful','purpose':'treat an ally','focus_reason':'distracting noise'},task_options={'fixed':[1,1]},focus_options={'fixed':[1,1]})

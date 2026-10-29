@@ -204,7 +204,7 @@ def validate_genjutsu(engine,index):
         if row['darkness']!=(row['appearance'] is None):raise ValueError('exact darkness concealment or mundane object disguise required')
         if not row['darkness']:_text(row['appearance'],'mundane object appearance')
         import common_checks as C
-        C.integer(row['stealth_rank'],'Genjutsu Stealth rank',1,6);C.integer(row['created_at'],'Genjutsu creation time',0,engine.elapsed_seconds)
+        SKILL.validate_rank_value(engine.r,row['stealth_rank'],label='Genjutsu Stealth rank');C.integer(row['created_at'],'Genjutsu creation time',0,engine.elapsed_seconds)
         if row['status']=='broken':
             C.integer(row['ended_at'],'Genjutsu ending time',row['created_at'],engine.elapsed_seconds);_text(row['end_reason'],'Genjutsu ending')
         elif row['ended_at'] is not None or row['end_reason'] is not None:raise ValueError('active Genjutsu cannot have ending evidence')

@@ -323,7 +323,7 @@ def _death_resistance(engine, actor, target, source, row, options):
 def _learned_moves(target):
     import move_state as M
     result = []
-    for value in M.owned_list(target.spec, 'moves', target.moves):
+    for value in M.owned_list(target.spec, 'moves', target.moves,rules=target.r):
         try:
             mid = target.r.move_id(value)
             if mid is None or mid == 'struggle':

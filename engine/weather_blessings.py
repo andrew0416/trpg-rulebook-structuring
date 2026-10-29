@@ -241,6 +241,7 @@ def select_damage(engine,event,native_context):
         if any(d['activation_id']==identity['activation_id'] and d['target_id']==target.entity_id for d in r['decisions']):
             raise ValueError('weather attack target already resolved')
         before=event['damage'];mult=f['multiplier'];after=shifted(engine.r,mult,direction)
+        after=R.resistance_floor(engine,event,after)
         changed=max(0,M.product(f['after_defense'],after,f['other_multiplier'])+f['adjustment'])
         # At the supported step bound the charge cannot buy a change.
         if after==mult or changed==before:continue
@@ -262,7 +263,7 @@ def select_damage(engine,event,native_context):
         event.setdefault('weather_pending',[]).append((owner,r,observation))
         if selected:
             event['damage']=changed;f['multiplier']=after;event['context']['multiplier']=after
-            resistance=R.resistance_multiplier(engine,after)
+            resistance=R.resistance_multiplier(engine,after,event=event)
             event['resisted_damage']=None if resistance is None else max(0,M.product(f['after_defense'],resistance,f['other_multiplier'])+f['adjustment'])
     return event['damage']
 

@@ -107,7 +107,7 @@ def trigger(e,a,event_id,kind=None):
 def pay(e,a,u,kind,ap):
  import turn as T,action_points as AP
  if AP.available(a)<ap:raise ValueError('available Juggler AP required')
- if not T.spend(e,a,kind,u):raise ValueError('actual Juggler '+kind+' action required')
+ if not T.spend(e,a,kind,u,_triggered_source=u):raise ValueError('actual Juggler '+kind+' action required')
  if ap:AP.spend(a,ap)
 
 def party_plan(e,a,recall,send,feature):
@@ -139,7 +139,9 @@ def party_plan(e,a,recall,send,feature):
   ap=1 if edition(a,u)=='local_csv' else 2;kind='free' if ap==1 else 'shift'
  elif u is None and tag:ap=0;kind=None
  else:raise ValueError('reviewed Juggler party source required')
- return {'source':u,'action':kind,'ap':ap,'tag_in':tag,'ignore_trapped':u==ROUND,'preserve_turn':u in (QUICK,ROUND)}
+ result={'source':u,'action':kind,'ap':ap,'tag_in':tag,'ignore_trapped':u==ROUND,'preserve_turn':u in (QUICK,ROUND)}
+ if u==ROUND:result['completion_id']=row['id']
+ return result
 
 def party_payment(e,a,plan):
  import frequency as F
@@ -187,7 +189,13 @@ def act(e,a,*,recall=(),send=(),request_id,reason,source_id=None,event_id=None,c
    waiting.append(pending.event_id);return None
   if window:finish_party_reaction(se,owner,request_id)
   return result
- result=G.transition(e,a,apply,participants=participants,include_rulings=True,include_grid=e.grid is not None)
+ def scoped(se,owner,*subjects):
+  parent=getattr(se,'_move_completions',{}).get(completion_id) if source_id==ROUND else None
+  receipt=owner.spec.get(P.KEY,{}).get(request_id)
+  with __import__('action_lifecycle').completion_reaction(se,owner,source_id,parent,receipt=receipt,
+      _child=(owner,'escape',P.SOURCE)):
+   return apply(se,owner,*subjects)
+ result=G.transition(e,a,scoped,participants=participants,include_rulings=True,include_grid=e.grid is not None)
  if waiting:raise __import__('passive_events').PassiveEventPending(waiting[0])
  return result
 
@@ -505,3 +513,17 @@ def bounce_missed(e,a,*,attempt_id):
   bounce_physical(se,owner,B.attempt_ball(se,owner,row),plan,row)
   row['landing']['cell']=list(plan['endpoint']);return deepcopy(row['bounce'])
  return G.transition(e,a,apply,include_grid=e.grid is not None)
+
+
+def completion_reaction_origin(e,actor,source,row,receipt):
+ if source!=ROUND:return False
+ require(e,actor,ROUND)
+ if row['actor'].spec.get('trainer_id')!=actor.entity_id:raise ValueError('actual owned Round Trip completion required')
+ if receipt is not None:
+  import party_actions as P
+  if not any(saved is receipt for saved in actor.spec.get(P.KEY,{}).values()):raise ValueError('actual retained party receipt required')
+  feature=receipt.get('intent',{}).get('feature',{})
+  if feature.get('source')!=ROUND or feature.get('completion_id')!=row['id']:raise ValueError('retained Round Trip origin changed')
+ elif actor.spec.get(KEY,{}).get('move_window')!={'id':row['id'],'boundary':boundary(e)}:
+  raise ValueError('actual current Round Trip completion required')
+ return True
