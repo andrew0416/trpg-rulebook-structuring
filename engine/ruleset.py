@@ -106,6 +106,11 @@ class UnresolvedRuleSelection(ValueError):
         self.identity = identity
         self.candidates = tuple(sorted(set(candidates)))
         super().__init__(f"Unresolved rule selection for {identity}: {', '.join(self.candidates)}")
+    def __reduce__(self):
+        # The displayed args are not the semantic constructor arguments.
+        # Standard reconstruction keeps exact args and memo-shared custom state.
+        from copyreg import __newobj__
+        return (__newobj__, (type(self), *self.args), self.__dict__)
 
 class RuleFilter:
     def __init__(self, profile, name="custom"):
@@ -239,6 +244,11 @@ class ExcludedRuleSelection(ValueError):
     def __init__(self, identity, reason):
         self.identity, self.reason = identity, reason
         super().__init__(f"Excluded rule selection for {identity}: {reason}")
+    def __reduce__(self):
+        # The displayed args are not the semantic constructor arguments.
+        # Standard reconstruction keeps exact args and memo-shared custom state.
+        from copyreg import __newobj__
+        return (__newobj__, (type(self), *self.args), self.__dict__)
 
 
 class RuleSelection:

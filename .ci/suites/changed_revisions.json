@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "id": "changed_revisions",
-  "purpose": "Exact unique union of the approved23 authority/native-reaction controls and87 recovered-test/helper impact controls. Retain original ineligible local87 evidence; CI uses its self-contained authenticated execution root. This is not whole-project coverage or clause credit.",
+  "purpose": "Original reviewed106-ID scope plus4 focused exception-copy regressions. Preserve original105PASS/1ERROR run as rejected; repaired report-shadow source/count checks and exact exception state/memo/rollback behavior are included. No clause credit or whole-project coverage claim.",
   "completion_credit": 0,
-  "required_unique_count": 106,
+  "required_unique_count": 110,
   "provenance": {
     "base_main": "ed89311fe4aee538fa58908587427a6e4827127b",
     "local_source": "authority-validation12",
@@ -11,7 +11,7 @@
     "local_canonical_completed": 1798,
     "local_clause_delta": 0,
     "remote_world": "Existing remote protected World retained; direct validation duplicates remain.",
-    "private_inputs": "Update only11 existing encrypted runtime policies; preserve1558 other members and existing private policy. No plaintext source publication.",
+    "private_inputs": "Only the approved11 existing encrypted policy replacements and1 Type Expertise support contract addition;1558 members and existing private-policy Secret preserved. No additional private inputs or plaintext publication.",
     "recovery": {
       "restored_main_files": 234,
       "partial_semantic_files": 28,
@@ -20,6 +20,16 @@
       "unique_union": 106,
       "procedural_separate": "procedural_effects / procedural_04",
       "private_input_scope_unchanged": true
+    },
+    "followup": {
+      "original_native_run": 40831545521,
+      "original_procedural_failure_runs": [
+        40831548507,
+        40833150192
+      ],
+      "local_report_shadow_controls": 3,
+      "local_rule_selection_copy_controls": 4,
+      "additional_private_inputs": 0
     }
   },
   "completed": {
@@ -131,6 +141,14 @@
         "tools.test_source_locations.CsvBookComparisonTests.test_import_and_stdout_cli_do_not_write_or_adjudicate_completion",
         "tools.test_source_locations.ProvenanceTests.test_logical_record_is_not_multiline_csv_physical_line",
         "tools.test_string_shot_native_area01.StringShotNativeAreaTests.test_changed_selected_area_effect_is_rejected_before_native_payment"
+      ]
+    },
+    "rule_selection_copy_regression": {
+      "tests": [
+        "tools.test_rule_selection_copy.RuleSelectionCopyTests.test_deepcopy_preserves_structured_refusal_and_exact_display_args",
+        "tools.test_rule_selection_copy.RuleSelectionCopyTests.test_deepcopy_uses_callers_memo_for_custom_state_aliases",
+        "tools.test_rule_selection_copy.RuleSelectionCopyTests.test_pickle_preserves_both_refusals_args_and_cyclic_custom_state",
+        "tools.test_rule_selection_copy.RuleSelectionCopyTests.test_native_failed_selection_receipt_survives_gm_staging_and_rollback"
       ]
     }
   }
