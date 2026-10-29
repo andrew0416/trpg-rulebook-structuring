@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "id": "changed_revisions",
-  "purpose": "Original reviewed106-ID scope plus focused rule-selection/effect-contract exception-copy and actual delayed-damage occurrence regressions. Original105PASS/1ERROR run remains rejected. Preserve source, recipient, paid, pending and physical-evidence guards; no clause credit or whole-project coverage claim.",
+  "purpose": "Original121 authority/restoration controls plus source-bound historical observation, target predicate, native Snore and Dream Eater admission regressions. Previous passing and failed runs remain at their original heads. No clause credit or whole-project certification.",
   "completion_credit": 0,
-  "required_unique_count": 121,
+  "required_unique_count": 166,
   "provenance": {
     "base_main": "ed89311fe4aee538fa58908587427a6e4827127b",
     "local_source": "authority-validation12",
@@ -34,7 +34,13 @@
       "local_effect_contract_controls": 4,
       "local_delayed_damage_and_strengthened_rng_controls": 8,
       "original_scope_preserved": 106,
-      "current_exact_union": 121
+      "current_exact_union": 166,
+      "previous_121_pass_run": 40839642062,
+      "previous_121_pass_head": "d1b2afd57f8b7b87a9514b7f6e21bb503cb38cfd",
+      "history_merge": "9af246b246696b9637950e9d4ea8f68282d26ecb",
+      "local_regression_methods": 45,
+      "local_original_procedural_checks": 79,
+      "additional_private_paths": 0
     }
   },
   "completed": {
@@ -173,6 +179,55 @@
         "tools.test_category2_delayed_attacks.DelayedAttackTests.test_json_roundtrip_preserves_pending_queue_and_executes",
         "tools.test_category2_delayed_attacks.DelayedAttackTests.test_legacy_turn_end_roll_and_post_damage_failures_restore_exact_state",
         "tools.test_authority_earned_status_choices.EarnedStatusChoiceTests.test_population_unresisted_choice_changes_this_damage_without_lingering_bonus"
+      ]
+    },
+    "procedural_source_and_admission_followups": {
+      "tests": [
+        "tools.test_attack_loss_provenance.AttackLossTests.test_actual_damage_wakes_with_real_or_only_temporary_hp_loss",
+        "tools.test_attack_loss_provenance.AttackLossTests.test_awake_dream_eater_target_rejects_both_native_entries_before_payment",
+        "tools.test_attack_loss_provenance.AttackLossTests.test_dream_eater_source_exception_keeps_sleep_after_actual_damage",
+        "tools.test_attack_loss_provenance.AttackLossTests.test_gm_and_json_restore_preserve_actual_loss_history_without_reapplying",
+        "tools.test_attack_loss_provenance.AttackLossTests.test_late_wake_failure_rolls_back_damage_and_loss_with_its_history",
+        "tools.test_attack_loss_provenance.AttackLossTests.test_miss_and_zero_native_loss_do_not_wake_or_forge_positive_loss",
+        "tools.test_attack_loss_provenance.AttackLossTests.test_native_direct_loss_preserves_class_amount_and_one_actual_application",
+        "tools.test_attack_loss_provenance.AttackLossTests.test_passive_and_unbound_effect_labels_do_not_become_attack_provenance",
+        "tools.test_authority_gambit_adversarial_observations.GambitAdversarialObservations.test_avoided_counter_listener_wait_uses_actual_return_phase_without_replaying_paid_prefix",
+        "tools.test_authority_gambit_adversarial_observations.GambitAdversarialObservations.test_draining_counter_cannot_relabel_original_attack_hp_loss_as_damage_minus_heal",
+        "tools.test_book_duelist_momentum.DuelistMomentumTests.test_seize_round_end_actual_overflow_miss_smite_and_no_future_turn_debt",
+        "tools.test_book_taskmaster_hardened.TaskmasterTests.test_native_standard_and_incoming_attack_distinguish_acting_exemption_from_seven_injury_immunity",
+        "tools.test_book_type_ace_reactions.TypeAceReactionTests.test_shocking_speed_advanced_borrows_actual_scheduled_turn_for_at_will_electric_move",
+        "tools.test_category2_ability_interrupt_choices.AbilityInterruptChoiceTests.test_native_pending_attacker_faint_cancels_without_choice_or_damage",
+        "tools.test_category2_entry_moves.EntryMoveTests.test_miss_keeps_first_turn_counter_and_does_not_invent_a_consumed_entry_quota",
+        "tools.test_category2_move_defense_shields.MoveDefenseShieldTests.test_actual_protect_completion_owns_shield_and_native_attack_consumes_it_once",
+        "tools.test_category2_optional_weapon_framework.OptionalWeaponFrameworkTests.test_normal_mystic_effect_range_is_attack_scoped_and_changes_native_threshold",
+        "tools.test_category2_swarm_transitions.SwarmTransitionTests.test_c11_088_additional_actions_descend_by_five_and_repeat_at_zero",
+        "tools.test_fickle_native_history.FickleNativeHistoryTests.test_actual_elemental_weapon_hit_survives_unequip_and_later_type_change",
+        "tools.test_fickle_native_history.FickleNativeHistoryTests.test_actual_first_area_recipient_is_known_while_later_recipient_is_pending",
+        "tools.test_fickle_native_history.FickleNativeHistoryTests.test_actual_grapple_attack_uses_paid_relation_without_move_completion",
+        "tools.test_fickle_native_history.FickleNativeHistoryTests.test_actual_heavy_pending_interceptor_without_history_is_unknown_not_false",
+        "tools.test_fickle_native_history.FickleNativeHistoryTests.test_attacker_identity_readonly_reader_and_json_restore",
+        "tools.test_fickle_native_history.FickleNativeHistoryTests.test_delayed_hardened_retains_leaf_separately_from_additional_loss",
+        "tools.test_fickle_native_history.FickleNativeHistoryTests.test_delayed_native_application_retains_actual_then_effective_facts",
+        "tools.test_fickle_native_history.FickleNativeHistoryTests.test_hardened_additional_loss_never_turns_zero_attack_into_qualifying_damage",
+        "tools.test_fickle_native_history.FickleNativeHistoryTests.test_known_heavy_equipment_action_is_not_a_missing_attack_event",
+        "tools.test_fickle_native_history.FickleNativeHistoryTests.test_legacy_window_unknown_and_record_or_boundary_tampering_rejected",
+        "tools.test_fickle_native_history.FickleNativeHistoryTests.test_missing_observation_is_unknown_and_older_completed_hits_do_not_reopen",
+        "tools.test_fickle_native_history.FickleNativeHistoryTests.test_native_hit_between_turns_survives_current_start_and_expires_next_start",
+        "tools.test_fickle_native_history.FickleNativeHistoryTests.test_native_intercept_records_actual_recipient_not_original_target",
+        "tools.test_fickle_native_history.FickleNativeHistoryTests.test_native_temp_hp_loss_counts_but_zero_damage_and_miss_do_not",
+        "tools.test_fickle_native_history.FickleNativeHistoryTests.test_scene_change_does_not_replace_the_user_selected_own_turn_boundary",
+        "tools.test_foundation_maneuvers_grapple.GrappleTests.test_dominant_attack_native_unarmed_damage_is_automatic_not_a_critical_roll",
+        "tools.test_procedural_predicates.ProceduralPredicateTests.test_bare_legacy_airborne_move_markers_do_not_create_phase_or_false_certainty",
+        "tools.test_procedural_predicates.ProceduralPredicateTests.test_fickle_exact_readers_keep_unknown_history_read_only",
+        "tools.test_procedural_predicates.ProceduralPredicateTests.test_real_fly_preparation_cold_restore_and_descent_bound_airborne_predicate",
+        "tools.test_procedural_predicates.ProceduralPredicateTests.test_thunder_target_sun_and_rain_do_not_borrow_attacker_local_weather",
+        "tools.test_snore_native.SnoreNativeTests.test_actual_ground_move_sync_and_acquired_earthroil_pay_shift_not_standard",
+        "tools.test_snore_native.SnoreNativeTests.test_area_completeness_and_changed_selected_payload_reject_before_cost",
+        "tools.test_snore_native.SnoreNativeTests.test_asleep_native_burst_hits_all_actual_recipients_once_and_flinches_at_fifteen_without_tracing",
+        "tools.test_snore_native.SnoreNativeTests.test_awake_and_unlearned_snore_refuse_before_payment_or_rng",
+        "tools.test_snore_native.SnoreNativeTests.test_below_threshold_and_miss_do_not_flinch_but_pay_one_actual_use",
+        "tools.test_snore_native.SnoreNativeTests.test_naked_source_hit_flags_cannot_install_snore_flinch",
+        "tools.test_snore_native.SnoreNativeTests.test_plain_labels_frames_and_ordinary_moves_cannot_bypass_sleep"
       ]
     }
   }

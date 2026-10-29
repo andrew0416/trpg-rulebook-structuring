@@ -25,8 +25,8 @@
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
   "active_repair": "authority-repair-integration-1029",
-  "active_repair_scope": "Original reviewed106-ID scope plus focused rule-selection/effect-contract exception-copy and actual delayed-damage occurrence regressions. Original105PASS/1ERROR run remains rejected. Preserve source, recipient, paid, pending and physical-evidence guards; no clause credit or whole-project coverage claim.",
-  "active_repair_required_tests": 121,
+  "active_repair_scope": "Original121 authority/restoration controls plus source-bound historical observation, target predicate, native Snore and Dream Eater admission regressions. Previous passing and failed runs remain at their original heads. No clause credit or whole-project certification.",
+  "active_repair_required_tests": 166,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -963,13 +963,13 @@
     "base_main": "ed89311fe4aee538fa58908587427a6e4827127b",
     "local_canonical_completed": 1798,
     "completion_credit": 0,
-    "public_python_files": 205,
+    "public_python_files": 212,
     "private_fixture_members_replaced": 11,
     "private_fixture_members_preserved": 1558,
     "historical_scope_preserved": true,
     "fixture_bookkeeping_note": "Historical canonical_completed and private fixture bookkeeping are retained; this is not remote clause acceptance.",
-    "fixture_zip_sha256": "6275034933e124a37f950667c8ee49d6d6691427b961be5a52eb3134fb9de5c6",
-    "encrypted_bundle_sha256": "59feb3fb2d06ae316b6bd830fcb33748bb154bc3a62f7cd6932349e25f6c42e6",
+    "fixture_zip_sha256": "0c8e57ae29754b08349e5b06d163180a36e034ae8a38e3424a425c778d838682",
+    "encrypted_bundle_sha256": "a1c3fb6ae8b7ab44d98c98ec93c430d893958a3ea946a58990ae1896b48dbf99",
     "private_fixture_members_added": 1,
     "private_fixture_new_paths": [
       "data/type-expertise-source-contract.json"
@@ -982,16 +982,18 @@
       "production_runtime_recovery_changes": 0,
       "changed_file_counts_after_recovery": {
         "ci_or_encrypted_bundle": 6,
-        "production_runtime": 96,
-        "test": 104,
-        "python_support": 5
+        "production_runtime": 99,
+        "test": 108,
+        "python_support": 5,
+        "documentation": 1
       },
       "affected_native_methods": 87,
       "procedural_units": [
         "script:engine/test_effects.py"
       ],
-      "validation_status": "Original remote106 had105PASS/1ERROR with complete capture and H rejection. Report-shadow dependency repaired (local3PASS); rule-selection copy repaired(local4PASS); typed effect-contract copy repaired(local4PASS); shared delayed/resisted calculation now uses actual invocation facts(local8PASS including stronger RNG-prefix guard). All local captures complete and originals retained. Required original106 plus focusedregressions and original procedural04 await finalremote validation; no new private input.",
-      "remote_unique_methods": 121
+      "validation_status": "Prior remote121 passed with H physical acceptance at d1; history merge9af had identical Git tree. Combined local42 plus final3 checks passed with complete physical capture. Original procedural script completed79/79 locally; this is diagnostic and does not replace the real CI-only procedural gate. Final remote regression union and original procedural gate are required on this payload.",
+      "remote_unique_methods": 166,
+      "source_followup_scope": "Existing approved native-area policy member gains reviewed Snore only;1569 other v2 members and existing Secret unchanged. UserU011 previous own-turn boundary applies to supplied Fickle homebrew variant; no blanket Dragon Rework adoption."
     }
   }
 }

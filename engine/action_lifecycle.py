@@ -135,7 +135,7 @@ def resolved_move(fn):
         try:
             import stamina as STAMINA
             actor=values['attacker'];source=values['move_id']
-            if not __import__('move_completion').disruption_frame_interested(engine,actor) and not any(c is not None and STAMINA.interested(c) for c in participants) and source not in (__import__('tumbler').SPLASH,__import__('tumbler').BOUNCE) and not __import__('combat_move_reactions').interested(engine) and not __import__('trickster').native_frame_required(engine,actor,source) and not __import__('conquerors_march').interested(engine) and not __import__('taskmaster_gambit').frame_interested(engine,actor,values.get('target',values.get('primary'))):
+            if not __import__('move_completion').disruption_frame_interested(engine,actor) and not any(c is not None and STAMINA.interested(c) for c in participants) and source not in (__import__('tumbler').SPLASH,__import__('tumbler').BOUNCE,'move/코골기','코골기') and not __import__('combat_move_reactions').interested(engine) and not __import__('trickster').native_frame_required(engine,actor,source) and not __import__('conquerors_march').interested(engine) and not __import__('taskmaster_gambit').frame_interested(engine,actor,values.get('target',values.get('primary'))):
                 result=fn(engine,*args,**kwargs);completed=True;return result
             stack=getattr(engine,'_native_action_stack',[])
             same=bool(stack and stack[-1]['kind']=='move' and stack[-1]['actor'] is actor
@@ -580,6 +580,44 @@ def self_cures_sleep(actor, target, effects):
             return True
     return False
 
+def _native_snore_action(engine, actor, kind, move):
+    """Snore's sleep exception belongs to its actual area Move admission."""
+    source='move/코골기'
+    if not isinstance(move,dict) or move.get('id')!=source:
+        return False
+    frames=getattr(engine,'_native_action_stack',())
+    groups=getattr(engine,'_move_activation_scopes',())
+    uses=getattr(engine,'_event_use_scopes',())
+    if not frames or not groups or not uses:return False
+    frame,group,use=frames[-1],groups[-1],uses[-1]
+    if (frame.get('kind')!='move' or frame.get('actor') is not actor
+            or engine.r.move_id(frame.get('source'))!=source
+            or group.get('actor') is not actor or group.get('move_id')!=source):
+        return False
+    targets=group.get('targets',());index=group.get('index')
+    if type(index)is not int or not 0<index<=len(targets):return False
+    target=targets[index-1]
+    # The always-issued target-use scope is fresh during native admission.
+    # Later callbacks must not borrow this exception for an unrelated action.
+    if (use.get('actor') is not actor or use.get('target') is not target
+            or use.get('move_id') is not None
+            or target not in move.get('_actual_targets',())):
+        return False
+    import move_activation as ACTIVATION,move_state as MOVES
+    if (group.get('profile')!=ACTIVATION._profile(engine)
+            or group.get('lifetime')!=ACTIVATION._lifetime(engine)):
+        raise ValueError('Snore native activation boundary changed')
+    if engine.r._selected_rule(source)!=source:
+        raise ValueError('selected Snore source requires its own sleep contract')
+    if source not in MOVES.known(engine.r,{'moves':MOVES.owned_list(actor.spec,'moves',actor.moves,rules=actor.r)}):
+        return False
+    selected=__import__('native_area_hit_effects').selected(engine,source)
+    # Reuse the actual cost owner; Type Ace can legitimately turn a synced
+    # Snore into a Shift attack. A consumed native Free grant is distinct.
+    if kind=='free' and frame.get('trigger_granted_payment') is True:return True
+    expected=__import__('turn').action_kind_of_move(engine,actor,move,selected['mechanics'])
+    return kind==expected
+
 def status_permission(engine, actor, kind, *, sleep_cure=False, new_action=True, _standing_up=False, _condition_recovery=None, _native_move=None):
     if new_action and __import__('condition_instances').flinch_blocks(actor):return False
     import action_resources as RESOURCES
@@ -610,7 +648,14 @@ def status_permission(engine, actor, kind, *, sleep_cure=False, new_action=True,
     if "얼음" in __import__('blessing_effects').effective_conditions(actor) and not replaced and not RECOVERY.permits_action(engine,actor,kind,_condition_recovery):
         engine.log(f"    {actor.name}: 얼음 상태 행동 불가", "condition/얼음")
         return False
-    if "잠듦" in __import__('blessing_effects').effective_conditions(actor) and not replaced and not (kind in ("free", "swift") and sleep_cure):
+    asleep="잠듦" in __import__('blessing_effects').effective_conditions(actor)
+    snore=False
+    if isinstance(_native_move,dict) and _native_move.get('id')=='move/코골기':
+        snore=_native_snore_action(engine,actor,kind,_native_move)
+        if "잠듦" not in actor.conditions or not snore:
+            engine.log(f"    {actor.name}: 코골기는 실제 잠든 사용자의 학습된 native 기술로만 사용 가능", "move/코골기")
+            return False
+    if asleep and not replaced and not (snore or kind in ("free", "swift") and sleep_cure):
         engine.log(f"    {actor.name}: 잠듦 — 수면을 치료하는 자유·신속 행동만 허용", "condition/잠듦")
         return False
     limit = getattr(actor, "_turn_action_limit", None)

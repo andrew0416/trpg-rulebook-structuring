@@ -798,8 +798,8 @@
     },
     {
       "path": "data/native-area-hit-effects.json",
-      "sha256": "7a6dc2a3145236c8ef9adbd72b3d863be2bdab7ea29f28e0d90024e139dc686d",
-      "size": 17304
+      "sha256": "23cba7b5cf89501f46f5448bb6221128a6674f9f6c049fe61a55c77e25d1985d",
+      "size": 19002
     },
     {
       "path": "data/native-class-reaction-policy.json",

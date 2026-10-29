@@ -454,6 +454,28 @@ def retain_suffix(engine,receipt,source,actor,target,effects,ctx):
  return Outcome(source,occurrence,'deferred_suffix','waiting for preceding effect completion',token)
 
 
+def _reviewed_move_airborne(engine,target):
+ """Only represented native Move phases prove the source-specific airborne state."""
+ import world_entities as WORLD,setup_move_state as SETUP,jump_move_actions as JUMP
+ index=WORLD.require_actors(engine,target)
+ SETUP.validate_actor(target)
+ prepared=SETUP.pending(target)
+ if prepared is not None and prepared['kind']=='fly':return True
+ if target.setup_move in ('move/공중날기','move/뛰어오르기','move/프리폴'):
+  # A bare/legacy setup marker cannot prove physical ascent or a carried target.
+  return None
+ bounce=JUMP.current(target,'move/뛰어오르기')
+ if bounce is not None:
+  JUMP.validate_world(engine,index)
+  jump=target.spec.get('_jump_attempts',{}).get(bounce['event_id'])
+  if jump is not None and jump.get('landed') is True:return False
+  if bounce['phase']=='moving':return None
+ if __import__('field_effects').touches_ground(target):return False
+ # Generic altitude/Flight is not evidence of one of the three printed Moves.
+ # Sky Drop pairing and unresolved Bounce physical phases remain unproved.
+ return None
+
+
 def condition_text(engine,actor,target,text,ctx):
  import effects as FX
  import re
@@ -462,6 +484,16 @@ def condition_text(engine,actor,target,text,ctx):
  if text==MISTY.CONDITION and ctx.get('move',{}).get('id')==MISTY.SOURCE:
   MISTY.definition(engine.r)
   return MISTY.affected(engine,actor)
+ if text=='target hit user super-effectively since last turn':
+  move=ctx.get('move')
+  if not isinstance(move,dict) or move.get('id')!='move/변덕레이저':return None
+  if engine.r._selected_rule(move['id'])!=move['id']:
+   raise ValueError('selected Fickle Beam source requires its own predicate contract')
+  return __import__('attack_damage_history').target_hit_user_super_effectively_since_previous_own_turn(engine,actor,target)
+ if text in ('target in rain weather','target in sunny weather'):
+  __import__('world_entities').require_actors(engine,target)
+  return FX.weather_matches(engine,'rain' if text=='target in rain weather' else 'sunny',target)
+ if text=='target airborne (뛰어오르기/공중날기/프리폴)':return _reviewed_move_airborne(engine,target)
  if text=='terastallized':return __import__('homebrew_state').tera_active(actor)
  if text=='stellar':
   import stellar_tera_blast as STELLAR

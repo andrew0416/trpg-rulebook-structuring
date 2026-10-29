@@ -58,6 +58,7 @@ def begin_turn(engine,c,count=None):
     # Actual owner turns advance even when no timed-list effect is installed.
     # Coats and other storage families consume the same clock.
     c.custom_conditions["combat_turn_serial"]=CHECKS.integer(c.custom_conditions.get("combat_turn_serial",0),"actual owner turn serial",0)+1
+    __import__('attack_damage_history').begin_turn(engine,c)
     c.custom_conditions['blessing_ignore_turn_open']=True
     import effect_lifetime_policy as LIFETIMES
     LIFETIMES.boundary(engine,'turn_start',c)

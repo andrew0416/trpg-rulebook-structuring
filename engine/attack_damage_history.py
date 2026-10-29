@@ -4,6 +4,10 @@ from contextlib import contextmanager
 import common_checks as C
 import combat_damage as DAMAGE
 import type_state as TYPES
+import root_resolution as RESOLUTION
+import math
+
+TURN_WINDOW = 'attack_damage_turn_window'
 
 KEY = 'attack_damage_history'
 
@@ -139,17 +143,22 @@ def effect_loss(engine, attacker, target, recipient, effect, context, amount):
         staged_move=G._stage_transition_payload(engine,staged,move)
         before=DAMAGE.observe(actual)
         is_damage=effect.get('as')=='damage'
+        leaf=None
         if is_damage:
             import heavy_injury_adapter as HEAVY
-            HEAVY.apply_attack_damage(staged,source_actor,actual,amount,staged_move,
-                producer=HEAVY.Producer.EFFECT_DAMAGE, remainder='remaining native fixed-damage effect continuation',
-                actual_damage_type=context.get('actual_damage_type',staged_move['type']))
+            with _application_scope(staged,source_actor,actual,staged_move) as history_token:
+                HEAVY.apply_attack_damage(staged,source_actor,actual,amount,staged_move,
+                    producer=HEAVY.Producer.EFFECT_DAMAGE, remainder='remaining native fixed-damage effect continuation',
+                    actual_damage_type=context.get('actual_damage_type',staged_move['type']))
+                leaf=deepcopy(staged._attack_history_scopes[history_token].get('native_application'))
         else:
             staged.lose_hp(actual,amount,source=staged_move['id'],unpreventable=effect.get('unpreventable') is True)
         receipt=DAMAGE.application(requested=amount,before=before,after=DAMAGE.observe(actual),
                                    source=staged_move['id'],damage_class=staged_move['class'])
         woke=wake_after_loss(staged,actual,staged_move,before)
-        _record(staged,source_actor,actual,receipt,context.get('actual_damage_type',staged_move['type']),application_kind='damage' if is_damage else 'hp_loss')
+        _record(staged,source_actor,actual,receipt,context.get('actual_damage_type',staged_move['type']),
+            application_kind='damage' if is_damage else 'hp_loss',
+            native_hit_facts=_hit_facts(staged,source_actor,actual,staged_move,completion,context.get('multiplier'),application=leaf))
         staged._effect_dispatch_receipts[token]['attack_damage' if is_damage else 'attack_hp_loss']={
             'kind':'native_attack_damage' if is_damage else 'native_attack_hp_loss','completion_id':completion,'receipt':deepcopy(receipt),
             'woke_sleep':woke,'unpreventable':effect.get('unpreventable') is True}
@@ -165,7 +174,7 @@ def validate_actor(actor):
     rows = records(actor)
     if not isinstance(rows, list): raise ValueError('attack history must be a list')
     for number, row in enumerate(rows, 1):
-        if not isinstance(row, dict) or set(row)-{'application_kind'} != {
+        if not isinstance(row, dict) or set(row)-{'application_kind','native_hit_facts','native_hit_fingerprint'} != {
                 'sequence', 'attacker_id', 'target_id', 'round', 'at', 'move_type', 'receipt'}:
             raise ValueError('attack history shape changed')
         if row.get('application_kind','damage') not in ('damage','hp_loss'):raise ValueError('typed attack application required')
@@ -185,19 +194,27 @@ def validate_actor(actor):
         valid_source=receipt['source'] in actor.r.moves or (instance is not None and instance['host_id']==row['attacker_id']) or (innovation is not None and innovation['template']==3)
         if receipt != expected or not valid_source:
             raise ValueError('attack observation changed')
+        _validate_hit_facts(row)
+    _validate_turn_window(actor)
     return True
 
 
 @contextmanager
-def native_application(engine, attacker, target, move, native_context):
+def native_application(engine, attacker, target, move, native_context, *, precision_event=None):
     import heavy_injury_adapter as HEAVY
     HEAVY.validate_native_receipt(engine,native_context,attacker,target,move)
+    origin=None
     if native_context is None:
-        # The public damage calculation/application API also permits an isolated
-        # call. Preserve it without inventing a Move activation receipt.
-        yield None
-        return
+        origin=_live_grapple_origin(engine,attacker,target,move,precision_event)
+        if origin is not None and (any(r.get('native_hit_facts',{}).get('grapple_origin')==origin for r in records(target))
+                or any(s.get('grapple_origin')==origin for s in getattr(engine,'_attack_history_scopes',{}).values())):
+            raise ValueError('native grapple Attack already observed or applying')
+        if origin is None:
+            # Raw damage calculations do not invent an actual attack occurrence.
+            yield None
+            return
     with _application_scope(engine, attacker, target, move) as token:
+        if origin is not None:engine._attack_history_scopes[token]['grapple_origin']=origin
         yield token
 
 
@@ -237,27 +254,40 @@ def apply_smite(engine, attacker, target, move, amount, actual_type):
         engine.take_damage(target, amount)
         receipt = DAMAGE.application(requested=amount, before=before, after=DAMAGE.observe(target),
                                      source=move['id'], damage_class=move['class'])
-        record(engine, attacker, target, move, receipt, actual_type, token)
+        record(engine, attacker, target, move, receipt, actual_type, token, completion_id=completion_id, hit=False)
     return receipt
 
 
-def record(engine, attacker, target, move, receipt, actual_type, native_context):
+def record(engine, attacker, target, move, receipt, actual_type, native_context, *, completion_id=None, multiplier=None, hit=True):
     """Called only while the native damage application still owns its token."""
     token = getattr(engine, '_attack_history_scopes', {}).get(native_context)
     if (token is None or token['attacker'] is not attacker or token['target'] is not target
             or token['move_id'] != move['id'] or token.get('history_recorded')):
         raise ValueError('one actual native attack application required')
-    _record(engine,attacker,target,receipt,actual_type)
+    application=token.get('native_application')
+    if application is None and completion_id is not None and hit:
+        candidates=[event for event in getattr(engine,'_heavy_events',{}).values() if
+            event.get('native_completion_id')==completion_id and event['attacker'] is attacker
+            and event['target'] is target and event['move']['id']==move['id']
+            and event['producer']==__import__('heavy_injury_adapter').Producer.RESOLVED_HIT.value]
+        if len(candidates)==1 and 'attack_after' in candidates[0]:
+            event=candidates[0];application={'damage_event_id':event['event_id'],'attack_application':_event_attack_application(event)}
+    facts = _hit_facts(engine,attacker,target,move,completion_id,multiplier,hit=hit,application=application,grapple_origin=token.get('grapple_origin'))
+    _record(engine,attacker,target,receipt,actual_type,native_hit_facts=facts)
     token['history_recorded'] = True
 
 
-def _record(engine, attacker, target, receipt, actual_type,*,application_kind='damage'):
+def _record(engine, attacker, target, receipt, actual_type,*,application_kind='damage',native_hit_facts=None):
     validate_actor(target)
     row = dict(sequence=len(records(target))+1, attacker_id=attacker.entity_id,
                target_id=target.entity_id, round=engine.round_no, at=engine.elapsed_seconds,
                move_type=actual_type, receipt=deepcopy(receipt))
     target.spec.setdefault(KEY, []).append(row)
     if application_kind!='damage':row['application_kind']=application_kind
+    if native_hit_facts is not None:
+        row['native_hit_facts']=native_hit_facts
+        row['native_hit_fingerprint']=RESOLUTION.fingerprint(row)
+    _seal_history_head(target)
     validate_actor(target)
 
 
@@ -283,6 +313,21 @@ def validate_world(engine, index):
             if (row['attacker_id'] not in index or row['round'] > engine.round_no
                     or row['at'] > engine.elapsed_seconds):
                 raise ValueError('attack history references missing actor or future event')
+            facts=row.get('native_hit_facts')
+            if facts is None:continue
+            if facts.get('grapple_origin') is not None:
+                _grapple_result(engine,row)
+            else:
+                completion=getattr(engine,'_move_completions',{}).get(facts['completion_id'])
+                if (completion is None or completion['actor'] is not index[row['attacker_id']]
+                        or completion['move_id']!=row['receipt']['source']):
+                    raise ValueError('native attack completion identity changed')
+            if 'damage_event_id' in facts:
+                event=getattr(engine,'_heavy_events',{}).get(facts['damage_event_id'])
+                if (event is None or event['attacker'] is not index[row['attacker_id']] or event['target'] is not actor
+                        or event['move']['id']!=row['receipt']['source']
+                        or _event_attack_application(event)!=facts.get('attack_application')):
+                    raise ValueError('native attack application event changed')
 
 
 
@@ -298,3 +343,275 @@ def effect_damage_total(engine, attacker, target, source, prior_receipts):
         receipt=row['attack_damage']['receipt']
         total+=max(0,receipt['net_hp_loss'])+max(0,receipt['net_temporary_hp_loss'])
     return total
+
+
+def _hit_facts(engine, attacker, target, move, completion_id, multiplier, *, hit=True, application=None, grapple_origin=None):
+    if completion_id is None and grapple_origin is None or hit and multiplier is None:return None
+    import move_completion as COMPLETE
+    row=getattr(engine,COMPLETE.KEY,{}).get(completion_id)
+    if grapple_origin is None:
+        if (row is None or row['actor'] is not attacker or row['move_id']!=move['id']
+                or row['phase']!='targets'):
+            raise ValueError('actual in-progress native hit required')
+        defense=getattr(engine,'_defense_recipient_scope',None)
+        if defense is not None:
+            __import__('move_defense_reactions').require_recipient(engine,defense,attacker,target,move,completion_id)
+        elif target not in row['targets'] or target.entity_id not in row['started']:
+            raise ValueError('actual started hit recipient required')
+    if hit and (type(multiplier) not in (int,float) or not math.isfinite(multiplier) or multiplier<0):
+        raise ValueError('observed finite nonnegative type multiplier required')
+    facts={'completion_id':completion_id,'hit':hit,'multiplier':multiplier}
+    if application is not None:facts.update(deepcopy(application))
+    if grapple_origin is not None:facts['grapple_origin']=deepcopy(grapple_origin)
+    return facts
+
+
+def _validate_hit_facts(row):
+    facts=row.get('native_hit_facts')
+    if facts is None:
+        if 'native_hit_fingerprint' in row:raise ValueError('native hit facts missing')
+        return
+    if (type(facts) is not dict or set(facts)-{'damage_event_id','attack_application','grapple_origin'}!={'completion_id','hit','multiplier'}
+            or (facts.get('grapple_origin') is None and (type(facts['completion_id']) is not str or not facts['completion_id']))
+            or type(facts['hit']) is not bool or (facts['hit'] and (type(facts['multiplier']) not in (int,float)
+            or not math.isfinite(facts['multiplier']) or facts['multiplier']<0))
+            or (not facts['hit'] and facts['multiplier'] is not None)):
+        raise ValueError('native hit facts changed')
+    if 'damage_event_id' in facts and (type(facts['damage_event_id']) is not str or not facts['damage_event_id']):
+        raise ValueError('native damage event identity required')
+    origin=facts.get('grapple_origin')
+    if origin is not None:
+        if type(origin) is not dict or set(origin)!={'relation_id','history_index','precision_id'} or facts['completion_id'] is not None:
+            raise ValueError('native grapple attack origin changed')
+        C.integer(origin['history_index'],'native grapple history index',0)
+        C.integer(origin['precision_id'],'native grapple precision event',1)
+        if type(origin['relation_id']) is not str or not origin['relation_id']:raise ValueError('native grapple relation required')
+    application=facts.get('attack_application')
+    if application is not None:
+        expected=DAMAGE.application(**{k:application[k] for k in ('requested','before','after','source','damage_class')})
+        if (application!=expected or application['source']!=row['receipt']['source']
+                or application['damage_class']!=row['receipt']['damage_class'] or 'damage_event_id' not in facts):
+            raise ValueError('actual native attack leaf changed')
+    payload={k:v for k,v in row.items() if k!='native_hit_fingerprint'}
+    if row.get('native_hit_fingerprint')!=RESOLUTION.fingerprint(payload):
+        raise ValueError('native hit observation changed')
+
+
+def _seal_history_head(actor):
+    state=actor.spec.get(TURN_WINDOW)
+    if state is None:return
+    state['history_length']=len(records(actor))
+    state['history_fingerprint']=RESOLUTION.fingerprint(records(actor))
+    state['fingerprint']=RESOLUTION.fingerprint({k:v for k,v in state.items() if k!='fingerprint'})
+
+
+def _validate_turn_window(actor):
+    state=actor.spec.get(TURN_WINDOW)
+    if state is None:return
+    if (type(state) is not dict or set(state)!={'actor_id','starts','history_length',
+            'history_fingerprint','fingerprint'} or state['actor_id']!=actor.entity_id):
+        raise ValueError('native attack turn window changed')
+    if state['fingerprint']!=RESOLUTION.fingerprint({k:v for k,v in state.items() if k!='fingerprint'}):
+        raise ValueError('native attack turn boundary changed')
+    if state['history_length']!=len(records(actor)) or state['history_fingerprint']!=RESOLUTION.fingerprint(records(actor)):
+        raise ValueError('native attack history was truncated or changed')
+    starts=state['starts']
+    if type(starts) is not list or not 1<=len(starts)<=2:raise ValueError('two ordered native turn starts required')
+    previous=0;previous_sequence=0
+    for start in starts:
+        if type(start) is not dict or set(start)!={'serial','history_sequence','move_boundary','damage_sequence'}:
+            raise ValueError('native turn boundary shape changed')
+        C.integer(start['serial'],'native owner turn serial',previous+1)
+        C.integer(start['history_sequence'],'native turn history sequence',previous_sequence,len(records(actor)))
+        C.integer(start['damage_sequence'],'native damage sequence',0)
+        boundary=start['move_boundary']
+        if boundary is not None:
+            if type(boundary) is not dict or set(boundary)!={'sequence','pending'}:
+                raise ValueError('native completed Move boundary required')
+            C.integer(boundary['sequence'],'native Move sequence',0)
+            if type(boundary['pending']) is not list or any(type(k) is not str for k in boundary['pending']):
+                raise ValueError('native pending Move identities required')
+        previous=start['serial'];previous_sequence=start['history_sequence']
+
+
+def begin_turn(engine, actor):
+    """Called by the actual owner-turn clock, never by a Move/Swarm continuation."""
+    if not engine.encounter_active or engine._active_turn_actor is not actor:return
+    validate_actor(actor)
+    state=actor.spec.get(TURN_WINDOW)
+    if state is None:
+        state={'actor_id':actor.entity_id,'starts':[]}
+        actor.spec[TURN_WINDOW]=state
+    serial=actor.custom_conditions['combat_turn_serial']
+    if state['starts'] and serial<=state['starts'][-1]['serial']:
+        raise ValueError('native owner turn must advance')
+    state['starts']=(state['starts']+[{'serial':serial,'history_sequence':len(records(actor)),
+        'move_boundary':__import__('move_completion').history_watermark(engine),
+        'damage_sequence':engine._heavy_sequence}])[-2:]
+    _seal_history_head(actor)
+
+
+def record_delayed_hit(engine, attacker, target, move, completion_id, before, actual_type, multiplier):
+    """The native delayed queue supplies the observed pre/post damage pair."""
+    row=getattr(engine,'_move_completions',{}).get(completion_id)
+    if (row is None or target not in row['targets'] or target.entity_id in row['results']
+            or not any(e.get('type')=='delayed_attack' for e in engine.r.move_mech(move['id'])[0].get('effects_exec',[]))):
+        raise ValueError('actual unresolved delayed Move recipient required')
+    if any(r.get('native_hit_facts',{}).get('completion_id')==completion_id for r in records(target)):
+        raise ValueError('delayed hit already observed')
+    import heavy_injury_adapter as HEAVY
+    sequence=C.integer(before['heavy_sequence'],'prior native damage sequence',0)
+    event_id='heavy-attack-'+str(engine._heavy_sequence)
+    event=getattr(engine,'_heavy_events',{}).get(event_id)
+    if (engine._heavy_sequence<=sequence or event is None or event['producer']!=HEAVY.Producer.DELAYED_HIT.value
+            or event['attacker'] is not attacker or event['target'] is not target or event['move']['id']!=move['id']
+            or event['amount']!=before['requested'] or event['status'] not in ('not_applicable','applied')
+            or {k:event['before'][k] for k in ('hp','temporary_hp')}!=before['state']
+            or event['round']!=engine.round_no or event['elapsed_seconds']!=engine.elapsed_seconds):
+        raise ValueError('actual just-applied delayed damage event required')
+    after=DAMAGE.observe(target)
+    retained_after=event.get('heavy_consequence',{}).get('after',event['observed_after'])
+    if {k:retained_after[k] for k in ('hp','temporary_hp')}!=after:
+        raise ValueError('native delayed damage endpoint changed')
+    application=({'damage_event_id':event_id,'attack_application':_event_attack_application(event)}
+                 if 'attack_after' in event else None)
+    facts=_hit_facts(engine,attacker,target,move,completion_id,multiplier,application=application)
+    receipt=DAMAGE.application(requested=event['amount'],before=before['state'],after=after,
+                               source=move['id'],damage_class=move['class'])
+    _record(engine,attacker,target,receipt,actual_type,native_hit_facts=facts)
+
+
+def target_hit_user_super_effectively_since_previous_own_turn(engine, user, target):
+    """U-011: True/False from retained native facts; None means unknown coverage."""
+    import move_completion as COMPLETE
+    import world_entities as WORLD
+    index=WORLD.actor_index(engine)
+    if index.get(user.entity_id) is not user or index.get(target.entity_id) is not target:
+        raise ValueError('actual world participants required')
+    validate_actor(user)
+    state=user.spec.get(TURN_WINDOW)
+    if (state is None or len(state['starts'])<2
+            or state['starts'][-1]['serial']!=user.custom_conditions.get('combat_turn_serial')):
+        return None
+    start=state['starts'][0]
+    if start['damage_sequence']>engine._heavy_sequence:return None
+    completions=getattr(engine,COMPLETE.KEY,{})
+    covered=set();unknown=False
+    for observation in records(user)[start['history_sequence']:]:
+        if observation['attacker_id']!=target.entity_id:continue
+        if observation.get('application_kind','damage')!='damage':continue
+        facts=observation.get('native_hit_facts')
+        if facts is None:
+            if amount(observation)>0:unknown=True
+            continue
+        if not facts['hit']:continue
+        application=facts.get('attack_application')
+        if application is None:
+            unknown=True;continue
+        if facts.get('grapple_origin') is not None:
+            result=_grapple_result(engine,observation)
+        else:
+            row=completions.get(facts['completion_id'])
+            if row is None:
+                unknown=True;continue
+            if row['actor'] is not target or row['move_id']!=observation['receipt']['source']:
+                raise ValueError('native hit completion identity changed')
+            result=COMPLETE.recipient_result(row,user)
+            covered.add(row['id'])
+        if result is None:
+            unknown=True;continue
+        if (result['hit'] and not result.get('cancelled') and not result.get('hit_prevented')
+                and _application_loss(application)>0 and facts['multiplier']>1):return True
+    # A returned damaging hit without an application observation is not a miss.
+    later=COMPLETE.after_history_watermark(engine,start['move_boundary'])
+    if later is None:return None
+    for row in later:
+        key=row['id']
+        if row['actor'] is not target or row['move'].get('class') not in ('물리','특수'):continue
+        result=COMPLETE.recipient_result(row,user)
+        if result is None:
+            if row['phase']!='complete' and user in row['targets']:unknown=True
+            continue
+        if (not result['hit'] or result.get('cancelled') or result.get('hit_prevented')
+                or result['dealt']==0 or row['move'].get('class') not in ('물리','특수')):continue
+        matching=[r for r in records(user)[start['history_sequence']:] if
+            r.get('native_hit_facts',{}).get('completion_id')==key and r['attacker_id']==target.entity_id]
+        if key not in covered and not (matching and all(r.get('application_kind')=='hp_loss' for r in matching)):
+            unknown=True
+    observed={r.get('native_hit_facts',{}).get('damage_event_id') for r in records(user)[start['history_sequence']:]}
+    events=getattr(engine,'_heavy_events',{})
+    for sequence in range(start['damage_sequence']+1,engine._heavy_sequence+1):
+        event_id='heavy-attack-'+str(sequence);event=events.get(event_id)
+        if event is None:
+            equipment_id='heavy-equipment-'+str(sequence)
+            equipment=events.get(equipment_id)
+            if (equipment is not None and equipment.get('event_id')==equipment_id
+                    and equipment.get('kind')=='action_taken'
+                    and equipment.get('producer')=='manual_equipment.actual_standard'):
+                continue
+            unknown=True;continue
+        if event.get('event_id')!=event_id or event.get('kind')!='attack_damage':
+            unknown=True;continue
+        if event_id not in observed and event['attacker'] is target and event['target'] is user:
+            application=_event_attack_application(event)
+            if application is None or _application_loss(application)>0:unknown=True
+    return None if unknown else False
+
+
+
+
+
+
+
+def note_native_application(engine, attacker, target, move, event_id):
+    """Retain only the matching active history producer's actual attack leaf."""
+    for scope in reversed(list(getattr(engine,'_attack_history_scopes',{}).values())):
+        if scope['attacker'] is attacker and scope['target'] is target and scope['move_id']==move['id']:
+            value={'damage_event_id':event_id,'attack_application':_event_attack_application(engine._heavy_events[event_id])}
+            old=scope.get('native_application')
+            if old is not None and old!=value:raise ValueError('one native attack application per history producer required')
+            scope['native_application']=value
+            return
+
+
+def _application_loss(application):
+    return max(0,application['net_hp_loss'])+max(0,application['net_temporary_hp_loss'])
+
+
+def _event_attack_application(event):
+    if 'attack_after' not in event:return None
+    return DAMAGE.application(requested=event['amount'],
+        before={k:event['before'][k] for k in ('hp','temporary_hp')},after=event['attack_after'],
+        source=event['move']['id'],damage_class=event['move']['class'])
+
+
+def _live_grapple_origin(engine, attacker, target, move, event):
+    if event is None or move['id']!='struggle':return None
+    import grapple_state as GRAPPLE
+    relation=GRAPPLE.relation(engine,attacker)
+    pending=None if relation is None else relation.get('native_attack')
+    if pending is None:return None
+    if (pending['phase']!='damage' or pending['actor_id']!=attacker.entity_id or pending['target_id']!=target.entity_id
+            or pending['history_index']!=len(relation['history']) or pending['round']!=engine.round_no
+            or pending['precision_id']!=event['id'] or not any(item is event for item in engine._precision_events)
+            or event.get('actor') is not attacker or event['target'] is not target
+            or event.get('producer')!='combat_maneuver' or event['source']!='struggle'
+            or event['result']!='damaging_hit'):
+        raise ValueError('actual paid native grapple Attack required')
+    return {'relation_id':relation['id'],'history_index':pending['history_index'],'precision_id':event['id']}
+
+
+def _grapple_result(engine, observation):
+    import grapple_state as GRAPPLE
+    origin=observation['native_hit_facts']['grapple_origin']
+    relation=GRAPPLE._state(engine)['relations'].get(origin['relation_id'])
+    if relation is None:return None
+    GRAPPLE._verify(relation)
+    number=origin['history_index']
+    if number>=len(relation['history']):return None
+    entry=relation['history'][number];proof=entry.get('attack')
+    if (entry.get('action')!='attack' or proof is None or proof['event_id']!=origin['precision_id']
+            or proof['source']!=observation['receipt']['source'] or proof['actor_id']!=observation['attacker_id']
+            or proof['target_id']!=observation['target_id']):
+        raise ValueError('native grapple hit history changed')
+    return {'hit':not proof['hit_prevented'],'hit_prevented':proof['hit_prevented'],'cancelled':False}

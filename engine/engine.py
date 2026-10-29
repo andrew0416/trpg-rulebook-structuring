@@ -3580,7 +3580,7 @@ class Engine:
             passive_before=PASSIVE_EVENTS.capture(target) if _passive_event is not None else None
             damage_before=DAMAGE.observe(target)
             import taskmaster as TASK
-        with DAMAGE.native_hit(target) as native_damage, DAMAGE_HISTORY.native_application(self,attacker,target,move,_heavy_context) as history_context:
+        with DAMAGE.native_hit(target) as native_damage, DAMAGE_HISTORY.native_application(self,attacker,target,move,_heavy_context,precision_event=_precision_event) as history_context:
             paired_receipt,damage=__import__('conquerors_march').apply_lean_pair(self,event,damage,_heavy_context,damage_before)
             if paired_receipt is None:
                 GAMBIT.retain_damage(self,attacker,target,move,_passive_event,
@@ -3604,7 +3604,8 @@ class Engine:
                 after=DAMAGE.observe(target), source=move['id'], damage_class=move['class'])
             if history_context is not None:
                 DAMAGE_HISTORY.record(self,attacker,target,move,damage_receipt,
-                    event.get('actual_damage_type',move['type']),history_context)
+                    event.get('actual_damage_type',move['type']),history_context,
+                    completion_id=_completion_id,multiplier=actual_multiplier)
                 import cleanse_tags as CLEANSE
                 CLEANSE.after_weapon_damage(self,attacker,target,move,damage_receipt,
                     event.get('cleanse_tag_weapon'),history_context)
@@ -4271,7 +4272,7 @@ class Engine:
         ROLLS.preflight_move(self,attacker,primary,move,mm)
         FX.preflight_effects(self,attacker,primary,mm.get('effects_exec', []),move_id)
         __import__('earned_status_choices').preflight_move(self,attacker,primary,move,mm)
-        if not EXT.entry_move_allowed(self,attacker,move,mm):return 0
+        if not EXT.entry_move_allowed(self,attacker,move,mm,target=primary):return 0
         __import__("jump_move_actions").preflight(self,attacker,primary,move)
         import move_accuracy as MOVE_ACCURACY
         if not MOVE_ACCURACY.preflight(self,attacker,primary,move,mm):
@@ -4660,7 +4661,7 @@ class Engine:
         if field_block:
             self.log(f"    {attacker.name}: 전장 효과가 이 기술을 무효화",field_block)
             return 0
-        if not EXT.entry_move_allowed(self,attacker,move,mm):return 0
+        if not EXT.entry_move_allowed(self,attacker,move,mm,target=target,targetless=field_scope is not None):return 0
         __import__("jump_move_actions").preflight(self,attacker,target,move)
         __import__('telekinetic').preflight_move(self,attacker,target,move)
         import food_effects as FOOD
@@ -5133,7 +5134,7 @@ class Engine:
                     attacker=attacker,target=target,move_id=move_id,round=self.round_no,
                     active_actor=self._active_turn_actor,move_uses=attacker.move_uses.get(move_id,0),
                     history_length=len(getattr(attacker,"_action_history",[])),
-                    activation_epoch=self._heavy_activation_sequence,weather_attack=weather_attack)
+                    activation_epoch=self._heavy_activation_sequence,weather_attack=weather_attack,completion_id=completion_id)
                 try:
                     dealt = self.resolve_attack_damage(attacker, target, move, crit, set_damage,
                         _heavy_context=heavy_context, _passive_event=passive_event, _precision_event=precision_event,

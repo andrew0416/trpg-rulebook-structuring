@@ -1050,3 +1050,19 @@ def finish_trigger_frame(e, frame):
         children=row.get('trigger_children',[])
         children[:]=[child for child in children if child is not frame]
         if not children:row.pop('trigger_children',None)
+
+
+def history_watermark(e):
+    """Bound the existing len(rows)+1 native ID allocator without dict ordering."""
+    rows=getattr(e,KEY,{})
+    if set(rows)!={'move-complete:'+str(i) for i in range(1,len(rows)+1)}:return None
+    return {'sequence':len(rows),'pending':[key for key,row in rows.items() if row['phase']!='complete']}
+
+
+def after_history_watermark(e, boundary):
+    current=history_watermark(e)
+    if current is None or boundary is None or current['sequence']<boundary['sequence']:return None
+    rows=getattr(e,KEY,{})
+    if any(key not in rows for key in boundary['pending']):return None
+    keys=boundary['pending']+['move-complete:'+str(i) for i in range(boundary['sequence']+1,current['sequence']+1)]
+    return [rows[key] for key in keys]

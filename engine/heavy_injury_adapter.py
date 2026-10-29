@@ -99,6 +99,8 @@ def apply_attack_damage(engine, attacker, target, amount, move, *, producer, rem
             import state_grants as GRANTS
             original_result=GRANTS.transition(engine,target,
                 lambda staged,actual:staged.take_damage(actual,amount))
+    attack_after={'hp':target.hp,'temporary_hp':target.temp_hp}
+
     import taskmaster as TASK
     hardened=TASK.active(target) is not None
     hardened_loss=0
@@ -151,7 +153,10 @@ def apply_attack_damage(engine, attacker, target, amount, move, *, producer, rem
                   unexecuted_remainder=remainder, continuation_reified=False,
                   status="pending" if relevant else "not_applicable")
     if focus_damage is not None:packet['focus_punch_damage']=copy.deepcopy(focus_damage)
+    packet['attack_after']=attack_after
+    if receipt is not None:packet['native_completion_id']=receipt.get('completion_id')
     engine._heavy_events[event_id] = packet
+    HISTORY.note_native_application(engine,attacker,target,move,event_id)
     if hardened:
         packet['status']='applied'
         packet['heavy_consequence']=dict(kind='hp_loss',amount=hardened_loss,

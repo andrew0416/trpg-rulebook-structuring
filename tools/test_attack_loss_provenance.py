@@ -68,6 +68,23 @@ class AttackLossTests(unittest.TestCase):
                 self.assertEqual(len(actual),1);self.assertEqual(actual[0]['status'],'completed')
                 self.assertEqual(self.a.budget['standard'],0)
 
+    def test_awake_dream_eater_target_rejects_both_native_entries_before_payment(self):
+        for routed in (False,True):
+            with self.subTest(routed=routed):
+                self.setUp()
+                def state():
+                    return deepcopy((self.a.budget,self.a.move_uses,self.a.hp,self.b.hp,
+                        self.a.temp_hp,self.b.temp_hp,self.a.conditions,self.b.conditions,
+                        self.a.custom_conditions,self.b.custom_conditions,
+                        getattr(self.a,'_action_history',None),self.e.rng.getstate(),
+                        getattr(self.e,'_effect_dispatch_receipts',{})))
+                before=state()
+                with patch.object(self.e,'d20',side_effect=AssertionError('ineligible target must not roll')):
+                    result=(self.e.use_move_on(self.a,self.b,'move/꿈먹기',self.e.everyone)
+                            if routed else self.e.use_move(self.a,self.b,'move/꿈먹기'))
+                self.assertEqual(result,0);self.assertEqual(state(),before)
+                self.assertTrue(any('잠든 대상에게만' in line for line in self.e.log_lines))
+
     def test_dream_eater_source_exception_keeps_sleep_after_actual_damage(self):
         self.sleep();before=self.b.hp
         self.e.use_move_on(self.a,self.b,'move/꿈먹기',self.e.everyone)
