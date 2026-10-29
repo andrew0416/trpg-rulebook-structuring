@@ -990,7 +990,7 @@
       "procedural_units": [
         "script:engine/test_effects.py"
       ],
-      "validation_status": "Recovered local87:86 nonfailed/1fixtureerror, capture incomplete through overlay canonical path; preserve as diagnostic. Jump fixed; self-contained exact path check pending; remote union and procedural required.",
+      "validation_status": "Recovered local87 remains diagnostic (86 nonfailed,1 fixture error,incomplete overlay capture). Jump plus exact2 root-path checks passed in self-contained complete capture. Remote106 run40831545521 continues at0066946. Original procedural04 run40831548507 failed on untracked tempHP fixture; followup replaces scalar assignment with the existing sourced temporary-HP component, preserving assertions and expiry guards; real Actions revalidation required.",
       "remote_unique_methods": 106
     }
   }

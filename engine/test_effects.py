@@ -154,7 +154,7 @@ def run(root):
     # 10. 임시 체력이 먼저 깎임
     c6 = make(r, "pokemon/oddish-1", id="pokemon/effects-temp-hp-target")
     e3.gm.add_combatant(c6)
-    c6.temp_hp = 10
+    FX.run_effects(e3, c6, c6, [{"type": "temp_hp", "value": 10}], {"hit": True, "attacker": c6, "target": c6, "engine": e3}, "temporary HP component")
     e3.take_damage(c6, 15)
     check("임시 체력 10 → 15 피해면 실제 체력 5 감소 (53 → 48)", c6.hp == 48 and c6.temp_hp == 0, f"{c6.hp} {c6.temp_hp}")
     # 11. damage_floor (칼등치기): 체력 1 미만으로 안 내려감
