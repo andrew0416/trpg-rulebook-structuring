@@ -25,8 +25,8 @@
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
   "active_repair": "authority-repair-integration-1029",
-  "active_repair_scope": "Post-sync declared23 checks for staged callback authority and native reaction provenance. Local two disjoint runs passed23 on the same frozen inputs. This packet does not repeat or replace retained earlier repair evidence, full revision obligations, or clause acceptance.",
-  "active_repair_required_tests": 23,
+  "active_repair_scope": "Exact unique union of the approved23 authority/native-reaction controls and87 recovered-test/helper impact controls. Retain original ineligible local87 evidence; CI uses its self-contained authenticated execution root. This is not whole-project coverage or clause credit.",
+  "active_repair_required_tests": 106,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -963,7 +963,7 @@
     "base_main": "ed89311fe4aee538fa58908587427a6e4827127b",
     "local_canonical_completed": 1798,
     "completion_credit": 0,
-    "public_python_files": 440,
+    "public_python_files": 202,
     "private_fixture_members_replaced": 11,
     "private_fixture_members_preserved": 1558,
     "historical_scope_preserved": true,
@@ -974,6 +974,24 @@
     "private_fixture_new_paths": [
       "data/type-expertise-source-contract.json"
     ],
-    "ci_scope_guard": "Exact count and IDs read from reviewed packet, replacing obsolete hardcoded12."
+    "ci_scope_guard": "Exact count and IDs read from reviewed packet, replacing obsolete hardcoded12.",
+    "prior_prepared_public_python_files": 440,
+    "test_recovery": {
+      "existing_main_whole_files_restored": 234,
+      "partial_semantic_files_reconciled": 28,
+      "production_runtime_recovery_changes": 0,
+      "changed_file_counts_after_recovery": {
+        "ci_or_encrypted_bundle": 6,
+        "production_runtime": 96,
+        "test": 101,
+        "python_support": 5
+      },
+      "affected_native_methods": 87,
+      "procedural_units": [
+        "script:engine/test_effects.py"
+      ],
+      "validation_status": "Recovered local87:86 nonfailed/1fixtureerror, capture incomplete through overlay canonical path; preserve as diagnostic. Jump fixed; self-contained exact path check pending; remote union and procedural required.",
+      "remote_unique_methods": 106
+    }
   }
 }
