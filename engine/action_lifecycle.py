@@ -43,6 +43,9 @@ def resolution(engine,actor,source,*,kind,join=False,_breather_attempt=None,_mov
     frame=retained if retained is not None else {'actor':actor,'source':source,'kind':kind,'id':resume,
            'before_effects':tuple(getattr(engine,'_effect_dispatch_receipts',{}))}
     if resume is not None:engine._native_action_resolutions[resume]['phase']='resolving'
+    import move_completion as TRIGGERS
+    if retained is None:TRIGGERS.bind_trigger_frame(engine,frame)
+    else:TRIGGERS.validate_trigger_frame(engine,frame)
     engine._native_action_stack=stack
     stack.append(frame)
     try:
@@ -61,6 +64,7 @@ def resolution(engine,actor,source,*,kind,join=False,_breather_attempt=None,_mov
     finally:
         # Native state transactions may replace the staged stack, preserving IDs.
         current=engine._native_action_stack
+        TRIGGERS.finish_trigger_frame(engine,current[-1])
         current.pop()
         if not current:del engine._native_action_stack
 
@@ -68,6 +72,8 @@ def resolution(engine,actor,source,*,kind,join=False,_breather_attempt=None,_mov
 def move_frame(engine,completion):
     frame=completion.get('native_action_frame')
     if frame is None:return None
+    __import__('move_completion').validate_trigger_frame(engine,frame)
+    if frame.get('completion_id',completion['id'])!=completion['id']:raise ValueError('native frame completion identity changed')
     if frame['actor'] is not completion['actor'] or frame['kind']!='move':
         raise ValueError('native Move action participant changed')
     if frame['id'] is not None:
@@ -129,7 +135,7 @@ def resolved_move(fn):
         try:
             import stamina as STAMINA
             actor=values['attacker'];source=values['move_id']
-            if not any(c is not None and STAMINA.interested(c) for c in participants) and source not in (__import__('tumbler').SPLASH,__import__('tumbler').BOUNCE) and not __import__('combat_move_reactions').interested(engine) and not __import__('trickster').native_frame_required(engine,actor,source) and not __import__('conquerors_march').interested(engine):
+            if not __import__('move_completion').disruption_frame_interested(engine,actor) and not any(c is not None and STAMINA.interested(c) for c in participants) and source not in (__import__('tumbler').SPLASH,__import__('tumbler').BOUNCE) and not __import__('combat_move_reactions').interested(engine) and not __import__('trickster').native_frame_required(engine,actor,source) and not __import__('conquerors_march').interested(engine) and not __import__('taskmaster_gambit').frame_interested(engine,actor,values.get('target',values.get('primary'))):
                 result=fn(engine,*args,**kwargs);completed=True;return result
             stack=getattr(engine,'_native_action_stack',[])
             same=bool(stack and stack[-1]['kind']=='move' and stack[-1]['actor'] is actor
@@ -417,6 +423,7 @@ def triggered_free_action(engine,actor,source):
     engine.log('  '+actor.name+': 발동조건 충족, 자유 행동 '+source,source)
 
 def begin_turn(engine, actor, *, initiative_count=None):
+    __import__('movement_actions').ensure_command_clear(engine,actor)
     import party_actions as PARTY_ACTIONS
     import swarm_transitions as SWARM
     swarm_slot = SWARM.continuation_pending(engine,actor)
@@ -460,6 +467,7 @@ def begin_turn(engine, actor, *, initiative_count=None):
         STAGE_HISTORY.begin_turn(engine, actor)
 
 def check_end(engine, actor, *, continuation=False):
+    __import__('movement_actions').ensure_command_clear(engine,actor)
     ensure_resolutions_clear(engine)
     import mapless_space as MAPLESS
     MAPLESS.ensure_clear(engine,actor)
@@ -521,6 +529,7 @@ def close_turn(engine, actor):
         actor._turn_action_limit=None
 
 def ordinary_permission(engine, actor):
+    __import__('movement_actions').ensure_command_clear(engine,actor)
     ensure_resolutions_clear(engine)
     import mapless_space as MAPLESS
     MAPLESS.ensure_clear(engine,actor)
@@ -621,9 +630,11 @@ def status_permission(engine, actor, kind, *, sleep_cure=False, new_action=True,
             return False
     return True
 
-def record_action(engine, actor, kind, *, _triggered_source=None):
+def record_action(engine, actor, kind, *, _triggered_source=None, _native_move=None):
     import initiative_interrupts as INTERRUPTS
     INTERRUPTS.require_recorded_action(engine,actor,kind,triggered_source=_triggered_source)
+    import move_completion as TRIGGERS
+    trigger_plan=TRIGGERS.prepare_trigger_action(engine,actor,kind,source=_triggered_source,move=_native_move)
     __import__('trickster').action_recorded(engine,kind,_triggered_source)
     __import__('illusion_state').break_genjutsu(engine,actor,'action')
     import csv_item_physical_contracts as CSV_ITEMS
@@ -632,6 +643,7 @@ def record_action(engine, actor, kind, *, _triggered_source=None):
     if history is None:
         actor._action_history = history = []
     history.append({"kind": "compound", "components": list(kind.components)} if type(kind) is ActionCost else kind)
+    TRIGGERS.commit_trigger_action(engine,trigger_plan,actor,kind)
     # Declared type, not the token used to fund it. Full/downgrade consequence
     # interpretation remains unresolved and is not counted as proved Standard.
     if kind == "standard" or (type(kind) is ActionCost and "standard" in kind.components):
@@ -686,8 +698,7 @@ def move_grant(engine, actor, target, move_id, *, source, kind=None):
     if kind != expected or (source == "maneuver/기회-공격" and move_id != "struggle"):
         raise ValueError("move grant cannot broaden its source action or move scope")
     if source=='feat/치명적인-장기말':
-        import taskmaster as TASK
-        if TASK.gambit_side(engine,actor,target,{'id':move_id})!='counter':raise ValueError('actual Deadly Gambit paired counter required')
+        __import__('taskmaster_gambit').require_counter_grant(engine,actor,target,move_id)
     if source in __import__('endure').SOURCES:
         __import__('endure').authority(engine,actor)
         if actor is not target or move_id!=source:raise ValueError('Endure grant is only its actual Self reaction')
@@ -733,6 +744,13 @@ def consume_move_grant(engine, token, actor, target, move_id, *, count_use=None,
             if count_use is not None and (count_use is not expected_count or free_action is not (entry[5] != "same_move_activation")):
                 raise ValueError("move continuation cannot change cost/frequency exemption scope")
             engine._action_grants.pop(index)
+            stack = getattr(engine, '_native_action_stack', ())
+            if entry[4] == 'free' and stack:
+                frame = stack[-1]
+                if frame['actor'] is actor and frame['kind'] == 'move' and frame['source'] == move_id:
+                    # The actual source grant has just been consumed. Its one
+                    # native payment can no longer be confused with ambient Free.
+                    frame['trigger_granted_payment'] = True
             return True, entry[4]
     return False, None
 
@@ -785,3 +803,26 @@ def current_full_turn(engine):
   owner=frame['parent']
   if owner is None:return None
  return {'actor':owner,'round':engine.round_no,'turn_serial':owner.custom_conditions['combat_turn_serial']}
+
+
+@contextmanager
+def completion_reaction(engine, actor, source, completion, *, receipt=None, _child=None):
+    """Lineage of a checked native reaction; never a new action-cost grant."""
+    if completion is None or completion.get('phase') != 'complete':
+        yield
+        return
+    import move_completion as MC
+    if getattr(engine, MC.KEY, {}).get(completion.get('id')) is not completion or not completion.get('sealed'):
+        raise ValueError('actual completed native reaction parent required')
+    proved = any(__import__(module).completion_reaction_origin(
+        engine, actor, source, completion, receipt) for module in
+        ('type_ace','trickster','duelist','class_actor_state_reactions','juggler'))
+    if not proved:
+        raise ValueError('source-owned native completion reaction required')
+    token = object()
+    entry = (token, actor, completion['actor'], completion['id'], {'source': source, 'payments': [], 'child': _child, 'child_issued': False}, 'native_completion_reaction')
+    engine._action_grants.append(entry)
+    try:
+        yield
+    finally:
+        engine._action_grants[:] = [grant for grant in engine._action_grants if grant[0] is not token]

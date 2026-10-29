@@ -10,7 +10,6 @@ sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
 import test_category2_condition_recovery as RECOVERY
 import initiative as INITIATIVE
 import turn as TURN
-from engine import Engine
 
 
 class ParalysisStateTests(unittest.TestCase):
@@ -21,8 +20,8 @@ class ParalysisStateTests(unittest.TestCase):
 
     def begin(self, actor, face):
         self.e.start_round(self.e.gm.everyone)
-        with patch.object(Engine, 'd20', return_value=face) as roller:
-            self.e.start_of_turn(actor, initiative_count=INITIATIVE.value(self.r, actor, engine=self.e).value)
+        with patch.object(self.e, 'd20', return_value=face) as roller:
+            self.e.start_of_turn(actor)
         return roller.call_count
 
     def state(self, engine, actor):
@@ -42,7 +41,7 @@ class ParalysisStateTests(unittest.TestCase):
                 self.e.gm.observe_loyalty(attacker, 6, reason='actual Move participant')
                 speed = actor.staged('spe')
                 self.begin(attacker, 20)
-                with patch.object(Engine, 'd20', return_value=20):
+                with patch.object(self.e, 'd20', return_value=20):
                     self.e.use_move(attacker, actor, 'move/전기자석파')
                 self.assertIn('마비', actor.conditions)
                 self.assertEqual(actor.staged('spe'), speed)
@@ -61,7 +60,7 @@ class ParalysisStateTests(unittest.TestCase):
                     before = self.state(self.e, actor)
                     self.assertFalse(TURN.spend(self.e, actor, second, 'paralysis prevents second action'))
                     self.assertEqual(self.state(self.e, actor), before)
-                    with patch.object(Engine, 'd20', return_value=20) as roller:
+                    with patch.object(self.e, 'd20', return_value=20) as roller:
                         self.e.end_of_turn(actor)
                     self.assertEqual(roller.call_count, 0)
                     self.assertIn('마비', actor.conditions)
@@ -97,8 +96,8 @@ class ParalysisStateTests(unittest.TestCase):
                     self.assertEqual(self.state(engine, actual), before)
                     engine.end_of_turn(actual)
                     engine.start_round(engine.gm.everyone)
-                    with patch.object(Engine, 'd20', return_value=11):
-                        engine.start_of_turn(actual, initiative_count=INITIATIVE.value(engine.r, actual, engine=engine).value)
+                    with patch.object(engine, 'd20', return_value=11):
+                        engine.start_of_turn(actual)
                     self.assertTrue(TURN.spend(engine, actual, 'standard', 'next turn success'))
                     self.assertTrue(TURN.spend(engine, actual, 'shift', 'next turn success'))
                     self.assertIn('마비', actual.conditions)

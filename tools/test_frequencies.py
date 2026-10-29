@@ -31,7 +31,7 @@ class FrequencyTests(unittest.TestCase):
     def fixture(self,kind='scene',uses=2):
         r=self.rules;mid='audit/frequency'
         raw='턴1회' if kind=='every_other_turn' else ('장면' if kind=='scene' else '하루')+f' x{uses}'
-        r.moves[mid]=dict(id=mid,name='빈도 검사',type='노말',frequency=raw,range='근접, 대상 1',ac=None,damage_base=None,**{'class':'변화'},effect='',mech_auto={})
+        r.moves[mid]=dict(id=mid,name='빈도 검사',type='노말',frequency=raw,range='자신',ac=None,damage_base=None,**{'class':'변화'},effect='',mech_auto={})
         r.moves_mech[mid]=dict(name='빈도 검사',coverage='full',header=dict(frequency=dict(kind=kind,uses=uses)),effects=[dict(type='injury',value=1,target='target')])
         e=Engine(r,seed=17)
         def actor(name):return Combatant(r,dict(name=name,kind='trainer',level=10,stats={s:30 for s in ['hp','atk','def','spa','spd','spe']},abilities=[],types=[],moves=[mid]))
@@ -40,10 +40,6 @@ class FrequencyTests(unittest.TestCase):
         return e,a,b,mid
     def cast(self,e,a,b,mid):return e.use_move(a,b,mid,free_action=True)
     def turn(self,e,a):e.start_of_turn(a)
-    def combat_turn(self,e,a):
-        if getattr(e,'_active_turn_actor',None) is not None:e.end_of_turn(e._active_turn_actor)
-        if e.round_start_seconds is not None:e.end_round()
-        e.start_round(e.everyone);e.start_of_turn(a,initiative_count=20)
     def auto(self,a,frequency):
         a.ability_triggers=[dict(name='감사 빈도',spec={'event':'audit'},frequency=frequency,effects=[dict(type='injury',value=1,target='target')])]
     def fire(self,e,a,b):FX.fire_event(e,a,{'event':'audit'},b)
@@ -52,9 +48,9 @@ class FrequencyTests(unittest.TestCase):
         self.assertEqual(b.injuries,1);self.assertEqual(a.move_uses[m],1)
     def test_scene_move_cap_and_no_action_cost_on_rejection(self):
         e,a,b,m=self.fixture()
-        for _ in range(2):self.combat_turn(e,a);self.combat_turn(e,a);e.use_move(a,b,m)
-        self.combat_turn(e,a);self.combat_turn(e,a);before=dict(a.budget);e.use_move(a,b,m)
-        self.assertEqual(b.injuries,2);self.assertEqual(a.budget,before);self.assertEqual(a.move_uses[m],2)
+        for _ in range(2):self.turn(e,a);self.turn(e,a);self.cast(e,a,b,m)
+        self.turn(e,a);before=dict(a.budget);e.use_move(a,b,m)
+        self.assertEqual(b.injuries,2);self.assertEqual(a.budget,before)
     def test_scene_end_refreshes_scene_move(self):
         e,a,b,m=self.fixture(uses=1);self.cast(e,a,b,m);e.end_scene([a,b]);self.cast(e,a,b,m)
         self.assertEqual(b.injuries,2);self.assertEqual(a.move_uses[m],1)
@@ -149,9 +145,9 @@ class FrequencyTests(unittest.TestCase):
         self.cast(e,a,b,m);self.assertEqual(b.injuries,2)
 
     def test_scene_move_cannot_repeat_consecutive_turns(self):
-        e,a,b,m=self.fixture();self.combat_turn(e,a);e.use_move(a,b,m)
-        self.combat_turn(e,a);e.use_move(a,b,m);self.assertEqual(b.injuries,1)
-        self.combat_turn(e,a);e.use_move(a,b,m);self.assertEqual(b.injuries,2)
+        e,a,b,m=self.fixture();self.turn(e,a);self.cast(e,a,b,m)
+        self.turn(e,a);self.cast(e,a,b,m);self.assertEqual(b.injuries,1)
+        self.turn(e,a);self.cast(e,a,b,m);self.assertEqual(b.injuries,2)
     def test_eot_cannot_repeat_same_or_next_turn(self):
         e,a,b,m=self.fixture('every_other_turn');self.turn(e,a);self.cast(e,a,b,m)
         self.cast(e,a,b,m);self.assertEqual(b.injuries,1)
@@ -218,7 +214,7 @@ if __name__=='__main__':
     verify_source_connection_inputs(ROOT)
     result=unittest.TextTestRunner(verbosity=2,resultclass=Result).run(connected_source_suite(unittest.defaultTestLoader.loadTestsFromTestCase(FrequencyTests),CASES))
     paths=[x for folder,glob in [('engine','*.py'),('data','*.json')] for x in (ROOT/folder).glob(glob)]
-    paths += [ROOT/'tools/frequency_source_connection_fixture.py',ROOT/'tools/frequency_source_connection_contract.json',ROOT/'tools/synthetic_rule_fixture.py',Path(__file__),ROOT/'output/source-audit/2026-10-10/ptu-core-1.05.pdf',ROOT/'output/source-audit/2026-10-10/xlsx-cells.json']+[ROOT/'input'/x for x in ['ch03-skills-edges-feats.md','ch07-combat.md','ch10-index-reference.md']]
+    paths += [ROOT/'tools/frequency_source_connection_fixture.py',ROOT/'tools/frequency_source_connection_contract.json',ROOT/'tools/chained_case_lifecycle.py',ROOT/'tools/synthetic_rule_fixture.py',Path(__file__),ROOT/'output/source-audit/2026-10-10/ptu-core-1.05.pdf',ROOT/'output/source-audit/2026-10-10/xlsx-cells.json']+[ROOT/'input'/x for x in ['ch03-skills-edges-feats.md','ch07-combat.md','ch10-index-reference.md']]
     report=dict(scope='24 integration/boundary checks plus 1004 source-linked frequency-clause checks. Not complete move certification.',source_cases={f'FREQ-test_source_move_{i:04d}':c['id'] for i,c in enumerate(CASES)},generated_at=datetime.now(timezone.utc).isoformat(),results=result.rows,input_hashes={x.relative_to(ROOT).as_posix():hashlib.sha256(x.read_bytes()).hexdigest() for x in paths})
     (ROOT/'output/frequency-tests.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     sys.exit(0 if result.wasSuccessful() else 1)

@@ -35,7 +35,7 @@ class AcquiredStatTagTests(unittest.TestCase):
     def setUpClass(cls):
         cls.rules = Rules(str(ROOT), ruleset="core")
 
-    def fixture(self, ability="ability/근성", *, before_acquire=None):
+    def fixture(self, ability="ability/근성"):
         engine = Engine(self.rules, seed=1223)
         spec = build_trainer(self.rules, "rank-stat-owner", 30,
                              dict.fromkeys(STATS, 10), moves=[], abilities=[])
@@ -43,7 +43,6 @@ class AcquiredStatTagTests(unittest.TestCase):
                     skills={"전투": 6}, feature_choices={})
         actor = Combatant(self.rules, spec)
         engine.everyone = engine.gm.everyone = [actor]
-        if before_acquire is not None:before_acquire(engine,actor)
         ACQUISITION.acquire_martial_artist(
             engine, actor, acquisition_request_id="martial/stat-proof",
             selected_ability=ability,
@@ -137,11 +136,9 @@ class AcquiredStatTagTests(unittest.TestCase):
         self.assert_stat(actor, ability, 1, baseline=12)
 
     def test_guts_actual_hp_capacity_and_native_healing_damage_without_implicit_heal(self):
-        before={}
-        def observe(engine,actor):before.update(base=actor.base_max_hp,hp=actor.hp)
-        engine, actor = self.fixture(before_acquire=observe)
-        base = before['base']
-        initial_hp = before['hp']
+        engine, actor = self.fixture()
+        base = actor.base_max_hp
+        initial_hp = actor.hp
         items.register_feats(engine, actor)
         self.assert_stat(actor, "ability/근성", 1)
         one = actor.base_max_hp

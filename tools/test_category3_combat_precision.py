@@ -22,16 +22,14 @@ class CombatPrecisionTests(unittest.TestCase):
     def setUp(self):
         self.e=Engine(self.r,seed=881)
         self.a=self.actor('trainer');self.p=self.actor('partner','pokemon');self.t=self.actor('foe')
-        self.a.side=self.p.side='party';self.t.side='wild';self.p.spec.update(trainer=self.a.name,trainer_id=self.a.entity_id)
+        self.a.side=self.p.side='party';self.t.side='wild';self.p.spec['trainer']=self.a.name
         self.a.spec['feats']=[CPF.PRECISION]
         self.e.everyone=[self.a,self.p,self.t];self.e.gm.everyone=self.e.everyone[:]
-        self.e.time_actors(self.e.everyone)
-        self.e.gm.observe_sensory_environment(self.a,self.p,paths={"auditory":True},present=True,reason="actual Order delivery")
     def actor(self,name,kind='trainer'):
         return Combatant(self.r,dict(name=name,kind=kind,level=20,
             stats={"hp":80,"atk":20,"def":15,"spa":20,"spd":15,"spe":5},
             skills={'협박':'숙련','곡예':'전문','은신':'전문','명령':'전문','통찰':'미숙'},
-            moves=['move/몸통박치기','move/불꽃세례','move/전기쇼크','move/째려보기','move/칼춤','move/스피드스타'],
+            moves=['move/몸통박치기','move/불꽃세례','move/전기쇼크','move/째려보기','move/칼춤','move/스피드스타','move/제비반환'],
             movement={'land':6}))
     def begin(self,actor=None):
         self.e.start_round(self.e.everyone);self.e.start_of_turn(actor or self.a)
@@ -236,10 +234,8 @@ class CombatPrecisionTests(unittest.TestCase):
         self.assertEqual(self.a.spec['ap_spent'],1)
 
     def test_pinpoint_multiple_pokemon_have_separate_costs_and_release(self):
-        q=self.actor('second','pokemon');q.spec.update(trainer=self.a.name,trainer_id=self.a.entity_id);q.side='party'
-        self.e.gm.add_combatant(q,reason='actual second owned Pinpoint partner')
-        self.e.gm.observe_sensory_environment(self.a,q,paths={'auditory':True},present=True,reason='actual second partner Order delivery')
-        self.bind()
+        q=self.actor('second','pokemon');q.spec['trainer']=self.a.name;q.side='party'
+        self.e.everyone.append(q);self.e.gm.everyone.append(q);self.bind()
         self.e.end_of_turn(self.a);self.e.end_round();self.e.start_round(self.e.everyone);self.e.start_of_turn(self.a)
         self.assertEqual(self.e.manual_feat(self.a,CPF.PINPOINT,q),(1,0));self.assertEqual(sum(self.a.spec['ap_bound'].values()),4)
         self.e.release_pinpoint_strike(self.a,self.p);self.assertEqual(sum(self.a.spec['ap_bound'].values()),2)
@@ -254,9 +250,7 @@ class CombatPrecisionTests(unittest.TestCase):
     def test_pinpoint_actual_id_owner_and_same_name_foreign_id_rejected(self):
         self.p.spec.pop('trainer');self.p.spec['trainer_id']=self.a.entity_id
         self.bind();self.assertIs(CPF.binding(self.e,self.p)['owner'],self.a)
-        self.setUp();other=self.actor(self.a.name)
-        self.e.gm.add_combatant(other,reason='actual distinct same-name foreign Trainer')
-        self.p.spec['trainer_id']=other.entity_id;self.begin()
+        self.setUp();self.p.spec['trainer_id']='trainer/other';self.begin()
         before=self.state()
         with self.assertRaisesRegex(ValueError,'different trainer identity'):self.e.manual_feat(self.a,CPF.PINPOINT,self.p)
         self.assertEqual(before,self.state())
@@ -264,7 +258,7 @@ class CombatPrecisionTests(unittest.TestCase):
     def test_pinpoint_conflicting_owner_fields_and_ambiguous_names_rejected(self):
         self.p.spec.update(trainer_id=self.a.entity_id,trainer='contradictory');self.begin()
         with self.assertRaisesRegex(ValueError,'conflicting'):self.e.manual_feat(self.a,CPF.PINPOINT,self.p)
-        self.setUp();self.p.spec.pop('trainer_id');other=self.actor(self.a.name);self.e.everyone.append(other);self.begin()
+        self.setUp();other=self.actor(self.a.name);self.e.everyone.append(other);self.begin()
         with self.assertRaisesRegex(ValueError,'unambiguous'):self.e.manual_feat(self.a,CPF.PINPOINT,self.p)
 
     def test_pinpoint_encounter_subset_end_clears_off_field_bound_target(self):
@@ -308,14 +302,12 @@ class CombatPrecisionTests(unittest.TestCase):
 
     def test_pinpoint_native_capture_id_is_accepted_without_name_owner(self):
         self.a.spec['items']={'몬스터볼':1};self.a.pos=(0,0);self.p.pos=(1,0)
-        self.p.spec.pop('trainer');self.p.spec.pop('trainer_id');self.p.side='wild';self.p.hp=1
+        self.p.spec.pop('trainer');self.p.side='wild';self.p.hp=1
         self.assertTrue(self.e.throw_ball(self.a,self.p,fixed_accuracy=20,fixed_capture=20))
         self.assertEqual(self.p.spec['trainer_id'],self.a.spec['id']);self.assertNotIn('trainer',self.p.spec)
         # The captured Pokemon is deployed in the next encounter, preserving the
         # actual ownership record emitted by throw_ball.
         self.p.captured=False;self.p.on_field=True;self.p.side='party'
-        self.e.gm.observe_sensory_environment(self.a,self.p,paths={'auditory':True},present=True,
-            reason='actual newly deployed captured Pokemon hears the current Pinpoint Order at its new position')
         self.bind();self.assertIs(CPF.binding(self.e,self.p)['owner'],self.a)
 
     def test_pinpoint_critical_damage_reduction_is_five_not_ten(self):

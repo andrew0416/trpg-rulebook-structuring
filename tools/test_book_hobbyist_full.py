@@ -262,6 +262,77 @@ class HobbyistTests(unittest.TestCase):
   self.assertTrue(result['completed']);self.assertEqual(self.p.pos,before);self.assertNotIn('넘어짐',self.p.conditions);self.assertEqual(self.p.stages['atk'],2);self.assertNotIn('난동',self.p.conditions)
   self.assertEqual(FREQ.state(self.a)['activations']['feat/지구력']['used'],1);self.valid()
 
+ def test_help_offer_requires_another_known_allied_trainer(self):
+  cases=[('party','party',False,True),('party','foe',False,False),
+         (None,None,False,False),('party',None,False,False),
+         (None,'party',False,False),('party','party',True,False)]
+  for helper_side,target_side,self_target,allowed in cases:
+   with self.subTest(helper=helper_side,target=target_side,self_target=self_target):
+    self.world();self.dilettante('edge/브리더','feat/내가-도와줄게',substitute='일반 지식')
+    ally=self.actor('relation-checker','trainer',(2,3),40,skills={'의학':2})
+    target=self.a if self_target else ally
+    self.a.side,target.side=helper_side,target_side;self.begin(target)
+    offer=lambda:self.e.offer_let_me_help(self.a,target,request_id='relation-help',decision=lambda first:True,payment='next',reroll_faces=[6,6])
+    if not allowed:
+     self.reject(offer,'another allied Trainer')
+    else:
+     offer();self.assertEqual(self.e.skill_check(target,'의학',15,fixed=[1,1],roll_id='relation-check'),(True,17))
+     self.assertEqual(self.a._action_history,['full'])
+
+ def test_help_rechecks_known_alliance_after_offer_before_failed_check(self):
+  self.dilettante('edge/브리더','feat/내가-도와줄게',substitute='일반 지식')
+  ally=self.actor('changed-relation-checker','trainer',(2,3),40,skills={'의학':2});self.begin(ally)
+  self.e.offer_let_me_help(self.a,ally,request_id='relation-help',decision=lambda first:self.fail('unknown ally must not reach decision'),payment='next',reroll_faces=[6,6])
+  self.a.side=ally.side=None
+  history=list(getattr(self.a,'_action_history',[]))
+  with self.assertRaisesRegex(ValueError,'another allied Trainer'):
+   self.e.skill_check(ally,'의학',15,fixed=[1,1],roll_id='changed-relation-check')
+  self.assertEqual(list(getattr(self.a,'_action_history',[])),history)
+  self.assertFalse(__import__('action_resources').pending(self.a))
+
+ def test_help_callback_relation_change_preserves_gm_change_without_reroll(self):
+  import skill_feature_actions as HELP,action_resources as RES
+  self.dilettante('edge/브리더','feat/내가-도와줄게',substitute='일반 지식')
+  ally=self.actor('callback-checker','trainer',(2,3),40,skills={'의학':2});self.begin(ally)
+  observed=[]
+  def decision(first):
+   observed.append(first.total)
+   self.e.gm.add_combatant(self.a,side='foes',reason='separately authorized GM relationship change')
+   self.assertEqual(self.a.side,'foes')
+   return True
+  self.e.offer_let_me_help(self.a,ally,request_id='callback-relation',decision=decision,payment='next',reroll_faces=[6,6])
+  history=list(getattr(self.a,'_action_history',[]));outcome=None
+  try:outcome=self.e.skill_check(ally,'의학',15,fixed=[1,1],roll_id='callback-relation-roll')
+  except ValueError:pass
+  self.assertEqual(observed,[2],'candidate must reach the real failed-check callback')
+  self.assertEqual(self.a.side,'foes','separate authorized GM change must survive')
+  self.assertEqual(list(getattr(self.a,'_action_history',[])),history,'stale helper must not pay Full action')
+  self.assertFalse(RES.pending(self.a),'stale helper must not acquire next-turn debt')
+  self.assertEqual(HELP.event(self.e,ally,'callback-relation-roll').first.total,2)
+  if outcome is not None:self.assertEqual(outcome,(False,2),'only the original failed check remains authorized')
+
+ def test_help_callback_skill_loss_preserves_gm_change_without_reroll(self):
+  import skill_feature_actions as HELP,action_resources as RES
+  self.dilettante('edge/브리더','feat/내가-도와줄게',substitute='일반 지식')
+  ally=self.actor('callback-rank-checker','trainer',(2,3),40,skills={'의학':2});self.begin(ally)
+  helping_skill=H.direct_skill(self.a,HELP.HELP,'의학');self.assertGreaterEqual(S.effective_rank(self.e.r,self.a,helping_skill),3)
+  observed=[]
+  def decision(first):
+   observed.append(first.total)
+   self.e.gm.set_skill(self.a,helping_skill,2,reason='separately authorized permanent skill correction',request_id='callback-skill-loss')
+   self.assertEqual(S.effective_rank(self.e.r,self.a,helping_skill),2)
+   return True
+  self.e.offer_let_me_help(self.a,ally,request_id='callback-rank',decision=decision,payment='next',reroll_faces=[6,6])
+  history=list(getattr(self.a,'_action_history',[]));outcome=None
+  try:outcome=self.e.skill_check(ally,'의학',15,fixed=[1,1],roll_id='callback-rank-roll')
+  except ValueError:pass
+  self.assertEqual(observed,[2],'candidate must reach the real failed-check callback')
+  self.assertEqual(S.effective_rank(self.e.r,self.a,helping_skill),2,'GM correction must not be rolled back')
+  self.assertEqual(list(getattr(self.a,'_action_history',[])),history)
+  self.assertFalse(RES.pending(self.a))
+  self.assertEqual(HELP.event(self.e,ally,'callback-rank-roll').first.total,2)
+  if outcome is not None:self.assertEqual(outcome,(False,2))
+
  def test_native_help_failed_trainer_check_rerolls_with_rank_and_full_interrupt(self):
   self.dilettante('edge/브리더','feat/내가-도와줄게',substitute='일반 지식')
   ally=self.actor('allied-checker','trainer',(2,3),40,skills={'의학':2});self.begin(ally)

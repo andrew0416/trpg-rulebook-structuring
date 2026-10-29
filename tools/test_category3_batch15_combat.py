@@ -21,14 +21,13 @@ class Tests(unittest.TestCase):
   self.a=self.actor('trainer/a','trainer');self.p=self.actor('pokemon/p','pokemon');self.b=self.actor('trainer/b','trainer')
   self.a.spec.update(feats=[CPF.PRECISION],edges=['edge/몬스터볼','edge/보석-지식'],items={'몬스터볼 공구함':1},money=400,shards={'빨강':2})
   self.p.spec['trainer_id']=self.a.spec['id'];self.e.everyone=self.e.gm.everyone=[self.a,self.p,self.b]
-  self.e.gm.observe_sensory_environment(self.a,self.p,paths={'auditory':True},present=True,reason='actual allied recipient hears the current Pinpoint Order')
  def actor(self,uid,kind):
   return Combatant(self.r,dict(id=uid,name=uid,kind=kind,level=15,stats={s:10 for s in ['hp','atk','def','spa','spd','spe']},skills={'명령':5,'통찰':5,'기술학':4,'오컬트학':3},feats=[],edges=[],items={},movement={'land':5},moves=['move/몸통박치기']))
  def state(self):return deepcopy((self.e.rng.getstate(),self.e.elapsed_seconds,self.e.encounter_active,self.e.round_no,[(c.spec,c.hp,c.injuries,c.conditions,c.modifiers,getattr(c,'budget',None),getattr(c,'_action_history',None)) for c in self.e.everyone]))
  def turn(self):self.e.start_round(self.e.everyone);self.e.start_of_turn(self.a)
  def changed_source(self,source):
   original=self.r._selected_rule
-  return patch.object(self.r,'_selected_rule',side_effect=lambda uid, *args, **kwargs: uid + '/unreviewed' if uid == source else original(uid, *args, **kwargs))
+  return patch.object(self.r,'_selected_rule',side_effect=lambda uid,*args:uid+'/unreviewed' if uid==source else original(uid,*args))
  def craft(self,**kw):
   options=dict(item='item/몬스터볼-2',minutes=5,reason='GM actual Extended work time');options.update(kw)
   return self.e.pokemon_activity(self.a,'craft_item',**options)

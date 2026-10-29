@@ -17,9 +17,7 @@ class Tests(unittest.TestCase):
     stats=dict(hp=10,atk=5,**{'def':5},spa=5,spd=5,spe=5),
     skills=skills or {'육상':6,'곡예':6,'일반지식':5},edges=ids,
     edge_choices={f'C2CSV/input/db/edges.csv:R{n}:main':v for n,v in choices.items()}))
-  engine=Engine(self.rules,73)
-  engine.gm.add_combatant(c,reason='actual CSV skill-edge roll actor')
-  return engine,c
+  return Engine(self.rules,73),c
  def test_category_pairs_and_scholar_use_real_roll_once_per_skill(self):
   e,c=self.actor([8,9,9,64],{8:'신체',9:[['육상','곡예'],['육상','생존']]})
   for skill in self.rules.skill_policy['skills']:

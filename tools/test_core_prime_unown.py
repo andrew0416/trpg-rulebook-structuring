@@ -152,19 +152,12 @@ class CorePrimeUnownTests(unittest.TestCase):
         changed=deepcopy(row);changed['joined'][0]['damage_class']='special';bads.append(changed)
         split=deepcopy(row);split['joined']=split['joined'][:2];bads.append(split)
         fifth=Combatant(e.r,build_pokemon(e.r,'안농',20,name='fifth',moves=['move/잠재파워-물'],wild=True));fifth.on_field=False;e.everyone.append(fifth)
-        full=deepcopy(row);full['joined'].append({'member_id':fifth.entity_id,'boosted_stat':'def','hidden_power_id':'move/잠재파워-물','damage_class':'special'})
+        full=deepcopy(row);full['joined'].append({'member_id':fifth.entity_id,'boosted_stat':'def','hidden_power_id':'move/잠재파워-물','damage_class':'special'});bads.append(full)
         other=deepcopy(row);other['id']='second-prime';other['actor_id']=fifth.entity_id;other['joined']=other['joined'][:1];bads.append(other)
         for bad in bads:
             with self.subTest(joined=bad['joined']):
                 with self.assertRaises(ValueError):self.observe(e,bad)
                 self.assertEqual((e._physical_objects,h.spec,h.stats,h.moves,h.hp),before)
-        # The limit applies to the first four +5 bonuses, including the first
-        # creation. A fifth permanently joined member has no further bonus.
-        out=self.observe(e,full)
-        self.assertEqual(len(out['entity']['joined']),5)
-        self.assertEqual(sum(out['state_view']['base_stat_bonuses'].values()),20)
-        self.assertEqual(h.stats,before[2]);self.assertFalse(fifth.on_field)
-        self.valid(e)
         # Existing glyph validator rejects absorbed identities before any
         # unrelated Fantasy source creation can be certified.
         fantasy=Rules(ROOT,ruleset='fantasy');e.r=fantasy

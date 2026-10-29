@@ -48,11 +48,9 @@ class WildEquipmentTests(unittest.TestCase):
   with self.assertRaises(ValueError):self.act('attract_bait',phase='encounter',bait_id='bait',target=self.p,party=[self.q],level_match_reason='no successful check')
   self.assertEqual(before,self.state())
  def test_focus_exact_dc12_resists_and_failed_real_check_creates_distraction(self):
-  self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.a,initiative_count=20)
   self.a.budget={'standard':1,'shift':1,'swift':1};r=self.distract([3]*4);self.assertEqual(r['check'].total,12);self.assertFalse(W.pending(self.p));self.assertEqual(self.a.budget['standard'],0);self.assertEqual(self.a.spec['items']['미끼'],1)
   self.a.budget['standard']=1;r=self.distract();self.assertTrue(W.pending(self.p));self.assertEqual(r['check'].dc,12);self.assertEqual(self.a.spec['items']['미끼'],0)
  def test_invalid_target_dice_or_no_action_never_consumes_bait(self):
-  self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.a,initiative_count=20)
   before=self.state()
   with self.assertRaises(ValueError):self.distract([1])
   self.assertEqual(before,self.state());self.p.spec['trainer_id']='owner'
@@ -65,7 +63,7 @@ class WildEquipmentTests(unittest.TestCase):
   self.assertEqual(self.p._action_history.count('standard'),1)
   self.e.end_of_turn(self.p);self.e.start_round(actors);self.e.start_of_turn(self.p);rng=self.e.rng.getstate();self.e.use_move(self.p,self.q,'struggle',set_damage=True);self.assertNotEqual(self.e.rng.getstate(),rng)
  def test_unconscious_sleeping_or_no_standard_preserves_distraction(self):
-  self.distract();self.e.start_round(self.e.gm.everyone);self.e.start_of_turn(self.p,initiative_count=10)
+  self.distract()
   for cond in ('잠듦','얼음'):
    self.p.conditions.add(cond);self.assertFalse(TURN.spend(self.e,self.p,'standard','blocked'));self.assertTrue(W.pending(self.p));self.p.conditions.remove(cond)
   self.p.hp=0;self.assertFalse(TURN.spend(self.e,self.p,'standard','unconscious'));self.assertTrue(W.pending(self.p));self.p.hp=20;self.p.budget={'standard':0,'shift':1,'swift':1};self.assertFalse(TURN.spend(self.e,self.p,'standard','no token'));self.assertTrue(W.pending(self.p))

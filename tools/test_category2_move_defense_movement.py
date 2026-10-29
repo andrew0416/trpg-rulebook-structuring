@@ -27,8 +27,8 @@ class MoveDefenseMovementTests(unittest.TestCase):
 
     def test_blocked_paid_prefix_cold_restores_without_rechecking_or_repaying(self):
         self.watch();event=self.waiting();original=MOVE.departure
-        def block(e,c,q,height,**scopes):
-            result=original(e,c,q,height,**scopes)
+        def block(e,c,q,height):
+            result=original(e,c,q,height)
             if c.entity_id==self.r.entity_id and q==(3,3):e.grid.blocking.add(q)
             return result
         with patch.object(MOVE,'departure',side_effect=block):

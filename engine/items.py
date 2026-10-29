@@ -516,6 +516,7 @@ def use_item(engine, user, item_name, target=None, free=False, accepted=True, *,
 def _use_immediate_item(engine,user,item_name,target,*,free=False,accepted=True,
                         duration_minutes=None,duration_reason=None,count=1,held_selection=None,medicine_source_choice=None,chef_batch_id=None):
     """Immediate source adapter; public use/selection belongs to consumable_use."""
+    before_actions = len(getattr(user, '_action_history', []))
     import food_effects as FOOD,turn as TURN
     effs,header=engine.r.item_effects(item_name)
     if any(isinstance(x,dict) and x.get('type')=='stat_base_mod' and x.get('vitamin') for x in effs or []):
@@ -568,7 +569,12 @@ def _use_immediate_item(engine,user,item_name,target,*,free=False,accepted=True,
     # event is not undone by a blanket transaction rollback.
     FX.preflight_effects(engine,user,target,effs,header['id'],consumer='items.use_item')
     def pay(e,c):
+        import class_actor_state_actions as CLASS_STATE
+        CLASS_STATE.validate(c)  # Reject ambiguous/invalid old history before cost.
         if not TURN.spend(e,c,kind,item_name,sleep_cure=sleep_cure):return False
+        # Native payment is a mutable boundary. Preserve any unique old link
+        # before the new receipt can collide at the same known clock instant.
+        CLASS_STATE._retain_medical_receipts(c)
         receipt=STOCK.debit(e,c,stock)
         if policy:
             receipt['medicine_policy']={'source_variant':policy['source_variant'],'source_policy':deepcopy(policy['source_policy']),
@@ -587,9 +593,14 @@ def _use_immediate_item(engine,user,item_name,target,*,free=False,accepted=True,
             lost='신속' if 'swift' in recipient_debt else '이동'
             engine.log(f"    {target.name}은(는) 다음 기본 행동과 {lost} 행동을 잃음 (아이템 사용)", "ch09/아이템-사용")
     if is_x and RESTORATIVE.special_apply(engine,target,header['id']):
-        return __import__('consumption_execution').finish_immediate(engine,user,target,paid,header,(1,0))
-    result=apply_immediate_effects(engine,user,target,item_name,effs,header)
-    return __import__('consumption_execution').finish_immediate(engine,user,target,paid,header,result)
+        result=(1,0)
+    else:
+        result=apply_immediate_effects(engine,user,target,item_name,effs,header)
+    result=__import__('consumption_execution').finish_immediate(engine,user,target,paid,header,result)
+    if chef_batch_id is None and len(getattr(user, '_action_history', [])) > before_actions:
+        __import__('class_actor_state_actions').observe_healing_item_used(
+            engine,user,target,item_name,result,payment_id=paid)
+    return result
 
 
 def apply_immediate_effects(engine,user,target,item_name,effs,header):
@@ -930,7 +941,7 @@ def register_feats(engine, c, pokemon=None):
         if trig is not None:
             spec = FX.parse_trigger(trig.get("text") or "")
             if spec:
-                register_row("ability_triggers",{"name": name, "spec": spec, "frequency": freq, "effects": rest, "_feat": True, "usage_key": header.get("id", name), "activation_header": header, "cost_effects": manual_effects})
+                register_row("ability_triggers",{"name": name, "spec": spec, "frequency": header.get("frequency"), "effects": rest, "_feat": True, "usage_key": header.get("id", name), "activation_header": header, "cost_effects": manual_effects})
                 n += 1
             else:
                 engine.log(f"    재주 {name}: 발동조건 미해석 '{(trig.get('text') or '')[:40]}' → GM 수동 발동", f"feat/{name}")
@@ -1027,7 +1038,7 @@ def manual_feat(engine, c, name, target=None, *, adjustment=None, communication=
             tgt = target or c
             engine.log(f"  [GM 발동] 재주 {name} ({e.get('trigger')})", f"feat/{name}")
             result = FX.run_effects(engine, c, tgt, [dict(x, target=x.get("target", "target")) for x in e["effects"] if x.get("type") != "cost"], {"attacker": c, "target": tgt, "hit": True, "nat": None, "engine": engine}, f"feat/{name}")
-            if result[0] > 0:
+            if FX.accepted_activation(result):
                 AP.spend(c, cost, header, e.get("cost_effects", e["effects"]))
                 FREQ.consume_activation(c, key, frequency,engine=engine,action_actor=c)
                 import cheerleader as CHEER

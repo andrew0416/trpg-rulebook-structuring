@@ -83,6 +83,65 @@ class ConnectionKeywordTests(unittest.TestCase):
         self.assertEqual(len(known),6);self.assertEqual(self.p.spec['tutor_points'],4)
         self.assertEqual(self.p.spec['move_learning_log'][-1]['replaced'],self.rules.move_id('튀어오르기'))
 
+    def signature_on_full_list(self):
+        import ace_trainer as ACE, trainer_feature_acquisition as ACQUISITION
+        import training_features as TRAINING
+        self.pokemon(FULL)
+        trainer = Combatant(self.rules, build_trainer(self.rules, 'actual Signature teacher', 20,
+            dict.fromkeys(('hp','atk','def','spa','spd','spe'), 10),
+            skills={'명령':5, '육상':3, '협박':3, '매력':3},
+            extra={'feats':[], 'classes':[], 'abilities':[]}))
+        self.e.gm.add_combatant(trainer, pos=(1,0), side='party', reason='actual Signature teacher')
+        self.p.spec.update(trainer_id=trainer.entity_id, trainer=trainer.name)
+        for feature, selection in ((ACE.CLASS, None),
+                (ACE.ELITE, {'feature':TRAINING.FOCUSED, 'options':{}}), (ACE.SIGNATURE, None)):
+            ACQUISITION.acquire_static(self.e, trainer, feature, selection=selection,
+                                       acquisition_request_id='connection-signature/' + feature)
+        self.e.teach_signature_technique(trainer, self.p, move_id='move/몸통박치기',
+            modification='alternative_energy', request_id='connection-signature/investment')
+        self.assertEqual(self.p.spec['tutor_points'], 2)
+        return ACE
+
+    def test_connection_forgetting_signature_refunds_once_and_survives_both_restores(self):
+        ACE = self.signature_on_full_list()
+        self.answer(forget='몸통박치기'); self.gain()
+        self.assertNotIn(self.rules.move_id('몸통박치기'), self.known())
+        self.assertIn(self.bite, self.known())
+        self.assertEqual(self.p.spec['tutor_points'], 3)
+        receipt = deepcopy(self.p.spec[ACE.KEY][0])
+        self.assertEqual((receipt['status'], receipt['refund']), ('forgotten', 1))
+        self.assertIsNone(ACE.active(self.rules, self.p.spec))
+        self.gain()
+        self.assertEqual((self.p.spec['tutor_points'], self.p.spec[ACE.KEY]), (3, [receipt]))
+        self.e.gm.restore(self.e.gm.snapshot('connection-signature'))
+        loaded = CODEC.load_engine(self.rules, json.loads(json.dumps(CODEC.dump_engine(self.e))))
+        target = W.actor_index(loaded)[self.p.entity_id]
+        self.assertEqual((target.spec['tutor_points'], target.spec[ACE.KEY]), (3, [receipt]))
+        loaded.gm.set_ability(target, '꿀도둑', reason='same restored Connection Ability')
+        self.assertEqual((target.spec['tutor_points'], target.spec[ACE.KEY]), (3, [receipt]))
+
+    def test_connection_signature_refund_rolls_back_on_late_learning_failure(self):
+        import learning_grant as LEARNING
+        ACE = self.signature_on_full_list()
+        self.answer(forget='몸통박치기')
+        native = LEARNING.learn_moves
+        def fail(*args, **kwargs):
+            native(*args, **kwargs)
+            raise ValueError('late Signature Connection learning failure')
+        with patch.object(LEARNING, 'learn_moves', side_effect=fail):
+            assert_rejected_unchanged(self.e, self.gain, reason_pattern='late Signature Connection')
+        self.assertEqual(self.p.spec['tutor_points'], 2)
+        self.assertEqual(ACE.active(self.rules, self.p.spec)['refund'], 0)
+
+    def test_connection_cannot_free_a_signature_slot_still_held_by_an_independent_grant(self):
+        ACE = self.signature_on_full_list()
+        G.grant_moves(self.p, ['몸통박치기'], 'independent-signature-move', 'feature',
+                      rule_id=C.KEYWORD, lifetime='while_owned')
+        self.answer(forget='몸통박치기')
+        assert_rejected_unchanged(self.e, self.gain, reason_pattern='capacity')
+        self.assertEqual(self.p.spec['tutor_points'], 2)
+        self.assertEqual(ACE.active(self.rules, self.p.spec)['status'], 'active')
+
     def test_tutor_point_takes_immediate_advanced_connection_and_restores(self):
         self.pokemon(FULL);start=self.e.elapsed_seconds;self.answer(advanced_connection=True);self.gain()
         state=M.describe(self.rules,self.p.spec)

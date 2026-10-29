@@ -6,8 +6,6 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools"))
 from engine import Combatant, Engine, Rules  # noqa: E402
-from grid import Grid  # noqa: E402
-from native_scenario_fixture import prepare_body  # noqa: E402
 from ruleset import RuleFilter, classify, base_id, base_name, UnresolvedRuleSelection  # noqa: E402
 from filter_ruleunits import filter_db  # noqa: E402
 
@@ -44,16 +42,8 @@ def run(root):
     rh = Rules(root, ruleset="homebrew")
     check("homebrew: 눈보라 코어판 → 홈브류판 치환표", rh.resolve_move("move/눈보라") == "move/눈보라-홈브류" and rh.resolve_move("move/버티기") == "move/버티기-홈브류", rh.move_alias)
     eh = Engine(rh, 2)
-    eh.grid = Grid(12, 8)
-    ah, th = make(rh, "pokemon/archie", pos=(1, 1)), make(rh, "pokemon/oddish-2", pos=(4, 1))
-    # Preserve the original example sheets. Observe their actual one-cell bodies
-    # and supply the complete on-field group to the native ranged Blast path.
-    for actor in (ah, th):
-        eh.gm.add_combatant(actor)
-        prepare_body(eh, actor, size="소형", offsets=[(0, 0)],
-                     reason="ruleset fixture observes the two small example Pokemon on its grid")
-    eh.gm.set_move(ah, "move/눈보라", reason="ruleset fixture explicitly grants its selected test move")
-    eh.use_move_on(ah, th, "move/눈보라", [ah, th], aim=th.pos)
+    ah, th = make(rh, "pokemon/archie"), make(rh, "pokemon/oddish-2")
+    eh.use_move(ah, th, "move/눈보라")
     check("homebrew: use_move 가 치환을 로그에 남기고 홈브류판(17+ 얼음)으로 판정", any("변형판 대체" in l and "눈보라 [홈브류]" in l for l in eh.log_lines))
     # 4. playtest 프로필: 특성 이름 치환 (옹골참 → 옹골참 [Playtest]: 일격 면역 + 피해 상한)
     rp = Rules(root, ruleset="playtest")

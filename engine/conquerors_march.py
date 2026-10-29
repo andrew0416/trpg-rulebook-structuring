@@ -472,8 +472,8 @@ def after_move(engine,completion,*,event_id=None):
 def _lean_resist(engine,event):
     import damage_reactions as R,combat_damage as D
     formula=event['damage_formula'];mult=formula['multiplier']
-    if event.get('mettle_selected'):mult=R.resistance_multiplier(engine,mult)
-    mult=R.resistance_multiplier(engine,mult)
+    if event.get('mettle_selected'):mult=R.resistance_multiplier(engine,mult,event=event)
+    mult=R.resistance_multiplier(engine,mult,event=event)
     if mult is None:raise ValueError('native resistance-step multiplier required')
     formula['multiplier']=mult;event['context']['multiplier']=mult
     event['effective_type_multiplier']=mult

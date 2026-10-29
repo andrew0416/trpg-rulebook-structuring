@@ -35,8 +35,6 @@ class Tests(unittest.TestCase):
         base={'level':20,'stats':dict.fromkeys(['hp','atk','def','spa','spd','spe'],10),'moves':['연속자르기']}
         trainer=Combatant(r,dict(base,id='trainer-a',name='T',kind='trainer',skills={'매력':'초보'},edges=[]))
         pokemon=Combatant(r,dict(base,id='pokemon-a',name='P',kind='pokemon',trainer_id='trainer-a'))
-        engine.gm.add_combatant(trainer,reason='actual native contest trainer')
-        engine.gm.add_combatant(pokemon,reason='actual owned native contest performer')
         return engine,pokemon,trainer
     def test_native_equipped_item_sources_generate_intro_bonuses(self):
         import items
@@ -123,6 +121,7 @@ class Tests(unittest.TestCase):
 
     def test_book_stat_mapping_and_all_five_native_move_types_reach_actual_performance(self):
         engine,pokemon,trainer=self.native_actors()
+        engine.everyone.extend([trainer,pokemon]);engine.gm.everyone=engine.everyone
         pokemon.stats.update(atk=10,spa=30,spd=40,spe=10);pokemon.stats['def']=20
         pokemon.stages.update(atk=6,spa=-6,spd=6,spe=-6);pokemon.stages['def']=-6
         expected={'근사함':1,'강인함':2,'아름다움':3,'슬기로움':2,'귀여움':1}

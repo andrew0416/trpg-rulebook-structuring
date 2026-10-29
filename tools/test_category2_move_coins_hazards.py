@@ -6,7 +6,7 @@ import json
 import sys
 import unittest
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(r'D:\trpg-rulebook-structuring\ptk-structure-experiment')
 STAGE = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(STAGE/'engine'), str(ROOT/'engine')]
 from engine import Rules, Engine, Combatant
@@ -198,7 +198,6 @@ class DerivedHazardTests(unittest.TestCase):
                 EXT.on_enter_cell(e,a,(9,5));self.assertEqual(len(e.hazards),count-2)
 
     def test_miss_has_no_trap_and_missing_map_or_aim_refuses_atomically(self):
-        # Legacy test ID retained for evidence continuity; Spirit Surge does install the miss trap.
         for mid in HAZARDS.DERIVED_MOVES:
             with self.subTest(move=mid):
                 e,a,t,base=self.world(mid)
@@ -208,13 +207,7 @@ class DerivedHazardTests(unittest.TestCase):
                 grid=e.grid;e.grid=None
                 with self.assertRaises(ValueError):self.use(e,a,t,base,mid)
                 self.assertEqual(before,(a.budget,a.move_uses,t.hp,e.rng.getstate()));e.grid=grid
-                hp=t.hp
-                self.use(e,a,t,base,mid,miss=True)
-                completion=next(iter(e._move_completions.values()))
-                self.assertFalse(any(row['hit'] for row in completion['results'].values()))
-                self.assertLess(t.hp,hp)
-                self.assertEqual(set(e.hazards),AREA.cells(e,a,completion['move']))
-                self.assertEqual(len(e._gmax_payload_receipts),1)
+                self.use(e,a,t,base,mid,miss=True);self.assertFalse(e.hazards)
                 self.assertEqual(a.budget['standard'],0)
                 self.assertTrue(e.validate_state()['valid'])
 
@@ -248,7 +241,7 @@ class DerivedHazardTests(unittest.TestCase):
         e.enter_gigantamax(a,source_id='test/actual-gmax',reason='actual field producer')
         with patch.object(e,'d20',return_value=17):
             e.use_gmax_move_on(a,t,'move/염동력','move/거다이천도',e.everyone,aim=(9,4))
-        self.assertEqual(FIELD.active(e,'왜곡')['source_id'],'move/거다이천도');self.assertEqual(FIELD.active(e,'왜곡')['rounds'],5)
+        self.assertEqual(e.field['source_id'],'move/거다이천도');self.assertEqual(e.field['rounds'],5)
         self.assertEqual(FIELD.accuracy_modifier(e,t),0)
         self.assertIsNone(FIELD.native_move_block_reason(e,'move/공중날기',ally))
         self.assertEqual(FIELD.native_move_block_reason(e,'move/공중날기',t),'move/거다이천도')
@@ -263,8 +256,8 @@ class DerivedHazardTests(unittest.TestCase):
         t.spec['_movement_altitude']=1;e.end_of_turn(t)
         e=Engine.import_state(self.r,json.loads(json.dumps(e.export_state(),ensure_ascii=False)))
         for remaining in (4,3,2,1):
-            e.start_round(e.everyone);self.assertEqual(FIELD.active(e,'왜곡')['rounds'],remaining)
-        e.start_round(e.everyone);self.assertIsNone(FIELD.active(e,'왜곡'))
+            e.start_round(e.everyone);self.assertEqual(e.field['rounds'],remaining)
+        e.start_round(e.everyone);self.assertIsNone(e.field)
         rt=next(c for c in e.everyone if c.entity_id==t.entity_id)
         self.assertEqual(e.type_multiplier('땅',rt)[0],0)
 

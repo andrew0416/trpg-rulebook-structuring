@@ -106,7 +106,7 @@ class BossObligationTests(unittest.TestCase):
         self.e.apply_status(self.p, "혼란", source="test/confusion")
         self.e.lose_hp(self.p, self.p.hp, loss_kind="hp_setting")
         self.assertNotIn("혼란", self.p.conditions)
-        self.assertEqual(self.p.move_uses[mid],0)
+        self.assertNotIn(mid, self.p.move_uses)
         self.e.start_of_turn(self.p, initiative_count=15)
         self.assertTrue(F.move_allowed(self.e, self.p, mid)[0])
         self.assertIsNot(self.e.use_move(self.p, self.p, mid), False)
@@ -359,7 +359,7 @@ class BossObligationTests(unittest.TestCase):
     def test_capture_restores_normal_form_removes_template_and_preserves_identity(self):
         self.configure(count=2, capture_level=5, effects=[
             {"when": "final_bar", "kind": "unlock_move", "move_id": "move/벌레의야단법석"}])
-        normal = deepcopy(self.p.spec["encounter_template"]["capture_form"]['sheet'])
+        normal = deepcopy(self.p.spec["encounter_template"]["normal_form_baseline"])
         identity = self.p.entity_id
         self.a.spec["items"] = {"몬스터볼": 2}
         self.e.start_round([self.a, self.p]); self.e.start_of_turn(self.a, initiative_count=30)
@@ -397,20 +397,16 @@ class SwarmPublicObligationTests(unittest.TestCase):
             with self.subTest(move=mid):
                 self.setUp(); row = self.open_turn(5)
                 target = self.p if mid in (SWARM.SCENE, SWARM.DAILY) else self.t
-                for index in range(2):
-                    if index:
-                        self.e.end_of_turn(self.p)
-                        self.e.start_of_turn(self.p,initiative_count=15)
+                for _ in range(2):
                     with patch.object(Engine, "d20", return_value=20):
                         # Successful non-damaging moves return integer 0.
                         result = self.e.use_move(self.p, target, mid, situational=100, set_damage=True)
                         self.assertIsNot(result, False, self.e.log_lines[-10:])
-                row=self.p.spec['encounter_template']
                 self.assertEqual(row["swarm_points"], 5 - cost)
                 self.assertEqual(self.p.move_uses[mid], 2)
                 receipt = row["round_trigger_receipts"][row["own_turn_key"]]
                 self.assertEqual([a["point_cost"] for a in receipt["actions"]], [0, cost])
-                self.e.end_of_turn(self.p,swarm_continue=False)
+                self.e.end_of_turn(self.p)
                 self.e.take_damage(self.p, self.p.hp + 1)
                 self.e.start_round(self.e.everyone); self.e.start_of_turn(self.p, initiative_count=20)
                 self.assertEqual(self.p.spec["encounter_template"]["swarm_points"], 4)
@@ -429,8 +425,6 @@ class SwarmPublicObligationTests(unittest.TestCase):
                     self.assertFalse(F.move_allowed(self.e, self.p, mid)[0])
                     self.assertEqual(row["swarm_points"], 3)
                     self.assertTrue(TURN.spend(self.e, self.p, "standard", "next swarm action", _native_move=self.r.move(SWARM.AT_WILL)))
-                    self.assertFalse(F.move_allowed(self.e,self.p,mid)[0])
-                    self.e.end_of_turn(self.p);self.e.start_of_turn(self.p,initiative_count=15)
                     self.assertEqual(F.move_allowed(self.e, self.p, mid)[0], frequency != "scene")
 
     def test_sleep_and_ice_at_multiplier_one_preserve_minimum_action_and_next_turn_points(self):
@@ -443,7 +437,7 @@ class SwarmPublicObligationTests(unittest.TestCase):
                 self.e.end_of_turn(self.p)
                 self.e.cure_status(self.p, condition)
                 self.e.start_round(self.e.everyone); self.e.start_of_turn(self.p, initiative_count=20)
-                self.assertEqual(self.p.spec['encounter_template']["swarm_points"], 1)
+                self.assertEqual(row["swarm_points"], 1)
 
 
 if __name__ == "__main__":

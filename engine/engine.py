@@ -1113,6 +1113,7 @@ class Engine:
 
     def end_encounter(self, combatants=None, *, round_elapsed_seconds=None):
         """Apply the complete boundary through the shared state transaction."""
+        __import__('movement_actions').ensure_commands_boundary(self)
         import state_grants as GRANTS
         unspecified = combatants is None
         actors = () if unspecified else tuple(combatants)
@@ -1263,6 +1264,7 @@ class Engine:
 
     def end_scene(self, combatants=None, *, round_elapsed_seconds=None):
         """Apply the complete boundary through the shared state transaction."""
+        __import__('movement_actions').ensure_commands_boundary(self)
         import state_grants as GRANTS
         unspecified = combatants is None
         actors = () if unspecified else tuple(combatants)
@@ -3458,6 +3460,7 @@ class Engine:
             modifiers=roll_mod+infatuation_mod, defense=def_val, reduction=0 if AURA.sword(self,attacker,move) else dr_val)
         total, after_def = defended['total'], defended['after_defense']
         resist_steps+=berry_resistance
+        resist_steps+=__import__('earned_status_choices').outgoing_steps(self,attacker)
         if (_reaction_event is not None and _reaction_event.get('attacker') is attacker
                 and _reaction_event.get('target') is target and after_def>0 and mult):
             type_table=self.r.mech('combat/type-effectiveness')['multiplier_by_net_steps']
@@ -3472,6 +3475,9 @@ class Engine:
             steps = {1.0: 0, 1.5: 1, 2.0: 2, 3.0: 3, 0.5: -1, 0.25: -2, 0.125: -3}.get(mult, 0) - resist_steps
             mult = te[str(max(-3, min(3, steps)))] if mult else 0
             self.log(f"    특성 저항 {resist_steps}단계 → 타입 ×{mult}", "effect/resistance_step")
+        # The selected Population Bomb option belongs to this actual damage occurrence.
+        # Immunity remains distinct from resistance.
+        mult=REACTIONS.resistance_floor(self,{'attacker':attacker,'target':target,'move':move},mult)
         if _precision_observation is not None:_precision_observation["type_multiplier"] = mult
         other_multiplier = EXT.multiplier_hook(self, attacker, move, mm, ctx)
         adjustment = self.rulings.consume("damage", attacker.name, self)
@@ -3484,7 +3490,7 @@ class Engine:
             type_multiplier=mult, other_multiplier=other_multiplier, adjustment=adjustment, result=final)
         floor_effect = any(e.get("type") == "damage_floor" for e in mm.get("effects_exec", []))
         if _reaction_event is not None:
-            resisted_mult = REACTIONS.resistance_multiplier(self, mult)
+            resisted_mult = REACTIONS.resistance_multiplier(self, mult,event=_reaction_event)
             resisted = None if resisted_mult is None else DAMAGE.scale(after_defense=after_def,type_multiplier=resisted_mult,other_multiplier=other_multiplier,adjustment=adjustment)
             _reaction_event.update(damage=final, resisted_damage=resisted, attack_stat=atk_stat, context=ctx, damage_floor=floor_effect, actual_damage_type=mtype,
                 damage_formula={'after_defense':after_def,'multiplier':mult,'other_multiplier':other_multiplier,'adjustment':adjustment})
@@ -3509,62 +3515,80 @@ class Engine:
         LEAGUE.check_action(self, attacker, target, move['id'])
         HEAVY.ensure_clear(self)
         HEAVY.validate_native_receipt(self,_heavy_context,attacker,target,move)
-        import conditional_damage_base as CONDITIONAL_DB
-        conditional_db_plan = CONDITIONAL_DB.prepare(self, attacker, target, move)
-        event = dict(attacker=attacker, target=target, move=move, intercepted=intercepted is True, passive_event=_passive_event)
-        event['athlete_defense_token']=_defense_token
-        precision_facts = {}
-        import enduring_resilience as RESILIENCE
-        import taskmaster as TASK
-        damage_crit=TASK.critical_damage(self,attacker,target,move,crit)
-        resolved_damage_move=__import__('struggle_capabilities').prepare(self,attacker,__import__('aura_guardian').damage_move(self,attacker,move))
-        damage = __import__('conquerors_march').damage_selection(self,event,precision_facts)
-        lean_deferred=False
-        if damage is None:
-            damage = __import__('coordinator').calculate_damage(self,attacker,target,move,damage_crit,set_damage,event,precision_facts)
-            if "damage" in event:
-                import blessing_effects as BLESSINGS
-                import weather_blessings as WEATHER_BLESSINGS
-                damage = WEATHER_BLESSINGS.select_damage(self,event,_heavy_context)
-                damage = BLESSINGS.select_damage(self,event)
-                damage = REACTIONS.select_mettle(self, event)
-                __import__('conquerors_march').damage_selection(self,event,precision_facts,damage)
-        if __import__('setup_move_state').physical_immunity(target,resolved_damage_move.get('class')):
-            damage=0
-            precision_facts['nullification']='acid_armor'
-        lean_deferred,damage=__import__('conquerors_march').prepare_lean(self,event,damage,_heavy_context,_precision_event,precision_facts)
-        if "damage" in event and not lean_deferred:damage=REACTIONS.finalize_choice(self,event,damage)
-        if __import__('setup_move_state').physical_immunity(target,resolved_damage_move.get('class')):
-            damage=0
-            precision_facts['nullification']='acid_armor'
-        import precise_actions as PRECISE
-        if not lean_deferred:PRECISE.damage_hit(self,attacker,target,move,_precision_event,precision_facts,damage)
-        if precision_facts.get("hit_prevented"):
-            if _damage_observation is not None:_damage_observation['hit_prevented']=True
-            return 0
-        actual_type = event.get("actual_damage_type",move["type"])
-        actual_move = dict(move,type=actual_type)
-        actual_multiplier = event.get("damage_formula",{}).get("multiplier",precision_facts.get("type_multiplier",0))
-        if event.get("mettle_selected"):
-            actual_multiplier = REACTIONS.resistance_multiplier(self,actual_multiplier)
-        substitute=__import__('substitute').receive_damage(self,attacker,target,move,damage)
-        if substitute is not None:
-            if _damage_observation is not None:
-                _damage_observation['substitute']=substitute
-                if _completion_id is not None:
-                    _damage_observation['substitute_damage']=__import__('move_completion').record_substitute_damage(
-                        self,attacker,target,_completion_id,_passive_event,substitute,
-                        native_context=_heavy_context,move=move)
-            return damage
-        if not lean_deferred:PASSIVE_EVENTS.note_damage_request(self,_passive_event,damage)
-        passive_before = PASSIVE_EVENTS.capture(target) if _passive_event is not None else None
-        import combat_damage as DAMAGE
-        damage_before = DAMAGE.observe(target)
-        import attack_damage_history as DAMAGE_HISTORY
+        import taskmaster_gambit as GAMBIT,conditional_damage_base as CONDITIONAL_DB
+        import combat_damage as DAMAGE,attack_damage_history as DAMAGE_HISTORY
+        cached=GAMBIT.restore_damage(self,attacker,target,move,_passive_event)
+        if cached is None:
+            import conditional_damage_base as CONDITIONAL_DB
+            conditional_db_plan = CONDITIONAL_DB.prepare(self, attacker, target, move)
+            event = dict(attacker=attacker, target=target, move=move, intercepted=intercepted is True, passive_event=_passive_event)
+            event['athlete_defense_token']=_defense_token
+            precision_facts = {}
+            import enduring_resilience as RESILIENCE
+            import taskmaster as TASK
+            damage_crit=TASK.critical_damage(self,attacker,target,move,crit)
+            resolved_damage_move=__import__('struggle_capabilities').prepare(self,attacker,__import__('aura_guardian').damage_move(self,attacker,move))
+            damage = __import__('conquerors_march').damage_selection(self,event,precision_facts)
+            lean_deferred=False
+            if damage is None:
+                damage = __import__('coordinator').calculate_damage(self,attacker,target,move,damage_crit,set_damage,event,precision_facts)
+                if "damage" in event:
+                    import blessing_effects as BLESSINGS
+                    import weather_blessings as WEATHER_BLESSINGS
+                    damage = WEATHER_BLESSINGS.select_damage(self,event,_heavy_context)
+                    damage = BLESSINGS.select_damage(self,event)
+                    damage = REACTIONS.select_mettle(self, event)
+                    __import__('conquerors_march').damage_selection(self,event,precision_facts,damage)
+            if __import__('setup_move_state').physical_immunity(target,resolved_damage_move.get('class')):
+                damage=0
+                precision_facts['nullification']='acid_armor'
+            lean_deferred,damage=__import__('conquerors_march').prepare_lean(self,event,damage,_heavy_context,_precision_event,precision_facts)
+            if "damage" in event and not lean_deferred:damage=REACTIONS.finalize_choice(self,event,damage)
+            if __import__('setup_move_state').physical_immunity(target,resolved_damage_move.get('class')):
+                damage=0
+                precision_facts['nullification']='acid_armor'
+            import precise_actions as PRECISE
+            if not lean_deferred:PRECISE.damage_hit(self,attacker,target,move,_precision_event,precision_facts,damage)
+            if precision_facts.get("hit_prevented"):
+                if _damage_observation is not None:_damage_observation['hit_prevented']=True
+                return 0
+            actual_type = event.get("actual_damage_type",move["type"])
+            actual_move = dict(move,type=actual_type)
+            actual_multiplier = event.get("damage_formula",{}).get("multiplier",precision_facts.get("type_multiplier",0))
+            if event.get("mettle_selected"):
+                actual_multiplier = REACTIONS.resistance_multiplier(self,actual_multiplier,event=event)
+            substitute=__import__('substitute').receive_damage(self,attacker,target,move,damage)
+            if substitute is not None:
+                if _damage_observation is not None:
+                    _damage_observation['substitute']=substitute
+                    if _completion_id is not None:
+                        _damage_observation['substitute_damage']=__import__('move_completion').record_substitute_damage(
+                            self,attacker,target,_completion_id,_passive_event,substitute,
+                            native_context=_heavy_context,move=move)
+                return damage
+            if not lean_deferred:PASSIVE_EVENTS.note_damage_request(self,_passive_event,damage)
+            passive_before = PASSIVE_EVENTS.capture(target) if _passive_event is not None else None
+            import combat_damage as DAMAGE
+            damage_before = DAMAGE.observe(target)
+            import attack_damage_history as DAMAGE_HISTORY
+        else:
+            event=cached['event'];precision_facts=cached['precision_facts']
+            conditional_db_plan=cached['conditional_db_plan'];damage=cached['damage']
+            actual_type=cached['actual_type'];actual_multiplier=cached['actual_multiplier']
+            actual_move=dict(move,type=actual_type);lean_deferred=False
+            passive_before=PASSIVE_EVENTS.capture(target) if _passive_event is not None else None
+            damage_before=DAMAGE.observe(target)
+            import taskmaster as TASK
         with DAMAGE.native_hit(target) as native_damage, DAMAGE_HISTORY.native_application(self,attacker,target,move,_heavy_context) as history_context:
             paired_receipt,damage=__import__('conquerors_march').apply_lean_pair(self,event,damage,_heavy_context,damage_before)
-            if paired_receipt is None:paired_receipt=TASK.apply_gambit_damage(self,attacker,target,move,damage,_heavy_context,damage_before,actual_damage_type=actual_type)
             if paired_receipt is None:
+                GAMBIT.retain_damage(self,attacker,target,move,_passive_event,
+                    {'event':event,'precision_facts':precision_facts,'conditional_db_plan':conditional_db_plan,
+                     'damage':damage,'actual_type':actual_type,'actual_multiplier':actual_multiplier},_precision_event)
+                paired_receipt=TASK.apply_gambit_damage(self,attacker,target,move,damage,_heavy_context,damage_before,actual_damage_type=actual_type)
+            if paired_receipt is None:
+                if GAMBIT.parent_refresh_needed(self,attacker,target,move,_passive_event,_heavy_context):
+                    return {'_gambit_parent_receipt_refresh':_passive_event}
                 application=HEAVY.apply_attack_damage(self, attacker, target, damage, move,
                     producer=HEAVY.Producer.RESOLVED_HIT,
                     remainder="finish_mettle and remaining use_move effects/reactions have not run",
@@ -3601,7 +3625,10 @@ class Engine:
             _damage_observation.update(damage_receipt)
             _damage_observation.update(actual_damage_type=actual_type,type_multiplier=actual_multiplier)
         if _passive_event is not None:
-            PASSIVE_EVENTS.note_attack(self, _passive_event, passive_before, PASSIVE_EVENTS.capture(target), damage)
+            passive_after=PASSIVE_EVENTS.capture(target)
+            if paired_receipt is not None and TASK.gambit_side(self,attacker,target,move)=='incoming':
+                passive_after=self._taskmaster_gambit['incoming_passive_after']
+            PASSIVE_EVENTS.note_attack(self, _passive_event, passive_before, passive_after, damage)
         event["damage_applied"] = True
         import cheerleader as CHEER
         CHEER.finish_damage(self,event,damage_receipt)
@@ -3899,6 +3926,7 @@ class Engine:
 
     def preflight_advance_time(self, seconds, combatants=()):
         """Validate a proposed shared interval without registering or changing actors."""
+        __import__('movement_actions').ensure_commands_boundary(self)
         ACTION.ensure_resolutions_clear(self)
         PASSIVE_EVENTS.ensure_clear(self)
         EFFECT_CONTRACTS.ensure_clear(self)
@@ -4241,6 +4269,7 @@ class Engine:
         import roll_effects as ROLLS
         ROLLS.preflight_move(self,attacker,primary,move,mm)
         FX.preflight_effects(self,attacker,primary,mm.get('effects_exec', []),move_id)
+        __import__('earned_status_choices').preflight_move(self,attacker,primary,move,mm)
         if not EXT.entry_move_allowed(self,attacker,move,mm):return 0
         __import__("jump_move_actions").preflight(self,attacker,primary,move)
         import move_accuracy as MOVE_ACCURACY
@@ -4309,6 +4338,7 @@ class Engine:
             SOCIAL.preflight(self,attacker,target,move,mm,applying=True)
             CPF.preflight(self,attacker,target,move,mm,applying=True)
             FX.preflight_effects(self,attacker,target,mm.get('effects_exec', []),move_id)
+            __import__('earned_status_choices').preflight_move(self,attacker,target,move,mm)
             import weather_blessings as WEATHER_BLESSINGS
             WEATHER_BLESSINGS.preflight_attack(self,attacker,target,move,mm)
         total = 0
@@ -4665,6 +4695,7 @@ class Engine:
             if CHAIN.declared(mm):move=CHAIN.prepare(self,attacker,target,move)
             CONDITIONS.preflight_move(self,attacker,target,mm)
             FX.preflight_effects(self,attacker,target,mm.get('effects_exec', []),move_id)
+            __import__('earned_status_choices').preflight_move(self,attacker,target,move,mm)
             import weather_blessings as WEATHER_BLESSINGS
             WEATHER_BLESSINGS.preflight_attack(self,attacker,target,move,mm)
             EXT.blocks_hit(self,attacker,target,move,mm)  # source/conditional preflight before Standard, frequency or RNG
@@ -4885,7 +4916,8 @@ class Engine:
         precision_event = PRECISE.attacked(self,attacker,target,move)
         weather_attack = WEATHER_BLESSINGS.begin_attack(self,attacker,target,move)
 
-        TASK.prepare_gambit(self,attacker,target,move)
+        move=TASK.prepare_gambit(self,attacker,target,move,event_id=passive_event,completion_id=completion_id)
+        self._move_completions[completion_id]['target_moves'][target.entity_id]=move
 
         def check_accuracy(index=0):
             accuracy_required=self._move_completions[completion_id].setdefault('juggler_accuracy_required',{})
@@ -4928,6 +4960,10 @@ class Engine:
         hit=hit and remained
         move = __import__('researcher_fields').after_accuracy(self,attacker,move,nat)
         PASSIVE_EVENTS.note_accuracy(self,passive_event,hit,nat,crit)
+        if __import__('earned_status_choices').native(move,mm):
+            move=__import__('earned_status_choices').observe(self,attacker,target,move,res,passive_event,
+                completion_id,hit=hit,critical=crit,natural=nat)
+            self._move_completions[completion_id]['target_moves'][target.entity_id]=move
         PRECISE.accuracy(precision_event,hit)
         EQUIPMENT.record_accuracy(self,attacker,target,move,hit,nat)
         return PASSIVE_EVENTS.after_accuracy(self,
@@ -5077,31 +5113,38 @@ class Engine:
         reactive_damage_observation={}
         import gleeful_interference as GLEEFUL
         observed=self._passive_events.get(passive_event,{})
-        if substitute is None and not (observed.get('coordinator_damage') or observed.get('rider_damage_selection')):GLEEFUL.observe_hit(self,attacker,target,move,passive_event)
+        if substitute is None and not (observed.get('coordinator_damage') or observed.get('rider_damage_selection') or observed.get('taskmaster_gambit_damage')):GLEEFUL.observe_hit(self,attacker,target,move,passive_event)
         import optional_move_modes as OPTIONAL_MODES
-        if not (observed.get('coordinator_damage') or observed.get('rider_damage_selection')):OPTIONAL_MODES.on_hit(self,attacker,target,move,completion_id)
+        if not (observed.get('coordinator_damage') or observed.get('rider_damage_selection') or observed.get('taskmaster_gambit_damage')):OPTIONAL_MODES.on_hit(self,attacker,target,move,completion_id)
         __import__('fortress').guardian_hit(self,attacker,target,move,completion_id,passive_event=passive_event,defense_token=_defense_token)
         import attack_damage_history as DAMAGE_HISTORY
         if (move["class"] in ("물리", "특수") and '_retrospective_hp_loss' not in move
                 and not DAMAGE_HISTORY.direct_hp_loss(move,mm)):
-            diagnostic = HEAVY.certify_native_context(self,attacker,target,move,mm,
-                ordinary_single=ordinary_single)
-            # Issuance is inside the already-authorized/use-counted producer.
-            # Public diagnostic results are not tokens and cannot be replayed.
-            heavy_context = object()
-            self._heavy_activation_sequence += 1
-            self._heavy_native_receipts[heavy_context] = dict(diagnostic=diagnostic,
-                attacker=attacker,target=target,move_id=move_id,round=self.round_no,
-                active_actor=self._active_turn_actor,move_uses=attacker.move_uses.get(move_id,0),
-                history_length=len(getattr(attacker,"_action_history",[])),
-                activation_epoch=self._heavy_activation_sequence,weather_attack=weather_attack)
-            try:
-                dealt = self.resolve_attack_damage(attacker, target, move, crit, set_damage,
-                                                   _heavy_context=heavy_context, _passive_event=passive_event, _precision_event=precision_event,
-                                                   _damage_observation=reactive_damage_observation,
-                                                   _defense_token=_defense_token,_completion_id=completion_id)
-            finally:
-                self._heavy_native_receipts.pop(heavy_context,None)
+            import taskmaster_gambit as GAMBIT
+            for receipt_attempt in range(2):
+                diagnostic = HEAVY.certify_native_context(self,attacker,target,move,mm,
+                    ordinary_single=ordinary_single)
+                # Issuance remains inside the already-authorized/use-counted
+                # producer, including after its actual counter has returned.
+                heavy_context = object()
+                self._heavy_activation_sequence += 1
+                self._heavy_native_receipts[heavy_context] = dict(diagnostic=diagnostic,
+                    attacker=attacker,target=target,move_id=move_id,round=self.round_no,
+                    active_actor=self._active_turn_actor,move_uses=attacker.move_uses.get(move_id,0),
+                    history_length=len(getattr(attacker,"_action_history",[])),
+                    activation_epoch=self._heavy_activation_sequence,weather_attack=weather_attack)
+                try:
+                    dealt = self.resolve_attack_damage(attacker, target, move, crit, set_damage,
+                        _heavy_context=heavy_context, _passive_event=passive_event, _precision_event=precision_event,
+                        _damage_observation=reactive_damage_observation,
+                        _defense_token=_defense_token,_completion_id=completion_id)
+                    if type(dealt) is dict and '_gambit_parent_receipt_refresh' in dealt:
+                        if receipt_attempt:raise ValueError('parent receipt already reissued after actual counter')
+                        GAMBIT.validate_parent_refresh(self,dealt,attacker,target,move,passive_event,heavy_context)
+                        continue
+                    break
+                finally:
+                    self._heavy_native_receipts.pop(heavy_context,None)
         if reactive_damage_observation.get('channeler_pain'):
             return dict(hit=True,dealt=0,held=0,hit_prevented=False,melee_contact=reactive_contact,channeler_pain=reactive_damage_observation['channeler_pain'],effects=[key for key in getattr(self,'_effect_dispatch_receipts',{}) if key not in completion_receipts])
         if substitute is not None:
@@ -5185,6 +5228,9 @@ class Engine:
         receipt=reactive_damage_observation.get('substitute_damage')
         if receipt is not None:result['substitute_damage']=receipt
         return result
+
+    def choose_move_status(self, actor, event_id, choices):
+        return __import__('earned_status_choices').choose(self,actor,event_id,choices)
 
     def resolve_maneuver_grant(self, actor, grant_id, **choices):
         import maneuver_grants as MG
@@ -6280,7 +6326,7 @@ class Engine:
         import roll_context as ROLL_CONTEXT
         return ROLL_CONTEXT.resolve(self,requests,procedure,request_id=request_id,observed_choices=observed_choices)
 
-    def _prepare_skill_roll(self, c, skill, mods=0, helper_rank=0, fixed=None, *, penalty_count=0, fixed_penalties=None, roll_id=None, helper_bonus=None, feature=None, feature_options=None, skill_context=None, skill_stunt=None, skill_target=None):
+    def _prepare_skill_roll(self, c, skill, mods=0, helper_rank=0, fixed=None, *, penalty_count=0, fixed_penalties=None, roll_id=None, helper_bonus=None, feature=None, feature_options=None, skill_context=None, skill_stunt=None, skill_target=None, helper_source=None):
         M.validate_source(self.r)
         import pokemon_intelligence as INTELLIGENCE
         INTELLIGENCE.require_skill(self,c,skill)
@@ -6291,7 +6337,7 @@ class Engine:
         ENVIRONMENT.ensure_clear(self)
         import skill_feature_actions as SF
         if feature is not None:
-            return SF.prepare(self,c,skill,feature,feature_options,dict(mods=mods,helper_rank=helper_rank,fixed=fixed,penalty_count=penalty_count,fixed_penalties=fixed_penalties,roll_id=roll_id,helper_bonus=helper_bonus,skill_context=skill_context,skill_stunt=skill_stunt,skill_target=skill_target))
+            return SF.prepare(self,c,skill,feature,feature_options,dict(mods=mods,helper_rank=helper_rank,fixed=fixed,penalty_count=penalty_count,fixed_penalties=fixed_penalties,roll_id=roll_id,helper_bonus=helper_bonus,skill_context=skill_context,skill_stunt=skill_stunt,skill_target=skill_target,helper_source=helper_source))
         if feature_options is not None:raise ValueError('feature options require a selected feature')
         if getattr(c,'dead',False) or getattr(c,'fainted',False):
             raise ValueError('unconscious actor requires a sourced action exception')
@@ -6370,13 +6416,14 @@ class Engine:
         resolved["modifier"] += TIMING.skill_modifier(c) + training_bonus + FASHION.all_roll_modifier(c)
         if training_bonus:resolved["sources"] += (("training/features",training_bonus,"Focused"),)
         # rank() or the Pokemon adapter already validated the selected rank/pool.
-        CHECKS.validate_request(1,mods,helper_rank,penalty_count,helper_bonus)
+        SKILL_MODIFIERS.validate_helper(self,c,helper_rank,helper_bonus,helper_source)
+        CHECKS.validate_resolved_request(mods,helper_rank,penalty_count,helper_bonus)
         faces = CHECKS.dice(fixed,resolved['dice_count']) if fixed is not None else None
         penalties = CHECKS.dice(fixed_penalties,penalty_count) if fixed_penalties is not None else None
         return rank_name,expr,n,faces,penalties,resolved
 
     @__import__('roll_context').native_choices
-    def skill_roll(self, c, skill, mods=0, helper_rank=0, fixed=None, *, penalty_count=0, fixed_penalties=None, roll_id=None, helper_bonus=None, feature=None, feature_options=None, skill_context=None, skill_stunt=None, skill_target=None):
+    def skill_roll(self, c, skill, mods=0, helper_rank=0, fixed=None, *, penalty_count=0, fixed_penalties=None, roll_id=None, helper_bonus=None, feature=None, feature_options=None, skill_context=None, skill_stunt=None, skill_target=None, helper_source=None):
         import skill_feature_actions as SF
         import blessing_skill_features as BLESSINGS
         offer=getattr(self,'_let_me_help_offers',{}).get(c.entity_id)
@@ -6385,19 +6432,19 @@ class Engine:
             ordinal=1
             while roll_id in self._ap_rolls:
                 ordinal+=1;roll_id=stem+'/'+str(ordinal)
-        options=dict(mods=mods,helper_rank=helper_rank,fixed=fixed,penalty_count=penalty_count,fixed_penalties=fixed_penalties,roll_id=roll_id,helper_bonus=helper_bonus,skill_context=skill_context,skill_stunt=skill_stunt,skill_target=skill_target)
+        options=dict(mods=mods,helper_rank=helper_rank,fixed=fixed,penalty_count=penalty_count,fixed_penalties=fixed_penalties,roll_id=roll_id,helper_bonus=helper_bonus,skill_context=skill_context,skill_stunt=skill_stunt,skill_target=skill_target,helper_source=helper_source)
         if feature is not None:return SF.roll(self,c,skill,feature,feature_options,options)
         if feature_options is not None:raise ValueError('feature options require a selected feature')
-        rank_name,expr,n,faces,penalties,resolved=self._prepare_skill_roll(c,skill,mods,helper_rank,fixed,penalty_count=penalty_count,fixed_penalties=fixed_penalties,roll_id=roll_id,helper_bonus=helper_bonus,skill_context=skill_context,skill_stunt=skill_stunt,skill_target=skill_target)
+        rank_name,expr,n,faces,penalties,resolved=self._prepare_skill_roll(c,skill,mods,helper_rank,fixed,penalty_count=penalty_count,fixed_penalties=fixed_penalties,roll_id=roll_id,helper_bonus=helper_bonus,skill_context=skill_context,skill_stunt=skill_stunt,skill_target=skill_target,helper_source=helper_source)
         prepared=(rank_name,expr,n,faces,penalties,resolved)
         faces=tuple(POOLS.pool(self.rng,resolved['dice_count'],fixed=faces)['faces'])
         faces = BLESSINGS.ADVANCED.apply_faces(
             self,c,faces,resolved['blessing_skill_plan'])
         penalties = tuple(POOLS.pool(self.rng, penalty_count, fixed=penalties)['faces'])
         mods=resolved["modifier"]+AP_ROLL.bonus(self,c,roll_id,'skill')
-        if resolved.get('skill_stunt') is not None or (resolved.get('pokemon_plan') is None and (int(expr[:-2])!=n or n>6)):
+        if resolved.get('skill_stunt') is not None or (resolved.get('pokemon_plan') is None and (int(expr[:-2])!=n or n>6 or helper_rank>6 and helper_rank!=8)):
             result=CHECKS.AdjustedSkillRoll(n,faces,mods,helper_rank,penalties,helper_bonus,resolved['dice_count'])
-        elif resolved['dice_count']!=n or n>6:
+        elif resolved['dice_count']!=n or n>6 or helper_rank>6 and helper_rank!=8:
             import researcher_features as RF
             result=RF.PokemonSkillRoll(n,faces,mods,helper_rank,penalties,helper_bonus,resolved['dice_count'])
         else:result=CHECKS.SkillRoll(n,faces,mods,helper_rank,penalties,helper_bonus)
@@ -6417,10 +6464,10 @@ class Engine:
         self.log(f"  {c.name} {skill}({rank_name}) {expr}{mods:+d} 지원 +{M.ratio(helper_rank,2) if helper_bonus is None else helper_bonus}, 패널티 {penalties}: {faces} → {result.total}", "gameplay/skill-check")
         return result
 
-    def skill_check(self, c, skill, dc, mods=0, helper_rank=0, fixed=None, *, penalty_count=0, fixed_penalties=None, roll_id=None, helper_bonus=None, feature=None, feature_options=None, skill_context=None, skill_stunt=None, skill_target=None):
+    def skill_check(self, c, skill, dc, mods=0, helper_rank=0, fixed=None, *, penalty_count=0, fixed_penalties=None, roll_id=None, helper_bonus=None, feature=None, feature_options=None, skill_context=None, skill_stunt=None, skill_target=None, helper_source=None):
         CHECKS.integer(dc,'DC')
         import skill_feature_actions as SF
-        result=SF.check_with_help(self,c,skill,dc,{'roll_id':roll_id},lambda:self.skill_roll(c,skill,mods,helper_rank,fixed,penalty_count=penalty_count,fixed_penalties=fixed_penalties,roll_id=roll_id,helper_bonus=helper_bonus,feature=feature,feature_options=feature_options,skill_context=skill_context,skill_stunt=skill_stunt,skill_target=skill_target))
+        result=SF.check_with_help(self,c,skill,dc,{'roll_id':roll_id},lambda:self.skill_roll(c,skill,mods,helper_rank,fixed,penalty_count=penalty_count,fixed_penalties=fixed_penalties,roll_id=roll_id,helper_bonus=helper_bonus,feature=feature,feature_options=feature_options,skill_context=skill_context,skill_stunt=skill_stunt,skill_target=skill_target,helper_source=helper_source))
         SF.finish(self,c,roll_id)
         self.log(f"  판정 {result.total} vs DC {dc}, 차이 {result.margin} → {'성공' if result.passed else '실패'}", "gameplay/skill-check")
         return result.passed,result.total

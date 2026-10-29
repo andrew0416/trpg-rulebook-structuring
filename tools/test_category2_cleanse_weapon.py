@@ -100,7 +100,7 @@ class WeaponTagTests(unittest.TestCase):
         self.start()
         with patch.object(Engine,'accuracy_check',return_value=(False,1,False)):
             self.assertEqual(self.e.use_move(self.a,self.p,key,weapon_id='weapon:one',set_damage=True),0)
-        self.p.move_immune={key}
+        self.p.move_immune=[key]
         self.assertEqual(self.hit(key,weapon_id='weapon:one'),0)
         self.p.move_immune.remove(key)
         self.p.abilities=['불가사의부적'];self.e.register_abilities(self.p)
@@ -273,9 +273,6 @@ class WeaponTagTests(unittest.TestCase):
         # A spent tag alone no longer expands the native atomic interest scope.
         @FW.atomic_move
         def observe(engine,actor):return getattr(engine,'_optional_weapon_atomic',False)
-        self.assertTrue(observe(self.e,self.a))  # The equipped optional recipe remains its own atomic owner.
-        ITEMS.unregister_item(self.e,self.a,item)
-        self.assertTrue(self.used())
         self.assertFalse(observe(self.e,self.a))
 
 

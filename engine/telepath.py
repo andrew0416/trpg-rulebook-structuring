@@ -41,7 +41,7 @@ def acquisition_snapshot(e,a,u,rank,selection):
 def qualification(a,u,snapshot,prerequisite_source):
  import acquisition_qualification as Q
  if prerequisite_source is not None or type(snapshot)is not dict or set(snapshot)!={'intuition','focus','parents','psychic_connection','iron_mind','selection'}:raise ValueError('actual Telepath acquisition observations required')
- for k in ('intuition','focus'):C.integer(snapshot[k],'Telepath skill rank',1,6)
+ for k in ('intuition','focus'):SK.validate_rank_value(a.r,snapshot[k],label='Telepath skill rank')
  known={r['request_id']:r['feature_id'] for r in records(a) if r['feature_id'] in PARENTS[u]}
  if type(snapshot['parents'])is not list or not set(snapshot['parents'])<=set(known):raise ValueError('actual Telepath parent receipts required')
  passed=set(PARENTS[u])<={known[x] for x in snapshot['parents']}

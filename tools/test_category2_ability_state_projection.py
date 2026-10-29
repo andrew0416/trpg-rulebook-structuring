@@ -114,6 +114,82 @@ class AbilityStateProjectionTests(unittest.TestCase):
   self.assertEqual(FX.passive_damage_mods(e,hungry,full,move,{'attacker':hungry,'target':full})[1],5)
   self.assertTrue(e.validate_state()['valid'])
 
+ def test_hunger_switch_public_activation_refuses_every_phase_and_next_turn_consumes_saved_choice(self):
+  source='ability/꼬르륵스위치'
+  e=self.engine();c=self.actor(e,source,name='locked hunger',pos=(2,2))
+  other=self.actor(e,'ability/멀티타입',name='other turn',pos=(3,2))
+  def refuse():
+   before=e.export_state()
+   with self.assertRaisesRegex(ValueError,'native turn-start'):
+    e.activate_ability_state(c,source,choice='배고픈 모양',reason='off-trigger change')
+   self.assertEqual(e.export_state(),before)
+   with self.assertRaisesRegex(ValueError,'native turn-start'):
+    P.activate(e,c,source,choice='배고픈 모양',reason='caller flag is not authority',_triggered=True)
+   self.assertEqual(e.export_state(),before)
+  e.choose_ability_state(c,source,'배부른 모양',reason='first native turn choice')
+  refuse()
+  e.start_round(e.everyone);refuse()
+  e.start_of_turn(c,initiative_count=20)
+  self.assertEqual((c.form,c.accuracy_stage),('배부른 모양',2))
+  serial=c.custom_conditions['combat_turn_serial']
+  self.assertEqual(c.spec[P.KEY][source]['turn_choice_serial'],serial)
+  e.choose_ability_state(c,source,'배고픈 모양',reason='next native turn choice')
+  refuse()
+  before=e.export_state()
+  with self.assertRaisesRegex(ValueError,'native turn-start'):P.start_turn(e,c)
+  self.assertEqual(e.export_state(),before)
+  e.end_of_turn(c);e.start_of_turn(other,initiative_count=19);refuse()
+  self.assertEqual((c.form,c.accuracy_stage),('배부른 모양',2))
+  saved=json.loads(json.dumps(e.export_state(),ensure_ascii=False))
+  c_id,other_id=c.entity_id,other.entity_id
+  e=Engine.import_state(self.r,saved)
+  c=next(a for a in e.everyone if a.entity_id==c_id)
+  other=next(a for a in e.everyone if a.entity_id==other_id)
+  refuse()
+  self.assertEqual(c.spec[P.PENDING][source]['choice'],'배고픈 모양')
+  self.assertEqual(c.spec[P.KEY][source]['turn_choice_serial'],serial)
+  e.end_of_turn(other);e.start_round(e.everyone);e.start_of_turn(c,initiative_count=20)
+  self.assertEqual((c.form,c.accuracy_stage),('배고픈 모양',0))
+  self.assertEqual(c.spec[P.KEY][source]['turn_choice_serial'],serial+1)
+  self.assertNotIn(source,c.spec[P.PENDING])
+  move=self.r.move('move/몸통박치기')
+  self.assertEqual(FX.passive_damage_mods(e,c,other,move,{'attacker':c,'target':other})[1],5)
+  self.assertTrue(e.validate_state()['valid'])
+
+ def test_hunger_switch_native_turn_start_reentry_cannot_consume_second_choice(self):
+  from unittest.mock import patch
+  source='ability/꼬르륵스위치'
+  e=self.engine();c=self.actor(e,source)
+  e.choose_ability_state(c,source,'배부른 모양',reason='actual initial choice')
+  e.start_round(e.everyone)
+  original=FX.fire_event;observed=[]
+  def reenter(world,actor,context):
+   if actor.entity_id==c.entity_id and context.get('event')=='turn_start':
+    self.assertTrue(actor._turn_start_decisions_pending)
+    world.choose_ability_state(actor,source,'배고픈 모양',reason='queued next choice')
+    def state():return deepcopy((actor.spec[P.KEY],actor.spec[P.PENDING],actor.form,
+                                 actor.accuracy_stage,actor.budget,world.rng.getstate()))
+    before=state()
+    with self.assertRaisesRegex(ValueError,'already applied'):P.start_turn(world,actor)
+    self.assertEqual(state(),before);observed.append(True)
+   return original(world,actor,context)
+  with patch.object(FX,'fire_event',side_effect=reenter):e.start_of_turn(c,initiative_count=20)
+  self.assertEqual(observed,[True])
+  self.assertEqual((c.form,c.accuracy_stage),('배부른 모양',2))
+  self.assertEqual(c.spec[P.PENDING][source]['choice'],'배고픈 모양')
+  self.assertTrue(e.validate_state()['valid'])
+
+ def test_hunger_switch_missing_choice_rolls_back_actual_turn_admission(self):
+  e=self.engine();source='ability/꼬르륵스위치';c=self.actor(e,source)
+  e.start_round(e.everyone);before=e.export_state()
+  with self.assertRaisesRegex(ValueError,'ability-state choice required'):
+   e.start_of_turn(c,initiative_count=20)
+  self.assertEqual(e.export_state(),before)
+  e.choose_ability_state(c,source,'배부른 모양',reason='corrected turn choice')
+  e.start_of_turn(c,initiative_count=20)
+  self.assertEqual(c.spec[P.KEY][source]['turn_choice_serial'],1)
+  self.assertTrue(e.validate_state()['valid'])
+
  def test_shields_down_uses_real_hp_boundaries_and_preserves_form_allocations(self):
   e=self.engine();c=self.actor(e,'ability/리밋실드');forms=self.forms(e,c,('유성','코어'),'ability/리밋실드')
   e.start_round(e.everyone);e.start_of_turn(c,initiative_count=20)

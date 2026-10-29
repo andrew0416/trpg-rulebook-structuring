@@ -24,7 +24,7 @@ class RiderPermissionTests(unittest.TestCase):
   # A real non-Exhaust daily Move isolates the intended donor-pool contract.
   mid='move/에어로블라스트';self.e.gm.set_move(self.mount,mid,reason='actual independent non-Exhaust daily donor Move')
   P.activate_rider(self.e,self.a,mid)
-  self.assertIn(mid,self.a.moves);self.assertNotIn(mid,M.owned_list(self.a.spec,'moves'))
+  self.assertIn(mid,self.a.moves);self.assertNotIn(mid,M.owned_list(self.a.spec,'moves',rules=self.a.r))
   self.e.use_move(self.a,self.target,mid)
   self.assertEqual(self.mount.move_uses.get(mid),1);self.assertEqual(self.a.move_uses.get(mid,0),0)
   self.assertFalse(F.move_allowed(self.e,self.mount,mid)[0]);self.assertEqual(self.a.budget['standard'],0)

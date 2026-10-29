@@ -33,8 +33,6 @@ def run(root):
     r = Rules(root)
     e = Engine(r)
     a, t = make(r, "pokemon/archie"), make(r, "pokemon/oddish-2")
-    e.gm.add_combatant(a)
-    e.gm.add_combatant(t)
     check("룰북 기본: 아치(최대 60) 소량 = 6", e.tick(a) == 6, e.tick(a))
     e.rule_formula("tick", "max_hp / 8", reason="하우스룰")
     check("공식 치환 tick='max_hp / 8' → 7 (60/8 내림)", e.tick(a) == 7, e.tick(a))
@@ -61,8 +59,7 @@ def run(root):
     mm1, _ = r.move_mech("move/연막")
     check("effect remove(zone): 연막의 평탄화 키 zone 이 사라짐", "zone" in mm0 and "zone" not in mm1)
     # 4. 상황 수정치: 명중 +2 (1회)
-    t2 = make(r, "pokemon/oddish-2", id="pokemon/rulings-situational-target")
-    e.gm.add_combatant(t2)
+    t2 = make(r, "pokemon/oddish-2")
     need_roll = 2   # 불꽃세례 AC 2 + 뚜벅초 특수 회피 2 = 4 → d20=2 는 빗나감
     h0 = e.accuracy_check(a, t2, r.move("move/불꽃세례"), fixed_roll=need_roll)[0]
     e.rule_situational("accuracy", 2, who="아치", uses=1, reason="높은 지형")

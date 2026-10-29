@@ -166,7 +166,7 @@ def _state(actor, create=False):
         "massive", "sunny", "damage_receipt", "round", "status", "result",
     }
     for event in value["events"]:
-        metadata = {"acquisition_source", "native_clause_id", "native_source_sha256"}
+        metadata = {"acquisition_source", "native_clause_id", "native_source_sha256", "native_event_id", "completion_id", "native_origin_version"}
         if (not isinstance(event, dict) or not required <= set(event)
                 or set(event) - required - metadata):
             raise ValueError("invalid class actor-state reaction event")
@@ -184,11 +184,16 @@ def _state(actor, create=False):
             if identity(source) != event["source"] or actor.r._selected_rule(source) != source:
                 raise ValueError("reaction acquired source identity changed")
             expected = _native_metadata(actor.r, event["source"], source)
-            actual = {key: event[key] for key in metadata - {"acquisition_source"} if key in event}
+            actual = {key: event[key] for key in metadata - {"acquisition_source", "native_event_id", "completion_id", "native_origin_version"} if key in event}
             if actual != expected:
                 raise ValueError("reaction native source identity changed")
         elif {"native_clause_id", "native_source_sha256"} & set(event):
             raise ValueError("native reaction requires its acquired source identity")
+        native_fields={'native_event_id','completion_id'} & set(event)
+        if native_fields and native_fields!={'native_event_id','completion_id'}:raise ValueError('paired native damage event/completion identity required')
+        if native_fields and any(type(event[key]) is not str or not event[key] for key in native_fields):raise ValueError('actual native damage identity required')
+        if 'native_origin_version' in event and (type(event['native_origin_version']) is not int or event['native_origin_version']!=1 or not native_fields):
+            raise ValueError('issued native class reaction origin version required')
         for field in ("owner_id", "subject_id", "target_id", "attacker_id", "move_id", "actual_type"):
             if not isinstance(event[field], str) or not event[field]:
                 raise ValueError("reaction event needs actual identity facts")
@@ -226,6 +231,39 @@ def validate(actor):
     return True
 
 
+def _validate_native_offer_links(engine, index=None):
+    """Modern issuance cannot become a legacy offer by deleting its row metadata."""
+    native_events=[native for native in getattr(engine,'_passive_events',{}).values()
+                   if 'class_actor_reaction_offers' in native]
+    if not native_events:return
+    if index is None:index=_actor_index(engine)
+    owners={}
+    for native in native_events:
+        offers=native['class_actor_reaction_offers']
+        if type(offers) is not dict:raise ValueError('actual issued native occurrence mapping required')
+        if native['phase']=='producer_return_boundary':
+            if 'intent_fingerprint' not in native:raise ValueError('native class reaction occurrence seal missing')
+            __import__('passive_events')._bind_intent(engine,native)
+        for identity,facts in offers.items():
+            if type(identity) is not str or type(facts) is not dict:
+                raise ValueError('actual issued native occurrence facts required')
+            owner_id=facts.get('owner_id');owner=index.get(owner_id)
+            # Existing world traversal retains off-field referenced actors.
+            # A fully detached historical owner cannot execute this offer and
+            # is not recreated or rejected merely from the retained event.
+            if owner is None:continue
+            if owner_id not in owners:
+                state=_state(owner)
+                owners[owner_id]={row['id']:row for row in state['events']} if state is not None else {}
+            row=owners[owner_id].get(identity)
+            if (row is None or row.get('native_origin_version')!=1
+                    or row.get('native_event_id')!=native['id']
+                    or row.get('completion_id')!=native['completion_id']
+                    or _native_offer_facts(row)!=facts):
+                raise ValueError('actual issued native occurrence cannot lose its owner record or origin')
+
+
+
 def validate_world(engine, index=None):
     """Validate preserved provenance and unresolved actual hit participants."""
     if index is None:
@@ -242,6 +280,7 @@ def validate_world(engine, index=None):
         if state is None:
             continue
         for event in state["events"]:
+            native_completion(engine,event)
             if event["status"] == "pending" and any(
                     uid not in index for uid in (event["subject_id"], event["target_id"], event["attacker_id"])):
                 raise ValueError("pending reaction requires actual world participants")
@@ -250,6 +289,7 @@ def validate_world(engine, index=None):
                 target_quota = _deep_quota_state(index[event["target_id"]])
                 if target_quota is None or proof not in target_quota["uses"]:
                     raise ValueError("completed Deep Cold target quota receipt is missing")
+    _validate_native_offer_links(engine,index)
     return True
 
 
@@ -477,9 +517,30 @@ def _offer(engine, owner, subject, target, event, receipt, rule_id, *, critical,
         "acquisition_source": acquisition_source,
         **_native_metadata(engine.r, rule_id, acquisition_source),
     }
+    native=getattr(engine,'_passive_events',{}).get(event.get('passive_event'))
+    if native is not None:
+        row.update(native_event_id=native['id'],completion_id=native['completion_id'])
+        native_completion(engine,row)
+        offers=native.setdefault('class_actor_reaction_offers',{})
+        if type(offers) is not dict or row['id'] in offers:
+            raise ValueError('one actual native occurrence per class reaction offer required')
+        row['native_origin_version']=1
+        offers[row['id']]=_native_offer_facts(row)
+        native_completion(engine,row)
     state["events"].append(row)
     engine.log("    선택 대기: " + policy(engine.r)["clauses"][CLAUSE_BY_RULE[rule_id]]["name"], rule_id)
     return event_id
+
+
+def interested(engine, attacker, target, move):
+    """Retain the real activation before a class-owned damage reaction can occur."""
+    if move.get('class') not in ('물리','특수'):
+        return False
+    defender = _owner(engine, target) if target is not None and target.kind=='pokemon' else None
+    if defender is not None and acquired_source(defender, ENDURING_BLOOM) is not None:
+        return True
+    owner = _owner(engine, attacker) if attacker.kind=='pokemon' else None
+    return owner is not None and acquired_source(owner, DEEP_COLD) is not None
 
 
 def observe_attack_damage(engine, event, receipt, *, critical):
@@ -556,7 +617,9 @@ def pending(engine, trainer):
 def ensure_clear(engine):
     if getattr(engine, "_native_move_resolution_depth", 0):
         return
-    for actor in _actor_index(engine).values():
+    index=_actor_index(engine)
+    _validate_native_offer_links(engine,index)
+    for actor in index.values():
         state = _state(actor)
         if state is not None and any(event["status"] == "pending" for event in state["events"]):
             raise ValueError("triggered class Free Action must be accepted or declined before another action")
@@ -705,4 +768,56 @@ def resolve(engine, trainer, event_id, *, use, stats=()):
         _close_unavailable(staged_engine, staged_owner, actors)
         return deepcopy(event["result"])
 
-    return GRANTS.transition(engine, trainer, apply)
+    def scoped(staged_engine,staged_owner):
+        _validate_native_offer_links(staged_engine)
+        event=_find_event(staged_owner,event_id)
+        parent=native_completion(staged_engine,event,returned=True) if use else None
+        with __import__('action_lifecycle').completion_reaction(staged_engine,staged_owner,event['source'],parent,receipt=event):
+            return apply(staged_engine,staged_owner)
+    return GRANTS.transition(engine, trainer, scoped)
+
+
+def _native_offer_facts(event):
+    """Detached issued trigger/effect facts; only its lifecycle may progress."""
+    return deepcopy({key:value for key,value in event.items() if key not in ('status','result')})
+
+
+def native_completion(engine, event, *, returned=False):
+    """Exact native producer link; component/legacy observations stay unlinked."""
+    fields={'native_event_id','completion_id'} & set(event)
+    if not fields:
+        _validate_native_offer_links(engine)
+        return None
+    if fields!={'native_event_id','completion_id'}:raise ValueError('paired native reaction origin required')
+    import move_completion as MC
+    native=getattr(engine,'_passive_events',{}).get(event['native_event_id'])
+    row=getattr(engine,MC.KEY,{}).get(event['completion_id'])
+    if (native is None or row is None or native.get('completion_id')!=row['id'] or
+            native.get('move_id')!=event['move_id'] or native['actor'].entity_id!=event['attacker_id'] or
+            native['target'].entity_id!=event['target_id'] or row['actor'] is not native['actor']):
+        raise ValueError('class reaction must retain its actual native hit participants')
+    # Older records may retain participant IDs without an issued reciprocal
+    # witness. Preserve their effects, but do not invent same-hit authority.
+    if event.get('native_origin_version') is None:
+        _validate_native_offer_links(engine)
+        return None
+    offers=native.get('class_actor_reaction_offers')
+    if (event['native_origin_version']!=1 or type(offers) is not dict
+            or offers.get(event['id'])!=_native_offer_facts(event)):
+        raise ValueError('class reaction must retain its actual issued native occurrence')
+    if native['phase']=='producer_return_boundary':
+        if 'intent_fingerprint' not in native:raise ValueError('native class reaction occurrence seal missing')
+        __import__('passive_events')._bind_intent(engine,native)
+    if returned:MC.require_hit_return(engine,native['id'],native['target'],_recipient_only=True)
+    return row
+
+
+def completion_reaction_origin(engine,actor,source,row,receipt):
+    if source not in ALL_RULES:return False
+    if not isinstance(receipt,dict) or not any(saved is receipt for saved in (_state(actor) or {}).get('events',())):
+        raise ValueError('actual acquired class reaction receipt required')
+    if receipt['source']!=source or receipt['owner_id']!=actor.entity_id or acquired_source(actor,source) is None:
+        raise ValueError('actual class reaction owner/source required')
+    if native_completion(engine,receipt,returned=True) is not row:
+        raise ValueError('actual class reaction completion required')
+    return True

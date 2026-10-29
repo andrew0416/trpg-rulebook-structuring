@@ -91,8 +91,7 @@ class Tests(unittest.TestCase):
   self.assertEqual(out.check.total,14);self.assertTrue(out.check.passed)
   self.assertTrue(self.e.opposed_check(self.a,'기술학',self.b,'기술학',challenger_options={'fixed':[1,1],'skill_stunt':self.use()},defender_options={'fixed':[2]*3}))
  def test_actual_jump_boost_uses_replaced_pool_without_changing_capability_rank(self):
-  self.approve('jump','곡예','선박 난간에서 수평 도약');self.e.grid=Grid(6,3);self.a.pos=(0,1);self.b.pos=(5,2)
-  self.e.start_round([self.a,self.b]);self.e.start_of_turn(self.a,initiative_count=20)
+  self.approve('jump','곡예','선박 난간에서 수평 도약');self.e.grid=Grid(6,3);self.a.pos=(0,1);self.b.pos=(5,2);TURN.reset_budget(self.e,self.a)
   out=self.e.jump(self.a,(3,1),jump_id='jump-stunt',difficult=False,boost='long_jump',boost_options={'fixed':[3,3,4],'skill_stunt':self.use('jump')},clear_path=True,reason_text='GM actual clear jump arc')
   self.assertEqual(self.a.pos,(3,1));self.assertEqual(self.a.budget['shift'],0);self.assertEqual(self.a.spec['skills']['곡예'],4)
  def test_actual_trip_opposed_stunt_winner_commits_real_tripped_status(self):

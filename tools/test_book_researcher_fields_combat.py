@@ -83,7 +83,10 @@ class ResearcherFieldsCombatTests(unittest.TestCase):
         self.e.pokemon_activity(self.t, 'fossil', phase='search', site={'name': 'GM deposit', 'fossils_present': True}, dc=15, minutes=120,
                                 discovery={'id': name, 'species': 'pokemon/' + species}, fixed=[6] * SKILLS.rank(self.rules, self.t, '포켓몬학')[2])
         egg = self.e.pokemon_activity(self.t, 'fossil', phase='restore', fossil_id=name)['egg']
-        details = dict(gender='female', nature='노력', abilities=self.rules.learnsets[species]['abilities']['기본 특성'][:1], moves=[], inheritance_moves=[], special_appearance=False)
+        import growth_milestones as MILESTONES
+        basics = MILESTONES.ability_options(self.rules, {'species': egg['species'], 'abilities': []}, 'creation')
+        self.assertTrue(basics, 'restored species must provide its actual Basic birth candidates')
+        details = dict(gender='female', nature='노력', abilities=[basics[0]], moves=[], inheritance_moves=[], special_appearance=False)
         k = self.e.pokemon_activity(self.t, 'hatch_fossil', egg_id=egg['id'], name=name, ready=True, reason='GM confirmed readiness', details=details)['pokemon']
         prepare_body(self.e, k, size=k.spec.get('size') or '소형', offsets=[(0, 0)], reason='observed complete body')
         self.e.gm.observe_loyalty(k, 6, reason='actual willing Pokemon')

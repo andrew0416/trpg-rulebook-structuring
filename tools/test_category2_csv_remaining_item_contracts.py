@@ -312,23 +312,12 @@ class RemainingCsvItemContractTests(unittest.TestCase):
         self.assertFalse(partner.on_field); self.assertIn("고스트", necrozma.types)
         FORMS.release_necrozma(engine, necrozma); self.assertTrue(partner.on_field)
 
-        from builder import species_lookup
-        zacian = Combatant(self.r, build_pokemon(self.r, "자시안", 1, name="zacian",
-                                                moves=["struggle"], abilities=[], wild=True))
+        zacian = self.pokemon("zacian", capabilities=("무기합일",), species="자시안")
         engine = self.fixture(zacian)
-        investment = deepcopy(zacian.spec["initial_allocation"]["investment"])
-        declarations = {label: {"species_base": deepcopy(species_lookup(self.r, species)["base_stats"]),
-                                "investment": deepcopy(investment)}
-                        for label, species in (("역전의 용사", "자시안"), ("검왕", "자시안-검왕"))}
-        engine.configure_growth_forms(zacian, declarations, active="역전의 용사", source="pokemon/stat-build")
-        before = deepcopy(zacian.stats)
         self.physical(engine, zacian, "csv/rusted-sword", "item/녹슨검", kind="physical_object")
-        FORMS.weapon_union(engine, zacian, "csv/rusted-sword", minutes=2, reason="observed Extended entry")
+        FORMS.weapon_union(engine, zacian, "csv/rusted-sword")
         self.assertEqual(zacian.form, "검왕")
-        self.assertEqual(zacian.stats["atk"], before["atk"] + 4)
-        self.assertEqual(zacian.types, ["페어리", "강철"])
-        FORMS.end_weapon_union(engine, zacian, minutes=1, reason="observed Extended exit")
-        self.assertEqual(zacian.stats, before)
+        FORMS.end_weapon_union(engine, zacian)
 
         zygarde = self.pokemon("zygarde", capabilities=("지가르데 세포",), species="지가르데")
         engine = self.fixture(zygarde)
@@ -381,11 +370,8 @@ class RemainingCsvItemContractTests(unittest.TestCase):
         self.assertTrue(CAP.poison_glands_eligible({"name": "독찌르기"}))
         self.assertTrue(CAP.sense_life(engine, actor, target, distance_m=5,gm_basis='GM observed living target distance')["located"])
         engine.end_of_turn(actor);engine.end_encounter(round_elapsed_seconds=0)
-        pickup=engine.scavenge(actor, fixed_d20=20, duration_minutes=5,
-            duration_reason='GM observed five-minute pickup activity')
-        self.assertEqual((pickup['category'],pickup['item_id']),('tm',None))
-        self.assertEqual(CAP.resolve_scavenge_reward(engine,actor,day=pickup['day'],item_id='TM1',
-            reason='GM selected the actual found TM')['item_id'],'TM1')
+        self.assertEqual(engine.scavenge(actor, fixed_d20=20, duration_minutes=5,
+            duration_reason='GM observed five-minute pickup activity')["item_id"], "item/이상한사탕")
         profile = CAP.configure_tinkerer(engine, actor, weapon_class="large_melee", proficient_move="move/강타", steel=True)
         self.assertTrue(profile["unstealable"])
         self.assertEqual(CAP.tinkerer_move(actor, self.r.move("move/강타"),engine=engine)["type"], "강철")

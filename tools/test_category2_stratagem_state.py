@@ -21,8 +21,6 @@ class StratagemStateTests(unittest.TestCase):
   for p in (self.p,self.q):p.spec['trainer_id']=self.a.entity_id
   self.e.everyone=self.e.gm.everyone=[self.a,self.p,self.q,self.foe]
   ITEMS.register_feats(self.e,self.a)
-  for target in (self.p,self.q):
-   self.e.gm.observe_sensory_environment(self.a,target,paths={'auditory':True},present=True,reason='actual allied recipient hears the current Pinpoint Order')
  def actor(self,name,kind='trainer'):
   return Combatant(self.rules,dict(name=name,kind=kind,level=20,stats={'hp':80,'atk':20,'def':15,'spa':20,'spd':15,'spe':5},skills={'명령':'전문'},moves=['move/불꽃세례','move/째려보기'],pos=(0,0),movement={'land':6}))
  def begin(self):self.e.start_round(self.e.everyone);self.e.start_of_turn(self.a)

@@ -14,7 +14,7 @@ import test_hp_loss_resources as HP_FIX
 import test_festival_progression as FEST_FIX
 Pause, OCCURRENCE = FEST_FIX.Pause, FEST_FIX.OCCURRENCE
 
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(r'D:\trpg-rulebook-structuring\ptk-structure-experiment')
 
 
 class HPLossPolicyTests(unittest.TestCase):

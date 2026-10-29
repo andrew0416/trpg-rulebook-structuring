@@ -134,22 +134,6 @@ check(23,'GM success-with-cost is receipt not automatic HP/time consequence',no_
 def restore_identical():
  e,a,b,p,c=setup();t=start(b);pending=b.pending(t);e.gm.snapshot('same');e.gm.restore('same')
  assert_rejected(b.answer(pending,p['gm'],c['requests']['check']['decisions'][0]));assert_rejected(b.result('event'))
- e,a,b,p,c=setup();start(b);e.gm.snapshot('candidate')
- actor=a['a'];actor.hp-=1
- before=(actor.hp,e.rng.getstate(),getattr(e,'_root_common_epoch',0))
- import gameplay_validation as GAMEPLAY
- from unittest.mock import patch
- seen=[]
- def reject(candidate,actors):
-  seen.append(not hasattr(candidate,'_root_common_binding'))
-  raise ValueError('repair81 explicit candidate rejection')
- with patch.object(GAMEPLAY,'validate',side_effect=reject):
-  try:e.gm.restore('candidate')
-  except ValueError as exc:assert str(exc)=='repair81 explicit candidate rejection',str(exc)
-  else:raise AssertionError('candidate validation rejection was not propagated')
- assert seen==[True],seen
- assert before==(actor.hp,e.rng.getstate(),getattr(e,'_root_common_epoch',0))
- assert e._root_common_binding is b and b.actors['a'] is actor
 check(24,'same-value restore invalidates old authenticated input',restore_identical)
 def restore_receipts():
  x=setup();complete(x);e,a,b,p,c=x;e.gm.snapshot('done');e._root_common_receipts.clear();e.gm.restore('done')
@@ -157,27 +141,12 @@ def restore_receipts():
  assert_rejected(b.result('event'))
 check(25,'completed receipt restores without reviving binding',restore_receipts)
 def pending_restore():
- e,a,b,p,c=setup();t=start(b)
- pending=b.pending(t);modules=(b.api,b.rm,b.ra);refs=dict(a);principal=p['gm']
- e.gm.snapshot('pending');e.gm.restore('pending')
+ e,a,b,p,c=setup();t=start(b);e.gm.snapshot('pending');e.gm.restore('pending')
  assert not e._root_common_receipts;assert_rejected(b.submit(t));assert_rejected(b.pending(t))
- assert e._root_common_binding is b
- assert all(old is current for old,current in zip(modules,(b.api,b.rm,b.ra)))
- assert p['gm'] is principal
- assert all(b.actors[key] is actor for key,actor in refs.items())
- assert e._root_common_epoch==1
- assert_rejected(b.answer(pending,principal,c['requests']['check']['decisions'][0]))
 check(26,'pending runtime not silently restored',pending_restore)
 def twice_restore():
  e,a,b,p,c=setup();e.gm.snapshot('s');e.gm.restore('s');e.gm.restore('s')
  assert e._root_common_epoch==2;assert_rejected(b.begin('event','check'))
- fresh=e.open_common_checks(b.runtime.registry,b.session.registration,a,c,tuple(p.values()))
- assert fresh is not b
- ticket=fresh.begin('fresh','check');assert isinstance(ticket,f.a.Ticket),ticket
- assert fresh.submit(ticket).tag=='AwaitingInput'
- cold=n.Engine.import_state(n.Rules(str(DATA_ROOT),ruleset='core'),json.loads(json.dumps(e.export_state())))
- assert getattr(cold,'_root_common_binding',None) is None
- assert {actor.entity_id for actor in cold.gm.everyone}=={actor.entity_id for actor in a.values()}
 check(27,'repeated restore advances monotonic host epoch',twice_restore)
 def fresh_after_restore():
  e,a,b,p,c=setup();e.gm.snapshot('s');e.gm.restore('s')

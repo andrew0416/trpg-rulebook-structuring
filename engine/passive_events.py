@@ -112,6 +112,12 @@ def _continuation_facts(e,ev,frame):
     # Preserve native next-use contribution data independently of live stack refs.
     facts['contributions']=[{k:v for k,v in scope.items() if k not in ('actor','target')}
                             for scope in frame['scopes']]
+    if 'earned_status_choice' in ev:
+        facts['earned_status_choice']=ev['earned_status_choice']['fingerprint']
+    if 'taskmaster_gambit' in ev:
+        facts['taskmaster_gambit']=ev['taskmaster_gambit']['fingerprint']
+    if 'taskmaster_gambit_damage' in ev:
+        facts['taskmaster_gambit_damage']=ev['taskmaster_gambit_damage']['sha256']
     if 'source_choices' in frame:
         facts['source_choices']=frame['source_choices']
     telekinetic=__import__('telekinetic').continuation_choice(e,ev)
@@ -173,6 +179,22 @@ def _finish_recipient_return(e,frame):
         if ('target_moves' in row and
                 DEFENSE._move_facts(COMPLETE.event_move(e,ev))!=DEFENSE._move_facts(args['move'])):
             raise ValueError('native recipient prepared Move changed')
+    if result.get('cancelled') is True:
+        if event_id is None:raise ValueError('native cancelled recipient event required')
+        expected={'hit':args['hit'],'dealt':0,'effects':[],'held':0,
+                  'hit_prevented':False,'cancelled':True}
+        cancelled=row['results'].get(args['target'].entity_id)
+        if (result!=expected or ev.get('continuation_cancelled')!='actor_no_longer_eligible'
+                or cancelled is None or not cancelled['cancelled'] or cancelled['dealt']!=0):
+            raise ValueError('cancelled recipient tail needs its actual native cancellation')
+        COMPLETE.finish_target(e,args['completion_id'],args['attacker'],args['target'],
+                               hit=args['hit'],dealt=0,cancelled=True)
+        # Cancellation has no resolved-hit effects. The real listener return is
+        # still recorded before its distinct paid counter may resume.
+        COMPLETE.record_return(e,event_id,hit_prevented=False)
+        ev.pop('continuation')
+        __import__('taskmaster_gambit').cancel_parent(e,ev)
+        return 0
     COMPLETE.finish_target(e,args['completion_id'],args['attacker'],args['target'],
         hit=result['hit'],dealt=result['dealt'],effects=result['effects'],hit_prevented=result['hit_prevented'],
         substitute_damage_receipt=result.get('substitute_damage'))
@@ -185,6 +207,7 @@ def _finish_recipient_return(e,frame):
     if event_id is not None:
         __import__('conquerors_march').after_move(e,e._move_completions[args['completion_id']],event_id=event_id)
         __import__('conquerors_march').flush_pair_wait(e,event_id,result['dealt'])
+        __import__('taskmaster_gambit').finish_parent(e,event_id,result['dealt'])
     return result['dealt']
 
 
@@ -216,7 +239,7 @@ def after_accuracy(e,**args):
     if ev is not None:
         ev.update(hit=args['hit'],natural_roll=args['nat'],critical=args['crit'])
     import ability_interrupt_choices as ABILITY_INTERRUPTS
-    if ev is None or not (__import__('conquerors_march').lean_interested(e,args['target']) or __import__('coordinator').damage_offer(e,args['attacker']) is not None or DEFENSE.wants_boundary(ev) or ABILITY_INTERRUPTS.wants_boundary(ev) or __import__('warper').switch_interested(e,args['attacker'],args['target']) or __import__('tumbler').acquired(args['attacker'],__import__('tumbler').QUICK) or any(p.get('event')=='accuracy_resolved' for p in ev['listener_profiles'].values())):
+    if ev is None or not ('taskmaster_gambit' in ev or 'taskmaster_gambit_parent' in ev or 'earned_status_choice' in ev or __import__('conquerors_march').lean_interested(e,args['target']) or __import__('coordinator').damage_offer(e,args['attacker']) is not None or DEFENSE.wants_boundary(ev) or ABILITY_INTERRUPTS.wants_boundary(ev) or __import__('warper').switch_interested(e,args['attacker'],args['target']) or __import__('tumbler').acquired(args['attacker'],__import__('tumbler').QUICK) or any(p.get('event')=='accuracy_resolved' for p in ev['listener_profiles'].values())):
         return e._finish_move_resolution(**args)
     from root_resolution import fingerprint as request_fingerprint
     frame={'args':args,'scopes':list(getattr(e,'_event_use_scopes',()))}
@@ -245,7 +268,8 @@ def _deliver_accuracy(e,event_id):
     if required is not None and (set(choices)!={required} or choices[required] is None):
         raise ValueError('native continuation requires its actual stored source choice')
     with WISH.resume_choice(e,frame['args'],choices.get('wish')), RECYCLE.resume_choice(e,frame['args'],choices.get('recycle')):
-        return _deliver_selected_accuracy(e,event_id)
+        with __import__('taskmaster_gambit').restored_scope(e,ev):
+            return _deliver_selected_accuracy(e,event_id)
 
 
 def _deliver_selected_accuracy(e,event_id):
@@ -274,6 +298,7 @@ def _deliver_selected_accuracy(e,event_id):
         ABILITY_INTERRUPTS.deliver_boundary(e,ev,frame['args'])
         import warper as WARPER
         if WARPER.switch_interested(e,args['attacker'],args['target']):WARPER.reaction(e,args)
+        __import__('earned_status_choices').ensure_choice(e,ev)
     if cancelled or not DEFENSE.routed(e,event_id):
         del ev['continuation'];ev['phase']='activated'
     ev.pop('reason',None)
@@ -282,16 +307,28 @@ def _deliver_selected_accuracy(e,event_id):
     try:
         if cancelled:
             ev['continuation_cancelled']='actor_no_longer_eligible'
-            complete(e,event_id,hit=args['hit'],natural=args['nat'],critical=args['crit'],dealt=0)
+            note_cancelled_request(e,event_id)
+            # Native cancellation is already decided. Retain that result before
+            # listeners can pause, and keep their authenticated producer tail.
             import move_completion as COMPLETE
             COMPLETE.finish_target(e,args.get('completion_id'),args['attacker'],args['target'],
-                                   hit=args['hit'],dealt=0,cancelled=True)
-            return 0
+                                   hit=args['hit'],dealt=0,cancelled=True,_defer_completion=True)
+            result={'hit':args['hit'],'dealt':0,'effects':[],'held':0,
+                    'hit_prevented':False,'cancelled':True}
+            returned={'kind':'recipient_return','args':args,'result':result,
+                      'scopes':frame['scopes']}
+            if 'source_choices' in frame:returned['source_choices']=frame['source_choices']
+            ev['continuation']=returned
+            complete(e,event_id,hit=args['hit'],natural=args['nat'],critical=args['crit'],dealt=0)
+            return _finish_recipient_return(e,returned)
         try:return e._finish_move_resolution(**args)
         except PassiveEventPending as pending:
             current=e._passive_events[event_id]
-            if (pending.event_id==event_id and current.get('reason') in ('quick_gymnastics_movement_pending','coordinator_damage_pending')) or __import__('conquerors_march').pair_checkpoint(e,event_id,pending.event_id):
+            if (pending.event_id==event_id and current.get('reason') in ('quick_gymnastics_movement_pending','coordinator_damage_pending')) or __import__('conquerors_march').pair_checkpoint(e,event_id,pending.event_id) or __import__('taskmaster_gambit').pair_checkpoint(e,event_id,pending.event_id):
                 current['continuation']=frame;current['phase']='accuracy_boundary'
+                if __import__('taskmaster_gambit').pair_checkpoint(e,event_id,pending.event_id):
+                    from root_resolution import fingerprint
+                    frame['fingerprint']=fingerprint(_continuation_facts(e,current,frame))
             raise
     finally:
         if previous is None:del e._event_use_scopes
@@ -303,11 +340,12 @@ STAGE_FIELDS={
     'accuracy':{'hit','natural_roll','critical'},
     'damage_request':{'amount'},
     'hp_loss':{'real_hp_loss','temp_hp_loss','damage_basis'},
+    'cancelled':{'reason','damage_request'},
     'resolved':{'effect_held_count'},
 }
 STAGE_NEXT={None:{'attempt'},'attempt':{'accuracy'},
-            'accuracy':{'damage_request','resolved'},'damage_request':{'hp_loss'},
-            'hp_loss':{'resolved'},'resolved':set()}
+            'accuracy':{'damage_request','resolved'},'damage_request':{'hp_loss','cancelled'},
+            'hp_loss':{'resolved'},'cancelled':{'resolved'},'resolved':set()}
 
 
 def observations(e,event_id):
@@ -325,6 +363,13 @@ def observations(e,event_id):
             raise ValueError('event observation order changed')
         if type(row['facts']) is not dict or set(row['facts'])!=STAGE_FIELDS[current]:
             raise ValueError('event observation fields changed')
+        if current=='cancelled':
+            if (stage!='damage_request' or row['facts']!={
+                    'reason':'actor_no_longer_eligible','damage_request':rows[index-1]['facts']['amount']}
+                    or ev.get('continuation_cancelled')!='actor_no_longer_eligible'
+                    or ev.get('attack_observation') is not None
+                    or ev.get('real_hp_loss') is not None or ev.get('temp_hp_loss') is not None):
+                raise ValueError('cancelled damage request lacks its actual unexecuted native producer')
         payload={key:value for key,value in row.items() if key!='fingerprint'}
         if request_fingerprint(payload)!=row['fingerprint']:raise ValueError('event observation changed')
         previous=row['fingerprint'];stage=current
@@ -360,6 +405,19 @@ def note_damage_request(e,event_id,amount):
     _observe(e,event_id,'damage_request',{'amount':amount},'Engine.resolve_attack_damage')
 
 
+def note_cancelled_request(e,event_id):
+    """Close a computed but unapplied request without inventing an HP operation."""
+    ev=e._passive_events[event_id];rows=observations(e,event_id)
+    if not rows or rows[-1]['stage']!='damage_request':return
+    if (ev.get('continuation_cancelled')!='actor_no_longer_eligible'
+            or not (ev['actor'].fainted or ev['actor'].dead)
+            or ev.get('attack_observation') is not None
+            or ev.get('real_hp_loss') is not None or ev.get('temp_hp_loss') is not None):
+        raise ValueError('actual ineligible producer must cancel before applying damage')
+    _observe(e,event_id,'cancelled',{'reason':'actor_no_longer_eligible',
+             'damage_request':rows[-1]['facts']['amount']},'Engine.use_move/cancelled_request')
+
+
 def capture(c):
     return dict(hp=c.hp,temp_hp=c.temp_hp,fainted=c.fainted,dead=c.dead,injuries=c.injuries,abilities_suppressed=c.abilities_suppressed)
 
@@ -377,7 +435,7 @@ def begin(e,actor,target,move,*,ordinary_single,move_mechanics=None,completion_i
     import gleeful_interference as GLEEFUL
     import style_expert as STYLE
     import roughneck as ROUGHNECK,endure as ENDURE
-    if not __import__('fortress').event_interested(e,actor,target,move) and not __import__('arcanist').event_interested(e,actor,target,move) and not __import__('conquerors_march').event_interested(e,actor,target) and not __import__('type_ace').close_quarters_interested(e,actor,move) and __import__('coordinator').innovation_instance(e.r,move['id']) is None and __import__('coordinator').damage_offer(e,actor) is None and not ROUGHNECK.owns(actor,ROUGHNECK.CLASS) and ENDURE.known(e,target) is None and not GLEEFUL.interested(e,actor,move) and not ICE_LAKE.interested(e) and not ABILITY_REACTIONS.interested(e) and not interested(e,actor) and not ABILITY_INTERRUPTS.interested(e) and not DEFENSE.watch_interested(target,move) and not warning_interested and not STYLE.reaction_interested(e,target) and not __import__('tumbler').acquired(actor,__import__('tumbler').QUICK) and not __import__('hex_maniac').attack_interested(e,actor,target,move) and not __import__('warper').switch_interested(e,actor,target):
+    if not __import__('taskmaster_gambit').interested(e,actor,target,move) and not __import__('class_actor_state_reactions').interested(e,actor,target,move) and not __import__('earned_status_choices').native(move,move_mechanics) and not __import__('fortress').event_interested(e,actor,target,move) and not __import__('arcanist').event_interested(e,actor,target,move) and not __import__('conquerors_march').event_interested(e,actor,target) and not __import__('type_ace').close_quarters_interested(e,actor,move) and __import__('coordinator').innovation_instance(e.r,move['id']) is None and __import__('coordinator').damage_offer(e,actor) is None and not ROUGHNECK.owns(actor,ROUGHNECK.CLASS) and ENDURE.known(e,target) is None and not GLEEFUL.interested(e,actor,move) and not ICE_LAKE.interested(e) and not ABILITY_REACTIONS.interested(e) and not interested(e,actor) and not ABILITY_INTERRUPTS.interested(e) and not DEFENSE.watch_interested(target,move) and not warning_interested and not STYLE.reaction_interested(e,target) and not __import__('tumbler').acquired(actor,__import__('tumbler').QUICK) and not __import__('hex_maniac').attack_interested(e,actor,target,move) and not __import__('warper').switch_interested(e,actor,target):
         return None
     e._passive_sequence+=1
     uid="passive-move-"+str(e._passive_sequence)
@@ -428,6 +486,8 @@ def begin_recipient(e,parent,target,*,hit,token):
     """Observe an actual routed recipient without another activation or roll."""
     import move_defense_reactions as DEFENSE
     import world_entities as WORLD
+    retained=__import__('taskmaster_gambit').retained_recipient(e,parent,target,token)
+    if retained is not None:return retained
     frame=parent['continuation']; args=frame['args']
     DEFENSE.require_recipient(e,token,parent['actor'],target,args['move'],parent['completion_id'])
     e._passive_sequence+=1
@@ -435,7 +495,7 @@ def begin_recipient(e,parent,target,*,hit,token):
     memo={id(actor):actor for actor in WORLD.actor_index(e).values()}
     ev=deepcopy({key:value for key,value in parent.items() if key not in (
         'continuation','defense_watch','observations','intent_fingerprint','reason','outcomes','source_choice',
-        'ability_interrupt_watch','ability_interrupts','gleeful_interference')},memo)
+        'ability_interrupt_watch','ability_interrupts','gleeful_interference','earned_status_choice','taskmaster_gambit','taskmaster_gambit_parent','taskmaster_gambit_damage','class_actor_reaction_offers')},memo)
     profiles={key:value for key,value in parent['listener_profiles'].items() if value.get('event')!='accuracy_resolved'}
     ev.update(id=uid,activation_id=uid,target=target,producer='Engine.use_move/defense-recipient',
         phase='activated',status='in_progress',source_ids=list(profiles),listener_profiles=deepcopy(profiles),
@@ -461,6 +521,12 @@ def _bind_intent(e, ev):
     intent.update(actor_id=W.actor_id(ev['actor']), target_id=W.actor_id(ev['target']))
     # Coordinator stores its full native reaction graph separately. Bind its
     # verified observation seal and stable receipt facts, not runtime objects.
+    if 'class_actor_reaction_offers' in intent:
+        # Native multipliers are finite JSON floats, outside the integer-only
+        # request DSL. Recompute their owner's digest from the retained facts.
+        import class_actor_state_reactions as CLASS_REACTIONS
+        intent['class_actor_reaction_offers']={
+            'sha256':CLASS_REACTIONS._fingerprint(intent['class_actor_reaction_offers'])}
     if 'coordinator_damage' in intent:
         import coordinator as C
         row=intent['coordinator_damage']
@@ -477,6 +543,15 @@ def _bind_intent(e, ev):
         row=intent['rider_damage_selection']
         if row.get('sha256')!=C._damage_seal(row):raise ValueError('Rider selected damage observation changed')
         intent['rider_damage_selection']={'sha256':row['sha256']}
+    if 'earned_status_choice' in intent:
+        intent['earned_status_choice']=__import__('earned_status_choices').evidence(e,ev)
+    if 'taskmaster_gambit' in intent:
+        row=__import__('taskmaster_gambit').checked(e,ev)
+        intent['taskmaster_gambit']={'fingerprint':row['fingerprint']}
+    if 'taskmaster_gambit_damage' in intent:
+        row=intent['taskmaster_gambit_damage']
+        if row.get('sha256')!=__import__('coordinator')._damage_seal(row):raise ValueError('Gambit damage observation changed')
+        intent['taskmaster_gambit_damage']={'sha256':row['sha256']}
     bind_request_intent(ev, intent)
 
 
@@ -523,6 +598,10 @@ def deliver(e,event_id,*,_resume_activation=True):
             event=staged._passive_events[event_id]
             import pass_moves as PASS, action_lifecycle as ACTION, move_completion as COMPLETE
             COMPLETE.validate_return_continuation(staged,event)
+            # complete() is still inside its native producer. Deliver its
+            # listeners without recursively restarting that producer's parent.
+            paired=__import__('taskmaster_gambit').resume_pair_wait(staged,event) if _resume_activation else None
+            if paired is not None:return paired['result']
             with ACTION.resume_move(staged,event,enabled=_resume_activation), PASS.restored_scope(staged,event), __import__('telekinetic').restored_scope(staged,event):
                 paired=__import__('conquerors_march').resume_pair_wait(staged,event)
                 if paired is not None:return paired['result']
@@ -545,8 +624,10 @@ def deliver(e,event_id,*,_resume_activation=True):
             if _resume_activation:
                 result=__import__('combat_move_reactions').resume_after_event(staged,event,result)
                 result=__import__('conquerors_march').resume_counter(staged,event,result)
+                result=__import__('taskmaster_gambit').resume_after_event(staged,event,result)
             return result
         except Exception as error:
+            __import__('taskmaster_gambit').advance_wait(staged,event_id,error)
             if G.record_native_pending(staged,error,pending):return None
             raise
     result=G.transition(e,ev['actor'],attempt,include_grid=e.grid is not None,include_rulings=True)

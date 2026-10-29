@@ -147,8 +147,9 @@ class ChefAcquisitionTests(unittest.TestCase):
         engine, chef, partner = world['engine'], world['chef'], world['partner']
         self.rejected(engine, lambda: self.lesson(engine, chef, partner), 'Excluded rule selection')
         self.assertEqual((partner.spec['tutor_points'], engine.elapsed_seconds, ABILITIES.known(partner)), (5, 0, []))
-        # The distinct core definition is now admitted; this explicit Playtest request still is not.
-        self.assertEqual(self.core.selection.resolve_name('먹보', ('ability/',)), 'ability/먹보')
+        # The printed name alone resolves no selectable source in this ruleset.
+        with self.assertRaises(ValueError):
+            self.core.selection.resolve_name('먹보', ('ability/',))
 
     def test_dietician_acquired_through_the_static_receipt_registers_seven_vitamin_capacity(self):
         world = FIX.scene(self.rules, feats=(CHEF.CLASS, CHEF.DIETICIAN), ally=True, register=False)

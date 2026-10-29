@@ -404,6 +404,7 @@ class ContestEngine:
             bonuses, seen = [], set()
             for bonus in c.intro_bonuses:
                 source = bonus.get("source_id")
+                source_identity = source
                 if source not in c.intro_sources or source in seen:
                     raise ValueError("Introduction bonus needs a distinct active source")
                 count = {"item/콘테스트-장신구": 2, "item/멋진-옷": 2, "edge/미용사": 1}.get(source)
@@ -412,6 +413,13 @@ class ContestEngine:
                         raise ValueError('Acquired introduction feature needs its actual trainer and Pokemon')
                     engine, pokemon, trainer, _, _ = binding
                     count = CONTEST_FEATURES.introduction_bonus_dice(engine, trainer, pokemon, source)
+                import researcher_fields as RESEARCH
+                if source == RESEARCH.PLAYING_GOD:
+                    if binding is None:
+                        raise ValueError('Playing God introduction needs its actual native specimen')
+                    engine, pokemon, trainer, _, _ = binding
+                    count = RESEARCH.introduction_bonus_dice(engine, pokemon, bonus.get('stat'))
+                    source_identity = RESEARCH.SOURCE
                 if source == COSMETIC.SOURCE:
                     if binding is None:
                         raise ValueError('Shiny introduction needs its actual native specimen')
@@ -419,7 +427,7 @@ class ContestEngine:
                     count = COSMETIC.introduction_dice(engine, pokemon)
                 if count is None:
                     raise UnresolvedRuleSelection(source, ["unsupported_introduction_bonus"])
-                self.r.selection.require_supported_version(source)
+                self.r.selection.require_supported_version(source_identity)
                 target = bonus.get("stat")
                 if target not in stats:
                     raise ValueError("A bonus roll must choose its contest stat")
@@ -542,20 +550,19 @@ class ContestEngine:
 
     @staticmethod
     def _stage_feature_cost(engine, trainer, amount, source):
-        # A Free Action mutates only the trainer's action history/limited-action
-        # flag; AP mutates spec. Stage these native fields with the Appeal roll.
+        # This quote may be discarded before a choice or a failed private roll.
+        # Record the actual Free action only when its cost is committed.
         native = copy(engine)
         native.log_lines = []
         actor = copy(trainer)
         actor.spec = deepcopy(trainer.spec)
         actor._action_history = deepcopy(getattr(trainer, "_action_history", []))
-        if getattr(native, "_active_turn_actor", None) is trainer:
-            native._active_turn_actor = actor
         if AP.available(actor) < amount:
             raise ValueError("Native trainer cannot pay the contest feature's AP")
-        CONTEST_FEATURES.trigger_free_action(native, actor, source)
+        CONTEST_FEATURES.require_trigger_free_action(native, trainer)
         AP.spend(actor, amount)
-        return actor.spec, actor._action_history, getattr(actor, "_restricted_action_taken", False), native.log_lines
+        return (actor.spec, actor._action_history, getattr(actor, "_restricted_action_taken", False),
+                native.log_lines, {'amount': amount, 'source': source})
 
     def perform(self, c, move_name, contest_type, adjacent, center, spend_stat_dice=0,
                 reroll_ok=False, fixed_rolls=None, *, reroll_decision=None, flourish_decision=None,
@@ -650,7 +657,16 @@ class ContestEngine:
         def commit_cost(cost):
             if cost is not None:
                 engine,_,trainer,_,_=binding
-                trainer.spec.clear();trainer.spec.update(cost[0]);trainer._action_history=cost[1];trainer._restricted_action_taken=cost[2];engine.log_lines.extend(cost[3])
+                if len(cost) == 5:
+                    import state_grants as GRANTS
+                    payment = cost[4]
+                    def pay(native, actor):
+                        CONTEST_FEATURES.trigger_free_action(native, actor, payment['source'])
+                        AP.spend(actor, payment['amount'])
+                    GRANTS.transition(engine, trainer, pay, include_rulings=True)
+                else:
+                    # Ranked Style Move AP-only quotes declare no Free action.
+                    trainer.spec.clear();trainer.spec.update(cost[0]);trainer._action_history=cost[1];trainer._restricted_action_taken=cost[2];engine.log_lines.extend(cost[3])
         if kind is None:
             # No public callback: the entire private calculation may remain atomic.
             def resolve(actors,rng):
@@ -1041,7 +1057,7 @@ class ContestEngine:
             partner=self._trainer_partners[c]
             if partner.stat_dice is not c.stat_dice:raise ValueError('participants must share one actual stat pool')
             for actor,actual in ((c,binding[1]),(partner,binding[2])):
-                if {self.r.move(m)['id'] for m in actor.moves}!={self.r.move(m)['id'] for m in actual.moves}:raise ValueError('actual learned Moves changed; original declaration cannot be replaced')
+                if {self.r.move(m)['id'] for m in actor.moves}!={self.r.move(m)['id'] for m in actual.moves if m!="struggle"}:raise ValueError('actual learned Moves changed; original declaration cannot be replaced')
                 for move in actor.moves:self.r.move_contest(move)
             pairs[c]=partner
         if len(native_engines)!=1:raise ValueError('one actual native contest context required')
@@ -1093,7 +1109,7 @@ class ContestEngine:
                         value=chooser(actor,rnd,adjacent,center)
                         binding=self._validate_pair_binding(self._native_intro_bindings[owner])
                         for declared,actual in ((owner,binding[1]),(pairs[owner],binding[2])):
-                            if {self.r.move(m)['id'] for m in declared.moves}!={self.r.move(m)['id'] for m in actual.moves}:
+                            if {self.r.move(m)['id'] for m in declared.moves}!={self.r.move(m)['id'] for m in actual.moves if m!="struggle"}:
                                 raise ValueError('actual learned Moves changed during the performance choice')
                         move,spend,options,locked=self._paired_declaration(value)
                         pending=state['pending']

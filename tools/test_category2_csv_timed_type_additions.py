@@ -10,7 +10,7 @@ import unittest
 
 HERE = Path(__file__).resolve()
 STAGE = HERE.parents[1]
-ROOT = STAGE
+ROOT = Path(os.environ["PTK_EXPERIMENT_ROOT"])
 sys_path = [str(STAGE / "engine"), str(ROOT / "engine"), str(ROOT / "tools")]
 import sys
 sys.path[:0] = sys_path
@@ -180,16 +180,10 @@ class CsvTimedTypeAdditionTests(unittest.TestCase):
                 if row.get("row_id") in selected:
                     self.assertTrue(row["category2_included"])
                     self.assertEqual(row["denominator_contribution"], 1)
-                    row["category2_status"] = "incomplete"
+                    self.assertEqual(row["category2_status"], "incomplete")
+                    row["category2_status"] = "implemented"
                     found.add(row["row_id"])
             self.assertEqual(found, selected)
-            registry_path.write_text(json.dumps(registry, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-            # Seed the historical four-clause baseline only in this shadow.
-            # Current canonical completion is not an assumption of the test.
-            before = collect_category2(shadow)
-            self.assertEqual(before["validation_errors"], [])
-            for row in registry["rows"]:
-                if row.get("row_id") in selected:row["category2_status"] = "implemented"
             registry_path.write_text(json.dumps(registry, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
             after = collect_category2(shadow)
         self.assertEqual(after["validation_errors"], [])

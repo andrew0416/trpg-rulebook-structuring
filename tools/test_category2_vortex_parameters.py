@@ -23,10 +23,10 @@ class VortexParameterTests(unittest.TestCase):
   actor=Combatant(self.r,spec);self.e.gm.add_combatant(actor);return actor
  def begin(self):self.e.start_round(self.e.everyone);self.e.start_of_turn(self.a,initiative_count=30)
  def hit(self,mid=TRAP,target=None,roll=18):
-  with patch.object(Engine, 'd20',return_value=roll):return self.e.use_move(self.a,target or self.t,mid,set_damage=True)
+  with patch.object(self.e,'d20',return_value=roll):return self.e.use_move(self.a,target or self.t,mid,set_damage=True)
  def end_target(self,roll):
   self.e.start_of_turn(self.t,initiative_count=20)
-  with patch.object(Engine, 'd20',return_value=roll):self.e.end_of_turn(self.t)
+  with patch.object(self.e,'d20',return_value=roll):self.e.end_of_turn(self.t)
  def test_native_hit_cost_tick_slow_and_trap_end_with_the_same_vortex(self):
   self.begin();base=self.e.move_profile(self.t)[0];hp=self.t.hp
   self.assertGreater(self.hit(),0);self.assertLess(self.t.hp,hp)
@@ -45,9 +45,9 @@ class VortexParameterTests(unittest.TestCase):
   self.end_target(20)
   self.e.start_round(self.e.everyone);self.end_target(17);self.assertEqual(self.t.custom_conditions['vortex']['ends'],2)
   self.e.start_of_turn(self.other,initiative_count=10)
-  with patch.object(Engine, 'd20',return_value=20):self.e.end_of_turn(self.other)
+  with patch.object(self.e,'d20',return_value=20):self.e.end_of_turn(self.other)
   self.e.start_round(self.e.everyone);self.e.start_of_turn(self.other,initiative_count=25)
-  with patch.object(Engine, 'd20',return_value=15):self.e.end_of_turn(self.other)
+  with patch.object(self.e,'d20',return_value=15):self.e.end_of_turn(self.other)
   self.assertNotIn('조이기',self.other.conditions);self.assertIn('조이기',self.t.conditions)
   self.end_target(12);self.assertNotIn('조이기',self.t.conditions);self.assertEqual(self.e.condition_params,{})
  def test_fifth_turn_still_ends_without_an_escape_roll(self):
@@ -55,7 +55,7 @@ class VortexParameterTests(unittest.TestCase):
   for roll in (20,17,11,5):
    self.end_target(roll);self.assertIn('조이기',self.t.conditions);self.e.start_round(self.e.everyone)
   self.e.start_of_turn(self.t,initiative_count=20)
-  with patch.object(Engine, 'd20',side_effect=AssertionError('fifth-turn escape must not roll')):self.e.end_of_turn(self.t)
+  with patch.object(self.e,'d20',side_effect=AssertionError('fifth-turn escape must not roll')):self.e.end_of_turn(self.t)
   self.assertFalse({'조이기','둔화','수렁'}&self.t.conditions)
  def test_duplicate_native_application_keeps_progress_and_does_not_stack_bonus(self):
   self.begin();self.hit();self.e.end_of_turn(self.a);self.end_target(20)

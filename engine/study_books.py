@@ -596,7 +596,7 @@ def assisted_breather(engine,actor,target,*,book,accept=True,save_skill='의학'
  W.require_actors(engine,actor,target)
  if book not in ('caretaker','combat_medic') or not active(actor,book,1 if book=='caretaker' else 2):raise ValueError('actual printed assisted-Breather Book rank required')
  if type(accept)is not bool:raise ValueError('explicit willing assisted-Breather decision required')
- if actor is target or actor.side!=target.side or not engine.adjacent(actor,target):raise ValueError('one actual adjacent ally required')
+ if actor is target or actor.side is None or target.side is None or actor.side!=target.side or not engine.adjacent(actor,target):raise ValueError('one actual adjacent ally required')
  if not engine.encounter_active:raise ValueError('assisted Book Breather requires an active encounter')
  key,used=_event(actor,book+'_breather',scope='scene')
  if used:raise ValueError('Book assisted Breather already used this Scene')

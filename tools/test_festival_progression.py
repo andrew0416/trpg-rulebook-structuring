@@ -8,7 +8,7 @@ from contest import ContestEngine, ContestRules, Contestant
 from native_rule_policy import PolicyPending
 from state_codec import dump_contest, load_contest, StateCodecError
 
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(r'D:\trpg-rulebook-structuring\ptk-structure-experiment')
 OCCURRENCE='festival/test'
 
 

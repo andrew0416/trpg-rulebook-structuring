@@ -247,6 +247,20 @@ class TelekineticTests(unittest.TestCase):
   with patch.object(Engine,'d20',return_value=18):self.e.use_move(self.b,self.a,'move/지진',set_damage=True)
   self.assertEqual(self.a.hp,hp);self.restore();self.valid()
 
+ def test_interference_requires_known_foes_in_both_source_editions(self):
+  self.rules=Rules(ROOT,ruleset='all')
+  cases=[('party','foes',-2),('party','party',0),('party',None,0),(None,'foes',0),(None,None,0)]
+  for choice in (TK.INTERFERENCE,TK.PLAYTEST):
+   for caster_side,target_side,penalty in cases:
+    with self.subTest(source=choice,caster=caster_side,target=target_side):
+     self.setup();self.family(TK.POWER,selection=choice)
+     self.a.side,self.b.side=caster_side,target_side
+     self.e.gm.set_position(self.b,(5,2),reason='actual recipient at printed three-metre boundary')
+     self.begin();self.e.activate_ability(self.a,choice,self.a)
+     self.assertEqual(TIME.accuracy_modifier(self.b),penalty)
+     self.assertEqual(TIME.accuracy_modifier(self.a),0)
+     self.assertEqual(self.a.budget['swift' if choice==TK.PLAYTEST else 'standard'],0)
+
  def test_interference_core_standard_atwill_next_personal_turn_and_playtest_scene_swift_round(self):
   for choice in (TK.INTERFERENCE,TK.PLAYTEST):
    with self.subTest(choice=choice):

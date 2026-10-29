@@ -7,6 +7,7 @@ route: its maximality is a GM world observation, not an attack flag.
 from copy import copy,deepcopy
 from contextlib import contextmanager
 import common_checks as C
+import skill_modifiers as SKILL_RANKS
 import action_lifecycle as ACTION
 import movement_actions as MOVEMENT
 import observed_resolution as OBS
@@ -67,7 +68,8 @@ def feature_qualification(actor,feature,snapshot,prerequisite_source):
         choice=snapshot['selection'];ranks=snapshot['class_ranks']
         if choice is not None and (type(choice)is not dict or set(choice)!={'edition'}):raise ValueError('one immutable class source required')
         if snapshot['source']!=feature_source(actor.r,feature,'core' if choice is None else choice['edition']):raise ValueError('Enduring Soul class source changed')
-        if type(ranks)is not list or len(ranks)!=2 or any(type(rank)is not int or not 1<=rank<=8 for rank in ranks):raise ValueError('actual class skill ranks required')
+        if type(ranks)is not list or len(ranks)!=2:raise ValueError('actual class skill ranks required')
+        for value in ranks:SKILL_RANKS.validate_rank_value(actor.r,value,kind='effective',label='class skill rank')
         return Q.require(feature,'native','acquire',[
             Q.check('trainer','prerequisite',actor.kind=='trainer','actual Trainer required'),
             Q.check('skills','prerequisite',min(ranks)>=3,'Novice Athletics and Focus required')])
@@ -93,8 +95,9 @@ def feature_qualification(actor,feature,snapshot,prerequisite_source):
         Q.check('parent','prerequisite',qualified,'actual Enduring Soul / Staying Power prerequisite required')]
     if feature in (VIM,NOT_YET):
         ranks=snapshot['class_ranks'];minimum=6 if feature==VIM else 5
-        if type(ranks)is not list or len(ranks)!=2 or any(type(rank)is not int or not 1<=rank<=8 for rank in ranks):
+        if type(ranks)is not list or len(ranks)!=2:
             raise ValueError('actual acquisition-time class skill ranks required')
+        for value in ranks:SKILL_RANKS.validate_rank_value(actor.r,value,kind='effective',label='acquisition-time class skill rank')
         checks.append(Q.check('skill','prerequisite',max(ranks)>=minimum,('Master' if feature==VIM else 'Expert')+' Athletics or Focus required'))
     return Q.require(feature,'native','acquire',checks)
 

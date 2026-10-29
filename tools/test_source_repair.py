@@ -77,7 +77,7 @@ class SourceRepairTests(unittest.TestCase):
     def test_form_reversion_and_ability_removal_stop_bonus(self):
         e,c,m=self.fixture();self.assertEqual(e.damage_base(c,m),8)
         c.form=None;self.assertEqual(e.damage_base(c,m),6)
-        c.form='마이티폼';e.gm.set_ability(c,'마이티체인지[홈브류]',add=False,reason='withdraw the actual fixture ability');self.assertEqual(e.damage_base(c,m),6)
+        c.form='마이티폼';c.abilities=[];self.assertEqual(e.damage_base(c,m),6)
     def test_core_ruleset_does_not_enable_homebrew_bonus(self):
         e,c,m=self.fixture(ruleset='core');self.assertEqual(e.damage_base(c,m),6)
 if __name__=='__main__':

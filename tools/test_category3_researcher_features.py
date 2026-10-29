@@ -16,13 +16,9 @@ import common_checks as C
 class Tests(unittest.TestCase):
  @classmethod
  def setUpClass(cls):cls.r=Rules(ROOT)
- def setUp(self,*,fossil=False):
+ def setUp(self):
   self.e=Engine(self.r,1)
-  trainer=dict(id='trainer/t',kind='trainer',name='T',level=20,stats=dict(hp=10,atk=10,**{'def':10},spa=10,spd=10,spe=10),skills={'포켓몬학':3,'명령':3},classes=[RF.RESEARCHER],feats=[RF.PUSHER,RF.SKILL_TRAINER],edges=['edge/미용사'],items={'미용사 킷':1},feature_choices={RF.RESEARCHER:[['pokemon_caretaking','paleontology']]})
-  if fossil:
-   trainer['skills']['포켓몬학']=5;trainer['edges'].append('edge/고생물학자');trainer['items']['복원기']=1
-   trainer['feats'].extend([RF.FOSSIL_RESTORATION,RF.PREHISTORIC_BOND])
-  self.t=Combatant(self.r,trainer)
+  self.t=Combatant(self.r,dict(id='trainer/t',kind='trainer',name='T',level=20,stats=dict(hp=10,atk=10,**{'def':10},spa=10,spd=10,spe=10),skills={'포켓몬학':3,'명령':3},classes=[RF.RESEARCHER],feats=[RF.PUSHER,RF.SKILL_TRAINER],edges=['edge/미용사'],items={'미용사 킷':1},feature_choices={RF.RESEARCHER:[['pokemon_caretaking','paleontology']]}))
   self.p=Combatant(self.r,build_pokemon(self.r,'이상해씨',10,name='P',extra={'trainer_id':'trainer/t','skills':{'육상':4,'통찰':3}}))
   self.e.everyone=[self.t,self.p];self.e.gm.everyone=self.e.everyone
  def groom(self,skill='육상'):
@@ -84,10 +80,12 @@ class Tests(unittest.TestCase):
   self.assertEqual(len(RF.researcher(self.e,self.t,'약사')),4)
 
  def restored(self,species='pokemon/아마루스',nature='노력',name='Fossil'):
-  self.setUp(fossil=True)  # Initial owned Features precede Combatant creation; this does not model acquisition.
+  self.t.spec['skills']['포켓몬학']=5
+  self.t.spec['edges'].append('edge/고생물학자');self.t.spec['items']['복원기']=1
+  self.t.spec['feats'].extend([RF.FOSSIL_RESTORATION,RF.PREHISTORIC_BOND])
   self.e.pokemon_activity(self.t,'fossil',phase='search',site={'name':'GM deposit','fossils_present':True},dc=15,minutes=120,discovery={'id':name,'species':species},fixed=[3]*5)
   egg=self.e.pokemon_activity(self.t,'fossil',phase='restore',fossil_id=name)['egg']
-  details=dict(gender='female',nature=nature,abilities=self.r.learnsets[species.removeprefix('pokemon/')]['abilities']['기본 특성'][:1],moves=[],inheritance_moves=[],special_appearance=False)
+  details=dict(gender='female',nature=nature,abilities=[],moves=[],inheritance_moves=[],special_appearance=False)
   return self.e.pokemon_activity(self.t,'hatch_fossil',egg_id=egg['id'],name=name,ready=True,reason='GM confirmed actual egg hatch',details=details)['pokemon']
  def crown(self,p,**kw):return self.e.craft_relic_crown(self.t,p,minutes=10,**kw)
  def test_source_snapshot_entire_named_effects_and_anchor_hashes_match(self):
@@ -102,21 +100,16 @@ class Tests(unittest.TestCase):
   self.assertEqual(self.e.elapsed_seconds-before,600);self.assertEqual(record['highest_stats'],['hp'])
   self.assertEqual(p.save_mod,0);self.e.equip_relic_crown(self.t,p,identity)
   self.assertEqual((p.save_mod,self.t.spec['items'][identity]),(2,0))
-  import turn as TURN
-  self.e.apply_status(p,'마비');self.e.start_round(self.e.everyone)
-  with patch.object(Engine,'d20',return_value=9):self.e.start_of_turn(p,initiative_count=20)
-  self.assertTrue(TURN.spend(self.e,p,'standard','actual successful-save Standard'))
-  self.assertTrue(TURN.spend(self.e,p,'shift','actual successful-save Shift'))
-  self.e.cure_status(p,'마비');self.e.apply_status(p,'혼란')
+  p.conditions={'마비'}
+  with patch.object(self.e,'d20',return_value=9):self.assertIsNone(self.e.start_of_turn(p))
+  p.conditions={'혼란'}
   dc=next(x['dc'] for x in self.r.condition_effects('혼란') if x['type']=='save')
-  with patch.object(Engine,'d20',return_value=dc-2):self.e.end_of_turn(p)
+  with patch.object(self.e,'d20',return_value=dc-2):self.e.end_of_turn(p)
   self.assertNotIn('혼란',p.conditions)
   self.assertEqual(ITEMS.register_item(self.e,p,identity),0);self.assertEqual(p.save_mod,2)
   ITEMS.unregister_item(self.e,p,identity);self.assertEqual(p.save_mod,0)
-  self.e.end_round();self.e.apply_status(p,'마비');self.e.start_round(self.e.everyone)
-  with patch.object(Engine,'d20',return_value=9):self.e.start_of_turn(p,initiative_count=20)
-  self.assertTrue(TURN.spend(self.e,p,'standard','actual failed-save first action'))
-  self.assertFalse(TURN.spend(self.e,p,'shift','actual failed-save second action'))
+  p.conditions={'마비'}
+  with patch.object(self.e,'d20',return_value=9):self.assertIsNotNone(self.e.start_of_turn(p))
  def test_all_native_saving_conditions_use_the_same_equipped_two_point_bonus(self):
   import effects_ext as EXT
   p=self.restored();identity=self.crown(p)['id'];self.e.equip_relic_crown(self.t,p,identity)
@@ -157,11 +150,8 @@ class Tests(unittest.TestCase):
   with self.assertRaises(ValueError):self.e.equip_relic_crown(self.t,other,identity)
   p.item='기합의띠'
   with self.assertRaises(ValueError):self.e.equip_relic_crown(self.t,p,identity)
-  p.item=None
-  origin=p.spec.pop('fossil_egg_entity_id')
-  try:
-   with self.assertRaises(ValueError):self.e.equip_relic_crown(self.t,p,identity)
-  finally:p.spec['fossil_egg_entity_id']=origin
+  p.item=None;p.spec['relic_sources'].clear()
+  with self.assertRaises(ValueError):self.e.equip_relic_crown(self.t,p,identity)
   self.assertEqual(self.t.spec['items'][identity],1);self.assertEqual(p.save_mod,0)
  def test_crown_selected_source_and_extended_action_are_checked_before_time(self):
   p=self.restored();before=self.e.elapsed_seconds

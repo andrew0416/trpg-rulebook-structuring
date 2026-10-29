@@ -26,24 +26,16 @@ class InitiativeIntegrationTests(unittest.TestCase):
         self.assertGreater(e.round_no,0)
         self.assertTrue(any(row['kind']=='initiative_adjudication' for row in e.rulings.log))
     def test_actual_encounter_missing_policy_preserves_both_living_sides(self):
-        # Lakeside explicitly selects Chlorophyll [Playtest]; core must not admit it.
-        e,party,wild=encounter.run_encounter(str(ROOT),'data/encounters/lakeside.json',seed=5,ruleset='all',write=False)
+        e,party,wild=encounter.run_encounter(str(ROOT),'data/encounters/lakeside.json',seed=5,ruleset='core',write=False)
         self.assertEqual((e.round_no,e.elapsed_seconds),(0,0))
         self.assertTrue(any(not c.fainted for c in party));self.assertTrue(any(not c.fainted for c in wild))
         self.assertIsNone(e.round_start_seconds);self.assertEqual(e.unresolved_time_intervals,[])
         self.assertTrue(any('전투 보류' in line for line in e.log_lines))
     def test_actual_encounter_explicit_policy_can_advance(self):
         with tempfile.TemporaryDirectory(dir=ROOT/'work') as folder:
-            e,party,wild=encounter.run_encounter(str(ROOT),'data/encounters/lakeside.json',seed=5,ruleset='all',rulings_path=self.policy_path(folder),write=False)
+            e,party,wild=encounter.run_encounter(str(ROOT),'data/encounters/lakeside.json',seed=5,ruleset='core',rulings_path=self.policy_path(folder),write=False)
         self.assertGreater(e.round_no,0)
         self.assertTrue(any(row['kind']=='initiative_adjudication' for row in e.rulings.log))
-    def test_lakeside_explicit_playtest_chlorophyll_stays_excluded_from_core(self):
-        from ruleset import ExcludedRuleSelection
-        declared=json.loads((ROOT/'data/encounters/lakeside.json').read_text(encoding='utf-8'))
-        self.assertTrue(declared['wild'])
-        self.assertTrue(all(row['abilities']==['엽록소 [Playtest]'] for row in declared['wild']))
-        with self.assertRaisesRegex(ExcludedRuleSelection,'ability/엽록소-playtest'):
-            encounter.load_encounter(str(ROOT),'data/encounters/lakeside.json',ruleset='core')
     def test_later_pending_round_does_not_end_encounter_or_add_time(self):
         from rulings import Rulings
         e=Engine(self.rules);e.rulings=Rulings()

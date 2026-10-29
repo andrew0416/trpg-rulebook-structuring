@@ -15,9 +15,6 @@ class CommunicateTests(unittest.TestCase):
  pokemon=_fixture_test_category2_body_modes.Tests.pokemon
  def setUp(self):
   _fixture_test_category2_body_modes.Tests.setUp(self);G.grant(self.a,'capabilities','Aura Pulse','fixture:message','fixture')
-  self.e.pokemon_activity(self.a,'configure_intelligence',
-      portrayal='Pokemon use assigned communication opposition skills',discussed_with=['communication participants'],
-      social=True,education=True,reason='explicit campaign permission retained by communication restores')
  def policy(self,index=0):return json.loads((ROOT/'data/examples/perception-communicate.json').read_text(encoding='utf8'))[index]
  def send(self,request='message/1',*,value=None,target=None,options=None):
   return self.e.communicate(self.a,target or self.t,value or self.policy(),'specified message',request_id=request,roll_options=options)

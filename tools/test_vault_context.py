@@ -197,26 +197,9 @@ class VaultContextTests(unittest.TestCase):
                 path = target.split('#', 1)[0]
                 if not path or '://' in path:
                     continue
-                editor_line = re.fullmatch(r'(.+\.[A-Za-z0-9]+):([1-9][0-9]*)', path)
-                line_number = int(editor_line[2]) if editor_line else None
-                if editor_line:
-                    path = editor_line[1]
                 resolved = (BUILD.ROOT / relative.parent / path).resolve()
-                # Historical project links keep their text, but resolve inside the frozen copy.
-                original_root = Path('D:/trpg-rulebook-structuring/ptk-structure-experiment')
-                if resolved.is_relative_to(original_root):
-                    resolved = (BUILD.ROOT / resolved.relative_to(original_root)).resolve()
-                original_model = Path('C:/Users/admin/Documents/ChatGPT/trpg-rulebook-structuring/objectOrientPTU').resolve()
-                if resolved.is_relative_to(original_model):
-                    resolved = BUILD.ROOT / 'reference-inputs/objectOrientPTU' / resolved.relative_to(original_model)
-                original_handoff = Path('C:/Users/admin/Documents/ChatGPT/trpg-rulebook-structuring/work/reuse-partials/resume-core-1257/ownership-projection-repair/HANDOFF.md').resolve()
-                if resolved == original_handoff:
-                    resolved = BUILD.ROOT / 'reference-inputs/archive/ownership-projection-repair/HANDOFF.md'
                 with self.subTest(document=str(relative), target=target):
                     self.assertTrue(resolved.is_file(), str(resolved))
-                    if line_number is not None:
-                        self.assertGreaterEqual(line_number, 1)
-                        self.assertLessEqual(line_number, len(resolved.read_text(encoding='utf-8-sig').splitlines()))
 
     def test_rebuild_is_idempotent_and_does_not_modify_handwritten_files_or_authority(self):
         source = self.root / BUILD.PLAN

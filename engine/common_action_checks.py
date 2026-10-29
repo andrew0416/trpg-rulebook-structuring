@@ -4,12 +4,11 @@ Arithmetic stays in common_checks. GM-selected skills, DCs, contribution policy
 and elapsed intervals are inputs; this adapter does not infer them from prose
 or apply narrative consequences/costs. No new root/certificate API is required.
 """
-from copy import copy, deepcopy
+from copy import deepcopy
 from dataclasses import dataclass, replace
 from functools import wraps
 import common_checks as checks
 import skill_modifiers as skills
-from resolution_transaction import resolve_transaction
 
 @dataclass(frozen=True)
 class ExtendedAction:
@@ -36,7 +35,7 @@ def assisted_options(engine, actor, skill, options):
         raise ValueError('a distinct helper is required')
     if helper.dead or helper.fainted:
         raise ValueError('a conscious helper is required')
-    if 'helper_rank' in options or 'helper_bonus' in options:
+    if 'helper_rank' in options or 'helper_bonus' in options or 'helper_source' in options:
         raise ValueError('provide a helper actor or a pre-resolved rank, not both')
     _text(helper_skill, 'GM-selected helper skill')
     actual_skill=__import__('hobbyist').direct_skill(helper,'edge/설명',helper_skill)
@@ -46,25 +45,50 @@ def assisted_options(engine, actor, skill, options):
     if rank < minimum:
         raise ValueError('helper skill must be at least Novice')
     options['helper_rank'] = rank
+    options['helper_source'] = {'actor_id':helper.entity_id,'skill':helper_skill}
     options['helper_bonus'] = skills.assistance_bonus(engine.r,helper,helper_skill,rank)
     return options
 
-def _staged_rolls(engine, resolve, *, actors=()):
-    """Only valid resolution commits RNG/logs; skill rolls read actor state."""
-    # An observed helper reaction owns real action/frequency state, not just RNG.
-    if any(c.entity_id in getattr(engine,'_let_me_help_offers',{}) for c in actors):return resolve(engine)
-    def run(_subjects, rng):
-        staged = copy(engine)
-        staged.rng, staged.log_lines = rng, []
-        # Records retain live actor references; mutations are replacements.
-        staged._ap_rolls = {k: dict(v) for k, v in engine._ap_rolls.items()}
-        result = resolve(staged)
-        return result, staged.log_lines, staged._ap_rolls
-    result, logs, ap_rolls = resolve_transaction([], engine.rng, run)
-    engine.log_lines.extend(logs)
-    engine._ap_rolls.clear()
-    engine._ap_rolls.update(ap_rolls)
-    return result
+def _staged_rolls(engine, resolve, *, actors=(), payload=()):
+    """Commit native check effects, actors and RNG together after resolution.
+
+    Callers pass captured actors/options explicitly so the existing graph owner
+    can rebind them. A normal PendingDecision result still commits its roll.
+    """
+    import state_grants as G
+    actors=tuple(actors)
+
+    def run(staged,_primary,*_participants):
+        inputs=G._stage_transition_payload(engine,staged,payload)
+        return resolve(staged,*inputs)
+    return G.transition(engine,None,run,participants=actors,
+                        include_rulings=True,include_grid=engine.grid is not None)
+
+def _has_help_offers(engine,actors):
+    return any(actor.entity_id in getattr(engine,'_let_me_help_offers',{}) for actor in actors)
+
+
+def _rolls_before_help(engine,resolve,observe,*,actors=(),payload=()):
+    """Commit only the native pre-Help roll prefix before exposing its decision.
+
+    Mere offer presence cannot publish an earlier participant's partial roll.
+    Once the complete prefix exists, the existing Help owner keeps its actual
+    first observations and decisions durable, including later refusal.
+    """
+    actors=tuple(actors)
+    if observe is None or not _has_help_offers(engine,actors):
+        return _staged_rolls(engine,resolve,actors=actors,payload=payload)
+    offers=getattr(engine,'_let_me_help_offers',{})
+    if len({actor.entity_id for actor in actors if actor.entity_id in offers})>1:
+        raise ValueError('multiple Let Me Help reactions need explicit native reaction ordering')
+    def initial(staged,*inputs):
+        rolls=observe(staged,*inputs)
+        if not isinstance(rolls,(list,tuple)) or not rolls:
+            raise ValueError('actual pre-Help native roll prefix required')
+        return rolls
+    observed=_staged_rolls(engine,initial,actors=actors,payload=payload)
+    return resolve(engine,*payload,observed)
+
 
 def team_action(engine, skill, dc, options, adjudication):
     options = dict(options)
@@ -111,14 +135,16 @@ def team_action(engine, skill, dc, options, adjudication):
         if not isinstance(opts, dict):
             raise ValueError('participant roll options must be a mapping')
         opts = dict(opts)
-        if opts.get('helper_rank', 0) != 0 or 'helper' in opts or 'helper_skill' in opts:
+        if opts.get('helper_rank', 0) != 0 or opts.get('helper_source') is not None or 'helper' in opts or 'helper_skill' in opts:
             raise ValueError('team-plus-assistance needs an explicit sourced extension')
         roll = SF.prepared_for_sequence(engine,actor,skill,opts) if featured else engine._prepare_skill_roll(actor,skill,**opts)
         if roll[3] is not None: opts['fixed'] = roll[3]
         if roll[4] is not None: opts['fixed_penalties'] = roll[4]
         prepared.append(opts)
-    def resolve(staged, rolls=None):
-        if rolls is None:rolls = [staged.skill_roll(c, skill, **opts) for c, opts in zip(participants, prepared)]
+    def observe(staged,participants,prepared):
+        return [staged.skill_roll(c,skill,**opts) for c,opts in zip(participants,prepared)]
+    def resolve(staged, participants, prepared, rolls=None):
+        if rolls is None:rolls=observe(staged,participants,prepared)
         result,rolls = SF.resolve_team(staged,[(c,skill,opts) for c,opts in zip(participants,prepared)],rolls,dc,required,weights)
         staged.log(f'  팀 판정: 합계 {result.total} vs DC {dc} × 필요 인원 {required} = {result.dc}', 'gameplay/skill-check')
         outcome=checks.adjudicate(result, **adjudication)
@@ -129,8 +155,8 @@ def team_action(engine, skill, dc, options, adjudication):
     if featured:
         basis={'kind':'team','dc':dc,'required':required,'weights':weights,'reason':reason}
         plans=[(actor,skill,opts) for actor,opts in zip(participants,prepared)]
-        return SF.sequence(engine,'team:'+action_id,basis,plans,lambda rolls:resolve(engine,rolls))
-    return _staged_rolls(engine, resolve,actors=participants)
+        return SF.sequence(engine,'team:'+action_id,basis,plans,lambda rolls:resolve(engine,participants,prepared,rolls))
+    return _rolls_before_help(engine,resolve,observe,actors=participants,payload=(participants,prepared))
 
 def extended_action(engine, actor, skill, dc, options, adjudication):
     options = dict(options)
@@ -166,7 +192,7 @@ def extended_action(engine, actor, skill, dc, options, adjudication):
     effect_rank = skills.effective_rank(engine.r,actor,skill)
     if prepared[3] is not None: options['fixed'] = prepared[3]
     if prepared[4] is not None: options['fixed_penalties'] = prepared[4]
-    initial = checks.extended([], dc, complexity, rank, limited, effective_rank=effect_rank)
+    initial = checks.extended_resolved([], dc, complexity, rank, limited, effective_rank=effect_rank)
     basis = {
         'skill': skill, 'rank': rank, 'effective_rank': effect_rank, 'dc': dc, 'complexity': complexity,
         'limited': limited, 'interval': deepcopy(interval),
@@ -195,14 +221,14 @@ def extended_action(engine, actor, skill, dc, options, adjudication):
         else:
             roll = observed[0] if observed is not None else staged.skill_roll(actual, skill, **native_options)
             recorded, intervals = (*rolls, roll), (*ids, interval_id)
-            result = checks.extended(recorded, dc, complexity, rank, limited, effective_rank=effect_rank)
+            result = checks.extended_resolved(recorded, dc, complexity, rank, limited, effective_rank=effect_rank)
             if result.status=='exhausted' and actual.entity_id in getattr(staged,'_let_me_help_offers',{}):
                 roll_id=SF._observed(staged,actual,roll,native_options)[0]
                 SF.resolve_check(staged,actual,skill,result.dc-sum(r.total for r in rolls),roll,native_options)
                 observed_roll=SF.event(staged,actual,roll_id)
                 if observed_roll is not None and observed_roll.final is not None:
                     recorded=(*rolls,observed_roll.final)
-                    result=checks.extended(recorded,dc,complexity,rank,limited,effective_rank=effect_rank)
+                    result=checks.extended_resolved(recorded,dc,complexity,rank,limited,effective_rank=effect_rank)
         staged.log(f'  연장 판정 {task_id}: {result.total}/{result.dc}, {result.attempts_used}회, {result.status}', 'gameplay/skill-check')
         if result.status == 'in_progress':
             outcome = checks.PendingDecision('next GM-confirmed interval')
@@ -322,10 +348,12 @@ def ordinary_action(engine,actor,skill,dc,options,adjudication):
     options=dict(options)
     purpose=options.pop('roll_purpose','ordinary skill check')
     options=assisted_options(engine,actor,skill,options)
-    def finish(rolls,executor=None):
+    def finish(rolls,executor=None,actual=None,native_options=None):
         executor=engine if executor is None else executor
-        result=SF.check_with_help(executor,actor,skill,dc,options,lambda:rolls[0])
-        SF.finish(executor,actor,options.get('roll_id'))
+        actual=actor if actual is None else actual
+        native_options=options if native_options is None else native_options
+        result=SF.check_with_help(executor,actual,skill,dc,native_options,lambda:rolls[0])
+        SF.finish(executor,actual,native_options.get('roll_id'))
         return checks.adjudicate(result,**adjudication)
     if actor.entity_id in getattr(engine,'_let_me_help_offers',{}):
         roll_id=options.get('roll_id')
@@ -339,6 +367,6 @@ def ordinary_action(engine,actor,skill,dc,options,adjudication):
     plan_options=dict(options);target=plan_options.pop('skill_target',actor)
     plan=engine.plan_skill_check(actor,skill,purpose=purpose,target=target,**plan_options)
     options['fixed']=plan['fixed_faces'];options['fixed_penalties']=plan['fixed_penalties']
-    def resolve(staged):
-        return replace(finish([staged.skill_roll(actor,skill,**options)],staged),basis={'roll_plan':plan})
-    return _staged_rolls(engine,resolve)
+    def resolve(staged,actual,native_options,native_plan):
+        return replace(finish([staged.skill_roll(actual,skill,**native_options)],staged,actual,native_options),basis={'roll_plan':native_plan})
+    return _staged_rolls(engine,resolve,actors=(actor,),payload=(actor,options,plan))

@@ -19,9 +19,6 @@ class ElementalTests(unittest.TestCase):
   self.a.spec['edges']=[ELEM.SOURCE];self.a.spec['edge_choices']={ELEM.SOURCE:'불꽃'}
   self.a.pos=(1,1);self.p.pos=(3,1);self.a.side='party';self.p.side='wild'
   self.e.everyone=[self.a,self.p,self.other];self.e.gm.everyone=self.e.everyone;self.e.grid=Grid(10,5)
-  self.e.pokemon_activity(self.a,'configure_intelligence',
-      portrayal='Pokemon use the assigned opposed social pools',discussed_with=['Elemental Connection participants'],
-      social=True,education=True,reason='explicit campaign permission for assigned target skills')
  def roll(self,skill='매력',target=True,**options):
   if target is True:target=self.p
   return self.e.skill_roll(self.a,skill,skill_target=target,fixed=[3]*4,**options)
@@ -41,14 +38,13 @@ class ElementalTests(unittest.TestCase):
   self.assertEqual(self.roll().total,14);self.assertEqual(self.roll(target=self.other).total,14)
  def test_two_matching_branches_hold_without_rng(self):
   self.a.spec['edges']=[ELEM.SOURCE,ELEM.SOURCE];self.a.spec['edge_choices'][ELEM.SOURCE]=['불꽃','비행'];before=self.e.rng.getstate()
-  self.assertEqual(self.e.skill_roll(self.a,'매력',skill_target=self.p,fixed=[3]*4).total,16)
-  self.assertNotIn(ELEM.SOURCE_OBSERVATION,self.a.spec)
+  with self.assertRaisesRegex(ValueError,'stacking'):self.e.skill_roll(self.a,'매력',skill_target=self.p)
   self.assertEqual(before,self.e.rng.getstate())
  def test_multiple_matching_branches_hold_before_maneuver_standard(self):
   self.a.spec['edges']=[ELEM.SOURCE,ELEM.SOURCE];self.a.spec['edge_choices'][ELEM.SOURCE]=['불꽃','비행']
   self.e.start_round(self.e.everyone);self.e.start_of_turn(self.a,initiative_count=20);before=self.e.rng.getstate()
-  self.assertTrue(self.e.manipulate(self.a,self.p,'flirt',defender_skill='집중',fixed_accuracy=15,challenger_options={'fixed':[3]*4},defender_options={'fixed':[3]*4}))
-  self.assertEqual(self.a.budget['standard'],0);self.assertEqual(before,self.e.rng.getstate())
+  with self.assertRaisesRegex(ValueError,'stacking'):self.e.manipulate(self.a,self.p,'flirt',defender_skill='집중',fixed_accuracy=15,challenger_options={'fixed':[3]*4},defender_options={'fixed':[3]*4})
+  self.assertEqual(self.a.budget['standard'],1);self.assertEqual(before,self.e.rng.getstate())
  def test_branch_choice_validation(self):
   for choice in [None,'에러','None','unknown',['불꽃','물']]:
    self.a.spec['edge_choices'][ELEM.SOURCE]=choice

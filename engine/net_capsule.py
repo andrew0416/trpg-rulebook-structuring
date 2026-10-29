@@ -65,8 +65,23 @@ def _geometry(e,actor,target,gm_distance):
    if other is not target and other.on_field and not other.captured and not other.fainted and other.pos==target.pos and other.spec.get('_movement_altitude',0)==0:raise ValueError('net grounding location occupied; GM world response required')
  return distance,t
 
-@ACTION.resolved_native("actor",NET,"net_capsule")
 def fire(e,actor,*,target,fixed_accuracy=None,accuracy_roll_id=None,gm_distance=None):
+ """Commit the native shot, payment and landing together; retain real waits."""
+ import state_grants as G,world_entities as W
+ W.require_actors(e,actor,target)
+ pending=[]
+ def apply(staged,user,victim):
+  try:return _fire(staged,user,target=victim,fixed_accuracy=fixed_accuracy,accuracy_roll_id=accuracy_roll_id,gm_distance=gm_distance)
+  except Exception as error:
+   if G.record_native_pending(staged,error,pending):return None
+   raise
+ result=G.transition(e,actor,apply,participants=(target,),include_rulings=True,include_grid=e.grid is not None)
+ if pending:
+  exception,event_id=pending[0];raise exception(event_id)
+ return result
+
+@ACTION.resolved_native("actor",NET,"net_capsule")
+def _fire(e,actor,*,target,fixed_accuracy=None,accuracy_roll_id=None,gm_distance=None):
  __import__('condition_instances').require_target(actor,target)
  import pokemon_activities as P
  import ap_roll_bonus as AP
@@ -74,6 +89,7 @@ def fire(e,actor,*,target,fixed_accuracy=None,accuracy_roll_id=None,gm_distance=
  P._trainer(actor);MOVEMENT.boundary(e,'net_capsule');_selected(e);_known(e,actor);_known(e,target)
  if actor is target:raise ValueError('self-targeted cannon requires an explicit source policy')
  if not target.on_field or target.captured or target.dead:raise ValueError('actual uncaptured target on the field required')
+ __import__('body_modes').require_targetable(target,engine=e,attacker=actor)
  if active(target):raise ValueError('multiple physical nets need an explicit source stacking policy')
  _equipped(e,actor);size=_size(e,target);distance,altitude=_geometry(e,actor,target,gm_distance)
  if fixed_accuracy is not None:C.integer(fixed_accuracy,'capsule accuracy d20',1,20)

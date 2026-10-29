@@ -231,11 +231,8 @@ def _stage_changed(engine, source_actor, stat, before, after):
             if buff not in holder.buffs:
                 continue
             # Optional forbidden consumption must not invalidate the source gain.
-            import food_effects as FOOD, ability_target_limits as LIMITS
-            if LIMITS.blocked(engine, holder, 'food_buff'):
-                continue
-            limits = FOOD.food_limits(engine, holder)
-            if limits and holder.counters.get('lim:food_buff_consumed', 0) >= limits['per_scene']:
+            import food_effects as FOOD
+            if not FOOD.consumption_allowed(engine, holder, buff, optional=True):
                 continue
             answer = engine.rulings.decide(dict(type='mirror_herb', unit=buff['item'],
                 actor_id=holder.entity_id, buff_id=buff['id'], source_actor_id=source_actor.entity_id,

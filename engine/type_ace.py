@@ -830,10 +830,32 @@ def _completed_targets(row,hit=True):
  return [t for t in M.actual_recipients(row) if (r:=M.recipient_result(row,t)) and bool(r['hit'] and not r.get('cancelled'))==hit]
 
 
+def _devious_completion(engine,p,row):
+ """Devious alone requires an immediate follow-up, not a stored round credit."""
+ import action_lifecycle as ACTION,frequency as F
+ # The shared native completion producer records this turn/action witness
+ # for every completed Move, even without a Skirmisher acquisition.
+ boundary=row.get('skirmisher_boundary',{})
+ if (row.get('full_turn')!=ACTION.current_full_turn(engine)
+     or boundary.get('round')!=engine.round_no
+     or boundary.get('seconds')!=engine.elapsed_seconds
+     or boundary.get('scene')!=F.state(p)['scene']
+     or boundary.get('serial')!=p.custom_conditions.get('combat_turn_serial',0)
+     or boundary.get('history')!=list(getattr(p,'_action_history',[]))):
+  raise ValueError('Devious requires its immediate native Move completion before another action or turn')
+
+def _disruption_completion(engine,row):
+ """A Bug hit is a trigger, not credit that survives its actual full turn."""
+ if row.get('full_turn')!=__import__('action_lifecycle').current_full_turn(engine):
+  raise ValueError('Disruption Order requires the triggering native full turn')
+ __import__('move_completion').require_disruption_window(engine,row)
+
 def react(engine,a,p,feature,completion_id,**options):
  """Actual after-Move choices; all hit and target facts come from completion."""
  feature=uid(feature);require(engine,a,p,feature);row=completion(engine,p,completion_id)
  name=DEFINITIONS[feature]['english'];move=row['move'];branch=DEFINITIONS[feature]['branch'];hits=_completed_targets(row)
+ if name=='Devious':_devious_completion(engine,p,row)
+ if name=='Disruption Order':_disruption_completion(engine,row)
  if any(r.get('completion_id')==completion_id and r['source']==feature for r in p.spec.get(KEY,[])):raise ValueError('Type Ace reaction already consumed this Move')
  if name not in ('Clever Ruse','Miasma','Devious','Mold the Earth') and move['type']!=branch:raise ValueError('matching actual Move type required')
  damaging=name in ('Black-Out Strike','Bigger and Boulder','Fountain of Life','Aqua Vortex','Chain Lightning','Cross-Pollinate')
@@ -848,6 +870,8 @@ def react(engine,a,p,feature,completion_id,**options):
   # Staged copies only: the completion row and every hit recipient are re-read from the staged engine.
   import world_entities as W
   index=W.actor_index(e);srow=completion(e,q,completion_id);shits=_completed_targets(srow);opts=_staged_options(index,options)
+  if name=='Devious':_devious_completion(e,q,srow)
+  if name=='Disruption Order':_disruption_completion(e,srow)
   _pay(e,t,q,feature,per_pokemon=name in ('Devious','New Normal','Fountain of Life'),round_only=name=='Clever Ruse')
   _history(q,feature,completion_id=completion_id)
   x=rank(e,t,branch)
@@ -882,7 +906,8 @@ def react(engine,a,p,feature,completion_id,**options):
      for old in existing[1:]:T.expire(e,target,old,ending='refreshed')
     else:_timed(e,target,feature,ace_blight=True)
   elif name=='Aqua Vortex':
-   for target in srow['targets']:
+   # Intercept changes recipients; original targets remain declaration history.
+   for target in __import__('move_completion').actual_recipients(srow):
     e.apply_status(target,'조이기',source=feature,applied_by=q)
     if '조이기' in target.conditions:
      import combat_timing as T
@@ -895,7 +920,11 @@ def react(engine,a,p,feature,completion_id,**options):
   elif name=='Mold the Earth':return mold(e,t,q,srow,**opts)
   else:raise ValueError('this reaction uses its native incoming/action producer')
   return True
- return G.transition(engine,a,apply,participants=(p,*row['targets']),include_rulings=True,include_grid=engine.grid is not None)
+ def scoped(e,t,q,*targets):
+  actual=completion(e,q,completion_id)
+  with __import__('action_lifecycle').completion_reaction(e,t,feature,actual):
+   return apply(e,t,q,*targets)
+ return G.transition(engine,a,scoped,participants=(p,*row['targets']),include_rulings=True,include_grid=engine.grid is not None)
 
 
 def _staged_options(index,options):
@@ -963,7 +992,9 @@ def _extra_move(engine,a,p,feature,row,options):
   if not W.range_spec(engine,move,p).get('parsed'):
    with A.move_grant(engine,p,p,mid,source=feature,kind='free') as grant:
     result=engine.use_move(p,p,mid,count_use=not s.get('ignore_frequency',False),free_action=True,_action_grant=grant,set_damage=options.get('set_damage',False))
-  else:result=engine.use_move_on(p,target,mid,engine.everyone,aim=options.get('aim'),set_damage=options.get('set_damage',False))
+  else:
+   with A.completion_reaction(engine,a,feature,row,_child=(p,'move',mid)):
+    result=engine.use_move_on(p,target,mid,engine.everyone,aim=options.get('aim'),set_damage=options.get('set_damage',False))
   if name=='Arctic Zeal':
    for b in __import__('blessing_effects').live(p):
     if b['source']=='move/흰안개':b['arctic_zeal_owner']=p.entity_id
@@ -1941,3 +1972,9 @@ def validate(engine):
 def status_interested(engine,condition,issuer):
  if issuer is None:return False
  return bool(condition in ('독','맹독') and owner(engine,issuer,uid('Potent Venom')) or condition=='마비' and owner(engine,issuer,uid('Lockdown')))
+
+
+def completion_reaction_origin(engine,actor,source,row,receipt):
+ if receipt is not None or source not in DEFINITIONS:return False
+ require(engine,actor,row['actor'],source)
+ return True

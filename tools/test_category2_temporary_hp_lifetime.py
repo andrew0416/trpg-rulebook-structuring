@@ -74,7 +74,7 @@ class TemporaryHPLifetimeTests(unittest.TestCase):
   for case in ['old_rule_clock','opaque_balance']:
    with self.subTest(case=case):
     self.setUp();self.grant(self.a,20);state=self.a.custom_conditions[T.STATE]
-    if case=='old_rule_clock':state.pop('contributions');state.pop('clock_basis');state.update(minimum_seconds=100,maximum_seconds=200)
+    if case=='old_rule_clock':state.pop('clock_basis');state.update(minimum_seconds=100,maximum_seconds=200)
     else:self.a.custom_conditions.pop(T.STATE)
     loaded=self.restored();clone=next(c for c in loaded.gm.everyone if c.entity_id==self.a.entity_id)
     for engine,c in [(self.e,self.a),(loaded,clone)]:

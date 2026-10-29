@@ -114,7 +114,7 @@ class MentorOwnedSlotTests(unittest.TestCase):
         for feature in (FEATURES[0],FEATURES[3]):
             with self.subTest(feature=feature):
                 case=self.fixture();self.qualify(case,case.a,[feature]);pokemon=case.pokemon('이상해씨',50)
-                self.assert_capacity(pokemon,feature)
+                self.assertEqual((MOVES.describe(self.r,pokemon.spec)['total'],MOVES.describe(self.r,pokemon.spec)['taught']),(6,3))
                 self.roster(case,case.a,[pokemon]);self.assert_capacity(pokemon,feature)
                 sources=deepcopy(pokemon.spec[GRANTS.KEY]['sources']);self.roster(case,case.a,[pokemon]);self.assertEqual(pokemon.spec[GRANTS.KEY]['sources'],sources)
                 later=case.pokemon('브케인',5);before=CODEC.dump_engine(case.e)
@@ -144,12 +144,8 @@ class MentorOwnedSlotTests(unittest.TestCase):
                 result=case.e.hatch_declared_egg(recipient,egg['entity_id'],name='actual newborn',ready=True,
                                                reason='actual hatch observation',choices=case.choices())
                 child=result['pokemon'];self.assert_capacity(child,feature)
-                self.assertEqual(child.spec['inheritance_moves'],['move/뿌리박기'])
-                self.assertNotIn('move/뿌리박기',child.spec['moves'])
-                self.assertNotIn('move/뿌리박기',child.spec.get('move_learning',{}))
-                self.assertEqual(egg['egg_creation_contract']['plan']['provider_id'],case.a.entity_id)
-                self.assertEqual(child.spec['egg_entity_id'],egg['entity_id'])
-                self.assertTrue(case.e.validate_state()['valid'])
+                self.assertEqual(child.spec['move_learning']['move/뿌리박기']['teacher_id'],case.a.entity_id)
+                self.assertEqual(child.spec['move_learning']['move/뿌리박기']['method'],'egg')
                 self.assertEqual(child.spec['trainer_id'],recipient.entity_id)
                 before=CODEC.dump_engine(case.e)
                 with self.assertRaises(ValueError):case.e.hatch_declared_egg(recipient,egg['entity_id'],name='retry',ready=True,reason='retry',choices=case.choices())

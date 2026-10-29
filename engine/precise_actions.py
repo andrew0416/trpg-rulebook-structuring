@@ -118,9 +118,12 @@ def perform(e,actor,skill,dc,options,adjudication):
     if observed["attacked"] and task.get("roll_id") is not None and task.get("roll_id")==focus.get("roll_id"):
         raise ValueError("ordinary task and additional Focus need distinct roll identities")
     C.validate_adjudication(**adjudication)
-    def resolve(staged,rolls=None):
-        ordinary=rolls[0] if rolls is not None else staged.skill_roll(actor,skill,**task)
-        concentration=(rolls[1] if rolls is not None else staged.skill_roll(actor,"집중",**focus)) if observed["attacked"] else None
+    def observe(staged,actor,task,focus):
+        return [staged.skill_roll(actor,skill,**task)]+([staged.skill_roll(actor,"집중",**focus)] if observed["attacked"] else [])
+    def resolve(staged,actor,task,focus,rolls=None):
+        if rolls is None:rolls=observe(staged,actor,task,focus)
+        ordinary=rolls[0]
+        concentration=rolls[1] if observed["attacked"] else None
         if concentration is not None:
             import skill_feature_actions as SF
             identity=SF._observed(staged,actor,concentration,focus)[0] if actor.entity_id in getattr(staged,'_let_me_help_offers',{}) else focus.get('roll_id')
@@ -147,5 +150,5 @@ def perform(e,actor,skill,dc,options,adjudication):
         import skill_feature_actions as SF
         plans=[(actor,skill,task)]+([(actor,"집중",focus)] if observed["attacked"] else [])
         basis={"source":SOURCE,"context":deepcopy(context),"dc":dc,"evidence":observed}
-        return SF.sequence(e,"precise:"+task["roll_id"],basis,plans,lambda rolls:resolve(e,rolls))
-    return COMMON._staged_rolls(e,resolve,actors=(actor,))
+        return SF.sequence(e,"precise:"+task["roll_id"],basis,plans,lambda rolls:resolve(e,actor,task,focus,rolls))
+    return COMMON._rolls_before_help(e,resolve,observe,actors=(actor,),payload=(actor,task,focus))

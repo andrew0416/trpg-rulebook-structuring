@@ -311,7 +311,6 @@ class Tests(unittest.TestCase):
  def test_actual_level_up_awards_tp_and_converts_future_tm_to_natural(self):
   self.p=self.pokemon('future',level=39);self.p.spec['moves']=['move/화염방사','struggle'];self.p.moves=list(self.p.spec['moves'])
   self.p.spec['move_learning']={'move/화염방사':{'method':'tm','source':T.MACHINES,'natural':False}}
-  self.e.gm.add_combatant(self.p,reason='actual newly selected growth recipient')
   self.assertEqual(T.classifications(self.r,self.p.spec)['move/화염방사'],'taught')
   DT.gain_exp_combatant(self.e,self.p,'to next level')
   self.assertEqual(self.p.level,40);self.assertEqual(self.p.spec['tutor_points'],4);self.assertTrue(self.p.spec['move_learning']['move/화염방사']['natural'])

@@ -15,7 +15,7 @@ import frequency as FREQ
 import world_entities as WORLD
 import state_codec as CODEC
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
 
 
 class CoreWiredTests(unittest.TestCase):
@@ -81,7 +81,7 @@ class CoreWiredTests(unittest.TestCase):
         self.allow([]); self.assertNotIn('move/파괴광선', self.p.moves)
         self.allow(['파괴광선']); self.allow(['냉동빔'], 'device/B')
         self.assertIn('move/파괴광선', self.p.moves)
-        self.assertNotIn('move/파괴광선', MOVES.owned_list(self.p.spec, 'moves', self.p.moves))
+        self.assertNotIn('move/파괴광선', MOVES.owned_list(self.p.spec, 'moves', self.p.moves,rules=self.p.r))
         with self.assertRaisesRegex(ValueError, 'permission'):
             WIRED.use_move(self.e, self.p, self.target, 'move/화염방사', route_id='route/A')
         with self.assertRaisesRegex(ValueError, 'permission'):
@@ -176,7 +176,7 @@ class CoreWiredTests(unittest.TestCase):
         p = WORLD.actor_index(restored)[self.p.entity_id]
         self.assertEqual(restored.remote_control_routes(p)['route/A']['machine_id'], 'device/A')
         self.assertIn('move/파괴광선', p.moves)
-        self.assertNotIn('move/파괴광선', MOVES.owned_list(p.spec, 'moves', p.moves))
+        self.assertNotIn('move/파괴광선', MOVES.owned_list(p.spec, 'moves', p.moves,rules=p.r))
         self.assertFalse(FREQ.move_allowed(restored, p, 'move/파괴광선')[0])
         self.e.gm.snapshot('wired')
         WIRED.observe_cord(self.e, self.p, 'device/A', 'device/A/cord', connected=False, reason='actual later disconnection')

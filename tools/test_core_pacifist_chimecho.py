@@ -151,7 +151,7 @@ class PacifistChimechoTests(unittest.TestCase):
    M.observe_learning(self.e,p,name,method='feature',source=T.MOVES,reason='actual observed neutral weather learning')
    self.assertIn(self.r.move_id(name),p.moves)
   G.overlay(p,'move display',moves=['move/맹독','struggle'])
-  self.assertNotIn('move/맹독',M.owned_list(p.spec,'moves',p.moves))
+  self.assertNotIn('move/맹독',M.owned_list(p.spec,'moves',p.moves,rules=p.r))
   M.validate_actor(p)  # A display/permission is not a learned Move.
 
  def test_common_permanent_grant_rejects_harm_for_every_native_method(self):

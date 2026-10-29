@@ -80,7 +80,7 @@ class CheerleaderBundleTests(unittest.TestCase):
             result=self.e.manual_feat(self.a,uid,self.p)
             self.assertEqual(result['status'],'applied');self.assertEqual(len(CH.live(self.p)),1)
             self.assertEqual(CH._uses(self.a)[0]['origin']['source'],uid);self.valid()
-        self.setup();self.e.manual_feat(self.a,TRAINING.CSV_CLAUSES[TRAINING.INSPIRED],self.a)
+        self.setup();self.e.manual_feat(self.a,TRAINING.INSPIRED,self.a)
         self.assertFalse(CH._uses(self.a));self.assertFalse(CH.live(self.a))
         self.setup();self.p.side='enemy'
         result=self.e.manual_feat(self.a,TRAINING.INSPIRED,self.p)

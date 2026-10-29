@@ -214,17 +214,7 @@ def h_transfer_status(engine, a, t, e, ctx):
 
 
 def h_apply_status_choice(engine, a, t, e, ctx):
-    opts = e.get("options", [])
-    pick = None
-    for o in opts:
-        pick = _parse_status(o)
-        if pick:
-            break
-    if not pick:
-        return "선택지에 상태 이름 없음"
-    engine.log(f"    선택지 {opts} → 엔진 기본 선택: {pick} ({e.get('chooser', 'user')} 선택)")
-    for c in _who(engine, a, t, e):
-        engine.apply_status(c, pick)
+    return __import__('earned_status_choices').apply(engine,a,t,e,ctx)
 
 
 def h_move_lock(engine, a, t, e, ctx):

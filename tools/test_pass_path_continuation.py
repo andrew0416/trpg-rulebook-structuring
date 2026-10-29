@@ -10,7 +10,7 @@ import passive_events as EVENTS,world_entities as WORLD,control_mount as MOUNT
 import physical_object_attacks as OBJECTS,pass_moves as PASS
 from native_scenario_fixture import prepare_body,assert_rejected_unchanged,assert_rejections_unchanged
 
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path('D:/trpg-rulebook-structuring/ptk-structure-experiment')
 
 class PassPathContinuationTests(unittest.TestCase):
     @classmethod

@@ -34,7 +34,7 @@ class LinkedMoveConditionTests(unittest.TestCase):
         self.assertEqual(row['effect_instance']['applied_by_actor_id'], self.p.entity_id)
         self.saved()
         before = self.p.hp, self.t.hp
-        expected = self.t.base_max_hp // 10
+        expected = self.t.max_hp // 10
         self.turn(self.t)
         self.assertEqual((self.p.hp-before[0], before[1]-self.t.hp), (expected, expected))
         event = CONDITIONS.records(self.t, '씨뿌리기')[0]['applications'][0]
@@ -52,7 +52,7 @@ class LinkedMoveConditionTests(unittest.TestCase):
         self.setUp(); self.p.hp -= 25
         self.e.use_move(self.p, self.t, 'move/씨뿌리기')
         self.t.hp = 1; before = self.p.hp
-        expected = self.t.base_max_hp // 10
+        expected = self.t.max_hp // 10
         self.turn(self.t)
         self.assertNotIn('씨뿌리기', self.t.conditions)
         self.assertEqual(self.p.hp-before, expected)

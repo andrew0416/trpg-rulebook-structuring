@@ -490,7 +490,7 @@ def selected_targets(engine,actor,move,candidates,primary):
     if not candidates or candidates[0] is not primary or len(candidates)>rng['targets']:
         raise ValueError('select the actual primary and no more than the Technique target maximum')
     if len({id(p) for p in candidates})!=len(candidates):raise ValueError('distinct actual Technique recipients required')
-    if any(m['modification']=='double_curse' for m in markers) and any(p.side==actor.side for p in candidates):
+    if any(m['modification']=='double_curse' for m in markers) and any(actor.side is None or p.side is None or p.side==actor.side for p in candidates[1:]):
         raise ValueError('Double Curse selects actual foes')
     reach=BODY.melee_reach(actor) if rng.get('origin')=='melee' else rng['origin']
     if any(not BODY.in_range(engine,actor,p,reach,move=move) for p in candidates):
@@ -564,7 +564,7 @@ def after_target(engine,completion,target):
         token=target.entity_id+':'+mod
         if token in completion.setdefault('ace_target_effects',[]):continue
         completion['ace_target_effects'].append(token)
-        if mod=='shock_and_awe' and target.side!=actor.side:
+        if mod=='shock_and_awe' and actor.side is not None and target.side is not None and target.side!=actor.side:
             _effect(engine,actor,target,row,mod,completion['id'],next_user_turn=True,save_modifier=-2,evasion_modifier=-1)
         elif mod=='guarding_strike' and result['hit']:
             _effect(engine,actor,actor,row,mod,completion['id'],next_user_turn=True,against_id=target.entity_id,damage_reduction=5)

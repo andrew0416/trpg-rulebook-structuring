@@ -12,8 +12,11 @@ sys.path[:0] = [str(STAGE / "engine"), str(CANON / "engine"), str(CANON / "tools
 from engine import Combatant, Engine, Rules
 from grid import Grid
 from builder import build_pokemon, build_trainer
-# Keep the staged import path without replacing owners already held by other fixtures.
+# engine.py prepends its canonical sibling directory.  Put the isolated stage
+# back first before importing the two overlaid hook modules.
 sys.path.insert(0, str(STAGE / "engine"))
+for _module in ("movement_actions", "environmental_effects"):
+    sys.modules.pop(_module, None)
 import campaign_rewards as CAMPAIGN
 import encounter_settlement as SETTLEMENT
 import environmental_effects as ENVIRONMENT

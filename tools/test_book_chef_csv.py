@@ -157,6 +157,31 @@ class ChefCsvTests(unittest.TestCase):
         self.assertTrue(e.validate_state()['valid'])
         self.assertTrue(FIX.restore(self.rules, e)[0].validate_state()['valid'])
 
+    def test_native_nonbatch_physical_output_uses_the_same_paid_body_lineage_and_rejects_batch_or_repair(self):
+        import items as ITEMS, materialization_origins as ORIGIN
+        w = self.scene(feats=(CHEF.CLASS, CHEF.DIETICIAN))
+        e, chef, p = w['engine'], w['chef'], w['partner']
+        chef.spec['money'] = 5000
+        policy = {'mode': 'create', 'instance_ids': ['actual/chef-vitamin'], 'owner_id': chef.entity_id, 'state': 'intact', 'attachments': []}
+        self.reject(e, lambda: FIX.cook(e, chef, recipe='tasty_snack', snack='매운맛 랩', product_policy=policy), 'native item output')
+        self.reject(e, lambda: FIX.cook(e, chef, recipe='vitamin', item='item/타우린', product_policy=dict(policy, mode='repair')), 'creation, not repair')
+        result = FIX.cook(e, chef, recipe='vitamin', item='item/타우린', product_policy=policy, event_id='actual/chef-vitamin-work')
+        self.assertNotIn('batch_id', result)
+        self.assertEqual((result['money_spent'], chef.spec['items']['item/타우린']), (2450, 0))
+        self.assertEqual(ORIGIN.read(e, 'actual/chef-vitamin')['native_ref']['production_id'], result['production_id'])
+        e, index = FIX.restore(self.rules, e)
+        chef, p = index[chef.entity_id], index[p.entity_id]
+        before = CODEC.dump_engine(e)
+        self.assertEqual(FIX.cook(e, chef, recipe='vitamin', item='item/타우린', product_policy=policy, event_id='actual/chef-vitamin-work'), result)
+        self.assertEqual(CODEC.dump_engine(e), before)
+        attack = p.spec['stats']['atk']
+        ITEMS.equip_held(e, chef, 'item/타우린', source_instance_id='actual/chef-vitamin')
+        e.use_item(chef, 'item/타우린', p, held_selection='actual/chef-vitamin')
+        self.assertEqual(p.spec['stats']['atk'], attack + 1)
+        self.assertIn('consumed', e._physical_objects['actual/chef-vitamin'])
+        self.assertEqual(chef.spec['items']['item/타우린'], 0)
+        self.assertTrue(e.validate_state()['valid'])
+
     def wild(self, e):
         actor = Combatant(self.rules, build_pokemon(self.rules, '이브이', 20, name='actual wild', moves=['move/몸통박치기'], abilities=[], extra={'wild': True, 'skills': {'집중': 1}}))
         e.gm.add_combatant(actor, pos=(2, 1), side='wild', reason='actual encountered wild Pokemon')

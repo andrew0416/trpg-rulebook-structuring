@@ -15,6 +15,7 @@ from engine import Combatant, Engine, Rules
 import combat_move_reactions as CMR
 import effects_ext as EXT
 import homebrew_state as HOME
+import frequency as FREQUENCY
 import passive_events as PE
 import stellar_tera_blast as STELLAR
 import world_entities as WORLD
@@ -112,6 +113,9 @@ class StellarR663OptionalSourceRevisionTests(unittest.TestCase):
         self.assertEqual((actor.budget['standard'], actor.budget['swift'],
             actor.move_uses[move_id]), (0, swift, uses + 1))
         self.next_turn(e, actor)
+        self.assertFalse(FREQUENCY.move_allowed(e, actor, move_id, outside_combat=False)[0])
+        self.next_turn(e, actor)
+        self.assertTrue(FREQUENCY.move_allowed(e, actor, move_id, outside_combat=False)[0])
         self.assertEqual(self.hit(e, actor, target, move_id, face=1), 0)
         second = self.last(e)
         self.assertFalse(second['move'][STELLAR.CHOICE]['use_radiated_type'])
@@ -192,6 +196,26 @@ class StellarR663OptionalSourceRevisionTests(unittest.TestCase):
         self.assertEqual((e._move_completions[first_id]['move'][STELLAR.CHOICE],
             e._move_completions[first_id]['results']), recorded)
         self.assertEqual(actor.spec[STELLAR.STATE]['history'], radiation)
+        self.assertGreater(target.hp, 0)
+        self.assertFalse(target.fainted or target.captured or not target.on_field)
+        self.assertIs(e._active_turn_actor, actor)
+        self.assertEqual(FREQUENCY.move_frequency(e, move_id, actor)[0], 'every_other_turn')
+        state = FREQUENCY.state(actor)
+        previous_turn = state['moves'][move_id]['turn']
+        self.assertEqual(state['turn'] - previous_turn, 1)
+        allowed, reason = FREQUENCY.move_allowed(e, actor, move_id, outside_combat=False)
+        self.assertFalse(allowed)
+        self.assertIn('재사용 대기', reason)
+        before = (target.hp, deepcopy(actor.budget), dict(actor.move_uses),
+                  e.rng.getstate(), tuple(e._move_completions))
+        self.assertEqual(self.hit(e, actor, target, move_id), 0)
+        self.assertEqual((target.hp, actor.budget, actor.move_uses,
+                          e.rng.getstate(), tuple(e._move_completions)), before)
+        # The intervening owner turn must pass before this source permits reuse.
+        self.next_turn(e, actor)
+        self.assertEqual(FREQUENCY.state(actor)['turn'] - previous_turn, 2)
+        self.assertTrue(FREQUENCY.move_allowed(e, actor, move_id, outside_combat=False)[0])
+        self.assertGreater(target.hp, 0)
         self.assertGreater(self.hit(e, actor, target, move_id), 0)
         self.assertFalse(self.last(e)['move'][STELLAR.CHOICE]['use_radiated_type'])
         self.assertEqual((e._move_completions[first_id]['move'][STELLAR.CHOICE],

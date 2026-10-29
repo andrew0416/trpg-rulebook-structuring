@@ -7,7 +7,7 @@ import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-CANONICAL = Path(__file__).resolve().parents[1]
+CANONICAL = Path(r"D:\trpg-rulebook-structuring\ptk-structure-experiment")
 sys.path[:0] = [str(ROOT / "engine"), str(CANONICAL / "engine"), str(CANONICAL / "tools")]
 
 # Pin staged implementations before canonical fixtures change sys.path.

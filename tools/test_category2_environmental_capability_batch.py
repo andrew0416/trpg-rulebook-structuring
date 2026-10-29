@@ -7,7 +7,7 @@ import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-CANONICAL = Path(__file__).resolve().parents[1]
+CANONICAL = Path(r"D:\trpg-rulebook-structuring\ptk-structure-experiment")
 sys.path[:0] = [str(ROOT / "engine"), str(CANONICAL / "engine"), str(CANONICAL / "tools")]
 
 # Load the staged entry points before the canonical fixture prepends its own
@@ -135,6 +135,94 @@ class EnvironmentalCapabilityBatchTests(unittest.TestCase):
         rebuilt_actor.spec[CAP.KEY]["vacuum_exposures"]["vacuum/restore"]["intent"]["interval_seconds"] = 10
         with self.assertRaises(CODEC.StateCodecError):
             CODEC.dump_engine(rebuilt)
+
+    def test_derived_vacuum_clock_tampering_rejects_both_restores_unchanged(self):
+        self.region(self.p, vacuum=True); self.grant(self.p, "무호흡")
+        exposure_id = "vacuum/derived-clock"
+        self.e.observe_vacuum_exposure(self.p, exposure_id=exposure_id, exposed=True,
+                                       reason="actual ordinary vacuum exposure")
+        self.e.gm.snapshot("vacuum-tamper")
+        original = self.e.gm.snapshots["vacuum-tamper"]
+        memo = {**original["actor_refs"], id(self.e): self.e, id(self.r): self.r}
+        baseline = CODEC.dump_engine(self.e)
+        cases = ({"interval_seconds": None}, {"next_due_at": None},
+                 {"interval_seconds": None, "next_due_at": None},
+                 {"interval_seconds": 300}, {"next_due_at": 300}, {"sequence": 1})
+        for changes in cases:
+            with self.subTest(changes=changes):
+                saved = deepcopy(baseline)
+                node = next(n for n in saved["nodes"].values() if n["kind"] == "dict"
+                            and ["id", exposure_id] in n["items"])
+                node["items"] = [[key, changes.get(key, value)] for key, value in node["items"]]
+                with self.assertRaises(CODEC.StateCodecError):
+                    CODEC.load_engine(self.r, saved)
+                self.assertEqual(CODEC.dump_engine(self.e), baseline)
+                tampered = deepcopy(original, memo)
+                tampered["combatants"][id(self.p)]["spec"][CAP.KEY]["vacuum_exposures"][exposure_id].update(changes)
+                self.e.gm.snapshots["vacuum-tamper"] = tampered
+                with self.assertRaisesRegex(ValueError, "vacuum"):
+                    self.e.gm.restore("vacuum-tamper")
+                self.assertEqual(CODEC.dump_engine(self.e), baseline)
+        self.e.gm.snapshots["vacuum-tamper"] = original
+        self.e.advance_time(10)
+        self.assertEqual(len(self.p.spec[CAP.KEY]["vacuum_exposures"][exposure_id]["pending"]), 1)
+
+    def test_vacuum_pending_and_resolved_check_history_cannot_change_boundaries(self):
+        self.region(self.p, vacuum=True); self.grant(self.p, "무호흡")
+        exposure_id = "vacuum/check-history"
+        self.e.observe_vacuum_exposure(self.p, exposure_id=exposure_id, exposed=True,
+                                       reason="actual ordinary vacuum exposure")
+        self.e.advance_time(10)
+        check_id = exposure_id + ":check:1"
+        for resolved in (False, True):
+            if resolved:
+                self.e.resolve_vacuum_injury_check(self.p, check_id=check_id, injury_delta=0,
+                                                  reason="actual successful check")
+            baseline = CODEC.dump_engine(self.e)
+            cases = [{"due_at": 20}, {"id": exposure_id + ":check:2"}, {"interval_seconds": 300}]
+            if resolved:
+                cases += [{"resolved_at": 9}, {"injuries_after": 1}, {"injury_delta_requested": 1}]
+            for changes in cases:
+                with self.subTest(resolved=resolved, changes=changes):
+                    saved = deepcopy(baseline)
+                    node = next(n for n in saved["nodes"].values() if n["kind"] == "dict"
+                                and ["id", check_id] in n["items"])
+                    node["items"] = [[key, changes.get(key, value)] for key, value in node["items"]]
+                    with self.assertRaises(CODEC.StateCodecError):
+                        CODEC.load_engine(self.r, saved)
+                    self.assertEqual(CODEC.dump_engine(self.e), baseline)
+        self.e.advance_time(10)
+        self.assertIn(exposure_id + ":check:2", self.p.spec[CAP.KEY]["vacuum_exposures"][exposure_id]["pending"])
+
+    def test_vacuum_clock_roundtrips_preserve_ordinary_resistant_immune_and_ended_history(self):
+        for capability, interval in ((None, 10), ("진공내성", 300), ("진공면역", None)):
+            with self.subTest(capability=capability):
+                self.setUp(); self.region(self.p, vacuum=True); self.grant(self.p, "무호흡")
+                if capability:self.grant(self.p, capability)
+                self.e.observe_breathing(self.p, air_available=False, medium="airless",
+                                         reason="actual Breathless actor", timing_policy="grace_boundary")
+                exposure_id = "vacuum/roundtrip"
+                self.e.observe_vacuum_exposure(self.p, exposure_id=exposure_id, exposed=True,
+                                               reason="actual source-bound exposure")
+                self.e.advance_time(interval or 600)
+                self.e.gm.restore(self.e.gm.snapshot("vacuum-roundtrip"))
+                loaded = self.restored()
+                actor = next(c for c in loaded.everyone if c.entity_id == self.p.entity_id)
+                row = actor.spec[CAP.KEY]["vacuum_exposures"][exposure_id]
+                self.assertEqual(row["interval_seconds"], interval)
+                if interval:
+                    self.assertEqual(row["next_due_at"], interval * 2)
+                    loaded.resolve_vacuum_injury_check(actor, check_id=exposure_id + ":check:1",
+                                                       injury_delta=0, reason="actual successful check")
+                else:
+                    self.assertEqual((row["sequence"], row["pending"], row["next_due_at"]), (0, {}, None))
+                loaded.observe_vacuum_exposure(actor, exposure_id=exposure_id, exposed=False,
+                                               reason="actual exposure ended")
+                if capability:GRANTS.revoke(actor, "fixture:" + capability, engine=loaded)
+                history = deepcopy(actor.spec[CAP.KEY])
+                rebuilt = CODEC.load_engine(self.r, json.loads(json.dumps(CODEC.dump_engine(loaded))))
+                restored = next(c for c in rebuilt.everyone if c.entity_id == actor.entity_id)
+                self.assertEqual(restored.spec[CAP.KEY], history)
 
     def test_invalid_exposure_is_atomic_before_clock_or_receipt(self):
         self.region(self.p)

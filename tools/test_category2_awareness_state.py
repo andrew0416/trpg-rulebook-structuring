@@ -70,9 +70,8 @@ class AwarenessStateTests(unittest.TestCase):
   self.t=actors[self.t.entity_id];self.ps=[actors[p.entity_id] for p in self.ps]
   self.assertEqual(self.t.spec['_awareness_acquisition'],historical)
   self.assertEqual(EXT.save_dc(self.e,self.ps[0],'마비',11),9)
-  receiver=Combatant(self.e.r,deepcopy(self.fx.actor('csv-receiver','trainer').spec))
-  receiver.spec.pop('trainer_id',None)
-  self.e.gm.add_combatant(receiver,reason='actual receiver in the restored Rules world')
+  receiver=self.fx.actor('csv-receiver','trainer');receiver.spec.pop('trainer_id',None)
+  self.e.everyone.append(receiver)
   PARTY.configure(self.e,self.t,mode='unlimited',reason='actual CSV roster',roster=self.ps)
   PARTY.configure(self.e,receiver,mode='unlimited',reason='actual receiver',roster=[])
   PARTY.transfer(self.e,self.t,target=self.ps[0],new_owner=receiver,reason='actual transfer',request_id='csv-away')

@@ -47,7 +47,9 @@ def registration(rules, source):
 def active(actor, source):
     if source not in DEFINITIONS:
         raise ValueError("unknown native Rage ability")
-    return not actor.abilities_suppressed and source in ABILITIES.known(actor)
+    # Absence is not a request to resolve an excluded ability definition.
+    return (not actor.abilities_suppressed and source in ABILITIES.known(actor)
+            and ABILITIES.active(actor, source))
 
 
 def raging(actor):

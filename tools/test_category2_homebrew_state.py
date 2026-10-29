@@ -28,14 +28,14 @@ class HomebrewTests(unittest.TestCase):
  def test_native_type_change_is_ineffective_and_cannot_reappear_after_expiry(self):
   H.observe_type(self.e,self.a,'불꽃',reason='type choice');H.observe_active(self.e,self.a,True,reason='active');before=deepcopy(self.a.spec)
   self.assertFalse(G.type_operation(self.a,'add',['물'],'blocked-source'));self.assertEqual(self.a.spec,before)
-  self.e.end_scene();self.assertFalse(H.tera_active(self.a));self.assertEqual(self.a.types,['풀','독']);self.assertEqual(self.a.spec['tera_type'],'불꽃')
+  self.e.end_encounter();self.assertFalse(H.tera_active(self.a));self.assertEqual(self.a.types,['풀','독']);self.assertEqual(self.a.spec['tera_type'],'불꽃')
  def test_native_faint_boundary_ends_form_but_preserves_permanent_choice(self):
   H.observe_type(self.e,self.a,'불꽃',reason='type choice');H.observe_active(self.e,self.a,True,reason='active')
   self.e.take_damage(self.a,self.a.hp)
   self.assertFalse(self.a.spec[H.KEY]['active']);self.assertEqual(self.a.types,['풀','독']);self.assertEqual(self.a.spec['tera_type'],'불꽃')
  def test_snapshot_restores_active_receipt_and_original_stab(self):
   H.observe_type(self.e,self.a,'불꽃',reason='type choice');H.observe_active(self.e,self.a,True,reason='active');self.e.gm.snapshot('tera')
-  self.e.end_scene();self.e.gm.restore('tera');self.assertEqual(self.a.types,['불꽃']);self.assertEqual(H.stab_types(self.a),['풀','독'])
+  self.e.end_encounter();self.e.gm.restore('tera');self.assertEqual(self.a.types,['불꽃']);self.assertEqual(H.stab_types(self.a),['풀','독'])
  def test_invalid_choice_and_unselected_profile_are_atomic(self):
   before=deepcopy(self.a.spec)
   with self.assertRaises(ValueError):H.observe_type(self.e,self.a,'스텔라',reason='missing actual ability')
@@ -57,7 +57,7 @@ class HomebrewTests(unittest.TestCase):
   self.assertTrue(downtime.evolve(self.r,a.spec,'이상해풀'))
   self.assertIs(a.spec,spec_identity);self.assertEqual(a.entity_id,uid);self.assertEqual(a.spec['tera_type'],'불꽃');self.assertEqual(a.spec[H.KEY],receipt)
   self.assertEqual(a.types,['불꽃']);self.assertEqual(H.stab_types(a),['풀','독'])
-  self.e.end_scene();self.assertEqual(a.spec['tera_type'],'불꽃');self.assertEqual(a.types,['풀','독'])
+  self.e.end_encounter();self.assertEqual(a.spec['tera_type'],'불꽃');self.assertEqual(a.types,['풀','독'])
  def test_stab_ability_readers_keep_original_and_include_tera_only_while_active(self):
   import effects as FX
   fire=self.r.move('move/불꽃세례');grass=self.r.move('move/덩굴채찍');water=self.r.move('move/물대포')
@@ -69,12 +69,12 @@ class HomebrewTests(unittest.TestCase):
   for move in (grass,fire):self.assertIn('우선',EXT.keywords_for(self.a,move));self.assertEqual(bonus(move),7)
   self.assertNotIn('우선',EXT.keywords_for(self.a,water));self.assertEqual(bonus(water),0)
   self.assertFalse(EXT._move_matches({'moves':'STAB'},fire,self.a))
-  self.e.end_scene();self.assertNotIn('우선',EXT.keywords_for(self.a,fire));self.assertEqual(bonus(fire),0)
+  self.e.end_encounter();self.assertNotIn('우선',EXT.keywords_for(self.a,fire));self.assertEqual(bonus(fire),0)
  def test_stellar_permanent_choice_requires_actual_ability_without_fabricated_defense_type(self):
   self.a.abilities.append('스텔라버스트')
   H.observe_type(self.e,self.a,'스텔라',reason='actual ability-backed chosen imitation')
   self.assertEqual(H.tera_type(self.a),'스텔라');self.assertEqual(self.a.types,['풀','독'])
-  H.observe_active(self.e,self.a,True,reason='canonical-backed Stellar preserves its original defense')
-  self.assertTrue(H.tera_active(self.a));self.assertEqual(self.a.types,['풀','독'])
-  self.assertEqual(H.stab_types(self.a),['풀','독'])
+  before=deepcopy(self.a.spec)
+  with self.assertRaises(ValueError):H.observe_active(self.e,self.a,True,reason='needs distinct Stellar Blast radiation state')
+  self.assertEqual(self.a.spec,before)
 if __name__=='__main__':unittest.main()

@@ -16,7 +16,7 @@ def _bind_bonuses(e,actor):
     import move_capabilities as MOVES,move_state as MOVE_STATE
     if BIND not in MOVES.learned_ids(actor):
         # A selected replacement cannot silently inherit the original passive.
-        if any(mid in (BIND,'조이기') for mid in MOVE_STATE.owned_list(actor.spec,'moves',actor.moves)):
+        if any(mid in (BIND,'조이기') for mid in MOVE_STATE.owned_list(actor.spec,'moves',actor.moves,rules=actor.r)):
             raise ValueError('Static Bind needs its exact selected original source')
         return 0,0
     move=e.r.move(BIND)

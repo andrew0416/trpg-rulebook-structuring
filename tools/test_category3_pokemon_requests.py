@@ -17,8 +17,6 @@ class RequestTests(unittest.TestCase):
  def setUp(self):
   _fixture_test_category3_pokemon_activities.PokemonActivityTests.setUp(self);self.p.spec['trainer_id']=self.a.spec['id'];self.p.spec['loyalty']=3
   self.p.pos=(1,2);self.a.pos=(10,7);self.q.pos=(12,7);self.e.grid=Grid(20,10);self.e.everyone=[self.a,self.p,self.q]
-  for actor in (self.a,self.p,self.q):
-   self.e.gm.set_footprint(actor,[(0,0)],reason='GM observes each request-fixture body occupying one cell')
   self.e.gm.set_movement_capabilities(self.p,{'land':6,'power':6,'teleport':4},basis='current',reason='GM current sheet')
  def request(self,action='common_action',options=None,rid='r'):
   return self.act('request_help',target=self.p,request_id=rid,intent='Help the trainer cross the obstacle',action=action,options=options)

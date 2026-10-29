@@ -1,6 +1,7 @@
 """Core Ninja acquisitions and calls into shared weapons, crafting and movement."""
 from copy import deepcopy
 import common_checks as C
+import skill_modifiers as SKILL_RANKS
 import state_grants as G
 
 CLASS='class/닌자';ARSENAL='feat/닌자의-무기고';POISON='feat/독극-무기'
@@ -36,7 +37,7 @@ def acquisition_snapshot(e,actor,feature,rank,selection):
 def qualification(actor,feature,snapshot,prerequisite_source):
  import acquisition_qualification as Q
  if prerequisite_source is not None or type(snapshot)is not dict or set(snapshot)!={'stealth','combat','parents'}:raise ValueError('actual Ninja acquisition observations required')
- for name in ('stealth','combat'):C.integer(snapshot[name],'actual Ninja '+name+' rank',1,6)
+ for name in ('stealth','combat'):SKILL_RANKS.validate_rank_value(actor.r,snapshot[name],label='actual Ninja '+name+' rank')
  parent=DEFINITIONS[feature]['parent'];known={r['request_id'] for r in records(actor,parent)} if parent else set()
  return Q.require(feature,'native','acquire',[
   Q.check('trainer','prerequisite',actor.kind=='trainer','actual Trainer required'),

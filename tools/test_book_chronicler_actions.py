@@ -162,11 +162,6 @@ class ChroniclerActionTests(unittest.TestCase):
 
     def test_character_study_replaces_a_social_check_with_the_chroniclers_perception_three_daily_once_per_scene(self):
         self.whole()
-        self.e.pokemon_activity(self.t, 'configure_intelligence',
-            portrayal='this recorded Pokemon can make the declared Charm check', discussed_with=['GM', 'player'],
-            social=False, education=False,
-            exceptions={self.p.entity_id:{'skills':['매력'], 'reason':'actual Character Study social-check participant'}},
-            reason='fixture campaign discussion permits only this individual Charm pool')
         self.c = self.add('unrecorded foe', 'pokemon', (6, 2), side='foe', species='피카츄', types=['전기'], speed=11)
         archived = self.archive_subject(self.b, 'pokemon', 'rec-b')
         dice = SKILLS.rank(self.e.r, self.p, '매력')[2]

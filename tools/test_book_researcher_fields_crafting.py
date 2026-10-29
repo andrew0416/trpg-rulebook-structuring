@@ -293,5 +293,83 @@ class ResearcherFieldsCraftingTests(unittest.TestCase):
         self.restore('t')
 
 
+    def test_playing_god_birth_bonus_reaches_native_contest_introduction(self):
+        from contest import ContestEngine, ContestRules, Contestant
+
+        class Sixes:
+            def __init__(self):
+                self.count = 0
+
+            def randint(self, low, high):
+                self.count += 1
+                return 6
+
+        self.t.spec['items']['화학 세트'] = 1
+        upgrades = [{'kind': 'shiny_contest', 'contest_stat': '근사함'}]
+        upgrades += [{'kind': 'base_stat', 'stat': stat} for stat in ('hp', 'atk', 'def', 'spa', 'spd')]
+        egg = RFS.playing_god(self.e, self.t, species='코일', nature='겁쟁이',
+            ability='옹골참', gender='무성', upgrades=upgrades, seconds=3600,
+            reason='actual synthesis for Contest introduction', request_id='pg-intro')
+        self.e.advance_time(86400, [self.t])
+        child = RFS.hatch_artificial(self.e, self.t, egg['egg_entity_id'],
+            name='Contest Coil', reason='actual hatching')['pokemon']
+        contest = ContestEngine(ContestRules(ROOT, ruleset='core'))
+        contest.rng = Sixes()
+        contestant = contest.contestant_from_combatants(self.e, child, self.t, '매력',
+            stat_dice={}, bonus_stats={RFS.PLAYING_GOD: '근사함'})
+        self.assertEqual(contestant.intro_bonuses,
+                         [{'source_id': RFS.PLAYING_GOD, 'stat': '근사함', 'dice': 2}])
+        contest.intro_stage([contestant], None)
+        self.assertTrue(contestant.intro_completed)
+        self.assertEqual(contestant.stat_dice['근사함'], 2)
+        self.assertEqual(contestant.stat_dice['귀여움'], contestant.intro_rank_dice)
+        self.assertEqual(contest.rng.count, contestant.intro_rank_dice + 2)
+
+        from builder import build_trainer
+        import pokemon_party as PARTY
+        receiver = Combatant(self.rules, build_trainer(self.rules, 'new Contest owner', 30,
+            dict.fromkeys(('hp', 'atk', 'def', 'spa', 'spd', 'spe'), 10), skills={'매력': 3}))
+        self.e.gm.add_combatant(receiver, reason='actual new owner without Researcher grants')
+        PARTY.configure(self.e, receiver, mode='standard', roster=[],
+            storage={'kind': 'center', 'id': 'new-owner-center'}, reason='actual carrying policy')
+        PARTY.transfer(self.e, self.t, target=child, new_owner=receiver,
+            reason='actual post-birth transfer', request_id='pg-intro-transfer')
+        self.assertNotIn(RFS.PLAYING_GOD, receiver.spec.get('feats', []))
+        self.assertEqual(child.spec['trainer_id'], receiver.entity_id)
+        transferred = contest.contestant_from_combatants(self.e, child, receiver, '매력',
+            stat_dice={}, bonus_stats={RFS.PLAYING_GOD: '근사함'})
+        before = contest.rng.count
+        contest.intro_stage([transferred], None)
+        self.assertEqual(transferred.stat_dice['근사함'], 2)
+        self.assertEqual(contest.rng.count - before, transferred.intro_rank_dice + 2)
+        self.assertEqual(RFS.introduction_bonus_dice(self.e, child, '아름다움'), 0)
+
+        grant = deepcopy(child.spec['researcher_contest_introduction'])
+        before = contest.rng.count
+        child.spec['researcher_contest_introduction']['dice'] = 3
+        try:
+            with self.assertRaisesRegex(ValueError, 'actual birth grant'):
+                contest.contestant_from_combatants(self.e, child, receiver, '매력',
+                    stat_dice={}, bonus_stats={RFS.PLAYING_GOD: '근사함'})
+        finally:
+            child.spec['researcher_contest_introduction'] = grant
+        identity = child.spec['playing_god_egg_entity_id']
+        child.spec['playing_god_egg_entity_id'] = 'missing-birth-egg'
+        try:
+            with self.assertRaisesRegex(ValueError, 'actual birth source'):
+                RFS.introduction_bonus_dice(self.e, child, '근사함')
+        finally:
+            child.spec['playing_god_egg_entity_id'] = identity
+        self.assertEqual(contest.rng.count, before)
+
+        unbound = Contestant('unbound', {}, [], '매력', 1, '귀여움',
+            intro_sources=[RFS.PLAYING_GOD],
+            intro_bonuses=[{'source_id': RFS.PLAYING_GOD, 'stat': '근사함', 'dice': 2}])
+        before = contest.rng.count
+        with self.assertRaisesRegex(ValueError, 'actual native specimen'):
+            contest.intro_stage([unbound], None)
+        self.assertFalse(unbound.intro_completed)
+        self.assertEqual((unbound.stat_dice, contest.rng.count), ({}, before))
+
 if __name__ == '__main__':
     unittest.main()

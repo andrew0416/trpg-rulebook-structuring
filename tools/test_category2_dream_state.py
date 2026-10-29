@@ -12,17 +12,10 @@ class Tests(unittest.TestCase):
  add=_fixture_test_category2_body_modes.Tests.add
  pokemon=_fixture_test_category2_body_modes.Tests.pokemon
  restored=_fixture_test_category2_body_modes.Tests.restored
- begin=_fixture_test_category2_body_modes.Tests.begin
- def mist(self):
-  # C10-019 (ch10:35): only an actual paid Dream Mist item attack that hits and applies the
-  # current sleep may be shared. A bare apply_status source label is not that occurrence.
-  self.a.pos=(1,3);self.t.pos=(2,3);self.a.spec.setdefault('items',{})['item/꿈안개-1']=1;self.begin(self.a)
-  out=self.e.use_item(self.a,'item/꿈안개-1',self.t,fixed_accuracy=20)
-  self.assertTrue(out['status_applied']);return out
  def reader(self):G.grant(self.p,'capabilities','Dream Reader','fixture:dream','fixture')
  def observe(self):return self.e.gm.observe_dream(self.t,'a distant blue mountain',reason='GM observed current dream')
  def test_actual_sleep_source_reapplication_cure_and_next_episode(self):
-  self.reader();self.mist()
+  self.reader();self.assertTrue(self.e.apply_status(self.t,'잠듦',source='item/꿈안개-1'))
   self.assertIsInstance(self.e.read_dream(self.p,self.t,share=True),PendingDecision)
   self.observe();first=self.e.read_dream(self.p,self.t,share=True)
   self.assertEqual(first['mode'],'brief_moving_image');self.assertEqual(first['sleep_serial'],1)
@@ -45,7 +38,7 @@ class Tests(unittest.TestCase):
   with self.assertRaises(ValueError):self.e.read_dream(self.p,self.t)
   self.e.gm.remove_condition(self.t,'전부');self.assertIsNone(self.t.spec[D.KEY]['active'])
  def test_both_restores_and_corrupt_awake_episode_rejection(self):
-  self.reader();self.mist();self.observe()
+  self.reader();self.e.apply_status(self.t,'잠듦',source='item/꿈안개-1');self.observe()
   expected=self.e.read_dream(self.p,self.t,share=True);self.e.gm.snapshot('dream')
   e=self.restored();idx={c.entity_id:c for c in e.everyone}
   self.assertEqual(e.read_dream(idx[self.p.entity_id],idx[self.t.entity_id],share=True),expected)

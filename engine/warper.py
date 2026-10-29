@@ -276,15 +276,19 @@ def arm_probability(e,a,target,*,purpose,decision,reroll_fixed=None):
  return G.transition(e,a,lambda se,c:c.spec.update(native_roll_offer={'actor_id':target.entity_id,'purpose':purpose,'source':PROBABILITY,'fixed':deepcopy(reroll_fixed)}))
 
 
+def _require_probability_provider(e,owner,target):
+ W.require_actors(e,owner,target)
+ if not __import__('ability_transitions').active(owner,PROBABILITY) or target is not owner and (not owner.side or target.side!=owner.side):raise ValueError('native reroll lost its actual self/ally provider')
+ if not F.activation_allowed(owner,PROBABILITY,{'kind':'scene','uses':1},engine=e):raise ValueError('Probability Control Scene frequency exhausted')
+
+
 def reroll(e,a,purpose,first,roll_again):
  for owner in W.actor_index(e).values():
   offer=owner.spec.get('native_roll_offer')
   if not offer:continue
   uid=owner.entity_id
   if offer['actor_id']!=a.entity_id or offer['purpose']!=purpose:continue
-  W.require_actors(e,owner,a)
-  if not __import__('ability_transitions').active(owner,PROBABILITY) or a is not owner and (not owner.side or a.side!=owner.side):raise ValueError('native reroll lost its actual self/ally provider')
-  if not F.activation_allowed(owner,PROBABILITY,{'kind':'scene','uses':1},engine=e):raise ValueError('Probability Control Scene frequency exhausted')
+  _require_probability_provider(e,owner,a)
   callback=getattr(e,'_native_roll_decisions',{}).get(uid)
   if not callable(callback):raise ValueError('native reroll observation requires fresh live choice authentication after load')
   e._native_roll_deciding=True
@@ -293,6 +297,7 @@ def reroll(e,a,purpose,first,roll_again):
   if type(decision)is not bool:raise ValueError('observed native reroll choice must be explicit')
   owner.spec.pop('native_roll_offer')
   if not decision:return first
+  _require_probability_provider(e,owner,a)
   result=roll_again(offer['fixed'])
   # A triggered Free action may occur inside an already issued damage receipt.
   # Authenticate that exact parent before paying, then retain only the one

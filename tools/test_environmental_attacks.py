@@ -26,7 +26,6 @@ class EnvironmentalAttackTests(unittest.TestCase):
     def observe(self, uid, material, **options):
         defaults = dict(event_id='attack:' + uid, material=material,
                         move_id='move/눈보라' if material == 'liquid_medicine' else 'move/화염방사',
-                        actual_type='얼음' if material == 'liquid_medicine' else '불꽃',
                         reason='GM observed actual attack, material and storage exposure')
         defaults.update(options)
         return self.e.gm.observe_environmental_attack(self.a, uid, **defaults)
@@ -94,7 +93,7 @@ class EnvironmentalAttackTests(unittest.TestCase):
         loaded = self.restored()
         trainer = next(x for x in loaded.gm.everyone if x.entity_id == self.a.entity_id)
         self.assertEqual(row, loaded.gm.observe_environmental_attack(
-            trainer, 'herb', event_id='attack:herb', move_id='move/화염방사', material='herb', actual_type='불꽃',
+            trainer, 'herb', event_id='attack:herb', move_id='move/화염방사', material='herb',
             reason=row['reason'], exposed=True))
         self.assertTrue(loaded.validate_state()['valid'])
 
@@ -102,11 +101,11 @@ class EnvironmentalAttackTests(unittest.TestCase):
         self.held(self.a, '힘의가루', 'herb')
         before = self.snap()
         with self.assertRaises(ValueError):
-            self.observe('herb', 'herb', move_id='move/몸통박치기', actual_type='노말', exposed=True)
+            self.observe('herb', 'herb', move_id='move/몸통박치기', exposed=True)
         self.assertEqual(self.snap(), before)
         with self.assertRaises(ValueError):
             self.e.gm.observe_environmental_attack(self.p, 'herb', event_id='wrong-holder',
-                move_id='move/화염방사', material='herb', actual_type='불꽃', reason='wrong holder', exposed=True)
+                move_id='move/화염방사', material='herb', reason='wrong holder', exposed=True)
         self.assertEqual(self.snap(), before)
         with patch.object(W, 'finish_physical_use', side_effect=ValueError('late destruction failure')):
             with self.assertRaises(ValueError):

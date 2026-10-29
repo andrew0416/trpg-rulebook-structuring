@@ -142,8 +142,6 @@ class SurvivalistGuideTests(unittest.TestCase):
         engine, trainer, partner, foe = world['engine'], world['trainer'], world['partner'], world['foe']
         FIX.battle(engine, trainer)
         engine.gm.set_weather('sandstorm', rounds=5, reason='GM observed the sandstorm')
-        engine.gm.observe_sensory_environment(trainer,partner,paths={'auditory':True},present=True,
-            reason='actual contemporaneous Wilderness Guide Order delivery')
         self.guide(engine, trainer, 'desert')
         rows = FIX.guide_rows(partner)
         self.assertEqual(rows[0]['wilderness_guide']['branch'], 'desert_tundra')

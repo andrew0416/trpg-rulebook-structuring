@@ -873,8 +873,9 @@ def party_switched(engine,trainer,receipt):
                 if new not in side['roster'] or new in side['active']:raise ValueError('actual Battle Contest party replacement required')
                 side['active'][side['active'].index(old)]=new
                 if not exempt:occurrence['pokemon'][old]['excitement']=max(0,occurrence['pokemon'][old]['excitement']-2)
-                if side['replacement_center_due']:
-                    occurrence['pokemon'][new]['center_pending']=True;side['replacement_center_due']=False
+                if old in side['replacement_center_due']:
+                    occurrence['pokemon'][new]['center_pending']=True
+                    side['replacement_center_due'].remove(old)
                 occurrence.setdefault('party_switches',[]).append({'request_id':receipt['request_id'],'source':plan.get('source'),'tag_in':plan.get('tag_in',False),'loss_exempt':exempt,'outgoing':old,'incoming':new})
 
 

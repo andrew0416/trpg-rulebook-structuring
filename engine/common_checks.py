@@ -1,6 +1,6 @@
 """Shared check arithmetic and explicit adjudication boundaries.
-Ordinary ranks only. Specialized dice, multiple helpers, and effect composition
-must be resolved through a sourced extension before calling this base procedure.
+Ordinary primitives retain their narrow domain. Resolved arithmetic accepts
+source-admitted ranks; native owners still decide declarations and permissions.
 """
 if __package__:
     from . import arithmetic_policy as M
@@ -24,15 +24,23 @@ def dice(values, count=None):
     return values
 
 
-def validate_request(rank, mods=0, helper_rank=0, penalty_count=0, helper_bonus=None):
-    integer(rank,'ordinary rank',1,6)
+def validate_resolved_request(mods=0, helper_rank=0, penalty_count=0, helper_bonus=None):
+    """Numeric shape only; the native source owner admits ranks before rolling."""
     integer(mods,'modifier')
-    integer(helper_rank,'effective helper rank',0,8)
-    if helper_rank in (1,2,7):raise ValueError('helper must be at least Novice (rank 3)')
+    integer(helper_rank,'effective helper rank',0)
+    if 0<helper_rank<3:raise ValueError('helper must be at least Novice (rank 3)')
     integer(penalty_count,'penalty count',0)
     if helper_bonus is not None:
         integer(helper_bonus,'resolved assistance bonus',0)
         if helper_bonus not in (M.ratio(helper_rank,2),helper_rank):raise ValueError('unresolved assistance formula')
+
+
+def validate_request(rank, mods=0, helper_rank=0, penalty_count=0, helper_bonus=None):
+    """The original ordinary PTU arithmetic contract remains deliberately narrow."""
+    integer(rank,'ordinary rank',1,6)
+    integer(helper_rank,'effective helper rank',0,8)
+    if helper_rank==7:raise ValueError('helper must be at least Novice (rank 3)')
+    validate_resolved_request(mods,helper_rank,penalty_count,helper_bonus)
 
 
 @dataclass(frozen=True)
@@ -61,7 +69,7 @@ class AdjustedSkillRoll(SkillRoll):
 
     def __post_init__(self):
         integer(self.rank,'resolved skill rank',1)
-        validate_request(1,self.modifier,self.helper_rank,len(self.penalties),self.helper_bonus)
+        validate_resolved_request(self.modifier,self.helper_rank,len(self.penalties),self.helper_bonus)
         integer(self.dice_count,'resolved skill pool dice count',0)
         object.__setattr__(self,'faces',dice(self.faces,self.dice_count))
         object.__setattr__(self,'penalties',dice(self.penalties))
@@ -118,14 +126,21 @@ def extended(rolls, ordinary_dc, complexity, rank, limited, *, effective_rank=No
     Completion may occur on the final allowed attempt. A finished history cannot
     accept later rolls, which would improperly spend time or consume randomness.
     """
-    rolls=tuple(rolls)
-    integer(ordinary_dc,'DC');integer(complexity,'complexity',2,5)
     integer(rank,'ordinary rank',1,6)
-    if type(limited) is not bool:raise ValueError('limit policy requires a GM decision')
     if effective_rank is None:effective_rank=rank
     integer(effective_rank,'rank-dependent effect rank',1,8)
     if effective_rank not in (rank,8) or (effective_rank==8 and rank!=6):
         raise ValueError('effective rank requires a sourced Master-rank extension')
+    return extended_resolved(rolls,ordinary_dc,complexity,rank,limited,effective_rank=effective_rank)
+
+
+def extended_resolved(rolls, ordinary_dc, complexity, rank, limited, *, effective_rank):
+    """Arithmetic over source-admitted ranks; this does not grant a skill rank."""
+    rolls=tuple(rolls)
+    integer(ordinary_dc,'DC');integer(complexity,'complexity',2,5)
+    integer(rank,'resolved skill rank',1)
+    integer(effective_rank,'resolved effective skill rank',1)
+    if type(limited) is not bool:raise ValueError('limit policy requires a GM decision')
     limit=M.ratio(effective_rank,2) if limited else None
     dc=ordinary_dc*complexity;total=0
     for i,roll in enumerate(rolls):

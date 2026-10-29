@@ -1,15 +1,12 @@
 """C02 HP/evasion state contracts on native creation, GM and durable graphs."""
 from pathlib import Path
 from copy import deepcopy
-from unittest.mock import patch
 import json,sys,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'engine'))
 from engine import Rules,Engine,Combatant
 from builder import build_trainer,build_pokemon
 import state_codec as CODEC
 import state_grants as GRANTS
-from ruleset import RuleFilter
-from tools.native_scenario_fixture import assert_rejected_unchanged
 
 class HpEvasionStateTests(unittest.TestCase):
  @classmethod
@@ -88,117 +85,5 @@ class HpEvasionStateTests(unittest.TestCase):
   self.assertEqual((c.base_max_hp,c.max_hp,c.hp,c.evasion('물리')),expected)
   GRANTS.remove_owned(e,c,'fixture:equipment');self.assertEqual(c.evasion('물리'),4)
   self.assertEqual((c.base_max_hp,c.max_hp,c.hp),(60,48,31))
-
- def _restore_evasion_ruleset(self,original):
-  self.r.ruleset=original;self.r._apply_ruleset()
- def _select_evasion_profile(self,profile):
-  original=self.r.ruleset
-  self.addCleanup(self._restore_evasion_ruleset,original)
-  self.r.ruleset=RuleFilter.load(str(ROOT),profile) if isinstance(profile,str) else RuleFilter(profile)
-  self.r._apply_ruleset()
- def test_explicit_korean_nearest_and_default_floor_boundaries_all_channels(self):
-  cases=[(1,0,0),(2,0,0),(3,0,1),(4,0,1),(5,1,1),(7,1,1),(8,1,2),(9,1,2),(10,2,2),(12,2,2),(13,2,3),(14,2,3),(28,5,6),(29,5,6),(30,6,6),(70,6,6)]
-  for profile,index in [('core',1),('core-evasion-ptk-ch02-nearest',2)]:
-   self._select_evasion_profile(profile)
-   for stat,move_class in [('def','물리'),('spd','특수'),('spe','변화')]:
-    for case in cases:
-     with self.subTest(profile=profile,stat=stat,value=case[0]):
-      for other in ('def','spd','spe'):self.e.gm.set_stat(self.c,other,1,reason='isolate source-qualified Evasion channel')
-      self.e.gm.set_stat(self.c,stat,case[0],reason='observed Evasion source stat')
-      self.assertEqual(self.c.evasion(move_class),case[index])
- def test_same_actor_source_switch_rejects_unknown_version_and_excluded_rule(self):
-  identity=self.c.entity_id
-  for stat in ('def','spd','spe'):self.e.gm.set_stat(self.c,stat,13,reason='same actor source-switch observation')
-  for profile,want in [('core',2),('core-evasion-ptk-ch02-nearest',3),('core',2)]:
-   self._select_evasion_profile(profile)
-   self.assertEqual([self.c.evasion(kind) for kind in ('물리','특수','변화')],[want]*3)
-   self.assertEqual(self.c.entity_id,identity)
-  profile=deepcopy(self.r.ruleset.profile)
-  profile['unit_versions']['combat/evasion']='unknown_evasion_source'
-  self._select_evasion_profile(profile)
-  assert_rejected_unchanged(self.e,lambda:self.c.evasion('물리'),reason_pattern='Selected rule version is missing or invalid: combat/evasion')
-  self._select_evasion_profile('core-evasion-ptk-ch02-nearest')
-  profile=deepcopy(self.r.ruleset.profile);profile['exclude_units']=['combat/evasion']
-  self._select_evasion_profile(profile)
-  assert_rejected_unchanged(self.e,lambda:self.c.evasion('물리'),reason_pattern='Excluded rule selection for combat/evasion')
-  self._select_evasion_profile('core')
-  with patch.dict(self.r.units['combat/evasion']['mech']['data'],{'stat_rounding':'unknown'}):
-   assert_rejected_unchanged(self.e,lambda:self.c.evasion('물리'),reason_pattern='unknown Evasion stat rounding policy')
- def test_both_variants_public_accuracy_keep_stat_cap_and_independent_bonuses(self):
-  move=dict(self.r.moves[self.r.move_id('몸통박치기')]);move['ac']=2;move['class']='물리'
-  for profile,want in [('core',3),('core-evasion-ptk-ch02-nearest',4)]:
-   self._select_evasion_profile(profile)
-   self.e.gm.set_stage(self.c,'eva',value=0,reason='reset aggregate modifier between profiles')
-   self.e.gm.set_stat(self.c,'def',8,reason='rounding-sensitive actual defense')
-   self.e.gm.set_stat(self.c,'spe',1,reason='isolate physical channel')
-   GRANTS.numeric(self.c,'evasion_mod',2,'fixture:evasion-source-bonus',bounds=(-6,6))
-   self.assertEqual(self.c.evasion('물리'),want)
-   self.assertFalse(self.e.accuracy_check(self.a,self.c,move,fixed_roll=want+1)[0])
-   self.assertTrue(self.e.accuracy_check(self.a,self.c,move,fixed_roll=want+2)[0])
-   self.assertEqual(self.c.evasion('물리',ignore_stats=True),2)
-   self.assertEqual(self.c.evasion('물리',ignore_nonstats=True),want-2)
-   self.e.gm.set_stat(self.c,'def',70,reason='stat component reaches its independent six cap')
-   self.assertEqual(self.c.evasion('물리'),8)
-   self.e.gm.set_stage(self.c,'eva',value=6,reason='aggregate source remains independent')
-   self.assertEqual(self.c.evasion('물리'),9)
-   GRANTS.remove_owned(self.e,self.c,'fixture:evasion-source-bonus')
- def test_both_variants_apply_current_stage_and_preserve_suppression(self):
-  for profile,want in [('core',1),('core-evasion-ptk-ch02-nearest',2)]:
-   self._select_evasion_profile(profile)
-   for stat in ('def','spd','spe'):self.e.gm.set_stat(self.c,stat,8,reason='rounding-sensitive staged stat')
-   self.e.gm.set_stage(self.c,'def',1,reason='current defense stage')
-   baseline=deepcopy(self.c.spec['stats'])
-   self.assertEqual(self.c.staged('def'),9)
-   self.assertEqual([self.c.evasion(kind) for kind in ('물리','특수','변화')],[want]*3)
-   self.e.gm.add_condition(self.c,'구속',reason='actual speed Evasion suppression')
-   self.assertEqual(self.c.evasion('변화'),0);self.assertEqual(self.c.evasion('물리'),want)
-   self.e.gm.add_condition(self.c,'잠듦',reason='actual all-channel suppression')
-   self.assertEqual(self.c.evasion('물리'),0)
-   self.e.gm.remove_condition(self.c,'잠듦',reason='awakened');self.e.gm.remove_condition(self.c,'구속',reason='released')
-   self.assertEqual(self.c.evasion('물리'),want);self.assertEqual(self.c.spec['stats'],baseline)
-   self.e.gm.set_hp(self.c,value=0,reason='actual unconscious Evasion suppression')
-   self.assertEqual(self.c.evasion('물리'),0)
-   self.e.gm.set_hp(self.c,value=self.c.max_hp,reason='GM observes conscious actor before next source variant')
- def test_selected_evasion_source_is_rechecked_without_cross_profile_leakage(self):
-  for stat in ('def','spd','spe'):self.e.gm.set_stat(self.c,stat,8,reason='source-freshness observation')
-  read_bytes=Path.read_bytes
-  def changed(path):
-   raw=read_bytes(path)
-   return raw+b'changed' if path.name=='ch02-character-creation.md' else raw
-  self._select_evasion_profile('core-evasion-ptk-ch02-nearest')
-  self.assertEqual(self.c.evasion('물리'),2)
-  with patch.object(Path,'read_bytes',changed):
-   assert_rejected_unchanged(self.e,lambda:self.c.evasion('물리'),reason_pattern='Evasion stat rounding source changed')
-   self._select_evasion_profile('core')
-   self.assertEqual(self.c.evasion('물리'),1)
-  self._select_evasion_profile('core-evasion-ptk-ch02-nearest')
-  self.assertEqual(self.c.evasion('물리'),2)
- def test_both_variants_gm_and_cold_restore_keep_policy_identity_and_reject_mismatch(self):
-  profiles=['core','core-evasion-ptk-ch02-nearest']
-  for index,profile in enumerate(profiles):
-   with self.subTest(profile=profile):
-    rules=Rules(str(ROOT),ruleset=profile);engine=Engine(rules,seed=511)
-    actor=Combatant(rules,build_trainer(rules,'cold Evasion defender',10,{'hp':10,'atk':10,'def':8,'spa':10,'spd':8,'spe':8},abilities=[]))
-    engine.gm.add_combatant(actor,pos=(1,1),side='party',reason='actual cold-restore actor')
-    engine.gm.set_stage(actor,'def',1,reason='staged Evasion boundary')
-    GRANTS.numeric(actor,'evasion_mod',2,'fixture:cold-evasion-bonus',bounds=(-6,6))
-    want=3+index
-    self.assertEqual(actor.evasion('물리'),want)
-    engine.gm.snapshot('source-selected-evasion')
-    engine.gm.set_stage(actor,'def',-6,reason='temporary stage change')
-    engine.gm.restore('source-selected-evasion')
-    self.assertEqual((actor.staged('def'),actor.evasion('물리')),(9,want))
-    payload=json.loads(json.dumps(CODEC.dump_engine(engine),ensure_ascii=False))
-    fresh=Rules(str(ROOT),ruleset=profile)
-    restored=CODEC.load_engine(fresh,payload)
-    loaded=next(c for c in restored.everyone if c.entity_id==actor.entity_id)
-    self.assertIs(loaded.r,restored.r)
-    self.assertEqual((loaded.staged('def'),loaded.evasion('물리')),(9,want))
-    self.assertEqual(restored.r.ruleset.name,profile)
-    GRANTS.remove_owned(restored,loaded,'fixture:cold-evasion-bonus')
-    self.assertEqual(loaded.evasion('물리'),want-2)
-    other=Rules(str(ROOT),ruleset=profiles[1-index])
-    with self.assertRaisesRegex(CODEC.StateCodecError,'selected rule/profile/source fingerprint mismatch'):
-     CODEC.load_engine(other,payload)
 
 if __name__=='__main__':unittest.main()

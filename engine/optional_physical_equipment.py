@@ -425,9 +425,10 @@ def damage_roll_bonus(engine, attacker, target, move):
 def resistance_steps(engine, target, move_type):
     if move_type not in ("불꽃", "Fire") or engine.grid is None:
         return 0
-    from grid import cheb
+    import world_entities as WORLD
     return 1 if any(wearer is not target and wearer.side == target.side
-                    and cheb(wearer.pos, target.pos) <= 2 and _active(wearer, "svalinn")
+                    and (distance := WORLD.distance_known(wearer, target)) is not None
+                    and distance <= 2 and _active(wearer, "svalinn")
                     for wearer in engine.time_actors()) else 0
 
 
@@ -764,8 +765,8 @@ def activate_heartwarming_flute(engine, actor, *, protected_allies=()):
             raise ValueError("Heartwarming Flute protection requires actual allies")
     if engine.grid is None:
         raise ValueError("Heartwarming Flute requires mapped 20 metre recipients")
-    from grid import cheb
-    in_range = [target for target in participants if cheb(actor.pos, target.pos) <= 20]
+    in_range = [target for target in participants
+                if (distance := WORLD.distance_known(actor, target)) is not None and distance <= 20]
     if any(ally not in in_range for ally in protected_allies):
         raise ValueError("Heartwarming Flute protected ally outside 20 metres")
     frequency = {"kind": "scene", "uses": 1}
@@ -912,6 +913,22 @@ def validate_world(engine, index):
                     or obj.get("item_rule_id") != item_id):
                 raise ValueError("optional equipment projection lacks its live physical registration")
             definition_row = definition(engine.r, item_id)
+            source = actor.spec.get("state_grants", {}).get("sources", {}).get(registration.get("state_source"), {})
+            expected = {
+                "kind": definition_row["kind"], "clause_id": definition_row["clause_id"],
+                "save_condition": definition_row.get("save_condition"),
+                "save_bonus": definition_row.get("save_bonus", 0),
+                "mental_bonus": definition_row.get("mental_bonus", 0),
+                "free_float": definition_row.get("free_float", 0),
+                # The equipped mode is evidenced by its own native Mindlock grant.
+                "iron_mind": definition_row["kind"] == "mental_shield"
+                    and "정신봉인" in source.get("grants", {}).get("capabilities", ()),
+            }
+            if definition_row["kind"] != "space_suit":
+                expected["weight_lb"] = definition_row.get("weight_lb")
+            if any(field not in row or type(row[field]) is not type(value) or row[field] != value
+                   for field, value in expected.items()):
+                raise ValueError("optional equipment projection differs from its selected definition")
             if definition_row["kind"] in ("excalibur", "shadow_walkers", "space_suit"):
                 _validate_object_state(obj, definition_row)
             if definition_row["kind"] == "space_suit":

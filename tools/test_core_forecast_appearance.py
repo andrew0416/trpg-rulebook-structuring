@@ -6,7 +6,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
 sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 import test_category2_ability_state_projection as fixture
 import ability_state_projection as P

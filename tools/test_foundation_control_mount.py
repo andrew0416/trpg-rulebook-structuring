@@ -143,20 +143,12 @@ class MountTests(unittest.TestCase):
   self.assertEqual(out['moved'],1);self.assertEqual(self.a.pos,self.p.pos)
   self.assertEqual(self.a.custom_conditions['mount_retention_history'][-1]['event'],'forced_move')
  def test_known_average_rider_exception_is_removed_by_heavier_mass_or_ordinary_load(self):
-  # Retain the declared legacy ID; only an actual significant-weight judgment withdraws the exception.
   self.auto();value=self.policy(1);G.grant(self.p,'capabilities','Mountable 2','fixture:mountable','fixture');self.a.spec['weight_kg']=60
   self.e.board_mount(self.a,self.p,value,gm_mountable=True);self.assertEqual(LOAD.load(self.p)['weight_kg'],0)
   self.a.spec['weight_kg']=71
-  with self.assertRaisesRegex(ValueError,'significance judgment'):LOAD.load(self.p)
-  choice={'significant':False,'reason':'GM observes this rider excess as insignificant','scope':M.mountable_load_scope(self.p)}
-  LOAD.set_carried(self.e,self.p,[],choice['reason'],mountable_load=choice);self.assertEqual(LOAD.load(self.p)['weight_kg'],0)
-  self.a.spec['weight_kg']=20;objects=[{'id':'object/bag','weight_kg':1}]
-  choice={'significant':True,'reason':'GM establishes this extra load as significant here','scope':M.mountable_load_scope(self.p,objects=objects)}
-  LOAD.set_carried(self.e,self.p,objects,choice['reason'],mountable_load=choice)
+  with self.assertRaises(ValueError):LOAD.load(self.p)
+  self.a.spec['weight_kg']=20;LOAD.set_carried(self.e,self.p,[{'id':'object/bag','weight_kg':1}],'actual additional bag')
   self.assertEqual(LOAD.load(self.p)['weight_kg'],21)
-  choice.update(significant=False,reason='GM revises the same actual bag observation to insignificant')
-  LOAD.set_carried(self.e,self.p,objects,choice['reason'],mountable_load=choice)
-  self.assertEqual(LOAD.load(self.p)['weight_kg'],1)
  def test_live_capability_loss_cannot_keep_average_weight_exemption(self):
   self.auto();value=self.policy(1);G.grant(self.p,'capabilities','Mountable 2','fixture:mountable','fixture');self.a.spec['weight_kg']=60
   self.e.board_mount(self.a,self.p,value,gm_mountable=True);G.revoke(self.p,'fixture:mountable')
@@ -176,18 +168,13 @@ class MountTests(unittest.TestCase):
   third=rider('native third rider',(4,3));before=self.snap()
   with self.assertRaisesRegex(ValueError,'seat capacity'):self.e.board_mount(third,self.p,value,gm_mountable=True)
   self.assertEqual(before,self.snap())
-  # The explicit average describes the aggregate rider allowance, not a per-rider cutoff.
+  # The numeric average is an explicit GM observation, not a rulebook constant.
   self.a.spec['weight_kg']=value['load']['average_exception']['average_weight_kg']+1
-  self.assertEqual(LOAD.load(self.p)['weight_kg'],0)
+  with self.assertRaisesRegex(ValueError,'Power limit'):LOAD.load(self.p)
   self.a.spec['weight_kg']=60
   before=self.snap()
-  with self.assertRaisesRegex(ValueError,'significance judgment'):LOAD.set_carried(self.e,self.p,[{'id':'object/native-extra-bag','weight_kg':1}],'actual additional load')
+  with self.assertRaisesRegex(ValueError,'Power limit'):LOAD.set_carried(self.e,self.p,[{'id':'object/native-extra-bag','weight_kg':1}],'actual additional load')
   self.assertEqual(before,self.snap())
-  objects=[{'id':'object/native-extra-bag','weight_kg':1}]
-  choice={'significant':False,'reason':'GM observes this actual bag as insignificant','scope':M.mountable_load_scope(self.p,objects=objects)}
-  LOAD.set_carried(self.e,self.p,objects,choice['reason'],mountable_load=choice)
-  self.assertEqual(LOAD.load(self.p)['weight_kg'],1)
-  LOAD.set_carried(self.e,self.p,[],'actual bag released before shared travel')
   third.pos=(0,0);self.begin(self.a);self.t.pos=(6,3);out=self.e.approach(self.a,self.t)
   self.assertEqual((out['distance'],out['remaining']),(2,6));self.assertEqual(self.a.pos,self.p.pos);self.assertEqual(second.pos,self.p.pos)
   saved=self.snap();loaded=load_engine(self.r,json.loads(json.dumps(saved,ensure_ascii=False)));index=W.actor_index(loaded)

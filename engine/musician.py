@@ -54,8 +54,8 @@ def qualification(actor, feature, snapshot, prerequisite_source):
     for parent, request in snapshot['parents'].items():
         if not any(r['request_id'] == request for r in _records(actor, parent, False)):
             raise ValueError('actual historical Musician prerequisite receipt required')
-    if any(type(v) is not int or not 1 <= v <= 6 for v in snapshot['ranks'].values()):
-        raise ValueError('actual Musician skill ranks required')
+    for value in snapshot['ranks'].values():
+        SKILLS.validate_rank_value(actor.r,value,label='actual Musician skill rank')
     branch = snapshot['branch']
     if (feature == ABILITY and branch not in ('방음', '소리묻히기', '소리묻히기 [Playtest]')) or (feature != ABILITY and branch is not None):
         raise ValueError('printed Musical Ability selection required')

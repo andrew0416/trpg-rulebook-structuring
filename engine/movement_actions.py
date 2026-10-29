@@ -12,6 +12,217 @@ import action_lifecycle as ACTION
 import capability_actions as LOAD
 from grid import cheb
 MODES=('land','sky','levitate','swim','burrow','teleport')
+COMMAND='_paid_movement_command'
+
+
+def _command_clock(e,c):
+ return [e.encounter_active,e.round_no,e.elapsed_seconds,c.custom_conditions.get('combat_turn_serial',0),
+         c.spec.get('frequency_state',{}).get('scene',0)]
+
+
+def _command_seal(row):
+ import root_resolution as ROOT
+ return ROOT.fingerprint({key:row[key] for key in ('actor_id','kind','intent','plan','clock','profile','history','action','location')})
+
+
+def validate_commands(e):
+ import world_entities as W,move_activation as ACTIVATION
+ index=W.actor_index(e)
+ for c in index.values():
+  row=c.spec.get(COMMAND)
+  if row is None:continue
+  if (type(row)is not dict or row.get('actor_id')!=c.entity_id or row.get('kind') not in ('burrow','aerial','keystone')
+      or row.get('fingerprint')!=_command_seal(row) or row['clock']!=_command_clock(e,c)
+      or row['profile']!=ACTIVATION._profile(e)):
+   raise ValueError('paid movement command source, owner or boundary changed')
+  if e.encounter_active and e._active_turn_actor is not c:
+   frames=getattr(e,'_initiative_interrupts',{}).get('frames',())
+   if not any(frame['parent'] is c for frame in frames):
+    raise ValueError('paid movement no longer owns its actual suspended turn')
+  location=W.location_of(c)
+  if any(location.get(key)!=row['location'].get(key) for key in ('kind','map_id')):
+   raise ValueError('paid movement changed its original spatial scope')
+  history=getattr(c,'_action_history',[])
+  if not row['history'] or row['history'][-1]!=row['action'] or history[:len(row['history'])]!=row['history']:
+   raise ValueError('paid movement lost its original action history')
+  progress=row['progress']
+  if row['action']!=('standard' if row['kind']=='keystone' else 'shift') or type(row['history'])is not list:
+   raise ValueError('paid movement source action changed')
+  C.integer(progress.get('next'),'paid movement prefix',0,len(row['plan']['path']))
+  if getattr(e,'_movement_command_actor',None) is not c and progress['next']:
+   raise ValueError('completed transfer cannot retain a replayable command')
+  if progress['path']!=row['plan']['path']:
+   raise ValueError('paid movement path changed')
+  if progress.get('phase') not in ('ready','departing','reaction_pending','entry_pending','entering','complete','heavy_pending'):
+   raise ValueError('actual paid movement progress required')
+  if tuple(progress['position'])!=c.pos or progress['altitude']!=c.spec.get('_movement_altitude',0):
+   raise ValueError('paid movement was displaced outside its original prefix')
+  for event_id in progress.get('departure_events',[]):
+   if event_id not in e._passive_events:raise ValueError('paid departure lost its actual native event')
+  opportunity=progress.get('opportunities')
+  if opportunity is not None:
+   ids=opportunity['actors'];cursor=opportunity['next']
+   if (not isinstance(ids,list) or len(set(ids))!=len(ids) or any(uid not in index for uid in ids)
+       or type(cursor)is not int or not 0<=cursor<=len(ids)
+       or opportunity.get('fingerprint')!=__import__('root_resolution').fingerprint({key:value for key,value in opportunity.items() if key!='fingerprint'})
+       or len(opportunity.get('receipts',()))!=cursor):
+    raise ValueError('paid departure lost its ordered actual opportunity actors')
+   observed=set()
+   for number,receipt in enumerate(opportunity['receipts']):
+    if receipt.get('actor_id')!=ids[number] or type(receipt.get('completions'))is not list:
+     raise ValueError('paid departure lost its actual opportunity prefix')
+    for identity in receipt['completions']:
+     completion=getattr(e,'_move_completions',{}).get(identity)
+     if identity in observed or completion is None or completion['round']!=row['clock'][1] or completion['seconds']!=row['clock'][2]:
+      raise ValueError('paid opportunity prefix lost its original native completion')
+     observed.add(identity)
+   if any(e._passive_events[event_id].get('completion_id') not in observed for event_id in progress.get('departure_events',())):
+    raise ValueError('paid departure pending event belongs to another native producer')
+  if row.get('heavy_event') is not None and row['heavy_event'] not in e._heavy_events:
+   raise ValueError('paid departure lost its actual Heavy interruption')
+ return True
+
+
+def ensure_command_clear(e,c):
+ row=c.spec.get(COMMAND)
+ if row is None or getattr(e,'_movement_command_actor',None) is c:return
+ # The actual waiting attack may still offer this mover its own Detect reaction.
+ import initiative_interrupts as INTERRUPTS
+ frame=INTERRUPTS.frame(e)
+ if frame and frame['actor'] is c:
+  window=getattr(e,INTERRUPTS.KEY)['windows'][frame['window_id']]
+  if window['trigger'].get('event_id') in row['progress'].get('departure_events',()):return
+ raise ValueError('finish the original paid movement command before another action or owner boundary')
+
+
+def ensure_commands_boundary(e):
+ for c in __import__('world_entities').actor_index(e).values():ensure_command_clear(e,c)
+
+
+def _command_owns(c,progress):
+ row=c.spec.get(COMMAND)
+ return row is not None and row.get('progress') is progress
+
+
+def _command_opportunities(e,c,enemies,progress):
+ if not _command_owns(c,progress):raise ValueError('actual paid command must own departure progress')
+ import world_entities as W,root_resolution as ROOT,passive_events as PASSIVE,heavy_injury_adapter as HEAVY
+ if 'opportunities' not in progress:
+  row={'actors':[actor.entity_id for actor in enemies],'next':0,'receipts':[]}
+  row['fingerprint']=ROOT.fingerprint(row);progress['opportunities']=row
+ row=progress['opportunities'];index=W.actor_index(e)
+ while row['next']<len(row['actors']):
+  ordinal=row['next'];enemy=index[row['actors'][ordinal]]
+  # Admission to this real attack is a spent prefix even if its defense waits.
+  before=set(getattr(e,'_move_completions',{}))
+  row['next']+=1;row['receipts'].append({'actor_id':enemy.entity_id,'completions':[]})
+  row['fingerprint']=ROOT.fingerprint({key:value for key,value in row.items() if key!='fingerprint'})
+  try:
+   if enemy in enemies:TURN.trigger_aoo(e,c,'인접 칸 밖으로 이동',[enemy])
+   PASSIVE.ensure_clear(e);HEAVY.ensure_clear(e)
+  finally:
+   row=c.spec[COMMAND]['progress']['opportunities']
+   row['receipts'][ordinal]['completions']=[identity for identity in getattr(e,'_move_completions',{}) if identity not in before]
+   row['fingerprint']=ROOT.fingerprint({key:value for key,value in row.items() if key!='fingerprint'})
+
+def _prepare_command(e,c,kind,intent):
+ if kind=='burrow':return burrow_plan(e,c,**intent)
+ if kind=='keystone':
+  plan=__import__('keystone_state').prepare_warp(e,c,**intent)
+  if e.encounter_active and c.injuries>=5 and not __import__('taskmaster').ignores_acting_loss(c):return C.PendingDecision('heavy-injury Standard Keystone action needs reviewed action composition')
+  return plan
+ destination=intent['destination'];mode=intent['mode'];altitude=intent['altitude']
+ reason(intent['reason_text']);_aerial_height(e,c,mode,altitude,destination=destination)
+ destination,distance=_travel_geometry(e,c,destination,altitude,intent['gm_distance'])
+ if not free_float_destination(e,c,destination,mode,origin=c.pos,distance=distance):
+  raise ValueError('Free Floating boundary exceeds independent native Sky allowance')
+ allowance=distance_budget(e,c,mode)
+ if distance>allowance:raise ValueError('aerial destination exceeds movement allowance')
+ return {'path':[{'position':destination,'altitude':altitude,'gm_distance':distance}],
+         'mode':mode,'budget':allowance,'distance':distance,'destination':destination,'altitude':altitude}
+
+
+def _continue_command(e,c,row):
+ if row.get('heavy_event') is not None:
+  raise ValueError('Heavy movement remainder requires explicit native adjudication; never replay it automatically')
+ kind=row['kind'];plan=row['plan'];progress=row['progress']
+ if not c.on_field or c.captured or c.dead or c.fainted:
+  # Recall/capture/removal is an independent world change, not a payment refund.
+  progress['phase']='complete'
+  e.log('  '+c.name+': paid movement cancelled; actor is no longer available','movement/paid-command')
+  return False
+ if not TURN.can_act(e,c) or not TURN.movement_permission(e,c):return False
+ if kind=='keystone':return __import__('keystone_state').continue_warp(e,c,plan,progress)
+ if kind=='burrow':
+  result=follow_paid_transfer(e,c,plan,progress=progress)
+  return {key:value for key,value in result.items() if key not in ('steps','mode')} if result['steps'] else False
+ movement=follow_paid_path(e,c,plan['path'],mode=plan['mode'],maximum_distance=plan['budget'],progress=progress)
+ if movement['steps']!=1:return False
+ e.log('  '+c.name+': '+plan['mode']+' '+str(plan['distance'])+'m → '+str(plan['destination'])+' 고도 '+str(plan['altitude']),'capability/'+plan['mode'])
+ return {'distance':plan['distance'],'position':plan['destination'],'altitude':plan['altitude'],'mode':plan['mode']}
+
+
+def run_command(e,c,kind,intent):
+ """Retain one native paid departure; same public intent resumes its suffix."""
+ import state_grants as G,world_entities as W,move_activation as ACTIVATION
+ W.require_actors(e,c)
+ if kind not in ('burrow','aerial','keystone'):raise ValueError('supported native movement command required')
+ old=c.spec.get(COMMAND)
+ if old is not None:
+  validate_commands(e)
+  if old['kind']!=kind or old['intent']!=intent:raise ValueError('cannot replace the original paid movement command')
+ pending=[]
+ def apply(staged,actor):
+  previous=getattr(staged,'_movement_command_actor',None)
+  staged._movement_command_actor=actor
+  # One outer graph transaction owns the same environment refresh as managed movement.
+  had_depth=hasattr(staged,'_environment_change_depth')
+  depth=getattr(staged,'_environment_change_depth',0)
+  staged._environment_change_depth=depth+1
+  try:
+   row=actor.spec.get(COMMAND)
+   if row is None:
+    boundary(staged,{'keystone':'keystone_warp','burrow':'burrow_move','aerial':'aerial_move'}[kind])
+    plan=_prepare_command(staged,actor,kind,intent)
+    if isinstance(plan,C.PendingDecision):return plan
+    action='standard' if kind=='keystone' else 'shift'
+    if not actor.on_field or actor.captured or not TURN.movement_permission(staged,actor) or not TURN.spend(staged,actor,action,'쐐기돌 점멸' if kind=='keystone' else '지중 이동' if kind=='burrow' else '공중/부유 이동',movement=kind!='keystone'):return False
+    progress={};_paid_progress(actor,plan['path'],progress)
+    row={'actor_id':actor.entity_id,'kind':kind,'intent':deepcopy(intent),'plan':deepcopy(plan),
+         'clock':_command_clock(staged,actor),'profile':ACTIVATION._profile(staged),
+         'history':deepcopy(actor._action_history),'action':action,'location':deepcopy(W.location_of(actor)),'progress':progress}
+    row['fingerprint']=_command_seal(row);actor.spec[COMMAND]=row
+   else:
+    boundary(staged,{'keystone':'keystone_warp','burrow':'burrow_move','aerial':'aerial_move'}[kind]);_paid_receipts(staged,row['progress'])
+   result=_continue_command(staged,actor,row)
+   current=actor.spec.get(COMMAND)
+   if current is not None:
+    progress=current['progress']
+    # Arrival is already committed. Its native entry event resumes independently.
+    if progress.get('next') or progress.get('phase') not in ('reaction_pending','departing'):
+     actor.spec.pop(COMMAND,None)
+   return result
+  except Exception as error:
+   if not G.record_native_pending(staged,error,pending):raise
+   row=actor.spec.get(COMMAND)
+   if row is not None:
+    progress=row['progress']
+    if progress.get('next'):actor.spec.pop(COMMAND,None)
+    elif type(error) is __import__('passive_events').PassiveEventPending:
+     progress['phase']='reaction_pending'
+     if error.event_id not in progress.setdefault('departure_events',[]):progress['departure_events'].append(error.event_id)
+    else:
+     row['heavy_event']=error.event_id;progress['phase']='heavy_pending'
+   return None
+  finally:
+   if had_depth:staged._environment_change_depth=depth
+   else:vars(staged).pop('_environment_change_depth',None)
+   if previous is None:vars(staged).pop('_movement_command_actor',None)
+   else:staged._movement_command_actor=previous
+ result=G.transition(e,c,apply,include_grid=e.grid is not None,include_rulings=True)
+ if pending:
+  exception,event_id=pending[0];raise exception(event_id)
+ return result
 
 def reason(value):
  if not isinstance(value,str) or not value.strip():raise ValueError('explicit GM world observation reason required')
@@ -203,18 +414,8 @@ def burrow_plan(e,c,path,*,diggable,reason_text,surface=False,maximum_distance=N
 
 
 def burrow_move(e,c,path,*,diggable,reason_text,surface=False):
- import state_grants as G
- return G.transition(e,c,lambda se,sa:_burrow_move(se,sa,path,diggable=diggable,reason_text=reason_text,surface=surface))
-
-def _burrow_move(e,c,path,*,diggable,reason_text,surface=False):
- import environment_change as EC
- if EC.managed(e,c):return EC.run(e,c,lambda s,a:burrow_move(s,a,path,diggable=diggable,reason_text=reason_text,surface=surface))
- boundary(e,'burrow_move')
- plan=burrow_plan(e,c,path,diggable=diggable,reason_text=reason_text,surface=surface)
- if isinstance(plan,C.PendingDecision):return plan
- if not c.on_field or c.captured or not TURN.spend(e,c,'shift','지중 이동',movement=True):return False
- result=follow_paid_transfer(e,c,plan)
- return {k:v for k,v in result.items() if k not in ('steps','mode')} if result['steps'] else False
+ return run_command(e,c,'burrow',{'path':tuple(_point(point) for point in path),
+  'diggable':diggable,'reason_text':reason_text,'surface':surface})
 
 def reset_preflight(c):
  import action_resources as RESOURCES
@@ -319,21 +520,8 @@ def _aerial_height(e,c,mode,altitude,*,destination=None,capability_actor=None):
 
 
 def aerial_move(e,c,destination,*,mode,altitude,reason_text,gm_distance=None):
- import environment_change as EC
- if EC.managed(e,c):return EC.run(e,c,lambda s,a:aerial_move(s,a,destination,mode=mode,altitude=altitude,reason_text=reason_text,gm_distance=gm_distance))
- boundary(e,'aerial_move');reason(reason_text)
- _aerial_height(e,c,mode,altitude,destination=destination)
- destination,distance=_travel_geometry(e,c,destination,altitude,gm_distance)
- if not free_float_destination(e,c,destination,mode,origin=c.pos,distance=distance):
-  raise ValueError('Free Floating boundary exceeds independent native Sky allowance')
- allowance=distance_budget(e,c,mode)
- if distance>allowance:raise ValueError('aerial destination exceeds movement allowance')
- if not c.on_field or c.captured or not TURN.spend(e,c,'shift','공중/부유 이동',movement=True):return False
- movement=follow_paid_path(e,c,[{'position':destination,'altitude':altitude,'gm_distance':distance}],
-                           mode=mode,maximum_distance=allowance)
- if movement['steps']!=1:return False
- e.log('  '+c.name+': '+mode+' '+str(distance)+'m → '+str(destination)+' 고도 '+str(altitude),'capability/'+mode)
- return {'distance':distance,'position':destination,'altitude':altitude,'mode':mode}
+ return run_command(e,c,'aerial',{'destination':_point(destination),'mode':mode,
+  'altitude':altitude,'reason_text':reason_text,'gm_distance':gm_distance})
 
 def teleport_plan(e,c,destination,*,surface_contact,altitude=0,reason_text,gm_distance=None,sky_air_policy=None,maximum_distance=None,ignore_actors=()):
  reason(reason_text)
@@ -392,7 +580,7 @@ def _paid_progress(c,path,progress):
 
 def _paid_receipts(e,progress):
  if progress is not None and progress.get('phase') in ('entry_pending','reaction_pending'):
-  for event_id in progress.get('marksman_events',[]):
+  for event_id in [*progress.get('marksman_events',[]),*progress.get('departure_events',[])]:
    __import__('move_completion').require_returned_event(e,event_id)
   for identity in progress.get('native_actions',[]):
    row=getattr(e,'_native_action_resolutions',{}).get(identity)
@@ -407,8 +595,10 @@ def _paid_receipts(e,progress):
 def _paid_departure(e,c,q,height,progress,*,pass_scope=None,chain_scope=None,disengage_scope=None):
  origin=c.pos;altitude=c.spec.get('_movement_altitude',0)
  permitted=observe_paid_departure(e,c,progress,lambda:departure(e,c,q,height,pass_scope=pass_scope,chain_scope=chain_scope,
-  **({'disengage_scope':disengage_scope} if disengage_scope is not None else {})))
- return permitted and c.pos==origin and c.spec.get('_movement_altitude',0)==altitude
+  **({'disengage_scope':disengage_scope} if disengage_scope is not None else {}),
+  **({'command_progress':progress} if _command_owns(c,progress) else {})))
+ return (permitted and c.on_field and not c.captured and not c.dead and not c.fainted
+         and c.pos==origin and c.spec.get('_movement_altitude',0)==altitude)
 
 
 def observe_paid_departure(e,c,progress,resolve):
@@ -557,6 +747,13 @@ def entry_mode(c,mode,*,altitude=None):
   c.airborne=altitude>0 and mode!='shadow_surface'
 
 
+def _command_path_budget(e,c,mode,maximum_distance,progress):
+ """Untravelled aerial commands retain payment, not a stale physical allowance."""
+ if (not _command_owns(c,progress) or c.spec[COMMAND]['kind']!='aerial'
+     or progress['next']!=0 or progress['distance']!=0):return maximum_distance
+ return min(maximum_distance,distance_budget(e,c,mode))
+
+
 def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress=None,pass_scope=None,chain_scope=None,movement_mode=None,disengage_scope=None):
  """Shared physical movement after a producer has paid its actual action."""
  import body_state as BODY,effects_ext as EXT,control_mount as MOUNT,action_lifecycle as ACTION,field_effects as FIELD
@@ -631,7 +828,7 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
   physical_cost=cost
   exit_candidate=ELECTRO.exit_step(e,c,path,moved,active_exits,movement_mode=shared_mode,progress=progress)
   if exit_candidate is not None:cost=0
-  if spent+cost>maximum_distance:break
+  if spent+cost>_command_path_budget(e,c,mode,maximum_distance,progress):break
   if not free_float_destination(e,c,q,movement_mode or mode,origin=origin,distance=free_float_distance_offset+spent+cost,sprint_rate=free_float_sprint):break
   if not LIVING.can_shift(e,c,cost,movement_mode=shared_mode):break
   if not _paid_departure(e,c,q,height,progress,pass_scope=pass_scope,chain_scope=chain_scope,disengage_scope=disengage_scope):break
@@ -644,7 +841,7 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
   physical_cost=cost
   exit_candidate=ELECTRO.exit_step(e,c,path,moved,active_exits,movement_mode=shared_mode,progress=progress)
   if exit_candidate is not None:cost=0
-  if spent+cost>maximum_distance:break
+  if spent+cost>_command_path_budget(e,c,mode,maximum_distance,progress):break
   if not free_float_destination(e,c,q,movement_mode or mode,origin=origin,distance=free_float_distance_offset+spent+cost,sprint_rate=free_float_sprint):break
   if not LIVING.can_shift(e,c,cost,movement_mode=shared_mode):break
   if action_owner is not c and action_owner.spec.get('mount_id')!=c.entity_id:break
@@ -678,7 +875,7 @@ def follow_paid_path(e,c,path,*,mode,maximum_distance,action_owner=None,progress
  if aerial:result['altitude']=c.spec.get('_movement_altitude',0)
  return result
 
-def departure(e,c,destination,altitude,*,pass_scope=None,chain_scope=None,disengage_scope=None):
+def departure(e,c,destination,altitude,*,pass_scope=None,chain_scope=None,disengage_scope=None,command_progress=None):
  # Native opportunity attacks resolve while the mover is still in its old cell.
  # A Shift is not automatically the separate one-metre Disengage maneuver.
  import body_state as BODY
@@ -696,6 +893,7 @@ def departure(e,c,destination,altitude,*,pass_scope=None,chain_scope=None,diseng
   exempt=CHAIN.movement_authority(e,c,chain_scope,[destination],None)
   enemies=[] if exempt is None else [other for other in enemies if other is not exempt]
   if enemies:TURN.trigger_aoo(e,c,'인접 칸 밖으로 이동',enemies)
+ elif command_progress is not None:_command_opportunities(e,c,enemies,command_progress)
  elif enemies:TURN.trigger_aoo(e,c,'인접 칸 밖으로 이동',enemies)
  permitted=TURN.can_act(e,c) and TURN.movement_permission(e,c)
  if permitted:

@@ -3,6 +3,7 @@ from copy import deepcopy
 from hashlib import sha256
 from pathlib import Path
 import common_checks as C
+import skill_modifiers as SKILL_RANKS
 import state_grants as G
 import world_entities as W
 import combat_timing as TIME
@@ -46,7 +47,7 @@ def acquisition_snapshot(e,actor,feature,rank,selection):
 def qualification(actor,feature,snapshot,prerequisite_source):
  import acquisition_qualification as Q
  if prerequisite_source is not None or type(snapshot)is not dict or set(snapshot)!={'rank','parents','selection'}:raise ValueError('actual Sage acquisition observations required')
- C.integer(snapshot['rank'],'Occult Education rank',1,6)
+ SKILL_RANKS.validate_rank_value(actor.r,snapshot['rank'],label='Occult Education rank')
  known={r['request_id']:r['feature_id'] for r in records(actor) if r['feature_id'] in PARENTS[feature]}
  if not isinstance(snapshot['parents'],list) or not set(snapshot['parents'])<=set(known):raise ValueError('actual Sage parent receipts required')
  parents={known[x] for x in snapshot['parents']}
@@ -111,7 +112,7 @@ def grant(e,actor,target,*,stacking,trigger=None):
 def validate_effect(actor,row,*,terminal=False):
  E.validate(row,actor=actor,terminal=terminal);p=row['effect'];m=row[E.KEY]
  C.integer(p.get('amount'),'Sage DR',1)
- C.integer(p.get('rank'),'Sage cast Occult Education rank',1,6);C.integer(p.get('tick'),'Sage actual target Tick',1)
+ SKILL_RANKS.validate_rank_value(actor.r,p.get('rank'),label='Sage cast Occult Education rank');C.integer(p.get('tick'),'Sage actual target Tick',1)
  if p['amount']!=max(p['rank']*2,p['tick']):raise ValueError('Sage DR must use the greater printed operand')
  if p.get('kind')!='sage_dr' or type(p.get('stacking'))is not bool or row['source']!=(PRAYERS if p['stacking'] else CLASS) or p.get('caster_id')!=m.get('applied_by_actor_id') or not isinstance(p.get('acquisition'),str):raise ValueError('sourced Sage DR instance required')
  if m['capacity']!={'bucket':'sage_dr','source':CLASS} or m['lifetime']!={'boundary':'initiative_count','round':row['count_deadline'][0],'count':row['count_deadline'][1]}:raise ValueError('Sage exact full-round deadline required')

@@ -960,7 +960,7 @@ def inhabit_appliance(engine, actor, form, *, appliance_id=None):
                 raise ValueError('actual compatible appliance body required')
             import world_entities as W
             W.require_physical_access(obj)
-            if obj.get('location', {}).get('pos') != list(c.pos) and obj.get('owner_id') != c.entity_id:
+            if W.distance_known(obj, c) != 0 and obj.get('owner_id') != c.entity_id:
                 raise ValueError('Rotom must actually reach its appliance')
         _state(c)['rotom_appliance_id'] = appliance_id if form != '로토무' else None
         return _switch_profile(e, c, form)
@@ -1008,7 +1008,7 @@ def _form_item(engine, actor, instance_id, item_id, *, owned=True):
         raise ValueError('actual catalogued form item instance required')
     W.require_physical_access(obj)
     accessible = actor.entity_id in (obj.get('owner_id'), obj.get('carrier_id'), obj.get('equipped_by'))
-    if not accessible and (owned or obj.get('location', {}).get('pos') != list(actor.pos)):
+    if not accessible and (owned or W.distance_known(obj, actor) != 0):
         raise ValueError('actual form item is not accessible')
     return obj
 

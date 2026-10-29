@@ -16,19 +16,6 @@ import state_codec as CODEC
 import world_entities as W
 
 class RogueScene:
- def setUp(self):
-  context=getattr(self,'_rogue_context',None)
-  if context is not None:
-   stage=self.LIFECYCLE_METHODS.index(self._testMethodName)
-   self.assertEqual(context['case_ids'][stage],self.id())
-   if context.get('blocked'):raise unittest.SkipTest('blocked connected predecessor: '+context['blocked'])
-   if context['next_stage']!=stage:
-    raise unittest.SkipTest('blocked by failed prerequisite: Rogue stage '+str(context['next_stage'])+' did not complete')
-   if stage:
-    old=self.rules.rulings;self.rules.rulings=context['rulings'];self.addCleanup(setattr,self.rules,'rulings',old)
-    self.__dict__.update(context['state']);return
-  old=self.rules.rulings;self.rules.rulings=deepcopy(old);self.addCleanup(setattr,self.rules,'rulings',old)
-  self.setup()
  @classmethod
  def prepare_chained_cases(cls,cases):
   if any(type(case) is not cls for case in cases):raise ValueError('Rogue lifecycle requires this exact class')
@@ -47,6 +34,7 @@ class RogueScene:
     if not inserted:ordered.extend(stages);inserted=True
    else:ordered.append(case)
   return ordered
+
  def complete_rogue_stage(self,stage):
   context=getattr(self,'_rogue_context',None)
   if context is not None:
@@ -54,6 +42,7 @@ class RogueScene:
    completed={'state':{key:getattr(self,key) for key in ('e','a','t','b','u','common','_rogue_base_attack','_rogue_class_only')},
     'rulings':self.rules.rulings,'next_stage':stage+1}
    defer_case_commit(self,lambda:context.update(completed))
+
  def rogue_stage_input(self,stage):
   if getattr(self,'_rogue_context',None) is None:
    if stage>=1:
@@ -61,9 +50,10 @@ class RogueScene:
     __import__('state_fields').base_patch(self.a,{'skills':{'곡예':3,'육상':2,'은신':2}},reason='actual insufficient ranks')
     __import__('state_fields').base_patch(self.a,{'skills':{'곡예':5,'육상':3,'은신':2}},reason='actual two novice ranks')
     self.acquire(R.CLASS);self.observe_rogue_class_only();self.acquire(R.UNDERHAND,ability=R.CRUELTY)
-   if stage>=2:self.seven_acquisitions_prefix();self.restore();self.valid()
+
  def observe_rogue_class_only(self):
   self._rogue_class_only={'attack':self.a.stats['atk'],'feats':tuple(self.a.spec['feats']),'moves':tuple(self.a.moves)}
+
  def qualification_prefix(self):
   self._rogue_base_attack=self.a.stats['atk']
   __import__('state_fields').base_patch(self.a,{'skills':{'곡예':3,'육상':2,'은신':2}},reason='actual insufficient ranks')
@@ -79,12 +69,27 @@ class RogueScene:
    '^printed Rogue skill ranks required$','^choose Core Ambush, Playtest Ambush, or Cruelty explicitly$'])
   self.acquire(R.UNDERHAND,ability=R.CRUELTY)
   self.reject(lambda:self.acquire(R.UNDERHAND,ability=R.AMBUSH,request='again'),'^Underhanded Tactics has one Ability choice$')
+
  def seven_acquisitions_prefix(self):
   __import__('state_fields').base_patch(self.a,{'skills':{'곡예':5,'육상':5,'은신':5,'집중':3,'전투':2}},reason='actual later Rogue training')
   self._rogue_attack_steps=[]
   for uid in R.FEATURES:
    if not R.acquired(self.a,uid):
     before=self.a.stats['atk'];self.acquire(uid,ability=R.CRUELTY);self._rogue_attack_steps.append((uid,before,self.a.stats['atk']))
+
+ def setUp(self):
+  context=getattr(self,'_rogue_context',None)
+  if context is not None:
+   stage=self.LIFECYCLE_METHODS.index(self._testMethodName)
+   self.assertEqual(context['case_ids'][stage],self.id())
+   if context.get('blocked'):raise unittest.SkipTest('blocked connected predecessor: '+context['blocked'])
+   if context['next_stage']!=stage:
+    raise unittest.SkipTest('blocked by failed prerequisite: Rogue stage '+str(context['next_stage'])+' did not complete')
+   if stage:
+    old=self.rules.rulings;self.rules.rulings=context['rulings'];self.addCleanup(setattr,self.rules,'rulings',old)
+    self.__dict__.update(context['state']);return
+  old=self.rules.rulings;self.rules.rulings=deepcopy(old);self.addCleanup(setattr,self.rules,'rulings',old)
+  self.setup()
  def setup(self,skills=None,extra_feats=(),target_kind='pokemon',target_edges=None):
   self.e=Engine(self.rules,seed=2595);self.e.grid=Grid(14,12)
   self.common=dict(level=30,size='중형',stats={'hp':70,'atk':20,'def':10,'spa':20,'spd':10,'spe':20},

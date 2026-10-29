@@ -230,10 +230,6 @@ class SourceBoundaries(unittest.TestCase):
   e.start_round(e.everyone);e.start_of_turn(t)
   self.assertEqual(e.activate_blessed_resilience(t,'불꽃'),(1,0));self.assertEqual(C.resistance_steps(e,t,'불꽃'),1)
   e.end_of_turn(t);e.end_round();e.start_round(e.everyone);e.start_of_turn(t)
-  import native_scenario_fixture as NATIVE
-  NATIVE.assert_rejected_unchanged(e,lambda:e.activate_blessed_resilience(t,'물'),reason_pattern='already used this scene')
-  self.assertEqual(C.resistance_steps(e,t,'불꽃'),1);self.assertEqual(C.resistance_steps(e,t,'물'),0)
-  e.end_of_turn(t);e.end_scene(e.everyone);e.start_round(e.everyone);e.start_of_turn(t)
   self.assertEqual(e.activate_blessed_resilience(t,'물'),(1,0));self.assertEqual(C.resistance_steps(e,t,'불꽃'),0);self.assertEqual(C.resistance_steps(e,t,'물'),1)
   loaded=CODEC.load_engine(self.rules,json.loads(json.dumps(CODEC.dump_engine(e),ensure_ascii=False)))
   lt=next(v for v in loaded.everyone if v.entity_id==t.entity_id);self.assertEqual(C.resistance_steps(loaded,lt,'물'),1)
@@ -256,11 +252,11 @@ class SourceBoundaries(unittest.TestCase):
 
  def test_paragon_category_choices_and_source_scene_end_invalidate_projection(self):
   for category,positive,negative in [('physical','전투','매력'),('mental','기술학','매력'),('spirit','매력','전투')]:
-   helper=SkillTests('runTest');helper.rules=self.rules;helper.setUp()
+   helper=SkillTests('test_paragon_permanent_and_scene_roles_with_atomic_shift_failure');helper.rules=self.rules;helper.setUp()
    helper.own(B.ADVANCED.PARAGON,configuration={'role':'messiah','category':category})
    for skill,rank,expected in [(positive,4 if positive=='전투' else 3,2),(negative,4 if negative=='전투' else 3,0)]:
     self.assertEqual(helper.e.skill_roll(helper.a,skill,fixed=[2]*rank).modifier,expected)
-  helper=SkillTests('runTest');helper.rules=self.rules;helper.setUp()
+  helper=SkillTests('test_paragon_permanent_and_scene_roles_with_atomic_shift_failure');helper.rules=self.rules;helper.setUp()
   helper.own(B.ADVANCED.PARAGON,configuration={'role':'contractor','category':'mental'})
   import turn
   turn.reset_budget(helper.e,helper.a);helper.e.activate_blessing_skill_rule(helper.a,B.ADVANCED.PARAGON,reason='actual category scene activation')

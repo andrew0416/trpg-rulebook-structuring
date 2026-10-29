@@ -16,7 +16,6 @@ class LifecycleTests(unittest.TestCase):
         _fixture_test_frequencies.FrequencyTests.setUpClass();_fixture_test_reference_rules.ReferenceRuleTests.setUpClass()
     def area(self):
         e,a,b,m=_fixture_test_frequencies.FrequencyTests().fixture()
-        e.r.moves[m]['range']='파열 1'
         second=deepcopy(a.spec);second.pop('id',None);second['name']='second'
         c=Combatant(e.r,second)
         e.targets_in_range=lambda *args:[b,c]
@@ -81,7 +80,6 @@ class LifecycleTests(unittest.TestCase):
 
     def potion(self):
         e,a,b=self.plate()
-        e.start_round([a,b]);e.start_of_turn(a)
         a.item=None;a.spec['items']={'상처약':2}
         a.budget={'standard':1,'shift':1,'swift':1}
         a.hp-=30;b.hp-=30
@@ -115,10 +113,8 @@ class LifecycleTests(unittest.TestCase):
         self.assertFalse(getattr(b,'pending_action_loss',None))
     def test_other_heal_penalty_applies_only_next_turn(self):
         e,a,b=self.potion();e.use_item(a,'상처약',b)
-        e.end_of_turn(a)
         e.start_of_turn(b)
         self.assertEqual(b.budget,{'standard':0,'shift':1,'swift':0})
-        e.end_of_turn(b);e.end_round();e.start_round([a,b])
         e.start_of_turn(b)
         self.assertEqual(b.budget,{'standard':1,'shift':1,'swift':1})
 
@@ -164,8 +160,6 @@ class LifecycleTests(unittest.TestCase):
         from grid import Grid
         for hp,conds in [(0,set()),(10,{'기절'})]:
             e,a,b=self.potion();e.grid=Grid(10,10);a.pos=(0,0);b.pos=(5,0);a.hp=hp;a.conditions=conds
-            for actor in (a,b):
-                e.gm.set_footprint(actor,[(0,0)],reason='GM observes the movement-refusal fixture body')
             before=dict(a.budget);e.approach(a,b)
             self.assertEqual(a.pos,(0,0));self.assertEqual(a.budget,before)
     def test_unconscious_user_cannot_throw_ball(self):
@@ -194,4 +188,3 @@ if __name__=='__main__':
     report=dict(generated_at=datetime.now(timezone.utc).isoformat(),scope='Area activation, item identity and GM state lifecycle only.',results=r.rows,input_hashes={p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in paths})
     (ROOT/'output/state-lifecycle-tests.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     sys.exit(0 if r.wasSuccessful() else 1)
-

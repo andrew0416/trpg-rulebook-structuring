@@ -73,7 +73,7 @@ class PersistentConditionsTests(unittest.TestCase):
     for face in (dc-1,dc):
      with self.subTest(types=types,weather=weather,face=face):
       self.setUp();self.e.gm.set_types(self.p,types,reason='actual type');self.e.apply_status(self.p,'얼음');self.begin(self.p)
-      self.e.gm.set_weather(weather,rounds=5 if weather else None,reason='observed sourced weather at the Frozen save')
+      self.e.weather=weather;self.e.weather_rounds=5 if weather else None
       with patch.object(type(self.e),'d20',return_value=face) as roll:self.e.end_of_turn(self.p)
       self.assertEqual(roll.call_count,1);self.assertEqual('얼음' in self.p.conditions,face<dc);self.valid()
   self.setUp();self.e.gm.set_types(self.p,['얼음'],reason='actual type');self.assertFalse(self.e.apply_status(self.p,'얼음'))

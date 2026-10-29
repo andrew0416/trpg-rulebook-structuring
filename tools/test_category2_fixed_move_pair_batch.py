@@ -60,9 +60,7 @@ class FixedMovePairBatchTests(unittest.TestCase):
             dict.fromkeys(("hp", "atk", "def", "spa", "spd", "spe"), 10),
             moves=[],
         )
-        spec.update(classes=[], feats=list(CASES), edges=[], feature_choices={},
-            static_feature_choices={'C2CSV/input/db/feats.csv:R597:main': 'atk',
-                                    'C2CSV/input/db/feats.csv:R598:main': 'spa'})
+        spec.update(classes=[], feats=list(CASES), edges=[], feature_choices={})
         actor = Combatant(self.rules, spec)
         engine.everyone = engine.gm.everyone = [actor]
         return engine, actor
@@ -169,4 +167,3 @@ class FixedMovePairBatchTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

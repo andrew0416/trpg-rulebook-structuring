@@ -78,7 +78,7 @@ def _effects(decision,base_effects,mechanics):
 
 def _owned(rules,spec):
  import move_state as MOVES
- return set(MOVES.known(rules,{'moves':MOVES.owned_list(spec,'moves')}))
+ return set(MOVES.known(rules,{'moves':MOVES.owned_list(spec,'moves',rules=rules)}))
 
 
 def rows(spec):
@@ -146,7 +146,7 @@ def observe(engine,actor,*,application_id,move_id,chosen_type,new_name,effect_de
  if active(engine.r,actor.spec) is not None:raise ValueError('forget the active Move-Synced Move before selecting another')
  mid,base,mechanics,base_effects=_base(engine.r,move_id)
  import move_state as MOVES
- learned=set(MOVES.known(engine.r,{'moves':MOVES.owned_list(actor.spec,'moves',actor.moves)}))
+ learned=set(MOVES.known(engine.r,{'moves':MOVES.owned_list(actor.spec,'moves',actor.moves,rules=actor.r)}))
  if mid not in learned:raise ValueError('Move Sync must select one actually learned Move')
  TYPES.validate_types(engine.r,[chosen_type],label='Move Sync selected type')
  if chosen_type==base['type']:raise ValueError('Move Sync must change the Move type')

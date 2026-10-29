@@ -23,7 +23,7 @@ class AttackLossTests(unittest.TestCase):
     def setUp(self):
         self.e=Engine(self.r,6);self.e.everyone=self.e.gm.everyone=[]
         self.a=self.actor('attacker');self.b=self.actor('sleeper')
-        self.e.start_round(self.e.everyone);self.e.start_of_turn(self.a,initiative_count=20)
+        TURN.reset_budget(self.e,self.a)
 
     def actor(self,name,kind='pokemon'):
         c=Combatant(self.r,dict(name=name,kind=kind,level=20,stats={s:30 for s in F.STATS},

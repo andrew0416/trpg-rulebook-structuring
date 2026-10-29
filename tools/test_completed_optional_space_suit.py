@@ -40,7 +40,7 @@ class SpaceSuitTests(_fixture_test_category2_optional_physical_equipment.Optiona
     self.assertEqual(CAPABILITIES.has(c,'함정면역'),hazard)
     expected=None if hazard else 'high'
     self.assertEqual(CAPABILITIES.toxic_environment(c,'high',{'high':['harm']})['effective'],expected)
-    self.assertEqual(MOVEMENT.capabilities(e,c,environment=False).get('free_float'),4)
+    self.assertEqual(MOVEMENT.capabilities(e,c,environment=False).get('levitate'),4)
     obj=e._physical_objects[row['instance_id']]
     self.assertAlmostEqual(obj['weight_kg'],weight*0.45359237)
     c.spec.setdefault('movement',{})['power']=6;c.spec['power_basis']='current'
@@ -52,7 +52,7 @@ class SpaceSuitTests(_fixture_test_category2_optional_physical_equipment.Optiona
     key=next(key for key,value in q._item_reg.items() if value.get('instance_id')==obj['id'])
     ITEMS.unregister_item(loaded,q,registration_key=key)
     self.assertNotIn('진공면역',GRANTS.effective_capabilities(q));self.assertFalse(CAPABILITIES.has(q,'함정면역'))
-    self.assertNotEqual(MOVEMENT.capabilities(loaded,q,environment=False).get('free_float'),4)
+    self.assertNotEqual(MOVEMENT.capabilities(loaded,q,environment=False).get('levitate'),4)
     self.assertAlmostEqual(loaded._physical_objects[obj['id']]['weight_kg'],weight*0.45359237)
     self.assertTrue(loaded.validate_state()['valid'])
 

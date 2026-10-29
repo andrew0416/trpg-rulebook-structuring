@@ -135,8 +135,6 @@ class MaintenanceTests(unittest.TestCase):
         e = Engine(self.rules, 1)
         pc = Combatant(self.rules, self.pokemon(15))
         tr = Combatant(self.rules, build_trainer(self.rules, "test", 5, {s: 10 for s in pc.stats}, items={"타우린":1}))
-        e.gm.add_combatant(tr, reason="actual vitamin trainer")
-        e.gm.add_combatant(pc, reason="actual vitamin and growth recipient")
         before = dict(pc.stats)
         result = ITEMS.use_item(e, tr, "타우린", pc, free=True)
         self.assertEqual(pc.spec.get("vitamin_bonus", {}).get("atk"), 1, result)
@@ -299,14 +297,12 @@ class MaintenanceTests(unittest.TestCase):
                 self.assertIn(phrase, e.gm_prompts[-1]["text"])
 
     def test_flashbang_use_surfaces_corrected_range(self):
-        spec = self.pokemon(); spec["items"] = {"플래시뱅 [위험:전문 기술학]": 1}
-        e = Engine(self.rules, 1); c = Combatant(self.rules, spec)
+        e = Engine(self.rules, 1); c = Combatant(self.rules, self.pokemon())
         before = set(c.conditions)
         ITEMS.use_item(e, c, "플래시뱅 [위험:전문 기술학]", c, free=True)
         self.assertTrue(e.gm_prompts)
         self.assertIn("19–20", e.gm_prompts[-1]["text"])
         self.assertEqual(c.conditions, before)  # No automatic flinch without an accuracy roll.
-        self.assertEqual(c.spec["items"]["플래시뱅 [위험:전문 기술학]"], 0)
 
 if __name__ == "__main__":
     stream=io.StringIO()

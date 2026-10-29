@@ -4,7 +4,7 @@ from pathlib import Path
 import csv,json,sys,unittest
 
 STAGE=Path(__file__).resolve().parents[1]
-ROOT = STAGE
+ROOT=Path(r'D:\trpg-rulebook-structuring\ptk-structure-experiment')
 sys.path[:0]=[str(STAGE/'engine'),str(ROOT/'engine'),str(ROOT/'tools')]
 
 import effect_instances as INSTANCES

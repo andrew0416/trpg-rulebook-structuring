@@ -4,7 +4,7 @@ from pathlib import Path
 import json,sys,unittest
 
 STAGE=Path(__file__).resolve().parents[1]
-ROOT = STAGE
+ROOT=Path(r'D:\trpg-rulebook-structuring\ptk-structure-experiment')
 sys.path[:0]=[str(STAGE/'engine'),str(ROOT/'engine'),str(ROOT/'tools')]
 
 # Seed every staged replacement before engine.py promotes its own directory.

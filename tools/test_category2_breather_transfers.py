@@ -50,7 +50,7 @@ class BreatherTransferTests(unittest.TestCase):
   self.e.burrow_move(self.a,[(2,2),(3,2)],diggable=True,reason_text='actual prior turn tunnel')
   self.e.end_of_turn(self.a);self.e.start_round([self.a,self.b]);self.e.start_of_turn(self.a)
   entries=[];original=EXT.on_enter_cell
-  with patch.object(EXT,'on_enter_cell',side_effect=lambda e,c,p,**kw:(entries.append(p),original(e,c,p,**kw))[-1]):
+  with patch.object(EXT,'on_enter_cell',side_effect=lambda e,c,p:(entries.append(p),original(e,c,p))[-1]):
    result=self.take(path=[(3,2),(4,2),(5,2),(6,2)],movement_mode='burrow',movement_options={'diggable':True,'surface':True})
   self.assertTrue(result['completed']);self.assertEqual(entries,[(6,2)]);self.assertFalse(self.a.spec['_burrow']['underground'])
   self.assertEqual((self.a.temp_hp,len(self.e._burrow_tunnels)),(5,2))
@@ -82,15 +82,12 @@ class BreatherTransferTests(unittest.TestCase):
   self.assertIsInstance(self.take(path=[(2,2),(6,2)],movement_mode='teleport',movement_options={'surface_contact':True}),C.PendingDecision)
   self.assertEqual(CODEC.dump_engine(self.e),before)
  def test_actual_teleport_reaction_then_changed_destination_resumes_after_json_without_repay_or_aoo(self):
-  options=self.transfer_options('teleport');self.b.aoo_used=False;teleport_plan=M.teleport_plan
-  def obstruct(e,c,*args,**kwargs):
-   # FAQ p18: Teleport never provokes. Observe the actual post-payment
-   # geometry boundary instead of inventing a departure reaction.
-   if c.budget['standard']==0:e.grid.blocking.add((6,2))
-   return teleport_plan(e,c,*args,**kwargs)
-  with patch.object(M,'teleport_plan',side_effect=obstruct),patch.object(self.e,'use_move',wraps=self.e.use_move) as attack:
+  options=self.transfer_options('teleport');self.b.aoo_used=False;departure=M.departure
+  def obstruct(e,c,q,altitude):
+   permitted=departure(e,c,q,altitude);e.grid.blocking.add((6,2));return permitted
+  with patch.object(M,'departure',side_effect=obstruct),patch.object(self.e,'use_move',wraps=self.e.use_move) as attack:
    with self.assertRaisesRegex(ValueError,'line of sight'):self.e.take_breather(self.a,**options)
-   self.assertEqual(attack.call_count,0)
+   self.assertEqual(attack.call_count,1)
   self.assertEqual((self.a.pos,self.a._action_history.count('full')),((2,2),1));self.assertNotIn('_teleport',self.a.spec)
   restored=CODEC.load_engine(self.r,json.loads(json.dumps(CODEC.dump_engine(self.e))))
   current=next(c for c in restored.everyone if c.entity_id==self.a.entity_id);restored.grid.blocking.remove((6,2))
@@ -147,8 +144,8 @@ class BreatherTransferTests(unittest.TestCase):
  def test_changed_actual_curse_origin_altitude_after_surface_entry_cannot_use_planar_cure(self):
   self.movement(burrow=6);self.e.apply_status(self.a,'저주',source='move/저주',applied_by=self.b)
   original=EXT.on_enter_cell
-  def entry(e,c,p,**kw):
-   original(e,c,p,**kw)
+  def entry(e,c,p):
+   original(e,c,p)
    G.transition(e,self.b,lambda s,origin:origin.spec.__setitem__('_movement_altitude',1))
   with patch.object(EXT,'on_enter_cell',side_effect=entry):
    with self.assertRaisesRegex(ValueError,'3D or underground'):

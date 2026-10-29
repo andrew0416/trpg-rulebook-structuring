@@ -31,7 +31,7 @@ class NonlandBreatherTests(unittest.TestCase):
   path=self.air(((2,2),0,None),((3,2),0,None),((3,2),1,None),
                 ((4,2),1,None),((5,2),0,1),((6,2),0,None))
   entered=[];original=EXT.on_enter_cell
-  with patch.object(M,'follow_paid_path',wraps=M.follow_paid_path) as follow,patch.object(EXT,'on_enter_cell',side_effect=lambda e,c,p,**kw:(entered.append((p,c.spec.get('_movement_altitude',0),c.temp_hp)),original(e,c,p,**kw))[-1]):
+  with patch.object(M,'follow_paid_path',wraps=M.follow_paid_path) as follow,patch.object(EXT,'on_enter_cell',side_effect=lambda e,c,p:(entered.append((p,c.spec.get('_movement_altitude',0),c.temp_hp)),original(e,c,p))[-1]):
    result=self.take(path=path,movement_mode='sky')
   self.assertTrue(result['completed']);self.assertEqual(result['movement']['distance'],5)
   self.assertEqual((self.a.pos,self.a.spec['_movement_altitude'],self.a.airborne),((6,2),0,False))
@@ -79,8 +79,8 @@ class NonlandBreatherTests(unittest.TestCase):
   path=self.air(((2,2),0,None),((2,2),1,None),((3,2),1,None),
                 ((4,2),1,None),((5,2),1,None),((6,2),1,None))
   options=self.options(path=path,movement_mode='sky');departure=M.departure
-  def obstruct(e,c,q,altitude,**options):
-   permitted=departure(e,c,q,altitude,**options)
+  def obstruct(e,c,q,altitude):
+   permitted=departure(e,c,q,altitude)
    if c.entity_id==self.a.entity_id and c.pos==(3,2):e.grid.blocking.add((4,2))
    return permitted
   with patch.object(M,'departure',side_effect=obstruct):
@@ -89,8 +89,8 @@ class NonlandBreatherTests(unittest.TestCase):
   restored=CODEC.load_engine(self.r,json.loads(json.dumps(CODEC.dump_engine(self.e))))
   current=next(c for c in restored.everyone if c.entity_id==self.a.entity_id);restored.grid.blocking.remove((4,2))
   departed=[];departure=M.departure
-  def observe(e,c,q,altitude,**options):
-   departed.append((c.pos,c.spec['_movement_altitude'],q,altitude));return departure(e,c,q,altitude,**options)
+  def observe(e,c,q,altitude):
+   departed.append((c.pos,c.spec['_movement_altitude'],q,altitude));return departure(e,c,q,altitude)
   with patch.object(RECOVERY,'saving_check',side_effect=AssertionError('actual save cannot replay')),patch.object(M,'departure',side_effect=observe):
    result=restored.take_breather(current,**options)
   self.assertTrue(result['completed']);self.assertEqual(result['movement']['distance'],5)

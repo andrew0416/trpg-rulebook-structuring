@@ -144,6 +144,10 @@ def inspect(engine,actor,target,effect,source,index=0):
  if effect.get('type')=='self_hp_set' and 'loyalty' in effect and (source not in ('move/대폭발','move/자폭') or type(effect['loyalty']) is not int or effect['loyalty']!=-1):
   return Issue('unsupported_execution','loyalty','reviewed sacrifice decrease with explicit GM amount required')
  kind=effect['type']
+ if kind=='apply_status_choice':
+  try:__import__('earned_status_choices').preflight(engine,actor,target,effect,source)
+  except (ValueError,TypeError,KeyError) as ex:return Issue('unsupported_execution','earned_choice',str(ex))
+  return None
  if kind=='item_restore' and source=='move/리사이클':
   try:__import__('recycle_move').preflight(engine,actor,target,effect,source)
   except (ValueError,TypeError,KeyError) as ex:return Issue('unresolved_source','recycle',str(ex))
@@ -475,6 +479,7 @@ def condition_text(engine,actor,target,text,ctx):
  'user not 고스트':lambda:not ghost_for_move(),
  'target is ally':lambda:None if getattr(target,'side',None) is None or getattr(actor,'side',None) is None else target.side==actor.side,
  'target was asleep':lambda:ctx.get('target_was_asleep'),
+ 'target spe stage becomes or already is -6':lambda:target.stages['spe']==-6,
  'target paralyzed':lambda:'마비' in target.conditions,'target is poisoned':lambda:bool({'독','맹독'} & target.conditions),
  'target has a status':lambda:bool(target.conditions-{'기절'}),'target has status':lambda:bool(target.conditions-{'기절'}),
  'user holds no item':lambda:PROTECTION.itemless_for_move(engine,actor,ctx.get('move')),'user holds nothing':lambda:PROTECTION.itemless_for_move(engine,actor,ctx.get('move')),

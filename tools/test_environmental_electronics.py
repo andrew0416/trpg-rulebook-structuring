@@ -33,7 +33,7 @@ class ElectronicTests(unittest.TestCase):
 
     def observe(self, uid='camera', material='ordinary_electronics', **options):
         args=dict(event_id='water:'+uid,move_id='move/하이드로펌프',material=material,
-                  actual_type='물',reason='GM observed water reaching actual unprotected electronics',exposed=True)
+                  reason='GM observed water reaching actual unprotected electronics',exposed=True)
         args.update(options)
         return self.e.gm.observe_environmental_attack(self.a,uid,**args)
 
@@ -52,7 +52,7 @@ class ElectronicTests(unittest.TestCase):
 
     def test_native_paid_repair_ends_electrical_sources_but_not_frozen_state(self):
         self.tool(); self.observe()
-        self.observe(event_id='electric',move_id='move/전기쇼크',actual_type='전기')
+        self.observe(event_id='electric',move_id='move/전기쇼크')
         self.e.gm.observe_environmental_item(self.a,'camera',event_id='other-cold',condition='frozen',
             source='GM cold exposure',reason='independent observed freeze',exposed=True)
         result=self.restore(self.policy(1),target='camera')

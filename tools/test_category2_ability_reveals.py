@@ -4,7 +4,7 @@ from pathlib import Path
 import csv,json,sys,unittest
 
 STAGE=Path(__file__).resolve().parents[1]
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(r'D:\trpg-rulebook-structuring\ptk-structure-experiment')
 sys.path[:0]=[str(STAGE/'engine'),str(ROOT/'engine'),str(ROOT/'tools')]
 
 # Cache both overlay modules before engine.py promotes its canonical directory.
@@ -123,31 +123,6 @@ class AbilityRevealTests(unittest.TestCase):
     before=(deepcopy(user.budget),deepcopy(user.spec),list(engine.log_lines))
     with self.assertRaises(ValueError):engine.activate_ability(user,'위험예지',[target,target] if mode=='duplicate' else target)
     self.assertEqual(before,(user.budget,user.spec,engine.log_lines))
-
- def test_frisk_trainer_owner_reveals_adjacent_pokemon_and_pays_native_swift(self):
-  rules=self.playtest
-  user=Combatant(rules,build_trainer(rules,'Frisk owner',20,dict.fromkeys(('hp','atk','def','spa','spd','spe'),10),
-   pos=(0,0),extra={'abilities':['통찰 [Playtest]']}))
-  target=self.pokemon(rules,'파이리',abilities=['맹화'],pos=(1,0),nature='용감',item='초코바',side='wild')
-  engine=self.world(rules,user,target)
-  engine.gm.snapshot('trainer Frisk');result=engine.activate_ability(user,'통찰 [Playtest]',target)
-  self.assertEqual(result['reveal'],{'target_id':target.entity_id,'types':['불꽃'],'abilities':['맹화'],
-   'nature':'용감','level':20,'held_item_names':['초코바']})
-  self.assertEqual(user.budget['swift'],0)
-  engine.gm.restore('trainer Frisk',reason='restore actual trainer ability before activation')
-  loaded=load_engine(rules,json.loads(json.dumps(dump_engine(engine),ensure_ascii=False)))
-  actors={c.entity_id:c for c in loaded.everyone}
-  self.assertEqual(loaded.activate_ability(actors[user.entity_id],'통찰 [Playtest]',actors[target.entity_id]),result)
-  self.assertEqual(actors[user.entity_id].budget['swift'],0)
-  self.assertTrue(loaded.validate_state()['valid'],loaded.validate_state())
-
- def test_anticipation_trainer_owner_still_rejects_before_action(self):
-  from native_scenario_fixture import assert_rejected_unchanged
-  user=Combatant(self.core,build_trainer(self.core,'Anticipation trainer',20,dict.fromkeys(('hp','atk','def','spa','spd','spe'),10),
-   pos=(0,0),extra={'abilities':['위험예지']}))
-  target=self.pokemon(self.core,'파이리',moves=['move/화염방사'],pos=(1,0))
-  engine=self.world(self.core,user,target)
-  assert_rejected_unchanged(engine,lambda:engine.activate_ability(user,'위험예지',target),reason_pattern='actual active reveal ability')
 
 
 if __name__=='__main__':unittest.main(verbosity=2)

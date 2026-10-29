@@ -140,11 +140,7 @@ class HealingBlockTests(unittest.TestCase):
             dealt=0, src=HEAL_BLOCK)
         engine.gm.faint(shedinja, reason='actual Soulless knockout under Heal Block')
         self.assertEqual(shedinja.hp, 0)
-        import actor_templates as TEMPLATES
-        TEMPLATES.observe_soulless_rest_task(
-            engine,shedinja,rest_id='blocked-actual-thirty-minute-task',minutes=30,
-            reason='GM establishes this actual thirty-minute Extended Action spent resting')
-        DOWNTIME.rest(engine,shedinja,30,rest_id='blocked-actual-thirty-minute-task')
+        DOWNTIME.rest(engine, shedinja, 30)
         self.assertEqual(shedinja.hp, 0)
         self.assertTrue(shedinja.fainted)
         self.assertEqual([record['source'] for record in BLOCKS.records(shedinja)],

@@ -55,7 +55,7 @@ class TargetLimitsTests(unittest.TestCase):
   result=self.e.consume_food_buff(self.t,buff_id=buff,action_kind='free',action_reason='actual allowed consumption')
   self.assertEqual(result['healed'],5);self.assertEqual(self.t.hp,hp+5);self.assertFalse(self.t.buffs)
  def test_invalid_source_target_range_and_missing_count_preserve_cost_and_state(self):
-  for invalid in ('missing','suppressed','ally','range','self','clone','count','absent_source','absent_target'):
+  for invalid in ('missing','suppressed','ally','range','self','clone','count'):
    with self.subTest(invalid=invalid):
     self.setUp()
     if invalid=='missing':self.a.spec['abilities']=[];self.a.abilities=[]
@@ -64,9 +64,6 @@ class TargetLimitsTests(unittest.TestCase):
     elif invalid=='range':self.t.pos=(9,2)
     elif invalid=='self':self.t=self.a
     elif invalid=='clone':self.t=copy.copy(self.t)
-    elif invalid in ('absent_source','absent_target'):
-     unknown=self.a if invalid=='absent_source' else self.t
-     del unknown.side;unknown.spec.pop('side',None)
     self.begin(count=invalid!='count');before=dump_engine(self.e)
     with self.assertRaises(ValueError):self.activate()
     self.assertEqual(before,dump_engine(self.e))

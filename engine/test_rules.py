@@ -49,7 +49,7 @@ def run(root):
     check("회피: 방어 12 → 물리 회피 2", odd.evasion("물리") == 2, f"{odd.evasion('물리')}")
     check("회피: 특수방어 13 → 특수 회피 2", odd.evasion("특수") == 2, f"{odd.evasion('특수')}")
     check("회피: 속도 회피 1 (스피드 8), 변화기엔 속도 회피만", odd.evasion("변화") == 1, f"{odd.evasion('변화')}")
-    big = make(r, "pokemon/oddish-1", id="pokemon/rules-high-defense", stats={"hp": 10, "atk": 7, "def": 45, "spa": 14, "spd": 13, "spe": 8})
+    big = make(r, "pokemon/oddish-1", stats={"hp": 10, "atk": 7, "def": 45, "spa": 14, "spd": 13, "spe": 8})
     check("회피 상한 +6 (방어 45 → 9가 아니라 6)", big.evasion("물리") == 6, f"{big.evasion('물리')}")
 
     # 3. 전투단계 승수 — 원문: +6 → 220%, -6 → 40%; 데모: 특공 14, +1 → 16
@@ -59,7 +59,6 @@ def run(root):
     archie.stages["spa"] = -6
     check("전투단계 -6: 40% (14 → 5)", archie.staged("spa") == 5, f"{archie.staged('spa')}")
     e = Engine(r)
-    e.gm.add_combatant(archie)
     e.change_stage(archie, "spa", -3)
     check("전투단계 하한 -6 (클램프)", archie.stages["spa"] == -6)
     archie.stages["spa"] = 1
@@ -67,8 +66,6 @@ def run(root):
     # 4. 명중 체크 — 원문: AC 2 지진 vs 물리 회피 +4 → 6 이상 필요
     e = Engine(r)
     tank = make(r, "pokemon/oddish-2", stats={"hp": 10, "atk": 7, "def": 20, "spa": 14, "spd": 13, "spe": 8})
-    for actor in (archie, tank, odd, big):
-        e.gm.add_combatant(actor)
     quake = {"id": "move/지진", "name": "지진", "class": "물리", "ac": 2, "type": "땅", "damage_base": 10}
     hit5, _, _ = e.accuracy_check(archie, tank, quake, fixed_roll=5)
     hit6, _, _ = e.accuracy_check(archie, tank, quake, fixed_roll=6)
@@ -84,21 +81,15 @@ def run(root):
     absorb = r.move("move/흡수")
     check("자속보정: 풀타입 뚜벅초의 흡수 DB2 → DB4", e.damage_base(odd, absorb) == 4)
     e = Engine(r)
-    ember_like = {"id": "move/x", "name": "x", "class": "물리", "ac": 2, "type": "노말", "damage_base": 6}
-    critical_attacker = make(r, "trainer/maya")
-    critical_target = make(r, "trainer/silvana", stats={"hp": 5, "atk": 6, "def": 0, "spa": 5, "spd": 5, "spe": 7})
-    e.gm.add_combatant(critical_attacker)
-    e.gm.add_combatant(critical_target)
     e.rng = FixedRng([5, 6, 5, 6])
-    dmg = e.roll_damage(critical_attacker, critical_target, ember_like, crit=True)
+    ember_like = {"id": "move/x", "name": "x", "class": "물리", "ac": 2, "type": "노말", "damage_base": 6}
+    dmg = e.roll_damage(make(r, "trainer/maya"), make(r, "trainer/silvana", stats={"hp": 5, "atk": 6, "def": 0, "spa": 5, "spd": 5, "spe": 7}), ember_like, crit=True)
     check("치명타: DB6 2d6+8 → 주사위·고정치 두 번(11+8+11+8=38) + 공격 12 한 번 = 50", dmg == 50, f"{dmg}")
 
     # 6. 데모 계산 재현
     e = Engine(r)
     maya = make(r, "trainer/maya")
     odd = make(r, "pokemon/oddish-1")
-    e.gm.add_combatant(maya)
-    e.gm.add_combatant(odd)
     dmg = e.roll_damage(maya, odd, r.move("move/제비반환"), fixed_dice=[5, 6])
     check("데모 R3 제비반환: [5,6]+8=19, +공격 12=31, -방어 12=19, 비행 vs 풀/독 ×1.5 → 28", dmg == 28, f"{dmg}")
     inj = e.take_damage(odd, dmg)
@@ -106,8 +97,6 @@ def run(root):
     e = Engine(r)
     archie = make(r, "pokemon/archie")
     odd = make(r, "pokemon/oddish-2")
-    e.gm.add_combatant(archie)
-    e.gm.add_combatant(odd)
     dmg = e.roll_damage(archie, odd, r.move("move/불꽃세례"), set_damage=True)
     check("데모 R4 불꽃세례 지정 데미지: DB4+2=6 → 15, +특공 16=31, -특방 13=18, 불꽃 vs 풀/독 ×1.5 → 27", dmg == 27, f"{dmg}")
     e = Engine(r)
@@ -120,8 +109,6 @@ def run(root):
     e = Engine(r)
     maya = make(r, "trainer/maya")
     odd = make(r, "pokemon/oddish-3")
-    e.gm.add_combatant(maya)
-    e.gm.add_combatant(odd)
     dmg = e.roll_damage(maya, odd, r.move("struggle"), fixed_dice=[5])
     check("데모 R4 마야 발버둥: DB4 1d8+6 눈 5 = 11, +공격 12 = 23, -방어 12 = 11, 노말 vs 풀/독 ×1", dmg == 11, f"{dmg}")
 
@@ -130,7 +117,6 @@ def run(root):
     e = Engine(r)
     check("소량의 체력: 최대 60 → 6 (데모)", e.tick(archie) == 6, f"{e.tick(archie)}")
     hundred = make(r, "pokemon/oddish-1", level=60, stats={"hp": 10, "atk": 7, "def": 12, "spa": 14, "spd": 13, "spe": 8})
-    e.gm.add_combatant(hundred)
     check("부상 예시 준비: 최대 체력 100", hundred.max_hp == 100, f"{hundred.max_hp}")
     e.take_damage(hundred, 250)
     check("부상 원문 예시: 한 번에 -150%까지 → 부상 6개 (대규모 1 + 표시점 5)", hundred.injuries == 6, f"{hundred.injuries}")
@@ -156,14 +142,11 @@ def run(root):
     # 9. 타입 면역 / 상태이상 효과 (자동 기계화된 conditions.json 해석)
     e = Engine(r)
     odd = make(r, "pokemon/oddish-1")
-    e.gm.add_combatant(odd)
     ok = e.apply_status(odd, "독")
     check("타입 면역: 독타입 뚜벅초는 독에 걸리지 않음", not ok)
-    pika = make(r, "pokemon/oddish-1", id="pokemon/rules-electric-immunity", types=["전기"])
-    e.gm.add_combatant(pika)
+    pika = make(r, "pokemon/oddish-1", types=["전기"])
     check("타입 면역: 전기타입은 마비 면역", not e.apply_status(pika, "마비"))
     archie = make(r, "pokemon/archie")
-    e.gm.add_combatant(archie)
     e.apply_status(archie, "독")
     check("독(자동 기계화): 걸리면 특수방어 -2 전투단계 → 9 → 7", "독" in archie.conditions and archie.stages["spd"] == -2 and archie.staged("spd") == 7, f"{archie.stages} {archie.staged('spd')}")
     archie.took_standard = True
@@ -172,8 +155,7 @@ def run(root):
     e.cure_status(archie, "독")
     check("독 치료 시 전투단계 복구", archie.stages["spd"] == 0)
     check("화상(자동 기계화): 불꽃타입 아치는 화상 면역", not e.apply_status(archie, "화상"))
-    frozen = make(r, "pokemon/oddish-1", id="pokemon/rules-frozen-target")
-    e.gm.add_combatant(frozen)
+    frozen = make(r, "pokemon/oddish-1")
     e.apply_status(frozen, "얼음")
     check("얼음(자동 기계화): 회피 보너스 없음 → 회피 0", frozen.evasion("물리") == 0)
     e.rng = FixedRng([16])
@@ -209,20 +191,14 @@ def run(root):
     # 11b. 스킬 체크 — 원문 예: 전문 육상 5d6, 스킬 향상 엣지 +2 → 5d6+2; 팀/지원 체크
     e = Engine(r)
     ath = make(r, "trainer/maya", skills={"athletics": "전문"})
-    e.gm.add_combatant(ath)
     ok, total = e.skill_check(ath, "athletics", 15, mods=2, fixed=[3, 4, 2, 5, 1])
     check("스킬 체크: 전문 육상 5d6+2 = [3,4,2,5,1]+2 = 17 ≥ DC 15 성공", ok and total == 17, f"{total}")
-    assisted_actor = make(r, "trainer/silvana")
-    e.gm.add_combatant(assisted_actor)
-    ok, total = e.skill_check(assisted_actor, "athletics", 10, fixed=[2, 3, 1], helper_rank=4)
+    ok, total = e.skill_check(make(r, "trainer/silvana"), "athletics", 10, fixed=[2, 3, 1], helper_rank=4)
     check("지원 체크: 초보 육상 3d6 [2,3,1] + 도우미 랭크 4의 절반 2 = 8 < DC 10 실패", (not ok) and total == 8, f"{total}")
 
     # 12. never_miss (hand mech)
     e = Engine(r)
-    never_miss_attacker = make(r, "trainer/maya")
-    e.gm.add_combatant(never_miss_attacker)
-    e.gm.add_combatant(big)
-    hit, _, _ = e.accuracy_check(never_miss_attacker, big, r.move("move/제비반환"), fixed_roll=1)
+    hit, _, _ = e.accuracy_check(make(r, "trainer/maya"), big, r.move("move/제비반환"), fixed_roll=1)
     check("제비반환: 자연 1이어도 빗나가지 않음 (데모: '제비반환는 놓치지 않습니다')", hit)
 
     passed = sum(1 for _, ok, _ in results if ok)

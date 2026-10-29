@@ -149,22 +149,27 @@ class ClassActorStateReactionTests(unittest.TestCase):
         engine, trainer, partner, enemy = self.fixture(feats=[source], partner_types=("드래곤",))
         self.start(engine, enemy)
         before = {stat: partner.stages[stat] for stat in ("atk", "spa", "spe")}
-        engine.rulings.add_answer('type_ace_choice',False,reason='actual owner declines any HP-crossing choice')
         self.hit(engine, enemy, partner, "몸통박치기", critical=True)
-        self.assertFalse(engine.pending_class_actor_state_reactions(trainer))
-        self.assertEqual({stat:partner.stages[stat] for stat in before},before)
-        engine.rulings.answers[:]=[row for row in engine.rulings.answers if row['key']!='type_ace_choice']
-        engine.rulings.add_answer('type_ace_choice',True,reason='actual owner accepts adopted HP crossing')
-        engine.gm.set_hp(partner,value=partner.base_max_hp//2+1,reason='actual HP immediately above half')
-        engine.lose_hp(partner,1,unpreventable=True)
+        event = self.pending_one(engine, trainer, source)
+        self.assertTrue(event["critical"])
+        with self.assertRaisesRegex(ValueError, "accepted or declined"):
+            ACTION.ensure_resolutions_clear(engine)
+        result = engine.resolve_class_actor_state_reaction(trainer, event["id"], use=True)
+        self.assertTrue(result["used"])
         for stat in before:
             self.assertEqual(partner.stages[stat], before[stat] + 1)
-        self.assertIn('난동',partner.conditions)
-        self.assertEqual(FREQUENCY.state(trainer)['activations'][source]['used'],1)
-        engine.gm.set_hp(partner,value=partner.base_max_hp//2+1,reason='actual repeated HP boundary')
-        engine.lose_hp(partner,1,unpreventable=True)
-        self.assertEqual(FREQUENCY.state(trainer)['activations'][source]['used'],1)
+        self.hit(engine, enemy, partner, "몸통박치기", critical=True)
         self.assertFalse(engine.pending_class_actor_state_reactions(trainer))
+
+        other_engine, other_trainer, other_partner, other_enemy = self.fixture(
+            feats=[source], partner_types=("드래곤",)
+        )
+        self.start(other_engine, other_enemy)
+        other_enemy.stats["atk"] = 100
+        other_enemy.spec["stats"]["atk"] = 100
+        self.hit(other_engine, other_enemy, other_partner, "몸통박치기")
+        massive = self.pending_one(other_engine, other_trainer, source)
+        self.assertTrue(massive["massive"])
 
     def test_enduring_bloom_native_super_effective_hit_rank_sunny_and_atomic_failure(self):
         source = REACTIONS.ENDURING_BLOOM

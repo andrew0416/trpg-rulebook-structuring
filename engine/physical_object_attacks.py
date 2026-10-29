@@ -72,7 +72,7 @@ def _move(engine, actor, move_id):
     import move_state as MOVES
     requested=engine.r.move_id(move_id)
     if requested is None:raise ValueError('actual selected Move required')
-    known=MOVES.known(engine.r,{'moves':MOVES.owned_list(actor.spec,'moves',actor.moves)})
+    known=MOVES.known(engine.r,{'moves':MOVES.owned_list(actor.spec,'moves',actor.moves,rules=actor.r)})
     if requested not in known:raise ValueError('physical attack requires an actual learned or granted Move')
     mid=engine._ruleset_move(actor,requested)
     if mid is None:raise ValueError('selected Move unavailable')

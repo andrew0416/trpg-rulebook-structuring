@@ -49,7 +49,7 @@ def approve(e,actor,*,choice_id,skill,use,reason,approved):
  if type(approved) is not bool:raise ValueError('GM approval must be explicit boolean')
  before=choices(e,actor,allow_incomplete=True)
  if not count(actor):raise ValueError('an actual acquired Skill Stunt is required')
- if len(before)>=count(actor) or choice_id in {r['id'] for r in before}:raise ValueError('no unassigned acquired Skill Stunt remains')
+ if sum(r['source']==SOURCE for r in before)>=count(actor) or choice_id in {r['id'] for r in before}:raise ValueError('no unassigned acquired Skill Stunt remains')
  identity=S.skill_id(e.r.skill_policy,skill,required=True)
  if S.rank(e.r,actor,skill)[2]<3:raise ValueError('chosen Skill Stunt skill must be Novice')
  if not approved:

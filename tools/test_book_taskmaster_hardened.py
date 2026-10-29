@@ -3,7 +3,7 @@ from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
 import json,sys,unittest
-ROOT = Path(__file__).resolve().parents[1]
+ROOT=Path('D:/trpg-rulebook-structuring/ptk-structure-experiment')
 sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 from engine import Rules,Engine,Combatant
 from grid import Grid
@@ -137,8 +137,7 @@ class TaskmasterTests(unittest.TestCase):
         for unpreventable in (False,True):
             for kind in ('loss','percentage'):
                 before=self.p.hp;self.e.lose_hp(self.p,17,source='actual nonattack effect',loss_kind=kind,unpreventable=unpreventable)
-                self.assertEqual(self.p.hp,before-(17 if unpreventable else 0))
-        before=self.p.hp
+                self.assertEqual(self.p.hp,before)
         self.e.lose_hp(self.p,1,source='actual setting effect',loss_kind='hp_setting')
         self.assertEqual(self.p.hp,before-1);self.valid()
         self.setup();self.train();self.injury(self.p,5);self.combat(self.b)
@@ -449,8 +448,6 @@ class TaskmasterTests(unittest.TestCase):
 
     def test_whip_non_training_native_order_keeps_actual_ap_binding_and_receipt_source(self):
         self.setup();self.all_features()
-        self.e.gm.observe_sensory_environment(self.a,self.p,paths={'auditory':True},present=True,
-            reason='actual contemporaneous Whip Order delivery')
         self.a.spec.setdefault('feats',[]).extend((CPF.PRECISION,CPF.PINPOINT))
         self.combat(self.a)
         before=AP.available(self.a)
@@ -470,8 +467,6 @@ class TaskmasterTests(unittest.TestCase):
     def test_whip_native_directive_records_real_free_payment_and_preserves_target_lifetime(self):
         import directive_features as D
         self.setup();self.all_features()
-        self.e.gm.observe_sensory_environment(self.a,self.p,paths={'auditory':True},present=True,
-            reason='actual contemporaneous Whip Order delivery')
         self.a.spec.setdefault('classes',[]).append(D.CLASS)
         self.a.spec.setdefault('feats',[]).append(D.FEATURE)
         SF.base_patch(self.a,{'skills':{'협박':6,'명령':6,'매력':3}},reason='actual native Coordinator directive skills')

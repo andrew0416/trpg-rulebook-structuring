@@ -5,7 +5,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
 from engine import Engine, Rules, Combatant
 from builder import build_pokemon, build_trainer, nature_base, STATS
 from grid import Grid
@@ -67,15 +67,11 @@ class MarsupialTests(unittest.TestCase):
             self.policy() if policy is None else policy, request_id=key,
             compatible=True, species='캥카', inheritance_moves=[], reason='observed actual compatible parents')
 
-    def hatch(self, egg, *, nature='노력', owner=None, physical_choice=None):
-        physical_choice=physical_choice or {
-            'height_base_m':2,'weight_base_kg':80,'height_reduction':0,'weight_reduction':0,
-            'weight_class':None,'reason':'explicit observed native birth dimensions; no physical reduction selected'}
+    def hatch(self, egg, *, nature='노력', owner=None):
         return self.e.hatch_declared_egg(owner or self.a, egg['entity_id'], name='actual native baby',
             ready=True, reason='actual observed Kangaskhan birth', choices={
-                # A newborn has one Ability from its species' Basic list (ch05:111,660).
-                'gender': 'female', 'nature': nature, 'abilities': ['배짱'], 'moves': [],
-                'special_appearance': False, 'inheritance_moves': [],'baby_template':physical_choice})['pokemon']
+                'gender': 'female', 'nature': nature, 'abilities': [], 'moves': [],
+                'special_appearance': False, 'inheritance_moves': []})['pokemon']
 
     def born(self, **kwargs):
         return self.hatch(self.egg(), **kwargs)
@@ -114,9 +110,8 @@ class MarsupialTests(unittest.TestCase):
         self.assertEqual(baby.spec['tutor_points'], 1)
         self.assertEqual(baby.spec[PROGRESSION.LEVEL_STATE]['origin'], 'hatch')
         self.assertEqual(self.mother.spec['stats'], parent_stats)
-        self.assertEqual(baby.spec[OPTIONAL.KEY]['source'],OPTIONAL.NATIVE_SOURCE)
-        self.assertEqual(baby.spec[OPTIONAL.KEY]['selected_stat_reduction'],5)
-        self.assertEqual(M.projection(baby,engine=self.e)['mother_id'], self.mother.entity_id)
+        self.assertNotIn(OPTIONAL.KEY, baby.spec)
+        self.assertEqual(M.projection(baby)['mother_id'], self.mother.entity_id)
         self.assertIs(W.actor_index(self.e)[baby.entity_id], baby)
         self.assertNotEqual(baby.entity_id, self.mother.entity_id)
         self.valid()
@@ -134,11 +129,8 @@ class MarsupialTests(unittest.TestCase):
         self.grow(baby, 5)
         self.assertTrue(M.active(baby))
         self.assertEqual(baby.spec['initial_allocation']['base_sources'], source)
-        self.assertEqual(baby.spec[OPTIONAL.KEY]['stat_penalty_remaining'],4)
-        self.assertEqual(baby.spec[OPTIONAL.KEY]['level_recoveries'],[5])
-        self.assertEqual(baby.spec['allocation_migrations'][-1]['kind'],'baby_template_recovery')
-        self.assertEqual(GS.project(self.r,baby.spec)['nature_base'],
-                         nature_base({s:min(raw[s],max(1,raw[s]-5)+1) for s in STATS},nature,self.r))
+        self.assertNotIn(OPTIONAL.KEY, baby.spec)
+        self.assertNotIn('allocation_migrations', baby.spec)
         self.grow(baby, 25)
         self.assertFalse(M.active(baby))
         after = GS.project(self.r, baby.spec)
@@ -163,8 +155,8 @@ class MarsupialTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'cannot participate'):
                 fn()
             self.assertEqual(self.snap(), before)
-        self.assertFalse(BODY.targetable(baby,engine=self.e))
-        self.assertFalse(SETUP.targetable(baby,engine=self.e))
+        self.assertFalse(BODY.targetable(baby))
+        self.assertFalse(SETUP.targetable(baby))
         for fn in (lambda: self.e.use_move(self.enemy, baby, 'move/몸통박치기'),
                    lambda: self.e.throw_ball(self.a, baby, fixed_accuracy=20, fixed_capture=20)):
             before = self.snap()
@@ -229,9 +221,9 @@ class MarsupialTests(unittest.TestCase):
 
     def test_actual_level25_exit_withdraws_only_native_source(self):
         baby = self.born()
-        OPTIONAL.apply(self.e, self.mother, stat_reduction=2, permanent_stat_reduction=2,
-                       reason='independent explicitly selected optional permanent template on actual mother')
-        original = deepcopy(self.mother.spec[OPTIONAL.KEY])
+        OPTIONAL.apply(self.e, baby, stat_reduction=2, permanent_stat_reduction=2,
+                       reason='separate explicit optional permanent template')
+        original = deepcopy(baby.spec[OPTIONAL.KEY])
         self.grow(baby, 24)
         self.assertTrue(M.active(baby))
         before = GS.project(self.r, baby.spec)
@@ -240,14 +232,11 @@ class MarsupialTests(unittest.TestCase):
         after = GS.project(self.r, baby.spec)
         self.assertEqual((baby.level, M.active(baby), M.in_pouch(baby)), (25, False, False))
         self.assertTrue(TURN.can_act(self.e, baby))
-        self.assertTrue(BODY.targetable(baby,engine=self.e))
+        self.assertTrue(BODY.targetable(baby))
         self.assertEqual(sum(after['investment'].values()), sum(before['investment'].values())+1)
-        self.assertEqual(baby.spec[OPTIONAL.KEY]['stat_penalty_remaining'],0)
-        self.assertEqual(baby.spec[OPTIONAL.KEY]['level_recoveries'],[5,10,15,20,25])
-        self.assertEqual(self.mother.spec[OPTIONAL.KEY],original)
-        sources = baby.spec['allocation_migrations'][-1]['plan'].get('base_sources',[])
-        self.assertEqual(sources,[])
-        self.assertEqual([r['source'] for r in GS.project(self.r,self.mother.spec)['base_sources']],[OPTIONAL.STAT_SOURCE])
+        self.assertEqual(baby.spec[OPTIONAL.KEY]['stat_penalty_remaining'], original['stat_penalty_remaining'])
+        sources = baby.spec['allocation_migrations'][-1]['plan']['base_sources']
+        self.assertEqual([r['source'] for r in sources], [OPTIONAL.STAT_SOURCE])
         self.assertAlmostEqual(baby.hp / baby.base_max_hp, hp_fraction, delta=1/baby.base_max_hp)
         self.assertEqual(baby.spec[M.KEY]['ended_level'], 25)
         self.assertEqual(baby.spec['trainer_id'], self.a.entity_id)
@@ -262,7 +251,7 @@ class MarsupialTests(unittest.TestCase):
         self.assertIsNone(baby.spec[M.KEY]['mother_id'])
         self.assertFalse(M.in_pouch(baby))
         self.assertFalse(TURN.can_act(self.e, baby))
-        self.assertTrue(BODY.targetable(baby,engine=self.e))
+        self.assertTrue(BODY.targetable(baby))
         self.valid()
         # Physical pouch custody and the egg recipient's ownership are distinct.
         self.mother.spec['gender'] = 'female'
@@ -343,7 +332,7 @@ class MarsupialTests(unittest.TestCase):
         baby = self.hatch(egg)
         restored = CODEC.load_engine(self.r, json.loads(self.snap()))
         rb = W.actor_index(restored)[baby.entity_id]
-        self.assertEqual(M.projection(rb,engine=restored), M.projection(baby,engine=self.e))
+        self.assertEqual(M.projection(rb), M.projection(baby))
         self.assertEqual(M.ball_view(restored, W.actor_index(restored)[self.mother.entity_id]),
                          M.ball_view(self.e, self.mother))
         original = deepcopy(baby.spec[M.KEY])

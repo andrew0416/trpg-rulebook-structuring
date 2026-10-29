@@ -182,10 +182,10 @@ class ChroniclerAcquisitionTests(unittest.TestCase):
         self.acquire(CH.TRAINING, 1)
         self.assertEqual(set(CH.owned_archives(self.t)), {'profile', 'technique'})
         self.assertEqual(self.t.spec['feat_ranks'][CH.TRAINING], 1)
-        # Core includes the source-backed Perception, not its distinct Playtest variant.
-        self.assertEqual(CH._travel_ability(self.rules,'통찰'),'감지')
-        self.t.spec['chronicler_travel_ability'] = CH.PERCEPTION_PLAYTEST
-        self.rejected(lambda:self.acquire(CH.TRAINING, 2), 'variant:playtest')
+        # The Korean core catalog excludes both Perception Ability variants, so the
+        # printed Perception choice needs an explicit selected variant before the grant.
+        self.t.spec['chronicler_travel_ability'] = '통찰'
+        self.rejected(lambda:self.acquire(CH.TRAINING, 2), 'selected 통찰 Ability variant')
         self.t.spec['chronicler_travel_ability'] = '위협'
         self.rejected(lambda:self.acquire(CH.TRAINING, 2), 'Keen Eye or Perception')
         self.t.spec['chronicler_travel_ability'] = '날카로운눈'

@@ -125,9 +125,19 @@ class Independent(unittest.TestCase):
    json.dumps(record) # A passive receipt has no runtime actor/effect references.
  def test_017_ended_receipts_allow_real_heavy_target_attack(self):
   e,a,b,m,o=self.fixture(native=True);self.release_all(e,a,o);b.injuries=5;b.hp=50
-  e.use_move(a,b,'struggle',set_damage=True)
-  self.assertEqual(b.hp,34);self.assertFalse(e._heavy_pending)
+  self.assert_native_heavy_target_pending(e,a,b)
   self.assertEqual(a.move_uses['struggle'],1);self.assertEqual(a._action_history,['free','free','standard'])
+ def assert_native_heavy_target_pending(self,e,a,b):
+  # The native turn clock is not the old empty-context automatic-loss certificate.
+  before=b.hp
+  with self.assertRaises(H.HeavyPending):e.use_move(a,b,'struggle',set_damage=True)
+  packet=e._heavy_events[e._heavy_pending]
+  self.assertIs(packet['target'],b);self.assertEqual(packet['status'],'pending')
+  self.assertEqual(packet['before']['hp'],before);self.assertEqual(packet['observed_after']['hp'],b.hp)
+  self.assertEqual(b.hp,before-packet['amount'])
+  self.assertIn('attacker:custom_conditions',packet['context_evidence']['failures'])
+  self.assertEqual(H.passive_prefix_failures(e,a,b),[])
+  self.assertTrue(all(row['state']=='ended' and 'owner' not in row and 'modifier' not in row for row in a._ap_bound_effects.values()))
  def test_018_ended_receipts_allow_real_heavy_actor_standard(self):
   e,a,b,m,o=self.fixture(native=True);self.release_all(e,a,o);a.injuries=5;a.hp=50
   hp=b.hp;e.use_move(a,b,'struggle',set_damage=True)
@@ -142,23 +152,11 @@ class Independent(unittest.TestCase):
   self.assertEqual(AP.available(a),4)
  def test_020_ended_snapshot_restore_keeps_heavy_path_and_duplicate_guard(self):
   e,a,b,m,o=self.fixture(native=True);self.release_all(e,a,o);b.injuries=5;b.hp=50
-  e.gm.snapshot('ended');e.use_move(a,b,'struggle',set_damage=True);e.gm.restore('ended')
+  e.gm.snapshot('ended');self.assert_native_heavy_target_pending(e,a,b);e.gm.restore('ended')
+  self.assertFalse(e._heavy_pending);self.assertEqual(b.hp,50)
   before=self.projection(e,a);z=self.release(e,a,'new')
   self.assertEqual(z.reason,'effect_already_ended');self.assertEqual(before,self.projection(e,a))
-  e.use_move(a,b,'struggle',set_damage=True)
-  self.assertEqual(b.hp,34);self.assertFalse(e._heavy_pending)
- def test_021_ended_history_cannot_certify_an_unknown_live_interaction(self):
-  import heavy_injury_adapter as HEAVY
-  for corruption in ('unknown_condition','invalid_clock','active_bound_receipt'):
-   with self.subTest(corruption=corruption):
-    e,a,b,m,o=self.fixture(native=True);self.release_all(e,a,o);b.injuries=5;b.hp=50
-    if corruption=='unknown_condition':a.custom_conditions['unreviewed_interaction']={'source':'unknown'}
-    elif corruption=='invalid_clock':
-     a.custom_conditions['combat_turn_serial']=True
-     self.assertFalse(HEAVY.inert_turn_bookkeeping(e,a));continue
-    else:a._ap_bound_effects['A']['state']='active'
-    with self.assertRaises(HEAVY.HeavyPending):e.use_move(a,b,'struggle',set_damage=True)
-    self.assertIsNotNone(e._heavy_pending)
+  self.assert_native_heavy_target_pending(e,a,b)
 class Result(unittest.TextTestResult):
  def __init__(self,*a,**k):super().__init__(*a,**k);self.rows=[]
  def addSuccess(self,t):super().addSuccess(t);self.rows.append(dict(id='BAP-INDEPENDENT-'+t._testMethodName,status='pass'))

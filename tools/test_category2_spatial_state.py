@@ -69,8 +69,7 @@ class SpatialStateTests(unittest.TestCase):
   b.pos=(2,5);self.e.approach(a,b);self.assertEqual(a.pos[0],5);self.assertTrue(self.e.adjacent(a,b))
  def test_large_mover_cannot_pass_a_gap_that_only_fits_its_anchor(self):
   self.e.grid=Grid(8,4,blocking=[(4,y) for y in (0,2,3)])
-  a=self.target((1,1),'Large');b=self.actor('b',(6,1))
-  self.e.start_round([a,b]);self.e.start_of_turn(a,initiative_count=20)
+  a=self.target((1,1),'Large');b=self.actor('b',(6,1));T.reset_budget(self.e,a)
   self.e.approach(a,b);self.assertEqual(a.pos,(1,1));self.assertEqual(a.budget['shift'],0)
  def test_departure_from_large_body_is_based_on_actual_contact(self):
   from unittest.mock import patch

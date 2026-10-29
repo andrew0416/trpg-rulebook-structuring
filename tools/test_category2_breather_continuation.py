@@ -39,7 +39,7 @@ class BreatherContinuationTests(unittest.TestCase):
   self.assertEqual(actor.pos,(3,2));self.assertEqual(actor.temp_hp,12)
   rng=self.e.rng.getstate();self.e.grid.blocking.remove((4,2));entered=[]
   original=EXT.on_enter_cell
-  with patch.object(RECOVERY,'saving_check',side_effect=AssertionError('cannot reroll')),patch.object(EXT,'on_enter_cell',side_effect=lambda e,c,p,**kw:(entered.append(p),original(e,c,p,**kw))[-1]):
+  with patch.object(RECOVERY,'saving_check',side_effect=AssertionError('cannot reroll')),patch.object(EXT,'on_enter_cell',side_effect=lambda e,c,p:(entered.append(p),original(e,c,p))[-1]):
    result=self.e.take_breather(actor,**options)
   self.assertTrue(result['completed']);self.assertEqual(entered,[(4,2),(5,2),(6,2)])
   self.assertEqual((result['movement']['distance'],result['movement']['steps']),(4,4))
@@ -52,7 +52,7 @@ class BreatherContinuationTests(unittest.TestCase):
   self.assertEqual((self.t.pos,self.h.pos),((7,2),(3,2)))
   self.assertIn('난동',self.t.conditions);self.assertNotIn('넘어짐',self.t.conditions)
   self.e.grid.blocking.remove((4,2));entered=[];original=EXT.on_enter_cell
-  with patch.object(self.e,'skill_check',side_effect=AssertionError('cannot repeat Command')),patch.object(EXT,'on_enter_cell',side_effect=lambda e,c,p,**kw:(entered.append((c.entity_id,p)),original(e,c,p,**kw))[-1]):
+  with patch.object(self.e,'skill_check',side_effect=AssertionError('cannot repeat Command')),patch.object(EXT,'on_enter_cell',side_effect=lambda e,c,p:(entered.append((c.entity_id,p)),original(e,c,p))[-1]):
    result=self.e.take_breather(actor,**options)
   self.assertTrue(result['completed'])
   self.assertEqual(entered,[(self.h.entity_id,p) for p in [(4,2),(5,2),(6,2)]])
@@ -130,8 +130,8 @@ class BreatherContinuationTests(unittest.TestCase):
  def test_actual_unresolved_entry_receipt_stops_before_later_cells_and_recovery(self):
   actor,options=self.ordinary();self.e.apply_status(actor,'혼란')
   original=EXT.on_enter_cell
-  def entry(e,c,p,**kw):
-   original(e,c,p,**kw)
+  def entry(e,c,p):
+   original(e,c,p)
    FX.run_effects(e,c,c,[{'type':'unreviewed_actual_entry_effect'}],{'hit':True},'hazard/observed')
   with patch.object(EXT,'on_enter_cell',side_effect=entry):
    with self.assertRaisesRegex(ValueError,'path interrupted'):self.e.take_breather(actor,**options)

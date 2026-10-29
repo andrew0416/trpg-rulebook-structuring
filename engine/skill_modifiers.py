@@ -51,6 +51,20 @@ def _declared_ranks(rules):
     return ranks,aliases
 
 
+def validate_rank_value(rules, value, *, kind='ordinary', label='skill rank'):
+    """Validate a stored number's domain, not its owner's current qualification."""
+    checks.integer(value,label,1)
+    if kind not in ('ordinary','effective'):
+        raise ValueError('ordinary or effective skill rank domain required')
+    ranks,_=_declared_ranks(rules)
+    if value in {row['rank'] for row in ranks.values()}:return value
+    if kind=='effective':
+        for uid,policy in rules.skill_policy.get('rank_effects',{}).items():
+            if policy.get('effective_rank')==value and rules._selected_rule(uid)==uid:
+                return checks.integer(policy['effective_rank'],'declared effective skill rank',1)
+    raise ValueError('skill rank policy conflict: '+label+' '+str(value)+' is not a declared '+kind+' rank')
+
+
 def rank(rules, actor, skill):
     policy=rules.skill_policy
     target=skill_id(policy,skill)
@@ -297,6 +311,28 @@ def procedural_edge(rules,actor,uid):
     need=record['prerequisite']
     if not __import__('hobbyist').skill_waived(actor,uid) and rank(rules,actor,need['skill'])[2]<need['minimum_rank']:raise ValueError('procedural edge prerequisite is not established')
     return record
+
+def validate_helper(engine,actor,rank_value,bonus,source=None):
+    """Recheck an actual helper; Pokemon pools are not trainer rank declarations."""
+    checks.integer(rank_value,'effective helper rank',0)
+    if source is None:
+        if rank_value:validate_rank_value(engine.r,rank_value,kind='effective',label='helper skill rank')
+        return
+    if type(source)is not dict or set(source)!={'actor_id','skill'}:
+        raise ValueError('exact actual helper source required')
+    if type(source['actor_id'])is not str or type(source['skill'])is not str:
+        raise ValueError('actual helper identity and skill required')
+    import world_entities as WORLD
+    index=WORLD.require_actors(engine,actor)
+    helper=index.get(source['actor_id'])
+    if helper is None or helper is actor or helper.dead or helper.fainted:
+        raise ValueError('actual distinct conscious helper required')
+    actual_skill=__import__('hobbyist').direct_skill(helper,'edge/설명',source['skill'])
+    plan=engine.plan_skill_check(helper,actual_skill,purpose='assistance',target=actor,provider=helper)
+    expected=assistance_bonus(engine.r,helper,source['skill'],plan['effective_rank'])
+    if rank_value!=plan['effective_rank'] or (M.ratio(rank_value,2) if bonus is None else bonus)!=expected:
+        raise ValueError('actual helper rank or assistance bonus changed')
+
 
 def assistance_bonus(rules,helper,skill,rank_value):
     record=procedural_edge(rules,helper,'edge/설명')

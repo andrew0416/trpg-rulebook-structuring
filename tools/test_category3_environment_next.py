@@ -122,10 +122,20 @@ class EnvironmentTests(unittest.TestCase):
  def test_falling_acrobatics_dc12_intentional_and20_unintentional(self):
   for intentional,faces,passed in ((True,[3]*5,True),(False,[3]*5,False),(False,[4]*5,True)):
    self.c=self.actor("acro");self.c.spec["movement"]["high_jump"]=0
-   self.e.gm.add_combatant(self.c,reason="actual falling Acrobatics actor")
+   self.e.gm.add_combatant(self.c,reason='actual registered falling check participant')
    out=self.fall(intentional=intentional,acrobatics=True,acrobatics_options={"fixed":faces},fixed_damage=None)
    self.assertEqual(out["checks"]["falling_acrobatics"].passed,passed)
    self.assertEqual(out["damage_distance"],2 if passed else 3)
+ def test_falling_check_rejects_unregistered_actor_without_mutating_world(self):
+  stranger=self.actor("unregistered falling actor")
+  before=self.e.export_state();hp=stranger.hp
+  with self.assertRaisesRegex(ValueError,"actual registered actor/target"):
+   self.e.falling_damage(stranger,action_id="unregistered-fall",meters=3,intentional=False,
+      reason="GM observed fall does not register its actor",acrobatics=True,
+      acrobatics_options={"fixed":[3]*5})
+  self.assertEqual(self.e.export_state(),before)
+  self.assertEqual(stranger.hp,hp)
+  self.assertNotIn("_fall_events",stranger.spec)
  def test_same_intentional_jump_uses_live_high_jump_running_and_separate_boost(self):
   out=self.fall(meters=5,intentional=True,running_start=True,running_reason="actual run up",running_bonus_included=False,
      high_jump_boost=True,boost_options={"fixed":[4]*5},acrobatics=True,acrobatics_options={"fixed":[3]*5},fixed_damage=[])
@@ -186,6 +196,7 @@ class EnvironmentTests(unittest.TestCase):
   self.c.injuries=5;before=self.c.hp
   out=self.fall();self.assertIsInstance(out,PendingDecision)
   self.assertEqual(self.c.hp,before);self.assertEqual(out.basis["status"],"pending_heavy_composition")
+  self.assertEqual(out.basis["pending_observed"],ENV.observe(self.c))
   with self.assertRaises(ENV.EnvironmentalPending):self.fall(action_id="new")
  def test_fall_physical_damage_has_defense_and_dr_floor_one_but_zero_distance_zero(self):
   self.c.stats["def"]=999;self.c.damage_reduction=999

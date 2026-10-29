@@ -317,6 +317,11 @@ def connected_source_suite(suite, source_cases):
 
 def verify_source_connection_inputs(root):
     contract = json.loads((Path(__file__).with_name('frequency_source_connection_contract.json')).read_text(encoding='utf-8'))
+    if contract.get('deployment_scope') != 'local_R':
+        raise ValueError('local frequency fixture requires its reviewed local-R contract')
+    for relative in contract['absent_inputs']:
+        if (Path(root) / relative).exists():
+            raise ValueError('local frequency dependency was added without source review: ' + relative)
     for relative, expected in contract['input_hashes'].items():
         actual = hashlib.sha256((Path(root) / relative).read_bytes()).hexdigest()
         if actual != expected:

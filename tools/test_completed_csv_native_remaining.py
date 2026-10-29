@@ -26,11 +26,11 @@ class CompletedCsvNativeRemaining(unittest.TestCase):
     def setUp(self):
         self.r.rulings.answers.clear()
 
-    def attack(self, e, a, t, move, *, finish_turn=True):
+    def attack(self, e, a, t, move):
         e.start_round([a, t]); e.start_of_turn(a, initiative_count=20)
-        with patch.object(Engine, 'd20', return_value=20):
+        with patch.object(e, 'd20', return_value=20):
             e.use_move(a, t, move, set_damage=True)
-        if finish_turn:e.end_of_turn(a)
+        e.end_of_turn(a)
 
     def test_balloon_native_ground_immunity_hit_destruction_and_revoked_source(self):
         attacker = self.pokemon('balloon-attacker', moves=('move/진흙뿌리기','move/몸통박치기'))
@@ -70,13 +70,11 @@ class CompletedCsvNativeRemaining(unittest.TestCase):
         attacker = self.pokemon('button-attacker')
         holder = self.pokemon('button-holder')
         replacement = self.pokemon('button-replacement')
-        controller = self.trainer('button-controller')
-        holder.spec['trainer_id'] = replacement.spec['trainer_id'] = controller.entity_id
         replacement.on_field = False
-        e = self.fixture(controller, attacker, holder, replacement)
+        e = self.fixture(attacker, holder, replacement)
         replacement.on_field = False
         obj = self.equip(e, holder, 'csv/native-button', 'item/탈출버튼')
-        self.attack(e, attacker, holder, 'move/몸통박치기', finish_turn=False)
+        self.attack(e, attacker, holder, 'move/몸통박치기')
         self.assertEqual(holder.spec[PHYSICAL.PENDING]['eject_button']['event']['attacker_id'], attacker.entity_id)
         budget = deepcopy(getattr(holder, 'budget', None))
         restored = Engine.import_state(self.r, json.loads(json.dumps(e.export_state())))
@@ -116,7 +114,7 @@ class CompletedCsvNativeRemaining(unittest.TestCase):
         e=self.fixture(fire,holder,target)
         self.equip(e,holder,'csv/native-policy','item/약점보험')
         e.start_round([fire,holder,target]);e.start_of_turn(fire,initiative_count=20)
-        with patch.object(Engine, 'd20',return_value=15):
+        with patch.object(e,'d20',return_value=15):
             e.use_move(fire,holder,'move/불꽃세례',set_damage=True)
         e.end_of_turn(fire)
         pending=holder.spec[PHYSICAL.PENDING]['weakness_policy']
@@ -127,7 +125,7 @@ class CompletedCsvNativeRemaining(unittest.TestCase):
                 e.end_encounter([fire,holder,target])
             e.start_round([holder,target]);e.start_of_turn(holder,initiative_count=20)
             before=target.hp
-            with patch.object(Engine, 'd20',return_value=15):
+            with patch.object(e,'d20',return_value=15):
                 e.use_move(holder,target,'move/몸통박치기',set_damage=True)
             if active: boosted=before-target.hp
             else: ordinary=before-target.hp
@@ -139,9 +137,8 @@ class CompletedCsvNativeRemaining(unittest.TestCase):
         e=self.fixture(actor)
         result=e.scavenge(actor,fixed_d20=20,during='extended_rest', duration_minutes=240,
             duration_reason='actual uninterrupted four-hour rest',rest_id='scavenger-rest')
-        self.assertEqual((result['category'],result['item_id']),('tm',None))
-        CAP.resolve_scavenge_reward(e,actor,day=result['day'],item_id='TM1',reason='GM selected the actual TM')
-        self.assertEqual(actor.spec['items']['TM1'],1)
+        self.assertEqual(result['item_id'],'item/이상한사탕')
+        self.assertEqual(actor.spec['items']['item/이상한사탕'],1)
         restored=Engine.import_state(self.r,json.loads(json.dumps(e.export_state())))
         actual=WORLD.actor_index(restored)[actor.entity_id]
         before=deepcopy(actual.spec)

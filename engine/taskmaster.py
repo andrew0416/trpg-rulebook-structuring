@@ -384,19 +384,20 @@ def cruelty_definition(rules):
 def _side(actor):return getattr(actor,'side',None)
 
 
-def prepare_gambit(engine,attacker,target,move):
+def prepare_gambit(engine,attacker,target,move,*,event_id=None,completion_id=None):
     """Native selected target occurrence, before its accuracy is resolved."""
-    if getattr(engine,'_taskmaster_gambit',None) is not None:return
+    if getattr(engine,'_taskmaster_gambit',None) is not None:
+        return __import__('taskmaster_gambit').bind_counter(engine,attacker,target,move,event_id,completion_id)
     import weapon_actions as WEAPONS,world_entities as W,frequency as F,action_lifecycle as ACTION
     if target.kind!='pokemon' or target.fainted or _side(attacker) is None or _side(target) is None or _side(attacker)==_side(target) or move['class'] not in ('물리','특수'):
-        return
-    if WEAPONS.range_spec(engine,move,attacker).get('origin')!='melee':return
+        return move
+    if WEAPONS.range_spec(engine,move,attacker).get('origin')!='melee':return move
     owner=W.actor_index(engine).get(target.spec.get('trainer_id'))
     quota={'kind':'scene','uses':DEFINITIONS[GAMBIT]['parameters']['scene']}
-    if owner is None or acquired(owner,GAMBIT) is None or not F.activation_allowed(owner,GAMBIT,quota,engine=engine):return
+    if owner is None or acquired(owner,GAMBIT) is None or not F.activation_allowed(owner,GAMBIT,quota,engine=engine):return move
     choice=engine.rulings.decide({'type':'deadly_gambit','unit':GAMBIT,'actor':owner.name,'target':target.name,
         'foe':attacker.name,'move':move['id'],'text':'Use Deadly Gambit? Choose counter Move (or null) and whether to roll for effects.'})
-    if choice is None or choice is False:return
+    if choice is None or choice is False:return move
     if type(choice) is not dict or set(choice) not in ({'move','roll_effects'},{'move','roll_effects','options'}) or type(choice['roll_effects']) is not bool:
         raise ValueError('explicit Deadly Gambit counter and effect-roll choices required')
     counter=choice['move']
@@ -416,8 +417,8 @@ def prepare_gambit(engine,attacker,target,move):
         allowed,reason=F.move_allowed(engine,target,counter,outside_combat=False)
         if not allowed:raise ValueError('Deadly Gambit counter frequency: '+reason)
     ACTION.triggered_free_action(engine,owner,GAMBIT);F.consume_activation(owner,GAMBIT,quota,engine=engine)
-    engine._taskmaster_gambit={'incoming_attacker':attacker,'pokemon':target,'move_id':move['id'],
-        'counter_id':counter,'counter_options':deepcopy(options),'roll_effects':choice['roll_effects'],'phase':'incoming','applied':False}
+    return __import__('taskmaster_gambit').create(engine,attacker,target,owner,move,counter,options,
+        choice['roll_effects'],event_id,completion_id)
 
 
 def native_move(fn):
@@ -447,11 +448,7 @@ def native_move(fn):
 
 
 def gambit_side(engine,attacker,target,move):
-    row=getattr(engine,'_taskmaster_gambit',None)
-    if not row:return None
-    if row['incoming_attacker'] is attacker and row['pokemon'] is target and row['move_id']==move['id']:return 'incoming'
-    if row['pokemon'] is attacker and row['incoming_attacker'] is target and row['counter_id']==move['id']:return 'counter'
-    return None
+    return __import__('taskmaster_gambit').side(engine,attacker,target,move)
 
 
 def critical_damage(engine,attacker,target,move,critical):
@@ -482,15 +479,20 @@ def apply_gambit_damage(engine,attacker,target,move,damage,context,before,*,actu
         try:
             incoming_application=HEAVY.apply_attack_damage(engine,incoming['attacker'],incoming['target'],incoming['damage'],incoming['move'],
                 producer=HEAVY.Producer.RESOLVED_HIT,remainder='paired hit native continuations remain',native_context=incoming['context'],actual_damage_type=incoming['actual_damage_type'])
+            row=engine._taskmaster_gambit
             row['incoming_receipt']=DAMAGE.application(requested=incoming['damage'],before=incoming['before'],
                 after=DAMAGE.observe(incoming['target']),source=incoming['move']['id'],damage_class=incoming['move']['class'])
+            row['incoming_passive_after']=__import__('passive_events').capture(incoming['target'])
             counter_application=HEAVY.apply_attack_damage(engine,attacker,target,damage,move,producer=HEAVY.Producer.RESOLVED_HIT,
                 remainder='paired hit native continuations remain',native_context=context,actual_damage_type=actual_damage_type)
             counter_receipt=DAMAGE.application(requested=damage,before=before,after=DAMAGE.observe(target),
                 source=move['id'],damage_class=move['class'])
+            row=engine._taskmaster_gambit
+            row['applied']=True
             if isinstance(incoming_application,dict) and incoming_application.get('source')==__import__('channeler').PAIN:row['incoming_receipt']['channeler_pain']=incoming_application
             if isinstance(counter_application,dict) and counter_application.get('source')==__import__('channeler').PAIN:counter_receipt['channeler_pain']=counter_application
         finally:
+            row=engine._taskmaster_gambit
             row['batch']=False
             row.pop('counter_context',None)
         # Both participants' HP and injuries now exist before faint/death and
@@ -499,15 +501,9 @@ def apply_gambit_damage(engine,attacker,target,move,damage,context,before,*,actu
         row['applied']=True
         return counter_receipt
     if row['counter_id'] is None:return None
-    row['prepared']={'attacker':attacker,'target':target,'move':move,'damage':damage,'context':context,'before':before,'actual_damage_type':actual_damage_type}
-    row['phase']='counter'
-    with ACTION.move_grant(engine,target,attacker,row['counter_id'],source=GAMBIT,kind='free') as grant:
-        engine.use_move(target,attacker,row['counter_id'],count_use=True,free_action=True,_action_grant=grant,**row['counter_options'])
-    # A real shield/cannot-hit response may prevent the counter. It still used
-    # its Move frequency; the incoming hit then has no second damage to pair.
-    if not row['applied']:return None
-    row['phase']='incoming_return'
-    return row['incoming_receipt']
+    # The original counter declaration/payment survives real native waits.
+    return __import__('taskmaster_gambit').run_counter(
+        engine,attacker,target,move,damage,context,before,actual_damage_type)
 
 
 def paired_receipt_current(engine,token):
@@ -572,6 +568,7 @@ def after_attack(engine,attacker,target,move,*,critical,damage):
 
 
 def validate_world(engine,index):
+    __import__('taskmaster_gambit').validate(engine,index)
     for actor in index.values():
         import order_actions as ORDERS
         for order in actor.registry:

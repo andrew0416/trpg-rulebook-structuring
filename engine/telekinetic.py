@@ -517,7 +517,7 @@ def activate_interference(e,a,ability,target=None):
   if play:__import__('frequency').consume_activation(c,source,quota,engine=se)
   targets=[]
   for foe in W.actor_index(se).values():
-   if not foe.on_field or foe.side==c.side or foe.captured:continue
+   if not foe.on_field or foe.side is None or c.side is None or foe.side==c.side or foe.captured:continue
    if W.distance_known(c,foe) is None or W.distance_known(c,foe)>3:continue
    row={'source':source,'accuracy_modifier':-2,'telekinetic_interference':{'caster_id':c.entity_id,'version':'official_feb2016' if play else 'core_1.05'},'encounter_end':True}
    if play:row['count_deadline']=(se.round_no+1,count)

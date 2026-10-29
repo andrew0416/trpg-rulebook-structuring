@@ -137,7 +137,7 @@ class BaitLureTests(unittest.TestCase):
         self.assertEqual(self.reel()['party_levels'], {self.q.entity_id: 20})
 
     def test_actual_escape_allows_gm_lure_retention_or_loss_without_extra_rng(self):
-        for source, lost in [('item/미끼', False), ('item/미끼', True)]:
+        for source, lost in [(CANDIDATES.FISHING, True), ('item/미끼', False), ('item/미끼', True)]:
             with self.subTest(source=source, lost=lost):
                 self.setUp()
                 self.hook(source=source)

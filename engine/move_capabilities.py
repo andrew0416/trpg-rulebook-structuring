@@ -16,7 +16,7 @@ def policy(rules):
 def learned_ids(actor):
     """Owned learning, excluding use permissions and display-only overlays."""
     import move_state as MOVES
-    return frozenset(actor.r.move_id(mid) or mid for mid in MOVES.owned_list(actor.spec,"moves",actor.moves))
+    return frozenset(actor.r.move_id(mid) or mid for mid in MOVES.owned_list(actor.spec,"moves",actor.moves,rules=actor.r))
 
 
 def contributions(actor):
@@ -170,7 +170,7 @@ def plan_change(actor,*,baseline=None,granted=(),revoked=()):
         st['legacy']['moves']=[v for v in st['legacy'].get('moves',[]) if v not in baseline and v not in old]
         probe.spec['moves']=list(baseline)
     for source in revoked:st['sources'].pop(source,None);st['overlays'].pop(source,None)
-    probe.moves=MOVES.effective_list(probe.spec,'moves')
+    probe.moves=MOVES.effective_list(probe.spec,'moves',rules=probe.r)
     before=learned_ids(actor);after=learned_ids(probe)|set(granted)
     changed=before^after;fields=set()
     for source in changed:

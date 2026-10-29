@@ -3,7 +3,7 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path('D:/trpg-rulebook-structuring/ptk-structure-experiment')
 sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
 from engine import Engine
 from test_category2_csv_remaining_item_contracts import RemainingCsvItemContractTests

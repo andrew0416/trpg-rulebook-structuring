@@ -4,7 +4,7 @@ from pathlib import Path
 import hashlib,json,math,sys,unittest
 from unittest.mock import patch
 
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
 sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 from engine import Engine,Rules,Combatant
 from builder import build_pokemon,build_trainer
@@ -25,7 +25,7 @@ class NicoletteWeatherTests(unittest.TestCase):
    extra.update(trainer_id=trainer.entity_id,loyalty=2,
     loyalty_relations={trainer.entity_id:{'value':2,'reason':'GM-established test relationship permits actual native commands'}})
   if types is not None:extra['types']=list(types)
-  c=Combatant(e.r,build_pokemon(e.r,species,40,name=name or identity,moves=list(moves),abilities=list(abilities),pos=pos,side=side,extra=extra))
+  c=Combatant(self.r,build_pokemon(self.r,species,40,name=name or identity,moves=list(moves),abilities=list(abilities),pos=pos,side=side,extra=extra))
   e.gm.add_combatant(c);return c
 
  def fixture(self,*,adopt=True,ground=True):
@@ -190,8 +190,7 @@ class NicoletteWeatherTests(unittest.TestCase):
      e.end_of_turn(r);e.start_of_turn(target,initiative_count=10);e.use_move(target,target,'move/안개제거')
     ball=W.prepare_sample_move(e,r,self.r.move('move/웨더볼'))
     expected=10 if boundary in ('single_hail','simultaneous') else 5
-    actual_type='얼음' if boundary=='single_hail' else ball['type']
-    if actual_type in r.types:expected+=math.floor(e.formula('stab'))
+    if ball['type'] in r.types:expected+=math.floor(e.formula('stab'))
     self.assertEqual(e.damage_base(r,ball,target=target),expected)
     self.assertEqual(FX.cond_ok(e,{'if':'weather effect active'},{'attacker':r,'target':target,'hit':True})[0],boundary in ('single_hail','simultaneous'))
     self.assertEqual(ball['damage_base'],5)

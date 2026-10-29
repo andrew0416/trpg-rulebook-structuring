@@ -192,7 +192,7 @@ class GroundFlightOptionTests(unittest.TestCase):
         self.assertEqual(self.reason(EARTH), OPTION.SOURCE)
         self.e.gm.set_ability(self.target, '부유', reason='actual Gravity-suppressed immunity')
         self.assertIsNone(self.reason(EARTH))
-        FIELD.clear(self.e)
+        self.e.field = None
         with patch.object(Engine, 'd20', return_value=20):
             self.e.use_move(self.actor, self.target, SMACK)
         self.assertTrue(CATALOG.grounded(self.target))

@@ -169,7 +169,7 @@ class Tests(unittest.TestCase):
   self.assertEqual(self.a.pos,(2,0));self.assertTrue(self.b.aoo_used);self.assertLess(self.a.hp,before);self.assertEqual(self.a.budget['shift'],0)
  def test_explicit_disengage_one_metre_spends_shift_without_aoo(self):
   self.a.spec['classes']=[];self.a.pos=(1,0);self.a.side='players';self.b.pos=(0,0);self.b.side='enemies'
-  self.e.grid=Grid(4,1);self.e.start_round([self.a,self.b]);self.e.start_of_turn(self.a);before=self.a.hp
+  self.e.grid=Grid(4,1);TURN.reset_budget(self.e,self.a);before=self.a.hp
   self.e.disengage(self.a,(2,0))
   self.assertEqual(self.a.pos,(2,0));self.assertFalse(getattr(self.b,'aoo_used',False));self.assertEqual(self.a.hp,before);self.assertEqual(self.a.budget['shift'],0)
  def test_blindsense_and_darkvision_do_not_receive_phantom_darkness_checks(self):

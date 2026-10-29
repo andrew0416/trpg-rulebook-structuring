@@ -136,8 +136,7 @@ class Tests(unittest.TestCase):
   del r.ruleset.profile['type_extensions']['수정']['reason']
   with self.assertRaises(ValueError):T.validate_types(r,['수정'])
  def test_tera_defense_immunity_and_stab_survive_durable_restore_then_end(self):
-  e,a,p=self.engine(self.home);e.begin_encounter(e.everyone)
-  G.type_operation(p,'add',['전기'],'source/before-tera')
+  e,a,p=self.engine(self.home);G.type_operation(p,'add',['전기'],'source/before-tera')
   H.observe_type(e,p,'물',reason='permanent choice');H.observe_active(e,p,True,reason='actual active form')
   self.assertEqual(p.types,['물']);self.assertEqual(e.type_multiplier('불꽃',p)[0],.5)
   self.assertIsNone(e.immune_to(p,'마비'));self.assertEqual(H.stab_types(p),['풀','독','전기'])

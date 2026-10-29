@@ -185,6 +185,60 @@ class EffectLifetimeTests(unittest.TestCase):
         self.e.end_scene(self.e.everyone)
         self.assertEqual(LIFE.numeric(self.a,'accuracy_modifier'),7)
 
+    def test_explicit_future_turn_texts_before_combat_restore_actual_user_target_start_end(self):
+        cases = (("start of user's next turn", 'a', True),
+                 ("end of user's next turn", 'a', False),
+                 ("start of target's next turn", 'b', True),
+                 ("end of target's next turn", 'b', False))
+        for text, owner_name, at_start in cases:
+            with self.subTest(text=text):
+                self.setUp()
+                before = (self.e.elapsed_seconds, self.e.rng.getstate())
+                budgets = {c.entity_id:deepcopy(c.budget) for c in (self.a,self.b) if hasattr(c,'budget')}
+                serials = {c.entity_id:deepcopy(c.custom_conditions['combat_turn_serial']) for c in (self.a,self.b) if 'combat_turn_serial' in c.custom_conditions}
+                original = self.b.evasion('물리')
+                self.assertEqual(self.apply(dict(type='evasion_mod',value=3,target='target',until=text)),(1,0))
+                self.assertEqual(self.b.evasion('물리'),original+3)
+                self.assertFalse(self.e.encounter_active); self.assertIsNone(self.e.round_start_seconds)
+                self.assertEqual((self.e.elapsed_seconds,self.e.rng.getstate()),before)
+                self.assertEqual({c.entity_id:deepcopy(c.budget) for c in (self.a,self.b) if hasattr(c,'budget')},budgets)
+                self.assertEqual({c.entity_id:deepcopy(c.custom_conditions['combat_turn_serial']) for c in (self.a,self.b) if 'combat_turn_serial' in c.custom_conditions},serials)
+                restored = Engine.import_state(self.r,json.loads(json.dumps(self.e.export_state())))
+                actors = {name:next(c for c in restored.everyone if c.entity_id==getattr(self,name).entity_id) for name in ('a','b')}
+                owner = actors[owner_name]; other = actors['b' if owner_name=='a' else 'a']; recipient = actors['b']
+                self.assertIs(TIME.records(recipient)[0]['turn_owner'],owner)
+                self.assertTrue(TIME.records(recipient)[0]['encounter_end'])
+                self.assertFalse(restored.encounter_active)
+                restored.start_round(restored.everyone); restored.start_of_turn(other,initiative_count=20)
+                self.assertEqual(recipient.evasion('물리'),original+3)
+                restored.end_of_turn(other); self.assertEqual(recipient.evasion('물리'),original+3)
+                restored.start_of_turn(owner,initiative_count=10)
+                self.assertEqual(recipient.evasion('물리'),original+(0 if at_start else 3))
+                restored.end_of_turn(owner)
+                self.assertEqual(recipient.evasion('물리'),original); self.assertFalse(TIME.records(recipient))
+
+    def test_explicit_future_turn_texts_keep_native_encounter_end_cleanup(self):
+        for text in ("start of user's next turn","end of user's next turn",
+                     "start of target's next turn","end of target's next turn"):
+            with self.subTest(text=text):
+                self.setUp(); original = self.b.evasion('물리')
+                serials = {c.entity_id:deepcopy(c.custom_conditions['combat_turn_serial']) for c in (self.a,self.b) if 'combat_turn_serial' in c.custom_conditions}
+                self.apply(dict(type='evasion_mod',value=3,target='target',until=text))
+                self.e.start_round(self.e.everyone)
+                self.e.end_encounter(self.e.everyone)
+                self.assertEqual(self.b.evasion('물리'),original); self.assertFalse(TIME.records(self.b))
+                self.assertEqual({c.entity_id:deepcopy(c.custom_conditions['combat_turn_serial']) for c in (self.a,self.b) if 'combat_turn_serial' in c.custom_conditions},serials)
+
+    def test_future_turn_text_extension_preserves_other_outside_combat_lifetime_guards(self):
+        cases = ({'duration':'1 rounds'}, {'until':'this round'}, {'until':'encounter_end'},
+                 {'until':'next turn'}, {'until':{'event':'turn_end','owner':'user','after':1}},
+                 {'repeat':{'event':'turn_end','owner':'user','times':2}})
+        for controls in cases:
+            with self.subTest(controls=controls):
+                self.setUp(); before = self.e.export_state()
+                with self.assertRaises(ValueError):self.apply(self.modifier(**controls))
+                self.assertEqual(self.e.export_state(),before); self.assertFalse(TIME.records(self.a))
+
     def test_ambiguous_or_unbounded_declarations_fail_before_installation(self):
         for controls in ({'until':{'event':'turn_end'}}, {'repeat':'every turn'},
                          {'duration':{'seconds':True}}, {'while':'maybe active'}):

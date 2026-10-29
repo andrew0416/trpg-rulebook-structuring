@@ -80,9 +80,7 @@ class AuditItemBoundaryTests(unittest.TestCase):
         e,a=self.scavenger();start=e.elapsed_seconds
         out=e.scavenge(a,fixed_d20=20,duration_minutes=5,duration_reason='observed five-minute search')
         self.assertEqual(e.elapsed_seconds-start,300)
-        self.assertEqual((out['category'],out['item_id']),('tm',None))
-        CAP.resolve_scavenge_reward(e,a,day=out['day'],item_id='TM1',reason='GM selected the actual TM')
-        self.assertEqual(a.spec['items']['TM1'],1)
+        self.assertEqual(a.spec['items']['item/이상한사탕'],1)
         import activity_jobs as JOBS
         status=JOBS.status(e,out['activity']['job_id'])
         self.assertEqual((status['status'],status['worked_seconds']),('complete',300))
@@ -90,12 +88,11 @@ class AuditItemBoundaryTests(unittest.TestCase):
         NATIVE.assert_rejected_unchanged(e,lambda:e.scavenge(a,duration_minutes=5,
             duration_reason='duplicate search'),reason_pattern='daily use')
         snapshot=e.gm.snapshot();e.gm.restore(snapshot)
-        self.assertEqual(a.spec['items']['TM1'],1)
+        self.assertEqual(a.spec['items']['item/이상한사탕'],1)
         import downtime as DT
         DT.new_day(a)
-        next_day=e.scavenge(a,fixed_d20=1,duration_minutes=5,duration_reason='next observed day search')
-        self.assertEqual((next_day['category'],next_day['item_id']),('none',None))
-        self.assertNotIn('item/상처약',a.spec.get('items',{}))
+        e.scavenge(a,fixed_d20=1,duration_minutes=5,duration_reason='next observed day search')
+        self.assertEqual(a.spec['items']['item/상처약'],1)
         a.spec['capabilities']=[]
         NATIVE.assert_rejected_unchanged(e,lambda:e.scavenge(a,duration_minutes=5,
             duration_reason='lost live capability'),reason_pattern='actual capability')
@@ -107,8 +104,7 @@ class AuditItemBoundaryTests(unittest.TestCase):
         self.assertEqual(e.elapsed_seconds-start,14400)
         self.assertEqual(a.spec['rest_interval']['total_minutes'],240)
         self.assertTrue(out['activity']['qualifies_as_rest'])
-        self.assertEqual((out['category'],out['item_id']),('none',None))
-        self.assertNotIn('item/상처약',a.spec.get('items',{}))
+        self.assertEqual(a.spec['items']['item/상처약'],1)
         e=self.restore(e);a=WORLD.actor_index(e)[a.entity_id]
         NATIVE.assert_rejected_unchanged(e,lambda:e.scavenge(a,during='extended_rest',duration_minutes=240,
             duration_reason='same day repeated',rest_id='second'),reason_pattern='daily use')

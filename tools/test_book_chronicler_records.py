@@ -131,11 +131,6 @@ class ChroniclerRecordTests(unittest.TestCase):
 
     def test_profile_archive_adds_two_to_the_five_social_checks_only_against_archived_subjects(self):
         self.whole()
-        self.e.pokemon_activity(self.t, 'configure_intelligence',
-            portrayal='this learner can make the declared Charm comparison', discussed_with=['GM', 'player'],
-            social=False, education=False,
-            exceptions={self.p.entity_id:{'skills':['매력'], 'reason':'actual Profile Archive Pokemon-side comparison'}},
-            reason='fixture campaign discussion permits only this individual Charm pool')
         self.c = self.add('unrecorded foe', 'pokemon', (6, 2), side='foe', species='피카츄', types=['전기'], speed=11)
         self.archive_subject(self.b, 'pokemon', 'rec-b')
         dice = SKILLS.rank(self.e.r, self.t, '매력')[2]

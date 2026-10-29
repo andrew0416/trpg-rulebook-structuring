@@ -52,7 +52,7 @@ def _selection(feature,selection):
 def acquisition_snapshot(engine,actor,feature,selection):
     import move_state as M,skill_modifiers as S
     _selection(feature,selection)
-    known=M.known(engine.r,{'moves':M.owned_list(actor.spec,'moves')}) if feature==FIGHTER else []
+    known=M.known(engine.r,{'moves':M.owned_list(actor.spec,'moves',rules=actor.r)}) if feature==FIGHTER else []
     return {'selection':deepcopy(selection),'source':source(engine.r,feature,selection['edition']),
         'skills':{skill:S.rank(engine.r,actor,skill)[2] for skill in SKILLS} if feature==COMMAND else {},
         'known_moves':known,'frequencies':{mid:list(F.move_frequency(engine,mid,actor)) for mid in known}}

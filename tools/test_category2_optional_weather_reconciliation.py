@@ -7,7 +7,7 @@ import sys
 import unittest
 
 STAGE = Path(__file__).resolve().parents[1]
-CANON = Path(os.environ.get("PTK_CANONICAL_ROOT", STAGE))
+CANON = Path(os.environ.get("PTK_CANONICAL_ROOT", r"D:\trpg-rulebook-structuring\ptk-structure-experiment"))
 sys.path[:0] = [str(STAGE / "engine"), str(CANON / "engine"), str(CANON / "tools"), str(CANON)]
 
 # Import the staged adapter before canonical fixtures adjust sys.path.

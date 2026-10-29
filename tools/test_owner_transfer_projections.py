@@ -60,7 +60,7 @@ class OwnerTransferProjectionTests(unittest.TestCase):
                 trio = f.trio(); p = trio[0]; recipient = f.trainer('receiving ' + uid)
                 recipient.spec['feats'].append(uid)
                 if uid == CLASS.SPECIES_SAVANT:
-                    recipient.spec['class_passive_choices'] = {uid: {'evolution_group': 'pokemon/디그다'}}
+                    recipient.spec['class_passive_choices'] = {uid: {'evolution_group': 'diglett-line'}}
                     p.spec['evolution_group'] = 'diglett-line'
                 self.roster(f.e, f.t, trio); self.roster(f.e, recipient, [])
                 f.acquire(trio)
@@ -82,7 +82,7 @@ class OwnerTransferProjectionTests(unittest.TestCase):
                 self.assertTrue(f.e.validate_state()['valid'])
 
     def test_species_wrong_group_and_missing_or_invalid_selection_are_atomic(self):
-        for choice in ({CLASS.SPECIES_SAVANT: {'evolution_group': 'pokemon/이상해씨'}}, {},
+        for choice in ({CLASS.SPECIES_SAVANT: {'evolution_group': 'other-line'}}, {},
                        {CLASS.SPECIES_SAVANT: {'evolution_group': ''}}):
             with self.subTest(choice=choice):
                 f = BOOK.BookSpeciesSavantTests(); f.setUp(); trio = f.trio(); p = trio[0]

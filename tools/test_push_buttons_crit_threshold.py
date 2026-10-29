@@ -45,7 +45,7 @@ class PushThresholdTests(ProvocateurScene,unittest.TestCase):
   # Existing native imported-ownership path validates this Feature and its skill prerequisites.
   self.skills(명령=2);self.a.spec['feats'].append(TRAINING.BRUTAL);items.register_feats(self.e,self.a)
   self.e.start_round(self.e.everyone)
-  receipt=self.e.manual_feat(self.a,TRAINING.CSV_CLAUSES[TRAINING.BRUTAL],self.a)
+  receipt=self.e.manual_feat(self.a,TRAINING.BRUTAL,self.a)
   self.assertEqual(receipt['communication']['mode'],'self_target_exception')
   self.assertEqual(self.a.pending_action_loss,{'standard':1})
   self.assertEqual(TRAINING.bonus(self.a,'critical'),1)
@@ -63,11 +63,7 @@ class PushThresholdTests(ProvocateurScene,unittest.TestCase):
      self.prepare(expansion,push=False)
      self.assertEqual(self.leer(face),(0,face==threshold))
  def test_declined_demoralize_has_no_status_crit_even_at_twenty(self):
-  self.setup(edges=['edge/호감인',CPF.BAD_MOOD]);self.acquire(P.CLASS)
-  self.reject(lambda:self.acquire(P.PUSH,selection={'edge':None}),'must grant Demoralize')
-  self.assertIsNone(P.acquired(self.a,P.PUSH))
-  self.acquire(P.QUICK);self.e.apply_status(self.a,'독');self.e.apply_status(self.a,'저주',applied_by=self.t)
-  self.begin();self.assertEqual(CPF.bad_mood_critical_bonus(self.e,self.a),2)
+  self.prepare(2,decline=True)
   self.assertNotIn(P.DEMO,self.a.spec['edges'])
   self.assertEqual(self.leer(20),(0,False))
  def test_nonsocial_status_receives_demoralize_but_no_push_tick(self):

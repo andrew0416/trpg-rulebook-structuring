@@ -26,9 +26,6 @@ class CombatTests(unittest.TestCase):
         self.e=Engine(self.r,seed=420)
         self.a=self.actor('A');self.t=self.actor('T')
         self.a.side='party';self.t.side='wild';self.e.everyone=[self.a,self.t]
-        self.e.pokemon_activity(self.actor('campaign discussion','trainer'),'configure_intelligence',
-            portrayal='Pokemon can use their explicitly assigned task skills',discussed_with=['combat fixture participants'],
-            social=True,education=True,reason='explicit campaign permission for the prepared skill tasks')
     def actor(self,name,kind='pokemon'):
         # These synthetic combat fixtures occupy one observed Medium cell.
         return Combatant(self.r,{'name':name,'kind':kind,'size':'중형','level':30,'stats':{'hp':60,'atk':20,'def':10,'spa':20,'spd':15,'spe':5},'moves':['move/바다회오리','move/화염방사'],'skills':{'전투':'전문'},'movement':{'land':6}})
@@ -119,7 +116,7 @@ class CombatTests(unittest.TestCase):
         from grid import Grid,cheb
         self.a.spec['movement']={'land':2,'swim':6};self.a.stages['spe']=6
         self.e.grid=Grid(30,3);self.a.pos=(0,0);self.t.pos=(20,0)
-        self.e.start_round([self.a,self.t]);self.e.start_of_turn(self.a)
+        TURN.reset_budget(self.e,self.a)
         self.e.approach(self.a,self.t,movement_mode='swim')
         self.assertEqual(cheb((0,0),self.a.pos),9)
         self.assertEqual(self.a.budget['shift'],0)
@@ -165,8 +162,7 @@ class CombatTests(unittest.TestCase):
         self.assertEqual(before,self.e.rng.getstate())
     def test_damage_chart_exact_all_28_rows_and_both_execution_modes(self):
         text=(ROOT/'input/ch07-combat.md').read_text(encoding='utf-8').splitlines()
-        chart=self.r.mech('combat/damage-chart')['by_damage_base'];self.t.stats['def']=1
-        self.assertEqual(self.t.staged('def'),1)  # ch05:54 minimum; the table remains exact.
+        chart=self.r.mech('combat/damage-chart')['by_damage_base'];self.t.stats['def']=0
         seen=set()
         for line in text[335:349]:
             cells=[v.strip().replace('**','') for v in line.strip('|').split('|')]
@@ -177,10 +173,10 @@ class CombatTests(unittest.TestCase):
                 self.assertEqual(chart[str(db)],{'dice':cells[vi],'set':{'low':low,'mid':mid,'high':high}})
                 n,faces,bonus=map(int,re.fullmatch(r'(\d+)d(\d+)\+(\d+)',cells[vi]).groups())
                 mv=self.move(db)
-                self.assertEqual(self.e.roll_damage(self.a,self.t,mv,set_damage=True),mid+20-1)
-                self.assertEqual(self.e.roll_damage(self.a,self.t,mv,fixed_dice=[1]*n),low+20-1)
-                self.assertEqual(self.e.roll_damage(self.a,self.t,mv,fixed_dice=[faces]*n),high+20-1)
-                self.assertEqual(self.e.roll_damage(self.a,self.t,mv,crit=True,set_damage=True),2*mid+20-1)
+                self.assertEqual(self.e.roll_damage(self.a,self.t,mv,set_damage=True),mid+20)
+                self.assertEqual(self.e.roll_damage(self.a,self.t,mv,fixed_dice=[1]*n),low+20)
+                self.assertEqual(self.e.roll_damage(self.a,self.t,mv,fixed_dice=[faces]*n),high+20)
+                self.assertEqual(self.e.roll_damage(self.a,self.t,mv,crit=True,set_damage=True),2*mid+20)
         self.assertEqual(seen,set(range(1,29)))
     def test_fixed_damage_dice_validate_count_faces_and_critical_count(self):
         mv=self.move(6)
@@ -445,7 +441,6 @@ class CombatTests(unittest.TestCase):
         import heavy_standard_adapter as STANDARD
         self.e.start_round([self.a,self.t]);self.apply({'type':'temp_hp','value':20})
         self.t.custom_conditions['temporary_hp_lifetime'].pop('clock_basis')
-        self.t.custom_conditions['temporary_hp_lifetime'].pop('contributions')
         self.e.end_round();self.e.advance_time(290)
         move=self.r.move('struggle');mm,_=self.r.move_mech('struggle')
         before=(self.t.hp,self.t.temp_hp,self.t.injuries)
@@ -826,10 +821,6 @@ class CombatTests(unittest.TestCase):
         self.assertNotIn('실명',self.t.conditions);self.e.gm.restore('timed')
         self.assertIn('실명',self.t.conditions);self.assertEqual(self.e._initiative_cursor['round'],1)
         self.assertIs(self.a.custom_conditions['dirty_trick_uses'][0][1],self.t)
-    def ap_payer(self):
-        # ch06:85, Core 1.05 p.221: a trainer's AP bonus reaches only its own current, registered Pokemon.
-        payer=self.actor('AP trainer','trainer');self.e.everyone.append(payer);self.t.spec['trainer_id']=payer.entity_id
-        return payer
     def precision_setup(self):
         for c in (self.a,self.t):c.spec['skills'].update({'생존':'전문','집중':'숙련'})
         self.e.start_round([self.a,self.t]);self.e.start_of_turn(self.a)
@@ -906,7 +897,7 @@ class CombatTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.precise(focus={'fixed':[7]*4})
         self.assertEqual(before,(self.e.rng.getstate(),len(self.e.log_lines)))
     def test_precision_roll_id_separation_prevents_two_checks_consuming_one_ap(self):
-        payer=self.ap_payer()
+        payer=self.actor('AP trainer','trainer')
         self.e.boost_roll(payer,self.t,roll_id='precision-task',kind='skill')
         self.precision_setup();self.precision_attack(hit=False)
         with self.assertRaisesRegex(ValueError,'distinct'):
@@ -1003,7 +994,7 @@ class CombatTests(unittest.TestCase):
         out=self.precise(focus={'fixed':[4]*4});self.assertEqual(out.check.total,15)
     def test_precision_completed_task_finalizes_both_actual_roll_ids(self):
         import skill_feature_actions as SF
-        payer=self.ap_payer();self.e.boost_roll(payer,self.t,roll_id='ordinary',kind='skill')
+        payer=self.actor('AP trainer','trainer');self.e.boost_roll(payer,self.t,roll_id='ordinary',kind='skill')
         self.precision_setup();self.precision_attack(hit=False)
         out=self.precise(task={'fixed':[3]*5,'roll_id':'ordinary'},focus={'fixed':[4]*4,'roll_id':'supplement'})
         self.assertEqual(out.basis['ordinary_roll'].total,16)

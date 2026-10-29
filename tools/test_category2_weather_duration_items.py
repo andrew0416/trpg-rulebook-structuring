@@ -7,7 +7,7 @@ import sys
 import unittest
 
 STAGE = Path(__file__).resolve().parents[1]
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(r"D:\trpg-rulebook-structuring\ptk-structure-experiment")
 sys.path.insert(0, str(STAGE / "engine"))
 sys.path.insert(1, str(ROOT / "engine"))
 

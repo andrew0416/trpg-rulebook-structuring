@@ -18,8 +18,9 @@ from builder import build_trainer
 import world_entities as WORLD
 from ruleset import ExcludedRuleSelection
 
-ROOT = Path(__file__).resolve().parents[1]
-TEMP_ROOT = Path(tempfile.gettempdir())
+ROOT = Path(r'D:\trpg-rulebook-structuring\ptk-structure-experiment')
+WORKSPACE = Path(r'C:\Users\admin\Documents\ChatGPT\trpg-rulebook-structuring')
+TEMP_ROOT = WORKSPACE / 'tmp'
 STATUS = 'data/verification/category2-item-table-status.json'
 MANUAL = 'item/타입-공부-메뉴얼-1'
 MANUAL_CLAUSE = 'C2CSV/inventory:70:1'

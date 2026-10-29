@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 import unittest
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path('D:/trpg-rulebook-structuring/ptk-structure-experiment')
 sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
 import test_category2_class_passive_combat_bulk as CLASS_FIXTURE
 import test_category2_optional_catalog_nine as ITEM_FIXTURE

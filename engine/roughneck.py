@@ -44,7 +44,9 @@ def qualification(actor,feature,snapshot,prerequisite_source):
     for parent,request in {**snapshot['parents'],**snapshot['members']}.items():
         if parent not in FEATURES or not any(r['request_id']==request for r in records(actor,parent,False)):
             raise ValueError('actual historical Roughneck prerequisite receipt required')
-    if any(type(v) is not int or not 1<=v<=6 for v in snapshot['ranks'].values()) or type(snapshot['presence']) is not int:
+    for value in snapshot['ranks'].values():
+        S.validate_rank_value(actor.r,value,label='actual Roughneck skill rank')
+    if type(snapshot['presence']) is not int:
         raise ValueError('actual Roughneck skill and Edge observations required')
     return Q.require(feature,'native','acquire',[
         Q.check('trainer','prerequisite',actor.kind=='trainer','actual Trainer required'),

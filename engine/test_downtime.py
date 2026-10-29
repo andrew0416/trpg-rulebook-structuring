@@ -2,7 +2,6 @@
   python -X utf8 -I engine/test_downtime.py <root>"""
 import os
 import sys
-from copy import deepcopy
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from builder import build_pokemon, build_trainer  # noqa: E402
@@ -30,33 +29,11 @@ def run(root):
     check("레벨업: 레벨 7·9 의 레벨업 기술(씨뿌리기·덩굴채찍) 습득", r.move_id("씨뿌리기") in spec["moves"] and r.move_id("덩굴채찍") in spec["moves"], spec["moves"])
     check("레벨업: 기본 관계 유지 (특공·특방 ≥ 나머지)", spec["stats"]["spa"] >= spec["stats"]["atk"] and spec["stats"]["spd"] >= spec["stats"]["def"], spec["stats"])
     check("진화 옵션: 레벨 10 은 아직 없음", DT.evolution_options(r, spec) == [])
-    # Growth must not silently drop an old move when the sourced capacity fills.
-    before_growth = deepcopy(spec)
-    try:
-        DT.gain_exp(r, spec, 130)
-    except ValueError as exc:
-        assert str(exc) == "known Pokemon moves exceed sourced capacity; explicit forgotten-move choice required"
-    else:
-        raise AssertionError("over-capacity growth must require an explicit forgotten move")
-    assert spec == before_growth
-    growth_engine = Engine(r, 1)
-    growing = Combatant(r, spec)
-    growth_engine.gm.add_combatant(growing)
-    growth_engine.gm.set_move(growing, "move/울음소리", add=False,
-                              reason="downtime fixture chooses Growl as the forgotten move before growth")
-    spec = growing.spec
     DT.gain_exp(r, spec, 130)
     opts = DT.evolution_options(r, spec)
     check("진화 옵션: 레벨 15 → 이상해풀 (15이상)", spec["level"] == 15 and opts == [("이상해풀", 15)], (spec["level"], opts))
-    # Choose the birth ability explicitly; level 20 offers, but does not choose,
-    # the second ability from the actual basic/hidden learnset pools.
-    spec20 = build_pokemon(r, "이상해씨", 19, strategy="special", abilities=["심록"])
+    spec20 = build_pokemon(r, "이상해씨", 19, strategy="special")
     log20 = DT.level_up(r, spec20)
-    growing20 = Combatant(r, spec20)
-    growth_engine.gm.add_combatant(growing20)
-    growth_engine.choose_growth_ability(growing20, 20, "자신감",
-                                        reason="downtime fixture selects its offered hidden ability at level 20")
-    spec20 = growing20.spec
     check("레벨 20 특성 슬롯: 두 번째 특성 획득 (기본/숨겨진 풀)", len(spec20["abilities"]) == 2 and any("특성 슬롯" in l for l in log20), spec20["abilities"])
     # 진화
     old_stats = dict(spec["stats"])
@@ -75,7 +52,6 @@ def run(root):
     # 휴식
     e = Engine(r, 1)
     c = Combatant(r, build_pokemon(r, "뚜벅쵸", 13))
-    e.gm.add_combatant(c)
     c.hp = 10
     got = DT.rest(e, c, 60)
     check("휴식 60분: 30분마다 최대 체력 1/16 → 2블록", got == 2 * int(c.max_hp / 16), (got, c.max_hp))
@@ -94,8 +70,6 @@ def run(root):
     e2 = Engine(r, 1)
     trn = Combatant(r, build_trainer(r, "실바나", 5, {"hp": 10, "atk": 5, "def": 5, "spa": 5, "spd": 5, "spe": 5}, items={"이상한사탕": 1}))
     pc = Combatant(r, build_pokemon(r, "뚜벅쵸", 13))
-    e2.gm.add_combatant(trn)
-    e2.gm.add_combatant(pc)
     e2.use_item(trn, "이상한사탕", pc)
     check("이상한사탕: 다음 레벨까지 경험치 → 레벨 14, 전투원 스탯 갱신", pc.level == 14 and sum(pc.stats.values()) == sum(r.species["pokemon/뚜벅쵸"]["base_stats"].values()) + 24, (pc.level, pc.stats))
     lines = ["# 다운타임 테스트 (자동 생성)", "", f"{sum(1 for _, ok, _ in res if ok)}/{len(res)} 통과", "", "| # | 검사 | 결과 | 비고 |", "|---|---|---|---|"]

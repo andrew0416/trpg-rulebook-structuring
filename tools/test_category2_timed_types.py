@@ -1,7 +1,6 @@
 """Actual Roost plus shared source-owned type operations and real boundaries."""
 from pathlib import Path
 from copy import deepcopy
-from unittest.mock import patch
 import json,sys,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 from engine import Rules,Engine,Combatant
@@ -107,18 +106,15 @@ class TimedTypeTests(unittest.TestCase):
   with self.assertRaises(ValueError):e.gm.restore('stored')
   self.assertEqual(before,(a.types,e.round_no,a.hp))
  def test_unreviewed_native_lifetimes_and_invalid_contracts_fail_before_cost(self):
+  from unittest.mock import patch
   e,a,b=self.world()
-  # Burn Up/Double Shock now use the actual all-target completion consumer.
+  # These four Moves now have reviewed five-target-turn lifetimes; exercise the unreviewed-source guard explicitly.
   for name in ('핼러윈','숲의저주','마법가루','물붓기'):
    a.moves.append('move/'+name)
    before=(a.budget.copy(),a.move_uses.copy(),a.types[:],a.hp,b.hp,e.rng.getstate())
    with self.subTest(move=name):
-    # These four native moves are now reviewed. Test the admission boundary
-    # with review explicitly absent, without rejecting their real definitions.
-    mid='move/'+name
-    unreviewed=dict(e.r.moves_reviewed[mid],type_lifetime_ready=False)
-    with patch.dict(e.r.moves_reviewed,{mid:unreviewed}):
-     with self.assertRaises(CONTRACTS.EffectContractError):e.use_move(a,b,mid)
+    with patch.dict(e.r.moves_reviewed,{'move/'+name:dict(e.r.moves_reviewed['move/'+name],type_lifetime_ready=False)}):
+     with self.assertRaises(CONTRACTS.EffectContractError):e.use_move(a,b,'move/'+name)
     self.assertEqual(before,(a.budget,a.move_uses,a.types,a.hp,b.hp,e.rng.getstate()))
   for payload in ({'add_type':'물','lose_type':'불꽃'},{'add_type':'물','fallback':'노말'},{'set_type':'unresolved option'},{'add_type':'물','unknown_semantics':True}):
    with self.subTest(payload=payload):

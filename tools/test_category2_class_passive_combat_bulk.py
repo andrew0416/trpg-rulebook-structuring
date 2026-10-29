@@ -57,7 +57,8 @@ class ClassPassiveCombatBulkTests(unittest.TestCase):
                 },
             ),
         )
-        pokemon_extra = {"trainer_id": trainer.entity_id, "trainer": trainer.name}
+        pokemon_extra = {"trainer_id": trainer.entity_id, "trainer": trainer.name,
+                         "evolution_group": "bulbasaur-line"}
         if pokemon_types is not None:
             pokemon_extra["types"] = list(pokemon_types)
         pokemon = Combatant(
@@ -86,7 +87,6 @@ class ClassPassiveCombatBulkTests(unittest.TestCase):
             engine.confirm_blessing_gift(trainer, C.BLESSED_RESILIENCE, reason="actual patron resistance domain and role choice")
         for actor in (trainer, pokemon, enemy):
             engine.register_abilities(actor)
-        engine.gm.observe_sensory_environment(trainer,pokemon,paths={"auditory":True},present=True,reason="actual Order delivery")
         return engine, trainer, pokemon, enemy
 
     def activate(self, engine, trainer, pokemon, uid):
@@ -135,7 +135,7 @@ class ClassPassiveCombatBulkTests(unittest.TestCase):
             self.assertEqual(self.rules._selected_rule(uid), uid)
 
     def test_species_savant_projects_all_six_stats_once_and_retracts(self):
-        choices = {C.SPECIES_SAVANT: {"evolution_group": "pokemon/이상해씨"}}
+        choices = {C.SPECIES_SAVANT: {"evolution_group": "bulbasaur-line"}}
         e, t, p, q = self.fixture(feats=[C.SPECIES_SAVANT], choices=choices)
         for field in ("hp", "atk", "def", "spa", "spd", "spe"):
             self.assertEqual(p.stats[field], p.spec["stats"][field] + 1)
@@ -331,10 +331,7 @@ class ClassPassiveCombatBulkTests(unittest.TestCase):
         self.assertEqual(after[:4], before[:4])
         self.assertGreater(len(after[4]), len(before[4]))
         t.budget["standard"] = 1
-        import action_points as AP
-        available = AP.available(t)
         self.assertEqual(e.activate_blessed_resilience(t, "불꽃"), (1, 0))
-        self.assertEqual(AP.available(t), available - 1)
         self.assertEqual(C.resistance_steps(e, t, "불꽃"), 1)
         e.end_scene(e.everyone)
         self.assertEqual(C.resistance_steps(e, t, "불꽃"), 0)

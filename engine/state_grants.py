@@ -66,6 +66,12 @@ def effective(c, field, *, include_suppressed=False, only=None):
         if field!='capabilities' or not isinstance(only,(list,tuple,set,frozenset)) or any(type(v)is not str or not v for v in only):
             raise ValueError('named capability query needs exact capability identities')
     st = c.spec.get(KEY, {}) if field == "capabilities" else state(c)
+    if field == 'moves':
+        import move_state as MOVES_STATE
+        groups=[MOVES_STATE.effective_list(c.spec,field,rules=c.r)]
+        if not any(field in row for row in st.get('overlays',{}).values()):
+            groups.extend(row['available_moves'] for row in c.custom_conditions.get('equipped_weapons',{}).values())
+        return MOVES_STATE.move_union(c.r,*groups)
     result = list(c.spec.get(field, []))
     if field == 'capabilities' and c.spec.get('csv_remaining_form_state', {}).get('weapon_union'):
         import csv_item_form_contracts as CSV_FORMS
@@ -75,9 +81,7 @@ def effective(c, field, *, include_suppressed=False, only=None):
     for row in st.get("sources", {}).values():
         if not MOVES_STATE.source_active(c.spec,row):continue
         result.extend(row["grants"].get(field, []))
-    if field=='moves':
-        for equipped in c.custom_conditions.get('equipped_weapons',{}).values():
-            result.extend(equipped['available_moves'])
+
     if field=='capabilities':
         import move_capabilities as MOVE_CAPABILITIES
         result.extend(row['capability'] for row in MOVE_CAPABILITIES.contributions(c))
@@ -197,7 +201,16 @@ def overlay(c, source_id, **fields):
         raise ValueError("list replacement overlay requires moves or abilities")
     if any(not isinstance(v, (list, tuple)) or any(not isinstance(x, str) for x in v) for v in fields.values()):
         raise ValueError("overlay values must be identity lists")
-    state(c)["overlays"][source_id] = {k:list(dict.fromkeys(v)) for k,v in fields.items()}
+    import move_state as MOVES_STATE
+    if 'moves' in fields:MOVES_STATE.move_union(c.r,fields['moves'])
+    replacement = {k:list(dict.fromkeys(v)) for k,v in fields.items()}
+    from copy import copy
+    probe = copy(c)
+    probe.spec = deepcopy(c.spec)
+    state(probe)["overlays"][source_id] = replacement
+    # Resolve the whole replacement before publishing any field or ledger row.
+    for field in fields:effective(probe,field)
+    state(c)["overlays"][source_id] = replacement
     for field in fields:
         materialize(c, field)
 
@@ -1082,6 +1095,7 @@ def move_grants(rules,effect):
         if not isinstance(value,str):raise ValueError("move grant needs named moves")
         uid=rules.move_id(value)
         if uid is None:raise ValueError("unresolved move grant: "+value)
+        if uid in result:raise ValueError('distinct selected Move identities required within one grant list')
         result.append(uid)
     return list(dict.fromkeys(result))
 
@@ -1265,12 +1279,12 @@ def transition(engine,c,apply,*,participants=(),include_rulings=False,include_gr
     # Native equipment can publish derived Move definitions into shared Rules.
     # Keep those publications inside the same outer failure boundary as the graph.
     from ruleset import generated_weapon_transaction
-    with generated_weapon_transaction(engine.r):
+    with generated_weapon_transaction(engine.r,engine=engine) as publication:
         return _transition(engine,c,apply,participants=participants,include_rulings=include_rulings,
-                           include_grid=include_grid,completion=completion)
+                           include_grid=include_grid,completion=completion,_publication=publication)
 
 
-def _transition(engine,c,apply,*,participants=(),include_rulings=False,include_grid=False,completion=None):
+def _transition(engine,c,apply,*,participants=(),include_rulings=False,include_grid=False,completion=None,_publication=None):
     """Stage a state graph; preserve actors and surviving mutable-container aliases.
 
     A None primary permits world-only transitions such as an empty-world clock.
@@ -1313,6 +1327,16 @@ def _transition(engine,c,apply,*,participants=(),include_rulings=False,include_g
     if include_grid:
         if engine.grid is None:raise ValueError('grid transition requires an actual map')
         collect(vars(engine.grid))
+    # Retain shallow originals: callbacks may separately commit to the live graph.
+    contents={key:tuple(value.items()) if isinstance(value,dict) else tuple(value)
+              for key,value in originals.items()}
+    missing=object()
+    original_fields={field:getattr(engine,field,missing) for field in fields}
+    original_gm=engine.gm;original_roster=engine.gm.everyone
+    original_rules=engine.r;original_rng=engine.rng
+    original_rng_state=engine.rng.getstate() if stateful_rng else None
+    original_rulings=engine.rulings if include_rulings else None
+    original_grid=engine.grid if include_grid else None
     token_anchors=_transition_token_anchors(engine)
     memo={id(engine.r):engine.r,**token_anchors}
     if include_rulings:
@@ -1322,6 +1346,7 @@ def _transition(engine,c,apply,*,participants=(),include_rulings=False,include_g
         memo[id(engine.r)]=staged_rules
         staged_rules.rulings=deepcopy(engine.rulings,memo)
     staged_engine=deepcopy(engine,memo);staged_c=deepcopy(c,memo)
+    if _publication is not None:_publication['staged']=staged_engine
     staged_actors={key:deepcopy(actor,memo) for key,actor in actors.items()}
     staged_participants=[deepcopy(actor,memo) for actor in participants]
     sync_capability_losses(staged_engine)
@@ -1439,6 +1464,26 @@ def _transition(engine,c,apply,*,participants=(),include_rulings=False,include_g
             previous=getattr(original,field,None)
             if type(value) is type(previous) and isinstance(value,(dict,list,set)):
                 replacements.append((value,previous))
+    # Reject stale publication without restoring or overwriting the live change.
+    changed=(engine.gm is not original_gm or engine.gm.everyone is not original_roster
+             or engine.r is not original_rules or engine.rng is not original_rng
+             or any(getattr(engine,field,missing) is not value for field,value in original_fields.items())
+             or include_rulings and engine.rulings is not original_rulings
+             or include_grid and engine.grid is not original_grid
+             or stateful_rng and engine.rng.getstate()!=original_rng_state)
+    for key,value in originals.items():
+        before=contents[key]
+        if isinstance(value,dict):
+            current=tuple(value.items())
+            changed=changed or len(current)!=len(before) or any(
+                key is not old_key or child is not old_child
+                for (key,child),(old_key,old_child) in zip(current,before))
+        elif isinstance(value,set):
+            changed=changed or {id(child) for child in value}!={id(child) for child in before}
+        else:
+            changed=changed or len(value)!=len(before) or any(child is not old for child,old in zip(value,before))
+        if changed:break
+    if changed:raise ValueError('stale state transition: original world changed before commit')
     from resolution_transaction import commit_graph
     committed=commit_graph(payload,anchors,replacements)
     engine.gm.everyone=committed["gm_everyone"]

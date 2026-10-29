@@ -103,7 +103,7 @@ def _selected(e,c,move_id,range_source):
     import move_state as MOVES
     if range_source not in (MARCH.FEATURE,'feat/스탯-메뉴버','feat/열광'):raise ValueError('reviewed actual range conversion source required')
     requested=e.r.move_id(move_id)
-    if requested is None or requested not in MOVES.known(e.r,{'moves':MOVES.owned_list(c.spec,'moves',c.moves)}):
+    if requested is None or requested not in MOVES.known(e.r,{'moves':MOVES.owned_list(c.spec,'moves',c.moves,rules=c.r)}):
         raise ValueError('actual learned or granted Move required for Conqueror Pass')
     mid=e._ruleset_move(c,requested)
     if mid is None:raise ValueError('selected Conqueror Move unavailable')

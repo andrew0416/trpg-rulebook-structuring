@@ -3,6 +3,7 @@ from copy import deepcopy
 from pathlib import Path
 from hashlib import sha256
 import json
+import skill_modifiers as SKILL_RANKS
 
 CLASS='class/멘토'
 LESSONS='feat/수업'
@@ -128,7 +129,7 @@ def qualification(actor,feature,snapshot,prerequisite_source):
     expected={'source','skills','tutoring_policy'} if feature==CLASS else {'source'}
     if type(selection)is not dict or set(selection)!=expected or selection['source']!=snapshot['source']['variant']:
         raise ValueError('Mentor source and immutable selection differ')
-    if any(type(x)is not int or not 1<=x<=6 for x in ranks):raise ValueError('ordinary acquisition skill ranks required')
+    for value in ranks:SKILL_RANKS.validate_rank_value(actor.r,value,label='Mentor acquisition skill rank')
     if feature==CLASS:
         if selection['skills']!=skills or selection['tutoring_policy'] not in ('core','official_sep2015','kr_errata'):
             raise ValueError('exact fixed Mentor skills and tutoring source required')
@@ -143,7 +144,7 @@ def qualification(actor,feature,snapshot,prerequisite_source):
                 raise ValueError('Mentor parent receipt and fixed skills differ')
     threshold=5 if feature==MOVE_TUTOR else 6 if feature==LIFELONG else 0
     checks=[Q.check('trainer','prerequisite',actor.kind=='trainer','Mentor features require an actual Trainer'),
-            Q.check('two_novice','prerequisite',feature!=CLASS or all(type(x)is int and 3<=x<=6 for x in ranks),'both fixed Mentor skills must be ordinary Novice when acquiring the Class'),
+            Q.check('two_novice','prerequisite',feature!=CLASS or all(x>=3 for x in ranks),'both fixed Mentor skills must be ordinary Novice when acquiring the Class'),
             Q.check('parents','prerequisite',all(snapshot['parents'].values()),'actual acquired parent Mentor feature required'),
             Q.check('selected_rank','prerequisite',max(ranks)>=threshold,'one selected Mentor skill must meet the printed ordinary rank')]
     return Q.require(feature,actor.entity_id,'acquisition',checks)

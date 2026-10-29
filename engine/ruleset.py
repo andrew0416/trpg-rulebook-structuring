@@ -439,39 +439,83 @@ from contextlib import contextmanager
 _GENERATED_WEAPON_JOURNALS = ContextVar('generated_weapon_publications', default=())
 
 
+def _weapon_publication_before(mapping,key,names):
+    return (mapping,key,key in mapping,mapping.get(key),
+            list(mapping[key]) if mapping is names and key in mapping else None)
+
+
 @contextmanager
-def generated_weapon_transaction(rules):
-    """Journal only actual generated-weapon writes, including nested producers."""
-    journal={}
-    token=_GENERATED_WEAPON_JOURNALS.set((*_GENERATED_WEAPON_JOURNALS.get(),
-                                         (rules.moves,rules.selection,journal)))
+def generated_weapon_transaction(rules,*,engine=None):
+    """Journal native writes along actual staged graph ancestry, not shared Rules."""
+    active=_GENERATED_WEAPON_JOURNALS.get()
+    parent=next((entry for entry in reversed(active)
+                 if entry['moves'] is rules.moves and entry['selection'] is rules.selection
+                 and (engine is None or entry['staged'] is engine)),None)
+    current=next((entry for entry in reversed(active)
+                  if entry['moves'] is rules.moves and entry['selection'] is rules.selection),None)
+    crossing=parent is not None and (parent['crossing'] or
+        current is not parent and not any(parent is ancestor for ancestor in current['parents']))
+    entry={'moves':rules.moves,'selection':rules.selection,'staged':None,'records':{},'claims':set(),
+           'parents':() if parent is None else (*parent['parents'],parent),'crossing':crossing}
+    token=_GENERATED_WEAPON_JOURNALS.set((*active,entry))
     try:
-        yield
+        yield entry
     except BaseException:
-        for records in reversed(tuple(journal.values())):
+        for records in reversed(tuple(entry['records'].values())):
             for mapping,key,present,old,contents in reversed(records):
                 if not present:mapping.pop(key,None)
                 else:
                     if contents is not None:old[:]=contents
                     mapping[key]=old
         raise
+    else:
+        # A successful sibling/original-graph commit survives suspended candidates.
+        committed=set();published_names={}
+        for identity in entry['claims']:
+            records=entry['records'][identity]
+            for mapping,key,_,_,_ in records:
+                address=(id(mapping),key);committed.add(address)
+                if mapping is rules.selection.names and identity[2] in mapping.get(key,[]):
+                    published_names.setdefault(address,set()).add(identity[2])
+        for other in active:
+            if other['moves'] is not rules.moves or other['selection'] is not rules.selection:continue
+            if any(other is ancestor for ancestor in entry['parents']):continue
+            if parent is not None and not any(parent is ancestor for ancestor in other['parents']):continue
+            for records in other['records'].values():
+                for index,(mapping,key,present,old,contents) in enumerate(records):
+                    address=(id(mapping),key)
+                    if address not in committed:continue
+                    if mapping is other['selection'].names:
+                        # Shared titles keep only independently committed UID claims.
+                        published=[uid for uid in mapping.get(key,[]) if uid in published_names.get(address,set())]
+                        if not published:continue
+                        names=list(contents) if present else []
+                        names.extend(uid for uid in published if uid not in names)
+                        records[index]=(mapping,key,True,mapping[key],names)
+                    else:records[index]=_weapon_publication_before(mapping,key,other['selection'].names)
+        if parent is not None:parent['claims'].update(entry['claims'])
     finally:
         _GENERATED_WEAPON_JOURNALS.reset(token)
 
 
 def capture_runtime_weapon(rules,uid,title):
-    """Capture this producer's exact touched keys once per enclosing transaction."""
+    """Capture this producer's touched keys in its current graph lineage."""
     selection=rules.selection
+    current=next((entry for entry in reversed(_GENERATED_WEAPON_JOURNALS.get())
+                  if entry['moves'] is rules.moves and entry['selection'] is selection),None)
+    if current is None:return
+    if current['crossing']:raise ValueError('weapon publication cannot enter a suspended nonancestor graph')
     identity=(id(rules.moves),id(selection),uid)
-    for move_owner,selection_owner,journal in _GENERATED_WEAPON_JOURNALS.get():
-        if move_owner is not rules.moves or selection_owner is not selection:continue
-        if identity in journal:continue
-        keys=[(rules.moves,uid),(rules.moves_mech,uid),(selection.units,uid),
-              (selection.dependencies,uid),(selection.names,title),
-              (rules._runtime_weapon_declarations,uid)]
-        journal[identity]=[(mapping,key,key in mapping,mapping.get(key),
-                            list(mapping[key]) if mapping is selection.names and key in mapping else None)
-                           for mapping,key in keys]
+    # Claims propagate only on scope success; ancestor snapshots also cover failure.
+    current['claims'].add(identity)
+    keys=[(rules.moves,uid),(rules.moves_mech,uid),(selection.units,uid),
+          (selection.dependencies,uid),(selection.names,title),
+          (rules._runtime_weapon_declarations,uid)]
+    for entry in (*current['parents'],current):
+        journal=entry['records']
+        if identity not in journal:
+            journal[identity]=[_weapon_publication_before(mapping,key,selection.names)
+                               for mapping,key in keys]
 
 
 def require_runtime_weapon(rules, uid):

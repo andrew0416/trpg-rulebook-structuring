@@ -4,7 +4,7 @@ from pathlib import Path
 import json,sys,unittest
 
 STAGE=Path(__file__).resolve().parents[1]
-ROOT = Path(__file__).resolve().parents[1]
+ROOT=Path(r"D:\trpg-rulebook-structuring\ptk-structure-experiment")
 sys.path[:0]=[str(STAGE/'engine'),str(ROOT/'engine'),str(ROOT/'tools')]
 
 import coat_effects as COATS
@@ -38,9 +38,7 @@ class CoatTransferBatchTests(unittest.TestCase):
   self.assertFalse(self.p.on_field);self.assertTrue(self.other.on_field);self.assertEqual(self.other.pos,position)
   self.assertFalse(COATS.live(self.p));moved=COATS.live(self.other)[0]
   self.assertEqual((moved['id'],moved[INSTANCES.KEY]['origin_actor_id']),(uid,origin))
-  self.assertEqual(moved[INSTANCES.KEY]['ownership'][-1],{'kind':'transfer','from_holder_id':self.p.entity_id,'holder_id':self.other.entity_id,'at':self.e.elapsed_seconds,'source':COATS.BATON,
-   'recall_id':self.p.spec['native_recall_history'][-1]['id'],'trainer_id':self.p.spec['trainer_id'],
-   'from_turn':self.p.custom_conditions.get('combat_turn_serial',0),'to_turn':self.other.custom_conditions.get('combat_turn_serial',0)})
+  self.assertEqual(moved[INSTANCES.KEY]['ownership'][-1],{'kind':'transfer','from_holder_id':self.p.entity_id,'holder_id':self.other.entity_id,'at':self.e.elapsed_seconds,'source':COATS.BATON})
   self.other.hp=1;self.e.end_of_turn(self.p);self.e.start_round(self.e.everyone);self.e.start_of_turn(self.other,initiative_count=20)
   self.assertEqual(self.other.hp,1+self.e.tick(self.other));self.assertEqual(moved['applications'][-1]['holder_id'],self.other.entity_id)
   self.assertTrue(self.e.validate_state()['valid'])

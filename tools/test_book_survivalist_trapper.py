@@ -75,13 +75,19 @@ class SurvivalistTrapperTests(unittest.TestCase):
         self.rejected(engine, lambda: self.create(engine, other, 'p-1', 'grassland'), 'conscious trainer|acquired source')
 
     def test_deployment_needs_the_gm_action_ruling_same_day_encounter_and_eight_adjacent_metres_within_six(self):
-        """Keep the existing test ID; the item now pays Standard without a GM action ruling."""
         world = FIX.scene(self.rules)
         engine, trainer, foe = world['engine'], world['trainer'], world['foe']
         FIX.env(engine, trainer, 'grassland')
         self.create(engine, trainer, 'dust-1', 'grassland')
         self.rejected(engine, lambda: self.deploy(engine, trainer, 'dust-1'), 'actual encounter')
         FIX.battle(engine, trainer)
+        pending = self.deploy(engine, trainer, 'dust-1')
+        self.assertIsInstance(pending, C.PendingDecision)
+        self.assertIn(SC.DEPLOY_RULING, pending.required)
+        self.assertEqual((trainer.budget['standard'], engine.hazards), (1, {}))
+        FIX.ruling(engine, SC.DEPLOY_RULING, 'shift')
+        self.rejected(engine, lambda: self.deploy(engine, trainer, 'dust-1'), 'standard, swift, free')
+        FIX.ruling(engine, SC.DEPLOY_RULING, 'standard')
         self.rejected(engine, lambda: self.deploy(engine, trainer, 'missing'), 'actual owned Trapper tool')
         self.rejected(engine, lambda: self.deploy(engine, trainer, 'dust-1', cells=WALL[:7]), 'exactly 8 distinct metres')
         self.rejected(engine, lambda: self.deploy(engine, trainer, 'dust-1', cells=WALL[:7] + ((5, 0),)), 'exactly 8 distinct metres')
@@ -89,7 +95,7 @@ class SurvivalistTrapperTests(unittest.TestCase):
         self.rejected(engine, lambda: self.deploy(engine, trainer, 'dust-1', cells=WALL[:6] + ((7, 0), (7, 7))), 'adjacent to another')
         self.rejected(engine, lambda: self.deploy(engine, trainer, 'dust-1', cells=WALL[:7] + ((5, 9),)), 'outside the map')
         used = self.deploy(engine, trainer, 'dust-1')
-        self.assertEqual((used['status'], used['used']['action'], used['used']['round'], used['used']['ruling']), ('used', 'standard', engine.round_no, None))
+        self.assertEqual((used['status'], used['used']['action'], used['used']['round'], used['used']['ruling']), ('used', 'standard', engine.round_no, SC.DEPLOY_RULING))
         self.assertEqual(trainer.budget['standard'], 0)
         rows = self.instances(engine)
         self.assertEqual(len(rows), 8)
@@ -122,6 +128,7 @@ class SurvivalistTrapperTests(unittest.TestCase):
                 engine, trainer, foe = world['engine'], world['trainer'], world['foe']
                 FIX.env(engine, trainer, terrain)
                 self.create(engine, trainer, 'tool', terrain)
+                FIX.ruling(engine, SC.DEPLOY_RULING, 'standard')
                 FIX.battle(engine, trainer)
                 self.deploy(engine, trainer, 'tool')
                 self.assertEqual(self.instances(engine)[0]['name'], SC.TRAPS[kind]['korean'])
@@ -153,11 +160,11 @@ class SurvivalistTrapperTests(unittest.TestCase):
                 self.assertTrue(engine.validate_state()['valid'])
 
     def test_naturewalk_for_the_creation_terrain_is_immune_and_allies_never_trigger(self):
-        """Keep the existing test ID; another associated terrain now also grants immunity."""
         world = FIX.scene(self.rules)
         engine, trainer, partner, foe = world['engine'], world['trainer'], world['partner'], world['foe']
         FIX.env(engine, trainer, 'grassland')
         self.create(engine, trainer, 'tool', 'grassland')
+        FIX.ruling(engine, SC.DEPLOY_RULING, 'standard')
         FIX.battle(engine, trainer)
         self.deploy(engine, trainer, 'tool')
         G.grant(foe, 'capabilities', 'Naturewalk(초원)', 'fixture:naturewalk', 'fixture')
@@ -181,8 +188,8 @@ class SurvivalistTrapperTests(unittest.TestCase):
         engine.start_round(engine.everyone)
         engine.start_of_turn(foe, initiative_count=10)
         engine.approach(foe, trainer)
-        self.assertFalse({'둔화', '실명'} & foe.conditions)
-        self.assertEqual(len(self.instances(engine)), 8)
+        self.assertTrue({'둔화', '실명'} <= foe.conditions)
+        self.assertEqual(len(self.instances(engine)), 7)
         self.assertTrue(engine.validate_state()['valid'])
 
     def test_json_and_gm_restores_keep_tools_hazards_and_receipts_and_tampering_is_rejected(self):
@@ -191,9 +198,10 @@ class SurvivalistTrapperTests(unittest.TestCase):
         FIX.env(engine, trainer, 'ocean')
         self.create(engine, trainer, 'slick-1', 'ocean')
         self.create(engine, trainer, 'slick-2', 'ocean')
+        FIX.ruling(engine, SC.DEPLOY_RULING, 'swift')
         FIX.battle(engine, trainer)
         used = self.deploy(engine, trainer, 'slick-1')
-        self.assertEqual((trainer.budget['swift'], trainer.budget['standard']), (1, 0))
+        self.assertEqual((trainer.budget['swift'], trainer.budget['standard']), (0, 1))
         tools = deepcopy(trainer.spec[SC.TOOLS])
         engine.gm.snapshot('deployed')
         loaded, index = FIX.restore(self.rules, engine)

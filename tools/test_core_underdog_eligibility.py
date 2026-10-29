@@ -9,7 +9,7 @@ import growth_stats as GS
 import state_grants as G
 import underdog_edges as U
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
 
 
 class CoreUnderdogEligibilityTests(unittest.TestCase):

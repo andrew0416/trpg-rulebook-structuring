@@ -49,10 +49,7 @@ class AdvancedConnectionTests(unittest.TestCase):
   self.assertEqual(C.records(self.p.spec)[0]['status'],'refunded');self.assertEqual(M.describe(self.r,self.p.spec)['slot_count'],6)
   G.transition(self.e,self.p,lambda e,c:None);self.assertEqual(self.p.spec['tutor_points'],4)
  def test_missing_linked_move_is_not_learned_or_a_fake_exemption(self):
-  # The Connection Move cannot be forgotten while Giver is owned (official PTU 1.05 p.310), so
-  # the missing-Move state comes from an imported sheet, not from forgetting Present.
-  self.p=self.add(build_pokemon(self.r,'잉어킹',20,abilities=['기부자'],
-   moves=['튀어오르기','몸통박치기','바둥바둥','돌진','전광석화'],extra={'trainer_id':self.a.entity_id,'tutor_points':4}))
+  self.baseline('moves',[x for x in self.p.spec['moves'] if x not in ('프레젠트',self.r.move_id('프레젠트'))])
   before=list(self.p.moves);self.teach();self.assertEqual(self.p.moves,before)
   self.assertEqual(M.describe(self.r,self.p.spec)['exempt'],{})
  def test_suppression_and_json_restore_preserve_actual_ownership_and_one_exemption(self):

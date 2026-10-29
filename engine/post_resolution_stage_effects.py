@@ -198,8 +198,9 @@ def apply_completion(engine, completion, effects):
     eligible = []
     evidence = {}
     for target in index.values():
-        if (target is actor or target.fainted or
-                getattr(target, "side", None) == getattr(actor, "side", None)):
+        if (target is actor or target.fainted or not target.on_field or target.captured or
+                getattr(target, "side", None) is None or getattr(actor, "side", None) is None or
+                target.side == actor.side):
             continue
         if engine.grid is None or cheb(actor.pos, target.pos) > row["radius"]:
             continue

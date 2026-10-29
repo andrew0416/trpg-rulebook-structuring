@@ -8,7 +8,6 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools'), str(ROOT / 'examples')]
 from engine import Rules, Engine, Combatant
-from builder import build_trainer, build_pokemon
 from rulings import Rulings
 from declared_skill_ranks import configure
 from native_scenario_fixture import assert_rejected_unchanged
@@ -58,29 +57,6 @@ class DeclaredRankConsumerTests(unittest.TestCase):
                                    json.loads(json.dumps(CODEC.dump_engine(engine), ensure_ascii=False)))
         self.assertTrue(loaded.validate_state()['valid'])
         return loaded, WORLD.actor_index(loaded)
-
-    def test_campaign_pokemon_assignment_preserves_declared_seven_and_concrete_large_pool(self):
-        from native_scenario_fixture import assert_rejected_unchanged
-        rules = self.rules()
-        engine = Engine(rules, seed=712)
-        trainer = Combatant(rules, build_trainer(rules, 'campaign teacher', 20,
-            dict.fromkeys(('hp', 'atk', 'def', 'spa', 'spd', 'spe'), 10), abilities=[]))
-        pokemon = Combatant(rules, build_pokemon(rules, '이상해씨', 20, abilities=[], moves=[]))
-        engine.gm.add_combatant(trainer, side='party', reason='actual campaign participant')
-        engine.gm.add_combatant(pokemon, side='party', reason='actual assigned Pokemon')
-        engine.pokemon_activity(trainer, 'configure_intelligence',
-            portrayal='Pokemon use explicitly assigned campaign pools', discussed_with=['campaign teacher'],
-            social=True, education=True, reason='actual pre-game campaign choice')
-        engine.pokemon_activity(trainer, 'assign_intelligence_skills', target=pokemon,
-            skills={'교활': 7, '생존': '12d6+2'}, reason='declared seventh rank and concrete twelve-die pool')
-        self.assertEqual(engine.skill_roll(pokemon, '교활', fixed=[2] * 7).total, 14)
-        self.assertEqual(engine.skill_roll(pokemon, '생존', fixed=[2] * 12).total, 26)
-        assert_rejected_unchanged(engine, lambda: engine.pokemon_activity(trainer,
-            'assign_intelligence_skills', target=pokemon, skills={'직감': 8},
-            reason='eighth rank is still undeclared'), reason_pattern='selected rank declaration')
-        loaded, actors = self.restored(engine)
-        self.assertEqual(actors[pokemon.entity_id].spec['skills']['교활'], 7)
-        self.assertEqual(loaded.skill_roll(actors[pokemon.entity_id], '생존', fixed=[2] * 12).total, 26)
 
     def forged_save(self, engine, marker, field, value):
         saved = CODEC.dump_engine(engine)

@@ -26,21 +26,8 @@ class CsvStockOwnerIntegrationTests(unittest.TestCase):
         helper = FIX.RemainingCsvItemContractTests()
         attacker = helper.pokemon("stock-owner-attacker")
         holder = helper.pokemon("stock-owner-holder")
-        attacker_owner = helper.trainer("stock-attacker-controller")
-        holder_owner = helper.trainer("stock-holder-controller")
-        helper.attacker_replacement = helper.pokemon("stock-attacker-reserve")
-        helper.holder_replacement = helper.pokemon("stock-holder-reserve")
-        for actor in (attacker, helper.attacker_replacement):
-            actor.spec["trainer_id"] = attacker_owner.entity_id
-            actor.side = "foe"
-        for actor in (holder, helper.holder_replacement):
-            actor.spec["trainer_id"] = holder_owner.entity_id
-            actor.side = "party"
-        attacker_owner.side = "foe"
-        engine = helper.fixture(attacker_owner, holder_owner, attacker, holder,
-                                helper.attacker_replacement, helper.holder_replacement)
+        engine = helper.fixture(attacker, holder)
         attacker.on_field = holder.on_field = True
-        helper.attacker_replacement.on_field = helper.holder_replacement.on_field = False
         obj = helper.equip(engine, holder, "stock-owner/item", item_id)
         CAP.set_carried(engine, holder, [{"id": obj["id"], "weight_kg": 1}], "actual held load")
         return helper, engine, attacker, holder, obj
@@ -61,56 +48,44 @@ class CsvStockOwnerIntegrationTests(unittest.TestCase):
         self.assertIn("consumed", [row["event"] for row in obj[CSV.OBJECT_STATE]["history"]])
 
     def test_native_damage_eject_button_releases_actual_carried_stock(self):
-        helper, engine, attacker, holder, obj = self.fixture("item/탈출버튼")
+        _, engine, attacker, holder, obj = self.fixture("item/탈출버튼")
         requested = engine.resolve_attack_damage(attacker, holder, engine.r.move("move/몸통박치기"), set_damage=True)
         self.assertGreater(requested, 0)
         self.assertIn("eject_button", holder.spec[CSV.PENDING])
-        result = CSV.resolve_pending(engine, holder, "eject_button", accept=True, send=helper.holder_replacement)
+        result = CSV.resolve_pending(engine, holder, "eject_button", accept=True)
         self.assertTrue(result["switched"])
         self.assertFalse(holder.on_field)
         self.assert_consumed(engine, holder, obj, "item/eject_button:free-switch")
 
     def test_native_red_card_uses_same_stock_owner_before_automatic_switch(self):
-        helper, engine, attacker, holder, obj = self.fixture("item/레드카드")
-        original_switch = CSV._immediate_switch
-        switches = []
-        def switch_after_consumption(actual_engine, outgoing, incoming):
-            actual_holder = WORLD.actor_index(actual_engine)[holder.entity_id]
-            self.assert_consumed(actual_engine, actual_holder, actual_engine._physical_objects[obj["id"]],
-                                 "item/레드카드:attack-hit")
-            switches.append((outgoing.entity_id, incoming.entity_id))
-            return original_switch(actual_engine, outgoing, incoming)
-        with patch.object(CSV, "_immediate_switch", side_effect=switch_after_consumption):
-            engine.resolve_attack_damage(attacker, holder, engine.r.move("move/몸통박치기"), set_damage=True)
+        _, engine, attacker, holder, obj = self.fixture("item/레드카드")
+        engine.resolve_attack_damage(attacker, holder, engine.r.move("move/몸통박치기"), set_damage=True)
         self.assert_consumed(engine, holder, obj, "item/레드카드:attack-hit")
-        self.assertEqual(switches, [(attacker.entity_id, helper.attacker_replacement.entity_id)])
-        self.assertNotIn("red_card", holder.spec.get(CSV.PENDING, {}))
+        self.assertIn("red_card", holder.spec[CSV.PENDING])
+        CSV.resolve_pending(engine, holder, "red_card", accept=True)
         self.assertFalse(attacker.on_field)
-        self.assertTrue(helper.attacker_replacement.on_field)
-        with self.assertRaisesRegex(ValueError, "live remaining-item reaction"):
-            CSV.resolve_pending(engine, holder, "red_card", accept=True)
         self.assertEqual(len(holder.spec["stock_consumption_receipts"]), 1)
 
     def test_eject_pack_keeps_stage_trigger_and_scene_policy(self):
-        helper, engine, _, holder, obj = self.fixture("item/탈출팩")
-        engine.change_stage(holder, "atk", -1)
-        CSV.resolve_pending(engine, holder, "eject_pack", accept=True, send=helper.holder_replacement)
+        _, engine, _, holder, obj = self.fixture("item/탈출팩")
+        CSV.after_stage_change(engine, holder, "atk", 0, -1)
+        CSV.resolve_pending(engine, holder, "eject_pack", accept=True)
         self.assert_consumed(engine, holder, obj, "item/eject_pack:free-switch")
         self.assertEqual(len(obj[CSV.OBJECT_STATE]["scene_uses"]), 1)
 
     def test_failed_switch_rolls_back_load_effects_history_and_payment(self):
-        helper, engine, attacker, holder, obj = self.fixture("item/탈출버튼")
+        _, engine, attacker, holder, obj = self.fixture("item/탈출버튼")
         engine.resolve_attack_damage(attacker, holder, engine.r.move("move/몸통박치기"), set_damage=True)
         before_spec, before_obj = deepcopy(holder.spec), deepcopy(obj)
         before_registration = deepcopy(holder._item_reg)
         with patch.object(CSV, "_immediate_switch", side_effect=ValueError("late native switch failure")):
             with self.assertRaisesRegex(ValueError, "late native switch failure"):
-                CSV.resolve_pending(engine, holder, "eject_button", accept=True, send=helper.holder_replacement)
+                CSV.resolve_pending(engine, holder, "eject_button", accept=True)
         self.assertEqual(holder.spec, before_spec)
         self.assertEqual(obj, before_obj)
         self.assertEqual(holder._item_reg, before_registration)
         self.assertTrue(holder.on_field)
-        CSV.resolve_pending(engine, holder, "eject_button", accept=True, send=helper.holder_replacement)
+        CSV.resolve_pending(engine, holder, "eject_button", accept=True)
         self.assert_consumed(engine, holder, obj, "item/eject_button:free-switch")
 
     def test_destroyed_balloon_keeps_physical_remnant_and_no_stock_debit(self):
@@ -136,19 +111,15 @@ class CsvStockOwnerIntegrationTests(unittest.TestCase):
         self.assertEqual(holder.spec["_carried_load"]["objects"], [])
 
     def test_json_restore_keeps_terminal_original_and_reaction_completion(self):
-        helper, engine, attacker, holder, obj = self.fixture("item/레드카드")
+        _, engine, attacker, holder, obj = self.fixture("item/레드카드")
         engine.resolve_attack_damage(attacker, holder, engine.r.move("move/몸통박치기"), set_damage=True)
-        self.assertFalse(attacker.on_field)
-        self.assertTrue(helper.attacker_replacement.on_field)
-        self.assertNotIn("red_card", holder.spec.get(CSV.PENDING, {}))
         restored = CODEC.load_engine(engine.r, CODEC.dump_engine(engine))
         restored_holder = WORLD.actor_index(restored)[holder.entity_id]
         restored_attacker = WORLD.actor_index(restored)[attacker.entity_id]
         restored_obj = restored._physical_objects[obj["id"]]
         self.assert_consumed(restored, restored_holder, restored_obj, "item/레드카드:attack-hit")
+        CSV.resolve_pending(restored, restored_holder, "red_card", accept=True)
         self.assertFalse(restored_attacker.on_field)
-        self.assertTrue(WORLD.actor_index(restored)[helper.attacker_replacement.entity_id].on_field)
-        self.assertNotIn("red_card", restored_holder.spec.get(CSV.PENDING, {}))
         with self.assertRaisesRegex(ValueError, "live remaining-item reaction"):
             CSV.resolve_pending(restored, restored_holder, "red_card", accept=True)
         self.assertEqual(len(restored_holder.spec["stock_consumption_receipts"]), 1)

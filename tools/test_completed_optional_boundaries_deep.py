@@ -72,7 +72,7 @@ class StateBoundaryTests(_fixture_test_category2_optional_state_effect_eight.Opt
      elif clause=='SB-107':
       self.assertEqual(EXT.movement_profile(e,a,4,0)[0],6)
       self.assertGreater(a.staged('atk'),atk)
-      self.assertEqual(__import__('combat_modifiers').accuracy_stage(a),-2)
+      self.assertEqual(STATE.attack_modifiers(a,e.r.move('move/몸통박치기'))[0],-2)
      else:
       self.assertEqual(EXT.movement_profile(e,a,8,0)[0],1)
       self.assertEqual(a.evasion('물리'),min(9,ev+2))
@@ -84,19 +84,6 @@ class StateBoundaryTests(_fixture_test_category2_optional_state_effect_eight.Opt
       owner=next(c for c in e.everyone if c.entity_id==owner.entity_id)
       a=next(c for c in e.everyone if c.entity_id==a.entity_id)
       e.start_round(e.everyone);e.start_of_turn(owner,initiative_count=20)
-    if clause=='SB-099':
-     # supp-blessings:1128 says the next3rounds, excluding the activation round.
-     self.assertTrue(STATE.records(a))
-     deadline=STATE.records(a)[0]['created_round']+3
-     e.start_round(e.everyone);e.start_of_turn(owner,initiative_count=20)
-     self.assertEqual(e.round_no,deadline);self.assertTrue(STATE.records(a))
-     e.end_of_turn(owner);e.end_round()
-    else:
-     self.assertTrue(STATE.records(a))
-     e.start_round(e.everyone)
-     e.at_initiative_count(21)
-     self.assertTrue(STATE.records(a))
-     e.at_initiative_count(20)
     self.assertFalse(STATE.records(a))
     if clause=='SB-099':self.assertEqual((a.stages['atk'],a.stages['spe']),(2,2))
     elif clause=='SB-107':

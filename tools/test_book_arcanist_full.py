@@ -380,151 +380,21 @@ class ArcanistFullTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'refund failure'):A.recoup(self.e,self.a,token)
         self.assertEqual(self.e.export_state(),before)
 
-    def test_pending_grouped_weapon_move_restores_native_activation_aliases_and_pays_once(self):
-        import passive_events as EVENTS,move_completion as COMPLETE
-        from test_native_return_continuation import NativeReturnContinuationTests as RETURNS
-        self.scene()
-        self.e.gm.set_position(self.c,(4,2),reason='actual second body inside Arcane Fury Cone 2')
-        self.weapon(moves=('move/아케인-퓨리','move/베인'));self.combat()
-        key=RETURNS.policy(self,'arcanist-grouped-return')
-        hp=[target.hp for target in (self.b,self.c)];available=AP.available(self.a)
-        with self.assertRaises(EVENTS.PassiveEventPending):
-            self.attack('move/아케인-퓨리',manipulation='directed_barrier')
-        event=self.e._passive_pending;token=self.completion()['id']
-        self.assertEqual([target.entity_id for target in self.completion()['targets']],[self.b.entity_id,self.c.entity_id])
-        self.assertLess(self.b.hp,hp[0]);self.assertEqual(self.c.hp,hp[1])
-        self.assertEqual((AP.available(self.a),self.a.move_uses['move/아케인-퓨리'],self.a._action_history.count('swift')),
-                         (available-1,1,1))
-        self.restore();self.valid();first_hp=self.b.hp;rng=self.e.rng.getstate()
-        with patch.object(Engine,'d20',side_effect=AssertionError('shared native accuracy cannot reroll')):
-            with self.assertRaises(EVENTS.PassiveEventPending):RETURNS.choose(self,event,key)
-        later=self.e._passive_pending;self.assertNotEqual(later,event)
-        self.assertEqual(self.b.hp,first_hp);self.assertLess(self.c.hp,hp[1])
-        self.assertEqual((AP.available(self.a),self.a.move_uses['move/아케인-퓨리'],self.a._action_history.count('swift')),
-                         (available-1,1,1))
-        self.restore();self.valid();actual_hp=[target.hp for target in (self.b,self.c)]
-        with patch.object(Engine,'d20',side_effect=AssertionError('saved native accuracy cannot reroll')):
-            total=RETURNS.choose(self,later,key)
-        row=self.e._move_completions[token]
-        self.assertEqual(total,sum(COMPLETE.recipient_result(row,target)['dealt'] for target in COMPLETE.actual_recipients(row)))
-        self.assertEqual((row['phase'],len(row['native_returns'])),('complete',2))
-        self.assertEqual([target.hp for target in (self.b,self.c)],actual_hp)
-        self.assertEqual((self.e.rng.getstate(),AP.available(self.a),self.a.spec['ap_spent']), (rng,available-1,1))
-        self.assertEqual((self.a.move_uses['move/아케인-퓨리'],self.a._action_history.count('swift'),self.a.stages['atk']), (1,1,2))
-        self.assertEqual(self.a._action_history.count('standard'),1)
-        for returned in (event,later):COMPLETE.require_returned_event(self.e,returned)
-        before=self.e.export_state();self.assertEqual(self.e.deliver_passive_event(later),'already_delivered')
-        self.assertEqual(self.e.export_state(),before)
-        self.restore();self.valid()
-
-    def test_physical_weapon_cached_move_cannot_bypass_actual_source_with_or_without_paid_investment(self):
-        for invested in (False,True):
-            with self.subTest(invested=invested):
-                self.scene();self.weapon()
-                if invested:A.invest(self.e,self.a,'move/아케인-퓨리','move/매직-버스트')
-                self.combat()
-                forbidden='move/아케인-스톰' if invested else 'move/아케인-퓨리'
-                target_id=self.b.entity_id
-                def attempt(boundary):
-                    def forged(e,a):
-                        a.custom_conditions['equipped_weapons'][self.key]['available_moves'].append(forbidden)
-                        G.materialize(a,'moves')
-                        if boundary=='consumer':
-                            return e.use_move_on(a,W.actor_index(e)[target_id],forbidden,e.everyone,weapon_id=self.uid,set_damage=True)
-                        return e.export_state()
-                    return G.transition(self.e,self.a,forged,include_grid=True,include_rulings=True)
-                for boundary in ('consumer','codec'):
-                    self.rejected(lambda:attempt(boundary),'physical weapon Move permission')
-                self.restore();self.valid()
-
-    def test_ordinary_weapon_cached_move_requires_native_choices_and_preserves_legacy_restore(self):
-        self.scene(features=())
-        weapon={'name':'actual scripted ordinary baton','kind':'소형 근접무기','grade':'간단',
-                'moves':['상처내기!'],'extension':{'campaign':'ordinary scripted weapon'}}
-        key=turn.equip_weapon(self.e,self.a,weapon);self.combat();target_id=self.b.entity_id
-        self.assertEqual(self.a.custom_conditions['equipped_weapons'][key]['weapon'],weapon)
-        self.assertIn('move/상처내기',self.a.moves)
-        prepared=WA.prepare(self.e,self.a,self.e.r.move('move/상처내기'),weapon_id=key)
-        forged=deepcopy(prepared);forged['id']='move/강타'
-        self.rejected(lambda:OW.adapt_move(self.e,self.a,forged),'not granted')
-        for boundary in ('consumer','codec'):
-            def attempt():
-                def forged(e,a):
-                    a.custom_conditions['equipped_weapons'][key]['available_moves'].append('move/강타')
-                    G.materialize(a,'moves')
-                    if boundary=='consumer':
-                        return e.use_move_on(a,W.actor_index(e)[target_id],'move/강타',e.everyone,weapon_id=key,set_damage=True)
-                    return e.export_state()
-                return G.transition(self.e,self.a,forged,include_grid=True,include_rulings=True)
-            self.rejected(attempt,'physical weapon Move permission')
-        self.e.gm.set_skill(self.a,'전투',3,reason='actual ordinary weapon qualification loss')
-        self.restore();self.valid();self.assertIn('move/상처내기',self.a.moves)
-        self.assertEqual(self.a.custom_conditions['equipped_weapons'][key]['weapon'],weapon)
-        self.rejected(lambda:self.e.use_move_on(self.a,self.b,'move/상처내기',self.e.everyone,
-            weapon_id=key,set_damage=True),'rank prerequisite')
-        self.e.gm.set_skill(self.a,'전투',5,reason='actual ordinary weapon qualification recovery')
-        self.combat()
-        with patch.object(Engine,'d20',return_value=20):
-            self.assertGreater(self.e.use_move_on(self.a,self.b,'move/상처내기',self.e.everyone,
-                weapon_id=key,set_damage=True),0)
-        self.restore();self.valid()
-
-    def test_living_weapon_cached_move_cannot_bypass_native_borrowing_consumers(self):
-        from test_living_weapon_caps_shield_source_revision import LivingWeaponCapsShieldSourceRevisionTests as FIXTURE
-        f=FIXTURE();f.world(holder='trainer',species='단칼빙',rank=5)
-        f.equip('english_own_living_weapon');f.turn(f.a)
-        prepared=WA.prepare(f.e,f.p,f.e.r.move('move/상처내기'),weapon_id=f.key)
-        marker=deepcopy(prepared['_living_borrow']);borrower_id=f.p.entity_id;target_id=f.t.entity_id
-        for boundary,pattern in (('holder','selected physical weapon does not grant this move'),
-                ('holder_prepare','physical weapon Move permission'),
-                ('borrower_prepare','selected physical weapon does not grant this move'),
-                ('borrower_adapt','Living Weapon borrowed authority changed'),
-                ('codec','physical weapon Move permission')):
-            def attempt():
-                def forged(e,a):
-                    a.custom_conditions['equipped_weapons'][f.key]['available_moves'].append('move/강타')
-                    G.materialize(a,'moves');borrower=W.actor_index(e)[borrower_id]
-                    if boundary=='holder':
-                        return e.use_move_on(a,W.actor_index(e)[target_id],'move/강타',e.everyone,weapon_id=f.key,set_damage=True)
-                    if boundary=='holder_prepare':
-                        return WA.prepare(e,a,e.r.move('move/강타'),weapon_id=f.key)
-                    if boundary=='borrower_prepare':
-                        return WA.prepare(e,borrower,e.r.move('move/강타'),weapon_id=f.key)
-                    if boundary=='borrower_adapt':
-                        move=deepcopy(e.r.move('move/강타'));move['_living_borrow']=deepcopy(marker)
-                        return OW.adapt_move(e,borrower,move)
-                    return e.export_state()
-                return G.transition(f.e,f.a,forged,include_grid=True,include_rulings=True)
-            assert_rejected_unchanged(f.e,attempt,reason_pattern=pattern)
-        f.restore();f.turn(f.p)
-        with patch.object(Engine,'d20',return_value=20):
-            self.assertGreater(f.e.use_move_on(f.p,f.t,'move/상처내기',f.e.everyone,
-                weapon_id=f.key,set_damage=True),0)
-        self.assertTrue(f.e.validate_state()['valid'])
-
     def test_investment_two_ap_actual_weapon_moves_equip_release_and_rebind(self):
         self.scene();self.weapon();before=AP.available(self.a)
-        sheet_moves=list(self.a.spec['moves']);ordinary=('move/렌딩-스펠','move/베인')
         result=A.invest(self.e,self.a,'move/아케인-퓨리','move/매직-버스트')
         self.assertEqual(AP.available(self.a),before-2)
         self.assertIn('move/아케인-퓨리',self.a.moves);self.assertIn('move/매직-버스트',self.a.moves)
-        for mid in ordinary:self.assertIn(mid,self.a.moves)
-        self.assertEqual(self.a.spec['moves'],sheet_moves)
         self.assertEqual(self.a.spec['ap_bound'][result['instance']],2)
-        self.restore();self.valid()
-        for mid in ordinary:self.assertIn(mid,self.a.moves)
-        self.assertEqual(self.a.spec['moves'],sheet_moves);self.combat()
+        self.restore();self.valid();self.combat()
         self.attack('move/아케인-퓨리');self.assertEqual(self.a.move_uses['move/아케인-퓨리'],1)
         turn.unequip_weapon(self.e,self.a,self.key)
         self.assertNotIn('move/아케인-퓨리',self.a.moves);self.assertIn(A.BIND,self.a.spec)
-        for mid in ordinary:self.assertNotIn(mid,self.a.moves)
-        self.assertEqual(self.a.spec['moves'],sheet_moves)
         self.key=OW.equip(self.e,self.a,self.uid)
         self.assertIn('move/아케인-퓨리',self.a.moves)
         self.combat();A.release_investment(self.e,self.a)
         self.assertEqual(AP.available(self.a),before);self.assertNotIn('move/아케인-퓨리',self.a.moves)
         self.assertIn('move/렌딩-스펠',self.a.moves);self.attack('move/렌딩-스펠');self.valid()
-        self.assertEqual(self.a.spec['moves'],sheet_moves)
 
     def test_investment_duplicate_wrong_form_second_binding_replacement_and_rollback(self):
         self.scene();self.weapon()

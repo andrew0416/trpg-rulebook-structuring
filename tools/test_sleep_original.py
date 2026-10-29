@@ -3,7 +3,7 @@ from pathlib import Path
 from copy import deepcopy
 import json,sys,unittest
 from unittest.mock import patch
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(r'D:\trpg-rulebook-structuring\ptk-structure-experiment')
 from engine import Rules,Engine,Combatant
 from grid import Grid
 import turn as TURN,temporary_hp as TEMP,world_entities as W

@@ -175,6 +175,30 @@ class StudyBooksTests(unittest.TestCase):
   AP.extended_rest(self.t,request_id='actual/no-fake-edge')
   self.assertEqual(ST.choices(self.e,self.t),())
 
+ def test_temporary_book_stunt_does_not_fill_permanent_approval_capacity(self):
+  import skill_stunts as ST
+  self.book('study_manual',rank=1)
+  temporary=ST.choices(self.e,self.t)[0]
+  self.t.spec['edges'].append(ST.SOURCE)
+  def approve(identity):
+   return self.e.approve_skill_stunt(self.t,choice_id=identity,skill='은신',use='hiding in library shelves',reason='actual narrow permanent edge use',approved=True)
+  before=deepcopy(self.t.spec)
+  with self.assertRaisesRegex(ValueError,'no unassigned'):approve(temporary['id'])
+  self.assertEqual(self.t.spec,before)
+  approve('permanent/library')
+  choices=ST.choices(self.e,self.t)
+  self.assertEqual([(r['id'],r['source']) for r in choices],[('permanent/library',ST.SOURCE),(temporary['id'],temporary['source'])])
+  self.assertEqual(self.t.spec['ap_removed'],1)
+  for identity in ('permanent/library',temporary['id']):
+   roll=self.e.skill_roll(self.t,'은신',fixed=[1]*5,skill_stunt={'choice_id':identity,'apply':True,'matches_approved_use':True,'reason':'actual matching narrow use'})
+   self.assertEqual((roll.rank,roll.total),(6,11))
+  with self.assertRaisesRegex(ValueError,'no unassigned'):approve('unearned/second')
+  self.t,=self.restore(self.t)
+  self.assertEqual(len(ST.choices(self.e,self.t)),2)
+  AP.extended_rest(self.t,request_id='actual/book-stunt-expiry')
+  self.assertEqual([(r['id'],r['source']) for r in ST.choices(self.e,self.t)],[('permanent/library',ST.SOURCE)])
+  with self.assertRaisesRegex(ValueError,'no unassigned'):approve('still-unearned/second')
+
  def test_study_manual_uses_larger_actual_equipment_group_not_sum_and_keeps_feat_bonus(self):
   import items as I,skill_modifiers as S
   self.book('study_manual')
@@ -687,6 +711,26 @@ class StudyBooksTests(unittest.TestCase):
     self.assertEqual(self.t.budget['standard'],0 if direct else 1)
     self.assertFalse(self.t.spec.get('repel_uses'))
     self.assertFalse(any(r.get('event')=='anarchist_blind' for r in B._state(self.t)['events']))
+
+ def test_book_assisted_breather_requires_another_known_ally(self):
+  cases=[('party','party',False,True),('party','foe',False,False),
+         (None,None,False,False),('party',None,False,False),
+         (None,'party',False,False),('party','party',True,False)]
+  for book in ('caretaker','combat_medic'):
+   for reader_side,target_side,self_target,allowed in cases:
+    with self.subTest(book=book,reader=reader_side,target=target_side,self_target=self_target):
+     self.fresh();self.book(book,rank=1 if book=='caretaker' else 2);patient=self.pokemon()
+     target=self.t if self_target else patient
+     self.t.side,target.side=reader_side,target_side
+     self.e.start_round([self.t,patient]);self.e.start_of_turn(self.t,initiative_count=20)
+     self.e.change_stage(target,'atk',1)
+     use=lambda:B.assisted_breather(self.e,self.t,target,book=book)
+     if not allowed:
+      self.rejected(use,'adjacent ally')
+     else:
+      self.assertTrue(use()['completed']);self.assertEqual(target.stages['atk'],0)
+      self.assertEqual(self.t.budget['standard'],0)
+      self.assertNotIn('넘어짐',target.conditions)
 
  def test_caretaker_deferred_drain_care_group_and_standard_breather_no_trip(self):
   self.book('caretaker');p=self.pokemon()

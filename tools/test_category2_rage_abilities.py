@@ -139,6 +139,63 @@ class RageAbilityTests(unittest.TestCase):
         )
         self.assertEqual(target.damage_reduction, 0)
 
+    def test_selected_native_suppression_roundtrip_damage_save_and_encounter_restoration(self):
+        from grid import Grid
+        import ability_transitions as ABILITIES
+
+        for source, name in ((RAGE.WHITE_FLAME, "화이트플레임"),
+                             (RAGE.ENDURING_RAGE, "불굴의격노")):
+            with self.subTest(source=source):
+                engine, holder, caster = self.fixture([name, "대운"])
+                engine.grid = Grid(20, 20)
+                engine.gm.set_position(holder, (3, 2), reason="actual Rage holder")
+                engine.gm.set_position(caster, (2, 2), reason="actual suppression user")
+                GRANTS.set_baseline(caster, "moves", ["move/위액"])
+                move = self.rules.move("move/메가톤펀치")
+
+                def damage(e, owner, other):
+                    attacker, target = (owner, other) if source == RAGE.WHITE_FLAME else (other, owner)
+                    return e.roll_damage(attacker, target, move, set_damage=True)
+
+                plain = damage(engine, holder, caster)
+                engine.apply_status(holder, "난동")
+                powered = plain + 5 if source == RAGE.WHITE_FLAME else max(1, plain - 5)
+                self.assertEqual(damage(engine, holder, caster), powered)
+                self.begin(engine, caster)
+                engine.gm.choose_ability_transition(caster, holder, "move/위액",
+                    ability=source, reason="suppress this actual Rage ability")
+                with patch.object(Engine, "d20", return_value=20):
+                    engine.use_move(caster, holder, "move/위액")
+                self.assertIn(source, ABILITIES.known(holder))
+                self.assertFalse(holder.abilities_suppressed)
+                self.assertFalse(ABILITIES.active(holder, source))
+                self.assertTrue(ABILITIES.active(holder, "ability/대운"))
+                self.assertFalse(RAGE.end_save_forbidden(holder, "난동"))
+                self.assertEqual(damage(engine, holder, caster), plain)
+
+                loaded = CODEC.load_engine(self.rules,
+                    json.loads(json.dumps(CODEC.dump_engine(engine), ensure_ascii=False)))
+                restored_holder = next(c for c in loaded.everyone if c.entity_id == holder.entity_id)
+                restored_caster = next(c for c in loaded.everyone if c.entity_id == caster.entity_id)
+                self.assertFalse(restored_holder.abilities_suppressed)
+                self.assertEqual(damage(loaded, restored_holder, restored_caster), plain)
+                loaded.end_of_turn(restored_caster)
+                loaded.start_of_turn(restored_holder, initiative_count=19)
+                with patch.object(Engine, "d20", return_value=20) as roller:
+                    loaded.end_of_turn(restored_holder)
+                self.assertEqual(roller.call_count, 1)
+                self.assertNotIn("난동", restored_holder.conditions)
+
+                loaded.end_encounter(loaded.everyone)
+                self.assertTrue(ABILITIES.active(restored_holder, source))
+                loaded.apply_status(restored_holder, "난동")
+                self.assertEqual(damage(loaded, restored_holder, restored_caster), powered)
+                self.begin(loaded, restored_holder)
+                with patch.object(Engine, "d20", side_effect=AssertionError("restored Rage ability skips save")):
+                    loaded.end_of_turn(restored_holder)
+                self.assertIn("난동", restored_holder.conditions)
+                self.assertTrue(loaded.validate_state()["valid"])
+
     def test_feature_loss_removes_receipt_and_all_native_rage_queries(self):
         uid = "feat/분노의-힘"
         for choice in ("불굴의격노", "화이트플레임"):
@@ -177,6 +234,58 @@ class RageAbilityTests(unittest.TestCase):
                 row = copy.spec[GRANTS.KEY]["sources"]["feature:" + copy.entity_id + ":" + uid]
                 self.assertEqual(row["feature_ability_selection"], "ability/" + choice)
 
+
+class CoreRageAbilityBoundaryTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.rules = Rules(str(ROOT), ruleset="core")
+
+    fixture = RageAbilityTests.fixture
+    begin = RageAbilityTests.begin
+
+    def ordinary_rage_damage_and_saves(self):
+        engine, actor, target = self.fixture()
+        move = self.rules.move("move/메가톤펀치")
+        outgoing = engine.roll_damage(actor, target, move, set_damage=True)
+        incoming = engine.roll_damage(target, actor, move, set_damage=True)
+        self.assertTrue(engine.apply_status(actor, "난동"))
+        self.assertTrue(engine.apply_status(target, "난동"))
+        for holder in (actor, target):
+            self.assertFalse(RAGE.end_save_forbidden(holder, "난동"))
+            self.assertEqual(RAGE.outgoing_damage_bonus(holder), 0)
+            self.assertEqual(RAGE.incoming_damage_reduction(holder), 0)
+        self.assertEqual(engine.roll_damage(actor, target, move, set_damage=True), outgoing)
+        self.assertEqual(engine.roll_damage(target, actor, move, set_damage=True), incoming)
+        self.begin(engine, actor)
+        with patch.object(Engine, "d20", return_value=20) as roller:
+            engine.end_of_turn(actor)
+            engine.start_of_turn(target, initiative_count=19)
+            engine.end_of_turn(target)
+        self.assertEqual(roller.call_count, 2)
+        self.assertNotIn("난동", actor.conditions)
+        self.assertNotIn("난동", target.conditions)
+        self.assertTrue(engine.validate_state()["valid"])
+
+    def test_default_core_unowned_rage_abilities_do_not_change_native_damage_or_saves(self):
+        # Both abilities are ordinary core CSV entries. Merely using the core
+        # profile does not exclude them; this is the unchanged baseline control.
+        for source in RAGE.SOURCES:
+            self.assertEqual(self.rules._selected_rule(source), source)
+        self.ordinary_rage_damage_and_saves()
+
+    def test_explicitly_excluded_unowned_rage_abilities_do_not_block_native_damage_or_saves(self):
+        from ruleset import RuleFilter, ExcludedRuleSelection
+        profiles = json.loads((ROOT / "data/rulesets.json").read_text(encoding="utf-8"))["rulesets"]
+        profile = dict(profiles["core"], exclude_units=list(RAGE.SOURCES))
+        selected = RuleFilter(profile, name="core-excluding-rage-abilities")
+        # Install a real supported profile at the normal Rules construction
+        # boundary; no monkeypatch of ability ownership or active queries.
+        with patch.object(RuleFilter, "load", return_value=selected):
+            self.rules = Rules(str(ROOT), ruleset=selected.name)
+        for source in RAGE.SOURCES:
+            with self.assertRaises(ExcludedRuleSelection):
+                self.rules._selected_rule(source)
+        self.ordinary_rage_damage_and_saves()
 
 if __name__ == "__main__":
     unittest.main()

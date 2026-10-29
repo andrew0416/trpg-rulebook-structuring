@@ -38,7 +38,6 @@ class PriorityActionTests(unittest.TestCase):
                                    'move/힘껏펀치', 'move/리벤지'])
         self.foe = self.actor('recipient', 10, 'pokemon', ['노말'], moves=[QUICK])
         self.t.side = self.p.side = 'party'
-        self.p.spec.update(trainer_id=self.t.entity_id, loyalty=3)
         self.foe.side = 'enemy'
         self.e.prepare_initiative_schedule(self.e.everyone, source='gm/test-schedule')
         self.e.start_round(self.e.everyone)

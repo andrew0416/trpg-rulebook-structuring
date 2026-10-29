@@ -11,7 +11,7 @@ import body_state as BODY
 import field_effects as FIELD
 import state_codec as CODEC
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
 
 
 class LocalGrassIndependentTests(unittest.TestCase):

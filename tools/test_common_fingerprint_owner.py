@@ -28,20 +28,7 @@ def encoded_expression(expression, payload, helper=False):
     ast.fix_missing_locations(tree)
     return eval(compile(tree, '<original-encoding>' if not helper else '<owner-call>', 'eval'),
                 {'json': json, 'hashlib': hashlib, 'sha256': hashlib.sha256,
-                 '_FINGERPRINTS': TX, 'HASH': TX, 'payload': payload})
-
-
-def current_site_contract(site):
-    """Bind the one relocated persisted producer without rewriting its frozen audit."""
-    if (site['file'], site['function'], site['line']) != ('engine/turn.py', 'equip_weapon', 414):
-        return site
-    if (site['raw_sha256'] != '7bd73a0945645e3f8ee79a985be6a73b9220ae8b78a35e8149cd7a3b8f4ccf84'
-            or site['helper'] != '_FINGERPRINTS.json_fingerprint(weapon, sort_keys=True, compact=False, allow_nan=True)'):
-        raise ValueError('original weapon fingerprint migration preimage changed')
-    # Finite JSON preserves the saved digest; nonfinite declarations cannot be saved
-    # by either the frozen or current state_codec._Encoder.value contract.
-    return dict(site, file='engine/weapon_actions.py', function='derived_definition',
-                helper='HASH.json_fingerprint(weapon, sort_keys=True, compact=False, allow_nan=False)')
+                 '_FINGERPRINTS': TX, 'payload': payload})
 
 
 class FingerprintOwnerTests(unittest.TestCase):
@@ -69,7 +56,7 @@ class FingerprintOwnerTests(unittest.TestCase):
         with self.assertRaises(ValueError):TX.replay_result(receipt, 'request', {'a': [2], 'b': 2})
 
     def test_owner_is_only_json_sha_body_in_migrated_modules(self):
-        for file in sorted({site['file'] for site in SITES} | {current_site_contract(site)['file'] for site in SITES}):
+        for file in sorted({site['file'] for site in SITES}):
             tree = ast.parse((STAGE/file).read_text(encoding='utf-8'))
             for node in ast.walk(tree):
                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == 'hexdigest':
@@ -106,57 +93,19 @@ class FingerprintOwnerTests(unittest.TestCase):
             result = subprocess.run([sys.executable, '-B', '-c', code], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_weapon_site_migration_requires_exact_frozen_site_and_encoding(self):
-        moved=[]
-        for site in SITES:
-            target=current_site_contract(site)
-            if target is site:continue
-            moved.append(site)
-            self.assertEqual((target['file'],target['function']),('engine/weapon_actions.py','derived_definition'))
-            self.assertEqual(target['preserved'],site['preserved'])
-            for field,value in (('raw_sha256','0'*64),('helper',site['helper'].replace('True','False'))):
-                with self.subTest(field=field),self.assertRaisesRegex(ValueError,'preimage changed'):
-                    current_site_contract(dict(site,**{field:value}))
-        self.assertEqual(len(moved),1)
-
-    def test_weapon_site_reaches_one_persisted_producer_and_restore_owner(self):
-        def contains(file,function,expression):
-            desired=ast.dump(ast.parse(expression,mode='eval').body,include_attributes=False)
-            tree=ast.parse((STAGE/file).read_text(encoding='utf-8'))
-            owner=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name==function)
-            return any(ast.dump(n,include_attributes=False)==desired for n in ast.walk(owner))
-        for file,function,expression in (
-            ('engine/turn.py','equip_weapon','GRANTS.transition(engine,c,lambda staged,actor:_equip_weapon(staged,actor,weapon))'),
-            ('engine/turn.py','_equip_weapon','WEAPONS.derived_definition(engine.r,weapon)'),
-            ('engine/weapon_actions.py','derived_definition','HASH.json_fingerprint(weapon,sort_keys=True,compact=False,allow_nan=False)[:12]'),
-            ('engine/weapon_actions.py','generated_declarations','derived_definition(checked,weapon)'),
-            ('engine/weapon_actions.py','restore_generated',"derived_definition(rules,row['weapon'])"),
-            ('engine/weapon_actions.py','restore_generated',"row['id']!=mid")):
-            with self.subTest(function=function,expression=expression):self.assertTrue(contains(file,function,expression))
-        tree=ast.parse((STAGE/'engine/weapon_actions.py').read_text(encoding='utf-8'))
-        owner=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='derived_definition')
-        self.assertTrue(any(isinstance(n,ast.Import) and any(a.name=='resolution_transaction' and a.asname=='HASH' for a in n.names)
-                            for n in owner.body))
-
 
 def site_case(site):
     def check(self):
-        target = current_site_contract(site)
-        original = BASELINE/site['file']; staged = STAGE/target['file']
+        original = BASELINE/site['file']; staged = STAGE/site['file']
         self.assertEqual(hashlib.sha256(original.read_bytes()).hexdigest(), site['raw_sha256'])
-        desired = ast.dump(ast.parse(target['helper'], mode='eval').body, include_attributes=False)
+        desired = ast.dump(ast.parse(site['helper'], mode='eval').body, include_attributes=False)
         tree = ast.parse(staged.read_text(encoding='utf-8'))
-        if target is not site:
-            tree=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name==target['function'])
         self.assertTrue(any(isinstance(node, ast.Call) and ast.dump(node, include_attributes=False) == desired
-                            for node in ast.walk(tree)), target['helper'])
+                            for node in ast.walk(tree)), site['helper'])
         # Exact original input expression (including _plain/ordered row shape) is in desired.
         for payload in FIXTURES:
             self.assertEqual(encoded_expression(site['expression'], payload),
                              encoded_expression(site['helper'], payload, True))
-            if target is not site:
-                self.assertEqual(encoded_expression(site['expression'], payload),
-                                 encoded_expression(target['helper'], payload, True))
         nonfinite = {'z': float('nan'), 'a': float('inf')}
         if site['preserved']['allow_nan']:
             self.assertEqual(encoded_expression(site['expression'], nonfinite),
@@ -165,8 +114,6 @@ def site_case(site):
             for helper in (False, True):
                 with self.assertRaises(ValueError):
                     encoded_expression(site['helper'] if helper else site['expression'], nonfinite, helper)
-        if target is not site:
-            with self.assertRaises(ValueError):encoded_expression(target['helper'], nonfinite, True)
     return check
 
 

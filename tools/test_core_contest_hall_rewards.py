@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 STAGE = Path(__file__).resolve().parents[1]
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(r'D:\trpg-rulebook-structuring\ptk-structure-experiment')
 sys.path.insert(0, str(STAGE/'engine'))
 sys.path.insert(1, str(ROOT/'engine'))
 sys.path.insert(2, str(ROOT/'tools'))

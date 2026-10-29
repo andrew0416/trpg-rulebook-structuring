@@ -1,8 +1,6 @@
 from pathlib import Path
-import json,hashlib,csv,ast,sys
+import json,hashlib,csv,ast
 ROOT=Path(__file__).resolve().parents[1]
-sys.path.insert(0,str(ROOT/'tools'))
-from activation_current_evidence import validate_current, REQUIREMENTS, CURRENT, proof_input_paths
 REL='data/verification/common-activation-transition-contract.json'
 CATEGORIES={'bounded_verified','implementation_missing','source_ambiguity','gm_defined_input','verification_missing','higher_scope_grouping'}
 def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
@@ -33,8 +31,11 @@ def validate(spec,root=ROOT):
   if not c.get('condition_and_transition') or not c.get('exit_evidence'):bad('missing_semantics_or_exit:'+id)
   if not c.get('source_anchor_ids') or not set(c['source_anchor_ids'])<=sources.keys():bad('missing_source:'+id)
   if not set(c.get('evidence_refs',[]))<=evidence.keys():bad('unknown_evidence:'+id)
-  # runtime_paths retain the exact historical review; current locations and
-  # genuine current native witnesses are validated together below.
+  for p in c.get('runtime_paths',[]):
+   f=root/p['file']
+   if not f.is_file() or digest(f)!=p['file_sha256']:bad('runtime_file_drift:'+id);continue
+   lines=f.read_text(encoding='utf8').splitlines();ex='\n'.join(lines[p['start']-1:p['end']])
+   if hashlib.sha256(ex.encode()).hexdigest()!=p['excerpt_sha256']:bad('runtime_excerpt_drift:'+id)
   if c.get('bounded_subcontract_complete'):
    if c['exit_category']!='bounded_verified' or c.get('runtime_status')!='implemented_bounded' or not c.get('runtime_paths') or not c.get('evidence_refs'):bad('unsupported_bounded_closure:'+id)
    if not any(evidence[e].get('fully_current') and evidence[e].get('passing_test_ids') for e in c.get('evidence_refs',[]) if e in evidence):bad('no_current_conformance:'+id)
@@ -59,13 +60,18 @@ def validate(spec,root=ROOT):
   expected_links=spec.get('required_connectivity',{}).get(t['id'])
   if not expected_links or set(t.get('condition_ids',[]))!=set(expected_links) or not set(t.get('condition_ids',[]))<=expected:bad('transition_link_mismatch:'+t['id'])
   if not t.get('guard') or not t.get('effect'):bad('missing_transition_contract:'+t['id'])
- errors.extend(validate_current(root,spec))
+ for key,e in evidence.items():
+  p=root/e['file']
+  if not p.is_file() or digest(p)!=e['sha256']:bad('evidence_report_drift:'+key);continue
+  data=json.loads(p.read_text(encoding='utf8'));passing={z['id'] for z in data.get('results',[]) if z.get('status')=='pass'}
+  if set(e.get('passing_test_ids',[]))!=passing:bad('evidence_test_mismatch:'+key)
+  if e.get('fully_current'):
+   for rel,h in data.get('input_hashes',{}).items():
+    f=root/rel
+    if not f.is_file() or digest(f)!=h:bad('stale_conformance_input:'+key+':'+rel)
  return sorted(set(errors))
 def audit(root=ROOT):
  root=Path(root);spec=json.loads((root/REL).read_text(encoding='utf8'));errors=validate(spec,root)
- paths=[REL,'tools/audit_common_activation_matrix.py','tools/activation_current_evidence.py',REQUIREMENTS]
- if (root/CURRENT).is_file():paths+=proof_input_paths(root)
- history=[{'id':key,'file':e['file'],'recorded_sha256':e['sha256'],'available_recorded_bytes':(root/e['file']).is_file() and digest(root/e['file'])==e['sha256'],'current_execution_credit':False} for key,e in spec['evidence_catalog'].items()]
- return {'status':'checks_passed' if not errors else 'not_passed','errors':errors,'results':[{'id':'ACTIVATION-MATRIX-INTEGRITY','status':'pass' if not errors else 'fail'}],'input_hashes':{p:digest(root/p) for p in sorted(set(paths)) if (root/p).is_file()},'historical_report_references':history,'counts':spec['summary'],'semantic_complete':False,'meaning':'Same finite source/condition/transition obligations plus H-accepted current witnesses; historical reports remain historical, not fresh PASS. No whole rulebook closure.'}
+ return {'status':'checks_passed' if not errors else 'not_passed','errors':errors,'results':[{'id':'ACTIVATION-MATRIX-INTEGRITY','status':'pass' if not errors else 'fail'}],'input_hashes':{REL:digest(root/REL),'tools/audit_common_activation_matrix.py':digest(Path(__file__))},'counts':spec['summary'],'semantic_complete':False,'meaning':'Exact finite review inventory and source/code/evidence links; not source universe coverage or new runtime conformance proof.'}
 if __name__=='__main__':
- report=audit();results=report['results'];(ROOT/'output/common-activation-matrix-audit.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf8');print(json.dumps({'status':report['status'],'errors':report['errors']},ensure_ascii=False));raise SystemExit(bool(report['errors']))
+ report=audit();(ROOT/'output/common-activation-matrix-audit.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf8');print(json.dumps({'status':report['status'],'errors':report['errors']},ensure_ascii=False));raise SystemExit(bool(report['errors']))

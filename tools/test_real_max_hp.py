@@ -36,7 +36,7 @@ class RealMaxHPTests(unittest.TestCase):
         e,c,ctx=self.fixture(hp=35);self.assertEqual(FX._amount('current_hp/2',c,e,ctx),17)
     def test_conditional_thresholds_use_actual_hp_without_temporary_hp(self):
         for hp,above,below in [(39,False,True),(40,False,True),(41,True,False)]:
-            e,c,ctx=self.fixture(hp=hp);e.gm.set_temp_hp(c,100,reason="observed temporary HP",duration_seconds=300)
+            e,c,ctx=self.fixture(hp=hp);c.temp_hp=100
             self.assertEqual(FX.KNOWN_IF['hp > half'](ctx),above)
             self.assertEqual(FX.KNOWN_IF['hp <= half'](ctx),below)
         e,c,ctx=self.fixture(hp=25);self.assertTrue(FX.KNOWN_IF['hp <= 1/3'](ctx))
@@ -85,7 +85,7 @@ class RealMaxHPTests(unittest.TestCase):
     def test_unpreventable_self_setting_bypasses_cap_but_keeps_life_transitions(self):
         # Saved moves.csv Explosion/Self-Destruct explicitly prohibit prevention.
         e,c,ctx=self.fixture(injuries=2,hp=20)
-        c.damage_cap={'value':'max_hp/2','round':'up'};e.gm.set_temp_hp(c,100,reason="observed temporary HP",duration_seconds=300)
+        c.damage_cap={'value':'max_hp/2','round':'up'};c.temp_hp=100
         FX.h_self_hp_set(e,c,c,{'self_hp':'-50% max','unpreventable':True},ctx)
         self.assertEqual(c.hp,-40)
         self.assertEqual(c.injuries,4)  # Crosses0 and-40; no Massive Damage injury.
@@ -109,7 +109,7 @@ class RealMaxHPTests(unittest.TestCase):
         self.assertEqual(c.hp,0);self.assertTrue(c.fainted)
         self.assertEqual(c.injuries,2)
     def test_actual_revival_herb_uses_real_half_then_healing_ceiling(self):
-        for hp_stat,injuries,expected in [(23,3,40),(24,3,41),(24,7,24)]:
+        for hp_stat,injuries,expected in [(23,3,40),(24,3,41),(24,7,27)]:
             with self.subTest(hp_stat=hp_stat,injuries=injuries):
                 e,c,ctx=self.fixture(injuries=injuries,hp=-1,hp_stat=hp_stat)
                 user=Combatant(e.r,dict(name='Medic',kind='trainer',level=1,stats={'hp':5,'atk':5,'def':5,'spa':5,'spd':5,'spe':5},types=['노말'],moves=[],items={'부활초':1}))

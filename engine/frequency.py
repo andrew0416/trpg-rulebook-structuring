@@ -69,6 +69,14 @@ def validate(c):
         kind=row.get('kind');period=row.get('period')
         if kind=='one_time':
             if period!='lifetime' or row['used']>1:raise ValueError('invalid lifetime activation')
+        elif kind=='every_other_turn':
+            if type(period) is not dict or set(period)!={'scene','turn','at_seconds'}:
+                raise ValueError('EOT activation requires its actual owner-turn occurrence')
+            for name in ('scene','turn'):
+                count(period[name],'EOT activation '+name)
+                if period[name]>st[name]:raise ValueError('EOT activation is ahead of its owner calendar')
+            if period['at_seconds'] is not None:count(period['at_seconds'],'EOT activation time')
+            if row['used']!=1:raise ValueError('EOT activation consumes one occurrence')
         elif kind=='turn':
             if type(period) is not dict or set(period)!={'owner','turn'} or type(period['owner']) is not str or not period['owner'].strip():
                 raise ValueError('turn activation requires explicit owner and turn identity')
@@ -413,11 +421,29 @@ def _declared_period(c,st,kind,frequency,engine):
     return {'owner':owner_id,'turn':owner.spec.get('frequency_state',{}).get('turn',0)}
 
 
+def _eot_activation_allowed(st,old,engine,cap):
+    if cap!=1:raise ValueError('EOT activation has exactly one use per eligible owner turn')
+    if engine is None:raise ValueError('EOT activation requires its actual engine clock')
+    if old.get('kind')!='every_other_turn':return True
+    period=old['period'];used_at=period['at_seconds']
+    if used_at is not None and used_at>engine.elapsed_seconds:
+        raise ValueError('EOT activation is ahead of the world clock')
+    if not engine.encounter_active:
+        return used_at is not None and engine.elapsed_seconds-used_at>=10
+    return period['scene']!=st['scene'] or st['turn']-period['turn']>=2
+
+
 def activation_allowed(c,key,frequency,*,engine=None,action_actor=None):
-    if engine is not None and action_actor is not None and not __import__('focused_command').frequency_allowed(engine,action_actor,parse(frequency)[0]):return False
+    kind,cap=parse(frequency)
+    if kind=='every_other_turn':
+        if cap!=1:raise ValueError('EOT activation has exactly one use per eligible owner turn')
+        if engine is None:raise ValueError('EOT activation requires its actual engine clock')
+    if engine is not None and action_actor is not None and not __import__('focused_command').frequency_allowed(engine,action_actor,kind):return False
     if engine is not None:bind_session(engine,c)
-    kind,cap=parse(frequency);st=state(c);old=st['activations'].get(key,{})
+    st=state(c);old=st['activations'].get(key,{})
     if kind=='one_time':return _lifetime_used(st,key)<1
+    if kind=='every_other_turn':
+        return _eot_activation_allowed(st,old,engine,cap)
     period=_declared_period(c,st,kind,frequency,engine)
     used=old.get('used',0) if old.get('kind')==kind and old.get('period')==period else 0
     # Import manual daily usage written by the previous engine version.
@@ -425,16 +451,28 @@ def activation_allowed(c,key,frequency,*,engine=None,action_actor=None):
     return kind not in ('daily','scene','turn') or used<cap
 
 def consume_activation(c,key,frequency,*,engine=None,action_actor=None):
-    if engine is not None and action_actor is not None and not __import__('focused_command').frequency_allowed(engine,action_actor,parse(frequency)[0]):
+    kind,cap=parse(frequency)
+    if kind=='every_other_turn':
+        if cap!=1:raise ValueError('EOT activation has exactly one use per eligible owner turn')
+        if engine is None:raise ValueError('EOT activation requires its actual engine clock')
+    if engine is not None and action_actor is not None and not __import__('focused_command').frequency_allowed(engine,action_actor,kind):
         raise ValueError('Focused Command permits only At-Will actions this round')
     if engine is not None:bind_session(engine,c)
-    kind,cap=parse(frequency)
+    if kind=='every_other_turn':
+        st=state(c)
+        if not _eot_activation_allowed(st,st['activations'].get(key,{}),engine,cap):
+            raise ValueError('EOT activation is not available at this owner boundary')
     if engine is not None and action_actor is not None:__import__('focused_command').record_fact(engine,action_actor,key,kind)
     if kind=='one_time':
         st=state(c);used=_lifetime_used(st,key)
         if used:raise ValueError('One Time Use already consumed for this source')
         st.setdefault('lifetime_activations',{})[key]=1
         st['activations'][key]=dict(kind='one_time',period='lifetime',used=1)
+        return
+    if kind=='every_other_turn':
+        period={'scene':st['scene'],'turn':st['turn'],
+                'at_seconds':engine.elapsed_seconds}
+        st['activations'][key]={'kind':kind,'period':period,'used':1}
         return
     if kind not in ('daily','scene','turn'):return
     st=state(c);period=_declared_period(c,st,kind,frequency,engine)

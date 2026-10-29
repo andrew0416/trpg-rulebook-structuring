@@ -14,7 +14,7 @@ import state_codec as CODEC
 import state_grants as GRANTS
 import world_entities as WORLD
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
 
 
 class CorePackMonTests(unittest.TestCase):
@@ -25,7 +25,7 @@ class CorePackMonTests(unittest.TestCase):
 
     def setUp(self):self.world()
 
-    def world(self, leader='페르시온', follower='나옹', leader_level=30, follower_level=80, *, owned=False):
+    def world(self, leader='페르시온', follower='나옹', leader_level=30, follower_level=80, *, owned=True):
         self.e = Engine(self.r, seed=5)
         self.owner = self.actor('actual-owner', 'trainer')
         self.leader = self.pokemon('leader', leader, leader_level, (0, 1))
@@ -58,7 +58,7 @@ class CorePackMonTests(unittest.TestCase):
 
     def test_pre_evolution_obeys_above_leader_level_without_changing_owner_or_loyalty(self):
         # A real stock Pack Mon, with its actual sourced predecessor, not type equality.
-        self.assertNotIn('loyalty', self.p.spec)
+        self.p.spec.pop('loyalty')
         relation = deepcopy({k:self.p.spec.get(k) for k in ('trainer_id','wild','loyalty','party_location')})
         leader_state = deepcopy((self.leader.spec, self.leader.move_uses, getattr(self.leader,'budget',None)))
         hp = self.target.hp
@@ -73,7 +73,7 @@ class CorePackMonTests(unittest.TestCase):
         self.assertEqual((self.leader.spec, self.leader.move_uses, getattr(self.leader,'budget',None)), leader_state)
         self.assertEqual({k:self.p.spec.get(k) for k in relation}, relation)
         self.assertEqual(getattr(self.e,'_obedience_receipts',[]), [])
-        self.assertEqual(self.e.use_move(self.p,self.target,'struggle'), 0)
+        self.assertIsInstance(self.e.use_move(self.p,self.target,'struggle'), C.PendingDecision)
         with self.assertRaises(ValueError):
             self.e.pokemon_activity(self.leader,'command_loyalty',target=self.p)
         with self.assertRaises(ValueError):
@@ -128,8 +128,8 @@ class CorePackMonTests(unittest.TestCase):
         self.assertEqual(self.state(),before)
         self.leader.level=50  # the current actor level is the existing spec-backed property
         self.assertEqual(self.command()['obedience']['relation'],'same_species')
-        self.assertNotIn('trainer_id', self.p.spec)
-        self.assertNotIn('loyalty', self.p.spec)
+        self.assertEqual(self.p.spec['trainer_id'],self.owner.entity_id)
+        self.assertEqual(self.p.spec['loyalty'],0)
 
     def test_live_source_identity_and_transient_authority_are_rechecked_without_leaks(self):
         self.world('리자몽','파이리');self.grant()
@@ -141,7 +141,7 @@ class CorePackMonTests(unittest.TestCase):
         with patch.object(self.r,'_selected_rule',side_effect=lambda uid,*a,**k:'foreign/pack' if uid==PACK.SOURCE else selected(uid,*a,**k)):
             with self.assertRaisesRegex(ValueError,'selected recipe'):self.command()
         self.assertEqual(self.state(),before)
-        with self.assertRaisesRegex(ValueError,'loyalty or control-tool options'):
+        with self.assertRaisesRegex(ValueError,'loyalty options'):
             self.command(obedience_options={'dc_override':0})
         self.assertEqual(self.state(),before)
         real_use=self.e.use_move
@@ -157,8 +157,5 @@ class CorePackMonTests(unittest.TestCase):
         with patch.object(self.e,'use_move',side_effect=RuntimeError('actual downstream failure')):
             with self.assertRaisesRegex(RuntimeError,'downstream'):self.command()
         self.assertEqual(getattr(self.e,'_obedience_receipts',[]),[])
+        self.assertEqual(self.e.use_move(self.p,self.target,'struggle'),0)
         self.assertEqual((self.target.hp,self.e.rng.getstate(),self.p.budget),(hp,rng,budget))
-        # A wild Pokemon may act autonomously after a failed command; no receipt
-        # is needed, and the ordinary move still spends its real Standard action.
-        self.e.use_move(self.p,self.target,'struggle',set_damage=True)
-        self.assertEqual((self.p.move_uses['struggle'],self.p.budget['standard']),(1,0))

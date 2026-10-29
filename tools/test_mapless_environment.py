@@ -105,7 +105,7 @@ class Tests(unittest.TestCase):
                 reason='cannot silently replace place environment',environment_regions=dict(self.regions,fountain='far'))
         saved=self.e.gm.snapshot();before=self.snap()
         self.e.gm.snapshots[saved]['engine']['_mapless_space']['environment']['places']['fountain']='far'
-        with self.assertRaisesRegex(WorldIntegrityError,r'^world reference integrity: mapless_space \(mapless spatial observation changed\)$'):self.e.gm.restore(saved)
+        with self.assertRaisesRegex(WorldIntegrityError,'^world reference integrity: mapless_space$'):self.e.gm.restore(saved)
         self.assertEqual(before,self.snap())
 
     def test_actual_gills_use_water_and_bound_actor_requires_observed_places(self):

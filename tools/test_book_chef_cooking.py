@@ -25,12 +25,7 @@ import world_entities as W
 class ChefCookingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from ruleset import RuleFilter
-        profile = deepcopy(RuleFilter.load(ROOT, 'all').profile)
-        profile['exclude_units'] = list(profile.get('exclude_units', [])) + ['chef/dumplings-no-nesting-errata']
-        selected = RuleFilter(profile, 'all-with-original-book-dumplings')
-        with patch.object(RuleFilter, 'load', return_value=selected):
-            cls.rules = Rules(ROOT, ruleset='all')
+        cls.rules = Rules(ROOT, ruleset='all')
 
     def setUp(self):
         previous = self.rules.rulings
@@ -76,7 +71,7 @@ class ChefCookingTests(unittest.TestCase):
         engine, chef = world['engine'], world['chef']
         self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='leftovers'), 'recipe provider')
         self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='preserves', origin='item/오랭열매'), 'recipe provider')
-        self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='dumplings', ingredient_1={'item': 'item/먹다남은음식'}, ingredient_2={'item': 'item/먹다남은음식'}), 'different items|Leftovers, Preserves')
+        self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='dumplings', ingredient_1={'item': 'item/먹다남은음식'}, ingredient_2={'item': 'item/먹다남은음식'}), 'actual acquired Chef prerequisite.*경단')
         chef.spec['items']['요리 세트'] = 0
         self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='hearty_meal', ingredients='big_mushroom', units=1), 'required equipment')
         chef.spec['items']['요리 세트'] = 1
@@ -108,7 +103,13 @@ class ChefCookingTests(unittest.TestCase):
         self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='preserves', origin='item/작은버섯'), 'actual held origin instance')
         self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='preserves', origin='item/상처약'), 'Berry, Herb or Mushroom')
         self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='preserves', origin='item/오카열매', taste='쓴맛'), 'assigned Taste must be one of')
-        self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='preserves', origin='item/라즈열매'), 'source-specific consumer')
+        chef.spec['items']['라즈열매'] = 1
+        native_effect = FOOD.snack_effect
+        with patch.object(FOOD, 'snack_effect', side_effect=lambda rules, uid: None if uid == 'item/라즈열매' else native_effect(rules, uid)):
+            self.rejected(engine, lambda: FIX.cook(engine, chef, recipe='preserves', origin='item/라즈열매'), 'source-specific consumer')
+        razz = FIX.cook(engine, chef, recipe='preserves', origin='item/라즈열매')
+        self.assertEqual((razz['batch']['origin_item'], razz['count'], chef.spec['items']['라즈열매']), ('item/라즈열매', 2, 0))
+        self.assertEqual(razz['batch']['payload'], FOOD.snack_effect(self.rules, 'item/라즈열매'))
         self.assertTrue(engine.validate_state()['valid'])
 
     def test_served_units_reach_actual_digestion_buffs_with_provenance_and_exhaust_the_batch(self):

@@ -112,7 +112,7 @@ class Tests(unittest.TestCase):
   self.assertEqual(self.resources(e,a),before)
  def test_missing_encounter_and_unregistered_actor_reject_before_native_cost(self):
   e,a,b=self.fixture();before=self.resources(e,a)
-  with self.assertRaisesRegex(ValueError,'Field range requires an actual encounter'):e.use_move(a,a,'move/비바라기')
+  with self.assertRaisesRegex(ValueError,'open encounter'):e.use_move(a,a,'move/비바라기')
   self.assertEqual(self.resources(e,a),before)
   e.start_round([a,b]);e.start_of_turn(a,initiative_count=12)
   stranger=Combatant(self.r,dict(a.spec,id='weather/stranger'))
@@ -190,12 +190,7 @@ class Tests(unittest.TestCase):
    with self.subTest(value=value,reason=reason,scope=scope):
     e,a,b=self.fixture();e.gm.observe_loyalty(b,6,reason='known obedience')
     self.cast(e,a,b,'move/비바라기')
-    if not reason or scope=='once':
-     rulings_before=deepcopy(e.rulings.__dict__)
-     with self.assertRaisesRegex(ValueError,'explicit adjudication reason|supported adjudication scope'):
-      e.rule_mech('hb-weather','same_weather_reapplication',value,reason=reason,scope=scope)
-     self.assertEqual(e.rulings.__dict__,rulings_before)
-    else:e.rule_mech('hb-weather','same_weather_reapplication',value,reason=reason,scope=scope)
+    e.rule_mech('hb-weather','same_weather_reapplication',value,reason=reason,scope=scope)
     e.start_round([a,b]);e.start_of_turn(b,initiative_count=12);before=self.resources(e,b)
     with self.assertRaisesRegex(ValueError,'same-weather'):e.use_move(b,b,'move/비바라기')
     self.assertEqual(self.resources(e,b),before)

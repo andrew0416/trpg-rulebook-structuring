@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT / "engine"))
 from builder import build_trainer
 from engine import Combatant, Engine, Rules
 from state_codec import dump_engine, load_engine
-from tools.report_category2_progress import collect as collect_category2, SOURCES as PROGRESS_SOURCES
+from tools.report_category2_progress import collect as collect_category2, collect_edge_reuse, SOURCES as PROGRESS_SOURCES
 import ability_transitions as ABILITIES
 import items
 import source_scoped_ability_grants as SOURCE_SCOPED
@@ -32,6 +32,80 @@ BLOCKED_SUN = {
     "rule_id": "feat/파이어의-메이저-기프트-햇볕",
     "candidates": ["ability/햇볕-playtest", "ability/햇볕-playtest-2"],
 }
+
+
+def _copy_shadow_files(root, shadow, files):
+    root = root.resolve()
+    for source in sorted(files):
+        source = source.resolve()
+        # Absolute external proofs stay bound to their original path and SHA.
+        if not source.is_relative_to(root):
+            continue
+        target = shadow / source.relative_to(root)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.link(source, target)
+        except OSError:
+            target.write_bytes(source.read_bytes())
+
+
+class ReportShadowEvidencePathTests(unittest.TestCase):
+    def test_internal_relative_evidence_is_copied(self):
+        with tempfile.TemporaryDirectory(prefix="ability-shadow-path-") as tmp:
+            root, shadow = Path(tmp) / "root", Path(tmp) / "shadow"
+            source = root / "work/native.log"
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"relative evidence\n")
+            _copy_shadow_files(root, shadow, {source})
+            self.assertEqual((shadow / "work/native.log").read_bytes(), source.read_bytes())
+
+    def test_external_absolute_evidence_keeps_original_binding_and_hash_checks(self):
+        with tempfile.TemporaryDirectory(prefix="ability-shadow-evidence-") as tmp:
+            root, shadow = Path(tmp) / "root", Path(tmp) / "shadow"
+            root.mkdir()
+            evidence = Path(tmp) / "legacy-absolute.log"
+            case = "tools.test_shadow_evidence.EvidenceTests.test_native"
+            raw = (f"test_native ({case}) ... ok\n\n" + "-" * 70
+                   + "\nRan 1 test in 0.001s\n\nOK\n").encode()
+            evidence.write_bytes(raw)
+            proof = {"log": str(evidence.resolve()), "sha256": hashlib.sha256(raw).hexdigest(),
+                     "cases": [case]}
+            identity = "fixture/shadow:1"
+            route = {"native_paths": ["fixture/native"], "foundation_ids": ["foundation"],
+                     "required_test_modules": ["tools.test_shadow_evidence"], "evidence": [proof]}
+            plan = {
+                "foundation_discovery": {"foundation_execution_plan": {"units": [{"id": "foundation"}]}},
+                "post_foundation_reuse": {"itemized_audit": {
+                    "scope": "fixture only", "baseline_clause_ids": [identity],
+                    "baseline_sha256": hashlib.sha256(identity.encode()).hexdigest(),
+                    "items": [{"id": identity, "status": "verified", "route": "native", "entrypoint_reviewed": True}],
+                    "routes": {"native": route},
+                }},
+            }
+            binding = deepcopy(plan)
+            _copy_shadow_files(root, shadow, {evidence, root / ".." / evidence.name})
+            self.assertEqual(plan, binding)
+            self.assertFalse(shadow.exists())
+            accepted = collect_edge_reuse(shadow, plan)
+            self.assertEqual((accepted["completed"], accepted["validation_errors"]), (1, []))
+            for mutation in ("bytes", "missing", "case", "consumer", "review"):
+                with self.subTest(mutation=mutation):
+                    changed = deepcopy(binding)
+                    changed_route = changed["post_foundation_reuse"]["itemized_audit"]["routes"]["native"]
+                    if mutation == "bytes":
+                        evidence.write_bytes(raw + b"changed\n")
+                    elif mutation == "missing":
+                        evidence.unlink()
+                    elif mutation == "case":
+                        changed_route["evidence"][0]["cases"] = [case + "_not_run"]
+                    elif mutation == "consumer":
+                        changed_route["required_test_modules"] = ["tools.test_other_consumer"]
+                    else:
+                        changed["post_foundation_reuse"]["itemized_audit"]["items"][0]["entrypoint_reviewed"] = False
+                    rejected = collect_edge_reuse(shadow, changed)
+                    self.assertEqual(rejected["completed"], 0)
+                    self.assertTrue(rejected["validation_errors"])
+                    evidence.write_bytes(raw)
 
 
 class SourceScopedFixedAbilityGrantTests(unittest.TestCase):
@@ -140,28 +214,12 @@ class SourceScopedFixedAbilityGrantTests(unittest.TestCase):
             shadow = Path(tmp)
             plan_path = ROOT / "data/verification/category2-edge-work-plan.json"
             plan = json.loads(plan_path.read_text(encoding="utf-8"))
-            # Rebase only this shadow fixture; original ledger and proof bytes stay unchanged.
-            historical_log = r"C:\Users\admin\Documents\ChatGPT\trpg-rulebook-structuring\work\reuse-partials\resume-core-1257\dementia-printed-band-repair\execution\union-03.log"
-            fixture_log = "data/verification/fixture-inputs/dementia-printed-band/union-03.log"
-            for route in plan["post_foundation_reuse"]["itemized_audit"]["routes"].values():
-                for proof in route["evidence"]:
-                    if proof["log"] == historical_log:
-                        self.assertEqual(hashlib.sha256((ROOT / fixture_log).read_bytes()).hexdigest(), proof["sha256"])
-                        proof["log"] = fixture_log
             files = {p for p in (ROOT / "input").rglob("*") if p.is_file()}
             files.update(ROOT / "data/verification" / name for _, name, _ in PROGRESS_SOURCES)
-            files.add(ROOT / "data/verification/category2-scope-freeze.json")
+            files.update((plan_path, ROOT / "data/verification/category2-scope-freeze.json"))
             files.update(ROOT / proof["log"] for route in plan["post_foundation_reuse"]["itemized_audit"]["routes"].values()
                          for proof in route["evidence"])
-            for source in sorted(files):
-                target = shadow / source.relative_to(ROOT)
-                target.parent.mkdir(parents=True, exist_ok=True)
-                try:
-                    os.link(source, target)
-                except OSError:
-                    target.write_bytes(source.read_bytes())
-
-            (shadow / plan_path.relative_to(ROOT)).write_text(json.dumps(plan, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            _copy_shadow_files(ROOT, shadow, files)
 
             paths = {
                 "classes": ("category2-class-clause-status.json", "entries", "source_clause_id"),
@@ -212,4 +270,3 @@ class SourceScopedFixedAbilityGrantTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

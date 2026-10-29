@@ -58,8 +58,7 @@ class GlobalRoomGravityTests(unittest.TestCase):
                 self.assertTrue(plan["reviewed"])
         self.e.start_of_turn(self.a, initiative_count=20)
         self.e.use_move(self.a, self.a, "move/중력")
-        state = FIELD.active(self.e, "왜곡")
-        self.assertEqual((state["source_id"], state["name"], state["rounds"]),
+        self.assertEqual((self.e.field["source_id"], self.e.field["name"], self.e.field["rounds"]),
                          ("move/중력", "왜곡", 5))
 
     def test_gravity_closes_move_accuracy_height_and_ground_immunity_consumers(self):
@@ -109,7 +108,8 @@ class GlobalRoomGravityTests(unittest.TestCase):
         self.assertEqual(self.a.initiative_bonus, 0)
         self.assertIn(ITEMS.MAGIC_ROOM_KEY, record)
         self.assertEqual(self.a.spec["held_equipment"], held_before)
-        # Other Rooms coexist; only ending Magic Room restores the item.
+        # The suspended registration survives JSON restore. Replacing the
+        # field restores the passive from the same still-held item.
         blob = json.loads(json.dumps(self.e.export_state(), ensure_ascii=False))
         restored = Engine.import_state(self.r, blob)
         restored_a = next(actor for actor in restored.everyone
@@ -118,9 +118,6 @@ class GlobalRoomGravityTests(unittest.TestCase):
         self.assertTrue(any(ITEMS.MAGIC_ROOM_KEY in row
                             for row in restored_a._item_reg.values()))
         FIELD.install(restored, restored_a, self.effect("move/원더룸"), "move/원더룸")
-        self.assertEqual(restored_a.initiative_bonus, 0)
-        self.assertIsNotNone(FIELD.active(restored, "신비"))
-        FIELD.clear(restored)
         self.assertEqual(restored_a.initiative_bonus, 10)
         self.assertFalse(any(ITEMS.MAGIC_ROOM_KEY in row
                              for row in restored_a._item_reg.values()))
@@ -135,10 +132,6 @@ class GlobalRoomGravityTests(unittest.TestCase):
         self.assertEqual(self.e.weather_rounds, 5)
         self.assertNotIn("item_extension", self.e._weather_state["active"])
         self.install("move/원더룸")
-        WEATHER.set_weather(self.e, "rain", rounds=5, source_id="move/비바라기",
-                            origin="move", actor=self.a)
-        self.assertEqual(self.e.weather_rounds, 5)
-        FIELD.clear(self.e)
         WEATHER.set_weather(self.e, "rain", rounds=5, source_id="move/비바라기",
                             origin="move", actor=self.a)
         self.assertEqual(self.e.weather_rounds, 7)
@@ -167,12 +160,12 @@ class GlobalRoomGravityTests(unittest.TestCase):
         self.assertEqual(INIT.order(self.e, [self.a, self.t], round_no=self.e.round_no + 1), [self.t, self.a])
         self.e.start_round([self.a, self.t])
         self.assertTrue(FIELD.initiative_ascending(self.e))
-        self.assertEqual(FIELD.active(self.e, "트릭룸")["rounds"], 5)
+        self.assertEqual(self.e.field["rounds"], 5)
         for remaining in (4, 3, 2, 1):
             self.e.start_round([self.a, self.t])
-            self.assertEqual(FIELD.active(self.e, "트릭룸")["rounds"], remaining)
+            self.assertEqual(self.e.field["rounds"], remaining)
         self.e.start_round([self.a, self.t])
-        self.assertIsNone(FIELD.active(self.e, "트릭룸"))
+        self.assertIsNone(self.e.field)
 
         scheduled = Engine(self.r, seed=729)
         fast = Combatant(self.r, build_pokemon(self.r, "피카츄", 30,

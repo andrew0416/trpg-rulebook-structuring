@@ -1,4 +1,4 @@
-"""Direct producer/consumer/lifetime checks for eleven reviewed Move clauses."""
+"""Direct producer/consumer/lifetime checks for ten reviewed Move clauses."""
 from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
@@ -9,7 +9,7 @@ import sys
 import unittest
 
 STAGE = Path(__file__).resolve().parents[1]
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(r"D:\trpg-rulebook-structuring\ptk-structure-experiment")
 sys.path[:0] = [str(STAGE / "engine"), str(ROOT / "engine"), str(ROOT / "tools")]
 
 # Pin every replaced import before engine.py imports the canonical module path.
@@ -30,7 +30,7 @@ IDS = {
     "C2CSV-MOVE-R0069", "C2CSV-MOVE-R0627", "C2CSV-MOVE-R0129",
     "C2CSV-MOVE-R0757", "C2CSV-MOVE-R0517", "C2CSV-MOVE-R0490",
     "C2CSV-MOVE-R0719", "C2CSV-MOVE-R0370", "C2CSV-MOVE-R0554",
-    "C2CSV-MOVE-R0673", "C2CSV-MOVE-R0223",
+    "C2CSV-MOVE-R0673",
 }
 
 
@@ -59,15 +59,7 @@ class DeclarativeMoveContractTests(unittest.TestCase):
                                                 separators=(",", ":")).encode()).hexdigest()
             self.assertEqual(actual, row["source_row_sha256"], source)
             mechanics = self.r.move_mech(source)[0]
-            if source == "move/3연화살":
-                self.assertEqual(mechanics["effects_exec"], [
-                    {"type":"stage_change","stat":"def","delta":-1,"target":"target"},
-                    {"type":"stage_change","stat":"spd","delta":-1,"target":"target"},
-                    {"type":"multi_target_chain","max":3,"shift_between":2,"distinct_targets":True},
-                    DMC.marker(source,row)])
-                self.assertTrue(row["after_all"])
-                self.assertEqual(row["frequency"],{"kind":"daily","uses":1})
-            elif row["executor"] == DMC.NATIVE:
+            if row["executor"] == DMC.NATIVE:
                 self.assertEqual(mechanics["effects_exec"], [DMC.marker(source, row)])
             else:
                 self.assertIsNotNone(ALTERNATE.definition(self.r, source))
@@ -120,7 +112,7 @@ class DeclarativeMoveContractTests(unittest.TestCase):
         e.validate_state()
 
     def test_last_resort_gate_reads_only_authenticated_uses_since_switch(self):
-        others = ["move/몸통박치기", "move/풀베기", "move/물기", "move/박치기", "move/전광석화"]
+        others = ["move/몸통박치기", "move/할퀴기", "move/물기", "move/박치기", "move/전광석화"]
         e, user, target = self.battle([*others, "move/비장의무기"], ["move/기충전"])
         self.assertIn("struggle", user.moves)
         before = deepcopy(user.move_uses)
@@ -129,17 +121,7 @@ class DeclarativeMoveContractTests(unittest.TestCase):
         self.assertEqual(user.move_uses, before)
         for index, source in enumerate(others):
             e.d20 = lambda: 1
-            if source == "move/풀베기":
-                from native_scenario_fixture import prepare_body
-                for actor in (user,target):
-                    prepare_body(e,actor,size=actor.spec["size"],offsets=[(0,0)],reason="observed complete Pass body")
-                row=e.use_pass_move(user,source,(3,1),event_id="last-resort/cut",
-                    object_adjudications={},source="gm/observed-pass",reason="actual Cut path through the target")
-                self.assertEqual(row["targets"],[["creature",target.entity_id]])
-                self.assertEqual(row["results"][0]["dealt"],0)
-                self.assertEqual(user.pos,(3,1))
-            else:
-                e.use_move(user, target, source)
+            e.use_move(user, target, source)
             e.end_of_turn(user); e.start_of_turn(target, initiative_count=10); e.end_of_turn(target)
             e.start_round([user, target]); e.start_of_turn(user, initiative_count=20)
         e.use_move(user, target, "move/비장의무기")

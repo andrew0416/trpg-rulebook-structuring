@@ -76,7 +76,7 @@ def acquisition_snapshot(engine, actor, rank, selection):
     edition, selected = _selection(engine.r, selection)
     # The source says Move List, unlike Signature Move's explicit permanent-only rule.
     # Display overlays and permission-only actions are not learned Move ownership.
-    known = MOVES.known(engine.r, {'moves': MOVES.owned_list(actor.spec, 'moves')})
+    known = MOVES.known(engine.r, {'moves': MOVES.owned_list(actor.spec, 'moves',rules=actor.r)})
     types = {mid: engine.r.move(mid)['type'] for mid in known}
     if selected is not None and (not set(selected) <= set(known) or
             any(types[mid] != selection['type'] for mid in selected)):

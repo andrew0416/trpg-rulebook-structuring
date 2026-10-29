@@ -35,8 +35,7 @@ def run(root):
     e = Engine(r, 3)
     a = mk(r, "브케인", 20, strategy="special")
     t0, t1 = mk(r, "뚜벅쵸", 13), mk(r, "뚜벅쵸", 13, item="불꽃깁스")
-    for actor in (a, t0, t1):
-        e.gm.add_combatant(actor)
+    e.register_abilities(a); e.register_abilities(t1)
     d0 = e.roll_damage(a, t0, r.move("move/불꽃세례"), set_damage=True)
     d1 = e.roll_damage(a, t1, r.move("move/불꽃세례"), set_damage=True)
     check("불꽃깁스: 불꽃 피해에만 DR 15 (뚜벅쵸 약점 ×1.5 전 감산)", d0 - d1 >= 15 and any("도구 피해 감소 15" in l for l in e.log_lines), f"{d0} → {d1}")
@@ -45,36 +44,31 @@ def run(root):
     check("불꽃깁스: 노말 기술에는 감소 없음", dn0 == dn1, f"{dn0} {dn1}")
     # 2. 타입 부스터: 불꽃 +5
     a2 = mk(r, "브케인", 20, strategy="special", item="불꽃부스터")
-    e.gm.add_combatant(a2)
+    e.register_abilities(a2)
     d2 = e.roll_damage(a2, t0, r.move("move/불꽃세례"), set_damage=True)
     check("불꽃부스터: 불꽃 기술 피해 굴림 +5 (×1.5 → +7)", d2 - d0 in (7, 8), f"{d0} → {d2}")
     d2n = e.roll_damage(a2, t0, r.move("move/몸통박치기"), set_damage=True) if "move/몸통박치기" in r.moves else dn0
     check("불꽃부스터: 다른 타입 기술엔 없음", d2n == dn0, f"{dn0} {d2n}")
     # 3. 선제공격손톱: 이니셔티브 +10, 예리한손톱: 치명타 범위 +1
     s = mk(r, "뚜벅쵸", 13, item="선제공격손톱")
-    # Playtest Chlorophyll's actual weather reader requires real world actors.
-    e.gm.add_combatant(s)
+    e.register_abilities(s)
     # This oracle compares +10 with the same-speed unboosted actor only.
     # The unrelated third actor has initiative15, tying s and requiring a GM decision.
     order = e.initiative([s, t0])
-    assert order is not None, e.log_lines
     check("선제공격손톱: 이니셔티브 +10 → 같은 스피드의 뚜벅쵸보다 먼저, 로그에 +10", order.index(s) < order.index(t0) and s.initiative_bonus == 10 and any("+10" in l for l in e.log_lines[-1:]), [c.name for c in order])
     k = mk(r, "브케인", 20, item="예리한손톱")
-    e.gm.add_combatant(k)
+    e.register_abilities(k)
     check("예리한손톱: 치명타 범위 +1 (crit_range delta 등록)", ITEMS.crit_delta(k, r.move("move/불꽃세례")) == 1)
     # 4. 고고고글: 모래바람 면역
     g = mk(r, "뚜벅쵸", 13, item="고고고글")
-    e4 = Engine(r)
-    e4.gm.add_combatant(g)
-    e4.gm.set_weather("sandstorm", rounds=3, reason="item fixture observes a three-round sandstorm")
+    e4 = Engine(r); e4.weather, e4.weather_rounds = "sandstorm", 3
+    e4.register_abilities(g); e4.everyone = [g]
     e4.start_of_turn(g)
     check("고고고글: 모래바람 틱 피해 면역", g.hp == g.max_hp and any("피해 면역 (도구)" in l for l in e4.log_lines), f"{g.hp}/{g.max_hp}")
     # 5. 소모 아이템
     e5 = Engine(r, 1)
     tr = Combatant(r, build_trainer(r, "실바나", 5, {"hp": 10, "atk": 5, "def": 5, "spa": 5, "spd": 5, "spe": 5}, items={"상처약": 1, "해독제": 1, "기력의조각": 1, "플러스파워": 1, "타우린": 7}))
     p = mk(r, "뚜벅쵸", 13)
-    e5.gm.add_combatant(tr)
-    e5.gm.add_combatant(p)
     p.hp -= 30
     hp0 = p.hp
     e5.use_item(tr, "상처약", p)
@@ -101,8 +95,6 @@ def run(root):
     # 6. 몬스터볼 보정
     e6 = Engine(r, 5); e6.round_no = 1
     w = mk(r, "꼬부기", 10, wild=True)
-    for actor in (tr, p, w):
-        e6.gm.add_combatant(actor)
     mod, why = ITEMS.ball_modifier(e6, "네트볼", tr, w)
     check("네트볼: 물 타입에 +4", mod == 4, why)
     mod2, _ = ITEMS.ball_modifier(e6, "네트볼", tr, p)
@@ -118,12 +110,10 @@ def run(root):
     ok = e6.throw_ball(tr, w, "마스터볼")
     check("throw_ball(볼 종류): 마스터볼로 포획, 잡은 종이 트레이너 기록에", ok and w.captured and w.spec["species"] in tr.spec["caught_species"], e6.log_lines[-2:])
     w2 = mk(r, "꼬부기", 10, wild=True); w2.hp = 1; w2.conditions.add("독")
-    e6.gm.add_combatant(w2)
     e6.start_of_turn(tr)
     e6.throw_ball(tr, w2, "힐볼", fixed_accuracy=20, fixed_capture=20)
     check("힐볼: 원문대로 체력 회복, 상태이상은 유지", w2.captured and w2.hp == w2.max_hp and "독" in w2.conditions, f"{w2.captured} {w2.hp}/{w2.max_hp}")
     f = mk(r, "꼬부기", 10, wild=True); f.hp = 0; f.conditions.add("기절")
-    e6.gm.add_combatant(f)
     check("기절한 포켓몬은 포획 불가", not e6.throw_ball(tr, f, "몬스터볼") and any("포획 불가" in l for l in e6.log_lines))
     cat = ITEMS.ball_catalog(r)
     check("볼 목록: DB 의 몬스터볼 50종 이상, 조건부 볼 표시", len(cat) >= 50 and any(b["conditional"] for b in cat), len(cat))
@@ -138,8 +128,7 @@ def run(root):
     for i, pokemon in enumerate(witnesses):
         pokemon.spec.update(id="item-test-pokemon-"+str(i),trainer_id=tr2.spec["id"])
         pokemon.abilities = ["두꺼운지방"]
-    for actor in (tr2, *witnesses):
-        e7.gm.add_combatant(actor)
+    e7.everyone = [tr2, *witnesses]
     e7.gm.confirm_awareness(tr2,[{"pokemon":pokemon,"ability":"두꺼운지방","defensive_reason":"incoming elemental damage defense"} for pokemon in witnesses],reason="source-qualified item integration fixture")
     e7.register_abilities(pk)
     e7.register_abilities(tr2)
@@ -148,7 +137,6 @@ def run(root):
     manual = [x for x in tr2.registry if x.get("type") == "feat_manual"]
     check("재주 깡다구: 발동조건('대규모 데미지를 받거나…')은 파서 밖 → 수동 발동 레지스트리", any(x["name"] == "깡다구" for x in manual) or any(a.get("name") == "깡다구" for a in tr2.ability_triggers), [x["name"] for x in manual])
     foe = mk(r, "꼬마돌", 20, wild=True)
-    e7.gm.add_combatant(foe)
     mettle_before = dict(foe.stages)
     mettle_actor_before = (tr2.hp, dict(tr2.stages), dict(tr2.budget) if getattr(tr2, "budget", None) is not None else None,
                            list(getattr(tr2, "_action_history", [])), e7.rng.getstate())

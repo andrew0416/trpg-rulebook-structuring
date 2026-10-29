@@ -29,10 +29,13 @@ class SkillEvent:
  state: str='observed'
 
 def _request(e,actor,skill,options):
- return (S.skill_id(e.r.skill_policy,skill),options.get('mods',0),
+ request=(S.skill_id(e.r.skill_policy,skill),options.get('mods',0),
          options.get('helper_rank',0),None if options.get('fixed') is None else tuple(options['fixed']),
          options.get('penalty_count',0),None if options.get('fixed_penalties') is None else tuple(options['fixed_penalties']),
          options.get('helper_bonus'),deepcopy(options.get('skill_context')),deepcopy(options.get('skill_stunt')),options.get('skill_target'))
+ # Keep legacy request tuples identical when no live helper source was supplied.
+ source=options.get('helper_source')
+ return request if source is None else (*request,deepcopy(source))
 
 def event(e,actor,roll_id):
  if not isinstance(roll_id,str) or not roll_id.strip():raise ValueError('explicit actual skill roll ID required')
@@ -74,7 +77,7 @@ def _preflight_cost(e,actor,feature):
  staged=copy(e);staged.log_lines=[];staged._time_actors=list(getattr(e,'_time_actors',[]))
  shadow=copy(actor);shadow.spec=deepcopy(actor.spec);shadow._action_history=list(getattr(actor,'_action_history',[]))
  if not FREQ.activation_allowed(shadow,feature,FREQUENCY,engine=staged):raise ValueError('Skill Monkey daily uses exhausted')
- FEATURES.trigger_free_action(staged,shadow,feature)
+ FEATURES.require_trigger_free_action(staged,actor)
 
 def prepare(e,actor,skill,feature,feature_options,options):
  _source(e,actor,feature)
@@ -130,7 +133,7 @@ def offer_help(e,helper,target,*,request_id,decision,payment,reroll_faces=None,r
  """Arm a choice; only the real failed native Trainer check can activate it."""
  import world_entities as W,hobbyist as H,source_context as SOURCE
  W.require_actors(e,helper,target);FEATURES.conscious_trainer(helper);FEATURES.require(e,helper,HELP)
- if helper is target or target.kind!='trainer' or helper.side!=target.side:raise ValueError('Let Me Help targets another allied Trainer')
+ if helper is target or target.kind!='trainer' or helper.side is None or target.side is None or helper.side!=target.side:raise ValueError('Let Me Help targets another allied Trainer')
  if payment not in ('current','next') or not callable(decision):raise ValueError('explicit native reaction current/next payment and observed decision required')
  if type(request_id)is not str or not request_id.strip():raise ValueError('actual help offer identity required')
  SOURCE.verified_source(e.r,{'file':'input/ch03-skills-edges-feats.md','sha256':H.GENERAL},label='Let Me Help You With That')
@@ -142,9 +145,19 @@ def offer_help(e,helper,target,*,request_id,decision,payment,reroll_faces=None,r
  return {'armed':True,'source':HELP,'request_id':request_id}
 
 
+def _help_rank(e,helper,actor,skill):
+ import world_entities as W,hobbyist as H
+ W.require_actors(e,helper,actor)
+ FEATURES.conscious_trainer(helper);FEATURES.require(e,helper,HELP)
+ if helper is actor or actor.kind!='trainer' or helper.side is None or actor.side is None or helper.side!=actor.side:raise ValueError('Let Me Help targets another allied Trainer')
+ rank=S.effective_rank(e.r,helper,H.direct_skill(helper,HELP,skill))
+ if rank<3:raise ValueError('Let Me Help requires Novice in the actual directly named helping skill')
+ return rank
+
+
 def check_with_help(e,actor,skill,dc,options,roll):
  """The original DC and roll are observed before an interrupt or reroll costs."""
- import world_entities as W,hobbyist as H,initiative_interrupts as I,turn as TURN,state_grants as G
+ import world_entities as W,initiative_interrupts as I,turn as TURN,state_grants as G
  offer=getattr(e,'_let_me_help_offers',{}).get(actor.entity_id)
  if offer is None:return C.against_dc(roll(),dc)
  roll_id=options.get('roll_id')
@@ -165,10 +178,7 @@ def check_with_help(e,actor,skill,dc,options,roll):
  if original.passed:
   stored['state']='complete';finish(e,actor,roll_id);e._let_me_help_offers.pop(actor.entity_id);return original
  helper=W.actor_index(e)[offer['helper_id']]
- FEATURES.conscious_trainer(helper);FEATURES.require(e,helper,HELP)
- if helper is actor or actor.kind!='trainer' or helper.side!=actor.side:raise ValueError('Let Me Help targets another allied Trainer')
- helping_skill=H.direct_skill(helper,HELP,skill);rank=S.effective_rank(e.r,helper,helping_skill)
- if rank<3:raise ValueError('Let Me Help requires Novice in the actual directly named helping skill')
+ _help_rank(e,helper,actor,skill)
  if not callable(offer.get('decision')):raise ValueError('saved Let Me Help offer needs its actual decision callback rebound')
  choice=offer['decision'](first)
  if type(choice)is not bool:raise ValueError('observed Let Me Help choice must be boolean')
@@ -182,6 +192,7 @@ def check_with_help(e,actor,skill,dc,options,roll):
  if owner is None and e.encounter_active:raise ValueError('actual failed-check interrupt needs the native suspended owner turn')
  trigger=None if owner is None else {'kind':'turn','actor_id':owner.entity_id,'serial':owner.custom_conditions.get('combat_turn_serial',0),'round':e.round_no}
  def resolve(staged,h,t):
+  rank=_help_rank(staged,h,t,skill)
   if trigger is not None:
    queued=I.queue(staged,[{'id':offer['request_id'],'actor_id':h.entity_id,'source':HELP,'priority':0,'mode':'reaction','payment':offer['payment'],'budget':{'standard':1,'shift':1},'clock':'none'}],trigger=trigger)
    if queued['status'] not in ('queued','already_queued'):raise ValueError('actual failed-check interrupt permission unresolved')

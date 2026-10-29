@@ -65,4 +65,8 @@ def validate(engine, actors):
     HAZARDS.validate_world(engine)
     import action_lifecycle as ACTION
     ACTION.validate_turn_end_closures(engine)
+    __import__('earned_status_choices').validate(engine)
+    __import__('fashion_items').validate_world(engine)
+    __import__('movement_actions').validate_commands(engine)
+    __import__('stellar_tera_blast').validate_world(engine)
 

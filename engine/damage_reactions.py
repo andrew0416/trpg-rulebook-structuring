@@ -17,11 +17,19 @@ def finalize_choice(engine,event,damage):
     __import__('weather_blessings').finish_damage(engine,event,damage)
     return damage
 
-def resistance_multiplier(engine, multiplier):
+def resistance_floor(engine,event,multiplier):
+    """Apply an actual Move occurrence's resistance floor, never flat DR."""
+    if event is None or multiplier is None:return multiplier
+    return __import__('earned_status_choices').current_multiplier(
+        engine,event['attacker'],event['target'],event['move'],multiplier)
+
+
+def resistance_multiplier(engine, multiplier, *, event=None):
     steps={1.0:0,1.5:1,2.0:2,3.0:3,0.5:-1,0.25:-2,0.125:-3}
     if multiplier==0:return 0
     if multiplier not in steps:return None
-    return engine.r.mech("combat/type-effectiveness")["multiplier_by_net_steps"][str(max(-3,steps[multiplier]-1))]
+    result=engine.r.mech("combat/type-effectiveness")["multiplier_by_net_steps"][str(max(-3,steps[multiplier]-1))]
+    return resistance_floor(engine,event,result)
 
 def select_mettle(engine, event):
     """Return selected damage; only an explicit positive decision authorizes use."""
@@ -51,7 +59,7 @@ def select_mettle(engine, event):
     __import__("action_lifecycle").triggered_free_action(engine,c,METTLE)
     event["mettle_frequency"]=frequency
     event["mettle_selected"]=True
-    event['effective_type_multiplier']=resistance_multiplier(engine,event['damage_formula']['multiplier'])
+    event['effective_type_multiplier']=resistance_multiplier(engine,event['damage_formula']['multiplier'],event=event)
     engine.log(f"    깡다구: 해당 공격 저항 1단계 → 피해 {damage} → {event['resisted_damage']}",METTLE)
     return event["resisted_damage"]
 

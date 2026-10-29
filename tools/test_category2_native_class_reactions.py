@@ -60,18 +60,21 @@ class NativeReactionTests(unittest.TestCase):
 
     def test_actual_critical_and_massive_damage_produce_native_stage_receipts(self):
         source = R.THIS_WILL_NOT_STAND
-        for endpoint in ('take_damage','lose_hp'):
+        for critical in (True, False):
             e, owner, pokemon, enemy = self.fixture(feats=[source], partner_types=("드래곤",))
             self.start(e, enemy)
-            e.rulings.answers[:]=[row for row in e.rulings.answers if row['key']!='type_ace_choice']
-            e.rulings.add_answer('type_ace_choice',True,reason='actual adopted HP-crossing decision')
-            e.gm.set_hp(pokemon,value=pokemon.base_max_hp//2+1,reason='actual HP immediately above half')
-            getattr(e,endpoint)(pokemon,1)
-            self.assertFalse(e.pending_class_actor_state_reactions(owner))
+            if not critical:
+                enemy.stats["atk"] = enemy.spec["stats"]["atk"] = 100
+            self.hit(e, enemy, pokemon, "몸통박치기", critical=critical)
+            row = self.pending_one(e, owner, source)
+            self.assert_native(row, source)
+            self.assertTrue(row["critical"] if critical else row["massive"])
+            result = e.resolve_class_actor_state_reaction(owner, row["id"], use=True)
+            self.assert_native(result, source)
             self.assertEqual(tuple(pokemon.stages[s] for s in ("atk", "spa", "spe")), (1, 1, 1))
-            self.assertIn('난동',pokemon.conditions)
-            self.assertEqual(F.state(owner)['activations'][source]['used'],1)
-            self.assertEqual(F.state(pokemon)['activations'][source]['used'],1)
+            if critical:
+                self.hit(e, enemy, pokemon, "몸통박치기", critical=True)
+                self.assertFalse(e.pending_class_actor_state_reactions(owner))
 
     def test_deep_cold_three_daily_uses_and_one_use_per_actual_target(self):
         source = R.DEEP_COLD
@@ -133,7 +136,7 @@ class NativeReactionTests(unittest.TestCase):
             self.assertNotIn(R.DEEP_COLD, F.state(owner)["activations"])
 
     def test_pending_json_and_gm_restore_keep_source_and_resolve_once(self):
-        for source in (R.DEEP_COLD,):
+        for source in R.NATIVE_CLAUSE_BY_RULE:
             e, owner, pokemon, enemy, event = self.pending_hit(source)
             payload = CODEC.dump_engine(e)
             e.gm.snapshot("pending native reaction")
