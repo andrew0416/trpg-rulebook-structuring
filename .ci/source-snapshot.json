@@ -24,9 +24,9 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "authority-repair-integration-1029",
-  "active_repair_scope": "Original121 authority/restoration controls plus source-bound historical observation, target predicate, native Snore and Dream Eater admission regressions. Previous passing and failed runs remain at their original heads. No clause credit or whole-project certification.",
-  "active_repair_required_tests": 166,
+  "active_repair": "aa4-post-integration-current8",
+  "active_repair_scope": "Revalidate only changed shared native boundaries for the existing AA4 acceptance candidate; reuse original50 evidence",
+  "active_repair_required_tests": 8,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -42,7 +42,7 @@
   "separately_pending_frequency_equivalence_methods": 1029,
   "separately_pending_procedural_runners": 21,
   "ordinary_shard_count": 18,
-  "active_repair_phase": "authority_changed_impact",
+  "active_repair_phase": "aa4_existing_implementation_current_boundaries",
   "active_repair_procedural_runners": 0,
   "full_method_obligations": 13847,
   "ordinary_methods_separate_run": 40141538702,
@@ -84,7 +84,7 @@
   "native_prerequisite_run": "40241811271",
   "activation_current_evidence_current": false,
   "previous_activation_evidence": "historical_only_not_current",
-  "active_repair_source_commit": "c655cfd3f12bb7d5c675670f4e0d786504b2fc11",
+  "active_repair_source_commit": "bd97815ba3e1e7258cd8b775bd0915a3ae0f17b3",
   "active_repair_source_plan_path": ".ci/suites/changed_revisions.json",
   "historical_source_contract_repair": {
     "source_commit": "2f8975c41bd76cf48c904df85cf92a489430dbbc",
@@ -995,5 +995,28 @@
       "remote_unique_methods": 166,
       "source_followup_scope": "Existing approved native-area policy member gains reviewed Snore only;1569 other v2 members and existing Secret unchanged. UserU011 previous own-turn boundary applies to supplied Fickle homebrew variant; no blanket Dragon Rework adoption."
     }
+  },
+  "prior_active_repair_before_aa4_post_integration": {
+    "id": "authority-repair-integration-1029",
+    "scope": "Original121 authority/restoration controls plus source-bound historical observation, target predicate, native Snore and Dream Eater admission regressions. Previous passing and failed runs remain at their original heads. No clause credit or whole-project certification.",
+    "count": 166,
+    "source_commit": "c655cfd3f12bb7d5c675670f4e0d786504b2fc11"
+  },
+  "aa4_post_integration": {
+    "base_main": "bd97815ba3e1e7258cd8b775bd0915a3ae0f17b3",
+    "clause_ids": [
+      "C2CSV-ABILITY-R0112",
+      "C2CSV-ABILITY-R0157",
+      "C2CSV-ABILITY-R0473",
+      "C2CSV-MOVE-R0479"
+    ],
+    "required_methods": 8,
+    "runtime_changes": 0,
+    "test_changes": 0,
+    "private_input_changes": 0,
+    "new_secret": false,
+    "formal_acceptance_pending": true,
+    "registry_boundary": "Five existing remote registry/progress inputs differ from current canonical metadata; this run validates runtime only, not canonical ledger acceptance.",
+    "completion_credit": 0
   }
 }
