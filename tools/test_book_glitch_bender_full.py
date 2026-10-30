@@ -81,7 +81,7 @@ class GlitchBenderFullTests(unittest.TestCase):
   return rows[-1]['id']
  def retrain(self,feature):
   import trainer_retraining as R
-  owned=R._owned(self.a);sources={u:R.owned_source(self.e,self.a,u) for u in owned};requirements=R._native_dependencies(self.e,self.a,owned)
+  owned=R._owned(self.a);sources={u:R.source_id(self.e,self.a,u) for u in owned};requirements=R._native_dependencies(self.e,self.a,owned)
   deps={sid:[sources[p] for p in requirements.get(u,[])] for u,sid in sources.items() if u!=feature}
   return self.e.retrain_trainer_source(self.a,feature,request_id='glitch/retire/'+feature,reason='actual consultation',gm_decision={'allowed':True,'reason':'GM approved retraining'},retained_dependencies=deps)
 
@@ -189,7 +189,8 @@ class GlitchBenderFullTests(unittest.TestCase):
   self.family(B.CODE);self.begin();B.code_injection(self.e,self.a,self.b,'access_denied',fixed_accuracy=20);self.assertIn('둔화',self.b.conditions)
   self.family(B.CODE,actor=self.c);self.turn(self.c);self.reject(lambda:B.code_injection(self.e,self.c,self.b,'blue_screen',fixed_accuracy=20))
   self.turn(self.b,count=30);before=self.a.hp;self.native(self.b,self.a,'move/몸통박치기');self.assertLess(self.a.hp,before)
-  self.begin(self.b);G.replace_baseline(self.e,self.b,'moves',list(self.b.spec['moves'])+[B.METRONOME]);B.arm_metronome(self.e,self.b,lambda ids:{'move_id':ids[0],'target_id':self.a.entity_id});before=deepcopy(self.b.move_uses);self.e.use_move(self.b,self.b,B.METRONOME);self.assertEqual(self.b.move_uses,before)
+  self.begin(self.b,count=51);G.replace_baseline(self.e,self.b,'moves',list(self.b.spec['moves'])+[B.METRONOME]);  # count 51: Access Denied (one round) still live; it expires at the next round's count 50 as test_11 fixes
+  B.arm_metronome(self.e,self.b,lambda ids:{'move_id':ids[0],'target_id':self.a.entity_id});before=deepcopy(self.b.move_uses);self.e.use_move(self.b,self.b,B.METRONOME);self.assertEqual(self.b.move_uses,before)
 
  def test_13_code_object_native_equipment_and_consumable_benefits_not_ownership(self):
   from test_category2_held_item_reactions import HeldItemReactionTests
@@ -302,8 +303,11 @@ class GlitchBenderFullTests(unittest.TestCase):
   self.turn(p);self.assertIn('혼란',p.conditions);self.e.end_of_turn(p);self.assertNotIn('혼란',p.conditions);self.restore();self.valid()
 
  def test_29_source_loss_owned_class_moves_and_tags_permanent_lessons_survive(self):
+  # PTU Retraining: a Feature whose permanent effect was already used (a taught Move) cannot be retrained; GM consultation does not lift it (owner decision Q3, 2026-10-31).
   self.scene(edition='homebrew');self.family(B.NULL);p=self.pupil();B.teach(self.e,self.a,p,B.NULL,'폴리곤 쇼크',seconds=30,reason='actual permanent teaching')
-  before=self.a.stats['spd'];self.retrain(B.NULL);self.assertEqual(self.a.stats['spd'],before-1);self.assertFalse(set(B.CLASS_MOVES[:2])&set(self.a.moves));self.assertIn('move/폴리곤-쇼크',p.moves)
+  self.reject(lambda:self.retrain(B.NULL),reason='irreversible use');self.assertIn('move/폴리곤-쇼크',p.moves);self.assertTrue(set(B.CLASS_MOVES[:2])&set(self.a.moves));self.restore();self.valid()
+  # Without a permanent lesson the same source loss removes the owned class Moves and tags, and the lost Feature can no longer teach.
+  self.scene(edition='homebrew');self.family(B.NULL);p=self.pupil();before=self.a.stats['spd'];self.retrain(B.NULL);self.assertEqual(self.a.stats['spd'],before-1);self.assertFalse(set(B.CLASS_MOVES[:2])&set(self.a.moves))
   self.reject(lambda:B.teach(self.e,self.a,p,B.NULL,'액세스 거부',seconds=30,reason='withdrawn teacher Feature'));self.restore();self.valid()
 
  def test_30_all_homebrew_taught_references_require_native_effects_not_placeholder(self):
@@ -382,7 +386,8 @@ class GlitchBenderFullTests(unittest.TestCase):
 
 
  def test_37_error_native_effect_callback_failure_rolls_back_damage_payment_and_receipts(self):
-  for area in (False,True):
+  # I Am Error triggers '당신이 상태이상을 얻었을 때' (a status on the user); an area Move never includes its own user, so no area variant exists.
+  for area in (False,):
    for choice in ('cold','invalid','throws'):
     with self.subTest(area=area,choice=choice):
      self.scene(moves=['move/몸통박치기','move/울음소리','move/칼춤','move/냉동빔'])
@@ -395,7 +400,7 @@ class GlitchBenderFullTests(unittest.TestCase):
      if choice=='cold':self.restore()
      def native():
       with patch.object(Engine,'d20',return_value=20):
-       return self.e.use_move_on(self.a,self.a,'move/냉동빔',self.e.everyone,set_damage=True) if area else self.e.use_move(self.a,self.a,'move/냉동빔',set_damage=True)
+       return self.e.use_move(self.a,self.a,'move/냉동빔',set_damage=True)
      self.reject(native,reason='fresh|authentication|explicit observed|callback failed|unfinished|pending|effect')
      if choice!='cold':self.assertEqual(observed,['얼음'])
      self.assertIn('glitch_error_offer',self.a.spec);self.assertNotIn('얼음',self.a.conditions);self.valid()
@@ -693,9 +698,10 @@ class GlitchBenderFullTests(unittest.TestCase):
   for defense in ('move/방어','move/대타출동'):
    with self.subTest(defense=defense):
     self.scene(moves=['move/몸통박치기',defense]);self.family(B.CODE);self.begin(self.b,count=60);self.native(self.b,self.b,defense);self.turn(self.a,count=50)
+    blocked=defense=='move/대타출동'  # Substitute intercepts '공격이나 기술'; Protect reacts to '기술' only and Code Injection is a Feature attack (owner decision Q2, 2026-10-31)
     before=AP.available(self.a);result=B.code_injection(self.e,self.a,self.b,'blue_screen',fixed_accuracy=20)
-    self.assertFalse(result.pending);self.assertFalse(B.code_rows(self.b));self.assertEqual(AP.available(self.a),before-1);self.assertEqual(self.a._action_history,['standard'])
-    self.assertTrue(F.activation_allowed(self.b,B.CODE+':recipient',B.SCENE,engine=self.e));self.assertFalse(F.activation_allowed(self.a,B.CODE+':blue_screen',B.SCENE,engine=self.e))
+    self.assertFalse(result.pending);self.assertEqual(bool(B.code_rows(self.b)),not blocked);self.assertEqual(AP.available(self.a),before-1);self.assertEqual(self.a._action_history,['standard'])
+    self.assertEqual(F.activation_allowed(self.b,B.CODE+':recipient',B.SCENE,engine=self.e),blocked);self.assertFalse(F.activation_allowed(self.a,B.CODE+':blue_screen',B.SCENE,engine=self.e))
     self.assertEqual(self.code_attack_row()['code_injection']['phase'],'complete');self.restore();self.valid()
 
  def test_48_code_splash_real_jump_restore_resumes_once_without_reroll_or_repayment(self):

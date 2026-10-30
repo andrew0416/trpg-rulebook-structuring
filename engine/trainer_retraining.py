@@ -33,7 +33,16 @@ def _owned(actor):
 
 
 def owned_source(engine, actor, rule_id):
-    """Observe current ownership; never fabricate an acquisition-time receipt."""
+    """Observe current ownership and materialize the plain feature source row (inside the caller's staged commit)."""
+    source = source_id(engine, actor, rule_id)
+    if source == 'feature:' + actor.entity_id + ':' + rule_id and GRANTS.state(actor)['sources'].get(source) is None:
+        GRANTS._source(actor, source, 'feature', rule_id=rule_id,
+                       owner_id=actor.entity_id, lifetime='while_owned', tutor_points=0)
+    return source
+
+
+def source_id(engine, actor, rule_id):
+    """Observe current ownership; never fabricate an acquisition-time receipt and never write (a pure read)."""
     import world_entities as WORLD
     WORLD.require_actors(engine, actor)
     if rule_id not in _owned(actor):
@@ -64,9 +73,6 @@ def owned_source(engine, actor, rule_id):
         if (row.get('rule_id') != rule_id or row.get('owner_id') != actor.entity_id or
                 row.get('lifetime') != 'while_owned'):
             raise ValueError('owned trainer source provenance changed')
-    else:
-        GRANTS._source(actor, source, 'feature', rule_id=rule_id,
-                       owner_id=actor.entity_id, lifetime='while_owned', tutor_points=0)
     return source
 
 

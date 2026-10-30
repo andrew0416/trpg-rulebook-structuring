@@ -35,11 +35,15 @@ def movement_allowed(e,actor):
  if actor.custom_conditions.get(GRAPPLE.MARK) and not GRAPPLE.movement_permission(e,actor):raise ValueError('Grappled forbids Shift Actions and actions causing Shifts')
 
 
+def _granted(e,actor,mid):
+ """A live reviewed one-use grant (Metronome child) may declare a Move the actor has not learned."""
+ return any(g[1] is actor and g[3]==mid for g in getattr(e,'_action_grants',()))
+
 def declare(e,actor,target,mid,*,event_id,jump=None,path=None,destroy_hazards=False,attack=True,reason):
  W.require_actors(e,actor,target)
  movement_allowed(e,actor)
  if source(e.r,mid) is None:raise ValueError("only actual Splash/Bounce has this movement declaration")
- if mid not in actor.moves or type(event_id)is not str or not event_id or type(reason)is not str or not reason.strip():raise ValueError('learned Move and explicit Jump Move identity/reason required')
+ if (mid not in actor.moves and not _granted(e,actor,mid)) or type(event_id)is not str or not event_id or type(reason)is not str or not reason.strip():raise ValueError('learned Move and explicit Jump Move identity/reason required')
  if type(attack)is not bool or mid==T.SPLASH and not attack:raise ValueError('only Bounce has an optional attack choice')
  if type(destroy_hazards)is not bool:raise ValueError('explicit Bounce hazard choice required')
  if destroy_hazards and (mid!=T.BOUNCE or not T.acquired(actor,T.FLIP)):raise ValueError('Bounce hazard destruction requires Flip Out')
@@ -88,6 +92,17 @@ def bonus(actor):
  row=current(actor)
  return 1 if row and row['phase']=='moving' else 0
 
+def _stored_suffix(args):
+ """The restorable continuation copy: a consumed one-use grant handle (Metronome child) is runtime-only, so a marker
+ that still reads as 'not an ordinary single use' replaces it."""
+ suffix=dict(args)
+ if suffix.get('_action_grant') is not None:suffix['_action_grant']='consumed_one_use_grant'
+ return suffix
+
+def _suffix_facts(args):
+ """The paid continuation without its runtime grant handle (a Metronome child carries an object() grant)."""
+ return __import__('move_defense_reactions')._move_facts({k:v for k,v in args.items() if k!='_action_grant'})
+
 def prepaid(e,actor,token):
  row=current(actor)
  if token is None:return False
@@ -99,7 +114,7 @@ def begin(e,actor,target,move,completion_id,args):
  row=current(actor,move['id'])
  if row is None or row['phase']!='declared':raise ValueError('one actual unspent Jump Move declaration required')
  __import__('action_lifecycle').observe_resolution(e,actor,move['id'],{'event':'jump_move_started','event_id':row['event_id'],'completion_id':completion_id})
- row.update(phase='moving',completion_id=completion_id,suffix=args,suffix_fingerprint=R.fingerprint(__import__('move_defense_reactions')._move_facts(args)))
+ row.update(phase='moving',completion_id=completion_id,suffix=_stored_suffix(args),suffix_fingerprint=R.fingerprint(_suffix_facts(args)))
  import combat_timing as TIME
  if move['id']==T.SPLASH:
   TIME.install(e,actor,{'source':T.SPLASH,'effect_contract':True,'evasion_modifier':2,'turn_owner':actor,'turn_deadline':actor.custom_conditions.get('combat_turn_serial',0)+1,'encounter_end':True,'jump_move_completion':completion_id})
@@ -142,7 +157,7 @@ def advance(e,actor,row):
 def resume(e,actor,*,event_id):
  row=current(actor)
  if row is None or row['event_id']!=event_id or row['phase']!='moving':raise ValueError('actual pending paid Jump Move required')
- if row['suffix_fingerprint']!=R.fingerprint(__import__('move_defense_reactions')._move_facts(row['suffix'])):raise ValueError('paid Jump Move continuation changed')
+ if row['suffix_fingerprint']!=R.fingerprint(_suffix_facts(row['suffix'])):raise ValueError('paid Jump Move continuation changed')
  import action_lifecycle as ACTION
  with ACTION.resolution(e,actor,row['move_id'],kind='move',_move_completion=row['completion_id']):
   result=advance(e,actor,row)
@@ -175,7 +190,7 @@ def validate_world(e,index):
     completion=getattr(e,'_move_completions',{}).get(row.get('completion_id'))
     if completion is None or completion['actor'] is not actor or completion['move_id']!=row['move_id']:raise ValueError('Jump Move lost its actual paid completion')
     suffix=row['suffix']
-    if suffix['attacker'] is not actor or suffix['target'].entity_id!=intent['target_id'] or suffix['completion_id']!=row['completion_id'] or row['suffix_fingerprint']!=R.fingerprint(__import__('move_defense_reactions')._move_facts(suffix)):raise ValueError('paid Jump Move continuation provenance changed')
+    if suffix['attacker'] is not actor or suffix['target'].entity_id!=intent['target_id'] or suffix['completion_id']!=row['completion_id'] or row['suffix_fingerprint']!=R.fingerprint(_suffix_facts(suffix)):raise ValueError('paid Jump Move continuation provenance changed')
 
 
 def decline_attack(e,actor,target,move,completion_id):

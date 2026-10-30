@@ -306,6 +306,10 @@ def validate_world(engine, index):
                 if uid not in index:raise ValueError('Astonish awareness recipient missing')
                 _redirect_record(engine, event, uid)
     for event in getattr(engine, '_passive_events', {}).values():
+        if event.get('defense_parent') is not None:
+            # A routed recipient child (Engine.use_move/defense-recipient) copies the parent's
+            # receipts by value; the parent event is the authority for its awareness records.
+            continue
         for uid in event.get(AWARENESS, {}):
             _redirect_record(engine, event, uid)
         if event.get('reason') == AWARENESS_WAIT:

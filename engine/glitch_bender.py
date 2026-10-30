@@ -907,6 +907,20 @@ def _metronome_checkpoint(e,parent,state,event):
     return R.fingerprint({'event_id':event['id'],'facts':facts,'return_args':state['return_args'],'selection':state['fingerprint']})
 
 
+def _metronome_child_declaration(e,actor,target,choice,parent,state):
+    """A generated Splash/Bounce child needs its movement declaration before payment (jump_move_actions.preflight).
+    The selection may carry jump/path/destroy_hazards/attack; omitted, the child is declared in place
+    (Bounce: empty Shift path, Splash: a Jump onto its own cell). Owner decision Q1, 2026-10-31."""
+    import jump_move_actions as J,tumbler as T
+    mid=choice['move_id']
+    if J.source(e.r,mid) is None or J.current(actor,mid) is not None:return
+    jump=choice.get('jump');path=choice.get('path')
+    if jump is None and path is None:
+        if mid==T.BOUNCE:path=[]
+        else:jump={'destination':tuple(actor.pos)}
+    J.declare(e,actor,target,mid,event_id='metronome-child:'+str(parent['id'])+':'+str(state['occurrence']),jump=jump,path=path,
+              destroy_hazards=bool(choice.get('destroy_hazards',False)),attack=bool(choice.get('attack',True)),reason='Metronome generated '+mid+' declared by its actual selection')
+
 def metronome_begin_child(e,event,return_args):
     """Run after the native hit is retained, before the parent's listeners return."""
     import action_lifecycle as A,passive_events as P,effect_contracts as C
@@ -928,9 +942,14 @@ def metronome_begin_child(e,event,return_args):
     try:
         with C.resuming(e,state['receipt']):
             with A.move_grant(e,actor,target,choice['move_id'],source=METRONOME,kind='free') as grant:
+                _metronome_child_declaration(e,actor,target,choice,parent,state)
                 e.use_move(actor,target,choice['move_id'],count_use=False,free_action=True,_action_grant=grant,aim=choice.get('aim'),set_damage=choice.get('set_damage',False))
         parent=e._move_completions[parent['id']];state=parent['metronome_child']
         if not _metronome_finish(e,parent,state):raise ValueError('Metronome native child did not return or register a native wait')
+        if '완전 행동' in (e.r.moves.get(choice['move_id'],{}).get('range') or '') and not parent['metronome_result']['cancelled']:
+            # A generated Full Action Move (Bounce: '대시, 완전 행동') cannot return inside the Metronome's own action;
+            # only an actual response that cancelled its setup (Sky Uppercut) lets the paid parent complete.
+            raise ValueError('Metronome native child did not return: generated Full Action setup Move needs its own Full Action')
     except P.PassiveEventPending as pending:
         parent=e._move_completions[parent['id']];state=parent['metronome_child']
         if e._passive_pending!=pending.event_id or pending.event_id not in e._passive_events or state.get('frame') is None:raise
