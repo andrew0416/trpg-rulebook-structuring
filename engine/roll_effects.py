@@ -141,13 +141,13 @@ def use(engine,actor,target,move,component,facts,*,shared_roll=None):
    event=next(x for x in record['applications'] if x['component']==component)
    if event['natural']!=facts['natural'] or event['move_id']!=move['id']:raise ValueError('shared roll observation changed')
    if target.entity_id not in event['target_ids']:event['target_ids'].append(target.entity_id)
-   total+=event['amount']
+   total+=(__import__('keen_eye').modifier(engine,actor,event['amount']) if component=='accuracy' else event['amount'])
   return total
  chosen=[r for r in live(actor) if component in remaining(r)];total=0;used=[]
  for record in chosen:
   spec=record['effect']['components'][component]
   event=dict(component=component,kind=spec['event'],amount=spec['amount'],at=engine.elapsed_seconds,round=engine.round_no,move_id=move['id'],target_ids=[target.entity_id],**facts)
-  record['applications'].append(event);total+=spec['amount'];used.append({'id':record['id']})
+  record['applications'].append(event);total+=(__import__('keen_eye').modifier(engine,actor,spec['amount']) if component=='accuracy' else spec['amount']);used.append({'id':record['id']})
   if not remaining(record):T.expire(engine,actor,record,ending='consumed',event={'kind':'components_spent','round':engine.round_no})
   engine.log(f'    굴림 보너스 {component} +{spec["amount"]}: {record["id"]}',record['source'])
  if cache is not None:cache[index]=used

@@ -7855,6 +7855,11 @@
       "path": "엔트리포인트.md",
       "sha256": "3a862e5ce76c373e17529ad923c7fb76908c92689c366b5c0ab899eca42c7d0b",
       "size": 9758
+    },
+    {
+      "path": "data/survivalist-hb-definitions.json",
+      "sha256": "1789492d711e5d51287c174936e246c20521e57331e09a1e4daa3b0cb2198d39",
+      "size": 1912
     }
   ]
 }

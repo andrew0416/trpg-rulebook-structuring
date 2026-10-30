@@ -32,6 +32,8 @@ def validate_grant(engine, actor, weapon, move_id, *, require_qualification=True
         raise ValueError("Master weapon move requires a Fine weapon outside the off-hand slot")
 
 def prepare(engine, actor, move, weapon_id=None):
+    fling = __import__('fling_move').weapon_snapshot(engine,actor,move)
+    if fling is not None:return fling
     move=__import__('rogue').prepare_move(engine,actor,move)
     import optional_weapon_framework as FRAMEWORK
     import living_weapon as LIVING
@@ -325,6 +327,7 @@ def validate_target(engine,actor,target,move,*,allow_approach=False):
     if engine.grid is not None and not BODY.in_range(engine,actor,target,distance,move=move):raise ValueError("weapon line of sight blocked")
 
 def accuracy_bonus(move):
+    if move.get('id')==__import__('fling_move').SOURCE and move.get('_fling',{}).get('category')=='weapon':return 0
     import improvised_weapons as IMPROVISED
     return move.get("_weapon_attack",{}).get("accuracy_bonus",0)+IMPROVISED.bonus(move,'accuracy_roll_delta')
 

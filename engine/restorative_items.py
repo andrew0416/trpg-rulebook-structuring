@@ -43,13 +43,14 @@ def special_apply(e,target,uid):
  return True
 
 def blocks_stage_loss(e,target,delta):
- if delta>=0:return False
+ if delta>=0 or __import__('glitch_bender').benefits_blocked(target):return False
  active=[x for x in TIMING.records(target) if x.get('x_item') and x.get('prevent_stage_loss')]
  if not active:return False
  for record in active:selected(e,record['source'])
  return True
 
 def crit_delta(actor):
+ if __import__('glitch_bender').benefits_blocked(actor):return 0
  records=[x for x in TIMING.records(actor) if x.get('x_item') and x.get('crit_range_delta')]
  for record in records:
   if actor.r._selected_rule(record['source'])!=record['source']:raise ValueError('selected X-item critical source changed while active')

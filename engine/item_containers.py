@@ -53,14 +53,19 @@ def validate_object(engine,obj,index):
     for key,row in rows.items():
         if not isinstance(row,dict) or row.get('id')!=key:raise ValueError('portion identity mismatch')
         text(key,'portion identity');uid=row.get('item_id')
-        if not isinstance(uid,str) or engine.r.item_effects(uid)[1].get('id')!=uid or engine.r._selected_rule(uid)!=uid:raise ValueError('actual selected content item required')
+        crafted=isinstance(row.get('input_stock'),dict) and row['input_stock'].get('kind')=='researcher_blend'
+        if crafted:
+            __import__('researcher_blend_contents').validate_portion(engine,obj,row,index)
+        elif not isinstance(uid,str) or engine.r.item_effects(uid)[1].get('id')!=uid or engine.r._selected_rule(uid)!=uid:raise ValueError('actual selected content item required')
         C.integer(row.get('count'),'whole content portion',1,1)
         C.integer(row.get('loaded_at'),'content loading time',origin['at'],engine.elapsed_seconds)
         if row.get('loaded_by') not in index:raise ValueError('actual content loader missing')
         text(row.get('reason'),'content transfer reason')
         stock=row.get('input_stock')
         if not isinstance(stock,dict) or stock.get('item_id')!=uid or type(stock.get('count')) is not int or stock['count']!=1:raise ValueError('content input stock receipt required')
-        if stock.get('kind')=='quantity':
+        if crafted:
+            pass  # Exact native Blend producer/quantity/creation was joined above.
+        elif stock.get('kind')=='quantity':
             if row.get('source')!=obj['item_rule_id']:raise ValueError('container load source changed')
         elif stock.get('kind')=='held_instance':
             if row.get('source')!=obj['item_rule_id']:raise ValueError('container load source changed')
@@ -95,6 +100,7 @@ def validate_world(engine,index):
         for key in obj.get(KEY,{}).get('portions',{}):
             if key in seen:raise ValueError('one portion cannot be copied into two containers')
             seen.add(key)
+    __import__('researcher_blend_contents').validate_world(engine,index)
     return True
 
 

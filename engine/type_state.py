@@ -157,8 +157,11 @@ def validate_actor(actor):
     validate_types(actor.r, actor.types, label="effective types")
     row = actor.spec.get("state_grants", {}).get("type_sources")
     if row is not None:
-        if not isinstance(row, dict) or set(row) != {"base", "sources", "visible"} or not isinstance(row["sources"], dict):
+        if not isinstance(row, dict) or (set(row)-{"suppressed"}) != {"base", "sources", "visible"} or not isinstance(row["sources"], dict):
             raise ValueError("invalid saved type-source state")
+        import ability_state_projection as PROJECTION
+        if row.get("suppressed",[])!=PROJECTION.suppressed_projection_sources(actor,row):
+            raise ValueError("type-source suppression differs from its actual weather effect")
         if row["base"] is not None:
             validate_types(actor.r, row["base"], label="type-source baseline")
         validate_types(actor.r, row["visible"], label="type-source visibility")
@@ -176,6 +179,7 @@ def validate_actor(actor):
             validate_types(actor.r, op["values"], label="type-source values")
             if op["fallback"] is not None:
                 validate_types(actor.r, [op["fallback"]], label="type-source fallback")
+            if source in row.get("suppressed",[]):continue
             if op["mode"] == "set":
                 value = list(op["values"])
             elif op["mode"] == "add":

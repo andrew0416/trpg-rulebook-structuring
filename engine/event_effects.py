@@ -235,6 +235,7 @@ def grant(engine,actor,effect,source,*,item_stock=None,applied_by=None,activatio
  return True
 
 def matches(engine,actor,record,move,*,actual_type=None):
+ if record['source'].startswith('item/') and __import__('glitch_bender').benefits_blocked(actor):return False
  if move.get('class') not in record['selector']['classes']:return False
  selector=record['selector']
  if 'type' in selector and (actual_type or move.get('type'))!=selector['type']:return False

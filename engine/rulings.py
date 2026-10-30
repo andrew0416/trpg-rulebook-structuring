@@ -133,15 +133,16 @@ class Rulings:
         self.situational.append(e)
         return self.record("situational", f"{modifier} {who or '*'}", None, value, reason, scope)
 
-    def consume(self, modifier, who_name, engine=None):
+    def consume(self, modifier, who_name, engine=None, *, ignore_penalties=False):
         """해당 수정치의 합. 1회성은 소진한다."""
         total = 0
         for e in list(self.situational):
             if e["modifier"] != modifier or (e["who"] not in (None, who_name)):
                 continue
-            total += e["value"]
+            value = max(0, e['value']) if ignore_penalties else e['value']
+            total += value
             if engine is not None:
-                engine.log(f"    [GM 개변] {modifier} {e['value']:+} ({e['reason']})", "gm/situational")
+                engine.log(f"    [GM 개변] {modifier} {value:+} ({e['reason']})", "gm/situational")
             if isinstance(e["uses"], int):
                 e["uses"] -= 1
                 if e["uses"] <= 0:

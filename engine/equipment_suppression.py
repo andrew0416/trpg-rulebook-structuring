@@ -35,6 +35,7 @@ def reasons(engine,actor,registration_key,record):
     if record.get('held_slot') is not None and _klutz(engine,actor):
         result.append({'kind':'ability','source':KLUTZ,
                        'holder_id':actor.entity_id,'registration_key':registration_key})
+    result.extend(__import__('glitch_bender').equipment_reasons(actor,registration_key))
     return result
 
 

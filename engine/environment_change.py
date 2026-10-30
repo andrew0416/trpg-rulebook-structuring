@@ -51,7 +51,7 @@ def boundary(e,event='environment'):
 def change(e,region_id,changes,*,source,request_id,reason,duration_seconds=None,timing_policy=None):
     Q._text(request_id);Q._text(reason);Q._selected(e,source)
     if region_id not in ED._state(e)['regions']:raise ValueError('actual observed region required')
-    if type(changes) is not dict or not changes or set(changes)-{'gravity','pressure','air_available','medium','environ'}:raise ValueError('explicit region fact changes required')
+    if type(changes) is not dict or not changes or set(changes)-{'gravity','pressure','air_available','medium','environ','ground_cover'}:raise ValueError('explicit region fact changes required')
     if duration_seconds is not None:C.integer(duration_seconds,'environment duration',1)
     if timing_policy not in (None,*ENV.TIMINGS):raise ValueError('explicit native suffocation timing policy required')
     intent=dict(region_id=region_id,changes=deepcopy(changes),source=source,request_id=request_id,reason=reason,duration_seconds=duration_seconds,timing_policy=timing_policy)
@@ -105,7 +105,7 @@ def validate_world(e,index):
         Q._fields({k:v for k,v in row.items() if k!='sha256'},('intent','region_id','changes','source','request_id','reason','started_at','expires_at','before'))
         if uid!=row['request_id'] or row['region_id'] not in ED._state(e)['regions']:raise ValueError('actual environment request and region identities required')
         Q._selected(e,row['source']);Q._text(row['reason']);C.integer(row['started_at'],'environment change time',0)
-        if type(row['changes']) is not dict or not row['changes'] or set(row['changes'])-{'gravity','pressure','air_available','medium','environ'}:raise ValueError('explicit region changes required')
+        if type(row['changes']) is not dict or not row['changes'] or set(row['changes'])-{'gravity','pressure','air_available','medium','environ','ground_cover'}:raise ValueError('explicit region changes required')
         ED.facts(row['before']);ED.facts(dict(row['before'],**row['changes']))
         intent=row['intent']
         if type(intent) is not dict or intent!=dict(region_id=row['region_id'],changes=row['changes'],source=row['source'],request_id=uid,reason=row['reason'],duration_seconds=None if row['expires_at'] is None else row['expires_at']-row['started_at'],timing_policy=intent.get('timing_policy')):raise ValueError('environment producer intent differs')

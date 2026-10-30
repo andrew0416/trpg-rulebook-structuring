@@ -41,12 +41,12 @@ KNOWN_IF = {
 
 def tgt_of(e, attacker, target, ctx=None):
     import effect_contracts as CONTRACTS
-    if ctx is not None:
+    if ctx is not None and ctx.get('engine') is not None:
         import native_area_hit_effects as AREA_HIT
         engine=ctx['engine']
         if AREA_HIT.owns(engine,ctx.get('source_id'),e):
             return AREA_HIT.recipients(engine,attacker,target,e,ctx)
-        return CONTRACTS.hit_recipients(engine,attacker,target,e,ctx.get('source_id'))
+        return CONTRACTS.hit_recipients(engine,attacker,target,e,ctx.get('source_id'),ctx)
     return CONTRACTS.recipients(attacker,target,e)
 
 
@@ -84,7 +84,7 @@ def cond_ok(engine, e, ctx):
             return False, f"natural<{m}"
     if e.get("on_natural_roll") == "even" and (nat is None or nat % 2):
         return False, "odd"
-    if e.get("if_weather") and not weather_matches(engine, e["if_weather"],ctx.get('attacker')):
+    if e.get("if_weather") and (not weather_matches(engine, e["if_weather"],ctx.get('attacker')) or __import__("survivalist_class").weather_ability_suppressed(engine,ctx.get("attacker"),e.get("_rule_id",ctx.get("source_id")))):
         return False, "weather"
     if e.get("on_ko") and not ctx.get("ko", False):
         return False, "no_ko"
@@ -157,7 +157,7 @@ def apply_stage_changes(engine, source_actor, target, changes, *, source_id, con
             engine.change_stage(target, st, delta)
         elif st == "acc":
             import restorative_items as RESTORATIVE
-            if RESTORATIVE.blocks_stage_loss(engine, target, delta):continue
+            if RESTORATIVE.blocks_stage_loss(engine, target, delta) or delta < 0 and __import__('keen_eye').active(engine,target):continue
             lo, hi = engine.r.mech("combat/combat-stages")["range"]
             import state_grants as GRANTS
             if not GRANTS.adjust_numeric(target, "accuracy_stage", delta):target.accuracy_stage = max(lo, min(hi, target.accuracy_stage + delta))
@@ -191,7 +191,7 @@ def h_stat_mod(engine, a, t, e, ctx):
     if "multiplier" in e or not isinstance(e.get("value"), int):
         return "stat_mod 배수/비정수(보류)"
     stats = e["stat"] if isinstance(e["stat"], list) else [e["stat"]]
-    for c in tgt_of(e, a, t):
+    for c in tgt_of(e, a, t, ctx):
         for st in stats:
             if st == "weight_class":
                 import state_grants as GRANTS
@@ -211,6 +211,9 @@ def h_stat_mod(engine, a, t, e, ctx):
 
 
 def h_apply_status(engine, a, t, e, ctx):
+    import natural_fighter_moves as NATURAL_MOVES
+    if ctx.get('source_id')==NATURAL_MOVES.ASTONISH and e.get('if')==NATURAL_MOVES.PREDICATE:
+        return NATURAL_MOVES.apply(engine,a,t,e,ctx)
     for c in tgt_of(e, a, t, ctx):
         engine.apply_status(c, e["status"],source=ctx.get("source_id"),applied_by=a,parameters=e.get("parameters"))
 
@@ -218,7 +221,7 @@ def h_apply_status(engine, a, t, e, ctx):
 def h_apply_status_random(engine, a, t, e, ctx):
     st = engine.rng.choice(e["options"])
     engine.log(f"    무작위 상태 {e['options']} → {st}")
-    for c in tgt_of(e, a, t):
+    for c in tgt_of(e, a, t, ctx):
         engine.apply_status(c, st)
 
 
@@ -244,7 +247,7 @@ def h_cure_status(engine, a, t, e, ctx):
 
 def h_cure_all_status(engine, a, t, e, ctx):
     import status_sets as STATUS_SETS
-    for c in tgt_of(e, a, t):STATUS_SETS.cure_group(engine,c)
+    for c in tgt_of(e, a, t, ctx):STATUS_SETS.cure_group(engine,c)
 
 
 def _amount(expr, who, engine, ctx):
@@ -262,7 +265,7 @@ def _amount(expr, who, engine, ctx):
 
 
 def h_heal(engine, a, t, e, ctx):
-    for c in tgt_of(e, a, t):
+    for c in tgt_of(e, a, t, ctx):
         if "fraction_of_max" in e:
             num, den = e["fraction_of_max"]
             engine.heal(c, M.ratio(c.base_max_hp*num,den), source_kind=ctx.get("healing_source_kind","unspecified"))
@@ -284,7 +287,7 @@ def h_hp_loss(engine, a, t, e, ctx):
             raise ValueError('Flame Burst needs its actual primary native hit')
         recipients=tgt_of(e,a,t,ctx)
     else:
-        recipients=tgt_of(e,a,t)
+        recipients=tgt_of(e,a,t,ctx)
     for c in recipients:
         v = _amount(e.get("value"), c, engine, ctx)
         if v is None:
@@ -329,7 +332,7 @@ def h_self_hp_set(engine, a, t, e, ctx):
 
 
 def h_temp_hp(engine, a, t, e, ctx):
-    for c in tgt_of(e, a, t):
+    for c in tgt_of(e, a, t, ctx):
         v = _amount(e["value"], c, engine, ctx) if not isinstance(e["value"], int) else e["value"]
         if v is None:
             return "temp_hp 미해석"
@@ -524,14 +527,18 @@ def h_push(engine, a, t, e, ctx):
 
 
 
+def h_random_move(engine,a,t,e,ctx):
+    return __import__('glitch_bender').metronome_effect(engine,a,t,e,ctx)
+
+
 def h_damage_reduction(engine, a, t, e, ctx):
-    c = a if e.get("target", "self") == "self" else t
+    c = tgt_of(e,a,t,ctx)[0]
     c.damage_reduction += e["value"]
     engine.log(f"    {c.name} 피해 감소 +{e['value']} ({e.get('duration', '')})")
 
 
 def h_evasion_mod(engine, a, t, e, ctx):
-    for c in tgt_of(e, a, t):
+    for c in tgt_of(e, a, t, ctx):
         if isinstance(e.get("value"), int):
             import state_grants as GRANTS
             if not GRANTS.adjust_numeric(c,"evasion_mod",e["value"]):c.evasion_mod = max(-6, min(6, c.evasion_mod + e["value"]))
@@ -541,10 +548,10 @@ def h_evasion_mod(engine, a, t, e, ctx):
 
 
 def h_accuracy_mod(engine, a, t, e, ctx):
-    for c in tgt_of(e, a, t):
+    for c in tgt_of(e, a, t, ctx):
         if isinstance(e.get("value"), int):
             import restorative_items as RESTORATIVE
-            if RESTORATIVE.blocks_stage_loss(engine,c,e['value']):continue
+            if RESTORATIVE.blocks_stage_loss(engine,c,e['value']) or e['value'] < 0 and __import__('keen_eye').active(engine,c):continue
             import state_grants as GRANTS
             if not GRANTS.adjust_numeric(c,"accuracy_stage",e["value"]):c.accuracy_stage = max(-6, min(6, c.accuracy_stage + e["value"]))
             engine.log(f"    {c.name} 명중 {e['value']:+d}")
@@ -609,7 +616,7 @@ def h_reset_stages(engine, a, t, e, ctx):
               '_src':'인카운터에 존재하는 모든 포켓몬과 트레이너의 전투단계를 기본상태로 되돌린다(보통 0).'}:
             raise ValueError('Haze all-target effect changed from its reviewed source')
         recipients=WEAPONS.field_members(engine)
-    else:recipients=list(tgt_of(e,a,t))
+    else:recipients=list(tgt_of(e,a,t,ctx))
     for c in recipients:COMBAT_STATE.preflight(c)
     for c in recipients:
         COMBAT_STATE.reset_actor(engine,c)
@@ -627,17 +634,20 @@ def h_declarative_move_contract(engine, a, t, e, ctx):
 
 
 HANDLERS = {
+    'fling_result': __import__('fling_move').effect,
+    "glitch_move": lambda engine,a,t,e,ctx: __import__("glitch_moves").resolve(engine,a,t,e,ctx),
+    "glitch_code": lambda engine,a,t,e,ctx: __import__("glitch_bender").code_effect(engine,a,t,e,ctx),
     'roar_retreat': __import__('roar').effect,
     "stage_change": h_stage_change, "apply_status": h_apply_status, "apply_status_random": h_apply_status_random,
     "cure_status": h_cure_status, "cure_all_status": h_cure_all_status, "heal": h_heal, "hp_loss": h_hp_loss, "self_hp_set": h_self_hp_set,
     "temp_hp": h_temp_hp, "set_weather": h_set_weather, "field_effect": h_field_effect, "swap_stages": h_swap_stages, "swap_stats": h_swap_stats,
     "ability_transition": h_ability_transition, "type_change": h_type_change, "grant_ability": h_grant_ability, "ability_change": h_ability_change, "suppress_ability": h_suppress_ability,
     "custom_condition": h_custom_condition, "reaction_shield": h_reaction_shield, "next_attack_modifier": h_next_attack_modifier,
-    "forced_target": h_forced_target, "create_terrain": h_create_terrain, "push": h_push, "damage_reduction": h_damage_reduction,
+    "forced_target": h_forced_target, "create_terrain": h_create_terrain, "push": h_push, "damage_reduction": h_damage_reduction, "random_move": h_random_move,
     "evasion_mod": h_evasion_mod, "accuracy_mod": h_accuracy_mod, "stat_mod": h_stat_mod, "initiative": h_initiative, "initiative_multiplier": h_initiative, "drain": h_drain, "reset_stages": h_reset_stages,
     # 정적/판정 시점에 읽는 유형 (실행 시점에는 할 일 없음)
     "never_miss": h_noop_static, "crit_range": h_noop_static, "grant_capability": h_noop_static, "weapon_restriction": h_noop_static,
-    "usage_restriction": h_noop_static, "bonus_damage": h_noop_static, "damage_base_formula": h_noop_static, "conditional_damage_base": h_noop_static,
+    "stockpile_edition": h_noop_static, "usage_restriction": h_noop_static, "bonus_damage": h_noop_static, "damage_base_formula": h_noop_static, "conditional_damage_base": h_noop_static,
     "skill_check_mod": h_noop_static,
     "oracle_mark": h_noop_static, "channel_imprint": h_noop_static, "damage_formula_override": h_noop_static, "damage_floor": h_noop_static, "damage_roll_mod": h_noop_static,
     "declarative_move_contract": h_declarative_move_contract,
@@ -773,7 +783,7 @@ def run_effects(engine, attacker, target, effects, ctx, src, *, _resume_receipt=
         e=dict(original);kind=e['type']
         if identity=='move/볼가득넣기' and kind=='stage_change' and not ctx.get('food_consumption_receipt'):continue
         if kind=='heal' and not e.get('replaces') and e.get('target','target') in replacements:continue
-        issue=CONTRACTS.inspect(engine,attacker,target,e,identity,index)
+        issue=CONTRACTS.inspect(engine,attacker,target,e,identity,index,context=ctx)
         if issue:
             held+=1;halt(index,e,issue.category,issue);engine.log('    [계약 보류] '+issue.field+': '+issue.detail,identity);break
         predicate=CONTRACTS.condition(engine,e,ctx,source=identity)
@@ -807,7 +817,7 @@ def run_effects(engine, attacker, target, effects, ctx, src, *, _resume_receipt=
             e=engine.rulings.run_hooks('before_effect',e,dict(ctx,src=src),engine)
             if e is None:
                 outcomes.append(CONTRACTS.Outcome(identity,'','condition_false','GM cancelled this effect'));continue
-            issue=CONTRACTS.inspect(engine,attacker,target,e,identity,index)
+            issue=CONTRACTS.inspect(engine,attacker,target,e,identity,index,context=ctx)
             if issue:
                 held+=1;halt(index,e,issue.category,issue);break
             predicate=CONTRACTS.condition(engine,e,ctx,source=identity)
@@ -871,6 +881,9 @@ def run_effects(engine, attacker, target, effects, ctx, src, *, _resume_receipt=
             else:status='unsupported_execution' if note else 'completed'
         except HEAVY.HeavyPending:
             CONTRACTS.finish(engine,receipt,'awaiting_input');raise
+        except __import__('glitch_bender').ErrorChoiceRejected:
+            # The actual Move transaction owns rollback of this source-specific choice.
+            raise
         except Exception as ex:
             note=ex;status='execution_failed'
         CONTRACTS.finish(engine,receipt,status,note)
@@ -1135,7 +1148,7 @@ def passive_damage_mods(engine, attacker, target, move, ctx):
         t = e["type"]
         if t=='resistance_step' and (target.abilities_suppressed or __import__('chronicler').defensive_ignored(engine,attacker,target)) and e.get('_ability') and str(e.get('_rule_id','')).startswith('ability/'):
             continue
-        if e.get("if_weather") and not weather_matches(engine, e["if_weather"],target):
+        if e.get("if_weather") and (not weather_matches(engine, e["if_weather"],target) or __import__("survivalist_class").weather_ability_suppressed(engine,target,e.get("_rule_id"))):
             continue
         if t == "resistance_step" and isinstance(e.get("value"), int):
             if e.get('if')=='already resisted type' and 0<ctx.get('multiplier',0)<1:
@@ -1151,6 +1164,8 @@ def passive_damage_mods(engine, attacker, target, move, ctx):
                 immune = e
         elif t == "absorb" and e.get("move_type") == move["type"]:
             absorb = e
+    dry_immunity=__import__('weather_passive_benefits').dry_skin_immunity(engine,attacker,target,move,ctx.get('actual_damage_type',move['type']))
+    if dry_immunity is not None:immune=dry_immunity
     return db_mod, roll_mod, resist_steps, immune, absorb
 
 

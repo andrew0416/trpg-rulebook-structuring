@@ -462,10 +462,8 @@ def accuracy_stage(engine,attacker,target,ordinary):
         own_source=owner==attacker.entity_id or (owner is None and uid in receipts.values())
         if broad or own and own_source and value>0:removed.append(uid)
     if not removed:return ordinary
-    import effect_lifetimes as LIFE
     stage=row['base']+sum(value for uid,value in row['sources'].items() if uid not in removed)
-    return max(-6,min(6,max(-6,min(6,stage))+LIFE.numeric(attacker,'accuracy_modifier')))
-
+    return __import__('combat_modifiers').accuracy_stage(attacker,engine,stage=max(-6,min(6,stage)))
 
 def validate_world(engine,index):
     for p in index.values():
@@ -493,3 +491,5 @@ def validate_world(engine,index):
             if uid and (uid not in index or KEY not in index[uid].spec or index[uid].spec[KEY]['wielder_id']!=w.entity_id):
                 raise ValueError('orphan actual Living Weapon equipment')
     return True
+
+

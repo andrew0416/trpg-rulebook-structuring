@@ -285,6 +285,7 @@ def capabilities(e,c,*,environment=True):
   if result.get(mode,0)>0:result[mode]+=bonus
  import environment_derive as ED
  result=ED.movement(e,c,result) if environment else result
+ result=__import__('weather_passive_benefits').movement(e,c,result)
  for mode in TIMING.blocked_movement_modes(c):result[mode]=0
  return result
 

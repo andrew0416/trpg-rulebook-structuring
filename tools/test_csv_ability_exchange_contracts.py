@@ -366,15 +366,31 @@ class AbilityExchangeContractsTests(unittest.TestCase):
     def test_real_interrupt_offer_use_is_blocked_after_gas_enters_but_decline_is_free(self):
         import passive_events as PASSIVE
         import tera_shell as TS
-        self.give(self.t,['테라셸']);gas=self.actor('gas',['화학변화가스'],(10,10),'party')
-        self.e.watch_ability_interrupt(self.t,TS.SOURCE,reason='watch actual native recipient')
-        with self.assertRaises(PASSIVE.PassiveEventPending):self.hit(move='move/물대포')
-        event=self.e._passive_pending
-        self.e.gm.set_position(gas,(3,3),reason='actual gas enters while the native choice waits')
-        assert_rejected_unchanged(self.e,lambda:self.e.choose_ability_interrupt(event,self.t,use=True,options={'chosen_type':'물'},reason='attempt actual trigger'),reason_pattern='Gas|gas|source|Interrupt|trigger')
-        self.assertEqual(getattr(self.t,'_action_history',[]),[])
-        self.e.choose_ability_interrupt(event,self.t,use=False,reason='actual decline remains permitted')
-        self.assertIsNone(self.e._passive_pending);self.assertEqual(getattr(self.t,'_action_history',[]),[])
+        for use in (False,True):
+            with self.subTest(use_after_rejection=use):
+                self.setUp()
+                self.give(self.t,['테라셸']);gas=self.actor('gas',['화학변화가스'],(10,10),'party')
+                self.e.watch_ability_interrupt(self.t,TS.SOURCE,reason='watch actual native recipient')
+                with self.assertRaises(PASSIVE.PassiveEventPending):self.hit(move='move/물대포')
+                event=self.e._passive_pending;types_before=list(self.t.types)
+                self.e.gm.set_position(gas,(3,3),reason='actual gas enters while the native choice waits')
+                assert_rejected_unchanged(self.e,lambda:self.e.choose_ability_interrupt(event,self.t,use=True,options={'chosen_type':'물'},reason='attempt actual trigger'),reason_pattern='^Neutralizing Gas prohibits this triggered ability Interrupt$')
+                self.assertEqual(getattr(self.t,'_action_history',[]),[])
+                if use:
+                    # The same pending choice succeeds when only the Gas source leaves.
+                    self.e.gm.set_position(gas,(10,10),reason='only Gas leaves the waiting recipient')
+                    self.e.choose_ability_interrupt(event,self.t,use=True,options={'chosen_type':'물'},reason='attempt actual trigger')
+                    self.assertEqual(self.t.types,['물'])
+                else:
+                    # Decline remains legal with Gas still present.
+                    self.e.choose_ability_interrupt(event,self.t,use=False,reason='actual decline remains permitted')
+                    self.assertEqual(self.t.types,types_before)
+                    self.assertNotIn(TS.KEY,self.t.spec)
+                self.assertIsNone(self.e._passive_pending)
+                self.assertEqual(getattr(self.t,'_action_history',[]),['free'] if use else [])
+                attempt=self.e._passive_events[event]['ability_interrupts']['attempts'][0]
+                self.assertEqual(attempt['paid'],use)
+                self.assertEqual(attempt['outcome'],'activated' if use else 'declined')
 
     def test_exact_registry_four_parents_and_two_lossless_copies_are_not_extra_credit(self):
         ledger=json.loads((ROOT/'data/verification/category2-csv-abilities-moves-status.json').read_text(encoding='utf-8'))

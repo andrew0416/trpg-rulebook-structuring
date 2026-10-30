@@ -124,7 +124,7 @@ def install(engine,c,record):
     record["owned_statuses"]=set();record["installing"]=True
     c.custom_conditions.setdefault(KEY,[]).append(record)
     for status in record.get("statuses",[]):
-        if status not in c.conditions and engine.apply_status(c,status):record["owned_statuses"].add(status)
+        if status not in c.conditions and engine.apply_status(c,status) and status in c.conditions:record["owned_statuses"].add(status)
     record["installing"]=False
     if record.get("initiative_zero"):
         if not any(x is not record and x.get("initiative_zero") for x in records(c)):
@@ -176,6 +176,7 @@ def expire(engine,c,record,*,ending='expired',event=None):
             event=event or {'kind':'owner_turn_end','turn':c.custom_conditions.get('combat_turn_serial',0)}
         INSTANCES.archive(engine,c,record,state=ending,event=event)
     current_records.remove(record)
+    if record.get('survivalist_weather'):__import__('ability_state_projection').refresh_weather_visibility(c)
     if record.get("uncurable_infatuation"):engine.cure_status(c,"헤롱헤롱")
     if stat_plan is not None:
         STAT_EXCHANGE.commit_expire(c,record,stat_plan,ending=ending,
@@ -196,6 +197,7 @@ def expire(engine,c,record,*,ending='expired',event=None):
     if not current_records:c.custom_conditions.pop(KEY,None)
     BOUND.effect_ended(engine,c,record,event=event or {'kind':ending})
     if record.get('channel_imprint'):__import__('channeler').imprint_ended(engine,c,record)
+    if record.get('glitch_code'):__import__('glitch_bender').code_ended(engine,c,record)
     engine.log(f"    {c.name}: {record['source']} 기간 종료",record["source"])
 
 def on_status_apply(c,status):

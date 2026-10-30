@@ -199,20 +199,44 @@ def collect(rules, actor, *, engine=None):
             op = dict(operation='replace', value=0, priority=0)
         if op is not None:
             add('timed:'+str(index), record['source'], op)
+    import ability_transitions as ABILITIES
+    import effects as FX
+    import survivalist_class as GUIDE
+    weather_initiative = {'ability/엽록소-playtest':'sunny',
+                          'ability/쓱쓱-playtest':'rain',
+                          'ability/모래헤치기-playtest':'sandstorm',
+                          'ability/눈치우기':'hail'}
+    # Canonical active ownership supplies one contribution per reviewed Ability.
+    owned = {} if actor.abilities_suppressed else ABILITIES.project_components(actor)
+    for source, weather in weather_initiative.items():
+        if source not in owned:
+            continue
+        if actor.hp * 2 >= actor.base_max_hp:
+            if engine is None:
+                raise InitiativePending('weather initiative Ability needs actual weather')
+            if not FX.weather_matches(engine, weather, actor) or GUIDE.weather_ability_suppressed(engine, actor, source):
+                continue
+        add('weather-ability:'+source, source, dict(operation='multiply', value=2))
     for field in ('registry', 'modifiers'):
         for index, effect in enumerate(getattr(actor, field, ())):
             if effect.get('type') not in ('initiative','initiative_multiplier'):
                 continue
-            if (effect.get('_rule_id')=='ability/엽록소-playtest'
-                    and effect.get('type')=='initiative_multiplier'
-                    and effect.get('value')==2 and effect.get('if')=='sunny or hp < half'):
-                import ability_transitions as ABILITIES
-                if not ABILITIES.active(actor,'ability/엽록소-playtest'):continue
-                if actor.hp*2>=actor.base_max_hp:
-                    if engine is None:raise InitiativePending('Playtest Chlorophyll needs actual weather')
-                    import effects as FX
-                    if not FX.weather_matches(engine,'sunny',actor):continue
-                effect={key:value for key,value in effect.items() if key!='if'}
+            # The exact legacy CSV projection is already consumed by its native owner.
+            source = effect.get('_rule_id')
+            legacy = {k:v for k,v in effect.items() if not k.startswith('_')}
+            if (source in weather_initiative and legacy == {
+                    'type':'initiative_multiplier', 'value':2,
+                    'if':weather_initiative[source]+' or hp < half'}):
+                label = ABILITIES.label(actor.r, source)
+                token = effect.get(GRANTS.TAG)
+                receipt = state.get('effects', {}).get(token, {})
+                if (source in ABILITIES.project_components(actor, include_suppressed=True)
+                        and token == 'ability:'+label
+                        and token == state.get('ability_receipts', {}).get(label)
+                        and effect.get('_ability') == label
+                        and field in receipt.get('rows', ())
+                        and '_initiative_receipt' not in effect):
+                    continue
             unknown = {k for k in effect if not k.startswith('_')}-{'type','delta','multiplier','set_to','value','priority','source'}
             if unknown:
                 raise InitiativePending('registered initiative extension has unresolved qualifiers')

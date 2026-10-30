@@ -905,6 +905,7 @@ def validate_world(engine):
         __import__('telekinetic').validate_world(engine,index)
         __import__('telepath').validate_world(engine,index)
         __import__('warper').validate_world(engine,index)
+        __import__('glitch_bender').validate_world(engine,index)
         import living_weapon as LIVING
         LIVING.validate_world(engine,index)
     except ValueError as exc:

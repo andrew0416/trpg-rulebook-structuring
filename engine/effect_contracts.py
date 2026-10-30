@@ -100,7 +100,7 @@ def recipients(actor,target,effect):
  if selected in ('both','self and target') and effect.get('type') in {'stage_change','stat_mod','apply_status','apply_status_random','cure_status','cure_all_status','heal','hp_loss','temp_hp','evasion_mod','accuracy_mod','reset_stages','save_mod'}:return tuple(dict.fromkeys((actor,target)))
  raise ValueError('explicit native target-set binding required for '+str(selected))
 
-def hit_recipients(engine,actor,target,effect,source):
+def hit_recipients(engine,actor,target,effect,source,context=None):
  """Resolve supported native per-hit selectors without widening their source."""
  if source=='move/불꽃튀기기' and effect.get('type')=='hp_loss':
   import csv,io
@@ -136,9 +136,11 @@ def hit_recipients(engine,actor,target,effect,source):
  if effect.get('target')=='all_targets':
   import native_area_hit_effects as AREA_HIT
   return AREA_HIT.preflight(engine,actor,target,effect,source)
- return recipients(actor,target,effect)
+ actual=recipients(actor,target,effect)
+ replacement=__import__('combat_move_reactions').snatch_recipient(engine,actor,target,source,context)
+ return tuple(dict.fromkeys(replacement if c is actor and replacement is not None else c for c in actual))
 
-def inspect(engine,actor,target,effect,source,index=0):
+def inspect(engine,actor,target,effect,source,index=0,*,context=None):
  import effects as FX
  if not isinstance(effect,dict) or not isinstance(effect.get('type'),str):return Issue('unsupported_execution','type','typed effect record required')
  if effect.get('type')=='hp_loss' and 'as' in effect and (source!='move/목숨걸기' or effect['as']!='damage'):
@@ -148,6 +150,22 @@ def inspect(engine,actor,target,effect,source,index=0):
  if effect.get('type')=='self_hp_set' and 'loyalty' in effect and (source not in ('move/대폭발','move/자폭') or type(effect['loyalty']) is not int or effect['loyalty']!=-1):
   return Issue('unsupported_execution','loyalty','reviewed sacrifice decrease with explicit GM amount required')
  kind=effect['type']
+ if kind=='fling_result':
+  try:__import__('fling_move').preflight(engine,actor,target,effect,source)
+  except (ValueError,TypeError,KeyError) as ex:return Issue('unresolved_source','fling',str(ex))
+  return None
+ if kind=='stockpile_edition':
+  try:__import__('stockpile_moves').preflight(engine,actor,target,effect,source)
+  except (ValueError,TypeError,KeyError) as ex:return Issue('unresolved_source','stockpile_edition',str(ex))
+  return None
+ if kind=='glitch_move':
+  try:__import__('glitch_moves').preflight(engine,actor,target,effect,source)
+  except (ValueError,TypeError,KeyError) as ex:return Issue('unresolved_source','glitch_move',str(ex))
+  return None
+ if kind=='glitch_code' or kind=='attack' and source==__import__('glitch_bender').CODE:
+  try:__import__('glitch_bender').preflight_code(engine,actor,target,effect,source)
+  except (ValueError,TypeError,KeyError) as ex:return Issue('unsupported_execution','glitch_code',str(ex))
+  return None
  if kind=='apply_status_choice':
   try:__import__('earned_status_choices').preflight(engine,actor,target,effect,source)
   except (ValueError,TypeError,KeyError) as ex:return Issue('unsupported_execution','earned_choice',str(ex))
@@ -200,7 +218,11 @@ def inspect(engine,actor,target,effect,source,index=0):
     raise ValueError('repeat-each-turn has unsupported control fields')
   except (ValueError,TypeError,KeyError) as ex:return Issue('unsupported_execution','lifetime',str(ex))
   return None
- if kind in ('zone','ally_struggle','copy_move','random_move','repeat_last_move'):return Issue('unsupported_execution','type','native source-bound execution consumer is not implemented for '+kind)
+ if kind=='random_move':
+  try:__import__('glitch_bender').preflight_metronome(engine,actor,target,effect,source,context)
+  except (ValueError,KeyError,TypeError) as ex:return Issue('unsupported_execution','random_move',str(ex))
+  return None
+ if kind in ('zone','ally_struggle','copy_move','repeat_last_move'):return Issue('unsupported_execution','type','native source-bound execution consumer is not implemented for '+kind)
  if 'except' in effect and kind!='never_miss':return Issue('unsupported_execution','except','exception predicate requires a registered native consumer')
  if 'turns' in effect and kind not in ('grounding','delayed_attack'):return Issue('unsupported_execution','turns','turn-count lifetime has no declared native owner for '+kind)
  if kind not in FX.HANDLERS and kind not in FX.JUDGEMENT_TYPES|FX.ENGINE_TYPES:return Issue('unsupported_execution','type','no executable or deferred native consumer for '+kind)
@@ -216,7 +238,7 @@ def inspect(engine,actor,target,effect,source,index=0):
    if not WEAPONS.is_field(WEAPONS.range_spec(engine,engine.r.move(source))):
     return Issue('unresolved_source','target','Haze requires its selected Field range')
    targets=tuple(WEAPONS.field_members(engine))
-  else:targets=hit_recipients(engine,actor,target,effect,source)
+  else:targets=hit_recipients(engine,actor,target,effect,source,context)
  except ValueError as ex:return Issue('unsupported_execution','target',str(ex))
  for field in ('scope','when','trigger','at','optional'):
   if field=='trigger' and __import__('catalog_move_states').rage_declaration(engine,source,effect):continue
@@ -366,6 +388,8 @@ def condition(engine,effect,ctx,*,source=None):
  import move_completion as COMPLETE
  if COMPLETE.field_effect(effect) and ctx.get('after_all_targets'):
   checks.append(ROOT.TRUE if COMPLETE.authorized_field(engine,ctx,effect) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual field activation completion'))
+ elif __import__('glitch_moves').after_all(engine.r,ctx.get('move'),effect):
+  checks.append(ROOT.TRUE if COMPLETE.authorized(engine,ctx) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual Error Move completion'))
  elif __import__('declarative_move_contracts').after_all(engine.r,effect):
   checks.append(ROOT.TRUE if COMPLETE.authorized(engine,ctx) else ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual all-target completion'))
  elif __import__('hp_setting_moves').after_all(engine.r,ctx.get('move') or {},effect):
@@ -387,7 +411,7 @@ def condition(engine,effect,ctx,*,source=None):
   face=CPF.effect_natural(engine,ctx['attacker'],ctx.get('move'),nat,actual_damage_type=ctx.get('actual_damage_type'))
   checks.append(ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual natural accuracy observation') if face is None else known(face>=__import__('combat_modifiers').incoming_status_threshold(ctx['target'],effect.get('status'),effect['on_natural_roll_min'])))
  if effect.get('on_natural_roll')=='even':checks.append(ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual natural accuracy observation') if nat is None else known(nat%2==0))
- if effect.get('if_weather'):checks.append(known(FX.weather_matches(engine,effect['if_weather'],ctx.get('attacker'))))
+ if effect.get('if_weather'):checks.append(known(FX.weather_matches(engine,effect['if_weather'],ctx.get('attacker')) and not __import__('survivalist_class').weather_ability_suppressed(engine,ctx.get('attacker'),effect.get('_rule_id',source))))
  if effect.get('on_ko'):checks.append(ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual attributable KO observation') if 'ko' not in ctx else known(ctx['ko']))
  text=effect.get('if')
  import event_effects as EVENTS
@@ -398,7 +422,9 @@ def condition(engine,effect,ctx,*,source=None):
     if source=='move/벌레먹기' and effect.get('type')=='steal_buff' and text=='target has or consumed one this scene':
      import food_effects as FOOD
      result=FOOD.theft_condition(ctx['target'])
-    else:result=condition_text(engine,ctx['attacker'],ctx['target'],text,ctx)
+    else:
+     user=__import__('snatch_self_consumers').condition_user(engine,ctx,source,effect)
+     result=condition_text(engine,user,ctx['target'],text,ctx)
    except (KeyError,TypeError,AttributeError):result=None
    checks.append(ROOT.Predicate(ROOT.Truth.UNKNOWN,'condition: '+text) if result is None else known(result))
  return ROOT.conjunction(*checks)
@@ -477,6 +503,9 @@ def _reviewed_move_airborne(engine,target):
 
 
 def condition_text(engine,actor,target,text,ctx):
+ import natural_fighter_moves as NATURAL_MOVES
+ if text==NATURAL_MOVES.PREDICATE:
+  return NATURAL_MOVES.qualifies(engine,actor,target,ctx)
  import effects as FX
  import re
  import equipment_protection as PROTECTION
@@ -555,7 +584,7 @@ def freeze_context(engine,ctx):
 def never_miss_allowed(engine,actor,target,effect,ctx):
  """Unknown exceptions cannot be negated into an automatic hit."""
  import effects as FX
- if effect.get('if_weather') and not FX.weather_matches(engine,effect['if_weather'],actor):return False
+ if effect.get('if_weather') and (not FX.weather_matches(engine,effect['if_weather'],actor) or __import__('survivalist_class').weather_ability_suppressed(engine,actor,effect.get('_rule_id',ctx.get('source_id')))):return False
  condition=True if 'if' not in effect else condition_text(engine,actor,target,effect['if'],ctx)
  exception=False if 'except' not in effect else condition_text(engine,actor,target,effect['except'],ctx)
  if condition is None or exception is None:
@@ -590,6 +619,7 @@ def ensure_clear(engine):
  """
  import clock_invocations as CLOCK
  CLOCK.ensure_clear(engine)
+ __import__("glitch_bender").ensure_code_clear(engine)
  import equipment_actions as EQUIPMENT
  EQUIPMENT.ensure_clear(engine)
  import held_equipment as HELD

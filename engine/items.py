@@ -206,6 +206,7 @@ def register_item(engine, c, item_name=None, *, source_instance_id=None, as_held
         ignored_optional = OPTIONAL_EQUIPMENT.ignored_registration_keys(optional_plan)
         occupied = {slot for key, entry in reg.items() if key not in ignored_optional for slot in entry.get("slots", [])}
         occupied.update(slot for entry in c.custom_conditions.get("equipped_weapons",{}).values() for slot in entry.get("slots",[]))
+        occupied.update(__import__('physical_hands').occupied(c))
         if options:
             slots = next((option for option in options if not occupied.intersection(option)), None)
             if slots is None:
@@ -491,13 +492,15 @@ def item_damage_reduction(target, move, *, engine=None):
 
 def crit_delta(c, move, *, engine=None):
     import restorative_items as RESTORATIVE
-    return RESTORATIVE.crit_delta(c) + sum(e.get("delta", 0) for e in c.modifiers if (engine is None or passive_effect_allowed(engine,c,e)) and e.get("type") == "crit_range" and "delta" in e and (e.get("moves") in ("all", None) or "damaging" in str(e.get("moves"))))
+    return RESTORATIVE.crit_delta(c) + sum(e.get("delta", 0) for e in c.modifiers if passive_effect_allowed(engine,c,e) and e.get("type") == "crit_range" and "delta" in e and (e.get("moves") in ("all", None) or "damaging" in str(e.get("moves"))))
 
 
 def passive_effect_allowed(engine, actor, effect):
     source = effect.get(GRANTS.TAG) if isinstance(effect, dict) else None
     if source is None:
         return True
+    grant=actor.spec.get(GRANTS.KEY,{}).get("sources",{}).get(source,{})
+    if str(grant.get("rule_id","")).startswith("item/") and __import__("glitch_bender").benefits_blocked(actor):return False
     for record in getattr(actor, "_item_reg", {}).values():
         if source == record.get("state_source") or source in record.get("effect_sources", ()):
             return equipment_benefit_active(actor,record)
@@ -592,7 +595,10 @@ def _use_immediate_item(engine,user,item_name,target,*,free=False,accepted=True,
             RESOURCES.schedule(target,recipient_debt)
             lost='신속' if 'swift' in recipient_debt else '이동'
             engine.log(f"    {target.name}은(는) 다음 기본 행동과 {lost} 행동을 잃음 (아이템 사용)", "ch09/아이템-사용")
-    if is_x and RESTORATIVE.special_apply(engine,target,header['id']):
+    if __import__('consumption_execution').suppress_benefit(engine,user,target,paid):
+        if header.get('id') in __import__('food_effects').HERBS:__import__('food_effects').herbal_consumed(engine,target,header['id'])
+        result=(0,0)
+    elif is_x and RESTORATIVE.special_apply(engine,target,header['id']):
         result=(1,0)
     else:
         result=apply_immediate_effects(engine,user,target,item_name,effs,header)
@@ -607,6 +613,9 @@ def apply_immediate_effects(engine,user,target,item_name,effs,header):
     """Apply the admitted source effect; stock and action costs stay with the caller."""
     import food_effects as FOOD
     herbal=header.get('id') in FOOD.HERBS
+    if __import__('glitch_bender').benefits_blocked(target):
+        if herbal:FOOD.herbal_consumed(engine,target,header['id'])
+        return (0,0)
     ctx = {"attacker": user, "target": target, "hit": True, "nat": None, "engine": engine, "who": target}
     run = []
     native_done = 0
@@ -719,11 +728,13 @@ def ball_modifier(engine, ball, trainer, target):
     if rule is None:
         effs, _ = engine.r.item_effects(key)
         v = next((e.get("value", 0) for e in (effs or []) if isinstance(e, dict) and e.get("type") == "capture_mod"), 0)
+        if isinstance(v,int) and v>0 and __import__('glitch_bender').benefits_blocked(trainer):return 0, f"{key}: Object Not Found"
         return (int(v) if isinstance(v, int) else 0), f"{key} (DB 보정 {v:+})" if isinstance(v, int) else f"{key} (보정 없음)"
     val, cond = rule
     v = val(engine, trainer, target) if callable(val) else val
     if cond is not None and not cond(engine, trainer, target):
         return 0, f"{key} 조건 불충족 → +0"
+    if v>0 and __import__('glitch_bender').benefits_blocked(trainer):return 0, f"{key}: Object Not Found"
     return v, f"{key} {v:+d}"
 
 

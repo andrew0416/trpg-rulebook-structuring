@@ -211,8 +211,8 @@ def vision(e,a):
  traits=talents(e,a) if F.owned(a,SURVIVALIST) else ();env=a.spec.get('_survivalist_environment',{'light':'normal'});light=env['light'];cave='cave' in traits
  if light in ('low_light','complete_darkness') and senses['darkvision']:light='normal'
  if light=='low_light' and __import__('survivalist_class').low_light_sight(e,a):light='normal'
- if light=='complete_darkness':return ('ordinary',True) if cave else ('total',False)
- if light=='low_light' and not cave:return 'ordinary',False
+ if light=='complete_darkness':return ('none' if __import__('keen_eye').active(e,a) else 'ordinary',True) if cave else ('total',False)
+ if light=='low_light' and not cave:return ('none' if __import__('keen_eye').active(e,a) else 'ordinary'),False
  return 'none',False
 
 def blinded_plan(e,a,options=None,*,allow_total=False):
@@ -296,6 +296,7 @@ def continue_approach(e,a,target,options):
  import skill_feature_actions as SF
  import turn as TURN
  import movement_actions as MOVEMENT
+ import living_weapon as LIVING
  r=a.spec['_survivalist_shift']
  progress=r.setdefault('entry_progress',{'effects':[],'phase':'ready'})
  MOVEMENT._paid_receipts(e,progress)
@@ -309,11 +310,13 @@ def continue_approach(e,a,target,options):
   q,cost,diagonal=r['path'][index];passed=True
   if not e.grid.inside(q) or e.grid.blocked(a.pos,q) or q in e.occupied(a):raise ValueError('observed blinded Shift path changed before continuation')
   origin=a.pos;altitude=a.spec.get('_movement_altitude',0)
+  if not LIVING.can_shift(e,a,cost,movement_mode=r['target'][3]):break
   if r.get('departure_index')!=index:
    if not MOVEMENT._paid_departure(e,a,q,altitude,progress):
     if progress['phase']=='reaction_pending':return deepcopy(r['checks'])
     break
    r['departure_index']=index
+  if not LIVING.can_shift(e,a,cost,movement_mode=r['target'][3]):break
   if index in r['check_indices']:
    ordinal=r['check_indices'].index(index);skill,opts=plans[ordinal]
    basis={'origin':r['origin'],'path':r['path'],'check_cell':q,'source':'condition/실명','frequency':r['frequency'],'reason':r['reason']}
@@ -328,8 +331,8 @@ def continue_approach(e,a,target,options):
   import burrow_tunnels as TUNNELS
   TUNNELS.enter(e,a,r['mode'])
   MOVEMENT.entry_mode(a,r['mode'])
-  import control_mount as MOUNT,living_weapon as LIVING
-  MOUNT.sync(e,a);LIVING.sync(e,a)
+  import control_mount as MOUNT
+  MOUNT.sync(e,a);LIVING.shifted(e,a,cost)
   ready=MOVEMENT._paid_entry(e,a,progress,surface=True)
   if not passed:
    e.apply_status(a,'넘어짐');break
@@ -343,6 +346,10 @@ def continue_approach(e,a,target,options):
 
 
 def activity(e,a,activity,**options):
+ if activity=='natural_fighter':
+  return __import__('natural_fighter').activate(e,a,**options)
+ if activity=='natural_fighter_finish_heavy':
+  return __import__('natural_fighter').finish_heavy(e,a,**options)
  import survivalist_class as CLASS_RULES
  handlers={'observe_environment':observe_environment,'begin_night':begin_night,'finish_night':finish_night,'select_terrain':select_terrain,'choose_talents':choose_talents,'select_csv_terrains':select_csv_terrains,'withdraw_csv_terrains':withdraw_csv_terrains,
   'create_trap_tool':CLASS_RULES.create_trap_tool,'deploy_trap_tool':CLASS_RULES.deploy_trap_tool,'wilderness_guide':CLASS_RULES.wilderness_guide,'adaptive_geography':CLASS_RULES.adaptive_geography}

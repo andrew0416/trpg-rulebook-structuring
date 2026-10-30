@@ -383,6 +383,8 @@ def disarm_skills(engine, actor, item_name=None):
 
 
 def adapt_move(engine, actor, move):
+    fling = __import__('fling_move').weapon_snapshot(engine,actor,move)
+    if fling is not None:return fling
     import living_weapon as LIVING
     borrowed=LIVING.borrowed(engine,actor,move)
     if borrowed is not None:return borrowed
@@ -534,6 +536,7 @@ def recall(engine, actor, *, family, unwilling=None, skill=None,
     required = {'주요손', '반대손'} if profile['kind'] in ('대형 근접무기', '장거리 사격무기') else {slot}
     occupied = {s for entry in actor.custom_conditions.get('equipped_weapons', {}).values() for s in entry['slots']}
     occupied.update(s for entry in getattr(actor, '_item_reg', {}).values() for s in entry.get('slots', ()))
+    occupied.update(__import__('physical_hands').occupied(actor))
     if required & occupied:
         raise ValueError('recall destination hand slots are occupied')
     if holder is not None and unwilling:

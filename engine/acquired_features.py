@@ -21,12 +21,13 @@ ARCANIST_CLASS='supp-fantasy/아케니스트'
 MARKSMAN_CLASS='supp-fantasy/명사수'
 FORTRESS_CLASS='supp-fantasy/포트리스'
 SKIRMISHER_CLASS='supp-fantasy/척후'
+GLITCH_CLASS='feat/버그-타락자'
 
 
 @lru_cache(maxsize=16)
-def _prefix_ids(keys,prefix,rune_class,berserker_class,arcanist_class=ARCANIST_CLASS,marksman_class=MARKSMAN_CLASS,fortress_class=FORTRESS_CLASS,skirmisher_class=SKIRMISHER_CLASS):
+def _prefix_ids(keys,prefix,rune_class,berserker_class,arcanist_class=ARCANIST_CLASS,marksman_class=MARKSMAN_CLASS,fortress_class=FORTRESS_CLASS,skirmisher_class=SKIRMISHER_CLASS,glitch_class=GLITCH_CLASS):
     """Index immutable IDs, preserving the local supplemental class routing."""
-    return tuple(uid for uid in keys if (prefix=='class/' if uid in (rune_class,berserker_class,arcanist_class,marksman_class,fortress_class,skirmisher_class) else uid.startswith(prefix)))
+    return tuple(uid for uid in keys if (prefix=='class/' if uid in (rune_class,berserker_class,arcanist_class,marksman_class,fortress_class,skirmisher_class,glitch_class) else uid.startswith(prefix)))
 
 
 def _names(actor,prefix):
@@ -34,11 +35,11 @@ def _names(actor,prefix):
     # Re-snapshot keys on every call: additions, removals and order changes are
     # immediately visible. Exact builtins make this path free of user callbacks;
     # custom mappings/strings retain the original iteration and error behavior.
-    if type(units) is dict and type(prefix) is str and all(type(value)is str for value in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS)):
+    if type(units) is dict and type(prefix) is str and all(type(value)is str for value in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS,GLITCH_CLASS)):
         keys=tuple(units)
         if set(map(type,keys)) <= {str}:
             result={}
-            for uid in _prefix_ids(keys,prefix,RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS):
+            for uid in _prefix_ids(keys,prefix,RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS,GLITCH_CLASS):
                 unit=units[uid]
                 if type(unit) is not dict:break
                 title,eng=unit.get("title"),unit.get("eng")
@@ -50,7 +51,7 @@ def _names(actor,prefix):
                 return result
     result={}
     for uid,unit in units.items():
-        if uid in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS):
+        if uid in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS,GLITCH_CLASS):
             if prefix!='class/':continue
         elif not uid.startswith(prefix):continue
         for name in (uid,unit.get("title"),unit.get("eng")):
@@ -199,6 +200,7 @@ def feature_instances(actor,*,class_source=None,exclude=()):
             parent=parents[0]
             instances=class_instances(actor)
             owned_branches=[row["branch"] for row in instances if row["source_id"]==parent]
+            if parent=='class/타입-에이스' and __import__('glitch_bender').homebrew(actor):owned_branches.append('에러')
             if parent=="class/스탯-에이스":choices=[STAT_ALIASES.get(value,value) for value in choices]
             if parent=="class/연구원":
                 raise ValueError("research field branch feature needs an explicit source policy")
@@ -215,7 +217,14 @@ def feature_instances(actor,*,class_source=None,exclude=()):
 
 def count_for_class(actor,source_id,*,exclude=()):
     uid=_resolve(actor,source_id,"class/")
-    return sum(row["source_id"]==uid for row in class_instances(actor))+len(feature_instances(actor,class_source=uid,exclude=exclude))
+    count=sum(row["source_id"]==uid for row in class_instances(actor))+len(feature_instances(actor,class_source=uid,exclude=exclude))
+    if uid=='class/타입-에이스':
+        import glitch_bender as GLITCH
+        rows=GLITCH.type_ace_features(actor)
+        if rows:
+            __import__('trainer_feature_acquisition').validate_actor(actor)
+            count+=sum(row['feature_id'] not in exclude for row in rows)
+    return count
 
 
 def owned_rule_count(actor,source_id):
@@ -227,7 +236,7 @@ def owned_rule_count(actor,source_id):
     """
     if type(source_id) is not str:
         raise ValueError('exact trainer Edge/Feature/Class source required')
-    supplemental = source_id not in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS) and not source_id.startswith(('edge/','feat/','class/'))
+    supplemental = source_id not in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS,GLITCH_CLASS) and not source_id.startswith(('edge/','feat/','class/'))
     if supplemental and actor.r.selection.units.get(source_id,{}).get('kind')!='entity:feat':
         raise ValueError('exact trainer Edge/Feature/Class source required')
     supported=source_id in ('feat/훈련-상황','feat/작열','feat/패싱-왈츠')
@@ -243,7 +252,7 @@ def owned_rule_count(actor,source_id):
         prefix=source_id.rsplit('/',1)[0]+'/'
         names=_names(actor,prefix)
         return sum(_resolve(actor,value,prefix,names)==source_id for value in entries if value in names)
-    if source_id.startswith('class/') or source_id in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS):
+    if source_id.startswith('class/') or source_id in (RUNE_CLASS,BERSERKER_CLASS,ARCANIST_CLASS,MARKSMAN_CLASS,FORTRESS_CLASS,SKIRMISHER_CLASS,GLITCH_CLASS):
         return sum(row['source_id']==source_id for row in class_instances(actor))
     if source_id.startswith('feat/'):
         return sum(row['source_id']==source_id for row in feature_instances(actor))

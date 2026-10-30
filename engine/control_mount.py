@@ -101,19 +101,21 @@ def ride_pair(engine,actor,other):
     return next((pair for pair in ride_pairs(engine,actor) if other in pair),None)
 
 
-def speed_evasion(engine,actor,value):
+def speed_evasion(engine,actor,value,*,ignore_nonstats=False):
     ev=actor.r.mech('combat/evasion')
     import arithmetic_policy as M,combat_timing as TIMING,vision_impairment as VISION
     results=[value]
     for pair in ride_pairs(engine,actor):
         other=next(c for c in pair if c is not actor)
-        implied_conditions=set(other.conditions)
+        conditions=set(__import__('blessing_effects').effective_conditions(other))
+        if __import__('keen_eye').active(engine,other):conditions.discard(VISION.BLIND)
+        implied_conditions=set(conditions)
         if VISION.accuracy_level(engine,other)!='none':implied_conditions.add(VISION.BLIND)
         disabled=(other.fainted or other.custom_conditions.get('_grapple_relation') or TIMING.evasion_zero(other)
-            or any(e['type']=='evasion_disabled' and (not e.get('only') or e.get('only')=='speed') for condition in other.conditions for e in other.r.condition_effects(condition))
+            or any(e['type']=='evasion_disabled' and (not e.get('only') or e.get('only')=='speed') for condition in conditions for e in other.r.condition_effects(condition))
             or any(e.get('type')=='implied_by' and implied_conditions.intersection(e.get('conditions',())) for e in other.r.condition_effects('취약')))
         theirs=0 if disabled else min(ev['cap'],M.ratio(other.staged(ev['sources']['speed']),ev['per_points']))
-        results.append(value+1 if value==theirs else max(value,theirs))
+        results.append(value+1 if value==theirs and not ignore_nonstats else max(value,theirs))
     return max(results)
 
 

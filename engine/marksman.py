@@ -384,7 +384,7 @@ def accuracy_modifiers(e,actor,target,move,optional):
         if completion is not None:completion['marksman_attack'].update(clear=clear,aim=optional)
         if row.get('repeated_aim'):optional=tuple(row['repeated_aim'])
     accuracy,critical=optional
-    if row:accuracy+=row.get('penalty',0)
+    if row:accuracy+=__import__('keen_eye').modifier(e,actor,row.get('penalty',0))
     if clear:critical+=4
     return accuracy,critical,clear
 

@@ -15,6 +15,7 @@ on:
           - aa_diagnostics
           - changed_revisions
           - prepare_reviewed_controls
+          - prepare_survivalist_policy1
           - diagnose_existing
           - metadata_prerequisites
           - final_revisions
@@ -33,7 +34,7 @@ on:
           - next_revisions
 
       expected_parent:
-        description: Exact current codex branch head for prepare_reviewed_controls only
+        description: Exact current codex branch head for the selected preparation route
         type: string
         required: false
 
@@ -41,6 +42,55 @@ permissions:
   contents: read
 
 jobs:
+  prepare_survivalist_policy1:
+    if: >-
+      github.repository == 'andrew0416/trpg-rulebook-structuring' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.suite == 'prepare_survivalist_policy1' &&
+      github.ref == 'refs/heads/codex/weather-integration-1030'
+    runs-on: windows-2022
+    timeout-minutes: 30
+    concurrency:
+      group: prepare-survivalist-policy1-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    outputs:
+      prepared_commit: ${{ steps.policy1.outputs.prepared_commit }}
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.expected_parent }}
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11'
+      - name: Add exactly one approved encrypted policy to authenticated fixtures
+        id: policy1
+        shell: pwsh
+        env:
+          REVIEWED_PARENT: ${{ inputs.expected_parent }}
+          PTK_FIXTURE_KEY: ${{ secrets.PTK_FIXTURE_KEY }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-survivalist-policy1' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT
+          New-Item -ItemType Directory -Path $taskTemp -Force -ErrorAction Stop | Out-Null
+          $env:TEMP = $taskTemp
+          $env:TMP = $taskTemp
+          $env:TMPDIR = $taskTemp
+          $env:RUNNER_TEMP = $taskTemp
+          try {
+            python -B -X utf8 tools/ci_prepare_survivalist_policy1.py --root "$env:GITHUB_WORKSPACE" --expected-parent "$env:REVIEWED_PARENT"
+            if ($LASTEXITCODE -ne 0) { throw 'Fixed policy1 fixture preparation failed.' }
+          } finally {
+            Remove-Item Env:PTK_FIXTURE_KEY -ErrorAction SilentlyContinue
+          }
+
+
   prepare_controls:
     if: >-
       github.repository == 'andrew0416/trpg-rulebook-structuring' &&
@@ -198,6 +248,13 @@ jobs:
             if ($taskActual.Count -ne $taskExpected -or @(Compare-Object $taskRequired $taskActual).Count) {
               throw 'The actual report IDs differ from the reviewed changed-impact packet'
             }
+          }
+      - name: Display the existing redacted public validation summary
+        if: ${{ always() }}
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path output/ci/*/summary.json -ErrorAction SilentlyContinue | ForEach-Object {
+            Get-Content -LiteralPath $_.FullName -Raw
           }
       - name: Check original ordinary evidence with unchanged independent H
         if: ${{ always() && matrix.suite == 'changed_revisions' }}

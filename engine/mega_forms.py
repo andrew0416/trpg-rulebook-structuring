@@ -264,6 +264,7 @@ def end_scene(engine):
     def apply(e,first,*others):
         for c in (first,*others):
             row=c.spec[KEY];G.revoke(c,row['grant_source'],engine=e);c.spec.pop(KEY)
+            G.reconcile(e,c)
         state(e,True)['uses'].clear();validate_world(e,W.actor_index(e))
     G.transition(engine,targets[0],apply,participants=tuple(targets[1:]))
 
@@ -336,7 +337,7 @@ def validate_world(engine,index):
         expected={'mode':'set','values':row['types'],'fallback':None} if row['types'] is not None else None
         if st.get('type_sources',{}).get('sources',{}).get(sid)!=expected:raise ValueError('Mega shared type contribution changed')
         scalar=st.get('scalar_sources',{}).get('form',{})
-        if scalar.get('sources',{}).get(sid)!=row['definition'] or c.form!=scalar.get('visible') or c.form!=next(reversed(scalar['sources'].values())):raise ValueError('Mega visible form contribution changed')
+        if scalar.get('sources',{}).get(sid)!=row['definition'] or c.form!=scalar.get('visible') or c.form!=G._scalar_value(scalar):raise ValueError('Mega visible form contribution changed')
         for stat,values in st.get('stat_sources',{}).items():
             if c.stats[stat]!=values['visible'] or c.stats[stat]!=G._stat_value(values,c.spec['stats'][stat]):raise ValueError('Mega current statistics disagree with shared source projection')
         types=st.get('type_sources')

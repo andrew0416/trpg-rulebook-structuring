@@ -285,6 +285,28 @@ def rules_fingerprint(rules):
         for name in names:
             vars(checked).pop(name, None)
         return checked
+    weather_name = '_native_weather_action_sources'
+    if weather_name in policy:
+        import ability_native_actions as NATIVE_ACTIONS
+        expected_weather = NATIVE_ACTIONS.weather_action_sources(uncached(weather_name))
+        if (json.dumps(_plain(policy[weather_name]), sort_keys=True, ensure_ascii=False, allow_nan=False)
+                == json.dumps(_plain(expected_weather), sort_keys=True, ensure_ascii=False, allow_nan=False)):
+            policy.pop(weather_name)
+    hb_name = '_survivalist_hb_definitions'
+    if hb_name in policy:
+        import survivalist_class as SURVIVAL
+        expected_hb = SURVIVAL.hb_definitions(uncached(hb_name))
+        if (json.dumps(_plain(policy[hb_name]), sort_keys=True, ensure_ascii=False, allow_nan=False)
+                == json.dumps(_plain(expected_hb), sort_keys=True, ensure_ascii=False, allow_nan=False)):
+            policy.pop(hb_name)
+    passive_name = '_weather_passive_checked'
+    if type(policy.get(passive_name)) is set:
+        import weather_passive_benefits as WEATHER_PASSIVES
+        if policy[passive_name] <= WEATHER_PASSIVES.SOURCES.keys():
+            checked = uncached(passive_name)
+            for source in policy[passive_name]:
+                WEATHER_PASSIVES.definition(checked, source)
+            policy.pop(passive_name)
     if lesson_name in policy:
         import feature_ability_lessons as LESSONS
         saved_policy('feature-ability-lessons.json', 'rules')
@@ -483,6 +505,16 @@ class _Encoder:
             attrs = dict(vars(value))
             if attrs.pop('_native_roll_deciding',False):
                 _fail('cannot save while a native roll decision callback is executing')
+            if attrs.pop('_glitch_replacing_status',False):
+                _fail('cannot save inside an executing I Am Error replacement')
+            metronome_choices=attrs.pop('_glitch_metronome_choices',None)
+            if metronome_choices is not None and (type(metronome_choices)is not dict or any(type(k)is not str or type(v)is not tuple or len(v)!=2 or not callable(v[0]) or type(v[1])is not bool for k,v in metronome_choices.items())):
+                _fail('invalid live Metronome decision bindings')
+            if attrs.get('_glitch_metronome_child') is not None:
+                _fail('cannot save inside an executing Metronome child source grant')
+            glitch_choices=attrs.pop('_glitch_error_choices',None)
+            if glitch_choices is not None and (type(glitch_choices)is not dict or any(type(k)is not str or not callable(v) for k,v in glitch_choices.items())):
+                _fail('invalid live I Am Error decision bindings')
             for key in ('_coordinator_damage_decisions','_coordinator_nuanced_decisions'):
                 live=attrs.pop(key,None)
                 if live is not None and (type(live)is not dict or any(type(k)is not str or not callable(v) for k,v in live.items())):_fail('invalid live Coordinator decision bindings')

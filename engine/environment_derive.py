@@ -25,13 +25,17 @@ def _number(value,positive=False):
 
 def facts(value):
     if type(value) is not dict:raise ValueError('environment fact mapping required')
-    Q._fields({k:v for k,v in value.items() if k!='environ'},('gravity','pressure','air_available','medium'))
+    Q._fields({k:v for k,v in value.items() if k not in ('environ','ground_cover')},('gravity','pressure','air_available','medium'))
     for key in ('gravity','pressure'):
         if value[key] is not None:_number(value[key])
     if value['air_available'] is not None and type(value['air_available']) is not bool:raise ValueError('observed air availability required')
     if value['medium'] is not None and value['medium'] not in ('air','water','airless'):raise ValueError('observed breathing medium required')
     if value['medium']=='airless' and value['air_available'] is True:raise ValueError('airless region cannot supply breathing air')
     if value.get('environ') is not None and value['environ'] not in ENVIRONS:raise ValueError('observed Environ table environment required')
+    if 'ground_cover' in value:
+        cover=value['ground_cover']
+        if type(cover)is not list or any(x not in ('sand','snow','grass') for x in cover) or len(set(cover))!=len(cover):
+            raise ValueError('explicit distinct observed sand/snow/grass ground cover required')
     return deepcopy(value)
 
 

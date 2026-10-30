@@ -45,7 +45,15 @@ class TricksterFullTests(unittest.TestCase):
   'test_stacked_scene_per_foe_quota_is_not_per_condition',
  )
 
- STACKED_CONDITIONS=('마비','얼음','조이기','잠듦','혼란','난동','억압','헤롱헤롱')
+ # Printed condition/effect rows: input/ch04-trainer-classes.md:1053-1054.
+ # Keep this oracle independent of the runtime's GROUPS classification.
+ STACKED_EXPECTED={
+  '마비':'save_trip_slow','얼음':'save_trip_slow',
+  '조이기':'save_trip_slow','잠듦':'save_trip_slow',
+  '혼란':'accuracy_evasion_minus_two','난동':'accuracy_evasion_minus_two',
+  '억압':'accuracy_evasion_minus_two','헤롱헤롱':'accuracy_evasion_minus_two',
+ }
+ STACKED_CONDITIONS=tuple(STACKED_EXPECTED)
 
  STACKED_STAGE_CONTRACT=(
   {'input':'one original core world and one acquired family','output':'failed then successful paralysis save; AP spent and Stacked Deck consumed, Trip+Slow live'},
@@ -144,7 +152,7 @@ class TricksterFullTests(unittest.TestCase):
     self.begin();self.source_condition(condition);self._stacked_previous_condition=condition
     row=self.use('move/애교부리기',begin=False);self.e.stacked_deck(self.t,self.p,self.foe,row['id'],condition)
     record=self.foe.custom_conditions[T.STACK_KEY][0]
-    if condition in T.GROUPS[1]:
+    if self.STACKED_EXPECTED[condition]=='save_trip_slow':
      self.assertEqual(record['group'],1)
      RECOVERY.saving_check(self.e,self.foe,condition,20,fixed=1)
      self.assertFalse(self.foe.custom_conditions[T.STACK_KEY][0]['consumed'])

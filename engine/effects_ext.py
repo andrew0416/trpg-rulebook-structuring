@@ -446,6 +446,8 @@ def h_repeat_last_move(engine, a, t, e, ctx):
 
 
 def h_attack(engine, a, t, e, ctx):
+    if e.get("_rule_id")==__import__("glitch_bender").CODE:
+        return __import__("glitch_bender").code_attack(engine,a,t,e,ctx)
     __import__('condition_instances').require_target(a,t)
     from ruleset import UnresolvedRuleSelection
     origin = e.get("_rule_id")
@@ -1175,8 +1177,11 @@ def accuracy_hook(engine, a, t, move, mm, ctx):
     import status_sets as STATUS
     import vision_impairment as VISION
     import living_weapon as LIVING
-    ac_override, waive, bonus, never = None, False, TIMING.accuracy_modifier(a, include_effect_contract=False), False
-    bonus += __import__('defense_curl').accuracy(a,move)
+    from keen_eye import modifier
+    acc = lambda value: modifier(engine,a,value)
+    timed = sum(acc(row.get('accuracy_modifier',0)) for row in TIMING.records(a) if not row.get('effect_contract'))
+    ac_override, waive, bonus, never = None, False, timed, False
+    bonus += acc(__import__('defense_curl').accuracy(a,move))
     for status in a.conditions:
         if __import__('blessing_effects').ignored(a,status):continue
         # Use one derived contribution: Total Blindness replaces ordinary
@@ -1185,8 +1190,8 @@ def accuracy_hook(engine, a, t, move, mm, ctx):
             continue
         for effect in engine.r.condition_effects(status):
             if effect.get("type")=="accuracy_mod" and type(effect.get("value")) is int:
-                bonus += effect["value"]
-    bonus += VISION.accuracy_penalty(engine, a, t)
+                bonus += acc(effect["value"])
+    bonus += acc(VISION.accuracy_penalty(engine, a, t))
     for e in mm.get("effects_exec", []) + a.registry:
         ty = e.get("type")
         if LIVING.ignore_no_guard(engine,a,t,e,effect_owner=a):continue
@@ -1202,7 +1207,7 @@ def accuracy_hook(engine, a, t, move, mm, ctx):
             elif ok:
                 waive = True
         elif ty == "accuracy_mod" and e.get("moves") and _move_matches(e, move, a) and isinstance(e.get("value"), int):
-            bonus += e["value"]
+            bonus += acc(e["value"])
     # The native passive producer keeps No Guard's enemy contribution in
     # modifiers; other existing target effects continue to use registry.
     no_guard_modifiers = [e for e in t.modifiers if LIVING.no_guard(e)
@@ -1212,7 +1217,7 @@ def accuracy_hook(engine, a, t, move, mm, ctx):
                           and getattr(a,"side",None) != getattr(t,"side",None))
         if e.get("type") == "accuracy_mod" and (str(e.get("target", "")).startswith("attacks against") or no_guard_enemy) and isinstance(e.get("value"), int):
             if LIVING.ignore_no_guard(engine,a,t,e,effect_owner=t):continue
-            bonus += e["value"]
+            bonus += acc(e["value"])
     waive = waive or __import__("roughneck").vulnerable(engine,a,t,move)
     never = never or __import__('juggler').lock_on(engine,a,t)
     return ac_override, waive, bonus, never
@@ -1623,7 +1628,7 @@ def defense_hook(engine, a, t, move, mm, def_stat, *, stage_override=None):
     dr = t.damage_reduction + LIFETIMES.numeric(t,"damage_reduction") + __import__('sage').reduction(t) + __import__('ace_trainer').damage_reduction(t,a) + __import__('defense_curl').reduction(t) + __import__('declarative_move_contracts').defensive_reduction(t)
     if not t.abilities_suppressed:
         for e in t.modifiers:
-            if e.get("type") == "damage_reduction" and e.get("if_weather") and isinstance(e.get("value"), int) and not any(e.get(k) for k in ("if", "vs", "duration")) and FX.weather_matches(engine, e["if_weather"],t):
+            if e.get("type") == "damage_reduction" and e.get("if_weather") and isinstance(e.get("value"), int) and not any(e.get(k) for k in ("if", "vs", "duration")) and FX.weather_matches(engine, e["if_weather"],t) and not __import__("survivalist_class").weather_ability_suppressed(engine,t,e.get("_rule_id")):
                 dr += e["value"]
     if ignore is None:
         return staged, dr
@@ -1830,6 +1835,7 @@ def start_of_turn(engine, c):
 
 
 def end_of_turn(engine, c):
+    __import__('weather_passive_benefits').end_turn(engine,c)
     __import__('type_ace').end_turn(engine,c)
     __import__('type_ace').fire_boundary(engine,c)
     HEAVY.ensure_clear(engine)

@@ -60,8 +60,8 @@ def frequency(actor,mid,base):
  return base if kind=='at_will' else ('at_will',1) if kind=='every_other_turn' else (kind,count+1)
 
 
-def consume(e,user,target,uid,*,selected_move=None,selected_stat=None,owner_consent_by=None,free=False,held_selection=None):
- import move_state as M,state_grants as G,common_checks as C
+def _prepare_base(e,target,uid,*,selected_stat=None,owner_consent_by=None):
+ import move_state as M
  if uid not in ALL_ITEMS|{SUPPRESSANT} or e.r._selected_rule(uid)!=uid:raise ValueError('selected Vitamin required')
  if target.kind!='pokemon':raise ValueError('Vitamins require a Pokemon target')
  owner_id=None
@@ -70,12 +70,14 @@ def consume(e,user,target,uid,*,selected_move=None,selected_stat=None,owner_cons
   owner_id=owner_consent(e,target,owner_consent_by)
  elif selected_stat is not None or owner_consent_by is not None:raise ValueError('stat choice and owner consent apply only to Stat Suppressants')
  validate(target);state=M.vitamin_state(e.r,target.spec)
- import item_stock as STOCK
- stock=STOCK.prepare(e,user,uid,held_selection=held_selection,allow_empty=True)
- if stock is None:return (0,0)
+ return owner_id,state
+
+
+def prepare_effect(e,user,target,uid,*,selected_move=None,selected_stat=None,owner_consent_by=None):
+ import move_state as M,common_checks as C
+ owner_id,state=_prepare_base(e,target,uid,selected_stat=selected_stat,owner_consent_by=owner_consent_by)
  history=_history_ids(e.r,target.spec)
  no_effect=state['occupied']>=state['capacity'] or (uid in SPECIAL and uid in history) or (uid==SUPPRESSANT and owner_id is None)
- if free and e.encounter_active:raise ValueError('a waived Vitamin cost requires an actual source of action permission')
  mid=None;base=None
  if uid==PP and not no_effect:
   mid=e.r.move_id(selected_move)
@@ -98,39 +100,63 @@ def consume(e,user,target,uid,*,selected_move=None,selected_stat=None,owner_cons
   for key,value in bonuses.items():
    if key not in STAT_BY_ITEM.values():raise ValueError('unknown permanent Vitamin stat contribution')
    C.integer(value,'permanent Vitamin stat contribution')
+ return dict(uid=uid,owner_id=owner_id,no_effect=no_effect,mid=mid,base=base,stat=stat,delta=delta)
+
+
+def apply_paid(se,st,su,plan,stock_receipt):
+ """Apply the native Vitamin result after one actual stock payment."""
+ import consumption_execution as EXECUTION
+ receipt=EXECUTION.validate(su)[EXECUTION.payment_id(su,stock_receipt)]
+ if receipt['outcome']!='paid' or stock_receipt['item_id']!=plan['uid']:
+  raise ValueError('Vitamin needs its unused actual item payment')
+ uid,owner_id,no_effect,mid,base,stat,delta=(plan[k] for k in ('uid','owner_id','no_effect','mid','base','stat','delta'))
+ import world_entities as W
+ if plan!=prepare_effect(se,su,st,uid,selected_move=mid,
+     selected_stat=stat if uid==SUPPRESSANT else None,
+     owner_consent_by=W.actor_index(se).get(owner_id) if owner_id is not None else None):
+  raise ValueError('Vitamin effect plan changed before its paid application')
+ if uid==SUPPRESSANT and owner_id is not None:
+  import world_entities as W
+  if owner_consent(se,st,W.actor_index(se).get(owner_id))!=owner_id:raise ValueError('actual owner choice changed before stat suppression')
+ import consumption_execution as EXECUTION
+ if EXECUTION.suppress_benefit(se,su,st,stock_receipt):return (0,0)
+ if no_effect:
+  EXECUTION.finish(su,stock_receipt,target_id=st.entity_id,outcome='no_effect')
+  if uid==SUPPRESSANT and owner_id is None:
+   se.log('    Stat Suppressant consumed: no effect without actual owner consent',uid)
+   return {'status':'consumed','outcome':'no_effect','reason':'owner_consent_missing'}
+  se.log('    Vitamin maximum or once-only dose reached: no effect',uid);return (0,0)
+ record={'source':uid,'actor_id':st.entity_id,'applied_at':se.elapsed_seconds,'item_stock':stock_receipt}
+ if uid==PP:record.update(move_id=mid,base_frequency=list(base),effective=base[0]!='at_will')
+ elif uid==HEART:st.spec['tutor_points']+=2
+ else:
+  import growth_stats as GROWTH
+  GROWTH.apply_vitamin(st,stat,source=uid,delta=delta)
+  if st.spec.get('species'):
+   from builder import record_allocation
+   record_allocation(se.r,st.spec,'vitamin',item=uid,stat=stat,delta=delta,
+                     source=uid,actor_id=st.entity_id,applied_at=se.elapsed_seconds,item_stock=stock_receipt,
+                     **({'owner_id':owner_id} if uid==SUPPRESSANT else {}))
+ st.spec.setdefault('vitamins',[]).append(uid)
+ import vitamin_capacity as CAPACITY
+ CAPACITY.record(se.r,st.spec,'vitamin',len(st.spec['vitamins']),item=uid)
+ if uid in SPECIAL:st.spec.setdefault('vitamin_special_uses',{})[uid]=record
+ EXECUTION.finish(su,stock_receipt,target_id=st.entity_id,outcome='applied',
+                   results=[{'kind':'vitamin','id':st.entity_id+':vitamin:'+str(len(st.spec['vitamins']))}])
+ validate(st)
+ return (0,0) if uid==PP and base[0]=='at_will' else (1,0)
+
+def consume(e,user,target,uid,*,selected_move=None,selected_stat=None,owner_consent_by=None,free=False,held_selection=None):
+ import item_stock as STOCK,state_grants as G
+ _prepare_base(e,target,uid,selected_stat=selected_stat,owner_consent_by=owner_consent_by)
+ stock=STOCK.prepare(e,user,uid,held_selection=held_selection,allow_empty=True)
+ if stock is None:return (0,0)
+ if free and e.encounter_active:raise ValueError('a waived Vitamin cost requires an actual source of action permission')
+ plan=prepare_effect(e,user,target,uid,selected_move=selected_move,selected_stat=selected_stat,owner_consent_by=owner_consent_by)
  if e.encounter_active and (user.injuries>=5 and not __import__('taskmaster').ignores_acting_loss(user)) and not free:
   raise ValueError('Vitamin Standard requires reviewed heavy-injury action composition')
  def apply(se,st,su):
   import turn as TURN
-  if uid==SUPPRESSANT and owner_id is not None:
-   import world_entities as W
-   if owner_consent(se,st,W.actor_index(se).get(owner_id))!=owner_id:raise ValueError('actual owner choice changed before stat suppression')
   if not TURN.spend(se,su,'free' if free else 'standard',uid):return (0,0)
-  stock_receipt=STOCK.debit(se,su,stock)
-  import consumption_execution as EXECUTION
-  if no_effect:
-   EXECUTION.finish(su,stock_receipt,target_id=st.entity_id,outcome='no_effect')
-   if uid==SUPPRESSANT and owner_id is None:
-    se.log('    Stat Suppressant consumed: no effect without actual owner consent',uid)
-    return {'status':'consumed','outcome':'no_effect','reason':'owner_consent_missing'}
-   se.log('    Vitamin maximum or once-only dose reached: no effect',uid);return (0,0)
-  record={'source':uid,'actor_id':st.entity_id,'applied_at':se.elapsed_seconds,'item_stock':stock_receipt}
-  if uid==PP:record.update(move_id=mid,base_frequency=list(base),effective=base[0]!='at_will')
-  elif uid==HEART:st.spec['tutor_points']+=2
-  else:
-   import growth_stats as GROWTH
-   GROWTH.apply_vitamin(st,stat,source=uid,delta=delta)
-   if st.spec.get('species'):
-    from builder import record_allocation
-    record_allocation(se.r,st.spec,'vitamin',item=uid,stat=stat,delta=delta,
-                      source=uid,actor_id=st.entity_id,applied_at=se.elapsed_seconds,item_stock=stock_receipt,
-                      **({'owner_id':owner_id} if uid==SUPPRESSANT else {}))
-  st.spec.setdefault('vitamins',[]).append(uid)
-  import vitamin_capacity as CAPACITY
-  CAPACITY.record(se.r,st.spec,'vitamin',len(st.spec['vitamins']),item=uid)
-  if uid in SPECIAL:st.spec.setdefault('vitamin_special_uses',{})[uid]=record
-  EXECUTION.finish(su,stock_receipt,target_id=st.entity_id,outcome='applied',
-                    results=[{'kind':'vitamin','id':st.entity_id+':vitamin:'+str(len(st.spec['vitamins']))}])
-  validate(st)
-  return (0,0) if uid==PP and base[0]=='at_will' else (1,0)
+  return apply_paid(se,st,su,plan,STOCK.debit(se,su,stock))
  return G.transition(e,target,apply,participants=(user,))

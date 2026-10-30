@@ -269,7 +269,7 @@ def after_all(effect,rules=None,move=None):
     focus_after=rules is not None and __import__('declarative_move_contracts').after_all(rules,effect)
     sacrifice=rules is not None and move is not None and __import__('hp_setting_moves').after_all(rules,move,effect)
     local_mist=rules is not None and move is not None and __import__('misty_explosion').after_all(rules,move,effect)
-    return (sacrifice or local_mist or focus_after or post_stage or after_damage_self_stage(rules,move,effect) or field_effect(effect) or
+    return (__import__('glitch_moves').after_all(rules,move,effect) or sacrifice or local_mist or focus_after or post_stage or after_damage_self_stage(rules,move,effect) or field_effect(effect) or
             (effect.get('type') in ('counter','stage_change') and effect.get('on')=='after use' and effect.get('target','self')=='self') or
             (effect.get('type')=='type_change' and effect.get('target','self')=='self'))
 
@@ -294,6 +294,7 @@ def start_target(e,actor,target,move,mm,scope):
         if action and action[-1]['actor'] is actor and action[-1]['kind']=='move':
             rows[token]['native_action_frame']=action[-1]
             action[-1]['completion_id']=token
+        __import__('natural_fighter').begin_move(e,rows[token])
         import cheerleader as CHEER
         rows[token]['cheerleader_support']=CHEER.support_snapshot(e,actor) if move.get('class')=='변화' else None
         __import__('coordinator').begin_move(e,rows[token])
@@ -352,6 +353,7 @@ def finish_target(e,token,actor,target,*,hit,dealt,effects=(),cancelled=False,hi
         if old!=result:raise ValueError('completed target observation changed')
         return row if _defer_completion else refresh(e,token)
     row['results'][target.entity_id]=result
+    __import__('fling_move').finish_target(e,row,target)
     __import__('arcanist').after_target(e,row,target)
     __import__('ace_trainer').after_target(e,row,target)
     if result['hit'] and not result['cancelled'] and row['move'].get('class') in ('물리','특수'):
@@ -447,6 +449,7 @@ def apply_empty_field(e,actor,move,effects,cells):
     if action and action[-1]['actor'] is actor and action[-1]['kind']=='move':
         row['native_action_frame']=action[-1]
         action[-1]['completion_id']=token
+    __import__('natural_fighter').begin_move(e,row)
     import optional_state_effect_contracts as OPTIONAL_STATE
     OPTIONAL_STATE.begin_move(e,actor,None,move,token)
     __import__('provocateur').begin_move(e,row)
@@ -473,6 +476,7 @@ def apply_empty_field(e,actor,move,effects,cells):
     CONFUSION.finish(e,row)
     ICE_LAKE.observe_completion(e,row)
     row['phase']='complete';row['completed_at']=e.elapsed_seconds
+    __import__('natural_fighter').complete_move(e,row)
     __import__('musician').after_empty_use(e,actor,row)
     __import__('juggler').after_move(e,row)
     __import__('trickster').after_move(e,row)
@@ -489,6 +493,7 @@ def refresh(e,token=None):
         return
     row=rows[token]
     if row['phase']=='complete':
+        __import__('natural_fighter').complete_move(e,row)
         __import__('native_switch_transfer').observe_move(e,row)
         __import__('battle_contest').complete_move(e,row)
         return row
@@ -552,7 +557,7 @@ def refresh(e,token=None):
     import post_resolution_stage_effects as POST_STAGE
     post=[x for x in row['post_effects'] if not all_cancelled and
           (hit or after_damage and after_damage_self_stage(e.r,row['move'],x) or __import__('hp_setting_moves').after_all(e.r,row['move'],x) or __import__('misty_explosion').after_all(e.r,row['move'],x) or field_effect(x) or POST_STAGE.owns(e.r,row['move'],x) or
-           __import__('declarative_move_contracts').after_all(e.r,x) or
+           __import__('glitch_moves').after_all(e.r,row['move'],x) or __import__('declarative_move_contracts').after_all(e.r,x) or
            x.get('on')=='after use' or x.get('on_miss'))]
     stage_post=[x for x in post if POST_STAGE.owns(e.r,row['move'],x)]
     post=[x for x in post if x not in stage_post]
@@ -560,9 +565,11 @@ def refresh(e,token=None):
     row['phase']='applying'
     try:
         actor=row['actor'];target=row['targets'][-1]
-        FX.run_effects(e,actor,target,post,{'move_completion':token,'after_all_targets':True,
-            'hit':hit,'nat':None,'dealt':sum(x['dealt'] for x in row['results'].values()),
-            'move':row['move'],'crit':False},row['move_id'])
+        import snatch_self_consumers as SNATCH_SELF
+        with SNATCH_SELF.completion_scope(e,row,target,post) as effect_target:
+            FX.run_effects(e,actor,effect_target,post,{'move_completion':token,'after_all_targets':True,
+                'hit':hit,'nat':None,'dealt':sum(x['dealt'] for x in row['results'].values()),
+                'move':row['move'],'crit':False},row['move_id'])
         POST_STAGE.apply_completion(e,row,stage_post)
         recoil=recoil_effect(e,row)
         if recoil is not None:
@@ -636,6 +643,7 @@ def validate_return_continuation(e,event):
 
 
 def validate_world(e,index):
+    __import__('fling_move').validate_world(e,index)
     __import__('fortress').validate_world(e,index)
     __import__('hp_setting_moves').validate_world(e,index)
     __import__('coordinator').validate_world(e,index)

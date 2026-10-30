@@ -639,6 +639,8 @@ def _ranged(move):
 
 def type_link_rank(engine, owner, type_name):
     """Resolve the trainer's explicit reviewed Type Link skill and rank."""
+    error=__import__('glitch_bender').type_ace_skill(engine,owner,type_name)
+    if error is not None:return error
     policy = _policy(engine.r)["type_link_skills"]
     allowed = policy.get(type_name)
     if allowed is None:
@@ -723,7 +725,8 @@ def preflight_glacial(engine, attacker, target, move, mm):
 
 
 def accuracy_bonus(engine, attacker, target, move, mm):
-    extreme = __import__('researcher_fields').accuracy_modifier(engine, attacker)+__import__('athlete').maneuver_accuracy(engine,attacker,move)
+    from keen_eye import modifier
+    extreme = modifier(engine,attacker,__import__('researcher_fields').accuracy_modifier(engine, attacker))+modifier(engine,attacker,__import__('athlete').maneuver_accuracy(engine,attacker,move))
     if _active(engine, attacker, ADAPTIVE) and move.get("type") == "벌레":
         return extreme + (2 if _effectiveness_preview(engine, attacker, target, move, mm) > 1 else 0)
     return extreme
@@ -731,7 +734,7 @@ def accuracy_bonus(engine, attacker, target, move, mm):
 
 def accuracy_target(engine, attacker, move, ac):
     if ac is not None and move.get("ac") is not None and _active(engine, attacker, TRICK_SHOT) and _ranged(move):
-        return ac + 2
+        return ac + (0 if __import__('keen_eye').active(engine,attacker) else 2)
     return ac
 
 

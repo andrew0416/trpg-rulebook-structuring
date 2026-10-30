@@ -1032,7 +1032,8 @@ def drink_nectar(engine, actor, nectar, *, seconds, quantity_key=None, held_sele
         import item_stock as STOCK
         stock = STOCK.prepare(e, c, 'item/' + nectar, quantity_key=quantity_key, held_selection=held_selection)
         _extended(e, c, seconds, 'C2TAB/learnsets/r0818c13')
-        STOCK.debit(e, c, stock)
+        paid=STOCK.debit(e, c, stock)
+        if __import__('consumption_execution').suppress_benefit(e,c,c,paid):return {'status':'consumed','outcome':'no_effect','item_stock':paid}
         return _switch_profile(e, c, NECTARS[nectar])
     return G.transition(engine, actor, apply)
 

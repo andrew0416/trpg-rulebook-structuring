@@ -84,6 +84,7 @@ def suspend(e,scope,error):
  if type(error) is not PASSIVE.PassiveEventPending or e._passive_pending!=error.event_id:return False
  event=e._passive_events.get(error.event_id)
  if event is None:return False
+ if scope.get('completion_id') is None and __import__('natural_fighter').pending_initiation(e,scope,error):return True
  while event.get('defense_parent'):event=e._passive_events[event['defense_parent']]
  if event.get('completion_id')!=scope.get('completion_id'):
   event=(__import__('conquerors_march').counter_parent(e,event,scope['completion_id'])

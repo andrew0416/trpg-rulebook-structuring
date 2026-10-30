@@ -70,10 +70,14 @@ def _weather_turn_start_one(engine,c,w,*,_boss_round=False):
         return
     if any(e.get("type") == "immunity" and ("weather" in str(e.get("to", "")) or WEATHER_KO.get(w, w) in str(e.get("to", "")) or w in str(e.get("to", "")))
            and ((not e.get('_ability') and not str(e.get('_rule_id','')).startswith('ability/'))
-                or __import__('ability_transitions').effect_active(c,e)) for e in c.modifiers + c.registry):
+                or (__import__('ability_transitions').effect_active(c,e) and not __import__('survivalist_class').weather_ability_suppressed(engine,c,e.get('_rule_id')))) for e in c.modifiers + c.registry):
         engine.log(f"    {c.name}: {WEATHER_KO.get(w, w)} 피해 면역 (특성)", "combat/weather")
         return
     if c.fainted or not c.on_field:
+        return
+    veil = __import__('core_weather_abilities').weather_hp_immunity(engine,c,w)
+    if veil:
+        engine.log(f"    {c.name}: {WEATHER_KO.get(w,w)} 피해 면역 (인접 날씨 특성)",veil)
         return
     survival = __import__('survivalist_class').weather_hp_immune(engine, c, w)
     if survival:
@@ -246,6 +250,7 @@ def spend(engine, c, kind, what="", *, movement=False, sleep_cure=False, _native
     validate_source(engine.r)
     import initiative_interrupts as INTERRUPTS
     INTERRUPTS.require_move_cost(engine,c,kind,_native_move,movement=movement)
+    if not __import__('glitch_bender').action_allowed(engine,c,_triggered_source or what,_native_move):return False
     HEAVY.ensure_clear(engine)
     import type_ace as TA
     if not TA.action_permission(engine,c,kind,_native_move,what):return False
@@ -579,6 +584,7 @@ def _equip_weapon(engine, c, weapon):
     ledger = c.custom_conditions.get("equipped_weapons", {})
     occupied = {s for entry in ledger.values() for s in entry["slots"]}
     occupied.update(s for entry in getattr(c,"_item_reg",{}).values() for s in entry.get("slots",[]))
+    occupied.update(__import__('physical_hands').occupied(c))
     if occupied.intersection(slots):
         raise ValueError("weapon hand slot already occupied")
     kind = WEAPON_KIND[weapon["kind"]]

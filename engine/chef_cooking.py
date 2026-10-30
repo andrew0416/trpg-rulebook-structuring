@@ -1250,7 +1250,8 @@ def serve(e, actor, *, batch_id, target=None, minutes=None, reason=None, accepte
                 return False
             paid = STOCK.debit(staged, user, stock)
             result = HERB.apply_mushroom(staged, recipient, uid, current['origin_body']['plan'])
-            EXECUTION.finish(user, paid, target_id=recipient.entity_id, outcome='applied', results=[{'kind': 'mushroom', 'id': current['origin_body']['instance_id']}])
+            if not EXECUTION.suppress_benefit(staged,user,recipient,paid):
+                EXECUTION.finish(user, paid, target_id=recipient.entity_id, outcome='applied', results=[{'kind': 'mushroom', 'id': current['origin_body']['instance_id']}])
             return dict(result, status='consumed', item=uid, item_stock=paid)
         return FOOD.consume(staged, user, recipient, uid, minutes=minutes, reason=reason, accepted=accepted, chef_batch_id=batch_id)
     return G.transition(e, actor, apply, participants=() if target is actor else (target,))
@@ -1337,13 +1338,15 @@ def _taste_origin(actor, buff):
     """Follow the existing receipt chain, so new buffs do not reset an item's bonus."""
     current, used = buff, False
     ceiling = buff.get('sequence', len(actor.spec.get('food_consumption_receipts', [])) + 1)
+    used = any(row.get('buff_id') == buff.get('id', buff.get('buff_id')) and row.get('sequence', ceiling) < ceiling
+               and row.get('taste_bonus') is not None for row in actor.spec.get('food_consumption_receipts', []))
     while current.get('chef_provenance') is not None:
         origin = current['chef_provenance']
         sequence = origin['origin_receipt_sequence']
         if type(sequence) is not int or not 1 <= sequence < ceiling:
             raise ValueError('Complex Aftertaste needs an earlier actual item receipt')
         parents = [row for row in actor.spec.get('food_consumption_receipts', []) if row.get('sequence') == sequence]
-        if len(parents) != 1 or parents[0].get('item') != origin['origin_item']:
+        if len(parents) != 1 or parents[0].get('item') != origin['origin_item'] or __import__('food_effects').retained_activation(parents[0]):
             raise ValueError('Complex Aftertaste actual origin receipt is missing')
         parent = parents[0]
         expected = dict(parent.get('taste_assignment', {}), basis='complex_aftertaste')
@@ -1508,7 +1511,7 @@ def aftertaste_grant(engine, owner, target, event):
     uid = _tasty_item(engine.r, taste)
     effect = FOOD.chef_effect(engine.r, uid)
     parents = [row for row in target.spec.get('food_consumption_receipts', []) if row.get('sequence') == payload['receipt_sequence']]
-    if len(parents) != 1 or parents[0].get('buff_id') != payload['buff_id'] or parents[0].get('item') != payload['item']:
+    if len(parents) != 1 or parents[0].get('buff_id') != payload['buff_id'] or parents[0].get('item') != payload['item'] or FOOD.retained_activation(parents[0]):
         raise ValueError('Complex Aftertaste needs its actual consumed item receipt')
     provenance = {'taste_assignment': dict(parents[0]['taste_assignment'], basis='complex_aftertaste'),
                   'chef_provenance': {'source': AFTERTASTE, 'event_id': event['id'], 'owner_id': owner.entity_id,

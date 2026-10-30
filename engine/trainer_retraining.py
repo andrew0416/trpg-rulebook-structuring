@@ -33,7 +33,16 @@ def _owned(actor):
 
 
 def owned_source(engine, actor, rule_id):
-    """Observe current ownership; never fabricate an acquisition-time receipt."""
+    """Observe current ownership and materialize the plain feature source row (inside the caller's staged commit)."""
+    source = source_id(engine, actor, rule_id)
+    if source == 'feature:' + actor.entity_id + ':' + rule_id and GRANTS.state(actor)['sources'].get(source) is None:
+        GRANTS._source(actor, source, 'feature', rule_id=rule_id,
+                       owner_id=actor.entity_id, lifetime='while_owned', tutor_points=0)
+    return source
+
+
+def source_id(engine, actor, rule_id):
+    """Observe current ownership; never fabricate an acquisition-time receipt and never write (a pure read)."""
     import world_entities as WORLD
     WORLD.require_actors(engine, actor)
     if rule_id not in _owned(actor):
@@ -64,9 +73,6 @@ def owned_source(engine, actor, rule_id):
         if (row.get('rule_id') != rule_id or row.get('owner_id') != actor.entity_id or
                 row.get('lifetime') != 'while_owned'):
             raise ValueError('owned trainer source provenance changed')
-    else:
-        GRANTS._source(actor, source, 'feature', rule_id=rule_id,
-                       owner_id=actor.entity_id, lifetime='while_owned', tutor_points=0)
     return source
 
 
@@ -299,6 +305,15 @@ def _native_dependencies(engine, actor, owned):
             parent=definition['parent']
             if parent not in owned:raise ValueError('actual acquired Provocateur prerequisite required')
             result[child]=list(dict.fromkeys(result.get(child,[])+[parent]))
+    import glitch_bender as GLITCH,type_ace as TYPE_ACE
+    for child,parents in GLITCH.PARENTS.items():
+        if child in owned and parents:
+            if not set(parents)<=set(owned):raise ValueError('actual retained Glitch Bender prerequisite required')
+            result[child]=list(parents)
+    for record in TYPE_ACE.records(actor,active=True):
+        if record['feature_id'] in (TYPE_ACE.REFRESH,TYPE_ACE.SYNC) and record['snapshot']['branch']=='에러':
+            if GLITCH.CLASS not in owned or not GLITCH.homebrew(actor):raise ValueError('actual retained HB Glitch Type Ace prerequisite required')
+            result[record['feature_id']]=list(dict.fromkeys([*result.get(record['feature_id'],[]),GLITCH.CLASS]))
     result.update(fortress)
     return result
 

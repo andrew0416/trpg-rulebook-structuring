@@ -104,11 +104,11 @@ class Tests(unittest.TestCase):
   self.assertEqual(list(e._move_completions.values())[-1]['phase'],'complete')
   COMPLETE.refresh(e)
   self.assertEqual(before,(e.everyone[0].budget,e.everyone[0].move_uses,e.everyone[1].hp,e.rng.getstate()))
- def test_counter_requires_actual_positive_value_before_cost(self):
-  before=dump_engine(self.e)
-  with self.assertRaisesRegex(ValueError,'counter prerequisite'):
-   self.e.use_move(self.a,self.a,'move/꿀꺽')
-  self.assertEqual(dump_engine(self.e),before)
+ def test_swallow_without_a_count_is_a_paid_no_op_not_a_prerequisite_refusal(self):
+  # r598 / core en11923: 'If the user has no Stockpiled count, Swallow does nothing' — paid, not refused (composed 2026-10-30).
+  self.e.lose_hp(self.a,10,source='gm/fixture-injury');hp=self.a.hp;budget=deepcopy(self.a.budget)
+  self.e.use_move(self.a,self.a,'move/꿀꺽')
+  self.assertEqual((self.a.hp,self.a.move_uses['move/꿀꺽']),(hp,1));self.assertNotEqual(self.a.budget,budget);COUNTERS.validate(self.a)
  def test_uncapped_counter_is_not_silently_capped_at_arbitrary_99(self):
   self.a.counters['last_resort']=99
   COUNTERS.change(self.e,self.a,{'name':'last_resort','delta':1},'move/마지막수단')
