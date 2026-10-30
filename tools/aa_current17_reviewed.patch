@@ -1,0 +1,127 @@
+diff --git a/engine/engine.py b/engine/engine.py
+index 910d25756cd9e082582450c02f0b227d74bb69c0..f96bf95e7f6f67a95e2ce11bf329f8f9004bc51a 100644
+--- a/engine/engine.py
++++ b/engine/engine.py
+@@ -5928,7 +5928,9 @@ class Engine:
+                 LIVING.relation(e,a,usable=True)
+                 remaining=LIVING.movement_remaining(e,a,movement_mode=movement_mode)
+                 if remaining is not None:remaining=int(remaining)
+-                if remaining==0:return {'distance':0,'position':a.pos,'mode':e.move_profile(a,movement_mode=movement_mode)[1]}
++                blind_cursor=a.spec.get('_survivalist_shift')
++                if remaining==0 and not (isinstance(blind_cursor,dict) and blind_cursor.get('finished') is False):
++                    return {'distance':0,'position':a.pos,'mode':e.move_profile(a,movement_mode=movement_mode)[1]}
+                 result=e._approach(a,t,reach,movement_mode=movement_mode,blindness_options=blindness_options,maximum_distance=remaining)
+                 LIVING.sync(e,a)
+                 return result
+diff --git a/engine/survivalist_features.py b/engine/survivalist_features.py
+index 1fa33168df18db81418690c08a46edfb8f8c9542..9cb72bf69321b0067fa7e348a77c7172bfd145d7 100644
+--- a/engine/survivalist_features.py
++++ b/engine/survivalist_features.py
+@@ -296,6 +296,7 @@ def continue_approach(e,a,target,options):
+  import skill_feature_actions as SF
+  import turn as TURN
+  import movement_actions as MOVEMENT
++ import living_weapon as LIVING
+  r=a.spec['_survivalist_shift']
+  progress=r.setdefault('entry_progress',{'effects':[],'phase':'ready'})
+  MOVEMENT._paid_receipts(e,progress)
+@@ -309,11 +310,13 @@ def continue_approach(e,a,target,options):
+   q,cost,diagonal=r['path'][index];passed=True
+   if not e.grid.inside(q) or e.grid.blocked(a.pos,q) or q in e.occupied(a):raise ValueError('observed blinded Shift path changed before continuation')
+   origin=a.pos;altitude=a.spec.get('_movement_altitude',0)
++  if not LIVING.can_shift(e,a,cost,movement_mode=r['target'][3]):break
+   if r.get('departure_index')!=index:
+    if not MOVEMENT._paid_departure(e,a,q,altitude,progress):
+     if progress['phase']=='reaction_pending':return deepcopy(r['checks'])
+     break
+    r['departure_index']=index
++  if not LIVING.can_shift(e,a,cost,movement_mode=r['target'][3]):break
+   if index in r['check_indices']:
+    ordinal=r['check_indices'].index(index);skill,opts=plans[ordinal]
+    basis={'origin':r['origin'],'path':r['path'],'check_cell':q,'source':'condition/실명','frequency':r['frequency'],'reason':r['reason']}
+@@ -328,8 +331,8 @@ def continue_approach(e,a,target,options):
+   import burrow_tunnels as TUNNELS
+   TUNNELS.enter(e,a,r['mode'])
+   MOVEMENT.entry_mode(a,r['mode'])
+-  import control_mount as MOUNT,living_weapon as LIVING
+-  MOUNT.sync(e,a);LIVING.sync(e,a)
++  import control_mount as MOUNT
++  MOUNT.sync(e,a);LIVING.shifted(e,a,cost)
+   ready=MOVEMENT._paid_entry(e,a,progress,surface=True)
+   if not passed:
+    e.apply_status(a,'넘어짐');break
+diff --git a/tools/test_book_trickster_full.py b/tools/test_book_trickster_full.py
+index d3cfaf6e56e86008585b004881b51e9c09d22863..da990048a43eb43d661fb0a6776f8406538a8869 100644
+--- a/tools/test_book_trickster_full.py
++++ b/tools/test_book_trickster_full.py
+@@ -45,7 +45,15 @@ class TricksterFullTests(unittest.TestCase):
+   'test_stacked_scene_per_foe_quota_is_not_per_condition',
+  )
+ 
+- STACKED_CONDITIONS=('마비','얼음','조이기','잠듦','혼란','난동','억압','헤롱헤롱')
++ # Printed condition/effect rows: input/ch04-trainer-classes.md:1053-1054.
++ # Keep this oracle independent of the runtime's GROUPS classification.
++ STACKED_EXPECTED={
++  '마비':'save_trip_slow','얼음':'save_trip_slow',
++  '조이기':'save_trip_slow','잠듦':'save_trip_slow',
++  '혼란':'accuracy_evasion_minus_two','난동':'accuracy_evasion_minus_two',
++  '억압':'accuracy_evasion_minus_two','헤롱헤롱':'accuracy_evasion_minus_two',
++ }
++ STACKED_CONDITIONS=tuple(STACKED_EXPECTED)
+ 
+  STACKED_STAGE_CONTRACT=(
+   {'input':'one original core world and one acquired family','output':'failed then successful paralysis save; AP spent and Stacked Deck consumed, Trip+Slow live'},
+@@ -144,7 +152,7 @@ class TricksterFullTests(unittest.TestCase):
+     self.begin();self.source_condition(condition);self._stacked_previous_condition=condition
+     row=self.use('move/애교부리기',begin=False);self.e.stacked_deck(self.t,self.p,self.foe,row['id'],condition)
+     record=self.foe.custom_conditions[T.STACK_KEY][0]
+-    if condition in T.GROUPS[1]:
++    if self.STACKED_EXPECTED[condition]=='save_trip_slow':
+      self.assertEqual(record['group'],1)
+      RECOVERY.saving_check(self.e,self.foe,condition,20,fixed=1)
+      self.assertFalse(self.foe.custom_conditions[T.STACK_KEY][0]['consumed'])
+diff --git a/tools/test_csv_ability_exchange_contracts.py b/tools/test_csv_ability_exchange_contracts.py
+index cc1fa1bfe375776e79e4edacff0bb5aa4017b3f7..94498e44affa108e8c3b4d0ac60212780377d54c 100644
+--- a/tools/test_csv_ability_exchange_contracts.py
++++ b/tools/test_csv_ability_exchange_contracts.py
+@@ -366,15 +366,31 @@ class AbilityExchangeContractsTests(unittest.TestCase):
+     def test_real_interrupt_offer_use_is_blocked_after_gas_enters_but_decline_is_free(self):
+         import passive_events as PASSIVE
+         import tera_shell as TS
+-        self.give(self.t,['테라셸']);gas=self.actor('gas',['화학변화가스'],(10,10),'party')
+-        self.e.watch_ability_interrupt(self.t,TS.SOURCE,reason='watch actual native recipient')
+-        with self.assertRaises(PASSIVE.PassiveEventPending):self.hit(move='move/물대포')
+-        event=self.e._passive_pending
+-        self.e.gm.set_position(gas,(3,3),reason='actual gas enters while the native choice waits')
+-        assert_rejected_unchanged(self.e,lambda:self.e.choose_ability_interrupt(event,self.t,use=True,options={'chosen_type':'물'},reason='attempt actual trigger'),reason_pattern='Gas|gas|source|Interrupt|trigger')
+-        self.assertEqual(getattr(self.t,'_action_history',[]),[])
+-        self.e.choose_ability_interrupt(event,self.t,use=False,reason='actual decline remains permitted')
+-        self.assertIsNone(self.e._passive_pending);self.assertEqual(getattr(self.t,'_action_history',[]),[])
++        for use in (False,True):
++            with self.subTest(use_after_rejection=use):
++                self.setUp()
++                self.give(self.t,['테라셸']);gas=self.actor('gas',['화학변화가스'],(10,10),'party')
++                self.e.watch_ability_interrupt(self.t,TS.SOURCE,reason='watch actual native recipient')
++                with self.assertRaises(PASSIVE.PassiveEventPending):self.hit(move='move/물대포')
++                event=self.e._passive_pending;types_before=list(self.t.types)
++                self.e.gm.set_position(gas,(3,3),reason='actual gas enters while the native choice waits')
++                assert_rejected_unchanged(self.e,lambda:self.e.choose_ability_interrupt(event,self.t,use=True,options={'chosen_type':'물'},reason='attempt actual trigger'),reason_pattern='^Neutralizing Gas prohibits this triggered ability Interrupt$')
++                self.assertEqual(getattr(self.t,'_action_history',[]),[])
++                if use:
++                    # The same pending choice succeeds when only the Gas source leaves.
++                    self.e.gm.set_position(gas,(10,10),reason='only Gas leaves the waiting recipient')
++                    self.e.choose_ability_interrupt(event,self.t,use=True,options={'chosen_type':'물'},reason='attempt actual trigger')
++                    self.assertEqual(self.t.types,['물'])
++                else:
++                    # Decline remains legal with Gas still present.
++                    self.e.choose_ability_interrupt(event,self.t,use=False,reason='actual decline remains permitted')
++                    self.assertEqual(self.t.types,types_before)
++                    self.assertNotIn(TS.KEY,self.t.spec)
++                self.assertIsNone(self.e._passive_pending)
++                self.assertEqual(getattr(self.t,'_action_history',[]),['free'] if use else [])
++                attempt=self.e._passive_events[event]['ability_interrupts']['attempts'][0]
++                self.assertEqual(attempt['paid'],use)
++                self.assertEqual(attempt['outcome'],'activated' if use else 'declined')
+ 
+     def test_exact_registry_four_parents_and_two_lossless_copies_are_not_extra_credit(self):
+         ledger=json.loads((ROOT/'data/verification/category2-csv-abilities-moves-status.json').read_text(encoding='utf-8'))

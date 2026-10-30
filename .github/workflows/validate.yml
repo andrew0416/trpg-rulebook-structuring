@@ -12,6 +12,7 @@ on:
           - workflow_checks
           - ci_adapter_checks
           - aa_native
+          - aa4_acceptance
           - aa_diagnostics
           - changed_revisions
           - prepare_reviewed_controls
@@ -31,6 +32,11 @@ on:
           - rank_revisions
           - retraining
           - next_revisions
+
+      expected_package_blob:
+        description: Exact approved ciphertext Git blob for aa4_acceptance only
+        type: string
+        required: false
 
       expected_parent:
         description: Exact current codex branch head for prepare_reviewed_controls only
@@ -802,4 +808,134 @@ jobs:
           name: implementation-aa-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
           path: aa-diagnostics.json
           if-no-files-found: error
+          retention-days: 14
+
+  aa4_acceptance:
+    if: >-
+      github.repository == 'andrew0416/trpg-rulebook-structuring' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.suite == 'aa4_acceptance' &&
+      github.ref == 'refs/heads/codex/aa-current17-admission-1030'
+    runs-on: windows-2022
+    timeout-minutes: 55
+    concurrency:
+      group: aa4-retained-admission-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11'
+      - name: Check adapter fixture and path guards remotely
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-aa-admission' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT
+          New-Item -ItemType Directory -Path $taskTemp -ErrorAction Stop | Out-Null
+          "TEMP=$taskTemp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "TMP=$taskTemp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "TMPDIR=$taskTemp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $env:TEMP = $taskTemp
+          $env:TMP = $taskTemp
+          $env:TMPDIR = $taskTemp
+          $env:RUNNER_TEMP = $env:TEMP
+          $taskChecks = 'output/ci/aa-tooling-checks'
+          New-Item -ItemType Directory -Path $taskChecks -ErrorAction Stop | Out-Null
+          $taskSourcePins = @{}
+          foreach ($taskSource in @('tools/ci_aa_acceptance.py', 'tools/ci_aa_recovery.py', 'tools/test_ci_aa_current17_transform.py', 'tools/aa_current17_reviewed.patch', 'tools/ci_h_checker.py')) {
+            $taskSourcePins[$taskSource] = (Get-FileHash -LiteralPath $taskSource -Algorithm SHA256).Hash.ToLowerInvariant()
+          }
+          @{ head=$env:GITHUB_SHA; run=$env:GITHUB_RUN_ID; attempt=$env:GITHUB_RUN_ATTEMPT; scope='synthetic_tooling_only'; game_runs=0; clause_credit=0; source_sha256=$taskSourcePins } |
+            ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$taskChecks/source-binding.json" -Encoding utf8
+          python -B -X utf8 tools/ci_aa_acceptance.py --root "$env:GITHUB_WORKSPACE" --self-check 2>&1 | Tee-Object -FilePath "$taskChecks/adapter-self-check.log"
+          $taskExit = $LASTEXITCODE
+          @{ exit_code=$taskExit; passed=($taskExit -eq 0); game_runs=0; clause_credit=0 } |
+            ConvertTo-Json | Set-Content -LiteralPath "$taskChecks/adapter-self-check.json" -Encoding utf8
+          if ($taskExit -ne 0) { exit $taskExit }
+      - name: Run seven synthetic current17 transform regressions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $env:RUNNER_TEMP = $env:TEMP
+          python -B -X utf8 -m unittest discover -s tools -p test_ci_aa_current17_transform.py -v 2>&1 | Tee-Object -FilePath output/ci/aa-tooling-checks/current17-synthetic.log
+          $taskExit = $LASTEXITCODE
+          if ($taskExit -eq 0 -and -not ((Get-Content -LiteralPath output/ci/aa-tooling-checks/current17-synthetic.log -Raw) -match '(?m)^Ran 7 tests in ')) { $taskExit = 1 }
+          @{ exit_code=$taskExit; passed=($taskExit -eq 0); declared_tests=7; game_runs=0; clause_credit=0 } |
+            ConvertTo-Json | Set-Content -LiteralPath output/ci/aa-tooling-checks/current17-synthetic.json -Encoding utf8
+          if ($taskExit -ne 0) { exit $taskExit }
+      - name: Authenticate existing evidence and invoke installed retained gate
+        shell: pwsh
+        env:
+          PTK_FIXTURE_KEY: ${{ secrets.PTK_FIXTURE_KEY }}
+          PTK_ABILITY_EXCHANGE_POLICY_B64: ${{ secrets.PTK_ABILITY_EXCHANGE_POLICY_B64 }}
+          GH_TOKEN: ${{ github.token }}
+          AA_PACKAGE_BLOB: ${{ inputs.expected_package_blob }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
+          if ($env:AA_PACKAGE_BLOB -cne '5778c37c9e25549de67dcaf2babf02ddb13cd0ef') { throw 'Exact approved802 ciphertext Git blob required' }
+          $env:RUNNER_TEMP = $env:TEMP
+          $taskConsole = Join-Path $env:TEMP 'aa-admission-console.private.log'
+          python -B -X utf8 tools/ci_aa_acceptance.py --root "$env:GITHUB_WORKSPACE" --expected-package-blob "$env:AA_PACKAGE_BLOB" *> $taskConsole
+          $taskAdmissionExit = $LASTEXITCODE
+          $taskEncrypt = @'
+          import os, sys
+          from pathlib import Path
+          root = Path(os.environ['GITHUB_WORKSPACE']).resolve()
+          temporary = Path(os.environ['RUNNER_TEMP']).resolve()
+          if root.drive.upper() != 'D:' or temporary.drive.upper() != 'D:':
+              raise SystemExit('D-only console encryption required')
+          sys.path.insert(0, str(root/'tools'))
+          from ci_remote_h import crypt
+          output = root/'output/ci/aa-acceptance'
+          output.mkdir(parents=True, exist_ok=True)
+          try:
+              crypt(root, 'encrypt', temporary/'aa-admission-console.private.log',
+                    output/'adapter-console.log.enc', os.environ.pop('PTK_FIXTURE_KEY'))
+          except Exception:
+              raise SystemExit('Private admission console encryption failed')
+          '@
+          $env:RUNNER_TEMP = $env:TEMP
+          python -B -X utf8 -c $taskEncrypt
+          $taskEncryptionExit = $LASTEXITCODE
+          if (Test-Path -LiteralPath output/ci/aa-acceptance/summary.json) {
+            Get-Content -LiteralPath output/ci/aa-acceptance/summary.json -Raw
+          }
+          if ($taskEncryptionExit -ne 0) { exit $taskEncryptionExit }
+          if ($taskAdmissionExit -ne 0) { exit $taskAdmissionExit }
+      - name: Preserve synthetic checks separately from admission evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: aa4-tooling-checks-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/ci/aa-tooling-checks/source-binding.json
+            output/ci/aa-tooling-checks/adapter-self-check.log
+            output/ci/aa-tooling-checks/adapter-self-check.json
+            output/ci/aa-tooling-checks/current17-synthetic.log
+            output/ci/aa-tooling-checks/current17-synthetic.json
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Preserve encrypted generated artifacts and allowlisted summary
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: aa4-retained-admission-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/ci/aa-acceptance/summary.json
+            output/ci/aa-acceptance/acceptance.zip.enc
+            output/ci/aa-acceptance/adapter-console.log.enc
+          if-no-files-found: warn
           retention-days: 14
