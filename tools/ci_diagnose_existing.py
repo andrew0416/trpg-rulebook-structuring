@@ -14,16 +14,16 @@ import urllib.request
 import zipfile
 
 REPOSITORY = 'andrew0416/trpg-rulebook-structuring'
-SOURCE_RUN = 41042269681
+SOURCE_RUN = 41051513111
 SOURCE_ATTEMPT = 1
-SOURCE_HEAD = 'd8835646163254d5be7ebdfbcdd5af75240f7ff7'
-ARTIFACT_ID = 12971049513
-ARTIFACT_NAME = 'diagnostics-changed_revisions-41042269681-1'
-ARTIFACT_SHA256 = '7ae6d38a2927f014935bcff81f51c01669c8bb3d65844689ebacdd5d9d9d487f'
-ARTIFACT_SIZE = 1129612
+SOURCE_HEAD = '71430c7bbd376c672722e2d754c08bb87e0758d8'
+ARTIFACT_ID = 12976577045
+ARTIFACT_NAME = 'diagnostics-changed_revisions-41051513111-1'
+ARTIFACT_SHA256 = 'a136dff1e5327ad318db0fb77149a37ee8434309139e8a01b59bd0b28350e118'
+ARTIFACT_SIZE = 1102915
 API = 'https://api.github.com/repos/' + REPOSITORY
 PACKET = '.ci/suites/changed_revisions.json'
-STAGE = 'D:/trpg-rulebook-structuring/ci/41042269681-1-changed_revisions'
+STAGE = 'D:/trpg-rulebook-structuring/ci/41051513111-1-changed_revisions'
 STATUSES = {'pass', 'fail', 'error', 'skip', 'expected_failure', 'unexpected_success', 'unverified', 'not_run'}
 EXCEPTIONS = {'AssertionError', 'ValueError', 'TypeError', 'KeyError', 'NameError', 'AttributeError',
               'RuntimeError', 'IndexError', 'ZeroDivisionError', 'UnboundLocalError', 'ImportError',
