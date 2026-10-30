@@ -264,6 +264,7 @@ def end_scene(engine):
     def apply(e,first,*others):
         for c in (first,*others):
             row=c.spec[KEY];G.revoke(c,row['grant_source'],engine=e);c.spec.pop(KEY)
+            G.reconcile(e,c)
         state(e,True)['uses'].clear();validate_world(e,W.actor_index(e))
     G.transition(engine,targets[0],apply,participants=tuple(targets[1:]))
 

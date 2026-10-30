@@ -157,10 +157,21 @@ class KeenEyeCompositionTests(unittest.TestCase):
 
  def test_actual_helping_hand_shared_area_replays_mixed_gm_entries_once_per_roll(self):
   from grid import Grid
+  from builder import build_pokemon
   import roll_effects as R,native_scenario_fixture as NATIVE
+  import effects_ext as EXT
   f=self.fixture('test_category2_roll_components','RollComponentTests')
   f.e.grid=Grid(8,8);self.keen(f.e,f.p)
-  issued=f.grant();f.a.pos=(2,1);f.e.start_of_turn(f.p)
+  enemies=[]
+  for number,cell in enumerate(((2,0),(2,1)),1):
+   enemy=Combatant(f.r,build_pokemon(f.r,'이브이',20,name='actual area enemy '+str(number),
+       moves=[],abilities=[],wild=True))
+   f.e.gm.add_combatant(enemy,pos=cell,side='wild',reason='actual opposing Swift recipient')
+   enemies.append(enemy)
+  issued=f.grant()
+  f.e.gm.set_position(f.other,(0,2),reason='actual ally outside the Swift cone')
+  f.e.start_of_turn(f.p)
+  self.assertIn('친화',EXT.keywords_for(f.p,f.r.move('move/스피드스타')))
   for value in (2,-3):
    f.e.rulings.add_situational('accuracy',value,who=f.p.name,uses=1,
        reason='independent observed accuracy '+str(value),scope='scene')
@@ -168,7 +179,7 @@ class KeenEyeCompositionTests(unittest.TestCase):
   self.assertEqual(len(f.e.rulings.situational),2)
   before_uses=f.p.move_uses.get('move/스피드스타',0)
   with patch.object(Engine,'d20',return_value=18):
-   _,seen=self.observed(lambda:f.e.use_move_on(f.p,f.other,'move/스피드스타',[f.p,f.other,f.a],set_damage=True))
+   _,seen=self.observed(lambda:f.e.use_move_on(f.p,enemies[0],'move/스피드스타',f.e.gm.everyone,set_damage=True))
   # use_move_on returns damage; native payment and roll receipts prove activation.
   self.assertEqual(f.p.move_uses['move/스피드스타'],before_uses+1)
   self.assertEqual(f.p.budget['standard'],0)
@@ -177,7 +188,7 @@ class KeenEyeCompositionTests(unittest.TestCase):
   closed=next(r for r in R.closed(f.p) if r['id']==issued['id'])
   accuracy=[a for a in closed['applications'] if a['component']=='accuracy']
   self.assertEqual(len(accuracy),1)
-  self.assertEqual(set(accuracy[0]['target_ids']),{f.a.entity_id,f.other.entity_id})
+  self.assertEqual(set(accuracy[0]['target_ids']),{enemy.entity_id for enemy in enemies})
   self.assertEqual(accuracy[0]['amount'],2)
   self.assertEqual(len(closed['applications']),2)
   restored=f.restored();index=WORLD.actor_index(restored)

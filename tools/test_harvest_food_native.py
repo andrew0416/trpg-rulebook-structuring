@@ -205,10 +205,16 @@ class HarvestFoodTests(unittest.TestCase):
         receipt=a.spec['food_consumption_receipts'][0]
         original=deepcopy(receipt)
         receipt[INSTANCES.KEY]=deepcopy(a.buffs[0][INSTANCES.KEY])
-        with self.assertRaises(ValueError):e.validate_state()
+        report=e.validate_state()
+        self.assertFalse(report['valid'])
+        self.assertIn('effect_instance',{row['code'] for row in report['issues']})
+        with self.assertRaises(ValueError):CODEC.dump_engine(e)
         receipt.clear();receipt.update(deepcopy(original))
         receipt['retained_buff']['effect']['amount']=999
-        with self.assertRaises(ValueError):e.validate_state()
+        report=e.validate_state()
+        self.assertFalse(report['valid'])
+        self.assertIn('effect_instance',{row['code'] for row in report['issues']})
+        with self.assertRaises(ValueError):CODEC.dump_engine(e)
         receipt.clear();receipt.update(original)
         self.restored(e)
 

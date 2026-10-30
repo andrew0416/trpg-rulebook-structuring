@@ -100,7 +100,7 @@ class NativeWeatherActionTests(unittest.TestCase):
                 self.assertEqual((result['details']['healed'], a.budget['swift']), (a.hp - before, 0))
                 quota = NATIVE.SUN_BLANKET[0] if source in NATIVE.SUN_BLANKET else source
                 self.assertEqual(FREQ.state(a)['activations'][quota]['used'], 1)
-                self.assertIn(NATIVE.registration(self.rules, source)['name'], a.abilities)
+                self.assertIn(source, a.abilities)
                 self.valid(e)
 
     def test_healing_daily_five_persists_restore_and_does_not_reset_with_weather(self):
@@ -206,7 +206,8 @@ class NativeWeatherActionTests(unittest.TestCase):
         tick = e.tick(a)
         with patch.object(e, 'd20', return_value=17):
             boosted = e.use_move(a, target, 'move/몸통박치기', set_damage=True)
-        self.assertEqual(boosted['dealt'], ordinary['dealt'] + 5 + tick)
+        self.assertGreater(ordinary, 0)
+        self.assertEqual(boosted, ordinary + 5 + tick)
         f.next_round(e, a)
         e.gm.set_hp(target, target.max_hp, reason='actual recovery between damage samples')
         e.activate_ability(a, source, (a, {'move_id':'move/몸통박치기'}))
@@ -255,7 +256,8 @@ class NativeWeatherActionTests(unittest.TestCase):
         e.activate_ability(a,source,(a,{'move_id':'move/더블어택'}))
         with patch.object(Engine,'d20',return_value=17):
             boosted=e.use_move(a,target,'move/더블어택',set_damage=True)
-        self.assertEqual(boosted['dealt'],ordinary['dealt']+5+tick)
+        self.assertGreater(ordinary,0)
+        self.assertEqual(boosted,ordinary+5+tick)
         self.assertEqual(len(a.spec['multi_strike_history'][-1]['rolls']),2)
         paid=[row for row in a.spec[NATIVE.HISTORY] if row['operation']=='solar_power']
         self.assertEqual(len(paid),1)

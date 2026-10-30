@@ -1,5 +1,7 @@
 """U-012 through actual HB Guide and existing native weather consumers."""
+from copy import deepcopy
 from pathlib import Path
+from unittest.mock import patch
 import sys
 import unittest
 
@@ -15,7 +17,17 @@ import survivalist_class as SC
 
 class SurvivalistWeatherConsumerTests(unittest.TestCase):
  @classmethod
- def setUpClass(cls):cls.rules=Rules(ROOT,ruleset='all')
+ def setUpClass(cls):
+  from ruleset import RuleFilter
+  profile=deepcopy(RuleFilter.load(ROOT,'all').profile)
+  profile['exclude_units']=list(profile.get('exclude_units',[]))+['hb-weather']
+  selected=RuleFilter(profile,'all-with-core-weather')
+  with patch.object(RuleFilter,'load',return_value=selected):
+   cls.rules=Rules(ROOT,ruleset='all')
+
+ def test_fixture_selects_core_ambient_weather_with_csv_abilities(self):
+  import homebrew_weather as HOME
+  self.assertFalse(HOME.enabled(self.rules))
 
  def scene(self,source):
   fixture=HB.SurvivalistHBTests();fixture.rules=self.rules;fixture.setUp();self.addCleanup(fixture.doCleanups)
@@ -68,6 +80,40 @@ class SurvivalistWeatherConsumerTests(unittest.TestCase):
     GRANTS.revoke(foe,'gm/weather-test/'+copy,engine=e)
     GRANTS.revoke(foe,'gm/weather-second-copy',engine=e);GRANTS.reconcile(e,foe)
     self.assertEqual(e.initiative_value(foe).value,base)
+
+ def test_weather_initiative_legacy_projection_requires_its_actual_registration(self):
+  source='ability/쓱쓱-playtest'
+  _,w=self.scene(source);e,foe=w['engine'],w['foe']
+  e.gm.set_weather('rain',rounds=None,reason='actual weather for registration checks')
+  row=next(row for row in foe.modifiers if row.get('_rule_id')==source and row.get('type')=='initiative_multiplier')
+  original=deepcopy(row);state=foe.spec[GRANTS.KEY]
+  token=row[GRANTS.TAG];label=row['_ability']
+  base=foe.staged('spe')
+  self.assertEqual(e.initiative_value(foe).value,base*2)
+  for change in ({GRANTS.TAG:None},{GRANTS.TAG:'missing-weather-registration'},
+                 {'_initiative_receipt':'forged-dispatch'}, {'_ability':'unrelated Ability'}, {'value':3}):
+   with self.subTest(change=change):
+    row.clear();row.update(original);row.update(change)
+    result=e.initiative_value(foe)
+    self.assertIsNone(result.value);self.assertTrue(result.unresolved)
+  row.clear();row.update(original)
+  receipt=state['effects'].pop(token)
+  result=e.initiative_value(foe)
+  self.assertIsNone(result.value);self.assertTrue(result.unresolved)
+  state['effects'][token]=receipt
+  fields=receipt['rows'];receipt['rows']=[]
+  result=e.initiative_value(foe)
+  self.assertIsNone(result.value);self.assertTrue(result.unresolved)
+  receipt['rows']=fields
+  state['ability_receipts'].pop(label)
+  result=e.initiative_value(foe)
+  self.assertIsNone(result.value);self.assertTrue(result.unresolved)
+  state['ability_receipts'][label]=token
+  foe.abilities_suppressed=True
+  self.assertEqual(e.initiative_value(foe).value,base)
+  foe.abilities_suppressed=False
+  self.assertEqual(e.initiative_value(foe).value,base*2)
+  self.assertTrue(e.validate_state()['valid'])
 
  def test_veil_evasion_keeps_base_and_terrain_while_guided_attacker_ignores_named_ability(self):
   for source,(weather,surface) in WEATHER.VEILS.items():

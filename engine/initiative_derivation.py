@@ -206,7 +206,7 @@ def collect(rules, actor, *, engine=None):
                           'ability/쓱쓱-playtest':'rain',
                           'ability/모래헤치기-playtest':'sandstorm',
                           'ability/눈치우기':'hail'}
-    # CSV rows have no registered effects; canonical active ownership is the producer.
+    # Canonical active ownership supplies one contribution per reviewed Ability.
     owned = {} if actor.abilities_suppressed else ABILITIES.project_components(actor)
     for source, weather in weather_initiative.items():
         if source not in owned:
@@ -221,6 +221,22 @@ def collect(rules, actor, *, engine=None):
         for index, effect in enumerate(getattr(actor, field, ())):
             if effect.get('type') not in ('initiative','initiative_multiplier'):
                 continue
+            # The exact legacy CSV projection is already consumed by its native owner.
+            source = effect.get('_rule_id')
+            legacy = {k:v for k,v in effect.items() if not k.startswith('_')}
+            if (source in weather_initiative and legacy == {
+                    'type':'initiative_multiplier', 'value':2,
+                    'if':weather_initiative[source]+' or hp < half'}):
+                label = ABILITIES.label(actor.r, source)
+                token = effect.get(GRANTS.TAG)
+                receipt = state.get('effects', {}).get(token, {})
+                if (source in ABILITIES.project_components(actor, include_suppressed=True)
+                        and token == 'ability:'+label
+                        and token == state.get('ability_receipts', {}).get(label)
+                        and effect.get('_ability') == label
+                        and field in receipt.get('rows', ())
+                        and '_initiative_receipt' not in effect):
+                    continue
             unknown = {k for k in effect if not k.startswith('_')}-{'type','delta','multiplier','set_to','value','priority','source'}
             if unknown:
                 raise InitiativePending('registered initiative extension has unresolved qualifiers')

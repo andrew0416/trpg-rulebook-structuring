@@ -248,6 +248,7 @@ class WeatherTypeProjectionTests(unittest.TestCase):
   self.assertTrue(loaded.validate_state()['valid'])
   loaded.end_scene(round_elapsed_seconds=10)
   self.assertNotIn(MEGA.KEY,enemy.spec)
+  self.assertFalse(A.active(enemy,FORECAST))
   self.assertNotIn(FORECAST,enemy.spec[P.KEY])
   self.assertNotIn(sid,enemy.spec[G.KEY]['sources'])
   self.assertTrue(loaded.validate_state()['valid'])
