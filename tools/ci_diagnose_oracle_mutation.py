@@ -4,7 +4,7 @@ import hashlib
 import io
 import json
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import subprocess
 import tempfile
@@ -180,6 +180,177 @@ def predicates(native, report, physical, log, report_name, output_path, source_h
         'test_ids': [TEST] if isinstance(report.get('collected'), list) and TEST in report['collected'] else []}
 
 
+def inspect_original_cleanliness(root, private, native, physical):
+    """Compare retained tracked bytes, then observe a new checkout; never rewrite run_clean."""
+    tree = {}
+    for entry in git(root, 'ls-tree', '-r', '-z', '--full-tree', SOURCE_HEAD).split(b'\0'):
+        if not entry:
+            continue
+        info, name = entry.split(b'\t', 1)
+        mode, kind, oid = info.decode('ascii').split()
+        name = name.decode('utf-8')
+        path = PurePosixPath(name)
+        require(kind == 'blob' and mode in ('100644', '100755')
+                and not path.is_absolute() and '..' not in path.parts and path.as_posix() == name)
+        require(name not in tree)
+        tree[name] = oid
+    require(bool(tree))
+    pins = physical['runtime_test_data_sha256_before']
+    after = physical['runtime_test_data_sha256_after']
+    require(isinstance(pins, dict) and isinstance(after, dict))
+    expected = {name:pins.get(str(PureWindowsPath(STAGE)/name)) for name in tree}
+    missing = [name for name, value in expected.items()
+               if not isinstance(value, str) or re.fullmatch('[a-f0-9]{64}', value) is None]
+    mismatches, eol_candidates = [], {}
+    # One cat-file process avoids one Git process per public tracked source.
+    with (private/'blob-read.stderr').open('xb') as errors:
+        reader = subprocess.Popen(['git', '-C', str(root), 'cat-file', '--batch'],
+                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=errors)
+        try:
+            for name, oid in tree.items():
+                reader.stdin.write((oid+'\n').encode('ascii'))
+                reader.stdin.flush()
+                header = reader.stdout.readline().decode('ascii').strip().split()
+                require(len(header) == 3 and header[0] == oid and header[1] == 'blob')
+                size = int(header[2])
+                digest, remaining = hashlib.sha256(), size
+                small = bytearray() if size <= 4*1024*1024 else None
+                while remaining:
+                    chunk = reader.stdout.read(min(1024*1024, remaining))
+                    require(bool(chunk))
+                    digest.update(chunk)
+                    if small is not None:
+                        small.extend(chunk)
+                    remaining -= len(chunk)
+                require(reader.stdout.read(1) == b'\n')
+                if name not in missing and digest.hexdigest() != expected[name]:
+                    mismatches.append(name)
+                    if small is not None:
+                        raw = bytes(small)
+                        eol_candidates[name] = (
+                            hashlib.sha256(raw.replace(b'\r\n', b'\n')).hexdigest() == expected[name]
+                            or hashlib.sha256(raw.replace(b'\r\n', b'\n').replace(b'\n', b'\r\n')).hexdigest() == expected[name])
+            reader.stdin.close()
+            require(reader.wait(timeout=60) == 0)
+        finally:
+            if reader.poll() is None:
+                reader.kill()
+                reader.wait()
+            reader.stdout.close()
+    fresh = private/'fresh-source-checkout'
+    clone = subprocess.run(['git', 'clone', '--shared', '--no-checkout', str(root), str(fresh)],
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180)
+    require(clone.returncode == 0)
+    checkout = subprocess.run(['git', '-C', str(fresh), 'checkout', '--detach', SOURCE_HEAD],
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180)
+    require(checkout.returncode == 0 and git(fresh, 'rev-parse', 'HEAD').decode().strip() == SOURCE_HEAD)
+    status = subprocess.run(['git', '-C', str(fresh), 'status', '--porcelain', '--untracked-files=no'],
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+    require(status.returncode == 0)
+    dirty = [name.decode('utf-8') for name in
+             git(fresh, 'diff', '--name-only', '-z', 'HEAD').split(b'\0') if name]
+    require(set(dirty) <= set(tree))
+    reproduced = {}
+    for name in mismatches:
+        target = fresh/name
+        require(not target.is_symlink() and target.resolve().is_relative_to(fresh))
+        with target.open('rb') as stream:
+            reproduced[name] = hashlib.file_digest(stream, 'sha256').hexdigest() == expected[name]
+    stderr_categories = []
+    for needle, label in ((b'LF will be replaced by CRLF', 'lf_to_crlf_warning'),
+                          (b'CRLF will be replaced by LF', 'crlf_to_lf_warning'),
+                          (b'warning:', 'git_warning')):
+        if needle in status.stderr:
+            stderr_categories.append(label)
+    if status.stderr and not stderr_categories:
+        stderr_categories.append('other_stderr_not_published')
+    return dict(
+        original_tracked_changes_is_true=native.get('tracked_changes') is True,
+        original_status_stdout_stderr_not_recorded=True,
+        recorded_scope='Git-tracked subset of original physical pre/post input maps; copy_stage verifies root-to-stage bytes',
+        tracked_file_count=len(tree), missing_pin_count=len(missing),
+        missing_public_tracked_paths=sorted(missing)[:100],
+        blob_mismatch_count=len(mismatches), mismatch_public_tracked_paths=sorted(mismatches)[:100],
+        all_recorded_tracked_bytes_equal_source_tree=not missing and not mismatches,
+        recorded_pre_post_maps_equal=pins == after,
+        newline_only_mismatch_count=sum(eol_candidates.values()),
+        all_recorded_mismatches_reproduced_in_fresh_checkout=bool(mismatches) and all(reproduced.values()),
+        fresh_reproduced_public_paths=sorted(name for name, matched in reproduced.items() if matched)[:100],
+        fresh_diff_tracked_count=len(dirty), fresh_diff_public_paths=sorted(dirty)[:100],
+        fresh_porcelain_stdout_nonempty=bool(status.stdout), fresh_status_stderr_nonempty=bool(status.stderr),
+        fresh_legacy_merged_boolean=bool(status.stdout+status.stderr),
+        fresh_stderr_only_false_dirty_reproduced=not status.stdout and bool(status.stderr),
+        fresh_status_stderr_categories=stderr_categories,
+        fresh_status_stdout_sha256=hashlib.sha256(status.stdout).hexdigest(),
+        fresh_status_stderr_sha256=hashlib.sha256(status.stderr).hexdigest(),
+        fresh_git_version_matches_original=git(fresh, '--version').decode().strip() == native.get('git_version'),
+        historical_dirty_flag_rewritten=False, historical_cause_certified=False,
+        mutation_acceptance='not_decided', native_runs=0, verifier_reruns=0, h_reruns=0)
+
+def inspect_aa_fresh_checkout(root, private):
+    """Observe this exact AA head afresh; do not infer historical byte identity."""
+    head = 'a5ae917e182e3caf129ad4df6fc78ff9057c6001'
+    tree = {}
+    for entry in git(root, 'ls-tree', '-r', '-z', '--full-tree', head).split(b'\0'):
+        if not entry:
+            continue
+        info, name = entry.split(b'\t', 1)
+        mode, kind, oid = info.decode('ascii').split()
+        name = name.decode('utf-8')
+        path = PurePosixPath(name)
+        require(kind == 'blob' and mode in ('100644', '100755')
+                and not path.is_absolute() and '..' not in path.parts and path.as_posix() == name)
+        require(name not in tree)
+        tree[name] = oid
+    require(bool(tree))
+    fresh = private/'fresh-aa-source-checkout'
+    clone = subprocess.run(['git', 'clone', '--shared', '--no-checkout', str(root), str(fresh)],
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180)
+    require(clone.returncode == 0)
+    checkout = subprocess.run(['git', '-C', str(fresh), 'checkout', '--detach', head],
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180)
+    require(checkout.returncode == 0 and git(fresh, 'rev-parse', 'HEAD').decode().strip() == head)
+    status = subprocess.run(['git', '-C', str(fresh), 'status', '--porcelain', '--untracked-files=no'],
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+    require(status.returncode == 0)
+    dirty = [name.decode('utf-8') for name in
+             git(fresh, 'diff', '--name-only', '-z', 'HEAD').split(b'\0') if name]
+    require(set(dirty) <= set(tree))
+    compared = []
+    for name in dirty:
+        target = fresh/name
+        require(not target.is_symlink() and target.resolve().is_relative_to(fresh))
+        if not target.is_file():
+            compared.append(dict(path=name, kind='missing_file'))
+            continue
+        original = git(root, 'cat-file', 'blob', tree[name])
+        actual = target.read_bytes()
+        compared.append(dict(
+            path=name, kind='present_file',
+            bytes_equal=actual == original,
+            newline_normalized_equal=actual.replace(b'\r\n', b'\n') == original.replace(b'\r\n', b'\n'),
+            original_sha256=hashlib.sha256(original).hexdigest(),
+            fresh_sha256=hashlib.sha256(actual).hexdigest()))
+    categories = []
+    for needle, label in ((b'LF will be replaced by CRLF', 'lf_to_crlf_warning'),
+                          (b'CRLF will be replaced by LF', 'crlf_to_lf_warning'),
+                          (b'warning:', 'git_warning')):
+        if needle in status.stderr:
+            categories.append(label)
+    if status.stderr and not categories:
+        categories.append('other_stderr_not_published')
+    return dict(
+        source_head=head, observation_scope='fresh checkout reproduction only',
+        historical_status_stdout_was_nonempty=True,
+        historical_physical_map_compared=False, historical_cause_certified=False,
+        tracked_file_count=len(tree), fresh_diff_tracked_count=len(dirty),
+        fresh_diff_public_paths=sorted(dirty)[:100], fresh_dirty_byte_comparisons=compared[:100],
+        fresh_porcelain_stdout_nonempty=bool(status.stdout),
+        fresh_status_stderr_nonempty=bool(status.stderr), fresh_status_stderr_categories=categories,
+        fresh_status_stdout_sha256=hashlib.sha256(status.stdout).hexdigest(),
+        fresh_status_stderr_sha256=hashlib.sha256(status.stderr).hexdigest(),
+        aa_acceptance='not_decided', native_runs=0, verifier_reruns=0, h_reruns=0)
+
 def diagnose(root, private, key, token):
     global PHASE
     PHASE = 'run_api_binding'
@@ -263,6 +434,10 @@ def diagnose(root, private, key, token):
         log = log_body.decode('utf-8-sig')
     PHASE = 'original_predicate_observation'
     reduced = predicates(native, report, physical, log, report_name, output_path, source_hashes)
+    PHASE = 'original_tracked_bytes_and_fresh_checkout'
+    reduced['cleanliness_followup'] = inspect_original_cleanliness(root, private, native, physical)
+    PHASE = 'aa_fresh_checkout_observation'
+    reduced['aa_cleanliness_followup'] = inspect_aa_fresh_checkout(root, private)
     return dict(status='DIAGNOSTIC_ONLY_SOURCE_FAILURE_PRESERVED', source_run=SOURCE_RUN,
                 source_attempt=SOURCE_ATTEMPT, source_head=SOURCE_HEAD, artifact_id=ARTIFACT_ID,
                 artifact_sha256=ARTIFACT_SHA256, original_native_status='FAIL', original_h_not_reassessed=True,
