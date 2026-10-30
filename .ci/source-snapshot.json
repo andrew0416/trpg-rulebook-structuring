@@ -24,9 +24,9 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "native-class-composed05-stage1",
-  "active_repair_scope": "Natural Fighter (pending/moves/class routes/awareness/urban/Heavy contract/Fling core+capture+consumable+Blend) and Glitch Bender (Snatch+consumers+ordered responders, Metronome+Upper, Code Injection+expiry, ten Error Moves); 222 declared methods in 17 modules, all new against base e26 (Stockpile family repairs included)",
-  "active_repair_required_tests": 222,
+  "active_repair": "native-class-composed05-stage2",
+  "active_repair_scope": "Direct-impact existing methods for shared owners changed by the composed Natural Fighter / Glitch Bender candidate (combat_move_reactions, vitamin_moves, item_containers, defense_curl, restorative_items, consumption_execution, lifetime_consumables, capture_resolution, researcher_fields); 183 declared existing methods in 17 modules (1 of 184 trimmed: pre-existing base defect at e26a43b)",
+  "active_repair_required_tests": 183,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -42,7 +42,7 @@
   "separately_pending_frequency_equivalence_methods": 1029,
   "separately_pending_procedural_runners": 21,
   "ordinary_shard_count": 18,
-  "active_repair_phase": "source_composed_unexecuted_remote_validation_proposed",
+  "active_repair_phase": "stage1_remote_accepted_stage2_direct_impact_remote_validation_pending",
   "active_repair_procedural_runners": 0,
   "full_method_obligations": 13847,
   "ordinary_methods_separate_run": 40141538702,
@@ -77,7 +77,7 @@
   "phase2_metadata_methods_mandatory": 0,
   "phase2_additional_procedural_runners": 0,
   "unaffected_previous_PASS_reused": 0,
-  "selected_method_obligations": 22,
+  "selected_method_obligations": 183,
   "partial_prerequisite_refresh": true,
   "full_method_scope_executed": false,
   "source_fresh_native_prerequisites": 1404,
@@ -1054,5 +1054,12 @@
     "native_runs": 0,
     "completion_credit": 0,
     "main_merge": false
+  },
+  "active_repair_previous_stage": {
+    "id": "native-class-composed05-stage1",
+    "head": "5735fcf82732a7146d83334a3f1b31f9026ccf61",
+    "run": 41110148704,
+    "result": "222/222 pass, independent H: H_PHYSICAL_ACCEPTED (ordinary_verified 222, native_runs 0, completion_credit 0)",
+    "packet_archive": "work/.../native-class-composed05/remote-proposal/changed_revisions.stage1.json (outside the repository)"
   }
 }
