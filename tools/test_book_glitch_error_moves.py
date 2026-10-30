@@ -29,10 +29,18 @@ class ErrorMoveTests(unittest.TestCase):
  FEATURE={name:feature for feature,names in B.TEACHING.items() for name in names}
 
  def edition(self,mid,edition):
-  versions=self.rules.ruleset.unit_versions;old=deepcopy(versions)
-  self.addCleanup(lambda:(versions.clear(),versions.update(old)))
-  if edition=='glitch-csv':versions.pop(mid,None)
-  else:versions[mid]=edition
+  """Select an Error Move edition like existing version tests: a fresh Rules whose profile carries unit_versions."""
+  cls=type(self)
+  self.addCleanup(lambda:(setattr(self,'rules',cls.rules),setattr(self,'base_rulings',cls.base_rulings)))
+  if edition=='glitch-csv':
+   self.rules,self.base_rulings=cls.rules,cls.base_rulings;return
+  cache=cls.__dict__.get('_edition_rules') or {};key=(mid,edition)
+  if key not in cache:
+   from ruleset import RuleFilter
+   rules=_fixture.Rules(_fixture.ROOT,ruleset='polygon');profile=deepcopy(rules.ruleset.profile)
+   profile['unit_versions']={**profile.get('unit_versions',{}),mid:edition}
+   rules.ruleset=RuleFilter(profile);rules._apply_ruleset();cache[key]=(rules,deepcopy(rules.rulings));cls._edition_rules=cache
+  self.rules,self.base_rulings=cache[key][0],deepcopy(cache[key][1])
 
  def learner(self,name,*,pos=(2,6)):
   """Teach one printed Error Move to a real pupil through the actual homebrew lesson."""

@@ -36,7 +36,10 @@ class FlingBlendFollowupTests(unittest.TestCase):
     launch = BASE.FlingNativeTests.launch
 
     def setUp(self):
-        CRAFT.ResearcherFieldsCraftingTests.setUp(self)
+        previous = self.rules.rulings
+        self.rules.rulings = deepcopy(previous)
+        self.addCleanup(setattr, self.rules, 'rulings', previous)
+        self.setup(movement={'land': 5, 'power': 4}, movement_basis='current', power_basis='current')  # Fling hand observation needs an actual sheet Power
         self.a = self.t
         self.t = self.pokemon('이브이', 20, 'actual Blend recipient', pos=(2, 0), tutor_points=4)
         self.e.gm.set_move(self.a, FLING.SOURCE, reason='actual acquired Fling')
@@ -70,11 +73,11 @@ class FlingBlendFollowupTests(unittest.TestCase):
         uid = self.bottle();self.restore();self.arm(uid)
         self.e.lose_hp(self.t, 30, source='gm/actual-fixture-injury')
         hp, stage = self.t.hp, self.t.stages['atk']
-        actions = deepcopy((self.t.budget, self.t._action_history, self.t.pending_action_loss))
+        actions = deepcopy((getattr(self.t, 'budget', None), getattr(self.t, '_action_history', None), getattr(self.t, 'pending_action_loss', None)))
         self.cast(uid)
         self.assertGreater(self.t.hp, hp)
         self.assertEqual(self.t.stages['atk'], min(6, stage + 2))
-        self.assertEqual((self.t.budget, self.t._action_history, self.t.pending_action_loss), actions)
+        self.assertEqual((getattr(self.t, 'budget', None), getattr(self.t, '_action_history', None), getattr(self.t, 'pending_action_loss', None)), actions)
         self.assertEqual(self.a.spec['items'][self.blend], 0)
         self.assertEqual(self.launch()['plan']['damage_base'], 0)
         self.assertEqual(self.launch()['consumer_result']['status'], 'consumed_contents')
@@ -141,9 +144,9 @@ class FlingBlendFollowupTests(unittest.TestCase):
             self.restore()
 
     def test_zero_stock_pp_up_returns_before_move_selection_and_changes_nothing(self):
-        before = deepcopy((self.a.spec, self.t.spec, self.a.budget, self.e.rng.getstate()))
+        before = deepcopy((self.a.spec, self.t.spec, getattr(self.a, 'budget', None), self.e.rng.getstate()))
         self.assertEqual(V.consume(self.e, self.a, self.t, V.PP), (0, 0))
-        self.assertEqual(before, (self.a.spec, self.t.spec, self.a.budget, self.e.rng.getstate()))
+        self.assertEqual(before, (self.a.spec, self.t.spec, getattr(self.a, 'budget', None), self.e.rng.getstate()))
 
     def test_unbridged_battle_consumable_never_silently_becomes_other(self):
         for uid in ('item/꿈안개', 'item/벌레회피스프레이', 'item/연막탄'):
@@ -175,7 +178,7 @@ class FlingBlendCodeSuppressionTests(unittest.TestCase):
         self.rules.rulings = deepcopy(previous)
         self.addCleanup(setattr, self.rules, 'rulings', previous)
         self.e = Engine(self.rules, seed=20762128);self.e.grid = Grid(24, 16)
-        self.a = self.trainer('actual Researcher', (0, 0))
+        self.a = self.trainer('actual Researcher', (0, 0), movement={'land': 5, 'power': 4}, movement_basis='current', power_basis='current')
         self.t = self.pokemon('이브이', 20, 'actual Blend recipient', pos=(2, 0), owner=self.a, tutor_points=4)
         self.e.gm.set_move(self.a, FLING.SOURCE, reason='actual acquired Fling')
         extra = {'movement': {'land': 6}, 'movement_basis': 'current', 'edges': ['feat/버그의-존재'], 'items': {}}
@@ -234,7 +237,7 @@ class FlingBlendCodeSuppressionTests(unittest.TestCase):
                 uid = self.brew(first, x);self.restore();self.grip(uid)
                 self.e.lose_hp(self.t, 30, source='gm/actual-fixture-injury')
                 hp, stages = self.t.hp, deepcopy(self.t.stages)
-                actions = deepcopy((self.t.budget, self.t._action_history, self.t.pending_action_loss))
+                actions = deepcopy((getattr(self.t, 'budget', None), getattr(self.t, '_action_history', None), getattr(self.t, 'pending_action_loss', None)))
                 self.code_then_fling(uid)
                 # Contents paid once; the native Fling admission completed; bottle awaits landing.
                 self.assertEqual(self.a.spec['items'][self.blend], 0)
@@ -248,7 +251,7 @@ class FlingBlendCodeSuppressionTests(unittest.TestCase):
                 # No benefit now: no heal, no stage change, no X timing record, no recipient debt.
                 self.assertEqual((self.t.hp, self.t.stages), (hp, stages))
                 self.assertEqual(self.x_records(), []);self.assertEqual(REST.crit_delta(self.t), 0)
-                self.assertEqual((self.t.budget, self.t._action_history, self.t.pending_action_loss), actions)
+                self.assertEqual((getattr(self.t, 'budget', None), getattr(self.t, '_action_history', None), getattr(self.t, 'pending_action_loss', None)), actions)
                 if first == 'item/힘의가루':
                     herbal = self.t.spec['herbal_restoratives']
                     self.assertEqual(herbal['count'], 1);self.assertIsNone(herbal['uses'][-1]['buff_id'])

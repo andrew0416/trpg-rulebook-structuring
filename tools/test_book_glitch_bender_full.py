@@ -35,7 +35,7 @@ class GlitchBenderFullTests(unittest.TestCase):
    self.e.gm.add_combatant(a);prepare_body(self.e,a,size='중형',offsets=[(0,0)],reason='actual complete Glitch Bender participant');self.people.append(a)
   self.a,self.b,self.c=self.people;self.base_spd=self.a.stats['spd']
  def acquire(self,feature=B.CLASS,*,edition=None,actor=None,request=None):
-  a=actor or self.a;choice={'edition':edition or self.edition}
+  a=actor or self.a;choice={'edition':edition or (self.edition if self.edition!='homebrew' or feature in B.HB_ROWS else 'supplement')}  # parents without a homebrew row keep the supplement source
   if feature==B.CLASS:choice['gm_permission']='GM admits this actual campaign Glitch class'
   if feature==B.BURST:choice['confusion_cure']=self.cure
   return T.acquire_static(self.e,a,feature,acquisition_request_id=request or a.entity_id+'/'+feature,selection=choice)
@@ -60,7 +60,7 @@ class GlitchBenderFullTests(unittest.TestCase):
   ids=[a.entity_id for a in self.people];self.e=Engine.import_state(rules,json.loads(json.dumps(self.e.export_state(),ensure_ascii=False)));self.people=[W.actor_index(self.e)[u] for u in ids];self.a,self.b,self.c=self.people[:3]
  def pupil(self,*,points=20):
   p=Combatant(self.rules,build_pokemon(self.rules,'폴리곤',30,moves=[],abilities=[],side='party',pos=(4+len(self.people),8),extra={'tutor_points':points,'trainer_id':self.a.entity_id}))
-  self.e.gm.add_combatant(p);prepare_body(self.e,p,size='중형',offsets=[(0,0)],reason='actual teaching target body');self.people.append(p);return p
+  self.e.gm.add_combatant(p);prepare_body(self.e,p,size=p.spec.get('size') or '중형',offsets=[(0,0)],reason='actual teaching target body');self.people.append(p);return p
  def native(self,actor,target,mid,*,accuracy=20):
   with patch.object(Engine,'d20',return_value=accuracy):return self.e.use_move(actor,target,mid,set_damage=True)
  def event(self,actor,mid,recipient=None):

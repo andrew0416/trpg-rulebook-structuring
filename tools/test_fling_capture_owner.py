@@ -56,7 +56,7 @@ class SharedCaptureTests(unittest.TestCase):
             self.assertEqual(f.snap(),before)
 
     def test_fling_postdamage_plan_never_grants_fainted_capture_combo(self):
-        f=self.fixture();f.t.hp=0;f.t.fainted=True;before=f.snap()
+        f=self.fixture();f.t.hp=0;self.assertTrue(f.t.fainted);before=f.snap()
         with self.assertRaises(ValueError):CAPTURE.fling_preflight(f.e,f.a,f.t,'몬스터볼',{})
         plan=CAPTURE.fling_preflight(f.e,f.a,f.t,'몬스터볼',{},after_damage=True)
         self.assertFalse(plan['combo']);self.assertEqual(f.snap(),before)

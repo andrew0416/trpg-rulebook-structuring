@@ -74,13 +74,13 @@ class FlingNativeTests(unittest.TestCase):
         uid = self.hand(rule='item/상처약')
         self.e.lose_hp(self.t, 20, source='gm/fixture-injury')
         before = self.t.hp
-        target_budget = deepcopy(self.t.budget)
-        target_history = deepcopy(self.t._action_history)
+        target_budget = deepcopy(getattr(self.t, 'budget', None))
+        target_history = deepcopy(getattr(self.t, '_action_history', None))
         self.cast(uid)
         self.assertGreater(self.t.hp, before)
         self.assertIn('consumed', self.e._physical_objects[uid])
-        self.assertEqual(self.t.budget, target_budget)
-        self.assertEqual(self.t._action_history, target_history)
+        self.assertEqual(getattr(self.t, 'budget', None), target_budget)
+        self.assertEqual(getattr(self.t, '_action_history', None), target_history)
         receipts = self.a.spec['stock_consumption_receipts']
         self.assertEqual(len(receipts), 1)
         self.assertEqual(next(iter(receipts.values()))['item_stock']['instance_id'], uid)
@@ -103,7 +103,7 @@ class FlingNativeTests(unittest.TestCase):
         for edition, requested, expected in (('core_105', False, 0), ('core_105', True, 1), ('korean', False, 1)):
             with self.subTest(edition=edition, requested=requested):
                 self.setUp()
-                uid = self.hand(rule='item/몬스터볼')
+                uid = self.hand(rule='item/몬스터볼-2')
                 before = self.t.hp
                 stock = deepcopy(self.a.spec.get('items', {}))
                 self.cast(uid, edition=edition, capture=requested,

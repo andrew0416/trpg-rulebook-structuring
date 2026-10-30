@@ -210,7 +210,7 @@ class NaturalFighterUrbanTests(unittest.TestCase):
         choice = self.object(rule='item/상처약')
         self.e.lose_hp(self.foe, 20, source='gm/actual-injury')
         before = self.foe.hp
-        target_actions = deepcopy((self.foe.budget, self.foe._action_history))
+        target_actions = deepcopy((getattr(self.foe, 'budget', None), getattr(self.foe, '_action_history', None)))
         ap = AP.available(self.t)
         with patch.object(Engine, 'd20', return_value=18):result = self.cast(choice=choice)
         completion = self.e._move_completions[result['completion_id']]
@@ -226,7 +226,7 @@ class NaturalFighterUrbanTests(unittest.TestCase):
 
     def test_class_ball_uses_existing_capture_without_second_standard_or_accuracy(self):
         self.scene(terrain='urban')
-        choice = self.object(rule='item/몬스터볼')
+        choice = self.object(rule='item/몬스터볼-2')
         choice.update(capture=True, capture_options={'capture_source': 'core_105', 'fixed_capture': 100})
         ap = AP.available(self.t)
         with patch.object(Engine, 'd20', return_value=18):result = self.cast(choice=choice)

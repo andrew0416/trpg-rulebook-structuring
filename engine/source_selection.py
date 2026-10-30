@@ -44,7 +44,7 @@ def _native_selection(rules, uid, supports_versions=False):
     if getattr(rules,'moves',{}).get(uid,{}).get('source')=='weapon':
         from ruleset import require_runtime_weapon
         selected=require_runtime_weapon(rules,uid)
-    else:selected=rules.selection.require_supported_version(uid,supports_versions)
+    else:selected=rules.selection.require_supported_version(uid,supports_versions or __import__('glitch_moves').supports_version(rules,uid) or __import__('stockpile_moves').supports_version(rules,uid))
     return selected,require_current_source(rules,selected)
 
 

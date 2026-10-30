@@ -17,6 +17,13 @@ def edition(rules):
     return version or 'swallow-en'
 
 
+def supports_version(rules,mid):
+    """Swallow declares its two source editions; an unknown edition is refused by edition()."""
+    if mid!=SWALLOW:return False
+    edition(rules)
+    return True
+
+
 def mechanics(rules,mid,mm):
     """Source-bound adjustments on top of the existing declaration layers; other Moves untouched."""
     if mid==SPIT:

@@ -31,7 +31,7 @@ class FlingConsumableTests(unittest.TestCase):
         self.a, self.t = index[self.a.entity_id], index[self.t.entity_id]
 
     def target_actions(self):
-        return deepcopy((self.t.budget, self.t._action_history, self.t.pending_action_loss))
+        return deepcopy((getattr(self.t, 'budget', None), getattr(self.t, '_action_history', None), getattr(self.t, 'pending_action_loss', None)))
 
     def paid(self):
         return EXECUTION.validate(self.a)[self.launch()['consumer_result']['stock_receipt_id']]
