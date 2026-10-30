@@ -11,6 +11,7 @@ on:
         options:
           - workflow_checks
           - ci_adapter_checks
+          - storage_recovery_checks
           - aa_native
           - aa_diagnostics
           - changed_revisions
@@ -801,5 +802,141 @@ jobs:
         with:
           name: implementation-aa-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
           path: aa-diagnostics.json
+          if-no-files-found: error
+          retention-days: 14
+
+  storage_recovery_checks:
+    if: >-
+      github.repository == 'andrew0416/trpg-rulebook-structuring' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.suite == 'storage_recovery_checks' &&
+      github.ref == 'refs/heads/codex/storage-recovery-checks-1030'
+    runs-on: windows-2022
+    timeout-minutes: 15
+    concurrency:
+      group: storage-recovery-checks-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
+      - name: Bind synthetic recovery sources and D-drive scratch
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-storage-recovery-checks' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT
+          New-Item -ItemType Directory -Path $taskTemp -ErrorAction Stop | Out-Null
+          foreach ($taskVariable in @('TEMP', 'TMP', 'TMPDIR')) {
+            "$taskVariable=$taskTemp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          }
+          $env:RUNNER_TEMP = $taskTemp
+          $env:TEMP = $taskTemp
+          $env:TMP = $taskTemp
+          $env:TMPDIR = $taskTemp
+          $taskCode = @'
+          from hashlib import sha256
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ['GITHUB_WORKSPACE']).resolve()
+          temporary = Path(os.environ['RUNNER_TEMP']).resolve()
+          if root.drive.upper() != 'D:' or temporary.drive.upper() != 'D:':
+              raise RuntimeError('Synthetic recovery sources and output must stay on D:')
+          paths = [
+              '.github/workflows/validate.yml',
+              'tools/ci_aa_recovery.py', 'tools/test_ci_aa_recovery.py',
+              'tools/ci_validate.py', 'tools/ci_remote_h.py', 'tools/ci_fixtures.mjs',
+              'tools/ci_physical.py', 'work/reuse-partials/reconcile_batch.py',
+              'work/reuse-partials/acceptance_evidence.py',
+          ]
+          if any((root/name).is_symlink() or not (root/name).resolve().is_relative_to(root) for name in paths):
+              raise RuntimeError('Synthetic recovery source leaves checkout')
+          before = {name: sha256((root/name).read_bytes()).hexdigest() for name in paths}
+          record = dict(scope='synthetic_recovery_only', git_sha=os.environ['GITHUB_SHA'],
+                        run=os.environ['GITHUB_RUN_ID'], attempt=os.environ['GITHUB_RUN_ATTEMPT'],
+                        expected_tests=12, input_sha256=before, game_runs=0, clause_credit=0,
+                        private_inputs_used=False, production_anchors_modified=False)
+          with (root/'storage-recovery-before.json').open('x', encoding='utf-8') as stream:
+              json.dump(record, stream, ensure_ascii=False, indent=2)
+          '@
+          python -B -X utf8 -c $taskCode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run the twelve synthetic recovery tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $env:RUNNER_TEMP = $env:TEMP
+          python -B -X utf8 -m unittest discover -s tools -p test_ci_aa_recovery.py -v 2>&1 | Tee-Object -FilePath storage-recovery-tests.log
+          $taskExit = $LASTEXITCODE
+          [IO.File]::WriteAllText((Join-Path $env:GITHUB_WORKSPACE 'storage-recovery-exit.txt'), [string]$taskExit)
+          exit $taskExit
+      - name: Check exact test outcome and unchanged source bytes
+        if: ${{ always() }}
+        shell: pwsh
+        run: |
+          $taskCode = @'
+          from hashlib import sha256
+          import json, os, re
+          from pathlib import Path
+          root = Path(os.environ['GITHUB_WORKSPACE']).resolve()
+          result = dict(scope='synthetic_recovery_only', git_sha=os.environ['GITHUB_SHA'],
+                        run=os.environ['GITHUB_RUN_ID'], attempt=os.environ['GITHUB_RUN_ATTEMPT'],
+                        expected_tests=12, passed=False, game_runs=0, clause_credit=0,
+                        native_h_verified=False, full_reporter_verified=False)
+          try:
+              before = json.loads((root/'storage-recovery-before.json').read_text(encoding='utf-8'))
+              after = {name: sha256((root/name).read_bytes()).hexdigest() for name in before['input_sha256']}
+              raw = (root/'storage-recovery-tests.log').read_bytes()
+              body = raw.decode('utf-8-sig').replace('\r\n', '\n')
+              exit_code = int((root/'storage-recovery-exit.txt').read_text(encoding='utf-8'))
+              counts = re.findall(r'^Ran (\d+) tests? in [\d.]+s$', body, re.M)
+              endings = re.findall(r'^(OK|FAILED)(?: \(([^\r\n]+)\))?\s*$', body, re.M)
+              clean_terminal = re.search(r'\nOK\s*\Z', body) is not None
+              named = re.findall(r'^test_\w+ \(test_ci_aa_recovery\.[^)]+\) \.\.\. ok$', body, re.M)
+              ran = int(counts[0]) if len(counts) == 1 else None
+              terminal_counts = dict(re.findall(r'(failures|errors|skipped|expected failures|unexpected successes)=(\d+)', body))
+              result.update(ran=ran, exit_code=exit_code,
+                            named_pass_count=len(named), unique_named_pass_count=len(set(named)),
+                            failures=int(terminal_counts.get('failures', '0')),
+                            errors=int(terminal_counts.get('errors', '0')),
+                            skipped=int(terminal_counts.get('skipped', '0')),
+                            expected_failures=int(terminal_counts.get('expected failures', '0')),
+                            unexpected_successes=int(terminal_counts.get('unexpected successes', '0')),
+                            inputs_unchanged=before['input_sha256'] == after,
+                            input_sha256=before['input_sha256'], input_sha256_after=after,
+                            raw_log_sha256=sha256(raw).hexdigest())
+              result['passed'] = (exit_code == 0 and ran == 12 and len(named) == len(set(named)) == 12
+                                  and len(endings) == 1 and endings[0] == ('OK', '')
+                                  and clean_terminal and before['input_sha256'] == after
+                                  and before['git_sha'] == os.environ['GITHUB_SHA']
+                                  and not any(result[name] for name in
+                                      ('failures', 'errors', 'skipped', 'expected_failures', 'unexpected_successes')))
+          except Exception as error:
+              result['inspection_error'] = type(error).__name__
+          with (root/'storage-recovery-checks.json').open('x', encoding='utf-8') as stream:
+              json.dump(result, stream, ensure_ascii=False, indent=2)
+          raise SystemExit(0 if result['passed'] else 1)
+          '@
+          python -B -X utf8 -c $taskCode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve synthetic recovery result, source bindings and raw log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: storage-recovery-checks-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            storage-recovery-before.json
+            storage-recovery-checks.json
+            storage-recovery-tests.log
+            storage-recovery-exit.txt
           if-no-files-found: error
           retention-days: 14
