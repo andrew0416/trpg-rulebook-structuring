@@ -463,7 +463,8 @@ def current17_transform(checkout, root, work, candidate, impact, post, histories
     candidate['required_test_ids'] = sorted(set(candidate['required_test_ids']) | set(ENTRAINMENT_CASES))
     candidate['required_test_modules'] = sorted(set(candidate['required_test_modules']) |
                                                {'tools.test_entrainment_header_boundaries'})
-    candidate['reviewed_files'] = sorted(set(candidate['reviewed_files']) | paths)
+    # The ledger stays pinned as the preimage of a generated reconciliation output.
+    candidate['reviewed_files'] = sorted(set(candidate['reviewed_files']) | (paths - {ledger}))
     reference = candidate['retained_proof']
     reference['runtime_test_source_sha256'] = source_pins
     reference['current_boundary_case_ids'] = old8 + ENTRAINMENT_CASES

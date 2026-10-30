@@ -863,7 +863,7 @@ jobs:
           @{ exit_code=$taskExit; passed=($taskExit -eq 0); game_runs=0; clause_credit=0 } |
             ConvertTo-Json | Set-Content -LiteralPath "$taskChecks/adapter-self-check.json" -Encoding utf8
           if ($taskExit -ne 0) { exit $taskExit }
-      - name: Run seven synthetic current17 transform regressions
+      - name: Run eight synthetic current17 transform regressions
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -871,8 +871,8 @@ jobs:
           $env:RUNNER_TEMP = $env:TEMP
           python -B -X utf8 -m unittest discover -s tools -p test_ci_aa_current17_transform.py -v 2>&1 | Tee-Object -FilePath output/ci/aa-tooling-checks/current17-synthetic.log
           $taskExit = $LASTEXITCODE
-          if ($taskExit -eq 0 -and -not ((Get-Content -LiteralPath output/ci/aa-tooling-checks/current17-synthetic.log -Raw) -match '(?m)^Ran 7 tests in ')) { $taskExit = 1 }
-          @{ exit_code=$taskExit; passed=($taskExit -eq 0); declared_tests=7; game_runs=0; clause_credit=0 } |
+          if ($taskExit -eq 0 -and -not ((Get-Content -LiteralPath output/ci/aa-tooling-checks/current17-synthetic.log -Raw) -match '(?m)^Ran 8 tests in ')) { $taskExit = 1 }
+          @{ exit_code=$taskExit; passed=($taskExit -eq 0); declared_tests=8; game_runs=0; clause_credit=0 } |
             ConvertTo-Json | Set-Content -LiteralPath output/ci/aa-tooling-checks/current17-synthetic.json -Encoding utf8
           if ($taskExit -ne 0) { exit $taskExit }
       - name: Authenticate existing evidence and invoke installed retained gate

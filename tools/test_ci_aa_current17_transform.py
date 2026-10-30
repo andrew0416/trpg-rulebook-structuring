@@ -95,6 +95,15 @@ class Current17TransformTests(unittest.TestCase):
         self.assertEqual([row['test_ids'] for row in requirements[-3:]],[[case] for case in A.ENTRAINMENT_CASES])
         self.assertTrue(self.records[str(self.root/'records/current17-transform.json')]['publication']['rebase_required'])
 
+    def test_generated_ledger_remains_pinned_without_becoming_reviewed_input(self):
+        ledger = 'data/verification/category2-csv-abilities-moves-status.json'
+        reviewed = 'input/db/moves.csv#source-header'
+        self.candidate['reviewed_files'] = [reviewed]
+        pins, _, _ = self.transform()
+        self.assertEqual(pins[ledger], self.pins[ledger])
+        self.assertEqual(self.candidate['retained_proof']['runtime_test_source_sha256'], pins)
+        self.assertEqual(set(self.candidate['reviewed_files']), (set(pins)-{ledger}) | {reviewed})
+
     def test_same_count_different_current17_selection_is_rejected(self):
         self.histories['current17']['meta']['test_ids'][-1] = 'tools.forged.ForgedTests.test_other'
         with self.assertRaisesRegex(ValueError,'AA_CURRENT17_EXACT_SELECTION_DIFFERS'):
