@@ -129,9 +129,9 @@ def prepare_inputs(checkout, work, key, policy, expected_blob):
                         REVIEWED_SOURCE_PATCH, '.ci/source-snapshot.json', '.github/workflows/validate.yml'},
             'Admission child contains an unreviewed source change')
     attributes = git(checkout, 'show', TESTED_HEAD+':.gitattributes')
-    require(attributes.count(b'CI.md text eol=lf\n') == 1,
+    require(attributes.count(b'CI.md text eol=lf') == 1,
             'AA_ATTRIBUTES_PREIMAGE_DIFFERS')
-    expected_attributes = attributes.replace(b'CI.md text eol=lf\n', b'CI.md -text\n')
+    expected_attributes = attributes.replace(b'CI.md text eol=lf', b'CI.md -text')
     require(git(checkout, 'show', 'HEAD:.gitattributes') == expected_attributes
             and (checkout/'.gitattributes').read_bytes() == expected_attributes,
             'AA_ATTRIBUTES_CHANGE_EXCEEDS_CI_MD_BYTE_PRESERVATION')
