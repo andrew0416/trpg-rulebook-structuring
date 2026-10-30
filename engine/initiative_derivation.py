@@ -199,24 +199,28 @@ def collect(rules, actor, *, engine=None):
             op = dict(operation='replace', value=0, priority=0)
         if op is not None:
             add('timed:'+str(index), record['source'], op)
+    import ability_transitions as ABILITIES
+    import effects as FX
+    import survivalist_class as GUIDE
+    weather_initiative = {'ability/엽록소-playtest':'sunny',
+                          'ability/쓱쓱-playtest':'rain',
+                          'ability/모래헤치기-playtest':'sandstorm',
+                          'ability/눈치우기':'hail'}
+    # CSV rows have no registered effects; canonical active ownership is the producer.
+    owned = {} if actor.abilities_suppressed else ABILITIES.project_components(actor)
+    for source, weather in weather_initiative.items():
+        if source not in owned:
+            continue
+        if actor.hp * 2 >= actor.base_max_hp:
+            if engine is None:
+                raise InitiativePending('weather initiative Ability needs actual weather')
+            if not FX.weather_matches(engine, weather, actor) or GUIDE.weather_ability_suppressed(engine, actor, source):
+                continue
+        add('weather-ability:'+source, source, dict(operation='multiply', value=2))
     for field in ('registry', 'modifiers'):
         for index, effect in enumerate(getattr(actor, field, ())):
             if effect.get('type') not in ('initiative','initiative_multiplier'):
                 continue
-            weather={'ability/엽록소-playtest':'sunny',
-                     'ability/쓱쓱-playtest':'rain','ability/쓱쓱-playtest-2':'rain',
-                     'ability/모래헤치기-playtest':'sandstorm',
-                     'ability/눈치우기':'hail','ability/눈치우기-2':'hail'}.get(effect.get('_rule_id'))
-            if (weather is not None and effect.get('type')=='initiative_multiplier'
-                    and effect.get('value')==2 and effect.get('if')==weather+' or hp < half'):
-                import ability_transitions as ABILITIES
-                source=effect['_rule_id']
-                if not ABILITIES.active(actor,source):continue
-                if actor.hp*2>=actor.base_max_hp:
-                    if engine is None:raise InitiativePending('weather initiative Ability needs actual weather')
-                    import effects as FX
-                    if not FX.weather_matches(engine,weather,actor) or __import__('survivalist_class').weather_ability_suppressed(engine,actor,source):continue
-                effect={key:value for key,value in effect.items() if key!='if'}
             unknown = {k for k in effect if not k.startswith('_')}-{'type','delta','multiplier','set_to','value','priority','source'}
             if unknown:
                 raise InitiativePending('registered initiative extension has unresolved qualifiers')

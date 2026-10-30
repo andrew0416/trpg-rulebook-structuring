@@ -1,103 +1,79 @@
 {
   "schema_version": 1,
-  "id": "weather-integration-1030",
-  "purpose": "Source-composed Survivalist/Keen Eye/weather/Harvest behavior and retained b47 regressions; targeted evidence only, no whole-class closure.",
+  "id": "weather-native112-repair01",
+  "purpose": "Retry original failures and only affected controls after source cause repair; no whole-class closure",
   "completion_credit": 0,
-  "required_unique_count": 112,
+  "required_unique_count": 62,
   "completed": {
     "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests": {
       "tests": [
         "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_actual_entry_pending_restore_resumes_once_including_zero_remaining",
-        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_bad_blindness_declaration_rejects_before_action_or_distance",
-        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_entry_failure_rolls_back_position_pool_shift_and_rng",
-        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_failed_check_charges_only_the_actual_entered_slow_cell",
-        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_returned_entry_with_exhausted_live_pool_stops_before_the_next_cell",
-        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_rough_and_slow_costs_share_both_turns_and_survive_restore"
+        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_entry_failure_rolls_back_position_pool_shift_and_rng"
       ]
     },
-    "tools.test_book_survivalist_acquisition.SurvivalistAcquisitionTests": {
+    "tools.test_book_ride_as_one.RideAsOneTests": {
       "tests": [
-        "tools.test_book_survivalist_acquisition.SurvivalistAcquisitionTests.test_acquired_receipts_feed_the_existing_terrain_thresholds_and_survive_both_restores",
-        "tools.test_book_survivalist_acquisition.SurvivalistAcquisitionTests.test_prerequisites_use_survival_ranks_parent_receipts_mastered_terrains_and_four_features",
-        "tools.test_book_survivalist_acquisition.SurvivalistAcquisitionTests.test_template_binds_six_definitions_to_the_printed_clauses_and_class_acquisition_grants_no_feature"
-      ]
-    },
-    "tools.test_book_survivalist_geography.AdaptiveGeographyTests": {
-      "tests": [
-        "tools.test_book_survivalist_geography.AdaptiveGeographyTests.test_as_if_terrain_reaches_the_survivalist_bonus_naturewalk_and_environ_moves_without_changing_the_world",
-        "tools.test_book_survivalist_geography.AdaptiveGeographyTests.test_json_and_gm_restores_keep_the_turn_record_and_tampering_is_rejected",
-        "tools.test_book_survivalist_geography.AdaptiveGeographyTests.test_trigger_is_the_turn_start_free_action_scene_twice_for_you_or_your_own_pokemon_on_an_adjacent_terrain"
+        "tools.test_book_ride_as_one.RideAsOneTests.test_speed_evasion_max_tie_caps_and_existing_disabled_or_physical_evasion"
       ]
     },
     "tools.test_book_survivalist_guide.SurvivalistGuideTests": {
       "tests": [
-        "tools.test_book_survivalist_guide.SurvivalistGuideTests.test_grassland_or_forest_grants_the_stealth_capability_and_two_overland_for_one_round",
-        "tools.test_book_survivalist_guide.SurvivalistGuideTests.test_json_and_gm_restores_keep_the_round_records_and_a_second_guide_cannot_overlap"
+        "tools.test_book_survivalist_guide.SurvivalistGuideTests.test_desert_or_tundra_allies_lose_no_hit_points_to_weather_and_ignore_sand_veil_and_snow_cloak"
       ]
     },
-    "tools.test_book_trickster_full.TricksterFullTests": {
+    "tools.test_book_type_ace_passives.TypeAcePassiveTests": {
       "tests": [
-        "tools.test_book_trickster_full.TricksterFullTests.test_stacked_accuracy_evasion_minus_two_lasts_only_selected_volatile_condition",
-        "tools.test_book_trickster_full.TricksterFullTests.test_stacked_all_four_save_conditions_and_all_four_volatile_conditions",
-        "tools.test_book_trickster_full.TricksterFullTests.test_stacked_failed_save_does_not_consume_next_success_and_success_trips_slows",
-        "tools.test_book_trickster_full.TricksterFullTests.test_stacked_scene_per_foe_quota_is_not_per_condition"
+        "tools.test_book_type_ace_passives.TypeAcePassiveTests.test_clever_ruse_ignores_only_stats_and_preserves_other_evasion_in_native_accuracy",
+        "tools.test_book_type_ace_passives.TypeAcePassiveTests.test_four_acquired_weather_stratagems_are_local_activation_views_without_virtual_hp_loss"
       ]
     },
     "tools.test_category2_ability_state_projection.AbilityStateProjectionTests": {
       "tests": [
-        "tools.test_category2_ability_state_projection.AbilityStateProjectionTests.test_projection_round_trip_and_corruption_validation",
-        "tools.test_category2_ability_state_projection.AbilityStateProjectionTests.test_type_projections_use_weather_choice_field_fact_and_scene_restoration"
+        "tools.test_category2_ability_state_projection.AbilityStateProjectionTests.test_projection_round_trip_and_corruption_validation"
       ]
     },
     "tools.test_category2_mega_forms.MegaFormTests": {
       "tests": [
-        "tools.test_category2_mega_forms.MegaFormTests.test_custom_definition_generic_stone_binding_and_guidance_are_durable",
-        "tools.test_category2_mega_forms.MegaFormTests.test_wrong_specific_stone_form_and_visible_state_corruption_do_not_pass"
+        "tools.test_category2_mega_forms.MegaFormTests.test_custom_definition_generic_stone_binding_and_guidance_are_durable"
       ]
     },
     "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests": {
       "tests": [
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_pending_cold_restore_continues_without_repaying_or_rerolling",
-        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_ranged_success_uses_between_cell_and_preserves_original_target"
+        "tools.test_category2_move_defense_reactions.MoveDefenseReactionsTests.test_pending_cold_restore_continues_without_repaying_or_rerolling"
       ]
     },
-    "tools.test_category2_survivalist_csv.SurvivalistCSVTests": {
+    "tools.test_category2_state_codec.StateCodecTests": {
       "tests": [
-        "tools.test_category2_survivalist_csv.SurvivalistCSVTests.test_two_exact_rows_remain_distinct_and_daily_extended_action_is_paid_once"
+        "tools.test_category2_state_codec.StateCodecTests.test_native_weather_source_cache_preserves_cold_restore_and_rejects_override",
+        "tools.test_category2_state_codec.StateCodecTests.test_survivalist_hb_cache_preserves_cold_restore_and_rejects_override",
+        "tools.test_category2_state_codec.StateCodecTests.test_verified_weather_passive_cache_preserves_cold_restore_and_rejects_override"
       ]
     },
-    "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests": {
+    "tools.test_category2_state_grants.StateGrantTests": {
       "tests": [
-        "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_real_interrupt_offer_use_is_blocked_after_gas_enters_but_decline_is_free"
+        "tools.test_category2_state_grants.StateGrantTests.test_stale_transition_preserves_independent_native_weapon_publication",
+        "tools.test_category2_state_grants.StateGrantTests.test_stale_transition_preserves_independent_same_key_weapon_publication"
+      ]
+    },
+    "tools.test_category2_vision_impairment.VisionImpairmentTests": {
+      "tests": [
+        "tools.test_category2_vision_impairment.VisionImpairmentTests.test_accuracy_has_one_blindness_contribution_and_sensory_precedence"
       ]
     },
     "tools.test_csv_survivalist_hb.SurvivalistHBTests": {
       "tests": [
-        "tools.test_csv_survivalist_hb.SurvivalistHBTests.test_all_current_terrains_apply_once_to_actual_allies_with_scene_three_standard_and_one_round_expiry",
-        "tools.test_csv_survivalist_hb.SurvivalistHBTests.test_book_guide_stays_distinct_from_hb_all_current_terrain_and_keen_eye",
-        "tools.test_csv_survivalist_hb.SurvivalistHBTests.test_exact_hb_sources_real_prerequisites_hp_and_base754_are_not_whole_class_grants",
-        "tools.test_csv_survivalist_hb.SurvivalistHBTests.test_hb_geography_actual_paid_shift_and_nature_power_keep_as_if_without_changing_world",
-        "tools.test_csv_survivalist_hb.SurvivalistHBTests.test_hb_geography_reaches_r754_skills_naturewalk_and_environ_across_turns_then_ends_at_encounter_not_scene",
-        "tools.test_csv_survivalist_hb.SurvivalistHBTests.test_hb_geography_selected_as_if_survives_changed_actual_environment_and_cell_terrain",
-        "tools.test_csv_survivalist_hb.SurvivalistHBTests.test_hb_geography_uses_actual_subject_initiative_scene_three_and_nine_ring_edges",
         "tools.test_csv_survivalist_hb.SurvivalistHBTests.test_hb_guide_preserves_native_group_delivery_cheer_and_priority_payment",
-        "tools.test_csv_survivalist_hb.SurvivalistHBTests.test_hb_records_and_acquired_editions_restore_with_their_distinct_lifetimes",
         "tools.test_csv_survivalist_hb.SurvivalistHBTests.test_hb_weather_record_tampering_rejected_and_book_does_not_suppress_enemy_self_benefit",
         "tools.test_csv_survivalist_hb.SurvivalistHBTests.test_hb_weather_suppresses_enemy_chlorophyll_speed_and_initiative_until_same_count_then_restores",
-        "tools.test_csv_survivalist_hb.SurvivalistHBTests.test_hp_tag_is_one_actual_source_on_replay_restore_and_paid_feature_withdrawal"
-      ]
-    },
-    "tools.test_entrainment_header_boundaries.EntrainmentHeaderBoundaryTests": {
-      "tests": [
-        "tools.test_entrainment_header_boundaries.EntrainmentHeaderBoundaryTests.test_entrainment_ac2_uses_speed_evasion_threshold",
-        "tools.test_entrainment_header_boundaries.EntrainmentHeaderBoundaryTests.test_entrainment_range_four_accepts_edge_and_rejects_fifth_meter_before_cost",
-        "tools.test_entrainment_header_boundaries.EntrainmentHeaderBoundaryTests.test_entrainment_scene_quota_survives_encounter_then_resets_at_scene_boundary"
+        "tools.test_csv_survivalist_hb.SurvivalistHBTests.test_sunny_chlorophyll_start_round_preserves_stage_alias_without_prereading_stages"
       ]
     },
     "tools.test_harvest_food_native.HarvestFoodTests": {
       "tests": [
+        "tools.test_harvest_food_native.HarvestFoodTests.test_changed_harvest_rule_remains_unresolved_and_cannot_commit_actor",
         "tools.test_harvest_food_native.HarvestFoodTests.test_coin_heads_and_tails_preserve_actual_consumption_boundary_under_guide",
         "tools.test_harvest_food_native.HarvestFoodTests.test_lunchbox_rejects_retention_before_payment_and_accepts_later_consumption",
+        "tools.test_harvest_food_native.HarvestFoodTests.test_registration_defers_only_exact_native_harvest_rule",
         "tools.test_harvest_food_native.HarvestFoodTests.test_repeated_leftovers_activation_binds_each_ongoing_effect_and_expires",
         "tools.test_harvest_food_native.HarvestFoodTests.test_repeated_sweet_timers_and_chef_consumption_observers_keep_correct_provenance",
         "tools.test_harvest_food_native.HarvestFoodTests.test_retained_buff_can_be_stolen_live_without_creating_consumed_candidate",
@@ -108,68 +84,41 @@
     },
     "tools.test_keen_eye_compositions.KeenEyeCompositionTests": {
       "tests": [
-        "tools.test_keen_eye_compositions.KeenEyeCompositionTests.test_actual_aim_double_shot_retains_plus_two_and_removes_each_minus_two",
-        "tools.test_keen_eye_compositions.KeenEyeCompositionTests.test_actual_helping_hand_shared_area_replays_mixed_gm_entries_once_per_roll",
-        "tools.test_keen_eye_compositions.KeenEyeCompositionTests.test_actual_kinesis_still_consumes_reaction_but_cannot_reduce_keen_accuracy",
-        "tools.test_keen_eye_compositions.KeenEyeCompositionTests.test_actual_living_weapon_no_guard_cancellation_preserves_sweet_timer_over_interference",
-        "tools.test_keen_eye_compositions.KeenEyeCompositionTests.test_actual_simple_improvements_keeps_six_against_zephyr_and_face_me",
-        "tools.test_keen_eye_compositions.KeenEyeCompositionTests.test_ride_as_one_keeps_shared_stat_max_but_not_equal_speed_plus_one",
-        "tools.test_keen_eye_compositions.KeenEyeCompositionTests.test_selected_gastro_acid_and_replacement_remove_actual_keen_then_restore",
-        "tools.test_keen_eye_compositions.KeenEyeCompositionTests.test_virtual_keen_restores_blind_mount_stat_donor_then_loses_it_at_exact_expiry"
+        "tools.test_keen_eye_compositions.KeenEyeCompositionTests.test_actual_helping_hand_shared_area_replays_mixed_gm_entries_once_per_roll"
       ]
     },
     "tools.test_keen_eye_native.KeenEyeTests": {
       "tests": [
-        "tools.test_keen_eye_native.KeenEyeTests.test_actual_and_virtual_share_loss_and_ordinary_blindness_immunity",
-        "tools.test_keen_eye_native.KeenEyeTests.test_book_other_terrain_and_suppression_are_controls",
-        "tools.test_keen_eye_native.KeenEyeTests.test_existing_ordinary_blindness_and_low_light_are_projected_without_erasing_the_source",
-        "tools.test_keen_eye_native.KeenEyeTests.test_nonstat_evasion_is_ignored_but_stats_and_natural_one_still_matter",
-        "tools.test_keen_eye_native.KeenEyeTests.test_penalties_are_removed_before_they_cancel_positive_timed_bonuses",
-        "tools.test_keen_eye_native.KeenEyeTests.test_total_blindness_stays_and_still_prohibits_priority",
-        "tools.test_keen_eye_native.KeenEyeTests.test_virtual_restore_same_count_expiry_and_encounter_cleanup"
+        "tools.test_keen_eye_native.KeenEyeTests.test_book_other_terrain_and_suppression_are_controls"
       ]
     },
     "tools.test_living_weapon_movement_noguard_source_revision.LivingWeaponMovementNoGuardSourceRevisionTests": {
       "tests": [
-        "tools.test_living_weapon_movement_noguard_source_revision.LivingWeaponMovementNoGuardSourceRevisionTests.test_native_entry_failure_rolls_back_joint_position_pool_action_and_rng",
-        "tools.test_living_weapon_movement_noguard_source_revision.LivingWeaponMovementNoGuardSourceRevisionTests.test_partial_paid_path_rejected_step_and_resumed_prefix_debit_only_committed_cost",
-        "tools.test_living_weapon_movement_noguard_source_revision.LivingWeaponMovementNoGuardSourceRevisionTests.test_shared_pool_uses_trainer_or_pokemon_holder_speed_across_turns_restore_and_rounds"
+        "tools.test_living_weapon_movement_noguard_source_revision.LivingWeaponMovementNoGuardSourceRevisionTests.test_english_preserves_other_owners_negative_own_sources_and_bounded_unrelated_accuracy"
       ]
     },
     "tools.test_native_weather_actions.NativeWeatherActionTests": {
       "tests": [
         "tools.test_native_weather_actions.NativeWeatherActionTests.test_all_healers_gate_weather_keep_low_hp_and_spend_daily_swift",
         "tools.test_native_weather_actions.NativeWeatherActionTests.test_flower_gift_keeps_low_hp_route_and_affects_nearby_enemy_and_ally_once",
-        "tools.test_native_weather_actions.NativeWeatherActionTests.test_healing_daily_five_persists_restore_and_does_not_reset_with_weather",
         "tools.test_native_weather_actions.NativeWeatherActionTests.test_hydration_rain_exempts_only_frequency_and_guide_keeps_paid_cure",
         "tools.test_native_weather_actions.NativeWeatherActionTests.test_hydration_suppressed_exhausted_scene_rejects_without_cost_then_expiry_restores_rain",
         "tools.test_native_weather_actions.NativeWeatherActionTests.test_solar_power_bonus_reaches_actual_damage_and_ordinary_scene_limit_is_two",
+        "tools.test_native_weather_actions.NativeWeatherActionTests.test_solar_power_cannot_refresh_receipt_after_an_unrelated_action",
         "tools.test_native_weather_actions.NativeWeatherActionTests.test_solar_power_combined_double_strike_pays_and_boosts_one_damage_roll",
         "tools.test_native_weather_actions.NativeWeatherActionTests.test_solar_power_insufficient_hp_or_swift_never_pays_ability_cost",
         "tools.test_native_weather_actions.NativeWeatherActionTests.test_solar_power_miss_never_pays_and_choice_expires_at_next_turn",
         "tools.test_native_weather_actions.NativeWeatherActionTests.test_solar_power_paid_roll_survives_coordinator_pending_restore_without_repayment",
-        "tools.test_native_weather_actions.NativeWeatherActionTests.test_solar_power_pays_only_on_actual_damage_roll_and_preserves_nonweather_cost",
-        "tools.test_native_weather_actions.NativeWeatherActionTests.test_sun_blanket_reopens_on_actual_swarm_initiative_continuation",
-        "tools.test_native_weather_actions.NativeWeatherActionTests.test_sun_blanket_uses_real_initiative_boundary_and_aliases_share_quota"
-      ]
-    },
-    "tools.test_order_timing_revision.OrderTimingRevisionTests": {
-      "tests": [
-        "tools.test_order_timing_revision.OrderTimingRevisionTests.test_guide_group_delivery_and_cheer_are_atomic_and_keep_count_deadline"
-      ]
-    },
-    "tools.test_order_timing_successor.OrderTimingSuccessorTests": {
-      "tests": [
-        "tools.test_order_timing_successor.OrderTimingSuccessorTests.test_guide_and_errata_cheer_group_requests_are_explicit_and_target_exact"
+        "tools.test_native_weather_actions.NativeWeatherActionTests.test_solar_power_pays_only_on_actual_damage_roll_and_preserves_nonweather_cost"
       ]
     },
     "tools.test_survivalist_weather_consumers.SurvivalistWeatherConsumerTests": {
       "tests": [
-        "tools.test_survivalist_weather_consumers.SurvivalistWeatherConsumerTests.test_duplicate_weather_rows_use_the_same_selected_source_without_new_ability_instances",
         "tools.test_survivalist_weather_consumers.SurvivalistWeatherConsumerTests.test_four_weather_initiative_families_keep_independent_low_hp_and_restore",
         "tools.test_survivalist_weather_consumers.SurvivalistWeatherConsumerTests.test_sun_veil_keeps_unconditional_evasion_but_loses_sunny_grass_and_damage_reduction",
         "tools.test_survivalist_weather_consumers.SurvivalistWeatherConsumerTests.test_veil_adjacent_weather_immunity_is_sourced_and_suppressed_at_its_enemy_owner",
-        "tools.test_survivalist_weather_consumers.SurvivalistWeatherConsumerTests.test_veil_evasion_keeps_base_and_terrain_while_guided_attacker_ignores_named_ability"
+        "tools.test_survivalist_weather_consumers.SurvivalistWeatherConsumerTests.test_veil_evasion_keeps_base_and_terrain_while_guided_attacker_ignores_named_ability",
+        "tools.test_survivalist_weather_consumers.SurvivalistWeatherConsumerTests.test_weather_initiative_copies_coalesce_and_suppression_and_revocation_remove_contribution"
       ]
     },
     "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests": {
@@ -179,25 +128,19 @@
         "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_forecast_hides_without_deleting_choice_and_cold_restore_expires_at_same_count",
         "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_forecast_keeps_independent_chosen_weather_when_primary_weather_changes",
         "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_forecast_tracks_weather_during_suppression_and_none_stays_nonweather",
-        "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_forged_type_suppression_is_rejected_without_a_guide_marker",
         "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_later_source_layers_and_new_baseline_survive_hide_restore_and_revoke",
-        "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_legacy_mimicry_retains_only_independently_proven_field_options",
-        "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_mimicry_consistent_rewrite_cannot_replace_native_selection_weather",
-        "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_mimicry_rejects_added_or_replaced_saved_candidates_without_observed_weather",
         "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_mimicry_scene_choice_survives_weather_change_then_ends_at_scene",
         "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_mimicry_weather_choice_hides_but_terrain_and_gm_overlap_remain"
       ]
     },
+    "tools.test_total_blindness_evasion_source_revision.TotalBlindnessEvasionSourceRevisionTests": {
+      "tests": [
+        "tools.test_total_blindness_evasion_source_revision.TotalBlindnessEvasionSourceRevisionTests.test_actual_cave_dweller_keeps_low_light_exemption_and_total_downgrade"
+      ]
+    },
     "tools.test_weather_passive_benefits.WeatherPassiveBenefitsTests": {
       "tests": [
-        "tools.test_weather_passive_benefits.WeatherPassiveBenefitsTests.test_conditional_stages_round_trip_without_replaying_or_erasing_combat_changes",
-        "tools.test_weather_passive_benefits.WeatherPassiveBenefitsTests.test_dry_skin_sun_loss_survives_guide_and_forged_turn_end_cannot_heal",
-        "tools.test_weather_passive_benefits.WeatherPassiveBenefitsTests.test_end_turn_rain_real_healing_and_temp_hp_do_not_retroactively_disappear",
-        "tools.test_weather_passive_benefits.WeatherPassiveBenefitsTests.test_fire_hit_adds_one_tick_and_suppression_removes_whole_ability_only",
-        "tools.test_weather_passive_benefits.WeatherPassiveBenefitsTests.test_protosynthesis_low_hp_is_independent_and_half_hp_is_not_below_half",
-        "tools.test_weather_passive_benefits.WeatherPassiveBenefitsTests.test_thermosensitive_derived_stages_preserve_other_sources_and_hail_penalty",
-        "tools.test_weather_passive_benefits.WeatherPassiveBenefitsTests.test_water_absorption_is_native_hit_only_and_survives_guide",
-        "tools.test_weather_passive_benefits.WeatherPassiveBenefitsTests.test_water_miss_and_forged_hit_cannot_heal"
+        "tools.test_weather_passive_benefits.WeatherPassiveBenefitsTests.test_conditional_stages_round_trip_without_replaying_or_erasing_combat_changes"
       ]
     },
     "tools.test_weather_passive_native_recipients.WeatherPassiveNativeRecipientTests": {
@@ -205,17 +148,20 @@
         "tools.test_weather_passive_native_recipients.WeatherPassiveNativeRecipientTests.test_fire_interceptor_takes_one_additional_tick_without_changing_declared_target",
         "tools.test_weather_passive_native_recipients.WeatherPassiveNativeRecipientTests.test_intercepted_water_keeps_self_cost_receipts_on_completion_through_cold_restore",
         "tools.test_weather_passive_native_recipients.WeatherPassiveNativeRecipientTests.test_omitted_token_cannot_heal_declared_target_during_pending_defense",
-        "tools.test_weather_passive_native_recipients.WeatherPassiveNativeRecipientTests.test_water_immunity_precedes_target_only_hit_hooks_with_unowned_positive_control",
         "tools.test_weather_passive_native_recipients.WeatherPassiveNativeRecipientTests.test_water_interceptor_is_authenticated_and_cold_resume_heals_once"
       ]
     }
   },
   "provenance": {
-    "base_commit": "b47e38089463d57d48692b24e5033a364be7e1ce",
-    "source_preparation": "integration-source01/composed/MANIFEST.json",
-    "private_fixture_status": "new Survivalist support file not yet transmitted",
-    "status": "SOURCE_DECLARED_UNEXECUTED",
-    "baseline_native17_run": 40989718755,
-    "baseline_evidence_does_not_transfer": true
+    "private_fixture_status": "Approved policy1 prepared remotely; original1570 plus1 preserved",
+    "original_run": 41000288952,
+    "original_head": "10ca2acf2917ca55b996df50f30c12c2880c1b5f",
+    "status": "REPAIR_DECLARED_UNEXECUTED",
+    "full_method_scope_executed": false,
+    "original_status_counts": {
+      "fail": 2,
+      "pass": 74,
+      "error": 36
+    }
   }
 }

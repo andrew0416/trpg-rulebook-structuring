@@ -51,6 +51,28 @@ class HarvestFoodTests(unittest.TestCase):
     def setUp(self):
         self.rules=Rules(ROOT,ruleset='all')
 
+    def test_registration_defers_only_exact_native_harvest_rule(self):
+        for ability in ('수확',FOOD.HARVEST):
+            with self.subTest(ability=ability):
+                e=Engine(self.rules,seed=42)
+                a=Combatant(self.rules,build_pokemon(self.rules,'이브이',20,
+                    moves=['move/몸통박치기'],abilities=[ability],extra={}))
+                e.gm.add_combatant(a,pos=(0,0),side='party',reason='actual Harvest holder')
+                self.assertIn(a,e.everyone)
+                self.assertFalse(e.gm_prompts)
+                self.assertFalse(a.spec.get('food_consumption_receipts'))
+
+    def test_changed_harvest_rule_remains_unresolved_and_cannot_commit_actor(self):
+        e=Engine(self.rules,seed=42)
+        a=Combatant(self.rules,build_pokemon(self.rules,'이브이',20,
+            moves=['move/몸통박치기'],abilities=['수확'],extra={}))
+        changed=[dict(self.rules.ability_effects['수확'][0],auto_keep_if_weather='rainy')]
+        with patch.dict(self.rules.ability_effects,{'수확':changed}):
+            with self.assertRaisesRegex(ValueError,'state transition needs unresolved source input'):
+                e.gm.add_combatant(a,pos=(0,0),side='party',reason='unreviewed Harvest declaration')
+        self.assertNotIn(a,e.everyone)
+        self.assertFalse(e.gm_prompts)
+
     def restored(self,engine):
         restored=CODEC.load_engine(self.rules,deepcopy(CODEC.dump_engine(engine)))
         self.assertTrue(restored.validate_state()['valid'])

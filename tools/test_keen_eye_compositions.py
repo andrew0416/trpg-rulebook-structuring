@@ -166,9 +166,12 @@ class KeenEyeCompositionTests(unittest.TestCase):
        reason='independent observed accuracy '+str(value),scope='scene')
   NATIVE.assert_rejected_unchanged(f.e,lambda:f.e.accuracy_check(f.p,f.other,f.r.move('move/메가톤펀치'),shared_roll={}),reason_pattern='authority')
   self.assertEqual(len(f.e.rulings.situational),2)
+  before_uses=f.p.move_uses.get('move/스피드스타',0)
   with patch.object(Engine,'d20',return_value=18):
-   result,seen=self.observed(lambda:f.e.use_move_on(f.p,f.other,'move/스피드스타',[f.p,f.other,f.a],set_damage=True))
-  self.assertTrue(result)
+   _,seen=self.observed(lambda:f.e.use_move_on(f.p,f.other,'move/스피드스타',[f.p,f.other,f.a],set_damage=True))
+  # use_move_on returns damage; native payment and roll receipts prove activation.
+  self.assertEqual(f.p.move_uses['move/스피드스타'],before_uses+1)
+  self.assertEqual(f.p.budget['standard'],0)
   self.assertEqual([r['modifier'] for r in seen],[4,4])
   self.assertFalse(f.e.rulings.situational)
   closed=next(r for r in R.closed(f.p) if r['id']==issued['id'])

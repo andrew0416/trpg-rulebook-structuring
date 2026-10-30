@@ -117,7 +117,7 @@ def weather_action_sources(rules):
         entry = catalog.get(source, {})
         if actual != expected or entry.get('name') != row['name'] or entry.get('_source', {}).get('record_span') != [row['record'], row['record']]:
             raise ValueError('native weather Ability exact CSV source changed: ' + source)
-        result[source] = dict(row, action='swift', effects=[])
+        result[source] = dict(deepcopy(row), action='swift', effects=[])
     rules._native_weather_action_sources = result
     return result
 
@@ -1102,8 +1102,25 @@ def _solar_power_damage(engine, actor, target, move, event):
     tick = engine.tick(actor)
     if actor.hp + actor.temp_hp < tick:
         raise ValueError('Solar Power requires its full tick HP cost')
+    # The damage producer issued its receipt before this real Swift payment.
+    # Authenticate it while its original action count is still current, then
+    # advance only that receipt across the exact action this owner produces.
+    import heavy_injury_adapter as HEAVY
+    candidates = [(token, receipt) for token, receipt in engine._heavy_native_receipts.items()
+                  if receipt['attacker'] is actor and receipt['target'] is target
+                  and receipt['move_id'] == move['id']
+                  and receipt.get('completion_id') == event.get('completion_id')]
+    if len(candidates) != 1:
+        raise ValueError('Solar Power requires one actual native damage receipt')
+    token, receipt = candidates[0]
+    HEAVY.validate_native_receipt(engine, token, actor, target, move)
+    history = list(actor._action_history)
     _pay(engine, actor, actor, SOLAR_POWER, row,
          declaration={'kind':'at_will','uses':1,'scope':[]} if sunny else row['frequency'])
+    if actor._action_history != history + ['swift']:
+        raise ValueError('Solar Power payment must append exactly its Swift action')
+    receipt['history_length'] = len(actor._action_history)
+    HEAVY.validate_native_receipt(engine, token, actor, target, move)
     before = actor.hp + actor.temp_hp
     engine.lose_hp(actor, tick, source=SOLAR_POWER)
     if before - actor.hp - actor.temp_hp != tick:

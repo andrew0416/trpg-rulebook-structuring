@@ -323,7 +323,7 @@ class SurvivalistHBTests(unittest.TestCase):
   acquired=deepcopy(foe.abilities);e.change_stage(foe,'spe',1)
   e.gm.set_weather('sunny',rounds=None,reason='actual lasting sunny weather')
   self.assertEqual((foe.stages['spe'],friend.stages['spe']),(5,4))
-  FIX.battle(e,a);before=e.initiative_value(foe).value;receipt=self.guide(e,a)
+  FIX.battle(e,a);FIX.audible_order(e,a);before=e.initiative_value(foe).value;receipt=self.guide(e,a)
   self.assertIn(foe.entity_id,receipt['weather_targets']);self.assertNotIn(friend.entity_id,receipt['weather_targets'])
   self.assertEqual((foe.stages['spe'],foe.staged('spe'),friend.stages['spe']),(1,12,4))
   self.assertLess(e.initiative_value(foe).value,before)
@@ -342,17 +342,29 @@ class SurvivalistHBTests(unittest.TestCase):
   self.assertFalse(SC.weather_ability_suppressed(loaded,enemy,'ability/엽록소'))
   self.assertEqual(enemy.abilities,acquired)
 
+ def test_sunny_chlorophyll_start_round_preserves_stage_alias_without_prereading_stages(self):
+  w=self.world(terrains=('desert',));e,a=w['engine'],w['trainer']
+  foe=self.weather_pokemon(e,a,'weather-unread-foe','wild')
+  raw_stages=vars(foe)['stages']
+  e.gm.set_weather('sunny',rounds=None,reason='sunny before any lazy stage read')
+  self.assertIs(vars(foe)['stages'],raw_stages)
+  self.assertEqual(raw_stages['spe'],0)
+  FIX.battle(e,a)
+  self.assertIs(vars(foe)['stages'],raw_stages)
+  self.assertEqual(foe.stages['spe'],4)
+  self.assertTrue(e.validate_state()['valid'])
+
  def test_hb_weather_record_tampering_rejected_and_book_does_not_suppress_enemy_self_benefit(self):
   w=self.world(terrains=('desert',));e,a=w['engine'],w['trainer']
   foe=self.weather_pokemon(e,a,'weather-integrity-foe','wild')
-  e.gm.set_weather('sunny',rounds=None,reason='actual sunny weather');FIX.battle(e,a);self.guide(e,a)
+  e.gm.set_weather('sunny',rounds=None,reason='actual sunny weather');FIX.battle(e,a);FIX.audible_order(e,a);self.guide(e,a)
   record=next(row for row in TIME.records(foe) if 'survivalist_weather' in row)
   old=record['count_deadline'];record['count_deadline']=(e.round_no+2,20)
   with self.assertRaisesRegex(ValueError,'one-round'):SC.validate_world(e)
   record['count_deadline']=old
   w=FIX.scene(self.rules);e,a=w['engine'],w['trainer'];FIX.env(e,a,'desert')
   foe=self.weather_pokemon(e,a,'book-weather-foe','wild')
-  e.gm.set_weather('sunny',rounds=None,reason='Book control sunny');FIX.battle(e,a)
+  e.gm.set_weather('sunny',rounds=None,reason='Book control sunny');FIX.battle(e,a);FIX.audible_order(e,a)
   self.guide(e,a,terrain_name='desert')
   self.assertEqual(foe.stages['spe'],4)
   self.assertFalse(SC.weather_ability_suppressed(e,foe,'ability/엽록소'))

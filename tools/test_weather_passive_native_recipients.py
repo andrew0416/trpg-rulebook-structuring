@@ -121,7 +121,12 @@ class WeatherPassiveNativeRecipientTests(unittest.TestCase):
     def test_fire_interceptor_takes_one_additional_tick_without_changing_declared_target(self):
         fixture = self.fixture()
         fixture.e.gm.set_hp(fixture.r, value=fixture.r.base_max_hp, reason='living Fire recipient control')
-        fixture.a.moves[-1] = fixture.a.spec['moves'][-1] = 'move/불꽃세례'
+        fixture.e.gm.set_move(fixture.a, 'move/파도타기', add=False,
+                              reason='forget the actual fixture Move before replacement')
+        fixture.e.gm.set_move(fixture.a, 'move/불꽃세례',
+                              reason='actual Fire Move for the native recipient test')
+        self.assertNotIn('move/파도타기', fixture.a.moves)
+        self.assertIn('move/불꽃세례', fixture.a.moves)
         fixture.watch('maneuver/원거리-가로채기')
         with patch.object(Engine, 'accuracy_check', return_value=(True, 12, False)):
             event = fixture.waiting('move/불꽃세례')

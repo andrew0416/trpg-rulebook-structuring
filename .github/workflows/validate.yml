@@ -249,6 +249,13 @@ jobs:
               throw 'The actual report IDs differ from the reviewed changed-impact packet'
             }
           }
+      - name: Display the existing redacted public validation summary
+        if: ${{ always() }}
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path output/ci/*/summary.json -ErrorAction SilentlyContinue | ForEach-Object {
+            Get-Content -LiteralPath $_.FullName -Raw
+          }
       - name: Check original ordinary evidence with unchanged independent H
         if: ${{ always() && matrix.suite == 'changed_revisions' }}
         shell: pwsh

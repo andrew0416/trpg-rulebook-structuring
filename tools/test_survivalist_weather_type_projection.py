@@ -39,7 +39,7 @@ class WeatherTypeProjectionTests(unittest.TestCase):
   return e,a,foe
 
  def guide(self,e,a):
-  FIX.battle(e,a)
+  FIX.battle(e,a);FIX.audible_order(e,a)
   return e.survivalist_activity(a,'wilderness_guide',reason='actual desert Guide Order')
 
  def expire(self,e,a):
@@ -234,6 +234,7 @@ class WeatherTypeProjectionTests(unittest.TestCase):
   type_order=list(c.spec[G.KEY]['type_sources']['sources'])
   form_order=list(c.spec[G.KEY]['scalar_sources']['form']['sources'])
   e.end_of_turn(trainer);e.start_of_turn(a,initiative_count=20)
+  FIX.audible_order(e,a)
   e.survivalist_activity(a,'wilderness_guide',reason='actual desert Guide Order')
   self.assertEqual((c.types,c.form),(['전기'],form))
   self.assertIn(sid,c.spec[G.KEY]['sources'])

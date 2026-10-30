@@ -285,6 +285,28 @@ def rules_fingerprint(rules):
         for name in names:
             vars(checked).pop(name, None)
         return checked
+    weather_name = '_native_weather_action_sources'
+    if weather_name in policy:
+        import ability_native_actions as NATIVE_ACTIONS
+        expected_weather = NATIVE_ACTIONS.weather_action_sources(uncached(weather_name))
+        if (json.dumps(_plain(policy[weather_name]), sort_keys=True, ensure_ascii=False, allow_nan=False)
+                == json.dumps(_plain(expected_weather), sort_keys=True, ensure_ascii=False, allow_nan=False)):
+            policy.pop(weather_name)
+    hb_name = '_survivalist_hb_definitions'
+    if hb_name in policy:
+        import survivalist_class as SURVIVAL
+        expected_hb = SURVIVAL.hb_definitions(uncached(hb_name))
+        if (json.dumps(_plain(policy[hb_name]), sort_keys=True, ensure_ascii=False, allow_nan=False)
+                == json.dumps(_plain(expected_hb), sort_keys=True, ensure_ascii=False, allow_nan=False)):
+            policy.pop(hb_name)
+    passive_name = '_weather_passive_checked'
+    if type(policy.get(passive_name)) is set:
+        import weather_passive_benefits as WEATHER_PASSIVES
+        if policy[passive_name] <= WEATHER_PASSIVES.SOURCES.keys():
+            checked = uncached(passive_name)
+            for source in policy[passive_name]:
+                WEATHER_PASSIVES.definition(checked, source)
+            policy.pop(passive_name)
     if lesson_name in policy:
         import feature_ability_lessons as LESSONS
         saved_policy('feature-ability-lessons.json', 'rules')

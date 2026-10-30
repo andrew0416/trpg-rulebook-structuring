@@ -106,6 +106,66 @@ class StateCodecTests(unittest.TestCase):
         with self.assertRaisesRegex(StateCodecError, 'fingerprint mismatch'):
             load_engine(r, warmed)
 
+    def test_native_weather_source_cache_preserves_cold_restore_and_rejects_override(self):
+        from unittest.mock import patch
+        import ability_native_actions as ACTIONS
+        r = Rules(str(ROOT), ruleset='core');e = Engine(r, seed=712)
+        saved = dump_engine(e)
+        loaded = ACTIONS.weather_action_sources(r)
+        warmed = dump_engine(e)
+        self.assertEqual(saved['rules'], warmed['rules'])
+        restored = load_engine(Rules(str(ROOT), ruleset='core'), json.loads(json.dumps(warmed)))
+        self.assertEqual(warmed['rules'], dump_engine(restored)['rules'])
+        frequency = loaded['ability/촉촉바디-playtest']['frequency']
+        original_uses = frequency['uses']
+        try:
+            frequency['uses'] = 2
+            self.assertEqual(ACTIONS.WEATHER_ACTIONS['ability/촉촉바디-playtest']['frequency']['uses'], original_uses)
+            with self.assertRaisesRegex(StateCodecError, 'fingerprint mismatch'):
+                load_engine(r, warmed)
+        finally:
+            frequency['uses'] = original_uses
+        changed = copy.deepcopy(loaded)
+        changed['ability/촉촉바디-playtest']['frequency']['uses'] = 2
+        typed = copy.deepcopy(loaded)
+        typed['ability/촉촉바디-playtest']['frequency']['uses'] = True
+        for value in (changed, typed):
+            with self.subTest(override=value['ability/촉촉바디-playtest']['frequency']['uses']), \
+                    patch.object(r, '_native_weather_action_sources', value):
+                with self.assertRaisesRegex(StateCodecError, 'fingerprint mismatch'):
+                    load_engine(r, warmed)
+
+    def test_survivalist_hb_cache_preserves_cold_restore_and_rejects_override(self):
+        from unittest.mock import patch
+        import survivalist_class as SURVIVAL
+        r = Rules(str(ROOT), ruleset='core');e = Engine(r, seed=712)
+        saved = dump_engine(e)
+        loaded = SURVIVAL.hb_definitions(r)
+        warmed = dump_engine(e)
+        self.assertEqual(saved['rules'], warmed['rules'])
+        restored = load_engine(Rules(str(ROOT), ruleset='core'), json.loads(json.dumps(warmed)))
+        self.assertEqual(warmed['rules'], dump_engine(restored)['rules'])
+        for version in (2, True):
+            changed = copy.deepcopy(loaded);changed['schema_version'] = version
+            with self.subTest(version=version), patch.object(r, '_survivalist_hb_definitions', changed):
+                with self.assertRaisesRegex(StateCodecError, 'fingerprint mismatch'):
+                    load_engine(r, warmed)
+
+    def test_verified_weather_passive_cache_preserves_cold_restore_and_rejects_override(self):
+        from unittest.mock import patch
+        import weather_passive_benefits as WEATHER
+        r = Rules(str(ROOT), ruleset='core');e = Engine(r, seed=712)
+        saved = dump_engine(e)
+        WEATHER.definition(r, WEATHER.DRY)
+        warmed = dump_engine(e)
+        self.assertEqual(saved['rules'], warmed['rules'])
+        restored = load_engine(Rules(str(ROOT), ruleset='core'), json.loads(json.dumps(warmed)))
+        self.assertEqual(warmed['rules'], dump_engine(restored)['rules'])
+        for value in ({WEATHER.DRY, 'ability/unreviewed-weather-source'}, [WEATHER.DRY]):
+            with self.subTest(cache_type=type(value).__name__), patch.object(r, '_weather_passive_checked', value):
+                with self.assertRaisesRegex(StateCodecError, 'fingerprint mismatch'):
+                    load_engine(r, warmed)
+
     def test_poke_edge_derived_cache_preserves_cold_restore_and_rejects_override(self):
         from unittest.mock import patch
         import poke_edge_variants as EDGES

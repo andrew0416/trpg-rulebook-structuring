@@ -71,6 +71,15 @@ def scene(rules, *, seed=11, feats=CORE_FEATURES, grid=(12, 8), ally=False, foe_
     return world
 
 
+def audible_order(engine, actor):
+    """Explicit positive observation after the scenario changes weather/location."""
+    for target in engine.everyone:
+        if target is not actor and actor.side is not None and target.side == actor.side:
+            engine.gm.observe_sensory_environment(
+                actor, target, paths={'auditory': True}, present=True,
+                reason='actual audible Guide Order in current environment')
+
+
 def env(engine, actor, *terrains, light='normal'):
     return engine.survivalist_activity(actor, 'observe_environment', terrains=list(terrains), light=light, reason='GM actual terrain and light')
 

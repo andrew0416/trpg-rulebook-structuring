@@ -33,8 +33,8 @@ class KeenEyeTests(unittest.TestCase):
   FIX.env(e,a,terrain);FIX.env(e,p,terrain);FIX.battle(e,a)
   return w
 
- def guide(self,w):
-  return w['engine'].survivalist_activity(w['trainer'],'wilderness_guide',reason='actual audible Guide')
+ def guide(self,w,**options):
+  return w['engine'].survivalist_activity(w['trainer'],'wilderness_guide',reason='actual audible Guide',**options)
 
  def effect(self,e,a,p,value,source,*,timed=False):
   effect={'type':'accuracy_mod','target':'target','value':value}
@@ -130,7 +130,8 @@ class KeenEyeTests(unittest.TestCase):
  def test_book_other_terrain_and_suppression_are_controls(self):
   for edition,terrain in (('book','mountain'),('csv_hb','forest')):
    with self.subTest(edition=edition,terrain=terrain):
-    w=self.world(edition=edition,terrain=terrain);self.guide(w)
+    w=self.world(edition=edition,terrain=terrain)
+    self.guide(w,**({'terrain_name':terrain} if edition=='book' else {}))
     self.assertFalse(KEEN.active(w['engine'],w['partner']))
   w=self.world(actual=True);e,p,foe=(w[k] for k in ('engine','partner','foe'))
   p.abilities_suppressed=True

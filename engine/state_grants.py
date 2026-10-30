@@ -1481,7 +1481,8 @@ def _transition(engine,c,apply,*,participants=(),include_rulings=False,include_g
         original=actors[key]
         anchors[id(vars(staged))]=vars(original)
         for field,value in vars(staged).items():
-            previous=getattr(original,field,None)
+            # Alias collection must not invoke lazy properties on the live graph.
+            previous=vars(original).get(field)
             if type(value) is type(previous) and isinstance(value,(dict,list,set)):
                 replacements.append((value,previous))
     # Reject stale publication without restoring or overwriting the live change.

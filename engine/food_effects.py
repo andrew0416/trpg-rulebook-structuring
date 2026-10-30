@@ -381,9 +381,14 @@ def chef_effect(rules,uid):
 
 
 def deferred_registration(rules,effect):
- # Acquiring Honey Paws registers ownership; only actual Honey intake creates
- # its independent effect. Unknown source payloads retain normal pending flow.
+ # Native food effects register ownership; intake or activation creates
+ # the actual effect. Unknown source payloads retain normal pending flow.
  source=effect.get('_rule_id','ability/'+str(effect.get('_ability')))
+ if source==HARVEST:
+  expected={'type':'rule','coin_flip_keep_food_buff':True,'auto_keep_if_weather':'sunny'}
+  if {k:v for k,v in effect.items() if not k.startswith('_')}!=expected:return False
+  if rules._selected_rule(source)!=source:raise ValueError('selected Harvest registration source changed')
+  return True
  row=buff_policy(rules)['capacity_exceptions'].get(source,{})
  expected=row.get('registration_effect')
  if expected is None or {k:v for k,v in effect.items() if not k.startswith('_')}!=expected:return False

@@ -39,6 +39,7 @@ class NativeWeatherActionTests(unittest.TestCase):
             engine.gm.set_weather(weather, rounds=None, reason='actual native weather action condition')
         if guide:
             FIX.battle(engine, world['trainer'])
+            FIX.audible_order(engine, world['trainer'])
             fixture.guide(engine, world['trainer'])
             FIX.next_turn(engine, world['trainer'], user, count=10)
         else:
@@ -263,6 +264,27 @@ class NativeWeatherActionTests(unittest.TestCase):
         self.assertFalse(NATIVE.solar_power_interested(a))
         FIX.restore(self.rules,e)
         self.valid(e)
+
+    def test_solar_power_cannot_refresh_receipt_after_an_unrelated_action(self):
+        source = NATIVE.SOLAR_POWER
+        f, w = self.scene(source)
+        e, a, target = w['engine'], w['foe'], w['partner']
+        e.gm.set_position(a, (4,2), reason='actual adjacent attacker')
+        e.activate_ability(a, source, (a, {'move_id':'move/몸통박치기'}))
+        hp, swift, shift = a.hp, a.budget['swift'], a.budget['shift']
+        pay = NATIVE._pay
+        def pay_then_other_action(engine, actor, recipient, selected, row, **options):
+            result = pay(engine, actor, recipient, selected, row, **options)
+            self.assertTrue(TURN.spend(engine, actor, 'shift', 'unrelated real action'))
+            return result
+        with patch.object(NATIVE, '_pay', side_effect=pay_then_other_action), \
+             patch.object(Engine, 'd20', return_value=17), \
+             self.assertRaisesRegex(ValueError, 'append exactly its Swift'):
+            e.use_move(a, target, 'move/몸통박치기', set_damage=True)
+        self.assertEqual((a.hp, a.budget['swift'], a.budget['shift']), (hp, swift, shift))
+        self.assertNotIn(source, FREQ.state(a)['activations'])
+        self.assertFalse(any(r['operation']=='solar_power' for r in a.spec[NATIVE.HISTORY]))
+        self.assertTrue(NATIVE.solar_power_interested(a))
 
     def test_solar_power_paid_roll_survives_coordinator_pending_restore_without_repayment(self):
         import test_book_coordinator_full as COORD_FIX

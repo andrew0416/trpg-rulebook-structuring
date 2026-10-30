@@ -38,7 +38,7 @@ class SurvivalistWeatherConsumerTests(unittest.TestCase):
     f,w=self.scene(source);e,a,foe=(w[k] for k in ('engine','trainer','foe'))
     e.gm.set_weather(weather,rounds=None,reason='actual source weather')
     base=foe.staged('spe');self.assertEqual(e.initiative_value(foe).value,base*2)
-    acquired=list(foe.abilities);FIX.battle(e,a);f.guide(e,a)
+    acquired=list(foe.abilities);FIX.battle(e,a);FIX.audible_order(e,a);f.guide(e,a)
     self.assertEqual(e.initiative_value(foe).value,base)
     e.gm.set_hp(foe,foe.base_max_hp//2-1,reason='independent actual low HP')
     self.assertEqual(e.initiative_value(foe).value,base*2)
@@ -50,6 +50,25 @@ class SurvivalistWeatherConsumerTests(unittest.TestCase):
     e.end_encounter(round_elapsed_seconds=10)
     self.assertEqual(e.initiative_value(foe).value,base*2)
 
+ def test_weather_initiative_copies_coalesce_and_suppression_and_revocation_remove_contribution(self):
+  for source,copy,weather in (('ability/쓱쓱-playtest','ability/쓱쓱-playtest-2','rain'),
+                              ('ability/눈치우기','ability/눈치우기-2','hail')):
+   with self.subTest(source=source):
+    _,w=self.scene(copy);e,foe=w['engine'],w['foe']
+    GRANTS.grant(foe,'abilities',source,'gm/weather-second-copy','gm',rule_id=source)
+    GRANTS.reconcile(e,foe)
+    e.gm.set_weather(weather,rounds=None,reason='actual duplicate-source weather')
+    base=foe.staged('spe')
+    self.assertEqual(e.initiative_value(foe).value,base*2)
+    e.gm.set_hp(foe,foe.base_max_hp//2-1,reason='both printed predicates true')
+    self.assertEqual(e.initiative_value(foe).value,base*2)
+    foe.abilities_suppressed=True
+    self.assertEqual(e.initiative_value(foe).value,base)
+    foe.abilities_suppressed=False
+    GRANTS.revoke(foe,'gm/weather-test/'+copy,engine=e)
+    GRANTS.revoke(foe,'gm/weather-second-copy',engine=e);GRANTS.reconcile(e,foe)
+    self.assertEqual(e.initiative_value(foe).value,base)
+
  def test_veil_evasion_keeps_base_and_terrain_while_guided_attacker_ignores_named_ability(self):
   for source,(weather,surface) in WEATHER.VEILS.items():
    with self.subTest(source=source):
@@ -59,7 +78,7 @@ class SurvivalistWeatherConsumerTests(unittest.TestCase):
     self.assertEqual(WEATHER.evasion_contributions(e,foe)[source],1)
     e.gm.set_weather(weather,rounds=None,reason='actual matching weather')
     self.assertEqual(foe.evasion('물리',engine=e),base+1)
-    FIX.battle(e,a);f.guide(e,a)
+    FIX.battle(e,a);FIX.audible_order(e,a);f.guide(e,a)
     self.assertEqual(foe.evasion('물리',engine=e),base)
     self.assertEqual(SC.ignored_ability_evasion(e,p,foe),1)
     e.change_environment('weather-ground',{'ground_cover':[surface]},source=SC.GUIDE,
@@ -79,7 +98,7 @@ class SurvivalistWeatherConsumerTests(unittest.TestCase):
     e.gm.add_combatant(friend,pos=(8,3),side='wild',reason='actual adjacent foe ally')
     e.gm.set_weather(weather,rounds=None,reason='actual damaging weather')
     self.assertEqual(WEATHER.weather_hp_immunity(e,friend,weather),source)
-    FIX.battle(e,a);f.guide(e,a)
+    FIX.battle(e,a);FIX.audible_order(e,a);f.guide(e,a)
     self.assertIsNone(WEATHER.weather_hp_immunity(e,friend,weather))
     before=friend.hp
     FIX.next_turn(e,a,friend,count=10)
@@ -98,7 +117,7 @@ class SurvivalistWeatherConsumerTests(unittest.TestCase):
   damage=e.roll_damage(p,foe,move,set_damage=True)
   fall_dr=ENV._fall_defense(e,foe)[1]
   self.assertEqual(foe.evasion('물리',engine=e),base+1)
-  FIX.battle(e,a);f.guide(e,a)
+  FIX.battle(e,a);FIX.audible_order(e,a);f.guide(e,a)
   self.assertEqual(foe.evasion('물리',engine=e),base)
   self.assertEqual(e.roll_damage(p,foe,move,set_damage=True),damage+5)
   self.assertEqual(ENV._fall_defense(e,foe)[1],fall_dr-5)
