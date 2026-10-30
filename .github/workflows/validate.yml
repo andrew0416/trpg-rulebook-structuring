@@ -836,20 +836,104 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.11'
-      - name: Check adapter fixture and path guards remotely
+      - name: Preserve original status and create isolated same-head checkout
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $false
           $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-aa-admission' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT
           New-Item -ItemType Directory -Path $taskTemp -ErrorAction Stop | Out-Null
+          $taskCheckout = Join-Path $taskTemp 'same-head-checkout'
+          $taskProvenance = Join-Path $env:GITHUB_WORKSPACE 'output/ci/aa-checkout-provenance'
+          New-Item -ItemType Directory -Path $taskProvenance -ErrorAction Stop | Out-Null
           "TEMP=$taskTemp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "TMP=$taskTemp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "TMPDIR=$taskTemp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "AA_CHECKOUT=$taskCheckout" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "AA_PROVENANCE=$taskProvenance" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           $env:TEMP = $taskTemp
           $env:TMP = $taskTemp
           $env:TMPDIR = $taskTemp
           $env:RUNNER_TEMP = $env:TEMP
+          $env:AA_CHECKOUT = $taskCheckout
+          $env:AA_PROVENANCE = $taskProvenance
+          $taskProbe = @'
+          import hashlib, json, os, re, subprocess, sys
+          from pathlib import Path
+          root=Path(sys.argv[1]).resolve();label=sys.argv[2]
+          destination=Path(os.environ['AA_PROVENANCE']).resolve()/(label+'.json')
+          expected=os.environ['GITHUB_SHA']
+          if root.drive.upper()!='D:' or destination.drive.upper()!='D:':
+              raise SystemExit('D-only checkout observation required')
+          env=dict(os.environ,GIT_OPTIONAL_LOCKS='0')
+          def git(*args):
+              return subprocess.run(['git','-C',str(root),*args],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+          head=git('rev-parse','HEAD')
+          tree=git('ls-tree','-rz','--name-only',expected)
+          raw=git('status','--porcelain','--untracked-files=no')
+          nul=git('status','--porcelain=v1','-z','--untracked-files=no')
+          known=set(tree.stdout.split(b'\0'))-{b''};parts=nul.stdout.split(b'\0');records=[];index=0
+          def public_path(value):
+              return {'path':value.decode('utf-8')} if value in known else {'unknown_path_sha256':hashlib.sha256(value).hexdigest()}
+          while index<len(parts):
+              part=parts[index];index+=1
+              if not part:continue
+              if len(part)<4 or part[2:3]!=b' ' or re.fullmatch(rb'[ MADRCUT?!]{2}',part[:2]) is None:
+                  records.append({'unparsed_record_sha256':hashlib.sha256(part).hexdigest()});continue
+              row={'status':part[:2].decode('ascii'),**public_path(part[3:])}
+              if b'R' in part[:2] or b'C' in part[:2]:
+                  if index<len(parts):row['original']=public_path(parts[index]);index+=1
+                  else:row['missing_original']=True
+              records.append(row)
+          def channels(result):
+              return dict(exit_code=result.returncode,stdout_nonempty=bool(result.stdout.strip()),
+                          stdout_bytes=len(result.stdout),stderr_bytes=len(result.stderr),
+                          stdout_sha256=hashlib.sha256(result.stdout).hexdigest(),
+                          stderr_sha256=hashlib.sha256(result.stderr).hexdigest(),
+                          stderr_warning=b'warning:' in result.stderr.lower(),stderr_fatal=b'fatal:' in result.stderr.lower())
+          report=dict(head=expected,checkout_head_matches=head.stdout.decode().strip()==expected,
+                      scope=label,tracked_path_count=len(known),status=channels(raw),nul_status=channels(nul),
+                      public_tracked_records=records,unknown_content_exported=False,game_runs=0,clause_credit=0)
+          destination.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+          if any(result.returncode for result in (head,tree,raw,nul)) or not report['checkout_head_matches']:
+              raise SystemExit('Checkout provenance command or head check failed')
+          if '--require-clean' in sys.argv and (raw.stdout.strip() or nul.stdout.strip()):
+              raise SystemExit('Fresh isolated checkout is not clean')
+          '@
+          [System.IO.File]::WriteAllText((Join-Path $taskTemp 'capture_aa_checkout.py'), $taskProbe, [System.Text.UTF8Encoding]::new($false))
+          python -B -X utf8 (Join-Path $env:TEMP 'capture_aa_checkout.py') "$env:GITHUB_WORKSPACE" original-before-tests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $taskClone = @'
+          import os, subprocess
+          from pathlib import Path
+          original=Path(os.environ['GITHUB_WORKSPACE']).resolve()
+          isolated=Path(os.environ['AA_CHECKOUT']).resolve()
+          if original.drive.upper()!='D:' or isolated.drive.upper()!='D:' or isolated.exists():
+              raise SystemExit('A new D-only isolated checkout is required')
+          for args in (
+              ['git','clone','--local','--no-hardlinks','--no-checkout',str(original),str(isolated)],
+              ['git','-C',str(isolated),'checkout','--detach',os.environ['GITHUB_SHA']]):
+              result=subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+              if result.returncode:raise SystemExit('Same-head isolated checkout creation failed')
+          result=subprocess.run(['git','-C',str(isolated),'rev-parse','HEAD'],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+          if result.returncode or result.stdout.decode().strip()!=os.environ['GITHUB_SHA']:
+              raise SystemExit('Isolated checkout head differs')
+          result=subprocess.run(['git','-C',str(isolated),'rev-parse','HEAD:.ci/aa-acceptance.zip.enc'],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+          if result.returncode or result.stdout.decode().strip()!='5778c37c9e25549de67dcaf2babf02ddb13cd0ef':
+              raise SystemExit('Isolated approved802 blob differs')
+          '@
+          $env:RUNNER_TEMP = $env:TEMP
+          python -B -X utf8 -c $taskClone
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -B -X utf8 (Join-Path $env:TEMP 'capture_aa_checkout.py') "$env:AA_CHECKOUT" isolated-before-tests --require-clean
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Check adapter fixture and path guards remotely
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $env:RUNNER_TEMP = $env:TEMP
+          Set-Location -LiteralPath $env:AA_CHECKOUT
           $taskChecks = 'output/ci/aa-tooling-checks'
           New-Item -ItemType Directory -Path $taskChecks -ErrorAction Stop | Out-Null
           $taskSourcePins = @{}
@@ -858,8 +942,10 @@ jobs:
           }
           @{ head=$env:GITHUB_SHA; run=$env:GITHUB_RUN_ID; attempt=$env:GITHUB_RUN_ATTEMPT; scope='synthetic_tooling_only'; game_runs=0; clause_credit=0; source_sha256=$taskSourcePins } |
             ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$taskChecks/source-binding.json" -Encoding utf8
-          python -B -X utf8 tools/ci_aa_acceptance.py --root "$env:GITHUB_WORKSPACE" --self-check 2>&1 | Tee-Object -FilePath "$taskChecks/adapter-self-check.log"
+          python -B -X utf8 tools/ci_aa_acceptance.py --root "$env:AA_CHECKOUT" --self-check 2>&1 | Tee-Object -FilePath "$taskChecks/adapter-self-check.log"
           $taskExit = $LASTEXITCODE
+          python -B -X utf8 (Join-Path $env:TEMP 'capture_aa_checkout.py') "$env:AA_CHECKOUT" isolated-after-selfcheck
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           @{ exit_code=$taskExit; passed=($taskExit -eq 0); game_runs=0; clause_credit=0 } |
             ConvertTo-Json | Set-Content -LiteralPath "$taskChecks/adapter-self-check.json" -Encoding utf8
           if ($taskExit -ne 0) { exit $taskExit }
@@ -869,8 +955,13 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $false
           $env:RUNNER_TEMP = $env:TEMP
+          Set-Location -LiteralPath $env:AA_CHECKOUT
           python -B -X utf8 -m unittest discover -s tools -p test_ci_aa_current17_transform.py -v 2>&1 | Tee-Object -FilePath output/ci/aa-tooling-checks/current17-synthetic.log
           $taskExit = $LASTEXITCODE
+          python -B -X utf8 (Join-Path $env:TEMP 'capture_aa_checkout.py') "$env:AA_CHECKOUT" isolated-after-synthetic
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -B -X utf8 (Join-Path $env:TEMP 'capture_aa_checkout.py') "$env:GITHUB_WORKSPACE" original-after-tests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if ($taskExit -eq 0 -and -not ((Get-Content -LiteralPath output/ci/aa-tooling-checks/current17-synthetic.log -Raw) -match '(?m)^Ran 7 tests in ')) { $taskExit = 1 }
           @{ exit_code=$taskExit; passed=($taskExit -eq 0); declared_tests=7; game_runs=0; clause_credit=0 } |
             ConvertTo-Json | Set-Content -LiteralPath output/ci/aa-tooling-checks/current17-synthetic.json -Encoding utf8
@@ -887,13 +978,20 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $false
           if ($env:AA_PACKAGE_BLOB -cne '5778c37c9e25549de67dcaf2babf02ddb13cd0ef') { throw 'Exact approved802 ciphertext Git blob required' }
           $env:RUNNER_TEMP = $env:TEMP
+          Set-Location -LiteralPath $env:AA_CHECKOUT
+          python -B -X utf8 (Join-Path $env:TEMP 'capture_aa_checkout.py') "$env:GITHUB_WORKSPACE" original-before-admission
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -B -X utf8 (Join-Path $env:TEMP 'capture_aa_checkout.py') "$env:AA_CHECKOUT" isolated-before-admission
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $taskConsole = Join-Path $env:TEMP 'aa-admission-console.private.log'
-          python -B -X utf8 tools/ci_aa_acceptance.py --root "$env:GITHUB_WORKSPACE" --expected-package-blob "$env:AA_PACKAGE_BLOB" *> $taskConsole
+          python -B -X utf8 tools/ci_aa_acceptance.py --root "$env:AA_CHECKOUT" --expected-package-blob "$env:AA_PACKAGE_BLOB" *> $taskConsole
           $taskAdmissionExit = $LASTEXITCODE
+          python -B -X utf8 (Join-Path $env:TEMP 'capture_aa_checkout.py') "$env:AA_CHECKOUT" isolated-after-admission
+          $taskProvenanceExit = $LASTEXITCODE
           $taskEncrypt = @'
           import os, sys
           from pathlib import Path
-          root = Path(os.environ['GITHUB_WORKSPACE']).resolve()
+          root = Path(os.environ['AA_CHECKOUT']).resolve()
           temporary = Path(os.environ['RUNNER_TEMP']).resolve()
           if root.drive.upper() != 'D:' or temporary.drive.upper() != 'D:':
               raise SystemExit('D-only console encryption required')
@@ -914,6 +1012,7 @@ jobs:
             Get-Content -LiteralPath output/ci/aa-acceptance/summary.json -Raw
           }
           if ($taskEncryptionExit -ne 0) { exit $taskEncryptionExit }
+          if ($taskProvenanceExit -ne 0) { exit $taskProvenanceExit }
           if ($taskAdmissionExit -ne 0) { exit $taskAdmissionExit }
       - name: Preserve synthetic checks separately from admission evidence
         if: ${{ always() }}
@@ -921,11 +1020,11 @@ jobs:
         with:
           name: aa4-tooling-checks-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            output/ci/aa-tooling-checks/source-binding.json
-            output/ci/aa-tooling-checks/adapter-self-check.log
-            output/ci/aa-tooling-checks/adapter-self-check.json
-            output/ci/aa-tooling-checks/current17-synthetic.log
-            output/ci/aa-tooling-checks/current17-synthetic.json
+            ${{ env.AA_CHECKOUT }}/output/ci/aa-tooling-checks/source-binding.json
+            ${{ env.AA_CHECKOUT }}/output/ci/aa-tooling-checks/adapter-self-check.log
+            ${{ env.AA_CHECKOUT }}/output/ci/aa-tooling-checks/adapter-self-check.json
+            ${{ env.AA_CHECKOUT }}/output/ci/aa-tooling-checks/current17-synthetic.log
+            ${{ env.AA_CHECKOUT }}/output/ci/aa-tooling-checks/current17-synthetic.json
           if-no-files-found: warn
           retention-days: 14
       - name: Preserve encrypted generated artifacts and allowlisted summary
@@ -934,8 +1033,17 @@ jobs:
         with:
           name: aa4-retained-admission-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            output/ci/aa-acceptance/summary.json
-            output/ci/aa-acceptance/acceptance.zip.enc
-            output/ci/aa-acceptance/adapter-console.log.enc
+            ${{ env.AA_CHECKOUT }}/output/ci/aa-acceptance/summary.json
+            ${{ env.AA_CHECKOUT }}/output/ci/aa-acceptance/acceptance.zip.enc
+            ${{ env.AA_CHECKOUT }}/output/ci/aa-acceptance/adapter-console.log.enc
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Preserve checkout provenance without unknown raw content
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: aa4-checkout-provenance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/ci/aa-checkout-provenance/*.json
           if-no-files-found: warn
           retention-days: 14

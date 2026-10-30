@@ -662,6 +662,12 @@ def main():
         summary['failure_code'] = (message.split(':', 1)[0] if re.fullmatch(r'AA_[A-Z0-9_]+(?::.*)?', message)
                                    else 'AA_ADMISSION_GUARD_OR_RUNTIME_FAILURE')
         summary['failure_type'] = type(error).__name__
+        public_owners = {str(checkout/name).replace('\\', '/').casefold(): name for name in (
+            'tools/ci_aa_acceptance.py', 'tools/ci_validate.py',
+            'tools/ci_remote_h.py', 'tools/ci_aa_recovery.py')}
+        summary['failure_public_frames'] = [dict(path=public_owners[frame.filename.replace('\\', '/').casefold()], line=frame.lineno)
+            for frame in traceback.extract_tb(error.__traceback__)
+            if frame.filename.replace('\\', '/').casefold() in public_owners]
         (work/'records/private-error.txt').write_text(traceback.format_exc(), encoding='utf-8')
     try:
         plaintext = work/'generated-artifacts.zip'
