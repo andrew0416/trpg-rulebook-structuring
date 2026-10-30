@@ -141,7 +141,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 10
     concurrency:
-      group: diagnose-fixed-40363272171-${{ github.ref }}
+      group: diagnose-fixed-41042269681-${{ github.ref }}
       cancel-in-progress: false
     permissions:
       contents: read
@@ -175,7 +175,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: existing-diagnostic-40363272171-${{ github.run_id }}-${{ github.run_attempt }}
+          name: existing-diagnostic-41042269681-${{ github.run_id }}-${{ github.run_attempt }}
           path: output/ci/existing-diagnostic/summary.json
           if-no-files-found: warn
           retention-days: 14
