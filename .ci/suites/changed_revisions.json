@@ -1,26 +1,52 @@
 {
+  "schema_version": 1,
+  "id": "clause-method-repair01",
+  "purpose": "IMPL-01 shared blinded movement cost and continuation; IMPL-02 independent Stacked Deck oracle; IMPL-03 Gas-only refusal and success control; IMPL-04 Entrainment Scene/AC/range boundaries.",
   "completion_credit": 0,
-  "id": "aa4_post_integration_current8",
-  "required_unique_count": 8,
+  "required_unique_count": 17,
   "completed": {
-    "aa4_current_boundaries": {
+    "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests": {
       "tests": [
-        "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_gas_native_paid_disengage_refreshes_aura_before_actual_cell_entry",
-        "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_gas_paid_approach_refreshes_aura_before_each_actual_cell_entry",
-        "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_receiver_gm_zero_hp_preserves_both_actual_faint_branches_without_retrigger",
-        "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_receiver_actual_melee_knockout_preserves_pre_cleanup_ability_snapshot",
-        "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_real_interrupt_offer_use_is_blocked_after_gas_enters_but_decline_is_free",
-        "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_gas_four_real_moves_apply_full_round_effect_independent_of_aura",
-        "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_cold_restore_retains_native_mummy_and_entrainment_refs_and_real_expiry",
-        "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_tampered_grant_deadline_and_aura_source_are_rejected_not_refreshed_into_truth"
+        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_rough_and_slow_costs_share_both_turns_and_survive_restore",
+        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_bad_blindness_declaration_rejects_before_action_or_distance",
+        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_failed_check_charges_only_the_actual_entered_slow_cell",
+        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_entry_failure_rolls_back_position_pool_shift_and_rng",
+        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_actual_entry_pending_restore_resumes_once_including_zero_remaining",
+        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_returned_entry_with_exhausted_live_pool_stops_before_the_next_cell"
+      ]
+    },
+    "tools.test_living_weapon_movement_noguard_source_revision.LivingWeaponMovementNoGuardSourceRevisionTests": {
+      "tests": [
+        "tools.test_living_weapon_movement_noguard_source_revision.LivingWeaponMovementNoGuardSourceRevisionTests.test_shared_pool_uses_trainer_or_pokemon_holder_speed_across_turns_restore_and_rounds",
+        "tools.test_living_weapon_movement_noguard_source_revision.LivingWeaponMovementNoGuardSourceRevisionTests.test_partial_paid_path_rejected_step_and_resumed_prefix_debit_only_committed_cost",
+        "tools.test_living_weapon_movement_noguard_source_revision.LivingWeaponMovementNoGuardSourceRevisionTests.test_native_entry_failure_rolls_back_joint_position_pool_action_and_rng"
+      ]
+    },
+    "tools.test_book_trickster_full.TricksterFullTests": {
+      "tests": [
+        "tools.test_book_trickster_full.TricksterFullTests.test_stacked_failed_save_does_not_consume_next_success_and_success_trips_slows",
+        "tools.test_book_trickster_full.TricksterFullTests.test_stacked_accuracy_evasion_minus_two_lasts_only_selected_volatile_condition",
+        "tools.test_book_trickster_full.TricksterFullTests.test_stacked_all_four_save_conditions_and_all_four_volatile_conditions",
+        "tools.test_book_trickster_full.TricksterFullTests.test_stacked_scene_per_foe_quota_is_not_per_condition"
+      ]
+    },
+    "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests": {
+      "tests": [
+        "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_real_interrupt_offer_use_is_blocked_after_gas_enters_but_decline_is_free"
+      ]
+    },
+    "tools.test_entrainment_header_boundaries.EntrainmentHeaderBoundaryTests": {
+      "tests": [
+        "tools.test_entrainment_header_boundaries.EntrainmentHeaderBoundaryTests.test_entrainment_scene_quota_survives_encounter_then_resets_at_scene_boundary",
+        "tools.test_entrainment_header_boundaries.EntrainmentHeaderBoundaryTests.test_entrainment_ac2_uses_speed_evasion_threshold",
+        "tools.test_entrainment_header_boundaries.EntrainmentHeaderBoundaryTests.test_entrainment_range_four_accepts_edge_and_rejects_fifth_meter_before_cost"
       ]
     }
   },
-  "purpose": "Revalidate only changed shared native boundaries for the existing AA4 acceptance candidate; reuse original50 evidence",
-  "schema_version": 1,
   "provenance": {
-    "base_main": "bd97815ba3e1e7258cd8b775bd0915a3ae0f17b3",
-    "candidate": "ability-exchange-acceptance01/source-review/candidate.draft.json",
-    "retained50": "next-selection1798/ability-exchange-current-impact.json#retained_valid_case_ids"
+    "runtime_base_main": "bd97815ba3e1e7258cd8b775bd0915a3ae0f17b3",
+    "base_commit": "efbc0b2477c3dffddae0208e68cafdfe3f301cfd",
+    "original_evidence": "Existing historical PASS and mixed failures are preserved; no PASS is transferred to changed tests.",
+    "status": "SOURCE_REVIEWED_PENDING_REMOTE_EXECUTION"
   }
 }

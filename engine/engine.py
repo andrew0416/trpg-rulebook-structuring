@@ -5928,7 +5928,9 @@ class Engine:
                 LIVING.relation(e,a,usable=True)
                 remaining=LIVING.movement_remaining(e,a,movement_mode=movement_mode)
                 if remaining is not None:remaining=int(remaining)
-                if remaining==0:return {'distance':0,'position':a.pos,'mode':e.move_profile(a,movement_mode=movement_mode)[1]}
+                blind_cursor=a.spec.get('_survivalist_shift')
+                if remaining==0 and not (isinstance(blind_cursor,dict) and blind_cursor.get('finished') is False):
+                    return {'distance':0,'position':a.pos,'mode':e.move_profile(a,movement_mode=movement_mode)[1]}
                 result=e._approach(a,t,reach,movement_mode=movement_mode,blindness_options=blindness_options,maximum_distance=remaining)
                 LIVING.sync(e,a)
                 return result
