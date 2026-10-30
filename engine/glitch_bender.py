@@ -790,6 +790,12 @@ def _metronome_state(e,parent,*,historical=False):
     return state
 
 
+def generate(e,pool):
+    """The one actual random Metronome draw. Generation runs inside a staged transition whose RNG is a copy, so
+    observers (tests, GM replay) bind here, not to an RNG instance."""
+    return e.rng.choice(pool)
+
+
 def metronome_effect(e,actor,target,effect,ctx):
     """Retain one actual generated selection; the native recipient owns dispatch."""
     import effect_contracts as C,root_resolution as R,common_checks as CHECKS
@@ -806,7 +812,7 @@ def metronome_effect(e,actor,target,effect,ctx):
         except (ValueError,KeyError,TypeError) as error:raise ErrorChoiceRejected('Metronome Burst cannot pay its actual source cost') from error
     parent=e._move_completions[parent['id']]
     callback_boundary=C.boundary(e,actor,target);callback_history=list(actor._action_history)
-    generated=[e.rng.choice(metronome_pool(e.r)) for _ in range(3 if enhanced else 1)]
+    generated=[generate(e,metronome_pool(e.r)) for _ in range(3 if enhanced else 1)]
     try:choice=decision(tuple(generated))
     except Exception as error:raise ErrorChoiceRejected('Metronome selection callback failed') from error
     if callback_boundary!=C.boundary(e,actor,target) or callback_history!=actor._action_history:raise ErrorChoiceRejected('Metronome selection callback changed the paid action boundary')

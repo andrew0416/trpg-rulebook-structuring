@@ -128,6 +128,7 @@ class NaturalFighterTests(unittest.TestCase):
         self.e.gm.set_move(self.t, 'move/흑안개', reason='actual previously learned trainer Move')
         self.e.use_move_on(self.t, self.t, 'move/흑안개', self.e.everyone)
         self.next_round()
+        self.next_round()  # a Scene Move may not repeat on consecutive turns (frequency rule); the shared count is what is tested
         self.cast('tundra')
         self.assertEqual(self.t.move_uses['move/흑안개'], 2)
         self.assertIn('move/흑안개', self.t.moves)

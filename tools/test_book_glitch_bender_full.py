@@ -223,7 +223,7 @@ class GlitchBenderFullTests(unittest.TestCase):
  def test_18_metronome_all_move_pool_printed_exclusions_unknown_child_real_completion(self):
   self.family(B.SHUFFLE);self.begin();pool=B.metronome_pool(self.rules);self.assertNotIn(B.SNATCH,pool);self.assertIn('move/물대포',pool);self.assertNotIn('move/물대포',self.a.moves)
   B.arm_metronome(self.e,self.a,lambda ids:{'move_id':ids[0],'target_id':self.b.entity_id,'set_damage':True});before=self.b.hp
-  with patch.object(self.e.rng,'choice',return_value='move/물대포'):self.native(self.a,self.a,B.METRONOME)
+  with patch.object(B,'generate',return_value='move/물대포'):self.native(self.a,self.a,B.METRONOME)
   self.assertLess(self.b.hp,before);self.assertEqual(self.a.move_uses[B.METRONOME],1);self.assertNotIn('move/물대포',self.a.moves);self.assertNotIn('move/물대포',self.a.move_uses)
   child=[r for r in self.e._move_completions.values() if r['move_id']=='move/물대포'];self.assertEqual(child[-1]['phase'],'complete');self.restore();self.valid()
 
@@ -231,7 +231,7 @@ class GlitchBenderFullTests(unittest.TestCase):
   self.family(B.BURST);self.begin();seen=[]
   def choose(ids):seen.extend(ids);return {'move_id':ids[1],'target_id':self.b.entity_id,'set_damage':True}
   B.arm_metronome(self.e,self.a,choose,burst=True);before=AP.available(self.a)
-  with patch.object(self.e.rng,'choice',side_effect=['move/울음소리','move/물대포','move/몸통박치기']):self.native(self.a,self.a,B.METRONOME)
+  with patch.object(B,'generate',side_effect=['move/울음소리','move/물대포','move/몸통박치기']):self.native(self.a,self.a,B.METRONOME)
   self.assertEqual(seen,['move/울음소리','move/물대포','move/몸통박치기']);self.assertEqual(AP.available(self.a),before-2);self.assertEqual(self.a.budget['swift'],0);self.assertEqual(self.a.budget['standard'],0)
   self.reject(lambda:B.metronome_effect(self.e,self.a,self.a,{'type':'random_move'},{'move_completion':'forged'}));self.valid()
 
@@ -239,7 +239,7 @@ class GlitchBenderFullTests(unittest.TestCase):
   import passive_events as P
   self.family(B.SHUFFLE);G.replace_baseline(self.e,self.a,'abilities',['자기과신']);self.begin();self.b.side=None;self.e.gm.set_hp(self.b,1,reason='actual lethal child target')
   B.arm_metronome(self.e,self.a,lambda ids:{'move_id':ids[0],'target_id':self.b.entity_id,'set_damage':True})
-  with patch.object(self.e.rng,'choice',return_value='move/몸통박치기'):
+  with patch.object(B,'generate',return_value='move/몸통박치기'):
    with self.assertRaises(P.PassiveEventPending):self.native(self.a,self.a,B.METRONOME)
   self.assertEqual(self.a.move_uses[B.METRONOME],1);self.assertEqual(self.a._action_history,['standard','free']);self.assertLessEqual(self.b.hp,0);before=deepcopy(self.e.export_state());self.restore()
   with self.assertRaises(P.PassiveEventPending):self.e.end_of_turn(self.a)
@@ -315,7 +315,7 @@ class GlitchBenderFullTests(unittest.TestCase):
     self.native(self.b,self.a,'move/울음소리');self.begin(p);before=set(getattr(self.e,'_effect_dispatch_receipts',{}))
     if mid==__import__('glitch_moves').TELE:__import__('glitch_moves').declare_tele_crash(self.e,p,(1,0),reason='actual declared Teleport Crash direction')  # composed 2026-10-30: printed Move now needs its declared direction
     with patch.object(Engine,'d20',return_value=20):
-     if name in ('방해 웨이브','블루 스크린','고통 교환'):self.e.use_move_on(p,self.b,mid,[p,self.b,self.c],aim=self.b.pos,set_damage=True)
+     if name in ('방해 웨이브','블루 스크린','고통 교환'):self.e.use_move_on(p,self.b,mid,[p,self.b,self.c],aim=None if name=='고통 교환' else self.b.pos,set_damage=True)
      else:self.e.use_move(p,self.b,mid,set_damage=True)
     actual=[r for token,r in getattr(self.e,'_effect_dispatch_receipts',{}).items() if token not in before and r['source_id']==mid]
     self.assertTrue(actual,'printed nontrivial native reference produced no actual effect receipts: '+mid);self.assertTrue(all(r['status']=='completed' for r in actual),'native reference effects did not finish: '+mid)
@@ -562,14 +562,14 @@ class GlitchBenderFullTests(unittest.TestCase):
   calls=[]
   def decide(ids):calls.append(ids);return {'move_id':ids[0],'target_id':self.b.entity_id,'set_damage':True}
   B.arm_metronome(self.e,self.a,decide)
-  with patch.object(self.e.rng,'choice',return_value='move/물대포'):
+  with patch.object(B,'generate',return_value='move/물대포'):
    with self.assertRaises(P.PassiveEventPending):self.native(self.a,self.a,B.METRONOME)
   parent=self.metronome_parent();state=parent['metronome_child'];child_id=state['child_completion']
   self.assertEqual(state['phase'],'waiting');self.assertEqual(self.e._passive_events[self.e._passive_pending]['move_id'],'move/물대포')
   self.assertEqual(len(calls),1);self.assertEqual(self.a._action_history,['standard','free'])
   paid=deepcopy((self.a.move_uses,self.a._action_history,self.a.budget));hp=self.b.hp;rng=self.e.rng.getstate()
   self.cold_metronome_restore()
-  with patch.object(self.e.rng,'choice',side_effect=AssertionError('selected child must not be regenerated')),patch.object(Engine,'d20',side_effect=AssertionError('already observed accuracy must not reroll')):
+  with patch.object(B,'generate',side_effect=AssertionError('selected child must not be regenerated')),patch.object(Engine,'d20',side_effect=AssertionError('already observed accuracy must not reroll')):
    for _ in range(2):
     if self.e._passive_pending is None:break
     try:P.choose(self.e,self.e._passive_pending,self.a,key,{'decisions':{'continue_fixture':{'value':False,'reason':'resume the retained native return'}}})
@@ -585,13 +585,13 @@ class GlitchBenderFullTests(unittest.TestCase):
   import passive_events as P,action_lifecycle as A
   self.family(B.SHUFFLE);self.begin();self.metronome_dodge(self.b)
   B.arm_metronome(self.e,self.a,lambda ids:{'move_id':ids[0],'target_id':self.b.entity_id,'set_damage':True})
-  with patch.object(self.e.rng,'choice',return_value='move/물대포'):
+  with patch.object(B,'generate',return_value='move/물대포'):
    with self.assertRaises(P.PassiveEventPending):self.native(self.a,self.a,B.METRONOME)
   pending=self.e._passive_pending;hp=self.b.hp;parent_id=self.metronome_parent()['id']
   self.tamper(self.a,lambda se,a:se._move_completions[parent_id]['metronome_child']['choice'].update(target_id=self.c.entity_id),reason='choice|changed|recipient')
   self.tamper(self.a,lambda se,a:se._move_completions[parent_id].pop('metronome_child'),reason='Metronome|parent|receipt')
   self.cold_metronome_restore();paid=deepcopy((self.a.move_uses,self.a._action_history,self.a.budget))
-  with patch.object(self.e.rng,'choice',side_effect=AssertionError('native selection already exists')),patch.object(Engine,'d20',side_effect=AssertionError('native accuracy already exists')):
+  with patch.object(B,'generate',side_effect=AssertionError('native selection already exists')),patch.object(Engine,'d20',side_effect=AssertionError('native accuracy already exists')):
    self.e.choose_move_defense(pending,self.b,use=False,reason='decline actual child defense')
   self.assertLess(self.b.hp,hp);self.assertEqual((self.a.move_uses,self.a._action_history,self.a.budget),paid)
   self.assertEqual(self.metronome_parent()['phase'],'complete')
@@ -605,7 +605,7 @@ class GlitchBenderFullTests(unittest.TestCase):
   self.begin(self.b);self.metronome_dodge(self.c);B.arm_snatch(self.e,self.a,target=self.b)
   B.arm_metronome(self.e,self.b,lambda ids:self.fail('the original user must not select the stolen effect'))
   B.arm_metronome(self.e,self.a,lambda ids:{'move_id':ids[0],'target_id':self.c.entity_id,'set_damage':True})
-  with patch.object(self.e.rng,'choice',return_value='move/물대포'):
+  with patch.object(B,'generate',return_value='move/물대포'):
    with self.assertRaises(P.PassiveEventPending):self.native(self.b,self.b,B.METRONOME)
   parent=self.metronome_parent();state=parent['metronome_child'];child_id=state['child_completion'];pending=self.e._passive_pending
   self.assertIs(parent['actor'],self.b);self.assertIs(self.e._move_completions[child_id]['actor'],self.a)
@@ -615,7 +615,7 @@ class GlitchBenderFullTests(unittest.TestCase):
   parent_id=parent['id'];self.tamper(self.a,lambda se,a:se._move_completions[parent_id]['metronome_child'].update(effect_user_id=self.b.entity_id),reason='changed|user|choice')
   paid=deepcopy((self.a.move_uses,self.b.move_uses,self.a._action_history,self.b._action_history));hp=self.c.hp
   self.cold_metronome_restore()
-  with patch.object(self.e.rng,'choice',side_effect=AssertionError('Snatched selection is already durable')),patch.object(Engine,'d20',side_effect=AssertionError('native child accuracy already observed')):
+  with patch.object(B,'generate',side_effect=AssertionError('Snatched selection is already durable')),patch.object(Engine,'d20',side_effect=AssertionError('native child accuracy already observed')):
    self.e.choose_move_defense(pending,self.c,use=False,reason='decline actual stolen-child defense')
   self.assertLess(self.c.hp,hp);self.assertEqual((self.a.move_uses,self.b.move_uses,self.a._action_history,self.b._action_history),paid)
   self.assertEqual(self.a._action_history,['standard','free']);self.assertEqual(self.b._action_history,['standard'])
@@ -635,13 +635,13 @@ class GlitchBenderFullTests(unittest.TestCase):
     B.arm_metronome(self.e,self.b,lambda ids:self.fail('original paid user does not select the Snatched effect'))
     B.arm_metronome(self.e,self.a,lambda ids:{'move_id':ids[0],'target_id':self.c.entity_id,'set_damage':True})
     hp=self.c.hp
-    with patch.object(self.e.rng,'choice',return_value='move/물대포'):
+    with patch.object(B,'generate',return_value='move/물대포'):
      with self.assertRaises(P.PassiveEventPending):self.native(self.b,self.b,B.METRONOME)
     pending=self.e._passive_pending;state=self.metronome_parent()['metronome_child']
     self.assertIsNone(state['child_completion']);self.assertIsNotNone(state['frame'])
     self.assertEqual(self.e._passive_events[pending]['move_id'],R.SUCKER)
     self.cold_metronome_restore()
-    with patch.object(self.e.rng,'choice',side_effect=AssertionError('child choice must survive pre-initiation wait')),patch.object(Engine,'d20',return_value=20):
+    with patch.object(B,'generate',side_effect=AssertionError('child choice must survive pre-initiation wait')),patch.object(Engine,'d20',return_value=20):
      self.e.choose_move_defense(pending,self.a,use=False,reason='decline real Sucker Punch defense')
     result=self.metronome_parent()['metronome_result']
     self.assertEqual(result['cancelled'],knockout);self.assertEqual(self.metronome_parent()['phase'],'complete')
@@ -657,7 +657,7 @@ class GlitchBenderFullTests(unittest.TestCase):
   self.cold_metronome_restore()
   self.reject(lambda:self.native(self.a,self.a,B.METRONOME),reason='fresh|callback|choice')
   B.arm_metronome(self.e,self.a,lambda ids:{'move_id':B.SNATCH,'target_id':self.b.entity_id})
-  with patch.object(self.e.rng,'choice',return_value='move/물대포'):
+  with patch.object(B,'generate',return_value='move/물대포'):
    self.reject(lambda:self.native(self.a,self.a,B.METRONOME),reason='generated|recipient|select')
   self.assertNotIn(B.METRONOME,self.a.move_uses);self.assertEqual(self.a._action_history,[]);self.valid()
 
@@ -669,18 +669,18 @@ class GlitchBenderFullTests(unittest.TestCase):
    B.arm_metronome(self.e,self.b,lambda ids:self.fail('Snatch transfers effect selection'))
    B.arm_metronome(self.e,self.a,lambda ids:{'move_id':ids[0],'target_id':self.c.entity_id,'set_damage':True})
   arm()
-  with patch.object(self.e.rng,'choice',side_effect=AssertionError('Snatch response precedes random generation')):
+  with patch.object(B,'generate',side_effect=AssertionError('Snatch response precedes random generation')):
    with self.assertRaises(P.PassiveEventPending):self.native(self.b,self.b,B.METRONOME)
   pending=self.e._passive_pending;self.assertEqual(self.e._passive_events[pending]['move_id'],B.SNATCH)
   self.assertNotIn('metronome_child',self.metronome_parent());self.cold_metronome_restore()
   self.assertNotIn('_glitch_metronome_choices',vars(self.e));arm()
-  with patch.object(self.e.rng,'choice',return_value='move/물대포'),patch.object(Engine,'d20',return_value=20):
+  with patch.object(B,'generate',return_value='move/물대포'),patch.object(Engine,'d20',return_value=20):
    with self.assertRaises(P.PassiveEventPending):P.choose(self.e,pending,self.a,key,{'decisions':{'continue_fixture':{'value':False,'reason':'complete actual restored Snatch response'}}})
   child_wait=self.e._passive_pending;self.assertNotEqual(child_wait,pending)
   self.assertEqual(self.e._passive_events[child_wait]['move_id'],'move/물대포')
   selected=deepcopy(self.metronome_parent()['metronome_child']['choice']);paid=deepcopy((self.a.move_uses,self.b.move_uses,self.a._action_history,self.b._action_history))
   self.cold_metronome_restore()
-  with patch.object(self.e.rng,'choice',side_effect=AssertionError('second wait must not regenerate')),patch.object(Engine,'d20',side_effect=AssertionError('child accuracy already paid and observed')):
+  with patch.object(B,'generate',side_effect=AssertionError('second wait must not regenerate')),patch.object(Engine,'d20',side_effect=AssertionError('child accuracy already paid and observed')):
    P.choose(self.e,child_wait,self.a,key,{'decisions':{'continue_fixture':{'value':False,'reason':'resume selected native child after second restore'}}})
   self.assertEqual(self.metronome_parent()['metronome_child']['choice'],selected)
   self.assertEqual((self.a.move_uses,self.b.move_uses,self.a._action_history,self.b._action_history),paid)
@@ -815,7 +815,7 @@ class GlitchBenderFullTests(unittest.TestCase):
   for wait in (False,True):
    with self.subTest(wait=wait):
     prepare(wait=wait)
-    with patch.object(self.e.rng,'choice',return_value=child):
+    with patch.object(B,'generate',return_value=child):
      if wait:
       with self.assertRaises(P.PassiveEventPending):self.native(self.b,self.b,B.METRONOME)
      else:self.native(self.b,self.b,B.METRONOME)
@@ -825,7 +825,7 @@ class GlitchBenderFullTests(unittest.TestCase):
      self.assertIsNone(state['child_completion']);self.assertIsNotNone(state['frame'])
      paid=deepcopy((self.a.move_uses,self.b.move_uses,self.c.move_uses,self.a._action_history,self.b._action_history,self.c._action_history))
      self.cold_metronome_restore()
-     with patch.object(self.e.rng,'choice',side_effect=AssertionError('selected Bounce must not regenerate')),patch.object(Engine,'d20',side_effect=AssertionError('Upper accuracy was already observed')):
+     with patch.object(B,'generate',side_effect=AssertionError('selected Bounce must not regenerate')),patch.object(Engine,'d20',side_effect=AssertionError('Upper accuracy was already observed')):
       self.e.choose_move_defense(pending,self.a,use=False,reason='decline actual Upper defense after cold restore')
      self.assertEqual((self.a.move_uses,self.b.move_uses,self.c.move_uses,self.a._action_history,self.b._action_history,self.c._action_history),paid)
     parent=self.metronome_parent();state=parent['metronome_child'];result=parent['metronome_result']
@@ -854,7 +854,7 @@ class GlitchBenderFullTests(unittest.TestCase):
   for armed in (True,False):
    with self.subTest(upper_miss=armed,upper_declined=not armed):
     prepare(armed=armed)
-    with patch.object(self.e.rng,'choice',return_value=child),patch.object(Engine,'accuracy_check',new=upper_miss):
+    with patch.object(B,'generate',return_value=child),patch.object(Engine,'accuracy_check',new=upper_miss):
      self.reject(lambda:self.native(self.b,self.b,B.METRONOME),reason='Metronome native child did not return|setup')
     self.assertNotIn(B.METRONOME,self.b.move_uses);self.assertNotIn(child,self.a.move_uses)
     self.assertIsNone(self.a.setup_move);self.valid()

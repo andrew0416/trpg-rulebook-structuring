@@ -137,7 +137,9 @@ def resolve(e,a,t,effect,ctx):
     if threshold is not None:
         if type(natural)is not int or not 1<=natural<=20:raise ValueError('actual native accuracy face required')
         if natural<threshold:return None
-    if source in (DRAIN,STRIKE):return e.apply_status(t,'억압',source=source,applied_by=a)
+    if source in (DRAIN,STRIKE):
+        e.apply_status(t,'억압',source=source,applied_by=a)   # a truthy handler return would read as an unsupported execution note
+        return None
     if source==PULSE:return _disable(e,a,t,source,single=edition=='glitch-csv')
     if source in (REND,WAVE):
         import effects as FX
@@ -176,6 +178,7 @@ def selected_targets(e,attacker,move,candidates,primary):
             raise ValueError('every named Pain Swap recipient must be an actual eligible target')
         if e.grid is not None and not BODY.in_range(e,attacker,t,6,move=move):
             raise ValueError('Pain Swap recipients must be within the printed six metres')
+        _pain_plan(e,t)   # every named recipient's status history must be transferable before any cost
     return selected
 
 
@@ -275,7 +278,10 @@ def tele_crash(e,actor,row,ctx):
     face=POOLS.die(e.rng,6);distance=face+3
     origin=tuple(target.pos);destination=(origin[0]+direction[0]*distance,origin[1]+direction[1]*distance)
     if not e.grid.inside(destination) or not BODY.can_place(e,target,destination,origin=None):
-        raise ValueError('Teleport Crash destination is outside the map or blocked; GM must adjudicate the landing')
+        # Not invented: the paid Move stands, nobody moves, and the GM adjudicates the landing (a pending decision, not an exception object in a receipt).
+        actor.spec.pop(TELE_DIRECTION,None)
+        receipt['tele_crash']={'teleported':False,'roll':face,'distance':distance,'direction':list(direction),'from':list(origin),'to':list(destination),'reason':'destination outside the map or blocked; GM must adjudicate the landing'}
+        return __import__('common_checks').PendingDecision('Teleport Crash landing is outside the map or blocked; GM must adjudicate the landing')
     _relocate(e,target,destination,event='Teleport Crash')
     actor.spec.pop(TELE_DIRECTION,None)
     receipt['tele_crash']={'teleported':True,'roll':face,'distance':distance,'direction':list(direction),'from':list(origin),'to':list(destination),'reason':choice['reason']}

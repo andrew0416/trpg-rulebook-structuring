@@ -108,7 +108,10 @@ class NaturalFighterPendingTests(unittest.TestCase):
 
     def test_area_wait_keeps_remaining_native_targets_and_single_payment(self):
         self.scene(terrain='grassland')
-        self.dodge(self.foe)
+        # Cotton Spore is a Status Move: an optional defense watch applies through Detect, not Dodge (move_defense_reactions.watch_interested)
+        self.e.gm.set_move(self.foe, 'move/판별', reason='actual optional Detect before this status area Move')
+        self.e.watch_move_defense(self.foe, [{'actor_id': self.foe.entity_id, 'source': 'move/판별'}],
+                                 reason='actual optional defense before this native area Move')
         ap = AP.available(self.t)
         with patch.object(Engine, 'd20', return_value=18):
             with self.assertRaises(PASSIVE.PassiveEventPending):

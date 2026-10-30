@@ -165,6 +165,7 @@ class NaturalFighterUrbanTests(unittest.TestCase):
         with patch.object(Engine, 'd20', return_value=1):
             self.e.use_move_on(self.t, self.foe, FLING.SOURCE, self.e.everyone, set_damage=True)
         self.next_round()
+        self.next_round()  # a Scene Move may not repeat on consecutive turns (frequency rule); the shared count is what is tested
         choice = self.object('urban/second')
         ap = AP.available(self.t)
         with patch.object(Engine, 'd20', return_value=1):self.cast(choice=choice)

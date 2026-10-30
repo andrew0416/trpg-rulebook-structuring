@@ -161,9 +161,14 @@ class NaturalFighterClassRouteTests(unittest.TestCase):
                 if terrain == 'cave':
                     self.cave_target()
                     self.observe(True)
-                self.e.gm.set_ability(self.foe, '회피', reason='actual optional native Dodge')
+                if terrain == 'cave':   # Astonish is Physical: Dodge applies
+                    self.e.gm.set_ability(self.foe, '회피', reason='actual optional native Dodge')
+                    source = 'ability/회피'
+                else:                   # Sand Attack is a Status Move: only Detect watches it (move_defense_reactions.watch_interested)
+                    self.e.gm.set_move(self.foe, 'move/판별', reason='actual optional Detect before this status Move')
+                    source = 'move/판별'
                 self.e.watch_move_defense(self.foe,
-                    [{'actor_id': self.foe.entity_id, 'source': 'ability/회피'}],
+                    [{'actor_id': self.foe.entity_id, 'source': source}],
                     reason='actual defense of this class-granted Move')
                 ap = AP.available(self.t)
                 with patch.object(Engine, 'd20', return_value=14):

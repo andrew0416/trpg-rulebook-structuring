@@ -138,8 +138,12 @@ class NaturalFighterMoveTests(unittest.TestCase):
         self.cast(MOVES.SAND)
         self.next_actor_turn()
         def gameplay():
-            # The native codec dump compares timed records by content, not by object identity.
-            return deepcopy((CODEC.dump_engine(self.e), self.e.rng.getstate()))
+            # The native codec dump compares timed records by content, not by object identity;
+            # the engine log is narration (the refusal itself logs one line), not gameplay state.
+            dump = CODEC.dump_engine(self.e)
+            log = list(self.e.log_lines)
+            nodes = {k: v for k, v in dump['nodes'].items() if not (isinstance(v, dict) and v.get('items') == log)}
+            return deepcopy((dict(dump, nodes=nodes), self.e.rng.getstate()))
         before = gameplay()
         self.assertEqual(self.e.use_move_on(self.a, self.t, MOVES.SAND, self.e.everyone), 0)
         self.assertEqual(before, gameplay())
