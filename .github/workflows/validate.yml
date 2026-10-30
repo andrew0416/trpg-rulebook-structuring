@@ -13,6 +13,7 @@ on:
           - ci_adapter_checks
           - aa_native
           - aa4_acceptance
+          - aa4_failure_diagnostic
           - aa_diagnostics
           - changed_revisions
           - prepare_reviewed_controls
@@ -937,5 +938,56 @@ jobs:
             output/ci/aa-acceptance/summary.json
             output/ci/aa-acceptance/acceptance.zip.enc
             output/ci/aa-acceptance/adapter-console.log.enc
+          if-no-files-found: warn
+          retention-days: 14
+
+  aa4_failure_diagnostic:
+    if: >-
+      github.repository == 'andrew0416/trpg-rulebook-structuring' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.suite == 'aa4_failure_diagnostic' &&
+      github.ref == 'refs/heads/codex/aa-admission-diagnostic-1030'
+    runs-on: windows-2022
+    timeout-minutes: 15
+    concurrency:
+      group: aa4-fixed-failure-diagnostic-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11'
+      - name: Read only fixed AA failure and existing802 manifest shape
+        shell: pwsh
+        env:
+          PTK_FIXTURE_KEY: ${{ secrets.PTK_FIXTURE_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-aa-fixed-failure-diagnostic' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT
+          New-Item -ItemType Directory -Path $taskTemp -ErrorAction Stop | Out-Null
+          $env:TEMP = $taskTemp
+          $env:TMP = $taskTemp
+          $env:TMPDIR = $taskTemp
+          $env:RUNNER_TEMP = $env:TEMP
+          python -B -X utf8 tools/ci_aa_failure_diagnostic.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve only reduced public diagnostic
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: aa4-fixed-failure-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/ci/aa-failure-diagnostic/summary.json
           if-no-files-found: warn
           retention-days: 14
