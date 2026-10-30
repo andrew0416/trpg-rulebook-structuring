@@ -25,7 +25,7 @@
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
   "active_repair": "native-class-composed05-stage1",
-  "active_repair_scope": "Natural Fighter (pending/moves/class routes/awareness/urban/Heavy contract/Fling core+capture+consumable+Blend) and Glitch Bender (Snatch+consumers+ordered responders, Metronome+Upper, Code Injection+expiry, ten Error Moves); 204 declared methods in 15 modules, all new against base e26",
+  "active_repair_scope": "Natural Fighter (pending/moves/class routes/awareness/urban/Heavy contract/Fling core+capture+consumable+Blend) and Glitch Bender (Snatch+consumers+ordered responders, Metronome+Upper, Code Injection+expiry, ten Error Moves); 222 declared methods in 17 modules, all new against base e26 (Stockpile family repairs included)",
   "active_repair_required_tests": 222,
   "active_repair_groups": [
     "changed_revisions"
