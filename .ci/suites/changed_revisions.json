@@ -1,78 +1,68 @@
 {
   "schema_version": 1,
-  "id": "weather-native62-repair02",
-  "purpose": "Retry nine actual failures plus changed fixture, initiative provenance and Mega revocation impacts only",
+  "id": "weather-lifecycle-integration02",
+  "purpose": "Fix unchanged Forecast observation replay and close actual Guide lifecycle gaps for Harvest and passive weather consumers",
   "completion_credit": 0,
-  "required_unique_count": 20,
+  "required_unique_count": 22,
   "completed": {
-    "tools.test_category2_mega_forms.MegaFormTests": {
+    "tools.test_category2_ability_state_projection.AbilityStateProjectionTests": {
       "tests": [
-        "tools.test_category2_mega_forms.MegaFormTests.test_custom_definition_generic_stone_binding_and_guidance_are_durable",
-        "tools.test_category2_mega_forms.MegaFormTests.test_duplicate_ability_requires_actual_natural_unowned_choice_and_grants_only_one",
-        "tools.test_category2_mega_forms.MegaFormTests.test_faint_recall_and_encounter_end_keep_form_then_scene_restores_independent_state"
+        "tools.test_category2_ability_state_projection.AbilityStateProjectionTests.test_projection_round_trip_and_corruption_validation",
+        "tools.test_category2_ability_state_projection.AbilityStateProjectionTests.test_type_projections_use_weather_choice_field_fact_and_scene_restoration"
       ]
     },
-    "tools.test_category2_weather_ambient.Tests": {
+    "tools.test_core_nicolette_weather.NicoletteWeatherTests": {
       "tests": [
-        "tools.test_category2_weather_ambient.Tests.test_all_four_weathers_remove_intrinsic_damage_tick_and_save_for_both_actor_kinds"
+        "tools.test_core_nicolette_weather.NicoletteWeatherTests.test_actual_defog_suppresses_exact_two_round_count_and_restores_same_occurrences",
+        "tools.test_core_nicolette_weather.NicoletteWeatherTests.test_adoption_binds_actual_individual_and_does_not_infer_from_name_or_species",
+        "tools.test_core_nicolette_weather.NicoletteWeatherTests.test_ground_option_is_exact_and_forecast_loss_and_reacquisition_uses_native_owner",
+        "tools.test_core_nicolette_weather.NicoletteWeatherTests.test_layer_expires_at_native_five_round_original_count_without_ending_hail",
+        "tools.test_core_nicolette_weather.NicoletteWeatherTests.test_native_climate_control_preserves_original_hail_and_pays_only_native_move",
+        "tools.test_core_nicolette_weather.NicoletteWeatherTests.test_normal_native_weather_replaces_both_and_never_revives_expired_hail",
+        "tools.test_core_nicolette_weather.NicoletteWeatherTests.test_weather_observation_refresh_preserves_order_but_changed_sample_payload_reapplies"
       ]
     },
-    "tools.test_common_initiative.CommonInitiativeTests": {
+    "tools.test_forecast_weather_sources_audit.ForecastWeatherSourcesAuditTests": {
       "tests": [
-        "tools.test_common_initiative.CommonInitiativeTests.test_registered_initiative_extension_is_not_ignored"
-      ]
-    },
-    "tools.test_foundation_initiative.InitiativeFoundationTests": {
-      "tests": [
-        "tools.test_foundation_initiative.InitiativeFoundationTests.test_immediate_multiplier_and_additive_producers_keep_sources",
-        "tools.test_foundation_initiative.InitiativeFoundationTests.test_immediate_multiplier_forgery_cannot_save_or_execute"
+        "tools.test_forecast_weather_sources_audit.ForecastWeatherSourcesAuditTests.test_independent_same_weather_fact_survives_primary_end_and_round_trip"
       ]
     },
     "tools.test_harvest_food_native.HarvestFoodTests": {
       "tests": [
-        "tools.test_harvest_food_native.HarvestFoodTests.test_retained_receipt_cannot_claim_terminal_metadata_or_rewrite_source_payload"
-      ]
-    },
-    "tools.test_keen_eye_compositions.KeenEyeCompositionTests": {
-      "tests": [
-        "tools.test_keen_eye_compositions.KeenEyeCompositionTests.test_actual_helping_hand_shared_area_replays_mixed_gm_entries_once_per_roll"
-      ]
-    },
-    "tools.test_native_weather_actions.NativeWeatherActionTests": {
-      "tests": [
-        "tools.test_native_weather_actions.NativeWeatherActionTests.test_all_healers_gate_weather_keep_low_hp_and_spend_daily_swift",
-        "tools.test_native_weather_actions.NativeWeatherActionTests.test_solar_power_bonus_reaches_actual_damage_and_ordinary_scene_limit_is_two",
-        "tools.test_native_weather_actions.NativeWeatherActionTests.test_solar_power_combined_double_strike_pays_and_boosts_one_damage_roll"
-      ]
-    },
-    "tools.test_survivalist_weather_consumers.SurvivalistWeatherConsumerTests": {
-      "tests": [
-        "tools.test_survivalist_weather_consumers.SurvivalistWeatherConsumerTests.test_fixture_selects_core_ambient_weather_with_csv_abilities",
-        "tools.test_survivalist_weather_consumers.SurvivalistWeatherConsumerTests.test_four_weather_initiative_families_keep_independent_low_hp_and_restore",
-        "tools.test_survivalist_weather_consumers.SurvivalistWeatherConsumerTests.test_sun_veil_keeps_unconditional_evasion_but_loses_sunny_grass_and_damage_reduction",
-        "tools.test_survivalist_weather_consumers.SurvivalistWeatherConsumerTests.test_veil_adjacent_weather_immunity_is_sourced_and_suppressed_at_its_enemy_owner",
-        "tools.test_survivalist_weather_consumers.SurvivalistWeatherConsumerTests.test_veil_evasion_keeps_base_and_terrain_while_guided_attacker_ignores_named_ability",
-        "tools.test_survivalist_weather_consumers.SurvivalistWeatherConsumerTests.test_weather_initiative_copies_coalesce_and_suppression_and_revocation_remove_contribution",
-        "tools.test_survivalist_weather_consumers.SurvivalistWeatherConsumerTests.test_weather_initiative_legacy_projection_requires_its_actual_registration"
+        "tools.test_harvest_food_native.HarvestFoodTests.test_coin_heads_and_tails_preserve_actual_consumption_boundary_under_guide"
       ]
     },
     "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests": {
       "tests": [
-        "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_custom_mega_forecast_survives_real_guide_restore_expiry_and_scene_end"
+        "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_actual_ability_loss_during_suppression_never_resurrects_projection",
+        "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_actual_forecast_type_change_applies_after_existing_type_effect",
+        "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_custom_mega_forecast_survives_real_guide_restore_expiry_and_scene_end",
+        "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_forecast_hides_without_deleting_choice_and_cold_restore_expires_at_same_count",
+        "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_forecast_keeps_independent_chosen_weather_when_primary_weather_changes",
+        "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_forecast_tracks_weather_during_suppression_and_none_stays_nonweather",
+        "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_later_source_layers_and_new_baseline_survive_hide_restore_and_revoke",
+        "tools.test_survivalist_weather_type_projection.WeatherTypeProjectionTests.test_unchanged_forecast_weather_facts_preserve_later_layers_through_guide_restore"
+      ]
+    },
+    "tools.test_weather_passive_guide_lifetime.WeatherPassiveGuideLifetimeTests": {
+      "tests": [
+        "tools.test_weather_passive_guide_lifetime.WeatherPassiveGuideLifetimeTests.test_actual_guide_blocks_new_rain_healing_and_temp_hp_without_erasing_prior_grants",
+        "tools.test_weather_passive_guide_lifetime.WeatherPassiveGuideLifetimeTests.test_protosynthesis_actual_guide_keeps_strict_low_hp_route_across_cold_restore_and_count_expiry",
+        "tools.test_weather_passive_guide_lifetime.WeatherPassiveGuideLifetimeTests.test_thermosensitive_actual_guide_preserves_independent_stage_and_hail_harm_until_exact_expiry"
       ]
     }
   },
   "provenance": {
-    "private_fixture_status": "Unchanged approved1571 fixture members and existing Secret",
-    "prior_head": "69e18a468fbf3f981432d50e2fce626fdf1d380a",
-    "original_run": 41000288952,
-    "prior_counts": {
-      "pass": 53,
-      "error": 3,
-      "fail": 6
-    },
-    "prior_run": 41004480869,
-    "full_method_scope_executed": false,
-    "status": "REPAIR_DECLARED_UNEXECUTED"
+    "prior_native20": "20PASS_H_PHYSICAL_ACCEPTED",
+    "new_private_inputs": 0,
+    "source_packets": [
+      "forecast-priority-source02",
+      "harvest-guide-lifecycle02",
+      "weather-passive-guide02"
+    ],
+    "prior_run": 41007071513,
+    "prior_head": "8a39abf7daf5647e0a0b345c517a586ea6f8a6c5",
+    "whole_class_completion": false,
+    "status": "SOURCE_DECLARED_UNEXECUTED"
   }
 }

@@ -98,6 +98,24 @@ class NicoletteWeatherTests(unittest.TestCase):
   self.assertEqual(W.effective_weathers(e),('hail','sandstorm'));self.assertEqual((e.weather,e.weather_rounds),('hail',None))
   self.assertFalse(hasattr(e,'_nicolette_climate_control_scope'));self.restore(e)
 
+ def test_weather_observation_refresh_preserves_order_but_changed_sample_payload_reapplies(self):
+  import state_grants as GRANTS
+  e,t,r,target=self.fixture()
+  other=self.pokemon(e,'ordinary/forecast-order',species='캐스퐁',abilities=('기분파',),trainer=t,pos=(4,4),side='gym')
+  for actor in (r,other):GRANTS.type_operation(actor,'set',['물'],'test/later-set')
+  ordinary_order=list(other.spec[GRANTS.KEY]['type_sources']['sources'])
+  self.layer(e,t,r)
+  self.assertEqual(other.types,['물'])
+  self.assertEqual(list(other.spec[GRANTS.KEY]['type_sources']['sources']),ordinary_order)
+  self.assertEqual(other.spec[P.KEY]['ability/기분파']['observation']['weather_candidates'],['hail','sandstorm'])
+  self.assertEqual(r.spec[P.KEY]['ability/기분파']['choice'],'얼음')
+  self.assertEqual(r.types,['얼음','땅'])
+  self.assertEqual(list(r.spec[GRANTS.KEY]['type_sources']['sources'])[-1],P.PREFIX+'ability/기분파')
+  loaded=self.restore(e)
+  self.assertEqual(self.find(loaded,other).types,['물'])
+  self.assertEqual(self.find(loaded,r).types,['얼음','땅'])
+  self.assertTrue(loaded.validate_state()['valid'])
+
  def test_climate_control_rejects_wrong_actual_actor_gm_and_failed_native_move_atomically(self):
   e,t,r,target=self.fixture();self.turn(e,r)
   for actual,producer,gm in [(target,r,'gm/sample'),(t,target,'gm/sample'),(t,r,'gm/other')]:

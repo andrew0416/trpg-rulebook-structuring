@@ -101,23 +101,63 @@ class HarvestFoodTests(unittest.TestCase):
             activate_food(restored,index[a.entity_id],bid)
 
     def test_coin_heads_and_tails_preserve_actual_consumption_boundary_under_guide(self):
+        import test_csv_survivalist_hb as HB
+        import book_survivalist_fixture as FIX
+        import frequency as FREQ
         for seed in (0,1):
             with self.subTest(seed=seed):
-                e,a,foe,bid=harvest_world(self.rules)
-                e.rng.seed(seed);expected=random.Random(seed).randint(1,2)
+                fixture=HB.SurvivalistHBTests();fixture.rules=self.rules;fixture.setUp()
+                self.addCleanup(fixture.doCleanups)
+                world=fixture.world(terrains=('desert',))
+                e,trainer=world['engine'],world['trainer']
+                a=Combatant(self.rules,build_pokemon(self.rules,'이브이',20,name='actual opposing harvester',
+                    moves=['move/몸통박치기'],abilities=[FOOD.HARVEST],extra={'items':{'초코바':1}}))
+                e.gm.add_combatant(a,pos=(8,3),side='wild',reason='actual enemy Harvest recipient')
+                intake=e.use_item(a,'초코바',accepted=True,duration_minutes=1,
+                    duration_reason='actual physical food intake before Guide')
+                bid=intake['buff_id'];abilities=list(a.abilities)
+                e.gm.set_weather('sunny',rounds=None,reason='actual sunlight during Guide')
+                FIX.battle(e,trainer);FIX.audible_order(e,trainer);fixture.guide(e,trainer)
+                self.assertEqual(FREQ.state(trainer)['activations'][SC.GUIDE]['used'],1)
+                self.assertEqual(trainer.budget['standard'],0)
+                FIX.next_turn(e,trainer,a,count=10)
+                e.gm.set_hp(a,a.base_max_hp-20,reason='actual prior damage')
+                e.rng.seed(seed);expected_rng=random.Random(seed);expected=expected_rng.randint(1,2)
+                actor_id,trainer_id=a.entity_id,trainer.entity_id
+                # Carry the actual paid Guide marker and RNG through a fresh Rules restore.
+                e=CODEC.load_engine(Rules(ROOT,ruleset='all'),deepcopy(CODEC.dump_engine(e)))
+                index=WORLD.actor_index(e);a,trainer=index[actor_id],index[trainer_id]
+                self.assertTrue(SC.weather_ability_suppressed(e,a,FOOD.HARVEST))
                 hp=a.hp
-                with patch.object(SC,'weather_ability_suppressed',return_value=True) as gate:
-                    activate_food(e,a,bid)
-                gate.assert_called_with(e,a,FOOD.HARVEST)
+                activate_food(e,a,bid)
                 receipt=a.spec['food_consumption_receipts'][-1]
                 self.assertEqual(receipt['harvest']['coin'],expected)
+                self.assertEqual(e.rng.getstate(),expected_rng.getstate())
                 self.assertFalse(receipt['harvest']['sunny'])
                 self.assertEqual(a.hp,hp+5)
                 self.assertEqual(bool(a.buffs),expected==1)
                 self.assertEqual(INSTANCES.KEY in receipt,expected==2)
                 self.assertEqual(a.counters.get('food_buff_consumed',0),int(expected==2))
                 self.assertEqual(FOOD.consumed_this_scene(e,a),expected==2)
-                self.restored(e)
+                # Preserve the original post-consumption receipt round-trip obligation too.
+                e=CODEC.load_engine(Rules(ROOT,ruleset='all'),deepcopy(CODEC.dump_engine(e)))
+                index=WORLD.actor_index(e);a,trainer=index[actor_id],index[trainer_id]
+                e.end_of_turn(a);e.end_round();e.start_round(e.everyone)
+                e.at_initiative_count(21)
+                self.assertTrue(SC.weather_ability_suppressed(e,a,FOOD.HARVEST))
+                e.start_of_turn(trainer,initiative_count=20)
+                self.assertFalse(SC.weather_ability_suppressed(e,a,FOOD.HARVEST))
+                self.assertEqual(a.abilities,abilities)
+                if expected==1:
+                    FIX.next_turn(e,trainer,a,count=10)
+                    rng=e.rng.getstate();before=deepcopy(FOOD.get_buff(a,bid));hp=a.hp
+                    self.assertEqual(activate_food(e,a,bid)['status'],'retained')
+                    self.assertEqual(e.rng.getstate(),rng)
+                    self.assertEqual(FOOD.get_buff(a,bid),before)
+                    self.assertEqual(a.hp,hp+5)
+                    self.assertIsNone(a.spec['food_consumption_receipts'][-1]['harvest']['coin'])
+                    self.assertEqual(a.counters.get('food_buff_consumed',0),0)
+                self.assertTrue(e.validate_state()['valid'])
 
     def test_retained_then_terminal_consumption_keeps_unique_instance_and_receipt_parent(self):
         e,a,foe,bid=harvest_world(self.rules)

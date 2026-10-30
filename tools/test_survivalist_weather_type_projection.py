@@ -92,6 +92,51 @@ class WeatherTypeProjectionTests(unittest.TestCase):
   self.assertEqual(c.types,['풀','고스트'])
   self.assertNotIn(FORECAST,c.spec[P.KEY]);self.assertTrue(e.validate_state()['valid'])
 
+ def test_unchanged_forecast_weather_facts_preserve_later_layers_through_guide_restore(self):
+  e,a,c=self.world(FORECAST)
+  e.activate_ability_state(c,FORECAST,choice='물',observation={'weather_effects':[
+   {'weather':'sunny','source':'engine/weather-state','reason':'actual primary weather'},
+   {'weather':'rain','source':'test/independent-rain','reason':'separately observed active rain'}]},
+   reason='choose independent rain until it ends')
+  G.type_operation(c,'add',['고스트'],'test/later-add')
+  G.scalar(c,'form','test/later-form','test/later-form')
+  type_order=list(c.spec[G.KEY]['type_sources']['sources'])
+  form_order=list(c.spec[G.KEY]['scalar_sources']['form']['sources'])
+  installed=c.spec[P.KEY][FORECAST]['installed_at']
+  owner=deepcopy(c.spec[G.KEY]['sources'][P.PREFIX+FORECAST])
+  self.guide(e,a)
+  e.gm.set_weather('hail',rounds=None,reason='unselected primary weather changed')
+  self.assertEqual((c.types,c.form),(['전기','고스트'],'test/later-form'))
+  record=c.spec[P.KEY][FORECAST]
+  self.assertEqual((record['choice'],record['installed_at']),('물',installed))
+  self.assertEqual(record['observation']['canonical_weather'],'hail')
+  self.assertEqual(c.spec[G.KEY]['sources'][P.PREFIX+FORECAST],owner)
+  self.assertEqual(list(c.spec[G.KEY]['type_sources']['sources']),type_order)
+  self.assertEqual(list(c.spec[G.KEY]['scalar_sources']['form']['sources']),form_order)
+  loaded,index=FIX.restore(Rules(ROOT,ruleset='core'),e);enemy=index[c.entity_id]
+  self.expire(loaded,index[a.entity_id])
+  self.assertEqual((enemy.types,enemy.form),(['물','고스트'],'test/later-form'))
+  self.assertEqual(enemy.spec[P.KEY][FORECAST]['observation']['weather_candidates'],['rain','hail'])
+  self.assertEqual(enemy.spec[P.KEY][FORECAST]['observation']['canonical_weather'],'hail')
+  self.assertEqual(enemy.spec[G.KEY]['sources'][P.PREFIX+FORECAST],owner)
+  self.assertEqual(list(enemy.spec[G.KEY]['type_sources']['sources']),type_order)
+  self.assertEqual(list(enemy.spec[G.KEY]['scalar_sources']['form']['sources']),form_order)
+  self.assertTrue(loaded.validate_state()['valid'])
+
+ def test_actual_forecast_type_change_applies_after_existing_type_effect(self):
+  e,a,c=self.world(FORECAST)
+  G.type_operation(c,'set',['풀'],'test/later-set')
+  self.assertEqual(c.types,['풀'])
+  e.gm.set_weather('rain',rounds=None,reason='selected weather actually changes')
+  self.assertEqual(c.types,['물'])
+  self.assertEqual(list(c.spec[G.KEY]['type_sources']['sources'])[-1],P.PREFIX+FORECAST)
+  self.guide(e,a);self.assertEqual(c.types,['풀'])
+  loaded,index=FIX.restore(Rules(ROOT,ruleset='core'),e);enemy=index[c.entity_id]
+  self.expire(loaded,index[a.entity_id]);self.assertEqual(enemy.types,['물'])
+  G.revoke(enemy,'gm/weather-type-ability',engine=loaded);G.reconcile(loaded,enemy)
+  self.assertEqual(enemy.types,['풀'])
+  self.assertTrue(loaded.validate_state()['valid'])
+
  def test_forecast_tracks_weather_during_suppression_and_none_stays_nonweather(self):
   e,a,c=self.world(FORECAST)
   self.guide(e,a)

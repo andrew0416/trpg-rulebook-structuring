@@ -655,6 +655,19 @@ def weather_changed(engine):
         reconcile_weather(engine,actor,weather_changed=True)
 
 
+def _refresh_forecast_weather(engine,actor,choice,observation,reason):
+    source='ability/기분파';current=_records(actor).get(source)
+    payload,observation=_selection(engine,actor,source,choice,observation)
+    if current is not None and current['choice']==choice and current['payload']==payload:
+        # New weather facts do not reactivate an unchanged selected projection.
+        def commit(e,c):
+            record=_records(c)[source]
+            record['observation']=deepcopy(observation);record['reason']=reason
+            return deepcopy(record)
+        return G.transition(engine,actor,commit,include_rulings=True)
+    return activate(engine,actor,source,choice=choice,observation=observation,reason=reason)
+
+
 def reconcile_weather(engine,actor,*,weather_changed=False):
     """Keep Forecast's existing weather contribution tied to its live ability.
 
@@ -682,7 +695,7 @@ def reconcile_weather(engine,actor,*,weather_changed=False):
         facts=independent+[{'weather':w,'source':'engine/weather-state','reason':'actual active sourced sample weather'} for w in actual]
         if current and current['choice'] in {WEATHER_TYPES[fact['weather']] for fact in facts}:choice=current['choice']
         observation={'weather_effects':facts,'canonical_weather_index':len(independent)+actual.index(weather)}
-        return activate(engine,actor,source,choice=choice,observation=observation,reason='actual adopted weather occurrence changed')
+        return _refresh_forecast_weather(engine,actor,choice,observation,'actual adopted weather occurrence changed')
     if current:
         prior=current.get('observation') or {}
         effects=prior.get('weather_effects',[])
@@ -704,7 +717,7 @@ def reconcile_weather(engine,actor,*,weather_changed=False):
             observation={'weather_effects':[*independent,{'weather':weather,'source':'engine/weather-state','reason':'actual active canonical weather'}],
                          'canonical_weather_index':len(independent)}
     if choice and (current is None or current.get('choice')!=choice or observation is not None):
-        return activate(engine,actor,source,choice=choice,observation=observation,reason='actual canonical weather changed' if weather_changed else 'actual Forecast ownership changed')
+        return _refresh_forecast_weather(engine,actor,choice,observation,'actual canonical weather changed' if weather_changed else 'actual Forecast ownership changed')
     return False
 
 
