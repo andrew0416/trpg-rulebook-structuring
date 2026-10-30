@@ -16,6 +16,7 @@ on:
           - changed_revisions
           - prepare_reviewed_controls
           - diagnose_existing
+          - diagnose_oracle_mutation
           - metadata_prerequisites
           - final_revisions
           - performance_probe
@@ -127,6 +128,54 @@ jobs:
         with:
           name: existing-diagnostic-40363272171-${{ github.run_id }}-${{ github.run_attempt }}
           path: output/ci/existing-diagnostic/summary.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  diagnose_oracle_mutation:
+    if: >-
+      github.repository == 'andrew0416/trpg-rulebook-structuring' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.suite == 'diagnose_oracle_mutation' &&
+      github.ref == 'refs/heads/codex/clause-oracle-mutation-1030'
+    runs-on: windows-2022
+    timeout-minutes: 10
+    concurrency:
+      group: diagnose-fixed-oracle-40991471600-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUTF8: '1'
+      CI_SUITE: diagnose_oracle_mutation
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11'
+      - name: Inspect only authenticated retained mutation diagnostic bytes
+        shell: pwsh
+        env:
+          PTK_FIXTURE_KEY: ${{ secrets.PTK_FIXTURE_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-oracle-diagnostic' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT
+          New-Item -ItemType Directory -Path $taskTemp -Force -ErrorAction Stop | Out-Null
+          $env:TEMP = $taskTemp
+          $env:TMP = $taskTemp
+          $env:TMPDIR = $taskTemp
+          $env:RUNNER_TEMP = $taskTemp
+          python -B -X utf8 tools/ci_diagnose_oracle_mutation.py --root "$env:GITHUB_WORKSPACE"
+      - name: Preserve only coded mutation diagnostic observations
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: oracle-diagnostic-40991471600-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/ci/oracle-diagnostic/summary.json
           if-no-files-found: warn
           retention-days: 14
 
