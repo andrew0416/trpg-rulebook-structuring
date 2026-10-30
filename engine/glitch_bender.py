@@ -303,7 +303,7 @@ def _replace_status(e,actor,condition,*,source=None,parameters=None,applied_by=N
         if not enemies:raise ValueError('I Am Error Infatuation requires an actual enemy to choose at random')
         issuer=e.rng.choice(enemies)
     elif chosen=='사슬묶기':
-        known=__import__('move_state').known(e.r,{'moves':__import__('move_state').owned_list(actor.spec,'moves',actor.moves)})
+        known=__import__('move_state').known(e.r,{'moves':__import__('move_state').owned_list(actor.spec,'moves',actor.moves,rules=e.r)})  # sourced projection needs the actual Rules
         if not known:raise ValueError('I Am Error Disable requires an actually known Move')
         params={'move_id':e.rng.choice(known)}
     _pay(e,actor,ERROR,'free',ap=2,triggered=True)
@@ -657,7 +657,8 @@ def project_move(e,actor,target,move,mechanics):
     if move['id']==DISABLE:
         if not move_authority(e,actor,target,DISABLE,DISABLE):raise ValueError('Disable needs its actual hit and Free/no-Command source')
         trigger=_disable_trigger(e,actor,e._glitch_disable_trigger[1])
-        return move,dict(mechanics,effects_exec=[{'type':'apply_status','status':'사슬묶기','parameters':{'move_id':trigger['move_id']}}])
+        # The catalog's top-level apply_status would make the generic preflight derive Disabled from target.last_move; the trigger's Move is the actual parameter.
+        return move,dict({k:v for k,v in mechanics.items() if k!='apply_status'},effects_exec=[{'type':'apply_status','status':'사슬묶기','parameters':{'move_id':trigger['move_id']}}])
     if move['id']==METRONOME:
         selected_move(e.r,METRONOME)
         if actor is not target:raise ValueError('Metronome actual parent must use its printed Self range')
@@ -764,7 +765,7 @@ def _metronome_state(e,parent,*,historical=False):
     frame=state.get('frame')
     if frame is not None:
         __import__('move_completion').validate_trigger_frame(e,frame)
-        if frame.get('metronome_parent')!=parent['id'] or frame.get('metronome_receipt') is not state['receipt'] or frame.get('metronome_selection')!=state['fingerprint'] or frame['actor'] is not actor or frame['source']!=state['choice']['move_id'] or frame['kind']!='move' or not frame.get('trigger_granted_payment'):raise ValueError('Metronome child native grant frame changed')
+        if frame.get('metronome_parent')!=parent['id'] or frame.get('metronome_receipt') is not state['receipt'] or frame.get('metronome_selection')!=state['fingerprint'] or frame['actor'] is not actor or frame['source']!=state['choice']['move_id'] or frame['kind']!='move' or not (frame.get('trigger_granted_payment') or frame.get('trigger_move_paid')):raise ValueError('Metronome child native grant frame changed')  # the base turns the granted flag into trigger_move_paid once the payment is consumed
     child_id=state.get('child_completion')
     if child_id is not None:
         child=e._move_completions.get(child_id)

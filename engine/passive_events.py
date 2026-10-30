@@ -227,7 +227,8 @@ def _resume_recipient_return(e,event):
 
 def preflight_continuation(e,actor,*,ordinary_single):
     if not any(p.get('event')=='accuracy_resolved' for p in e._passive_listeners.get(actor,{}).values()):return
-    if not __import__('glitch_bender').metronome_child_scope(e,actor) and (not ordinary_single or len(getattr(e,'_event_use_scopes',()))>1):
+    if (not __import__('glitch_bender').metronome_child_scope(e,actor) and not __import__('snatch_dispatch').response_scope(e,actor)
+            and (not ordinary_single or len(getattr(e,'_event_use_scopes',()))>1)):
         raise ValueError('intermediate listener requires a standalone native move continuation')
 
 

@@ -24,6 +24,7 @@ class ErrorMoveTests(unittest.TestCase):
  restore=_fixture.GlitchBenderFullTests.restore
  valid=_fixture.GlitchBenderFullTests.valid
  reject=_fixture.GlitchBenderFullTests.reject
+ tamper=_fixture.GlitchBenderFullTests.tamper
  pupil=_fixture.GlitchBenderFullTests.pupil
 
  FEATURE={name:feature for feature,names in B.TEACHING.items() for name in names}

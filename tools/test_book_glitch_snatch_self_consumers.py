@@ -21,6 +21,7 @@ class SnatchSelfConsumerTests(unittest.TestCase):
  restore=_fixture.GlitchBenderFullTests.restore
  valid=_fixture.GlitchBenderFullTests.valid
  reject=_fixture.GlitchBenderFullTests.reject
+ tamper=_fixture.GlitchBenderFullTests.tamper
  snatch_checkpoint=_fixture.GlitchBenderFullTests.snatch_checkpoint
 
  def prepare(self,source,*,recipient_types=('노말','비행'),user_types=('물',)):
@@ -95,7 +96,7 @@ class SnatchSelfConsumerTests(unittest.TestCase):
   def corrupt(staged,owner):
    record=next(r for r in TIME.records(owner) if r.get('source')==SELF.ROOST)
    record['turn_owner']=next(a for a in staged.everyone if a.entity_id==self.b.entity_id)
-  self.reject(lambda:G.transition(self.e,self.a,corrupt),reason='lifetime|turn owner|contract')
+  self.tamper(self.a,corrupt,reason='lifetime|turn owner|contract')
   self.valid()
 
  def test_roost_pending_response_restore_does_not_repay_or_reroll(self):
@@ -164,7 +165,7 @@ class SnatchSelfConsumerTests(unittest.TestCase):
   def corrupt(staged,owner):
    parent=next(r for r in staged._move_completions.values() if r['actor'] is owner and r['move_id']=='move/칼춤')
    parent['defense'][owner.entity_id]['attempts'][0]['actor_id']=self.c.entity_id
-  self.reject(lambda:G.transition(self.e,self.b,corrupt),reason='defense attempt|owned source')
+  self.tamper(self.b,corrupt,reason='defense attempt|owned source')
   self.valid()
 
 if __name__=='__main__':unittest.main()

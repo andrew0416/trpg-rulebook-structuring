@@ -19,6 +19,7 @@ class OrderedSnatchTests(unittest.TestCase):
  restore=_fixture.GlitchBenderFullTests.restore
  valid=_fixture.GlitchBenderFullTests.valid
  reject=_fixture.GlitchBenderFullTests.reject
+ tamper=_fixture.GlitchBenderFullTests.tamper
  snatch_checkpoint=_fixture.GlitchBenderFullTests.snatch_checkpoint
 
  def setup_responders(self,*,two=True,ordered=True):
@@ -124,7 +125,7 @@ class OrderedSnatchTests(unittest.TestCase):
   def corrupt(staged,owner):
    parent=next(r for r in staged._move_completions.values() if r['actor'] is owner and r['move_id']=='move/칼춤')
    parent[S.PLAN]['selection']={'reaction_id':'invented-native-success','reason':'forged recipient'}
-  self.reject(lambda:G.transition(self.e,self.b,corrupt),reason='multiple completed successes')
+  self.tamper(self.b,corrupt,reason='multiple completed successes')
   self.assertIsNone(self.parent()[S.PLAN]['selection']);self.valid()
 
 

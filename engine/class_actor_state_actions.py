@@ -162,7 +162,7 @@ def _medical_receipt(owner,event):
         receipt=candidates[0]
     if (receipt is None or not matches(receipt) or event['owner_id']!=owner.entity_id
             or event['trigger']!='healing_item_used' or receipt['target_id']!=event['target_id']
-            or receipt['results']!=[{'kind':'immediate_item_target','id':event['target_id']}]):
+            or receipt['results']!=([] if receipt.get('benefit_suppression') else [{'kind':'immediate_item_target','id':event['target_id']}])):  # a suppressed benefit (Code Injection object_not_found) records no immediate target
         raise ValueError('Medical Technique must retain its original medicine user, target and result')
     return receipt
 

@@ -132,6 +132,15 @@ def _without_responder_scopes(e,responders):
  finally:e._event_use_scopes=scopes
 
 
+def response_scope(e,actor):
+ """A queued Snatch response runs inside its trigger's native continuation by design (like a Metronome child).
+
+ Only the responder whose Snatch is the current native action and the open reaction frame qualifies."""
+ stack=getattr(e,'_native_action_stack',());current=I.frame(e)
+ return bool(stack and stack[-1].get('actor') is actor and stack[-1].get('source')==R.SNATCH
+             and current and current.get('status')=='open' and current.get('actor') is actor)
+
+
 def _queue(e,args,candidates):
  actor=args['attacker'];row=e._move_completions[args['completion_id']]
  ids={a.entity_id for a in candidates};choice=actor.spec.get(ORDER)

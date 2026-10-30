@@ -29,7 +29,7 @@ class GlitchBenderFullTests(unittest.TestCase):
   self.rules.rulings=deepcopy(self.base_rulings);self.e=Engine(self.rules,seed=1026763);self.e.grid=Grid(24,16)
   self.edition=edition;self.cure=cure;self.people=[]
   for n,pos in enumerate(((2,4),(3,4),(9,4))):
-   extra={'movement':{'land':6},'movement_basis':'current','edges':['feat/버그의-존재'],'items':{}}
+   extra={'movement':{'land':6},'movement_basis':'current','edges':['feat/버그의-존재'],'items':{},'exp_bank':100}  # actual banked XP for retraining paths
    if edition=='homebrew':extra.update(edges=['edge/원소-교감'],edge_choices={'edge/원소-교감':{'type':'에러','authority':B.HB_AUTHORITY}},type_link_skills={'에러':'집중'})
    a=Combatant(self.rules,build_trainer(self.rules,'Glitch actual '+str(n),40,{'hp':300,'atk':20,'def':10,'spa':20,'spd':10,'spe':30-n*3},moves=moves if moves is not None else ['move/몸통박치기','move/울음소리','move/칼춤'],abilities=[],pos=pos,side='party' if n==0 else 'foes',skills={'집중':rank,'오컬트학':rank,'통찰':rank,'전투':3,'육상':3,'곡예':3,'직감':3},extra=extra))
    self.e.gm.add_combatant(a);prepare_body(self.e,a,size='중형',offsets=[(0,0)],reason='actual complete Glitch Bender participant');self.people.append(a)
@@ -51,6 +51,17 @@ class GlitchBenderFullTests(unittest.TestCase):
  def turn(self,actor,count=40):
   if self.e._active_turn_actor is not None:self.e.end_of_turn(self.e._active_turn_actor)
   self.e.start_of_turn(actor,initiative_count=count)
+ def tamper(self,owner,mutate,*,reason):
+  """Forgery convention (base): a world whose receipts were changed cannot be saved; the live engine stays untouched.
+
+  Native state transitions do not run the world integrity collector, so the owner's check is observed where it
+  actually runs: at save of a restored twin that carries the forged change."""
+  before=self.e.export_state()
+  loaded=Engine.import_state(self.rules,json.loads(json.dumps(before,ensure_ascii=False)))
+  twin=__import__('world_entities').actor_index(loaded)[owner.entity_id]
+  mutate(loaded,twin)
+  with self.assertRaisesRegex(ValueError,reason):loaded.export_state()
+  self.assertEqual(self.e.export_state(),before)
  def reject(self,fn,reason='actual|source|requires|required|already|exhausted|native|frequency|Glitch|lesson|choice|Feature|parent|rank|Range|range'):
   return assert_rejected_unchanged(self.e,fn,reason_pattern=reason)
  def valid(self):
@@ -60,7 +71,9 @@ class GlitchBenderFullTests(unittest.TestCase):
   ids=[a.entity_id for a in self.people];self.e=Engine.import_state(rules,json.loads(json.dumps(self.e.export_state(),ensure_ascii=False)));self.people=[W.actor_index(self.e)[u] for u in ids];self.a,self.b,self.c=self.people[:3]
  def pupil(self,*,points=20):
   p=Combatant(self.rules,build_pokemon(self.rules,'폴리곤',30,moves=[],abilities=[],side='party',pos=(4+len(self.people),8),extra={'tutor_points':points,'trainer_id':self.a.entity_id}))
-  self.e.gm.add_combatant(p);prepare_body(self.e,p,size=p.spec.get('size') or '중형',offsets=[(0,0)],reason='actual teaching target body');self.people.append(p);return p
+  self.e.gm.add_combatant(p);prepare_body(self.e,p,size=p.spec.get('size') or '중형',offsets=[(0,0)],reason='actual teaching target body')
+  self.e.gm.observe_loyalty(p,6,reason='actual willing taught pupil')  # an owned Pokemon needs an observed loyalty before it may act on a command
+  self.people.append(p);return p
  def native(self,actor,target,mid,*,accuracy=20):
   with patch.object(Engine,'d20',return_value=accuracy):return self.e.use_move(actor,target,mid,set_damage=True)
  def event(self,actor,mid,recipient=None):
@@ -147,7 +160,10 @@ class GlitchBenderFullTests(unittest.TestCase):
    B.arm_reality(self.e,self.a,self.b,purpose=purpose,decision=lambda first:True,reroll_fixed=fixed)
    if purpose=='skill':self.assertGreater(self.e.skill_check(self.b,'집중',10,fixed=[1]*6)[1],6)
    elif purpose=='external_pool':self.assertEqual(self.e.resolve_native_pool(self.b,purpose=purpose,source=B.REALITY,count=2,sides=8,fixed=[1,1])['total'],16)
-   else:self.native(self.b,self.a,'move/몸통박치기',accuracy=1 if purpose=='accuracy' else 18);self.assertLess(self.a.hp,self.a.max_hp)
+   elif purpose=='accuracy':self.native(self.b,self.a,'move/몸통박치기',accuracy=1);self.assertLess(self.a.hp,self.a.max_hp)
+   else:
+    with patch.object(Engine,'d20',return_value=18):self.e.use_move(self.b,self.a,'move/몸통박치기')  # an actual damage roll (Set Damage rolls nothing to corrupt)
+    self.assertLess(self.a.hp,self.a.max_hp)
    self.assertEqual(AP.available(self.a),before);self.assertEqual(F.state(self.a)['activations'][B.REALITY]['used'],1);self.reject(lambda:B.arm_reality(self.e,self.a,self.b,purpose=purpose,decision=lambda _:True));self.valid()
 
  def test_09_reality_decline_ally_rejection_codec_fresh_choice_and_tamper(self):
@@ -186,8 +202,8 @@ class GlitchBenderFullTests(unittest.TestCase):
 
  def test_14_code_receipt_deadline_actor_tamper_rejected_and_source_loss_retains_hit(self):
   self.family(B.CODE);self.begin();B.code_injection(self.e,self.a,self.b,'blue_screen',fixed_accuracy=20)
-  self.reject(lambda:G.transition(self.e,self.b,lambda se,c:B.code_rows(c)[0].update(count_deadline=(999,99))),reason='lifetime|deadline|changed')
-  self.reject(lambda:G.transition(self.e,self.b,lambda se,c:B.code_rows(c)[0]['glitch_code'].update(target_id=self.a.entity_id)),reason='recipient|receipt|changed|evidence')
+  self.tamper(self.b,lambda se,c:B.code_rows(c)[0].update(count_deadline=(999,99)),reason='lifetime|deadline|changed')
+  self.tamper(self.b,lambda se,c:B.code_rows(c)[0]['glitch_code'].update(target_id=self.a.entity_id),reason='recipient|receipt|changed|evidence')
   self.e.end_of_turn(self.a);self.e.end_round();self.retrain(B.CODE);self.assertTrue(B.code_rows(self.b));self.begin();self.reject(lambda:B.code_injection(self.e,self.a,self.c,'blue_screen',fixed_accuracy=20));self.restore();self.valid()
 
  def test_15_actual_disable_free_no_command_attacker_move_not_last_move(self):
@@ -260,7 +276,7 @@ class GlitchBenderFullTests(unittest.TestCase):
   self.scene(edition='homebrew');self.family(B.CODE);p=self.pupil(points=1);self.reject(lambda:B.teach(self.e,self.a,p,B.CODE,'데이터 드레인',seconds=30,reason='insufficient actual TP'))
   self.scene();self.family(B.CODE);p=self.pupil();self.reject(lambda:B.teach(self.e,self.a,p,B.CODE,'데이터 드레인',seconds=30,reason='book has no HB lesson'))
   self.scene(edition='homebrew');self.acquire();p=self.pupil();B.teach(self.e,self.a,p,B.CLASS,'strategist',seconds=60,reason='actual lesson')
-  self.reject(lambda:G.transition(self.e,p,lambda se,c:c.spec[G.KEY]['sources']['glitch-ability-lesson:'+c.entity_id+':ability']['glitch_bender_lesson'].update(choice='last_chance')),reason='changed|receipt')
+  self.tamper(p,lambda se,c:c.spec[G.KEY]['sources']['glitch-ability-lesson:'+c.entity_id+':ability']['glitch_bender_lesson'].update(choice='last_chance'),reason='changed|receipt')
 
  def test_26_disable_burst_actual_own_turn_opportunity_hit_suppression_and_cost(self):
   import movement_actions as MOVE,turn
@@ -420,7 +436,7 @@ class GlitchBenderFullTests(unittest.TestCase):
   self.assertEqual(RES.pending(self.a),{'standard':1});self.assertIsNone(I.frame(self.e));self.assertIs(self.e._active_turn_actor,self.b)
   effects=[r for r in self.e._effect_dispatch_receipts.values() if r['source_id']=='move/칼춤']
   self.assertTrue(effects);self.assertTrue(all(r['actor'] is self.b and r['target'] is self.a and r['status']=='completed' for r in effects))
-  self.reject(lambda:G.transition(self.e,self.a,lambda se,a:a.spec[R.EVENTS][next(iter(a.spec[R.EVENTS]))].update(target_id=self.c.entity_id)),reason='changed|source|recipient|evidence')
+  self.tamper(self.a,lambda se,a:a.spec[R.EVENTS][next(iter(a.spec[R.EVENTS]))].update(target_id=self.c.entity_id),reason='changed|source|recipient|evidence')
   self.restore();self.valid();self.assertEqual((self.a.stages['atk'],self.b.stages['atk']),(2,0))
   parent=next(r for r in self.e._move_completions.values() if r['actor'] is self.b and r['move_id']=='move/칼춤')
   self.reject(lambda:R.snatch_recipient(self.e,self.b,self.a,'move/칼춤',{'move_completion':parent['id']}),reason='actual|retained')
@@ -464,7 +480,8 @@ class GlitchBenderFullTests(unittest.TestCase):
  def test_43_snatch_nested_external_reaction_own_turn_burst_restores_once_per_move_scene(self):
   import initiative_interrupts as I,action_resources as RES
   self.family(B.NULL);self.family(B.BURST);self.e.gm.set_position(self.c,(4,4),reason='actual second Self Move user within range')
-  for n,other in enumerate((self.b,self.c)):
+  for n,slot in enumerate((1,2)):
+   other=self.people[slot]  # restore() rebinds the actual actors; read the current one each round
    self.begin();B.arm_snatch(self.e,self.a,target=other)
    # Existing external-rule boundary supplies another actor's paid Standard;
    # it does not grant Snatch or relax the Trainer's own-turn Swift rule.
@@ -571,8 +588,8 @@ class GlitchBenderFullTests(unittest.TestCase):
   with patch.object(self.e.rng,'choice',return_value='move/물대포'):
    with self.assertRaises(P.PassiveEventPending):self.native(self.a,self.a,B.METRONOME)
   pending=self.e._passive_pending;hp=self.b.hp;parent_id=self.metronome_parent()['id']
-  self.reject(lambda:G.transition(self.e,self.a,lambda se,a:se._move_completions[parent_id]['metronome_child']['choice'].update(target_id=self.c.entity_id)),reason='choice|changed|recipient')
-  self.reject(lambda:G.transition(self.e,self.a,lambda se,a:se._move_completions[parent_id].pop('metronome_child')),reason='Metronome|parent|receipt')
+  self.tamper(self.a,lambda se,a:se._move_completions[parent_id]['metronome_child']['choice'].update(target_id=self.c.entity_id),reason='choice|changed|recipient')
+  self.tamper(self.a,lambda se,a:se._move_completions[parent_id].pop('metronome_child'),reason='Metronome|parent|receipt')
   self.cold_metronome_restore();paid=deepcopy((self.a.move_uses,self.a._action_history,self.a.budget))
   with patch.object(self.e.rng,'choice',side_effect=AssertionError('native selection already exists')),patch.object(Engine,'d20',side_effect=AssertionError('native accuracy already exists')):
    self.e.choose_move_defense(pending,self.b,use=False,reason='decline actual child defense')
@@ -595,7 +612,7 @@ class GlitchBenderFullTests(unittest.TestCase):
   self.assertIs(MC.recipient_result(parent,self.a)['actor'],self.a);self.assertIsNone(MC.recipient_result(parent,self.b))
   self.assertIs(self.e._effect_dispatch_receipts[state['receipt']]['actor'],self.b);self.assertIs(self.e._effect_dispatch_receipts[state['receipt']]['target'],self.a)
   self.assertNotIn(B.METRONOME,self.a.moves);self.assertNotIn(B.METRONOME,self.a.move_uses);self.assertEqual(self.b.move_uses[B.METRONOME],1)
-  parent_id=parent['id'];self.reject(lambda:G.transition(self.e,self.a,lambda se,a:se._move_completions[parent_id]['metronome_child'].update(effect_user_id=self.b.entity_id)),reason='changed|user|choice')
+  parent_id=parent['id'];self.tamper(self.a,lambda se,a:se._move_completions[parent_id]['metronome_child'].update(effect_user_id=self.b.entity_id),reason='changed|user|choice')
   paid=deepcopy((self.a.move_uses,self.b.move_uses,self.a._action_history,self.b._action_history));hp=self.c.hp
   self.cold_metronome_restore()
   with patch.object(self.e.rng,'choice',side_effect=AssertionError('Snatched selection is already durable')),patch.object(Engine,'d20',side_effect=AssertionError('native child accuracy already observed')):
@@ -722,8 +739,8 @@ class GlitchBenderFullTests(unittest.TestCase):
   self.assertEqual((p.level,p.spec['exp']),before);self.assertEqual(self.c.spec['items']['item/이상한사탕-1'],0);self.assertEqual(self.c.budget['standard'],0)
   dose=p.spec[L.KEY]['quotas']['rare_candy']['receipts'][-1];self.assertEqual(dose['ordinal'],1);self.assertTrue(dose['benefit_suppressed']);self.assertEqual(dose['before'],dose['after'])
   receipt=list(X.validate(self.c).values())[-1];self.assertEqual(receipt['outcome'],'no_effect');self.restore();self.valid();p=self.people[-1]
-  self.reject(lambda:G.transition(self.e,self.c,lambda se,c:list(X.validate(c).values())[-1]['benefit_suppression'].update(count=99)),reason='lifetime|outside')
-  self.reject(lambda:G.transition(self.e,p,lambda se,c:c.spec[L.KEY]['quotas']['rare_candy']['receipts'][-1].pop('benefit_suppressed')),reason='growth|threshold')
+  self.tamper(self.c,lambda se,c:list(X.validate(c).values())[-1]['benefit_suppression'].update(count=99),reason='lifetime|outside')
+  self.tamper(p,lambda se,c:c.spec[L.KEY]['quotas']['rare_candy']['receipts'][-1].pop('benefit_suppressed'),reason='growth|threshold')
 
  def test_51_code_paid_vitamin_and_gem_no_benefits_and_equipment_restores(self):
   import event_effects as EVENTS
@@ -741,7 +758,7 @@ class GlitchBenderFullTests(unittest.TestCase):
   self.family(B.CODE);self.begin();B.code_injection(self.e,self.a,self.b,'blue_screen',fixed_accuracy=20)
   def attack(se):return next(r['code_injection'] for r in se._effect_dispatch_receipts.values() if 'code_injection' in r)
   for mutate in (lambda state:state['accuracy'].__setitem__(0,False),lambda state:state['application'].update(count=99),lambda state:state['native_frame'].update(source='forged/source'),lambda state:state['facts']['payment'].update(amount=0)):
-   self.reject(lambda:G.transition(self.e,self.a,lambda se,c:mutate(attack(se))),reason='changed|receipt|native')
+   self.tamper(self.a,lambda se,c:mutate(attack(se)),reason='changed|receipt|native')
   self.restore();self.valid()
 
  def test_53_code_fresh_rules_restores_actual_miss_and_hit_without_priming_attack(self):
@@ -758,7 +775,7 @@ class GlitchBenderFullTests(unittest.TestCase):
   def transplant(se,actor):
    rows=[r['code_injection'] for r in se._effect_dispatch_receipts.values() if 'code_injection' in r]
    rows[-1]['native_frame']=rows[0]['native_frame']
-  self.reject(lambda:G.transition(self.e,self.a,transplant),reason='another attack|occurrence');self.restore();self.valid()
+  self.tamper(self.a,transplant,reason='another attack|occurrence');self.restore();self.valid()
 
  def test_55_code_access_denies_actual_non_at_will_feature_and_ability_actions(self):
   self.family(B.CODE);self.family(B.REALITY,actor=self.b);self.begin();B.code_injection(self.e,self.a,self.b,'access_denied',fixed_accuracy=20);self.turn(self.b,count=40)
@@ -824,7 +841,7 @@ class GlitchBenderFullTests(unittest.TestCase):
     received=MC.recipient_result(self.e._move_completions[response['result_completion']],self.a)
     self.assertTrue(received['hit']);self.assertFalse(received.get('cancelled',False))
     parent_id=parent['id']
-    self.reject(lambda:G.transition(self.e,self.a,lambda se,a:se._move_completions[parent_id]['metronome_child'].update(cancelled_by='not-an-actual-response')),reason='disposition|reaction|cancel')
+    self.tamper(self.a,lambda se,a:se._move_completions[parent_id]['metronome_child'].update(cancelled_by='not-an-actual-response'),reason='disposition|reaction|cancel')
     self.assertIsNone(I.frame(self.e));self.assertIsNone(self.e._passive_pending)
     self.cold_metronome_restore();self.valid()
   # Without a successful actual Upper response, generic Bounce preparation
