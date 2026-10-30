@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import stat
 import subprocess
 import tempfile
 import urllib.error
@@ -14,16 +15,16 @@ import urllib.request
 import zipfile
 
 REPOSITORY = 'andrew0416/trpg-rulebook-structuring'
-SOURCE_RUN = 40363272171
+SOURCE_RUN = 41004480869
 SOURCE_ATTEMPT = 1
-SOURCE_HEAD = 'e93ca81d95e2d074fe5b85cfaaa057aee645af81'
-ARTIFACT_ID = 12670021117
-ARTIFACT_NAME = 'diagnostics-changed_revisions-40363272171-1'
-ARTIFACT_SHA256 = '5e019dbbfb4244d169ac75d0084fdd246f988f62d13a97b0d5333a121380a6b1'
-ARTIFACT_SIZE = 800616
+SOURCE_HEAD = '69e18a468fbf3f981432d50e2fce626fdf1d380a'
+ARTIFACT_ID = 12954723533
+ARTIFACT_NAME = 'diagnostics-changed_revisions-41004480869-1'
+ARTIFACT_SHA256 = '8eea9d54e733421218bf2870799937b748ecc856127937acb6caa638436b0e94'
+ARTIFACT_SIZE = 893361
 API = 'https://api.github.com/repos/' + REPOSITORY
 PACKET = '.ci/suites/changed_revisions.json'
-STAGE = 'D:/trpg-rulebook-structuring/ci/40363272171-1-changed_revisions'
+STAGE = 'D:/trpg-rulebook-structuring/ci/41004480869-1-changed_revisions'
 STATUSES = {'pass', 'fail', 'error', 'skip', 'expected_failure', 'unexpected_success', 'unverified', 'not_run'}
 EXCEPTIONS = {'AssertionError', 'ValueError', 'TypeError', 'KeyError', 'NameError', 'AttributeError',
               'RuntimeError', 'IndexError', 'ZeroDivisionError', 'UnboundLocalError', 'ImportError',
@@ -70,8 +71,16 @@ def git(root, *arguments):
 
 
 def member(archive, name):
-    names = archive.namelist()
-    require(len(names) == len(set(names)) and names.count(name) == 1)
+    entries = archive.infolist()
+    names = [entry.filename for entry in entries]
+    require(len(names) <= 4096 and len(names) == len(set(names)) == len({value.casefold() for value in names})
+            and names.count(name) == 1 and sum(entry.file_size for entry in entries) <= 64 * 1024 * 1024)
+    for entry in entries:
+        path = PurePosixPath(entry.filename)
+        require(not path.is_absolute() and '..' not in path.parts and path.as_posix() == entry.filename
+                and '\\' not in entry.filename and ':' not in entry.filename
+                and not entry.is_dir() and not entry.flag_bits & 1
+                and stat.S_IFMT(entry.external_attr >> 16) in (0, stat.S_IFREG))
     info = archive.getinfo(name)
     require(not info.is_dir() and info.file_size <= 16 * 1024 * 1024)
     return archive.read(info)
@@ -103,7 +112,7 @@ def diagnose(root, private, key, token):
             and git(root, 'show', 'HEAD:' + PACKET) == packet_body)
     packet = json.loads(packet_body)
     ids = [uid for row in packet['completed'].values() for uid in row['tests']]
-    require(len(ids) == len(set(ids)) == packet['required_unique_count'] == 7)
+    require(len(ids) == len(set(ids)) == packet['required_unique_count'] == 62)
     require(all(isinstance(uid, str) and re.fullmatch(r'(?:tools|tests)(?:\.[A-Za-z_][A-Za-z0-9_]*){2,}\.test_[A-Za-z0-9_]+', uid) for uid in ids))
     allowed = set(ids)
     rows = {uid: {'id': uid, 'status': 'not_reported', 'exception_classes': [], 'public_frames': []} for uid in ids}
@@ -114,6 +123,7 @@ def diagnose(root, private, key, token):
         require(all(not p.is_absolute() and '..' not in p.parts and p.as_posix() == name for p, name in zip(paths, names)))
         require(len({p.parent for p in paths}) == 1 and {p.name for p in paths} == {'run.json', 'summary.json', 'diagnostics.zip.enc'})
         folder = paths[0].parent
+        require(folder.as_posix() == 'b8641a478d3b475298ae80f036696a9a')
         native = json.loads(member(outer, (folder / 'run.json').as_posix()))
         summary = json.loads(member(outer, (folder / 'summary.json').as_posix()))
         cipher = member(outer, (folder / 'diagnostics.zip.enc').as_posix())
@@ -133,7 +143,8 @@ def diagnose(root, private, key, token):
     sealed.write_bytes(cipher)
     from ci_remote_h import crypt
     crypt(root, 'decrypt', sealed, plaintext, key)
-    public_paths = set(git(root, 'ls-tree', '-r', '--name-only', SOURCE_HEAD, '--', 'engine', 'tools').decode('utf-8').splitlines())
+    public_paths = set(git(root, 'ls-tree', '-r', '--name-only', SOURCE_HEAD, '--', 'engine', 'tools', 'tests').decode('utf-8').splitlines())
+    source_line_counts = {}
     with zipfile.ZipFile(plaintext) as archive:
         scope = json.loads(member(archive, 'diagnostic-scope.json'))
         require(scope['kind'] == 'diagnostic_only' and scope['complete_input_capture'] is False
@@ -170,14 +181,20 @@ def diagnose(root, private, key, token):
                     continue
                 path = frame[1].replace('\\', '/')
                 relative = path[len(STAGE) + 1:] if path.startswith(STAGE + '/') else ''
-                if relative in public_paths and re.fullmatch(r'(?:tools|engine)/[A-Za-z0-9_/]+\.py', relative):
+                if relative in public_paths and re.fullmatch(r'(?:tools|engine|tests)/[A-Za-z0-9_/]+\.py', relative):
+                    if relative not in source_line_counts:
+                        source_line_counts[relative] = len(git(root, 'show', SOURCE_HEAD + ':' + relative).splitlines())
+                    if int(frame[2]) > source_line_counts[relative]:
+                        continue
                     position = {'file': relative, 'line': int(frame[2])}
                     if position not in rows[uid]['public_frames']:
                         rows[uid]['public_frames'].append(position)
     return {'status': 'DIAGNOSTIC_ONLY_SOURCE_FAILURE_PRESERVED', 'source_run': SOURCE_RUN,
             'source_attempt': SOURCE_ATTEMPT, 'source_head': SOURCE_HEAD, 'artifact_id': ARTIFACT_ID,
             'artifact_sha256': ARTIFACT_SHA256, 'source_result': 'failure', 'diagnostic_only': True,
-            'native_runs': 0, 'completion_credit': 0, 'integrity': integrity,
+            'native_runs': 0, 'verifier_reruns': 0, 'h_reruns': 0, 'completion_credit': 0, 'integrity': integrity,
+            'status_counts': {status: sum(row['status'] == status for row in rows.values())
+                              for status in sorted(STATUSES | {'not_reported'})},
             'tests': [rows[uid] for uid in sorted(rows)]}
 
 
@@ -187,7 +204,7 @@ def main():
     parser.add_argument('--root', type=Path, required=True)
     root = parser.parse_args().root.resolve()
     result = {'status': 'DIAGNOSTIC_REJECTED_SOURCE_FAILURE_PRESERVED', 'source_run': SOURCE_RUN,
-              'source_head': SOURCE_HEAD, 'native_runs': 0, 'completion_credit': 0}
+              'source_head': SOURCE_HEAD, 'native_runs': 0, 'verifier_reruns': 0, 'h_reruns': 0, 'completion_credit': 0}
     code, output_allowed = 1, False
     try:
         require(os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('CI_SUITE') == 'diagnose_existing'
@@ -197,6 +214,9 @@ def main():
         temporary = Path(os.environ['RUNNER_TEMP']).resolve()
         require(temporary.drive.upper() == 'D:' and root.drive.upper() == 'D:'
                 and root == Path(os.environ['GITHUB_WORKSPACE']).resolve())
+        git(root, 'merge-base', '--is-ancestor', SOURCE_HEAD, 'HEAD')
+        require(set(git(root, 'diff', '--name-only', SOURCE_HEAD, 'HEAD').decode().splitlines())
+                <= {'tools/ci_diagnose_existing.py', '.github/workflows/validate.yml'})
         output_allowed = True
         with tempfile.TemporaryDirectory(prefix='ptk-existing-diagnostic-', dir=temporary) as directory:
             result = diagnose(root, Path(directory), key, token)
