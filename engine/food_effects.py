@@ -169,15 +169,84 @@ def food_limits(e,actor):
  return CAPACITY_ABILITIES.food_capacity(e,actor)
 
 
+HARVEST='ability/수확'
+HARVEST_QUOTA=HARVEST+':food_activation'
+
+
+def retained_activation(receipt):
+ return 'retained_buff' in receipt
+
+
+def _harvest(e,actor):
+ if actor.abilities_suppressed:return False
+ if not any(name in ('수확',HARVEST,'Harvest') for name in actor.abilities):return False
+ selected(e,HARVEST)
+ return True
+
+
+def _harvest_frequency(e,actor):
+ owner=getattr(e,'_active_turn_actor',None) or actor
+ return {'kind':'turn','uses':1,'turn_owner_id':owner.entity_id}
+
+
+def _harvest_outcome(e,actor):
+ if not _harvest(e,actor):return None
+ import effects as FX,survivalist_class as SC,frequency as FREQ
+ sunny=FX.weather_matches(e,'sunny',actor) and not SC.weather_ability_suppressed(e,actor,HARVEST)
+ face=None if sunny else e.rng.randint(1,2)
+ frequency=_harvest_frequency(e,actor)
+ FREQ.consume_activation(actor,HARVEST_QUOTA,frequency,engine=e)
+ return {'source':HARVEST,'sunny':sunny,'coin':face,'retained':sunny or face==1,
+         'turn':deepcopy(FREQ.state(actor)['activations'][HARVEST_QUOTA]['period'])}
+
+
+def _validate_harvest_receipt(actor,receipt):
+ outcome=receipt.get('harvest')
+ if outcome is None:
+  if retained_activation(receipt):raise ValueError('retained food activation needs its Harvest outcome')
+  return
+ if (not isinstance(outcome,dict) or set(outcome)!={'source','sunny','coin','retained','turn'}
+     or outcome['source']!=HARVEST or type(outcome['sunny'])is not bool or type(outcome['retained'])is not bool):
+  raise ValueError('typed Harvest activation outcome required')
+ if outcome['sunny']:
+  if outcome['coin'] is not None or not outcome['retained']:raise ValueError('sunny Harvest retains without a coin toss')
+ elif type(outcome['coin'])is not int or outcome['coin'] not in (1,2) or outcome['retained']!=(outcome['coin']==1):
+  raise ValueError('Harvest outcome differs from its actual coin toss')
+ period=outcome['turn']
+ if not isinstance(period,dict) or set(period)!={'owner','turn'}:raise ValueError('actual Harvest turn required')
+ INSTANCES.text(period['owner'],'Harvest turn owner');C.integer(period['turn'],'Harvest owner turn',0)
+ if outcome['retained']!=retained_activation(receipt):raise ValueError('Harvest outcome and resource consumption disagree')
+ if not outcome['retained']:return
+ if INSTANCES.KEY in receipt:raise ValueError('retained food activation cannot be a terminal instance')
+ buff=receipt['retained_buff']
+ if not isinstance(buff,dict) or not validate_native(actor,buff):raise ValueError('native retained food instance required')
+ if buff['id']!=receipt.get('buff_id') or buff['at']>receipt['at']:raise ValueError('retained food identity or activation time changed')
+ for key in ('source','item','effect','effect_source','item_stock','food_transfer_origin','csv_food_source','csv_legacy_origin','taste_assignment','chef_batch','chef_provenance'):
+  if buff.get(key)!=receipt.get(key):raise ValueError('retained activation differs from its acquired food: '+key)
+ if receipt.get('ability_native_claims'):raise ValueError('retained food is not actual consumption')
+
 def _food_receipts(actor):
  receipts=actor.spec.get('food_consumption_receipts',[])
  if not isinstance(receipts,list) or any(not isinstance(row,dict) for row in receipts):raise ValueError('actual food consumption receipts required')
+ ended=set();turns=set();last=None
  for sequence,row in enumerate(receipts,1):
   C.integer(row.get('sequence'),'actual food receipt sequence',sequence,sequence)
+  _validate_harvest_receipt(actor,row)
+  uid=row.get('buff_id')
+  if uid in ended:raise ValueError('food cannot activate after its terminal consumption')
+  if not retained_activation(row):ended.add(uid)
+  if row.get('harvest') is not None:
+   last=row['harvest']['turn'];key=(last['owner'],last['turn'])
+   if key in turns:raise ValueError('Harvest permits only one food activation per actual turn')
+   turns.add(key)
+ if last is not None:
+  quota=actor.spec.get('frequency_state',{}).get('activations',{}).get(HARVEST_QUOTA)
+  if quota!={'kind':'turn','period':last,'used':1}:raise ValueError('Harvest activation lost its actual turn quota')
  return receipts
 
 
 def _quota_eligible(record):
+ if retained_activation(record):return False
  capacity=record.get(INSTANCES.KEY,{}).get('capacity',ordinary_capacity())
  return not capacity.get('scene_usage_exempt',False) and record.get('csv_food_source',{}).get('kind')!='dynamax_mushroom'
 
@@ -360,7 +429,7 @@ def validate_native(actor,buff,*,spent=False):
   if spent or m['lifetime']!={'boundary':'encounter_end'} or m['capacity']!={'bucket':'none','source':buff['source']}:raise ValueError('ongoing food healing needs its encounter lifetime without a digestion slot')
   receipts=actor.spec.get('food_consumption_receipts',[])
   if not isinstance(receipts,list) or any(not isinstance(r,dict) for r in receipts):raise ValueError('typed food consumption history required')
-  parents=[r for r in receipts if r.get('buff_id')==buff.get('buff_id')]
+  parents=[r for r in receipts if r.get('buff_id')==buff.get('buff_id') and ('receipt_sequence' not in buff or r.get('sequence')==buff['receipt_sequence'])]
   if len(parents)!=1 or not _ongoing_parent_matches(parents[0],buff,uid,effect_source):raise ValueError('ongoing food effect lacks its actual consumed parent')
   if buff['effect'].get('kind')!='turn_heal':raise ValueError('typed food healing contribution required')
   C.integer(buff['effect'].get('denominator'),'food healing denominator',1)
@@ -670,8 +739,14 @@ def consumption_allowed(e,actor,buff,*,optional=False):
  for key in ('food_buff_consumed','lim:food_buff_consumed'):C.integer(actor.counters.get(key,0),'actual food consumption counter',0)
  receipts=actor.spec.get('food_consumption_receipts',[])
  if not isinstance(receipts,list) or any(not isinstance(x,dict) for x in receipts):raise ValueError('actual food consumption receipts required')
- if any(x.get('buff_id')==buff['id'] for x in receipts):raise ValueError('Digestion Buff already consumed')
+ if any(x.get('buff_id')==buff['id'] and not retained_activation(x) for x in receipts):raise ValueError('Digestion Buff already consumed')
  if blocked:return False
+ if _harvest(e,actor):
+  if INSTANCES.KEY not in buff:raise ValueError('Harvest requires a native acquired Food Buff instance')
+  import frequency as FREQ
+  if not FREQ.activation_allowed(actor,HARVEST_QUOTA,_harvest_frequency(e,actor),engine=e):
+   if optional:return False
+   raise ValueError('Harvest permits one Food Buff activation per turn')
  exempt=buff.get(INSTANCES.KEY,{}).get('capacity',ordinary_capacity()).get('scene_usage_exempt',False)
  limits=food_limits(e,actor)
  if not protected and not exempt and limits:
@@ -698,7 +773,7 @@ def consumed_this_scene(e,actor):
  found=False
  for receipt in receipts:
   # Old saves without a scene cannot prove which narrative scene consumed it.
-  if 'scene' not in receipt:continue
+  if retained_activation(receipt) or 'scene' not in receipt:continue
   consumed_scene=C.integer(receipt['scene'],'food consumption scene',0,scene)
   C.integer(receipt.get('sequence'),'food consumption sequence',1)
   if any(not isinstance(receipt.get(k),str) or not receipt[k] for k in ('buff_id','source','item','producer')):raise ValueError('actual sourced food consumption receipt required')
@@ -720,13 +795,12 @@ def move_allowed(e,actor,move,mm):
 
 
 def remove_buff(e,actor,buff,*,producer='food_action'):
- # One actual resource exchange receipt feeds every consumer. It is not a
- # generic rollback snapshot: the exchange and its later benefit are distinct.
+ # Retention is an activation receipt; only actual removal ends the instance.
  if get_buff(actor,buff['id']) is not buff:raise ValueError('actual acquired buff identity changed before consumption')
  consumption_allowed(e,actor,buff)
  receipts=actor.spec.get('food_consumption_receipts',[])
  if not isinstance(receipts,list):raise ValueError('actual food consumption receipts required')
- if any(x.get('buff_id')==buff['id'] for x in receipts):raise ValueError('Digestion Buff already consumed')
+ if any(x.get('buff_id')==buff['id'] and not retained_activation(x) for x in receipts):raise ValueError('Digestion Buff already consumed')
  import frequency as FREQ
  receipt={'sequence':len(receipts)+1,'buff_id':buff['id'],'source':buff['source'],'item':buff['item'],'effect':deepcopy(buff['effect']),'producer':producer,'at':e.elapsed_seconds,'round':e.round_no,'scene':FREQ.state(actor)['scene'],'benefit':None}
  if 'item_stock' in buff:receipt['item_stock']=deepcopy(buff['item_stock'])
@@ -736,20 +810,26 @@ def remove_buff(e,actor,buff,*,producer='food_action'):
  if actor.spec.get(BERRY_CHOICE,{}).get('buff_id')==buff['id']:receipt['berry_choices']=deepcopy(actor.spec[BERRY_CHOICE]['choices'])
  for key in ('taste_assignment','chef_batch','chef_provenance'):
   if key in buff:receipt[key]=deepcopy(buff[key])
- metadata=INSTANCES.consumed(buff,actor,e.elapsed_seconds)
+ outcome=_harvest_outcome(e,actor)
+ if outcome is not None:receipt['harvest']=outcome
+ retained=outcome is not None and outcome['retained']
+ if retained:receipt['retained_buff']=deepcopy(buff)
+ receipt['effect_source']=buff['effect_source']
+ metadata=None if retained else INSTANCES.consumed(buff,actor,e.elapsed_seconds)
  if metadata is not None:
   receipt[INSTANCES.KEY]=metadata;receipt['effect_source']=buff['effect_source']
  receipt[ENCOUNTER_RECEIPT]={'actor_id':actor.entity_id,
   'encounter_epoch':C.integer(getattr(e,'_party_encounter_epoch',0),'actual food encounter epoch',1) if e.encounter_active else None,
   'eligible':_quota_eligible(receipt)}
- actor.buffs.remove(buff)
- actor.counters['food_buff_consumed']=actor.counters.get('food_buff_consumed',0)+1
- if not buff.get(INSTANCES.KEY,{}).get('capacity',ordinary_capacity()).get('scene_usage_exempt',False):actor.counters['lim:food_buff_consumed']=actor.counters.get('lim:food_buff_consumed',0)+1
+ if not retained:
+  actor.buffs.remove(buff)
+  actor.counters['food_buff_consumed']=actor.counters.get('food_buff_consumed',0)+1
+  if not buff.get(INSTANCES.KEY,{}).get('capacity',ordinary_capacity()).get('scene_usage_exempt',False):actor.counters['lim:food_buff_consumed']=actor.counters.get('lim:food_buff_consumed',0)+1
  actor.spec.setdefault('food_consumption_receipts',[]).append(receipt)
  for key in ('food_save_choice','food_hit_choice','food_move_choice',BERRY_CHOICE,BERRY_HIT_CHOICE,BERRY_PRIORITY_CHOICE,*CHEF_CHOICE_KEYS):
   if actor.spec.get(key,{}).get('buff_id')==buff['id']:actor.spec.pop(key)
  import class_actor_state_actions as CLASS_STATE_ACTIONS
- CLASS_STATE_ACTIONS.observe_food_buff_consumed(e,actor,receipt)
+ if not retained:CLASS_STATE_ACTIONS.observe_food_buff_consumed(e,actor,receipt)
  if producer!='actual_attack':
   import chef_cooking as CHEF
   CHEF.apply_taste_bonus(e,actor,buff,receipt)
@@ -865,7 +945,7 @@ def _apply_immediate(e,actor,buff,effect,reason,receipt,result,owner_consent_by,
   result['confusion_applied']=bool(e.apply_status(actor,'혼란',source=item,applied_by=actor)) if disposition=='disliked' else False
  elif effect['kind']=='berry_critical':
   import state_grants as G,combat_timing as TIMING
-  source=G.effect_source(actor,{'source_id':item,'effect_occurrence':buff['id']},'critical')
+  source=G.effect_source(actor,{'source_id':item,'effect_occurrence':buff['id']+':'+str(receipt['sequence'])},'critical')
   G._source(actor,source,'effect',owner_id=actor.entity_id,rule_id=item,lifetime='encounter_end')
   modifier={'type':'crit_range','delta':effect['delta']}
   G.apply_owned(e,actor,source,lambda:actor.modifiers.append(modifier))
@@ -898,7 +978,7 @@ def _apply_immediate(e,actor,buff,effect,reason,receipt,result,owner_consent_by,
  else:
   if INSTANCES.KEY in buff:
    ongoing=INSTANCES.create(e,actor,kind='food_turn_healing',source=buff['source'],payload=effect,capacity={'bucket':'none','source':buff['source']},lifetime={'boundary':'encounter_end'})
-   ongoing.update(item=item,effect_source=effect_source,buff_id=buff['id'],action_reason=reason)
+   ongoing.update(item=item,effect_source=effect_source,buff_id=buff['id'],receipt_sequence=receipt['sequence'],action_reason=reason)
    result['effect_id']=ongoing['id']
   else:
    # Preserve imported legacy state without inventing its past origin/policy.
@@ -933,7 +1013,7 @@ def immediate_commit(e,actor,buff,*,producer,reason,ignore_conditions=False,owne
  checked=immediate_preflight(e,actor,buff,ignore_conditions=ignore_conditions,owner_consent_by=owner_consent_by)
  if isinstance(checked,C.PendingDecision):raise ValueError(str(checked))
  parts=_immediate_parts(buff);receipt=remove_buff(e,actor,buff,producer=producer)
- result={'status':'consumed','buff_id':buff['id'],'receipt':receipt['sequence']}
+ result={'status':'retained' if retained_activation(receipt) else 'consumed','buff_id':buff['id'],'receipt':receipt['sequence']}
  if buff['effect'].get('kind')=='chef_composite':
   rows=[]
   for item,effect in parts:
@@ -1006,7 +1086,7 @@ def _chef_activate_sweet(e,actor,buff,owner_consent_by=None):
  receipt=remove_buff(e,actor,buff,producer='chef_self_activation')
  effect_id='chef-snack:'+actor.entity_id+':'+str(receipt['sequence'])
  record={'source':buff['item'],'effect_contract':True,'chef_snack':True,'effect_id':effect_id,
-         'buff_id':buff['id'],'turn_owner':actor,'turn_deadline':serial+1,'encounter_end':True,
+         'buff_id':buff['id'],'receipt_sequence':receipt['sequence'],'turn_owner':actor,'turn_deadline':serial+1,'encounter_end':True,
          'evasion_modifier':benefit['evasion']}
  if disposition=='liked':record['accuracy_modifier']=benefit['liked_accuracy']
  TIMING.install(e,actor,record)
@@ -1015,7 +1095,7 @@ def _chef_activate_sweet(e,actor,buff,owner_consent_by=None):
                      'accuracy':benefit['liked_accuracy'] if disposition=='liked' else 0,
                      'disposition':disposition,'rampage_applied':rampage,'until':benefit['lifetime']}
  receipt['benefit']['composite']=_apply_composite_rest(e,actor,buff,receipt,'Chef self-activation',owner_consent_by)
- return {'status':'consumed','buff_id':buff['id'],**receipt['benefit']}
+ return {'status':'retained' if retained_activation(receipt) else 'consumed','buff_id':buff['id'],**receipt['benefit']}
 
 
 def _chef_choice(actor,key,trigger,move):
@@ -1105,6 +1185,7 @@ def chef_attack_commit(e,attacker,target,move,plan,*,damage_reduction_allowed):
 
 
 def validate_actor_state(actor):
+ _food_receipts(actor)
  import csv_item_food_contracts as CSV
  CSV.validate_actor(actor)
  import herb_mushroom_rules as HERB
@@ -1142,12 +1223,12 @@ def validate_actor_state(actor):
    _validate_csv_sweet(actor,record)
    continue
   if not record.get('chef_snack'):continue
-  allowed={'source','effect_contract','chef_snack','effect_id','buff_id','turn_owner','turn_deadline','encounter_end','evasion_modifier','accuracy_modifier','owned_statuses','installing'}
+  allowed={'source','effect_contract','chef_snack','effect_id','buff_id','receipt_sequence','turn_owner','turn_deadline','encounter_end','evasion_modifier','accuracy_modifier','owned_statuses','installing'}
   if set(record)-allowed or record.get('source')!='item/단맛-과자' or record.get('effect_contract') is not True or record.get('turn_owner') is not actor or record.get('encounter_end') is not True or record.get('evasion_modifier')!=4:raise ValueError('typed Chef Sweet Confection lifetime required')
   C.integer(record.get('turn_deadline'),'Chef Sweet Confection turn deadline',1)
   if record.get('accuracy_modifier',0) not in (0,4):raise ValueError('Chef Sweet Confection accuracy contribution changed')
   if not isinstance(record.get('effect_id'),str) or not record['effect_id'].startswith('chef-snack:'+actor.entity_id+':'):raise ValueError('Chef timed effect identity changed')
-  receipts=[row for row in actor.spec.get('food_consumption_receipts',[]) if row.get('buff_id')==record.get('buff_id')]
+  receipts=[row for row in actor.spec.get('food_consumption_receipts',[]) if row.get('buff_id')==record.get('buff_id') and ('receipt_sequence' not in record or row.get('sequence')==record['receipt_sequence'])]
   if len(receipts)!=1 or receipts[0].get('producer')!='chef_self_activation':raise ValueError('Chef timed effect lacks one self-activation receipt')
   benefit=receipts[0].get('benefit')
   if not isinstance(benefit,dict) or benefit.get('kind')!='timed_modifiers' or benefit.get('effect_id')!=record['effect_id'] or benefit.get('evasion')!=4 or benefit.get('accuracy')!=record.get('accuracy_modifier',0) or benefit.get('until')!="end of user's next turn":raise ValueError('Chef timed effect and receipt disagree')
@@ -1187,19 +1268,29 @@ def _validate_critical_berry(actor,record):
 
 
 def _validate_csv_sweet(actor,record):
- allowed={'source','effect_contract','csv_sweet','effect_id','buff_id','turn_owner','turn_deadline','encounter_end','evasion_modifier','owned_statuses','installing'}
+ allowed={'source','effect_contract','csv_sweet','effect_id','buff_id','receipt_sequence','turn_owner','turn_deadline','encounter_end','evasion_modifier','owned_statuses','installing'}
  if set(record)-allowed or record.get('source')!='item/단맛-과자' or record.get('effect_contract') is not True or record.get('turn_owner') is not actor or record.get('encounter_end') is not True:raise ValueError('typed CSV Sweet lifetime required')
  C.integer(record.get('turn_deadline'),'CSV Sweet turn deadline',1)
- receipts=[r for r in actor.spec.get('food_consumption_receipts',[]) if r.get('buff_id')==record.get('buff_id')]
+ receipts=[r for r in actor.spec.get('food_consumption_receipts',[]) if r.get('buff_id')==record.get('buff_id') and ('receipt_sequence' not in record or r.get('sequence')==record['receipt_sequence'])]
  if len(receipts)!=1 or receipts[0].get('producer')!='sweet_self_activation':raise ValueError('CSV Sweet needs one actual self-activation receipt')
  import csv_item_food_contracts as CSV
  CSV.validate_native(actor,receipts[0])
  benefit=receipts[0].get('benefit',{})
  expected=2 if benefit.get('disposition')=='liked' else 1
- if benefit.get('disposition') not in ('neutral','liked','disliked') or benefit.get('kind')!='timed_modifiers' or benefit.get('until')!='end_of_next_turn' or benefit.get('evasion')!=expected or record.get('evasion_modifier')!=expected or record.get('effect_id')!='csv-sweet:'+record.get('buff_id','') or benefit.get('effect_id')!=record.get('effect_id') or record.get('accuracy_modifier',0)!=0:raise ValueError('CSV Sweet receipt and timed effect disagree')
+ if benefit.get('disposition') not in ('neutral','liked','disliked') or benefit.get('kind')!='timed_modifiers' or benefit.get('until')!='end_of_next_turn' or benefit.get('evasion')!=expected or record.get('evasion_modifier')!=expected or record.get('effect_id')!=('csv-sweet:'+record.get('buff_id','')+(':'+str(record['receipt_sequence']) if 'receipt_sequence' in record else '')) or benefit.get('effect_id')!=record.get('effect_id') or record.get('accuracy_modifier',0)!=0:raise ValueError('CSV Sweet receipt and timed effect disagree')
 
 
 def validate_world(engine,index):
+ for actor in index.values():
+  for receipt in _food_receipts(actor):
+   outcome=receipt.get('harvest')
+   if outcome is None:continue
+   period=outcome['turn'];owner=index.get(period['owner'])
+   if owner is None or period['turn']>owner.spec.get('frequency_state',{}).get('turn',0):raise ValueError('Harvest activation needs its real turn owner and occurrence')
+   if retained_activation(receipt):
+    snapshot=receipt['retained_buff'];m=snapshot[INSTANCES.KEY];origin=index.get(m['origin_actor_id'])
+    if origin is None or origin.spec.get(INSTANCES.SEQUENCE,0)<m['sequence']:raise ValueError('retained Harvest effect origin is missing')
+    if receipt['at']>engine.elapsed_seconds or any(event['holder_id'] not in index or event['at']>receipt['at'] for event in m['ownership']):raise ValueError('retained food activation has an invalid ownership boundary')
  import csv_item_food_contracts as CSV
  CSV.validate_world(engine,index)
  import chef_cooking as CHEF
@@ -1727,7 +1818,7 @@ def transfer_live_preflight(e,recipient,holder,source):
   if len(matches)!=1:raise ValueError('selected food transfer effect changed before the hit')
   chosen=matches[0]
  if not can_gain_buff(e,recipient,capacity=capacity_from_source(e.r,source)):raise ValueError('recipient cannot acquire transferred food effect')
- if chosen['kind']=='live' and any(row.get('buff_id')==chosen['buff_id'] for row in recipient.spec.get('food_consumption_receipts',[])):raise ValueError('transferred food effect was already consumed')
+ if chosen['kind']=='live' and any(row.get('buff_id')==chosen['buff_id'] and not retained_activation(row) for row in recipient.spec.get('food_consumption_receipts',[])):raise ValueError('transferred food effect was already consumed')
  return {'kind':chosen['kind'],'buff_id':chosen['buff_id']}
 
 
@@ -1769,7 +1860,7 @@ def validate_transfer_world(engine,index):
  """Cross-check copied live effects against the immutable consumed receipt."""
  for actor in index.values():
   records=[(buff,False) for buff in actor.buffs]
-  records.extend((receipt,True) for receipt in actor.spec.get('food_consumption_receipts',[]))
+  records.extend((receipt,True) for receipt in actor.spec.get('food_consumption_receipts',[]) if not retained_activation(receipt))
   for buff,spent in records:
    if not isinstance(buff,dict) or 'food_transfer_origin' not in buff:continue
    validate_native(actor,buff,spent=spent)

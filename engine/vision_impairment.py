@@ -27,7 +27,7 @@ def explicit_level(actor):
         if actor.r._selected_rule(SOURCE_TOTAL) != SOURCE_TOTAL:
             raise ValueError("selected Total Blindness needs its own policy")
         return "total"
-    if BLIND in conditions:
+    if BLIND in conditions and not __import__('keen_eye').active(None,actor):
         if actor.r._selected_rule(SOURCE_BLIND) != SOURCE_BLIND:
             raise ValueError("selected Blindness needs its own policy")
         return "ordinary"
@@ -41,7 +41,7 @@ def accuracy_level(engine, actor):
         return explicit
     import survivalist_features as SURVIVALIST
     environmental, _ = SURVIVALIST.vision(engine, actor)
-    return environmental
+    return 'none' if environmental == 'ordinary' and __import__('keen_eye').active(engine,actor) else environmental
 
 
 def accuracy_penalty(engine, actor, target=None):

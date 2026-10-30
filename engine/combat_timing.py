@@ -176,6 +176,7 @@ def expire(engine,c,record,*,ending='expired',event=None):
             event=event or {'kind':'owner_turn_end','turn':c.custom_conditions.get('combat_turn_serial',0)}
         INSTANCES.archive(engine,c,record,state=ending,event=event)
     current_records.remove(record)
+    if record.get('survivalist_weather'):__import__('ability_state_projection').refresh_weather_visibility(c)
     if record.get("uncurable_infatuation"):engine.cure_status(c,"헤롱헤롱")
     if stat_plan is not None:
         STAT_EXCHANGE.commit_expire(c,record,stat_plan,ending=ending,

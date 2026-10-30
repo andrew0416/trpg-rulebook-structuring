@@ -236,7 +236,7 @@ def _fall_defense(e,c):
             if scope.get("type"):continue # Typeless has no matching Pokemon type.
             if scope.get("class")=="원거리":raise ValueError("falling versus ranged-only reduction needs a sourced composition policy")
             if scope.get("class") in (None,"물리"):dr+=modifier["value"]
-        elif not c.abilities_suppressed and modifier.get("if_weather") and isinstance(modifier.get("value"),int) and not any(modifier.get(k) for k in ("if","vs","duration")) and FX.weather_matches(e,modifier["if_weather"],c):
+        elif not c.abilities_suppressed and modifier.get("if_weather") and isinstance(modifier.get("value"),int) and not any(modifier.get(k) for k in ("if","vs","duration")) and FX.weather_matches(e,modifier["if_weather"],c) and not __import__("survivalist_class").weather_ability_suppressed(e,c,modifier.get("_rule_id")):
             dr+=modifier["value"]
     return c.staged("def"),dr
 

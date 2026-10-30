@@ -7,4 +7,4 @@
 .github/workflows/*.yml text eol=lf
 tools/ci_validate.py text eol=lf
 tools/ci_fixtures.mjs text eol=lf
-CI.md text eol=lf
+CI.md -text

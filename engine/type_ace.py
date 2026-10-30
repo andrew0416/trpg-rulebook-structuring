@@ -413,11 +413,11 @@ def accuracy(engine,a,t,move,mm):
  result=all_rolls(a)+_buff(a,'ace_accuracy')
  row=sustained(engine,a,uid('Sneak Attack'))
  if row and sneak(engine,a,t):result+=2
- result-=_buff(t,'ace_zephyr') if __import__('class_passive_combat')._ranged(move) else 0
+ result+=__import__('keen_eye').modifier(engine,a,-_buff(t,'ace_zephyr')) if __import__('class_passive_combat')._ranged(move) else 0
  for mark in markers(engine,a):
   if _targets_marker(engine,a,t,move,mark) or not engine.adjacent(a,mark):continue
   tr=_stat_owner(engine,mark,'Face Me Whelp')
-  if tr:result-=NUMERIC.ratio(rank(engine,tr,'격투'),2)
+  if tr:result+=__import__('keen_eye').modifier(engine,a,-NUMERIC.ratio(rank(engine,tr,'격투'),2))
  return result
 
 

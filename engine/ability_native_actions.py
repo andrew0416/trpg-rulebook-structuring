@@ -1,4 +1,4 @@
-"""Reviewed native actions for twelve CSV Abilities sharing one owned-state path.
+"""Reviewed native CSV Ability actions sharing one owned-state path.
 
 Every activation is admitted from an exact CSV row, paid through the native
 action/frequency ledgers, committed in ``state_grants.transition`` and linked
@@ -84,11 +84,63 @@ def policy(rules):
     return data
 
 
+# Exact CSV editions; automatic Core-book effects are deliberately separate.
+WEATHER_ACTIONS = {
+    'ability/촉촉바디-playtest': dict(record=388, name='촉촉바디 [Playtest]', eng='Hydration', kind='hydration', weather='rain', frequency_text='장면 - 신속 행동', frequency={'kind':'scene','uses':1,'scope':[]}, trigger='', text='사용자는 상태 이상 하나를 치료합니다. 촉촉바디의 빈도는 비바라기 날씨에서 사용할 때에는 소모되지 않습니다.'),
+    'ability/선파워-playtest': dict(record=234, name='선파워 [Playtest]', eng='Solar Power', kind='solar_power', weather='sunny', frequency_text='장면 x2 - 신속 행동', frequency={'kind':'scene','uses':2,'scope':[]}, trigger='피해굴림을 굴릴 때', text='사용자는 소량의 체력을 잃고, 발동한 피해 굴림에 5 + 소량의 체력값을 보너스로 받습니다. 선파워는 쾌청날씨일 때는 빈도를 무시하고 활성할 수 있습니다.'),
+    'ability/아이스바디-playtest': dict(record=276, name='아이스바디 [Playtest]', eng='Ice Body', kind='weather_heal', weather='hail', frequency_text='하루 x5 - 신속 행동', frequency={'kind':'daily','uses':5,'scope':[]}, trigger='', text='사용자는 소량의 체력을 얻습니다. 아이스바디는 오직 사용자가 체력이 절반 미만일 때 또는 싸라기눈 날씨일 때만 사용 가능합니다.\n보너스: 사용자는 싸라기눈으로부터 체력을 잃지 않습니다.'),
+    'ability/젖은접시-playtest': dict(record=364, name='젖은접시 [Playtest]', eng='Rain Dish', kind='weather_heal', weather='rain', frequency_text='하루 x5 - 신속 행동', frequency={'kind':'daily','uses':5,'scope':[]}, trigger='', text='사용자는 소량의 체력을 얻습니다. 젖은접시는 오직 사용자가 체력이 절반보다 적거나 비바라기 날씨일 때만 사용할 수 있습니다.'),
+    'ability/햇볕-playtest': dict(record=461, name='햇볕 [Playtest]', eng='Sun Blanket', kind='weather_heal', weather='sunny', frequency_text='하루 x5 - 신속 행동', frequency={'kind':'daily','uses':5,'scope':[]}, trigger='이니셔티브를 얻을 때', text='사용자는 소량의 체력을 얻습니다. 햇볕은 오직 체력이 절반 미만이거나 쾌청 날씨일 때 발동할 수 있습니다.'),
+    'ability/햇볕-playtest-2': dict(record=496, name='햇볕 [Playtest]', eng='Sun Blanket [Playtest]', kind='weather_heal', weather='sunny', frequency_text='하루 x5 - 신속 행동', frequency={'kind':'daily','uses':5,'scope':[]}, trigger='이니셔티브를 얻을 때', text='사용자는 소량의 체력을 얻습니다. 햇볕은 오직 체력이 절반 미만이거나 쾌청 날씨일 때 발동할 수 있습니다.'),
+    'ability/플라워기프트-playtest': dict(record=449, name='플라워기프트 [Playtest]', eng='Flower Gift', kind='flower_gift', weather='sunny', frequency_text='장면 - 신속 행동', frequency={'kind':'scene','uses':1,'scope':[]}, trigger='', text='플라워기프트는 오직 쾌청 날씨일 때나 체력이 절반 미만일 때 사용할 수 있습니다. 활성할 때, 사용자는 두 스탯을 고를 수 있고, 각 스탯은 +2 전투단계를 얻습니다. 2미터 이내의 모든 대상은 또한 선택한 각 스탯에서 +1 전투단계를 얻습니다.'),
+}
+SOLAR_POWER = 'ability/선파워-playtest'
+SUN_BLANKET = ('ability/햇볕-playtest', 'ability/햇볕-playtest-2')
+WEATHER_TRIGGER = 'native_weather_ability_trigger'
+SOLAR_INTENT = 'native_solar_power_intent'
+
+
+def weather_action_sources(rules):
+    cached = getattr(rules, '_native_weather_action_sources', None)
+    if cached is not None:
+        return cached
+    with (Path(rules.root) / 'input/db/abilities.csv').open(encoding='utf-8-sig', newline='') as stream:
+        rows = list(csv.reader(stream))
+    catalog = {entry['id']: entry for entry in json.loads(
+        (Path(rules.root) / 'output/entities/abilities.json').read_text(encoding='utf-8'))}
+    result = {}
+    for source, row in WEATHER_ACTIONS.items():
+        raw = rows[row['record'] - 1]
+        # NBSP and line endings are typography, not an alternate rule edition.
+        actual = [raw[0], raw[1], ' '.join(raw[2].split()), raw[3], raw[5], raw[7]]
+        expected = [row['name'], row['frequency_text'], ' '.join(row['text'].split()), row['trigger'], '2-16 Playtest', row['eng']]
+        entry = catalog.get(source, {})
+        if actual != expected or entry.get('name') != row['name'] or entry.get('_source', {}).get('record_span') != [row['record'], row['record']]:
+            raise ValueError('native weather Ability exact CSV source changed: ' + source)
+        result[source] = dict(row, action='swift', effects=[])
+    rules._native_weather_action_sources = result
+    return result
+
+
+def _weather_registration(rules, value):
+    rows = weather_action_sources(rules)
+    matches = [source for source, row in rows.items() if value in (source, row['name'], row['eng'])]
+    if not matches:
+        return None
+    source = value if value in rows else matches[0]
+    if rules._selected_rule(source) != source:
+        raise ValueError('native weather Ability source selection changed')
+    equivalent = list(SUN_BLANKET) if source in SUN_BLANKET else [source]
+    return {'name': rows[source]['name'], 'source_id': source, 'equivalent_source_ids': equivalent}
+
 def definition(rules, source):
-    return policy(rules)['sources'].get(source)
+    return weather_action_sources(rules).get(source) or policy(rules)['sources'].get(source)
 
 
 def registration(rules, value):
+    added = _weather_registration(rules, value)
+    if added is not None:
+        return added
     rows = policy(rules)['sources']
     catalog = rules._ability_native_actions_catalog
     candidates = [
@@ -114,7 +166,7 @@ def deferred_registration(rules, effect):
     source = effect.get('_rule_id') if isinstance(effect, dict) else None
     if source is None and isinstance(effect, dict):
         source = (registration(rules, effect.get('_ability')) or {}).get('source_id')
-    return source in policy(rules)['sources']
+    return definition(rules, source) is not None
 
 
 def _state(actor):
@@ -158,6 +210,9 @@ def register(engine, actor, value):
     )
     if row.get('source') != reg['source_id'] or row.get('registered') is not True:
         raise ValueError('native Ability registration state changed')
+    if reg['source_id'] == 'ability/아이스바디-playtest':
+        import effects as FX
+        FX.apply_passives(engine, actor, [{'type':'immunity', 'to':'hail', '_ability':reg['name'], '_rule_id':reg['source_id']}])
     if definition(engine.r,reg['source_id'])['kind']=='weather':
         # Registration grants the printed Static exception, never the weather.
         import effects as FX
@@ -189,7 +244,7 @@ def _actual_owner(actor, reg):
         raise ValueError('suppressed Ability cannot activate')
     for value in actor.abilities:
         found = registration(actor.r, value)
-        if found and found['source_id'] == reg['source_id']:
+        if found and found['source_id'] in reg['equivalent_source_ids']:
             return
     raise ValueError('actor does not own the reviewed Ability')
 
@@ -230,7 +285,8 @@ def _pay(engine, actor, target, source, row, *, action=None, declaration=None):
     import turn as TURN
     action = row.get('action') if action is None else action
     declaration = row['frequency'] if declaration is None else declaration
-    plan = _frequency(engine, actor, target, source, declaration, action)
+    quota_source = SUN_BLANKET[0] if source in SUN_BLANKET else source
+    plan = _frequency(engine, actor, target, quota_source, declaration, action)
     if action is not None and (not TURN.spend(engine, actor, action, row['name'])):
         raise ValueError('Ability action unavailable')
     _consume_frequency(engine, actor, source, declaration, plan,action=action)
@@ -748,6 +804,8 @@ def _lunchbox(engine, actor, target, source, row, options):
     if not isinstance(receipts, list) or sequence > len(receipts):
         raise ValueError('actual consumed-food receipt required')
     food = receipts[sequence - 1]
+    if __import__('food_effects').retained_activation(food):
+        raise ValueError('Lunchbox requires consumed food, not a retained Harvest activation')
     if (
         food.get('sequence') != sequence
         or food.get('at') != engine.elapsed_seconds
@@ -869,13 +927,208 @@ def _leaf_guard(engine, actor, target, source, row, options):
     if not isinstance(status, str) or STATUS.normalize(status) not in afflictions:
         raise ValueError('Leaf Guard requires one actual chosen Status Affliction')
     status = STATUS.normalize(status)
-    sunny = FX.weather_matches(engine, 'sunny', actor)
+    sunny = FX.weather_matches(engine, 'sunny', actor) and not __import__('survivalist_class').weather_ability_suppressed(engine,actor,source)
     _pay(engine, actor, target, source, row,
          declaration={'kind': 'at_will', 'uses': 1, 'scope': []} if sunny else row['frequency'])
     engine.cure_status(actor, status)
     return _receipt(engine, actor, source, actor.entity_id, 'leaf_guard',
                     {'status': status, 'ignored_scene_frequency': sunny})
 
+
+def _weather_benefit(engine, actor, source, weather):
+    import effects as FX
+    import survivalist_class as SC
+    return FX.weather_matches(engine, weather, actor) and not SC.weather_ability_suppressed(engine, actor, source)
+
+
+def _weather_or_low_hp(engine, actor, source, row):
+    return actor.hp * 2 < actor.base_max_hp or _weather_benefit(engine, actor, source, row['weather'])
+
+
+def _weather_owner(engine, actor):
+    import turn as TURN
+    import heavy_injury_adapter as HEAVY
+    import effect_contracts as CONTRACTS
+    import passive_events as PASSIVE
+    HEAVY.ensure_clear(engine)
+    CONTRACTS.ensure_clear(engine)
+    PASSIVE.ensure_clear(engine)
+    if actor.dead or actor.fainted or actor.captured or not actor.on_field or not TURN.can_act(engine, actor):
+        raise ValueError('weather Ability requires its actual able user')
+
+
+def _hydration(engine, actor, target, source, row, options):
+    _weather_owner(engine, actor)
+    if target is not actor or set(options) - {'status'}:
+        raise ValueError('Hydration cures one affliction of its actual user')
+    import status_sets as STATUS
+    afflictions = STATUS.afflictions(actor)
+    status = options.get('status')
+    if status is None and len(afflictions) == 1:
+        status = afflictions[0]
+    if not isinstance(status, str) or STATUS.normalize(status) not in afflictions:
+        raise ValueError('Hydration requires one actual chosen Status Affliction')
+    status = STATUS.normalize(status)
+    rain = _weather_benefit(engine, actor, source, row['weather'])
+    _pay(engine, actor, target, source, row,
+         declaration={'kind':'at_will','uses':1,'scope':[]} if rain else row['frequency'])
+    engine.cure_status(actor, status)
+    return _receipt(engine, actor, source, actor.entity_id, 'hydration',
+                    {'status':status, 'ignored_scene_frequency':rain})
+
+
+def initiative_gained(engine, actor):
+    """Native turn producer; a caller-supplied initiative flag is not authority."""
+    actor.spec.pop(SOLAR_INTENT, None)
+    if not any((_weather_registration(engine.r, value) or {}).get('source_id') in SUN_BLANKET for value in actor.abilities):
+        return
+    actor.spec[WEATHER_TRIGGER] = {
+        'round':engine.round_no, 'turn':actor.custom_conditions.get('combat_turn_serial', 0),
+        'at':engine.elapsed_seconds, 'actions':deepcopy(getattr(actor, '_action_history', [])),
+        'used':False,
+    }
+    event = actor.spec[WEATHER_TRIGGER]
+    event['fingerprint'] = _digest({key:value for key,value in event.items() if key != 'used'})
+
+
+def _initiative_trigger(engine, actor):
+    event = actor.spec.get(WEATHER_TRIGGER)
+    if (not isinstance(event, dict) or event.get('used') is not False
+            or event.get('fingerprint') != _digest({key:value for key,value in event.items() if key not in ('used','fingerprint')})
+            or getattr(engine, '_active_turn_actor', None) is not actor
+            or event.get('round') != engine.round_no or event.get('at') != engine.elapsed_seconds
+            or event.get('turn') != actor.custom_conditions.get('combat_turn_serial', 0)
+            or event.get('actions') != getattr(actor, '_action_history', [])):
+        raise ValueError('Sun Blanket requires its actual initiative-gain boundary before another action')
+    return event
+
+
+def _weather_heal(engine, actor, target, source, row, options):
+    _weather_owner(engine, actor)
+    if target is not actor or options:
+        raise ValueError('weather healing targets its actual user without options')
+    event = _initiative_trigger(engine, actor) if source in SUN_BLANKET else None
+    if not _weather_or_low_hp(engine, actor, source, row):
+        raise ValueError('weather healing requires unsuppressed weather or HP below half')
+    tick = engine.tick(actor)
+    _pay(engine, actor, target, source, row)
+    gained = engine.heal(actor, tick, source_kind='feature')
+    if event is not None:
+        actor.spec[WEATHER_TRIGGER]['used'] = True
+    return _receipt(engine, actor, source, actor.entity_id, 'weather_heal',
+                    {'tick':tick, 'healed':gained, 'initiative_turn':event['turn'] if event else None})
+
+
+def _flower_gift(engine, actor, target, source, row, options):
+    _weather_owner(engine, actor)
+    stats = options.get('stats')
+    if (target is not actor or set(options) != {'stats'} or not isinstance(stats, (list, tuple))
+            or len(stats) != 2 or any(stat not in ('atk','def','spa','spd','spe') for stat in stats)
+            or stats[0] == stats[1]):
+        raise ValueError('Flower Gift requires two distinct non-HP combat stats')
+    if not _weather_or_low_hp(engine, actor, source, row):
+        raise ValueError('Flower Gift requires unsuppressed sun or HP below half')
+    import world_entities as W
+    import effects as FX
+    recipients = []
+    for other in W.actor_index(engine).values():
+        if other is actor or not other.on_field or other.dead:
+            continue
+        distance = W.distance_known(actor, other)
+        if distance is None:
+            raise ValueError('Flower Gift requires actual positions for all field recipients')
+        if distance <= 2:
+            recipients.append(other)
+    _pay(engine, actor, target, source, row)
+    for recipient in [actor] + recipients:
+        for stat in stats:
+            note = FX.h_stage_change(engine, actor, recipient,
+                {'type':'stage_change','stat':stat,'delta':2 if recipient is actor else 1},
+                {'engine':engine,'source_id':source,'attacker':actor,'target':recipient})
+            if note:
+                raise ValueError(str(note))
+    return _receipt(engine, actor, source, actor.entity_id, 'flower_gift',
+        {'stats':list(stats), 'self_delta':2, 'other_delta':1, 'recipient_ids':[other.entity_id for other in recipients]})
+
+
+def _solar_power(engine, actor, target, source, row, options):
+    """Choose a forthcoming native roll; payment occurs only at that roll."""
+    _weather_owner(engine, actor)
+    if target is not actor or set(options) != {'move_id'}:
+        raise ValueError('Solar Power requires the chosen actual damaging Move')
+    move_id = options['move_id']
+    if (getattr(engine, '_active_turn_actor', None) is not actor or move_id not in actor.moves
+            or engine.r.move(move_id).get('class') not in ('물리', '특수')):
+        raise ValueError('Solar Power requires the user turn and a known damaging Move')
+    if actor.spec.get(SOLAR_INTENT) is not None:
+        raise ValueError('Solar Power already has a chosen damage roll')
+    details = {'move_id':move_id, 'turn':actor.custom_conditions.get('combat_turn_serial', 0),
+               'round':engine.round_no, 'at':engine.elapsed_seconds}
+    receipt = _receipt(engine, actor, source, actor.entity_id, 'solar_power_choice', details)
+    actor.spec[SOLAR_INTENT] = dict(details, receipt_id=receipt['id'])
+    return receipt
+
+
+def solar_power_interested(actor):
+    return isinstance(actor.spec.get(SOLAR_INTENT), dict)
+
+
+def _solar_power_damage(engine, actor, target, move, event):
+    """Consume one choice at an actual native damage roll, never a preview."""
+    intent = actor.spec.get(SOLAR_INTENT)
+    if intent is None or intent.get('move_id') != move['id']:
+        return 0
+    if event is None:
+        return 0
+    if (engine._passive_events.get(event.get('id')) is not event or event.get('phase') != 'activated'
+            or event.get('actor') is not actor or event.get('target') is not target
+            or event.get('move_id') != move['id']):
+        raise ValueError('Solar Power requires its actual native damage event')
+    import passive_events as PASSIVE
+    observations = PASSIVE.observations(engine, event['id'])
+    if not observations or observations[-1]['stage'] != 'accuracy' or not observations[-1]['facts']['hit']:
+        raise ValueError('Solar Power requires an actual hit before damage')
+    if (intent.get('round') != engine.round_no or intent.get('at') != engine.elapsed_seconds
+            or intent.get('turn') != actor.custom_conditions.get('combat_turn_serial', 0)):
+        raise ValueError('Solar Power choice belongs to an expired turn')
+    choices = [r for r in actor.spec.get(HISTORY, []) if r['id'] == intent.get('receipt_id')]
+    if len(choices) != 1 or choices[0]['source'] != SOLAR_POWER or choices[0]['operation'] != 'solar_power_choice' or choices[0]['details'] != {k:v for k,v in intent.items() if k != 'receipt_id'}:
+        raise ValueError('Solar Power lost its actual source choice receipt')
+    reg = registration(engine.r, SOLAR_POWER)
+    _actual_owner(actor, reg)
+    _weather_owner(engine, actor)
+    row = definition(engine.r, SOLAR_POWER)
+    sunny = _weather_benefit(engine, actor, SOLAR_POWER, row['weather'])
+    tick = engine.tick(actor)
+    if actor.hp + actor.temp_hp < tick:
+        raise ValueError('Solar Power requires its full tick HP cost')
+    _pay(engine, actor, actor, SOLAR_POWER, row,
+         declaration={'kind':'at_will','uses':1,'scope':[]} if sunny else row['frequency'])
+    before = actor.hp + actor.temp_hp
+    engine.lose_hp(actor, tick, source=SOLAR_POWER)
+    if before - actor.hp - actor.temp_hp != tick:
+        raise ValueError('Solar Power tick HP cost was prevented')
+    actor.spec.pop(SOLAR_INTENT)
+    _receipt(engine, actor, SOLAR_POWER, target.entity_id, 'solar_power',
+             {'event_id':event['id'], 'move_id':move['id'], 'tick_cost':tick,
+              'bonus':5 + tick, 'ignored_scene_frequency':sunny, 'choice_receipt':intent['receipt_id']})
+    return 5 + tick
+
+def solar_power_damage(engine, actor, target, move, event):
+    if not solar_power_interested(actor) or event is None:
+        return 0
+    import state_grants as G
+    # roll_damage receives resolve_attack_damage's reaction envelope. Its
+    # passive_event key identifies the registered native accuracy occurrence.
+    native = engine._passive_events.get(event.get('passive_event'))
+    if (native is None or event.get('attacker') is not actor or event.get('target') is not target
+            or event.get('move', {}).get('id') != move['id']):
+        raise ValueError('Solar Power requires its actual native damage event')
+    event_id = native['id']
+    return G.transition(engine, actor,
+        lambda staged, owner, recipient: _solar_power_damage(
+            staged, owner, recipient, move, staged._passive_events[event_id]),
+        participants=(target,), include_rulings=True)
 
 def _color_payload(roll):
     C.integer(roll, 'Color Theory birth d12', 1, 12)
@@ -1074,6 +1327,10 @@ def _weather(engine,actor,target,source,row,options):
 
 
 HANDLERS = {
+    'hydration': _hydration,
+    'weather_heal': _weather_heal,
+    'solar_power': _solar_power,
+    'flower_gift': _flower_gift,
     'weather': _weather,
     'threat': _threat,
     'death_resistance': _death_resistance,
@@ -1106,6 +1363,8 @@ def activate(engine, actor, ability, target):
     else:
         raise ValueError('native Ability target must be an actual actor')
     row = definition(engine.r, reg['source_id'])
+    if row['kind'] == 'flower_gift':
+        participants = tuple(other for other in W.actor_index(engine).values() if other is not actor)
 
     def apply(staged, a, *others):
         actual = a if subject is actor else others[0]
@@ -1174,6 +1433,8 @@ def weather_boundary(engine, *, round_end=False):
 
 def end_encounter(engine, actors):
     for actor in actors:
+        actor.spec.pop(SOLAR_INTENT, None)
+        actor.spec.pop(WEATHER_TRIGGER, None)
         for source, state in actor.spec.get(KEY, {}).items():
             state.pop('encounter_used', None)
             if source == 'ability/에어록' and state.get('air_lock'):
@@ -1210,7 +1471,7 @@ def validate_world(engine, index):
                 raise ValueError('native Ability receipt identity mismatch')
             invalid_provenance = (
                 record.get('actor_id') != actor.entity_id
-                or record.get('source') not in policy(engine.r)['sources']
+                or definition(engine.r, record.get('source')) is None
                 or record.get('at', 0) > engine.elapsed_seconds
                 or record.get('round', 0) > engine.round_no
             )
@@ -1219,7 +1480,7 @@ def validate_world(engine, index):
             receipts[record['id']] = record
         for source, state in actor.spec.get(KEY, {}).items():
             invalid_registration = (
-                source not in policy(engine.r)['sources']
+                definition(engine.r, source) is None
                 or state.get('source') != source
                 or state.get('registered') is not True
             )
@@ -1252,6 +1513,8 @@ def validate_world(engine, index):
                     raise ValueError('Designer garment lost its owned resistances')
         for food in actor.spec.get('food_consumption_receipts', []):
             claims = food.get('ability_native_claims', [])
+            if claims and __import__('food_effects').retained_activation(food):
+                raise ValueError('retained Harvest activation cannot carry consumption Ability claims')
             if not isinstance(claims, list) or len(claims) != len(set(claims)):
                 raise ValueError('consumed Food Buff Ability claims invalid')
             if any(source != 'ability/도시락통-playtest' for source in claims):

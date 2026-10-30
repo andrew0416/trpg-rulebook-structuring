@@ -231,7 +231,7 @@ def validate_world(engine,index):
                     # A sourced transfer can move a Digestion Buff to another
                     # actor; the material origin remains this Shuckle's shell.
                     candidates=[x for holder in index.values() for x in (*holder.buffs,*holder.spec.get('food_consumption_receipts',[]))]
-                    matches=[x for x in candidates if isinstance(x,dict) and x.get('item_stock')==shell_receipt(actor,row)]
+                    matches=[x for x in candidates if isinstance(x,dict) and not __import__('food_effects').retained_activation(x) and x.get('item_stock')==shell_receipt(actor,row)]
                     if not matches and _pending_shell_intake(engine,actor,row):continue
                     if len(matches)!=1 or matches[0].get('item')!=row['product']['item_id'] or matches[0].get('effect')!={'kind':'heal','amount':30}:raise ValueError('shell Snack must retain its actual acquired or consumed Digestion Buff')
     return True

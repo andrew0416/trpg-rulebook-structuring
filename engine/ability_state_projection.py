@@ -289,23 +289,42 @@ FIELD_TYPES={
  '툰드라':('얼음',),'도시':('노말','강철'),'sunny':('불꽃',),'rain':('물',),'hail':('얼음',),'snow':('얼음',),'sandstorm':('바위',)}
 
 
-def _field_choice(engine,choice,observation,actor):
-    if not isinstance(observation,dict) or set(observation)-{'environment','fact','gm_options','candidates'} or not {'environment','fact'}<=set(observation):
+def _field_choice(engine,choice,observation,actor,*,saved=False):
+    if not isinstance(observation,dict) or set(observation)-{'environment','fact','gm_options','candidates','weather_observation'} or not {'environment','fact'}<=set(observation):
         raise ValueError('Mimicry requires an observed environment fact')
     _fact(observation['fact'],'environment fact');environment=observation['environment'];_text(environment,'environment')
     candidates=set(FIELD_TYPES.get(environment,()))
-    weather=__import__('effects').effective_weather(engine,actor)
-    if weather in FIELD_TYPES:candidates.update(FIELD_TYPES[weather])
     extra=observation.get('gm_options',[])
     if extra:
         if not isinstance(extra,list):raise ValueError('GM type options must be a list')
         import type_state as TYPES
         TYPES.validate_types(engine.r,extra,label='Mimicry GM type options');candidates.update(extra)
+    weather_fact=observation.get('weather_observation')
+    if saved:
+        # Legacy records without this native fact can prove only terrain/GM options.
+        if weather_fact is not None:
+            if (not isinstance(weather_fact,dict) or set(weather_fact)!={'weather','source','actor_id'}
+                    or not isinstance(weather_fact['weather'],str) or weather_fact['weather'] not in WEATHER_TYPES
+                    or weather_fact['source']!='engine/effective-weather'
+                    or weather_fact['actor_id']!=actor.entity_id):
+                raise ValueError('saved Mimicry weather observation changed')
+            candidates.update(FIELD_TYPES.get(weather_fact['weather'],()))
+    else:
+        weather=__import__('effects').effective_weather(engine,actor)
+        actual={'weather':'none' if weather is None else weather,
+                'source':'engine/effective-weather','actor_id':actor.entity_id}
+        if weather_fact is not None and weather_fact!=actual:
+            raise ValueError('Mimicry weather observation differs from actual selection weather')
+        weather_fact=actual
+        candidates.update(FIELD_TYPES.get(weather,()))
     if choice not in candidates:raise ValueError('Mimicry type is not available from the actual field/weather')
     expected=sorted(candidates)
+    if saved and not isinstance(observation.get('candidates'),list):raise ValueError('saved Mimicry field candidates required')
     if 'candidates' in observation and observation['candidates']!=expected:raise ValueError('stored Mimicry candidates changed')
-    result={k:deepcopy(v) for k,v in observation.items() if k!='candidates'};result['candidates']=expected;return result
-
+    result={k:deepcopy(v) for k,v in observation.items() if k not in ('candidates','weather_observation')}
+    if weather_fact is not None:result['weather_observation']=deepcopy(weather_fact)
+    result['candidates']=expected
+    return result
 
 def _material_choice(choice,observation):
     expected={'초목도롱이':{'나뭇잎','잔가지'},'모래땅도롱이':{'모래','돌'},'슈레도롱이':{'쓰레기','파편'}}
@@ -316,7 +335,7 @@ def _material_choice(choice,observation):
     return deepcopy(observation)
 
 
-def _selection(engine,actor,source,choice,observation):
+def _selection(engine,actor,source,choice,observation,*,saved_field=False):
     row=definition(engine.r,source);kind=row['kind']
     if choice not in row['choices']:raise ValueError('choice is not declared for this ability')
     payload=deepcopy(row['choices'][choice])
@@ -325,7 +344,7 @@ def _selection(engine,actor,source,choice,observation):
         import weather_state as WEATHER
         sample_types=WEATHER.rudolf_types(engine,actor)
         if sample_types is not None:payload['types']=sample_types
-    elif kind=='field':observation=_field_choice(engine,choice,observation,actor)
+    elif kind=='field':observation=_field_choice(engine,choice,observation,actor,saved=saved_field)
     elif kind=='cloak':
         observation=_material_choice(choice,observation)
         secondary=payload.pop('secondary_type')
@@ -427,7 +446,8 @@ def _apply(engine,actor,source,choice,payload,observation,reason,*,lifetime,prio
     import form_allocations as FORMS
     if form is not None and FORMS.KEY in actor.spec:_switch_form_direct(engine,actor,form)
     G._source(actor,sid,'ability_state_projection',owner_id=actor.entity_id,rule_id=source,lifetime=lifetime,tutor_points=0,
-      **({'move_mode':'permission'} if payload.get('moves') else {}))
+      **({'move_mode':'permission'} if payload.get('moves') else {}),
+      **({'field_observation':deepcopy(observation)} if source=='ability/의태' else {}))
     def contributions():
         if payload.get('types') is not None:G.type_operation(actor,'set',payload['types'],sid)
         for uid in payload.get('abilities',[]):G.grant(actor,'abilities',uid,sid,'ability_state_projection',owner_id=actor.entity_id,lifetime=lifetime,rule_id=source)
@@ -590,6 +610,46 @@ def after_hit(engine,actor,*,multiplier,dealt):
     if record and multiplier>1 and dealt>0:G.transition(engine,actor,lambda e,c:_remove(e,c,source),include_rulings=True)
 
 
+def weather_projection_suppressed(actor,grant_source):
+    """Only hide the weather-dependent part of an existing owned projection."""
+    if grant_source not in (_sid('ability/기분파'),_sid('ability/의태')):return False
+    source=grant_source[len(PREFIX):]
+    record=_records(actor).get(source)
+    if record is None:return False
+    import survivalist_class as SC
+    if not SC.weather_ability_suppressed(None,actor,source):return False
+    if source=='ability/기분파':return record['choice']!='노말' or record['payload'].get('types')!=['노말']
+    observation=record.get('observation') or {}
+    environment=observation.get('environment')
+    independent=set(FIELD_TYPES.get(environment,())) if environment not in WEATHER_TYPES else set()
+    independent.update(observation.get('gm_options',[]))
+    return record['choice'] not in independent
+
+
+def suppressed_projection_sources(actor,row):
+    return [sid for sid in row['sources'] if weather_projection_suppressed(actor,sid)]
+
+
+def refresh_weather_visibility(actor):
+    """Re-render in place: choices, lifetimes and later source layers survive."""
+    state=actor.spec.get(G.KEY,{})
+    types=state.get('type_sources')
+    if types is not None:
+        hidden=suppressed_projection_sources(actor,types)
+        if hidden!=types.get('suppressed',[]):
+            if actor._types!=types['visible']:raise ValueError('untracked type change requires explicit reconciliation')
+            if hidden:types['suppressed']=hidden
+            else:types.pop('suppressed',None)
+            G._render_types(actor,types)
+    form=state.get('scalar_sources',{}).get('form')
+    if form is not None:
+        hidden=suppressed_projection_sources(actor,form)
+        if hidden!=form.get('suppressed',[]):
+            if actor.form!=form['visible']:form['base']=deepcopy(actor.form)
+            if hidden:form['suppressed']=hidden
+            else:form.pop('suppressed',None)
+            G._render_scalar(actor,'form',form)
+
 def weather_changed(engine):
     for actor in list(getattr(engine,'everyone',[])):
         reconcile_weather(engine,actor,weather_changed=True)
@@ -603,6 +663,8 @@ def reconcile_weather(engine,actor,*,weather_changed=False):
     """
     source='ability/기분파';current=_records(actor).get(source)
     import ability_transitions as A
+    mimic='ability/의태'
+    if mimic in _records(actor) and mimic not in A.known(actor):_remove(engine,actor,mimic)
     if current is None and source not in A.known(actor):return False
     if not _owned(actor,source):return _remove(engine,actor,source)
     if current is not None and not weather_changed:return False
@@ -798,19 +860,24 @@ def validate_world(engine,index):
                           actor.custom_conditions.get('combat_turn_serial',0))
             payload=record.get('payload');_validate_targets(engine,payload)
             if source==LEAFY:expected=_leafy_payload(actor,record,current=True)
-            else:expected,_=_selection(engine,actor,source,record['choice'],record.get('observation'))
+            else:expected,_=_selection(engine,actor,source,record['choice'],record.get('observation'),saved_field=True)
             if payload!=expected:raise ValueError('ability-state payload differs from the reviewed projection')
             owner=actor.spec.get(G.KEY,{}).get('sources',{}).get(record['grant_source'])
             if owner is None or owner.get('rule_id')!=source or owner.get('lifetime')!=row['lifetime']:
                 raise ValueError('ability-state projection lacks its owned producer')
+            if source=='ability/의태' and ('weather_observation' in record.get('observation',{}) or 'field_observation' in owner):
+                if owner.get('field_observation')!=record.get('observation'):
+                    raise ValueError('Mimicry observation differs from its native selection producer')
             if payload.get('types') is not None and actor.spec[G.KEY].get('type_sources',{}).get('sources',{}).get(record['grant_source'],{}).get('values')!=payload['types']:
                 raise ValueError('projected types differ from the owned type consumer')
             if payload.get('form') is not None:
                 if FORMS.KEY in actor.spec and actor.spec[FORMS.KEY]['active']!=payload['form']:raise ValueError('projected form allocation is not active')
-                if actor.form!=payload['form']:raise ValueError('projected visible form changed')
+                if (source!='ability/기분파' or FORMS.KEY in actor.spec) and actor.form!=payload['form']:raise ValueError('projected visible form changed')
                 if source=='ability/기분파' and FORMS.KEY not in actor.spec:
                     scalar=actor.spec[G.KEY].get('scalar_sources',{}).get('form',{})
-                    if scalar.get('sources',{}).get(record['grant_source'])!=payload['form'] or scalar.get('visible')!=actor.form:
+                    if (scalar.get('sources',{}).get(record['grant_source'])!=payload['form']
+                            or scalar.get('suppressed',[])!=suppressed_projection_sources(actor,scalar)
+                            or scalar.get('visible')!=actor.form or G._scalar_value(scalar)!=actor.form):
                         raise ValueError('Forecast appearance differs from its owned form consumer')
             if record.get('blocks_temp_hp')!=bool(payload.get('blocks_temp_hp')):raise ValueError('temporary-HP lock changed')
             if source=='ability/스웜체인지':_require_forms(actor,source,record.get('prior_form'))

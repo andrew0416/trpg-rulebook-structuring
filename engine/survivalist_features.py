@@ -211,8 +211,8 @@ def vision(e,a):
  traits=talents(e,a) if F.owned(a,SURVIVALIST) else ();env=a.spec.get('_survivalist_environment',{'light':'normal'});light=env['light'];cave='cave' in traits
  if light in ('low_light','complete_darkness') and senses['darkvision']:light='normal'
  if light=='low_light' and __import__('survivalist_class').low_light_sight(e,a):light='normal'
- if light=='complete_darkness':return ('ordinary',True) if cave else ('total',False)
- if light=='low_light' and not cave:return 'ordinary',False
+ if light=='complete_darkness':return ('none' if __import__('keen_eye').active(e,a) else 'ordinary',True) if cave else ('total',False)
+ if light=='low_light' and not cave:return ('none' if __import__('keen_eye').active(e,a) else 'ordinary'),False
  return 'none',False
 
 def blinded_plan(e,a,options=None,*,allow_total=False):

@@ -24,9 +24,9 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "clause-method-repair01",
-  "active_repair_scope": "IMPL-01 shared blinded movement cost and continuation; IMPL-02 independent Stacked Deck oracle; IMPL-03 Gas-only refusal and success control; IMPL-04 Entrainment Scene/AC/range boundaries.",
-  "active_repair_required_tests": 17,
+  "active_repair": "weather-integration-1030",
+  "active_repair_scope": "Source-composed Survivalist/Keen Eye/weather/Harvest behavior and retained b47 regressions; targeted evidence only, no whole-class closure.",
+  "active_repair_required_tests": 112,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -42,7 +42,7 @@
   "separately_pending_frequency_equivalence_methods": 1029,
   "separately_pending_procedural_runners": 21,
   "ordinary_shard_count": 18,
-  "active_repair_phase": "bounded_native_repair_verification",
+  "active_repair_phase": "source_prepared_private_fixture_pending",
   "active_repair_procedural_runners": 0,
   "full_method_obligations": 13847,
   "ordinary_methods_separate_run": 40141538702,
@@ -1019,5 +1019,19 @@
     "registry_boundary": "Five existing remote registry/progress inputs differ from current canonical metadata; this run validates runtime only, not canonical ledger acceptance.",
     "completion_credit": 0
   },
-  "active_repair_source_note": "Source commit above is the unchanged parent baseline. CI run.json git_sha and physical input hashes bind the actual repaired head. Historical full-method totals are not a fresh inventory of these added boundary tests."
+  "active_repair_source_note": "Source commit above is the unchanged parent baseline. CI run.json git_sha and physical input hashes bind the actual repaired head. Historical full-method totals are not a fresh inventory of these added boundary tests.",
+  "source_integration_1030": {
+    "base": "b47e38089463d57d48692b24e5033a364be7e1ce",
+    "runtime_and_test_files": 47,
+    "new_private_support_files": 1,
+    "native_runs": 0,
+    "completion_credit": 0,
+    "main_merge": false,
+    "unresolved": [
+      "WTYPE-N01",
+      "NATURAL-FIGHTER",
+      "GLITCH",
+      "WEATHER-SCOPE"
+    ]
+  }
 }

@@ -84,7 +84,7 @@ def cond_ok(engine, e, ctx):
             return False, f"natural<{m}"
     if e.get("on_natural_roll") == "even" and (nat is None or nat % 2):
         return False, "odd"
-    if e.get("if_weather") and not weather_matches(engine, e["if_weather"],ctx.get('attacker')):
+    if e.get("if_weather") and (not weather_matches(engine, e["if_weather"],ctx.get('attacker')) or __import__("survivalist_class").weather_ability_suppressed(engine,ctx.get("attacker"),e.get("_rule_id",ctx.get("source_id")))):
         return False, "weather"
     if e.get("on_ko") and not ctx.get("ko", False):
         return False, "no_ko"
@@ -157,7 +157,7 @@ def apply_stage_changes(engine, source_actor, target, changes, *, source_id, con
             engine.change_stage(target, st, delta)
         elif st == "acc":
             import restorative_items as RESTORATIVE
-            if RESTORATIVE.blocks_stage_loss(engine, target, delta):continue
+            if RESTORATIVE.blocks_stage_loss(engine, target, delta) or delta < 0 and __import__('keen_eye').active(engine,target):continue
             lo, hi = engine.r.mech("combat/combat-stages")["range"]
             import state_grants as GRANTS
             if not GRANTS.adjust_numeric(target, "accuracy_stage", delta):target.accuracy_stage = max(lo, min(hi, target.accuracy_stage + delta))
@@ -544,7 +544,7 @@ def h_accuracy_mod(engine, a, t, e, ctx):
     for c in tgt_of(e, a, t):
         if isinstance(e.get("value"), int):
             import restorative_items as RESTORATIVE
-            if RESTORATIVE.blocks_stage_loss(engine,c,e['value']):continue
+            if RESTORATIVE.blocks_stage_loss(engine,c,e['value']) or e['value'] < 0 and __import__('keen_eye').active(engine,c):continue
             import state_grants as GRANTS
             if not GRANTS.adjust_numeric(c,"accuracy_stage",e["value"]):c.accuracy_stage = max(-6, min(6, c.accuracy_stage + e["value"]))
             engine.log(f"    {c.name} 명중 {e['value']:+d}")
@@ -1135,7 +1135,7 @@ def passive_damage_mods(engine, attacker, target, move, ctx):
         t = e["type"]
         if t=='resistance_step' and (target.abilities_suppressed or __import__('chronicler').defensive_ignored(engine,attacker,target)) and e.get('_ability') and str(e.get('_rule_id','')).startswith('ability/'):
             continue
-        if e.get("if_weather") and not weather_matches(engine, e["if_weather"],target):
+        if e.get("if_weather") and (not weather_matches(engine, e["if_weather"],target) or __import__("survivalist_class").weather_ability_suppressed(engine,target,e.get("_rule_id"))):
             continue
         if t == "resistance_step" and isinstance(e.get("value"), int):
             if e.get('if')=='already resisted type' and 0<ctx.get('multiplier',0)<1:
@@ -1151,6 +1151,8 @@ def passive_damage_mods(engine, attacker, target, move, ctx):
                 immune = e
         elif t == "absorb" and e.get("move_type") == move["type"]:
             absorb = e
+    dry_immunity=__import__('weather_passive_benefits').dry_skin_immunity(engine,attacker,target,move,ctx.get('actual_damage_type',move['type']))
+    if dry_immunity is not None:immune=dry_immunity
     return db_mod, roll_mod, resist_steps, immune, absorb
 
 

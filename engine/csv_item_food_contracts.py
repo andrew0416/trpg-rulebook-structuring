@@ -298,16 +298,16 @@ def _activate_sweet(engine, actor, buff_id, disposition):
     amount = 2 if disposition == "liked" else 1
     import combat_timing as TIMING
     serial = actor.custom_conditions.get("combat_turn_serial", 0)
-    effect_id = "csv-sweet:" + buff_id
+    effect_id = "csv-sweet:" + buff_id + ":" + str(len(actor.spec.get("food_consumption_receipts", [])) + 1)
     receipt = _spend(engine, actor, buff, 'sweet_self_activation',
         {'kind': 'timed_modifiers', 'effect_id': effect_id, 'evasion': amount,
          'disposition': disposition, 'until': 'end_of_next_turn'})
     TIMING.install(engine, actor, {"source": buff["item"], "effect_contract": True, "effect_id": effect_id,
-        'csv_sweet': True, 'buff_id': buff_id,
+        'csv_sweet': True, 'buff_id': buff_id, 'receipt_sequence': receipt['sequence'],
         "turn_owner": actor, "turn_deadline": serial + 1, "encounter_end": True, "evasion_modifier": amount})
     if disposition == "disliked":
         engine.apply_status(actor, "난동", source=buff["item"], applied_by=actor)
-    return {'status': 'consumed', 'buff_id': buff_id, 'receipt': receipt['sequence'], **receipt['benefit']}
+    return {'status': 'retained' if __import__('food_effects').retained_activation(receipt) else 'consumed', 'buff_id': buff_id, 'receipt': receipt['sequence'], **receipt['benefit']}
 
 
 def legacy_occupancy(actor):
@@ -399,7 +399,8 @@ def validate_world(engine, index):
     POLICY.policy(engine.r)
     for actor in index.values():
         validate_actor(actor)
-        records=list(actor.buffs)+actor.spec.get('food_consumption_receipts',[])
+        records=list(actor.buffs)+[row for row in actor.spec.get('food_consumption_receipts',[])
+                                  if not __import__('food_effects').retained_activation(row)]
         for record in records:
             origin=record.get('csv_legacy_origin') if isinstance(record,dict) else None
             if origin is None:continue

@@ -331,8 +331,20 @@ def scalar(c, field, value, source_id):
     if _get(c,field) != row["visible"]:
         row["base"] = deepcopy(_get(c,field))
     row["sources"][source_id] = deepcopy(value)
-    row["visible"] = deepcopy(value)
-    _put(c, field, deepcopy(value))
+    if row.get("suppressed"):_render_scalar(c,field,row)
+    else:
+        row["visible"] = deepcopy(value)
+        _put(c, field, deepcopy(value))
+
+
+def _scalar_value(row):
+    hidden=row.get("suppressed",[])
+    return next((value for sid,value in reversed(row["sources"].items()) if sid not in hidden),row["base"])
+
+
+def _render_scalar(c,field,row):
+    value=_scalar_value(row)
+    row["visible"]=deepcopy(value);_put(c,field,deepcopy(value))
 
 
 def weight(c,value,source_id,*,mode="set",minimum=1):
@@ -400,7 +412,8 @@ def type_operation(c,mode,values,source_id,*,fallback=None):
 
 def _type_value(row,base):
     value=list(base if row["base"] is None else row["base"])
-    for op in row["sources"].values():
+    for sid,op in row["sources"].items():
+        if sid in row.get("suppressed",[]):continue
         if op["mode"]=="set":value=list(op["values"])
         elif op["mode"]=="add":value=list(dict.fromkeys(value+op["values"]))
         else:
@@ -706,7 +719,11 @@ class ActiveEffects:
         types=st.get("type_sources")
         if types and source_id in types["sources"]:
             if c._types!=types["visible"]:raise ValueError("untracked type change requires explicit reconciliation")
-            del types["sources"][source_id];_render_types(c,types)
+            del types["sources"][source_id]
+            if source_id in types.get("suppressed",[]):
+                types["suppressed"].remove(source_id)
+                if not types["suppressed"]:types.pop("suppressed")
+            _render_types(c,types)
         weights=st.get("weight_sources")
         if weights and source_id in weights["sources"]:
             del weights["sources"][source_id];_render_weight(c,weights)
@@ -715,8 +732,10 @@ class ActiveEffects:
                 live=deepcopy(_get(c,field))
                 if live!=row["visible"]:row["base"]=live
                 del row["sources"][source_id]
-                value=next(reversed(row["sources"].values())) if row["sources"] else row["base"]
-                row["visible"]=deepcopy(value);_put(c,field,deepcopy(value))
+                if source_id in row.get("suppressed",[]):
+                    row["suppressed"].remove(source_id)
+                    if not row["suppressed"]:row.pop("suppressed")
+                _render_scalar(c,field,row)
         if receipt:
             for field in receipt["rows"]:
                 setattr(c,field,[r for r in getattr(c,field,[]) if not isinstance(r,dict) or r.get(TAG)!=source_id])
@@ -847,6 +866,7 @@ def reconcile(e,c,*,activate_existing=True):
     ITEMS.synchronize_equipment_suppression(e,(c,))
     import ability_state_projection as PROJECTION
     PROJECTION.reconcile_weather(e,c)
+    PROJECTION.refresh_weather_visibility(c)
 
 
 def _revocation_sources(c, source_ids):

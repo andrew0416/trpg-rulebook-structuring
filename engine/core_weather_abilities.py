@@ -97,6 +97,7 @@ def definitions(rules):
 
 
 def bind(engine, actor, name):
+    __import__('weather_passive_benefits').bind(engine,actor,name)
     if name != NAME:
         return
     # Resolve before binding, so failed registration does not invent a context.
@@ -109,6 +110,7 @@ def bind(engine, actor, name):
 
 
 def refresh(actor):
+    __import__('weather_passive_benefits').refresh(actor)
     raw = vars(actor)
     engine = raw.get(ENGINE_REF)
     if engine is None or raw.get(GUARD) or 'stages' not in raw:
@@ -123,7 +125,7 @@ def refresh(actor):
                 and any(ABILITIES.ability_id(engine.r,value)==RULE for value in raw.get('abilities', []))):
             selected = engine.r.selection.resolve_name(NAME, ('ability/',))
             if (selected == RULE and ABILITIES.active(actor,RULE)
-                    and __import__('effects').effective_weather(engine,actor) == 'sunny'):
+                    and __import__('effects').effective_weather(engine,actor) == 'sunny' and not __import__('survivalist_class').weather_ability_suppressed(engine,actor,RULE)):
                 engine.r.selection.require_supported_version(RULE)
                 definition = engine.r.core_abilities[RULE]
                 desired = definition['native_contract']['delta']
@@ -148,3 +150,75 @@ def refresh(actor):
         actor.spec[CS.STATE] = state
     finally:
         raw.pop(GUARD, None)
+
+# CSV Sand Veil/Snow Cloak and Sun Veil retain their distinct printed branches.
+VEILS={'ability/모래숨기-playtest':('sandstorm','sand'),
+       'ability/눈숨기-playtest':('hail','snow')}
+SUN_VEIL={'ability/햇살베일','ability/햇살베일-2'}
+
+
+def ground_cover(engine,actor):
+    if engine is None:return set()
+    import environment_derive as ENV,environment_change as CHANGE
+    row=ENV.region(engine,actor,required=False)
+    return set(CHANGE.effective(engine,row).get('ground_cover',())) if row is not None else set()
+
+
+def evasion_contributions(engine,actor):
+    import ability_transitions as A
+    if actor.abilities_suppressed:return {}
+    owned=A.project_components(actor);out={}
+    import effects as FX,survivalist_class as GUIDE
+    cover=None
+    for source,(weather,surface) in VEILS.items():
+        if source not in owned:continue
+        boosted=(engine is not None and FX.weather_matches(engine,weather,actor)
+                 and not GUIDE.weather_ability_suppressed(engine,actor,source))
+        if not boosted:
+            if cover is None:cover=ground_cover(engine,actor)
+            boosted=surface in cover
+        out[source]=2 if boosted else 1
+    for source in SUN_VEIL.intersection(owned):
+        # Its unconditional +1 remains in the existing passive stat owner.
+        if (engine is not None and not GUIDE.weather_ability_suppressed(engine,actor,source)
+                and FX.weather_matches(engine,'sunny',actor)):
+            if cover is None:cover=ground_cover(engine,actor)
+            if 'grass' in cover:out[source]=1
+    return out
+
+
+def weather_hp_immunity(engine,actor,weather):
+    """Sand Veil/Snow Cloak protect their user and actual adjacent allies."""
+    import ability_transitions as A,body_state as BODY,world_entities as W
+    import effects as FX,survivalist_class as GUIDE
+    for owner in W.actor_index(engine).values():
+        if (owner.kind not in ('trainer','pokemon') or owner.fainted or owner.captured
+                or not getattr(owner,'on_field',True) or owner.abilities_suppressed):continue
+        if owner is not actor and (owner.side is None or owner.side!=actor.side
+                                  or not BODY.in_range(engine,owner,actor,1)):continue
+        for source in A.project_components(owner):
+            rule=VEILS.get(source)
+            if (rule is not None and weather==rule[0] and FX.weather_matches(engine,weather,owner)
+                    and not GUIDE.weather_ability_suppressed(engine,owner,source)):
+                return source
+    return None
+WEATHER_VARIANTS={
+ '엽록소 [Playtest]':('ability/엽록소-playtest',),
+ '쓱쓱 [Playtest]':('ability/쓱쓱-playtest','ability/쓱쓱-playtest-2'),
+ '모래헤치기 [Playtest]':('ability/모래헤치기-playtest',),
+ '눈치우기':('ability/눈치우기','ability/눈치우기-2'),
+ '모래숨기 [Playtest]':('ability/모래숨기-playtest',),
+ '눈숨기 [Playtest]':('ability/눈숨기-playtest',),
+ '햇살베일':('ability/햇살베일','ability/햇살베일-2'),
+}
+
+
+def registration(rules,value):
+    """Select the actual CSV edition; only reviewed exact-copy IDs coalesce."""
+    for name,ids in WEATHER_VARIANTS.items():
+        if value not in (name,*ids):continue
+        if value in ids and rules._selected_rule(value)!=value:raise ValueError('selected weather Ability copy changed')
+        source=ids[0]
+        if rules._selected_rule(source)!=source:raise ValueError('selected weather Ability edition changed')
+        return {'name':name,'source_id':source,'equivalent_source_ids':list(ids)}
+    return None

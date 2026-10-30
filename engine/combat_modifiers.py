@@ -45,13 +45,18 @@ def extra_evasion(*contributions):
     return max(-6,min(6,sum(contributions)))
 
 
-def accuracy_stage(actor):
+def accuracy_stage(actor, engine=None, *, stage=None):
     """Ordinary and timed stage contributions share C07-062's bounded total."""
     import effect_lifetimes as LIFETIMES
-    C.integer(actor.accuracy_stage,'accuracy stage',-6,6)
+    stage=actor.accuracy_stage if stage is None else stage
+    C.integer(stage,'accuracy stage',-6,6)
     timed=LIFETIMES.numeric(actor,'accuracy_modifier')
+    if __import__('keen_eye').active(engine,actor):
+        import combat_timing as TIME
+        timed=sum(max(0,row.get('accuracy_modifier',0)) for row in TIME.records(actor) if row.get('effect_contract'))
     C.integer(timed,'timed accuracy stage')
-    return max(-6,min(6,actor.accuracy_stage+timed))
+    stage=__import__('keen_eye').modifier(engine,actor,stage)
+    return max(-6,min(6,stage+timed))
 
 
 def incoming_derivation(target,field,*,status=None,stacking_key='roughneck_stacking'):
@@ -86,3 +91,5 @@ def incoming_status_hit(e,attacker,target,move,mm,natural):
         value=incoming_derivation(target,'incoming_status_range',status=status)['value']
         if CPF.effect_natural(e,attacker,move,natural)>=21-value:
             e.apply_status(target,status,source=source,applied_by=attacker)
+
+

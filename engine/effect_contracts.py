@@ -387,7 +387,7 @@ def condition(engine,effect,ctx,*,source=None):
   face=CPF.effect_natural(engine,ctx['attacker'],ctx.get('move'),nat,actual_damage_type=ctx.get('actual_damage_type'))
   checks.append(ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual natural accuracy observation') if face is None else known(face>=__import__('combat_modifiers').incoming_status_threshold(ctx['target'],effect.get('status'),effect['on_natural_roll_min'])))
  if effect.get('on_natural_roll')=='even':checks.append(ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual natural accuracy observation') if nat is None else known(nat%2==0))
- if effect.get('if_weather'):checks.append(known(FX.weather_matches(engine,effect['if_weather'],ctx.get('attacker'))))
+ if effect.get('if_weather'):checks.append(known(FX.weather_matches(engine,effect['if_weather'],ctx.get('attacker')) and not __import__('survivalist_class').weather_ability_suppressed(engine,ctx.get('attacker'),effect.get('_rule_id',source))))
  if effect.get('on_ko'):checks.append(ROOT.Predicate(ROOT.Truth.UNKNOWN,'actual attributable KO observation') if 'ko' not in ctx else known(ctx['ko']))
  text=effect.get('if')
  import event_effects as EVENTS
@@ -555,7 +555,7 @@ def freeze_context(engine,ctx):
 def never_miss_allowed(engine,actor,target,effect,ctx):
  """Unknown exceptions cannot be negated into an automatic hit."""
  import effects as FX
- if effect.get('if_weather') and not FX.weather_matches(engine,effect['if_weather'],actor):return False
+ if effect.get('if_weather') and (not FX.weather_matches(engine,effect['if_weather'],actor) or __import__('survivalist_class').weather_ability_suppressed(engine,actor,effect.get('_rule_id',ctx.get('source_id')))):return False
  condition=True if 'if' not in effect else condition_text(engine,actor,target,effect['if'],ctx)
  exception=False if 'except' not in effect else condition_text(engine,actor,target,effect['except'],ctx)
  if condition is None or exception is None:

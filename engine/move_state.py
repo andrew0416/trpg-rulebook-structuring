@@ -265,6 +265,8 @@ GIVER_IDS=('ability/기부자','ability/기부자-2')
 
 
 def ability_registration(rules,name):
+ weather=__import__('core_weather_abilities').registration(rules,name)
+ if weather is not None:return weather
  forms=__import__('csv_item_form_contracts').ability_registration(rules,name)
  if forms is not None:return forms
  vigor=__import__('endure').registration(rules,name)
