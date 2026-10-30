@@ -28,9 +28,10 @@ def mechanics(rules,mid,mm):
     """Source-bound adjustments on top of the existing declaration layers; other Moves untouched."""
     if mid==SPIT:
         effects=list(mm.get('effects_exec',[]))
-        if not any(x.get('type')=='usage_restriction' and 'stockpile' in str(x.get('only_if','')) for x in effects):
-            # r587 / en11907: "If the user has no Stockpiled count, Spit Up cannot be used" — refused before cost.
-            effects.insert(0,{'type':'usage_restriction','only_if':'stockpile > 0','_source':'r587/en11907'})
+        if not any(x.get('type')==GUARD and x.get('spit_requires_count') is True for x in effects):
+            # r587 / en11907: "If the user has no Stockpiled count, Spit Up cannot be used" — refused before cost by preflight()
+            # (a usage_restriction row has no generic consumer, so it cannot carry this refusal).
+            effects.insert(0,{'type':GUARD,'spit_requires_count':True,'_source':'r587/en11907'})
         return {**mm,'effects_exec':effects}
     if mid!=SWALLOW:return mm
     literal=edition(rules)=='swallow-kr-literal';effects=[]
@@ -46,7 +47,11 @@ def mechanics(rules,mid,mm):
 
 
 def preflight(e,a,t,effect,source):
-    """Literal Korean edition: count 3 has no printed effect; refuse before cost instead of inventing one."""
+    """Pre-cost refusals: Spit Up at count 0 (both sources); literal Korean Swallow at count 3 (no printed effect)."""
+    if source==SPIT and effect.get('spit_requires_count') is True:
+        if a.counters.get('stockpile',0)<1:
+            raise ValueError('Spit Up requires an actual Stockpiled count (r587 / en11907); it cannot be used at 0')
+        return
     if source!=SWALLOW or effect.get('edition')!=edition(e.r) or effect.get('undefined_count')!=3:
         raise ValueError('exact selected Swallow edition guard required')
     if a.counters.get('stockpile',0)==3:

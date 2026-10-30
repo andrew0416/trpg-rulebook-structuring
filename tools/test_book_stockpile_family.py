@@ -44,7 +44,7 @@ class StockpileFamilyTests(unittest.TestCase):
 
  def test_spit_up_is_refused_before_cost_without_a_count(self):
   before=self.paid()
-  self.assertFalse(self.e.use_move(self.a,self.b,S.SPIT))
+  with self.assertRaisesRegex(ValueError,'Stockpiled count'):self.e.use_move(self.a,self.b,S.SPIT)
   self.assertEqual(self.paid(),before);self.assertNotIn(S.SPIT,self.a.move_uses);self.assertEqual(self.b.hp,self.b.base_max_hp)
 
  def test_spit_up_damage_base_is_eight_per_count_and_never_consumes_the_count(self):

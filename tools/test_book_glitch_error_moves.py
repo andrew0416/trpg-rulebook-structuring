@@ -28,8 +28,10 @@ class ErrorMoveTests(unittest.TestCase):
 
  FEATURE={name:feature for feature,names in B.TEACHING.items() for name in names}
 
- def edition(self,mid,edition):
-  """Select an Error Move edition like existing version tests: a fresh Rules whose profile carries unit_versions."""
+ def select_edition(self,mid,edition):
+  """Select an Error Move edition like existing version tests: a fresh Rules whose profile carries unit_versions.
+
+  Named select_edition because scene() stores the lesson edition string in self.edition."""
   cls=type(self)
   self.addCleanup(lambda:(setattr(self,'rules',cls.rules),setattr(self,'base_rulings',cls.base_rulings)))
   if edition=='glitch-csv':
@@ -58,10 +60,10 @@ class ErrorMoveTests(unittest.TestCase):
   for mid,fields in table.items():
    for edition,column in (('glitch-csv',1),('glitch-supplement',2)):
     with self.subTest(move=mid,edition=edition):
-     self.edition(mid,edition);move=self.rules.move(mid)
+     self.select_edition(mid,edition);move=self.rules.move(mid)
      for field,*values in fields:self.assertEqual(move[field],values[column-1])
      self.assertEqual(move['_glitch_move_source']['edition'],edition)
-  self.edition(M.ACCESS,'glitch-supplement')
+  self.select_edition(M.ACCESS,'glitch-supplement')
   with self.assertRaisesRegex(ValueError,'no printed supplement definition'):self.rules.move(M.ACCESS)
 
  def test_access_denied_one_round_slow_and_at_will_only_then_exact_expiry(self):
@@ -97,7 +99,7 @@ class ErrorMoveTests(unittest.TestCase):
    for edition,threshold in (('glitch-csv',csv_face),('glitch-supplement',supplement_face)):
     for face in (threshold-1,threshold):
      with self.subTest(move=name,edition=edition,face=face):
-      self.edition(mid,edition);p,mid_=self.learner(name)  # pupil (2,6) is adjacent to the recipient (3,6) for the melee Strike
+      self.select_edition(mid,edition);p,mid_=self.learner(name)  # pupil (2,6) is adjacent to the recipient (3,6) for the melee Strike
       self.begin(self.b);self.native(self.b,self.a,'move/울음소리');self.turn(p,count=40)
       self.native(p,self.b,mid_,accuracy=face)
       self.assertEqual(condition in self.b.conditions,face>=threshold)
@@ -106,7 +108,7 @@ class ErrorMoveTests(unittest.TestCase):
  def test_glitch_pulse_csv_keeps_one_disabled_move_while_supplement_accumulates(self):
   for edition,expected in (('glitch-csv',1),('glitch-supplement',2)):
    with self.subTest(edition=edition):
-    self.edition(M.PULSE,edition);p,mid=self.learner('버그 파동')
+    self.select_edition(M.PULSE,edition);p,mid=self.learner('버그 파동')
     self.begin(self.b);self.native(self.b,self.a,'move/울음소리');self.turn(p,count=45);self.native(p,self.b,mid,accuracy=20)
     self.turn(self.b,count=44);self.native(self.b,self.a,'move/몸통박치기');self.turn(p,count=43);self.native(p,self.b,mid,accuracy=20)
     moves={r['effect']['move_id'] for r in CONDITIONS.records(self.b,'사슬묶기')}

@@ -5,6 +5,7 @@ Multiple successes wait for an explicit GM occurrence decision; no default
 first/last winner and no invented Snatch-on-Snatch trigger.
 """
 from copy import deepcopy
+from contextlib import contextmanager
 import combat_move_reactions as R
 import initiative_interrupts as I
 import passive_events as P
@@ -119,6 +120,18 @@ def require_window(e,event,window_id):
   raise ValueError('only the next actual Snatch response may execute')
 
 
+@contextmanager
+def _without_responder_scopes(e,responders):
+ """Scopes captured from a suspended Snatch response are not live while the next queued response runs."""
+ scopes=getattr(e,'_event_use_scopes',None)
+ stale=[] if scopes is None else [s for s in scopes if any(s.get('actor') is r for r in responders)]
+ if not stale:
+  yield;return
+ e._event_use_scopes=[s for s in scopes if not any(s is x for x in stale)]
+ try:yield
+ finally:e._event_use_scopes=scopes
+
+
 def _queue(e,args,candidates):
  actor=args['attacker'];row=e._move_completions[args['completion_id']]
  ids={a.entity_id for a in candidates};choice=actor.spec.get(ORDER)
@@ -177,7 +190,8 @@ def react(e,args):
   if not BODY.in_range(e,owner,actor,6) or not R._ready(e,owner,R.SNATCH):
    reaction['status']='unavailable';R._seal(reaction)
    I.decline(e,window['id'],reaction['id'],source=R.SNATCH,reason='actual responder no longer eligible or in range')
-  else:R._run(e,owner,actor,reaction,window_id=window['id'])
+  else:
+   with _without_responder_scopes(e,[o for o,_,_ in native]):R._run(e,owner,actor,reaction,window_id=window['id'])
   row=e._move_completions[args['completion_id']]
   plan,window,native=_record(e,row)
  winners=_successful(e,native)

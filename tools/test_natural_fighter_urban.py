@@ -215,7 +215,7 @@ class NaturalFighterUrbanTests(unittest.TestCase):
         with patch.object(Engine, 'd20', return_value=18):result = self.cast(choice=choice)
         completion = self.e._move_completions[result['completion_id']]
         self.assertGreater(self.foe.hp, before)
-        self.assertEqual((self.foe.budget, self.foe._action_history), target_actions)
+        self.assertEqual((getattr(self.foe, 'budget', None), getattr(self.foe, '_action_history', None)), target_actions)
         self.assertEqual(AP.available(self.t), ap - 1)
         self.assertIn('consumed', self.e._physical_objects[choice['instance_id']])
         consumed = completion['fling_launch']['consumer_result']
