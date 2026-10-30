@@ -14,6 +14,7 @@ KEY = 'attack_damage_history'
 
 def direct_hp_loss(move, mechanics):
     """The selected variable-DB declaration supplies loss, not rolled damage."""
+    if __import__('fling_move').no_damage(move,mechanics):return True
     if __import__('hp_setting_moves').final_gambit(move,mechanics):return True
     effects=mechanics.get('effects_exec',[])
     return (move.get('damage_base')=='variable' and move.get('class') in ('물리','특수')

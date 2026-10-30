@@ -88,7 +88,8 @@ def prepare(engine,actor,target,effect,source):
   count=TIMING.current(engine);n=int(re.match(r'[0-9]+',raw).group());record['count_deadline']=(engine.round_no+n,count);record['encounter_end']=True
  elif raw in ("end of user's next turn","start of user's next turn","end of target's next turn","start of target's next turn"):
   if not engine.encounter_active:raise TimingAmbiguous('turn lifetime requires an actual encounter')
-  owner=actor if "user's" in raw else target
+  user=__import__('snatch_self_consumers').lifetime_user(engine,actor,target,source,effect)
+  owner=user if "user's" in raw else target
   key='turn_start_deadline' if raw.startswith('start') else 'turn_deadline'
   record.update(turn_owner=owner,encounter_end=True);record[key]=owner.custom_conditions.get('combat_turn_serial',0)+1
  elif raw in ('this round','이번 라운드'):
@@ -208,6 +209,7 @@ def numeric_derivation(actor,key):
    source=record['source']
    if source in actor.r.selection.units and actor.r._selected_rule(source)!=source:raise ValueError('active effect source selection changed')
    C.integer(record[key],'timed numeric modifier')
+   if source.startswith('item/') and record[key]>0 and __import__('glitch_bender').benefits_blocked(actor):continue
    contributions.append({'id':'timed:'+str(index),'source':source,'value':record[key]})
  steps=[{'law':'add','contributors':[row['id'] for row in contributions]}] if contributions else []
  return COMPOSITION.derive(0,contributions,steps,rounding='exact')
@@ -294,7 +296,8 @@ def validate_type_world(engine,index):
    row=getattr(engine,'_effect_dispatch_receipts',{}).get(receipt)
    if not row or row.get('status')!='completed':raise ValueError('timed type needs a completed native effect receipt')
    CONTRACTS.validate_receipt(engine,receipt,record['source'],record['effect_occurrence'],row['actor'],row['target'],row['effect'])
-   if source.get('owner_id')!=row['actor'].entity_id or not any(x is actor for x in CONTRACTS.recipients(row['actor'],row['target'],row['effect'])):
+   recipients=__import__('snatch_self_consumers').lifetime_recipients(engine,receipt,record)
+   if source.get('owner_id')!=row['actor'].entity_id or not any(x is actor for x in recipients):
     raise ValueError('timed type recipient or producer differs from its receipt')
    if row['effect'].get('type')!='type_change' or type_operation(engine.r,row['effect'],source=row['source_id'])!=record['type_operation']:
     raise ValueError('timed type receipt carries a different operation')

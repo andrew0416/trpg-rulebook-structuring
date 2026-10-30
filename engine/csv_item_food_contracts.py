@@ -285,6 +285,7 @@ def activate_sweet(engine, actor, buff_id, *, disposition=None):
     if validate_native(actor, buff)['kind'] != 'sweet_confection_homebrew':
         raise ValueError("selected buff is not the homebrew Sweet Confection")
     import food_effects as FOOD
+    if __import__('glitch_bender').benefits_blocked(actor):return {'status':'suppressed','buff_id':buff_id}
     actual = FOOD._flavor_disposition(actor, '단맛')
     if disposition is not None and disposition != actual:
         raise ValueError('Sweet disposition must match the actual source-backed Nature')

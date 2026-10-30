@@ -1250,7 +1250,8 @@ def serve(e, actor, *, batch_id, target=None, minutes=None, reason=None, accepte
                 return False
             paid = STOCK.debit(staged, user, stock)
             result = HERB.apply_mushroom(staged, recipient, uid, current['origin_body']['plan'])
-            EXECUTION.finish(user, paid, target_id=recipient.entity_id, outcome='applied', results=[{'kind': 'mushroom', 'id': current['origin_body']['instance_id']}])
+            if not EXECUTION.suppress_benefit(staged,user,recipient,paid):
+                EXECUTION.finish(user, paid, target_id=recipient.entity_id, outcome='applied', results=[{'kind': 'mushroom', 'id': current['origin_body']['instance_id']}])
             return dict(result, status='consumed', item=uid, item_stock=paid)
         return FOOD.consume(staged, user, recipient, uid, minutes=minutes, reason=reason, accepted=accepted, chef_batch_id=batch_id)
     return G.transition(e, actor, apply, participants=() if target is actor else (target,))

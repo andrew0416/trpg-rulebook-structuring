@@ -99,6 +99,7 @@ def set_carried(engine,actor,objects,reason,*,blocked_actions=(),boundary_band=N
     world_objects=WORLD.prepare_carried(engine,actor,copied,reason)
     actor.spec['_carried_load']=state
     WORLD.commit_objects(engine,world_objects)
+    __import__('physical_hands').release_removed(actor, {row['id'] for row in copied})
     import legendary_commands as LEGENDARY
     LEGENDARY.boundary(engine,'carried_objects_changed')
     engine.gm._rec('운반 물체',before,state,reason,actor)

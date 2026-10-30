@@ -121,26 +121,28 @@ def live(actor):
 def prepare(engine,actor,target,effect,source):
     __import__('world_entities').require_actors(engine,actor,target)
     row=definition(engine.r)
-    if source!=MOVE or actor is not target or {k:v for k,v in effect.items() if not k.startswith('_')}!=row['raw']:
+    recipient=(actor if actor is target else
+               __import__('combat_move_reactions').snatch_recipient(engine,actor,target,source))
+    if source!=MOVE or recipient is not target or {k:v for k,v in effect.items() if not k.startswith('_')}!=row['raw']:
         raise ValueError('Defense Curl requires its actual Self Move and selected payload')
-    selected(engine.r,actor.spec.get(CHOICE));live(actor)
+    selected(engine.r,actor.spec.get(CHOICE));live(target)
     return row
 
 
 def grant(engine,actor,target,effect,source):
     prepare(engine,actor,target,effect,source)
     binding=deepcopy(actor.spec.get(CHOICE));variant,values=selected(engine.r,binding)
-    old=live(actor)
-    if old is not None:CONDITIONS.end(engine,actor,old,{'kind':'defense_curl_end','boundary':'replaced'})
+    old=live(target)
+    if old is not None:CONDITIONS.end(engine,target,old,{'kind':'defense_curl_end','boundary':'replaced'})
     payload=dict(definition(engine.r)['payload'],variant=variant)
-    row=E.create(engine,actor,kind='condition',source=MOVE,payload=payload,
+    row=E.create(engine,target,kind='condition',source=MOVE,payload=payload,
         capacity={'bucket':'condition:'+NAME,'source':MOVE},
         lifetime={'boundary':'defense_curl_source_end','ends_on':list(values['ends_on'])},applied_by=actor)
     row[CHOICE]=binding
-    actor.custom_conditions.setdefault(CONDITIONS.KEY,[]).append(row);actor.conditions.add(NAME)
-    engine.time_actors([actor])
-    if values['defense_stages']:engine.change_stage(actor,'def',values['defense_stages'])
-    engine.log('    '+actor.name+': Defense Curl '+variant,MOVE)
+    target.custom_conditions.setdefault(CONDITIONS.KEY,[]).append(row);target.conditions.add(NAME)
+    engine.time_actors([actor,target])
+    if values['defense_stages']:engine.change_stage(target,'def',values['defense_stages'])
+    engine.log('    '+target.name+': Defense Curl '+variant,MOVE)
     return True
 
 

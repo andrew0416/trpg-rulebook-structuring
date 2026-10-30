@@ -51,7 +51,7 @@ class ContestRules:
 
     def _selected_rule(self, uid, supports_versions=False):
         self.selection.require_current_filter(self.ruleset)
-        return self.selection.require_supported_version(uid, supports_versions)
+        return self.selection.require_supported_version(uid, supports_versions or __import__('glitch_moves').supports_version(self,uid))
 
     @staticmethod
     def _index(records):

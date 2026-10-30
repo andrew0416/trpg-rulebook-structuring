@@ -6,7 +6,8 @@ SOURCES={'move/받아던지기':227,'move/카운터':186,'move/패스트가드':
 SOURCES.update(__import__('warper').MOVES)
 VITAL='move/받아던지기';COUNTER='move/카운터';GUARD='move/패스트가드';UPPER='move/스카이어퍼'
 SUCKER='move/기습';PURSUIT='move/따라가때리기'
-KINESIS='move/숟가락휘기'
+KINESIS='move/숟가락휘기';SNATCH='move/가로채기'
+SOURCES[SNATCH]=71
 CHOICES='combat_move_reaction_choices';EVENTS='combat_move_reaction_events'
 
 def selected(r,mid):
@@ -35,7 +36,7 @@ def _protects(e,actor,target,mid):
  return distance is not None and distance<=6
 
 
-def arm(e,a,mid,*,protect=None,weapon_id=None,overload=False):
+def arm(e,a,mid,*,protect=None,weapon_id=None,overload=False,target=None):
  """Choose the next printed reaction before its actual trigger; no fabricated hit."""
  import world_entities as W
  W.require_actors(e,a);selected(e.r,mid)
@@ -47,7 +48,11 @@ def arm(e,a,mid,*,protect=None,weapon_id=None,overload=False):
  if weapon_id is not None:
   if mid not in (SUCKER,PURSUIT):raise ValueError('weapon choice belongs to Rogue reaction Move')
   __import__('weapon_actions').prepare(e,a,e.r.move(mid),weapon_id)
- target=protect or a;W.require_actors(e,target)
+ if target is not None and mid!=SNATCH:raise ValueError('target choice belongs to Snatch')
+ target=target if mid==SNATCH else protect or a;W.require_actors(e,target)
+ if mid==SNATCH:
+  if not __import__('body_state').in_range(e,a,target,6):raise ValueError('Snatch requires an actual target within six metres')
+
  if mid==KINESIS and not _protects(e,a,target,mid):raise ValueError('Kinesis requires self or an observed ally within six metres')
  if mid==GUARD and not _protects(e,a,target,mid):raise ValueError('Quick Guard requires self or an observed adjacent ally')
  if mid==GUARD and any(x is not a and x.spec.get(CHOICES,{}).get(GUARD,{}).get('target_id')==target.entity_id for x in e.everyone):raise ValueError('choose one actual Quick Guard responder for this target')
@@ -126,15 +131,20 @@ def _finish_response(e,a,event,completion):
  return completion
 
 
-def _run(e,a,t,event,*,continuation=None):
+def _run(e,a,t,event,*,continuation=None,window_id=None):
  import initiative_interrupts as I,passive_events as P
  parent=e._active_turn_actor
  if parent is None or parent.entity_id!=event['turn_owner_id']:raise ValueError('reaction must immediately answer its actual suspended turn owner')
  if continuation is not None:capture_context(e,event,continuation)
- raw={'kind':'turn','actor_id':parent.entity_id,'serial':parent.custom_conditions['combat_turn_serial'],'round':e.round_no}
+ outer=I.frame(e)
+ raw=({'kind':'reaction','window_id':outer['window_id'],'request_id':outer['request_id']} if event['source']==SNATCH and outer is not None else
+      {'kind':'turn','actor_id':parent.entity_id,'serial':parent.custom_conditions.get('combat_turn_serial',0),'round':e.round_no})
  request={'id':event['id'],'actor_id':a.entity_id,'source':event['source'],'move_id':event['source'],'priority':0,'mode':'reaction','payment':'next','budget':{'standard':1},'clock':'none'}
- queued=I.queue(e,[request],trigger=raw)
- I.begin(e,queued['window_id'],event['id'])
+ if window_id is None:
+  queued=I.queue(e,[request],trigger=raw);window_id=queued['window_id']
+ else:
+  __import__('snatch_dispatch').require_window(e,event,window_id)
+ I.begin(e,window_id,event['id'])
  event=_event(a,event['id']);event['status']='resolving';_seal(event)
  before=set(getattr(e,'_move_completions',{}))
  try:e.use_move(a,a if event['source']==GUARD else t,event['source'],weapon_id=event.get('weapon_id'))
@@ -209,7 +219,8 @@ def initiation(e,attacker,target,move,*,continuation):
   event=_observe(e,target,SUCKER,attacker,target,move,'initiation')
   _run(e,target,attacker,event,continuation=continuation)
   if attacker.fainted:
-   __import__('frequency').consume_move(e,attacker,move['id']);attacker.last_move=move['id']
+   if continuation['count_use']:__import__('frequency').consume_move(e,attacker,move['id'])
+   attacker.last_move=move['id']
    return True
  if move['id'] not in ('move/뛰어오르기','move/공중날기','move/프리폴'):return False
  if attacker.setup_move==move['id']:return False
@@ -224,7 +235,8 @@ def initiation(e,attacker,target,move,*,continuation):
    for scope in getattr(e,'_setup_move_scopes',[]):
     if scope['actor_id']==attacker.entity_id and scope['move_id']==move['id']:scope['interrupted_by_sky_uppercut']=True
    import frequency as F
-   F.consume_move(e,attacker,move['id']);attacker.last_move=move['id']
+   if continuation['count_use']:F.consume_move(e,attacker,move['id'])
+   attacker.last_move=move['id']
    return True
  return False
 
@@ -260,6 +272,7 @@ def validate(e):
    if ('overload' in choice)!=(mid==KINESIS) or mid==KINESIS and type(choice['overload'])is not bool:raise ValueError('actual Kinesis Overload choice required')
    if 'weapon_id' in choice and (mid not in (SUCKER,PURSUIT) or not isinstance(choice['weapon_id'],str)):raise ValueError('actual Rogue reaction weapon required')
   for row in a.spec.get(EVENTS,{}).values():validate_event(e,a,row)
+ __import__('snatch_dispatch').validate(e,index)
 
 
 def interested(e):
@@ -357,8 +370,10 @@ def resume_after_event(e,event,result):
     attacker=context['args']['attacker'];received=M.recipient_result(completion,attacker)
     if (row['source']==UPPER and received and received['hit'] and not received.get('cancelled')) or (row['source']==SUCKER and attacker.fainted):
      import frequency as F
-     F.consume_move(e,attacker,row['trigger_move']);attacker.last_move=row['trigger_move'];result=0
-    else:result=e._continue_move_after_payment(**context['args'])
+     if context['args']['count_use']:F.consume_move(e,attacker,row['trigger_move'])
+     attacker.last_move=row['trigger_move'];result=0
+    else:result=__import__('natural_fighter').continue_initiation(e,context)
+    result=__import__('natural_fighter').resume_initiation(e,context,result)
   finally:
    e._native_action_resolutions[row['native_action_id']].get('combat_move_continuations',{}).pop(row['id'],None)
    for key,value in previous.items():
@@ -367,6 +382,10 @@ def resume_after_event(e,event,result):
   return result
  if row['completion_id'] is not None:
   original=e._move_completions[row['completion_id']]
+  if row['source']==SNATCH:
+   parents=[p for p in e._passive_events.values() if p.get('completion_id')==original['id'] and p.get('phase')=='accuracy_boundary']
+   if len(parents)!=1:raise ValueError('Snatch requires its actual suspended Self Move boundary')
+   return P.deliver(e,parents[0]['id'])
   after_move(e,original)
   parents=[p for p in e._passive_events.values() if p.get('completion_id')==original['id'] and p.get('continuation',{}).get('kind')=='recipient_return']
   if parents:
@@ -435,3 +454,66 @@ def before_escape(e,owner,target,source,*,kind,request_id):
    _escape_context(e,event)
    _run(e,actor,target,event)
    e._native_action_resolutions[event['native_action_id']].get('escape_continuations',{}).pop(event['id'],None)
+
+
+def snatch_interested(e,actor,target):
+ return actor is target and any(a.spec.get(CHOICES,{}).get(SNATCH,{}).get('target_id')==actor.entity_id or any(r['source']==SNATCH and r['attacker_id']==actor.entity_id and r['status'] in ('resolving','complete') and getattr(e,'_move_completions',{}).get(r['completion_id'],{}).get('phase')=='targets' for r in a.spec.get(EVENTS,{}).values()) for a in e.everyone)
+
+
+def _self_move(e,actor,move):
+ import weapon_actions as WEAPONS
+ printed=e.r.move(move['id'])
+ return WEAPONS.is_self_only(WEAPONS.range_spec(e,printed,actor))
+
+
+# These are implemented recipient consumers, not a printed restriction on Snatch.
+SNATCH_EFFECTS=frozenset(('stage_change','stat_mod','apply_status','apply_status_random','cure_status','cure_all_status','heal','hp_loss','temp_hp','reset_stages','evasion_mod','accuracy_mod','damage_reduction'))
+
+
+def snatch_preflight(e,args):
+ import effect_lifetimes as LIFE,move_completion as MC
+ if __import__('snatch_self_consumers').preflight(e,args):return
+ for effect in args['mm'].get('effects_exec',[]):
+  if (effect.get('type') not in SNATCH_EFFECTS and not (args['move_id']==__import__('glitch_bender').METRONOME and effect=={'type':'random_move'})) or LIFE.declared(effect) or MC.after_all(effect,e.r,args['move']) or effect.get('linked_to') or effect.get('trigger'):
+   raise ValueError('Snatch Self effect needs its native recipient consumer: '+str(effect.get('type')))
+ if not any(args['mm'].get(key) for key in ('effects_exec','stage_changes_exec','stage_changes','status','evasion_mod')):
+  raise ValueError('Snatch Self Move needs its actual native effect consumer')
+ if any(key in args['mm'] for key in ('drain','zone','set_up_move')):
+  raise ValueError('Snatch Self Move needs its native recipient consumer')
+
+
+def snatch_reaction(e,args):
+ return __import__('snatch_dispatch').react(e,args)
+
+
+def snatch_route(e,actor,target,source,token):
+ """Read the completed native response proof; this grants no execution scope."""
+ import world_entities as W
+ row=getattr(e,'_move_completions',{}).get(token)
+ if row is None or row['actor'] is not actor or row['move_id']!=source:return None
+ routes=[state for state in row.get('defense',{}).values() if state.get('source_route',{}).get('source')==SNATCH]
+ if not routes:return None
+ if len(routes)!=1:raise ValueError('one actual Snatch effect recipient required')
+ state=routes[0];proof=state['source_route'];recipient=W.actor_index(e).get(proof['actor_id'])
+
+ reaction=None if recipient is None else _event(recipient,proof['reaction_id'])
+ if reaction is None or reaction['completion_id']!=token or reaction['result_completion']!=proof['response_completion'] or reaction['status']!='complete':raise ValueError('Snatch effect lost its completed native response')
+ validate_event(e,recipient,reaction)
+ if target not in (actor,recipient) or not _self_move(e,actor,row['move']) or state['recipients']!=[{'actor_id':recipient.entity_id,'hit':state['facts']['hit'],'intercepted':True}]:raise ValueError('Snatch original Self Move or actual recipient changed')
+ return row,state,recipient
+
+
+def snatch_recipient(e,actor,target,source,context=None):
+ """Map recipients only in native dispatch or an owned retained continuation."""
+ token=(context or {}).get('move_completion')
+ scope=getattr(e,'_defense_recipient_scope',None)
+ if token is None and scope is not None:
+  token=e._passive_events[scope[0]]['completion_id']
+ route=snatch_route(e,actor,target,source,token)
+ if route is None:return None
+ row,state,recipient=route
+ if scope!=(state['event_id'],actor.entity_id,recipient.entity_id):
+  resume=getattr(e,'_effect_resuming_receipt',None);receipt=getattr(e,'_effect_dispatch_receipts',{}).get(resume)
+  owned=set(row['effects'])|{key for result in row.get('received',{}).values() for key in result['effects']}
+  if resume not in owned or receipt is None or receipt['actor'] is not actor or receipt['target'] is not recipient or receipt['source_id']!=source:raise ValueError('Snatch mapping requires its actual native recipient or retained effect continuation')
+ return recipient

@@ -250,6 +250,7 @@ def spend(engine, c, kind, what="", *, movement=False, sleep_cure=False, _native
     validate_source(engine.r)
     import initiative_interrupts as INTERRUPTS
     INTERRUPTS.require_move_cost(engine,c,kind,_native_move,movement=movement)
+    if not __import__('glitch_bender').action_allowed(engine,c,_triggered_source or what,_native_move):return False
     HEAVY.ensure_clear(engine)
     import type_ace as TA
     if not TA.action_permission(engine,c,kind,_native_move,what):return False
@@ -583,6 +584,7 @@ def _equip_weapon(engine, c, weapon):
     ledger = c.custom_conditions.get("equipped_weapons", {})
     occupied = {s for entry in ledger.values() for s in entry["slots"]}
     occupied.update(s for entry in getattr(c,"_item_reg",{}).values() for s in entry.get("slots",[]))
+    occupied.update(__import__('physical_hands').occupied(c))
     if occupied.intersection(slots):
         raise ValueError("weapon hand slot already occupied")
     kind = WEAPON_KIND[weapon["kind"]]

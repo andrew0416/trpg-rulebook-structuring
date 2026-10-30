@@ -44,6 +44,8 @@ def consume(engine,actor,source,*,held_selection=None):
   stock=STOCK.prepare(e,a,source,held_selection=held_selection,equipment_slots=slots(a))
   if not TURN.spend(e,a,'free','consume Type Gem'):return {'status':'not_used'}
   paid=STOCK.debit(e,a,stock)
+  if __import__('consumption_execution').suppress_benefit(e,a,a,paid):
+   return {'status':'consumed','outcome':'no_effect','item_stock':paid,'source':source}
   N.grant(e,a,row['raw'],source,item_stock=paid)
   record=N.live(a)[-1]
   return {'status':'stored_effect','effect_id':record['id'],'item_stock':paid,'source':source}

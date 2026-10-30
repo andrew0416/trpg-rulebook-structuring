@@ -115,6 +115,8 @@ def consume(e,r):
 
 def _record(e,user,target,r,payment,*,hit,natural):
     direct=target is not user
+    if not direct and PAID.suppress_benefit(e,user,target,payment):
+        return {'status':'consumed','source':r.source_id,'outcome':'no_effect','item_stock':payment}
     rows=user.spec.setdefault(KEY,{})
     identity=user.entity_id+':repel:'+str(len(rows)+1)
     record={'id':identity,'source':r.source_id,'user_id':user.entity_id,
@@ -155,6 +157,7 @@ def _speeds(e,target):
 
 
 def _self_effect(e,wearer,target):
+    if __import__('glitch_bender').benefits_blocked(wearer):return None
     pending=None
     for row in wearer.spec.get(KEY,{}).values():
         if row['mode']!='self' or target.level>SOURCES[row['source']][1]:continue
@@ -214,6 +217,7 @@ def intent(e,target):
                 row['mode']=='self' and target.entity_id in row['approaches']):
             if target.level>SOURCES[row['source']][1]:continue
             if row['mode']=='self':
+                if __import__('glitch_bender').benefits_blocked(user):continue
                 import wild_equipment as WILD
                 try:WILD._wild(e,target)
                 except ValueError:continue

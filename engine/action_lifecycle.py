@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from action_metadata import ActionCost
 
 @contextmanager
-def resolution(engine,actor,source,*,kind,join=False,_breather_attempt=None,_move_completion=None,_combat_reaction=None,_escape_reaction=None):
+def resolution(engine,actor,source,*,kind,join=False,_breather_attempt=None,_move_completion=None,_combat_reaction=None,_escape_reaction=None,_ability_attack=None):
     """Native producer scope, distinct from action cost and per-hit resolution.
 
     Only actual same-activation children join their parent. A nested reaction
@@ -23,6 +23,8 @@ def resolution(engine,actor,source,*,kind,join=False,_breather_attempt=None,_mov
     import confusion_attacks as CONFUSION
     resume=CONFUSION.resuming_action(engine,actor,source,kind)
     retained=__import__('skill_maneuver_actions').native_resume_frame(engine,actor,source) if kind=='maneuver' else None
+    if _ability_attack is not None:
+        retained=__import__('glitch_bender').code_frame(engine,actor,source,_ability_attack)
     if _move_completion is not None:
         retained=move_frame(engine,engine._move_completions[_move_completion])
     elif _combat_reaction is not None:
@@ -30,7 +32,7 @@ def resolution(engine,actor,source,*,kind,join=False,_breather_attempt=None,_mov
     elif _escape_reaction is not None:
         retained=__import__('combat_move_reactions').resume_escape_frame(engine,_escape_reaction)
     if _move_completion is not None or _combat_reaction is not None or _escape_reaction is not None or retained is not None:
-        expected_kind='escape' if _escape_reaction is not None else 'move' if _move_completion is not None or _combat_reaction is not None else 'maneuver'
+        expected_kind='ability_attack' if _ability_attack is not None else 'escape' if _escape_reaction is not None else 'move' if _move_completion is not None or _combat_reaction is not None else 'maneuver'
         if retained is None or retained['actor'] is not actor or retained['source']!=source or retained['kind']!=kind or kind!=expected_kind:
             raise ValueError('actual native Move action continuation required')
         retained.pop('deferred',None)
@@ -46,13 +48,15 @@ def resolution(engine,actor,source,*,kind,join=False,_breather_attempt=None,_mov
     import move_completion as TRIGGERS
     if retained is None:TRIGGERS.bind_trigger_frame(engine,frame)
     else:TRIGGERS.validate_trigger_frame(engine,frame)
+    __import__('natural_fighter').bind_frame(engine,frame)
     engine._native_action_stack=stack
     stack.append(frame)
     try:
         yield frame
-    except BaseException:
+    except BaseException as error:
         frame=engine._native_action_stack[-1]
         if frame['id'] is not None:engine._native_action_resolutions[frame['id']]['phase']='interrupted'
+        __import__('natural_fighter').suspend_action(engine,frame,error)
         raise
     else:
         frame=engine._native_action_stack[-1]
@@ -61,6 +65,7 @@ def resolution(engine,actor,source,*,kind,join=False,_breather_attempt=None,_mov
             row['effects']=list(dict.fromkeys([*row['effects'],*[key for key in getattr(engine,'_effect_dispatch_receipts',{}) if key not in frame['before_effects']]]))
             row['phase']='interrupted' if frame.get('deferred') else 'producer_returned'
             if not frame.get('deferred'):finish_resolution(engine,row)
+        __import__('natural_fighter').finish_action(engine,frame)
     finally:
         # Native state transactions may replace the staged stack, preserving IDs.
         current=engine._native_action_stack
@@ -135,7 +140,7 @@ def resolved_move(fn):
         try:
             import stamina as STAMINA
             actor=values['attacker'];source=values['move_id']
-            if not __import__('move_completion').disruption_frame_interested(engine,actor) and not any(c is not None and STAMINA.interested(c) for c in participants) and source not in (__import__('tumbler').SPLASH,__import__('tumbler').BOUNCE,'move/코골기','코골기') and not __import__('combat_move_reactions').interested(engine) and not __import__('trickster').native_frame_required(engine,actor,source) and not __import__('conquerors_march').interested(engine) and not __import__('taskmaster_gambit').frame_interested(engine,actor,values.get('target',values.get('primary'))):
+            if not __import__('natural_fighter').interested(actor,source) and not __import__('move_completion').disruption_frame_interested(engine,actor) and not any(c is not None and STAMINA.interested(c) for c in participants) and source not in (__import__('tumbler').SPLASH,__import__('tumbler').BOUNCE,'move/코골기','코골기',__import__('fling_move').SOURCE) and not __import__('combat_move_reactions').interested(engine) and not __import__('trickster').native_frame_required(engine,actor,source) and not __import__('conquerors_march').interested(engine) and not __import__('taskmaster_gambit').frame_interested(engine,actor,values.get('target',values.get('primary'))) and not __import__('glitch_bender').native_frame_required(engine,actor,source):
                 result=fn(engine,*args,**kwargs);completed=True;return result
             stack=getattr(engine,'_native_action_stack',[])
             same=bool(stack and stack[-1]['kind']=='move' and stack[-1]['actor'] is actor
@@ -678,6 +683,8 @@ def status_permission(engine, actor, kind, *, sleep_cure=False, new_action=True,
 def record_action(engine, actor, kind, *, _triggered_source=None, _native_move=None):
     import initiative_interrupts as INTERRUPTS
     INTERRUPTS.require_recorded_action(engine,actor,kind,triggered_source=_triggered_source)
+    if _triggered_source is not None and not __import__('glitch_bender').action_allowed(engine,actor,_triggered_source,_native_move):
+        raise ValueError('Access Denied permits only At-Will actions this round')
     import move_completion as TRIGGERS
     trigger_plan=TRIGGERS.prepare_trigger_action(engine,actor,kind,source=_triggered_source,move=_native_move)
     __import__('trickster').action_recorded(engine,kind,_triggered_source)
@@ -734,6 +741,7 @@ def move_grant(engine, actor, target, move_id, *, source, kind=None):
     ace=ace or __import__('rune_master').move_authority(engine,actor,target,move_id,source)
     ace=ace or __import__('marksman').authority(engine,actor,target,move_id,source)
     ace=ace or __import__('warper').move_authority(engine,actor,target,move_id,source)
+    ace=ace or (source in (__import__('glitch_bender').DISABLE,__import__('glitch_bender').METRONOME) and __import__('glitch_bender').move_authority(engine,actor,target,move_id,source))
     ace=ace or __import__('capture_specialist').move_authority(engine,actor,target,move_id,source)
     ace=ace or __import__('conquerors_march').reprisal_authority(engine,actor,target,move_id,source)
     commander=__import__('commander_orders').strike_authority(engine,actor,target,move_id,source)
@@ -769,15 +777,17 @@ def consume_move_grant(engine, token, actor, target, move_id, *, count_use=None,
             rune=__import__('rune_master').move_authority(engine,actor,target,move_id,entry[5])
             marksman=__import__('marksman').authority(engine,actor,target,move_id,entry[5])
             warper=__import__('warper').move_authority(engine,actor,target,move_id,entry[5])
+            glitch=entry[5] in (__import__('glitch_bender').DISABLE,__import__('glitch_bender').METRONOME) and __import__('glitch_bender').move_authority(engine,actor,target,move_id,entry[5])
             signature=__import__('ace_trainer').move_authority(engine,actor,target,move_id,entry[5])
             capture=__import__('capture_specialist').move_authority(engine,actor,target,move_id,entry[5])
             capture=capture or __import__('conquerors_march').reprisal_authority(engine,actor,target,move_id,entry[5])
-            ace=ace or martial or focus or hex_maniac or warper or capture or rune or marksman
+            ace=ace or martial or focus or hex_maniac or warper or capture or rune or marksman or glitch
             commander=__import__('commander_orders').strike_authority(engine,actor,target,move_id,entry[5])
             if not (ace or signature or commander) and entry[5] not in ("maneuver/기회-공격", "same_move_activation", "feat/치명적인-장기말", "move/원한", "move/버티기", "move/버티기-홈브류"):
                 raise ValueError("a maneuver child token cannot authorize a Move")
             expected_count=entry[5] in ('feat/치명적인-장기말','move/원한','move/버티기','move/버티기-홈브류')
-            if martial or focus or hex_maniac or commander or rune or marksman:expected_count=True
+            if glitch:expected_count=__import__('glitch_bender').grant_count(engine,actor,target,move_id,entry[5])
+            elif martial or focus or hex_maniac or commander or rune or marksman:expected_count=True
             elif warper or signature or capture:expected_count=False
             elif ace:expected_count=not __import__('type_ace').scope(engine,actor,{'id':move_id}).get('ignore_frequency',False)
             if entry[5] in __import__('endure').SOURCES:__import__('endure').authority(engine,actor)
@@ -796,6 +806,7 @@ def consume_move_grant(engine, token, actor, target, move_id, *, count_use=None,
                     # The actual source grant has just been consumed. Its one
                     # native payment can no longer be confused with ambient Free.
                     frame['trigger_granted_payment'] = True
+                    if entry[5]==__import__('glitch_bender').METRONOME:__import__('glitch_bender').metronome_bind_grant(engine,actor,move_id)
             return True, entry[4]
     return False, None
 

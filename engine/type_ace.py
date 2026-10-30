@@ -139,21 +139,24 @@ def local_csv(actor,feature,branch=None):
 
 def acquisition_snapshot(engine,actor,feature,branch,selection=None):
  import skill_modifiers as S,world_entities as W,elemental_connection as E
+ import glitch_bender as GLITCH
  d=DEFINITIONS[feature]
+ error=branch=='에러' and feature in (REFRESH,SYNC) and GLITCH.homebrew(actor)
  if d.get('branch') is True:
-  if branch not in TYPES:raise ValueError('exact Type Ace acquired type required')
+  if branch not in TYPES and not error:raise ValueError('exact Type Ace acquired type required')
  else:
   if branch is not None:raise ValueError('type-specific Feature has a fixed branch')
   branch=d['branch']
  parent=d.get('parent',CLASS)
  parents=[] if feature==CLASS else [r['request_id'] for r in records(actor,parent,True) if r['snapshot']['branch']==branch]
+ if error and parent==CLASS:parents.extend(r['request_id'] for r in GLITCH.type_ace_records(actor,CLASS,True))
  skill=actor.spec.get('type_link_skills',{}).get(branch)
- if skill not in SKILLS[branch]:raise ValueError('explicit reviewed Type Link skill required')
+ if skill not in (GLITCH.SKILLS if error else SKILLS[branch]):raise ValueError('explicit reviewed Type Link skill required')
  result={'branch':branch,'skill':skill,'rank':rank(engine,actor,branch),'parents':parents}
  if feature==CLASS:
   result.update(pokemon=[{'id':p.entity_id,'types':list(p.types)} for p in W.actor_index(engine).values()
    if p.kind=='pokemon' and p.spec.get('trainer_id')==actor.entity_id],elemental=branch in E.choices(engine,actor))
- if feature==SYNC:result['features']=[r['request_id'] for r in records(actor,active=True)]
+ if feature==SYNC:result['features']=[r['request_id'] for r in [*records(actor,active=True),*GLITCH.type_ace_records(actor,active=True)]]
  if selection is not None:
   if selection!={'edition':'local_csv'}:raise ValueError('exact Type Ace CSV edition selection required')
   result.update(selection=deepcopy(selection),source=csv_source(engine.r,feature))
@@ -162,6 +165,7 @@ def acquisition_snapshot(engine,actor,feature,branch,selection=None):
 
 def qualification(actor,feature,snapshot,prerequisite_source):
  import acquisition_qualification as Q
+ import glitch_bender as GLITCH
  if type(snapshot) is not dict:raise ValueError('exact Type Ace acquisition observations required')
  fields={'branch','skill','rank','parents'}|({'pokemon','elemental'} if feature==CLASS else set())|({'features'} if feature==SYNC else set())
  if snapshot.get('selection') is not None:
@@ -169,10 +173,12 @@ def qualification(actor,feature,snapshot,prerequisite_source):
   if snapshot['selection']!={'edition':'local_csv'} or snapshot.get('source')!=csv_source(actor.r,feature):raise ValueError('immutable actual Type Ace CSV source required')
  if prerequisite_source is not None or type(snapshot) is not dict or set(snapshot)!=fields:raise ValueError('exact Type Ace acquisition observations required')
  d=DEFINITIONS[feature];branch=snapshot['branch']
- if branch not in TYPES or d.get('branch') not in (True,branch):raise ValueError('matching Type Ace branch required')
- if snapshot['skill'] not in SKILLS[branch]:raise ValueError('reviewed Type Link skill required')
+ error=branch=='에러' and feature in (REFRESH,SYNC) and bool(GLITCH.type_ace_records(actor,CLASS))
+ if (branch not in TYPES and not error) or d.get('branch') not in (True,branch):raise ValueError('matching Type Ace branch required')
+ if snapshot['skill'] not in (GLITCH.SKILLS if error else SKILLS[branch]):raise ValueError('reviewed Type Link skill required')
  minimum={'feat/사막의-심장':5,'feat/생명의-샘':6}.get(feature,d.get('rank',0)) if snapshot.get('selection') is not None else d.get('rank',0)
  C.integer(snapshot['rank'],'Type-linked skill rank',minimum)
+ __import__('skill_modifiers').validate_rank_value(actor.r,snapshot['rank'],kind='effective',label='Type-linked skill rank')
  if feature==CLASS:
   roster=snapshot['pokemon']
   if type(roster) is not list or len({r['id'] for r in roster})!=len(roster):raise ValueError('distinct owned Pokemon required')
@@ -180,9 +186,10 @@ def qualification(actor,feature,snapshot,prerequisite_source):
   if n<2 and not(snapshot['elemental'] is True and n>=1):raise ValueError('two matching Pokemon or Elemental Connection and one required')
  else:
   known={r['request_id'] for r in records(actor,d.get('parent',CLASS)) if r['snapshot']['branch']==branch}
+  if error and d.get('parent',CLASS)==CLASS:known.update(r['request_id'] for r in GLITCH.type_ace_records(actor,CLASS))
   if not snapshot['parents'] or not set(snapshot['parents'])<=known:raise ValueError('actual matching Type Ace prerequisite required')
  if feature==SYNC:
-  known={r['request_id'] for r in records(actor)}
+  known={r['request_id'] for r in [*records(actor),*GLITCH.type_ace_records(actor)]}
   if len(set(snapshot['features']))<3 or not set(snapshot['features'])<=known:raise ValueError('three actual Type Ace Features required')
  return Q.require(feature,'native','acquire',[Q.check('trainer','prerequisite',actor.kind=='trainer','actual Trainer required')])
 
@@ -195,7 +202,9 @@ def trainer(engine,pokemon):
 def owner(engine,pokemon,feature,branch=None):
  d=DEFINITIONS[feature];branch=branch or d.get('branch')
  a=trainer(engine,pokemon)
- return a if a is not None and acquired(a,feature,branch) and acquired(a,CLASS,branch) else None
+ if a is None or acquired(a,feature,branch) is None:return None
+ error_parent=branch=='에러' and feature in (REFRESH,SYNC) and __import__('glitch_bender').homebrew(a)
+ return a if error_parent or acquired(a,CLASS,branch) else None
 
 
 def require(engine,a,p,feature,branch=None):
@@ -1135,6 +1144,8 @@ def ability_branches(engine,p,kind):
  import ability_transitions as A
  identity='ability/마지막기회' if kind=='last_chance' else 'ability/타입전략가'
  if identity not in A.known(p) or not A.active(p,identity):return set()
+ taught=__import__('glitch_bender').taught_branches(p,kind)
+ if taught:return taught
  rows=[r['branch'] for r in p.spec.get(KEY,[]) if r.get('ability')==kind]
  if rows:return set(rows)
  selected=p.spec.get('ability_type_choices',{}).get(identity)
@@ -1146,6 +1157,7 @@ def ability_registration(engine,p,identity):
  # Generic Type Ace abilities have a parameterized type. Their effects use the
  # actual ability projection, so suppression/replacement immediately removes it.
  if identity=='ability/타입전략가':return True
+ if identity=='ability/마지막기회' and __import__('glitch_bender').taught_branches(p,'last_chance'):return True
  return identity=='ability/마지막기회' and any(r.get('ability')=='last_chance' for r in p.spec.get(KEY,[]))
 
 

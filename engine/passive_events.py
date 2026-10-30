@@ -227,7 +227,7 @@ def _resume_recipient_return(e,event):
 
 def preflight_continuation(e,actor,*,ordinary_single):
     if not any(p.get('event')=='accuracy_resolved' for p in e._passive_listeners.get(actor,{}).values()):return
-    if not ordinary_single or len(getattr(e,'_event_use_scopes',()))>1:
+    if not __import__('glitch_bender').metronome_child_scope(e,actor) and (not ordinary_single or len(getattr(e,'_event_use_scopes',()))>1):
         raise ValueError('intermediate listener requires a standalone native move continuation')
 
 
@@ -239,7 +239,7 @@ def after_accuracy(e,**args):
     if ev is not None:
         ev.update(hit=args['hit'],natural_roll=args['nat'],critical=args['crit'])
     import ability_interrupt_choices as ABILITY_INTERRUPTS
-    if ev is None or not ('taskmaster_gambit' in ev or 'taskmaster_gambit_parent' in ev or 'earned_status_choice' in ev or __import__('conquerors_march').lean_interested(e,args['target']) or __import__('coordinator').damage_offer(e,args['attacker']) is not None or DEFENSE.wants_boundary(ev) or ABILITY_INTERRUPTS.wants_boundary(ev) or __import__('warper').switch_interested(e,args['attacker'],args['target']) or __import__('tumbler').acquired(args['attacker'],__import__('tumbler').QUICK) or any(p.get('event')=='accuracy_resolved' for p in ev['listener_profiles'].values())):
+    if ev is None or not ('taskmaster_gambit' in ev or 'taskmaster_gambit_parent' in ev or 'earned_status_choice' in ev or __import__('conquerors_march').lean_interested(e,args['target']) or __import__('coordinator').damage_offer(e,args['attacker']) is not None or DEFENSE.wants_boundary(ev) or ABILITY_INTERRUPTS.wants_boundary(ev) or __import__('warper').switch_interested(e,args['attacker'],args['target']) or __import__('combat_move_reactions').snatch_interested(e,args['attacker'],args['target']) or __import__('tumbler').acquired(args['attacker'],__import__('tumbler').QUICK) or any(p.get('event')=='accuracy_resolved' for p in ev['listener_profiles'].values())):
         return e._finish_move_resolution(**args)
     from root_resolution import fingerprint as request_fingerprint
     frame={'args':args,'scopes':list(getattr(e,'_event_use_scopes',()))}
@@ -298,6 +298,7 @@ def _deliver_selected_accuracy(e,event_id):
         ABILITY_INTERRUPTS.deliver_boundary(e,ev,frame['args'])
         import warper as WARPER
         if WARPER.switch_interested(e,args['attacker'],args['target']):WARPER.reaction(e,args)
+        __import__('combat_move_reactions').snatch_reaction(e,args)
         __import__('earned_status_choices').ensure_choice(e,ev)
     if cancelled or not DEFENSE.routed(e,event_id):
         del ev['continuation'];ev['phase']='activated'
@@ -435,7 +436,7 @@ def begin(e,actor,target,move,*,ordinary_single,move_mechanics=None,completion_i
     import gleeful_interference as GLEEFUL
     import style_expert as STYLE
     import roughneck as ROUGHNECK,endure as ENDURE
-    if not __import__('ability_native_actions').solar_power_interested(actor) and not __import__('taskmaster_gambit').interested(e,actor,target,move) and not __import__('class_actor_state_reactions').interested(e,actor,target,move) and not __import__('earned_status_choices').native(move,move_mechanics) and not __import__('fortress').event_interested(e,actor,target,move) and not __import__('arcanist').event_interested(e,actor,target,move) and not __import__('conquerors_march').event_interested(e,actor,target) and not __import__('type_ace').close_quarters_interested(e,actor,move) and __import__('coordinator').innovation_instance(e.r,move['id']) is None and __import__('coordinator').damage_offer(e,actor) is None and not ROUGHNECK.owns(actor,ROUGHNECK.CLASS) and ENDURE.known(e,target) is None and not GLEEFUL.interested(e,actor,move) and not ICE_LAKE.interested(e) and not ABILITY_REACTIONS.interested(e) and not interested(e,actor) and not ABILITY_INTERRUPTS.interested(e) and not DEFENSE.watch_interested(target,move) and not warning_interested and not STYLE.reaction_interested(e,target) and not __import__('tumbler').acquired(actor,__import__('tumbler').QUICK) and not __import__('hex_maniac').attack_interested(e,actor,target,move) and not __import__('warper').switch_interested(e,actor,target):
+    if not __import__('ability_native_actions').solar_power_interested(actor) and not __import__('taskmaster_gambit').interested(e,actor,target,move) and not __import__('class_actor_state_reactions').interested(e,actor,target,move) and not __import__('earned_status_choices').native(move,move_mechanics) and not __import__('fortress').event_interested(e,actor,target,move) and not __import__('arcanist').event_interested(e,actor,target,move) and not __import__('conquerors_march').event_interested(e,actor,target) and not __import__('type_ace').close_quarters_interested(e,actor,move) and __import__('coordinator').innovation_instance(e.r,move['id']) is None and __import__('coordinator').damage_offer(e,actor) is None and not ROUGHNECK.owns(actor,ROUGHNECK.CLASS) and ENDURE.known(e,target) is None and not GLEEFUL.interested(e,actor,move) and not ICE_LAKE.interested(e) and not ABILITY_REACTIONS.interested(e) and not interested(e,actor) and not ABILITY_INTERRUPTS.interested(e) and not DEFENSE.watch_interested(target,move) and not warning_interested and not STYLE.reaction_interested(e,target) and not __import__('tumbler').acquired(actor,__import__('tumbler').QUICK) and not __import__('hex_maniac').attack_interested(e,actor,target,move) and not __import__('warper').switch_interested(e,actor,target) and not __import__('combat_move_reactions').snatch_interested(e,actor,target) and not __import__('glitch_bender').event_interested(e,actor,target,move):
         return None
     e._passive_sequence+=1
     uid="passive-move-"+str(e._passive_sequence)
@@ -562,6 +563,13 @@ def complete(e,event_id,*,hit,natural,critical,dealt,held=0):
     accuracy=next((row['facts'] for row in observations(e,event_id) if row['stage']=='accuracy'),None)
     if accuracy!={'hit':hit,'natural_roll':natural,'critical':critical}:
         raise ValueError('completion disagrees with actual accuracy observation')
+    # A generated native Move is part of this effect. Observe the parent's
+    # return only after that actual child has completed, retaining its prefix.
+    __import__('glitch_bender').metronome_begin_child(e,ev,dict(hit=hit,natural=natural,critical=critical,dealt=dealt,held=held))
+    metro=e._move_completions.get(ev.get('completion_id'),{}).get('metronome_child')
+    if metro and metro.get('event_id')==event_id and metro['phase']=='complete':
+        native=(e._move_completions[ev['completion_id']]['received'][ev['target'].entity_id] if ev.get('defense_parent') else ev['continuation']['result'])
+        held=native['held']
     _observe(e,event_id,'resolved',{'effect_held_count':held},'Engine.use_move/return')
     ev.update(phase="producer_return_boundary",effect_held_count=held,hit=hit,natural_roll=natural,critical=critical,
               dealt=dealt,target_after=capture(ev["target"]),owner_after=capture(ev["actor"]),status="observed")
@@ -625,6 +633,7 @@ def deliver(e,event_id,*,_resume_activation=True):
                 result=__import__('combat_move_reactions').resume_after_event(staged,event,result)
                 result=__import__('conquerors_march').resume_counter(staged,event,result)
                 result=__import__('taskmaster_gambit').resume_after_event(staged,event,result)
+                result=__import__('glitch_bender').resume_metronome(staged,event,result)
             return result
         except Exception as error:
             __import__('taskmaster_gambit').advance_wait(staged,event_id,error)

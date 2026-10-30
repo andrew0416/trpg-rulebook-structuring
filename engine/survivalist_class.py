@@ -778,4 +778,5 @@ def validate_world(engine,index=None):
  index=W.actor_index(engine) if index is None else index
  for actor in index.values():
   _validate_tools(engine,actor,index);_validate_guide_history(engine,actor);_validate_records(engine,actor,index);_validate_weather_guide(engine,actor,index)
+ __import__('natural_fighter').validate_world(engine,index)
  return True

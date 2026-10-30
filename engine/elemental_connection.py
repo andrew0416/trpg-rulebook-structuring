@@ -34,6 +34,11 @@ def _types(e,actor,source=SOURCE):
  if source!=SOURCE and count!=1:raise ValueError('CSV Elemental Connection permits one acquired type choice')
  if len(selected)!=1:raise ValueError('one Elemental Connection choice record required')
  types=selected[0]
+ if type(types)is dict:
+  error=__import__('glitch_bender').connection_choice(e.r,types)
+  if error is not None:
+   if count!=1:raise ValueError('one actual Error Elemental Connection acquisition required')
+   return (error,)
  if isinstance(types,str):types=(types,)
  if not isinstance(types,(list,tuple)) or len(types)!=count:raise ValueError('one elemental type per acquired branch required')
  basic=set(e.r.mech('combat/type-chart')['attack_vs_defense'])-{'에러','None'}

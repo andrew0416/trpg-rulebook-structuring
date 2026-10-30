@@ -158,6 +158,7 @@ def _plan(engine,r):
         return C.PendingDecision('GM must observe this flute\'s original manufacture condition and current daily availability',
             basis={'source':r.source_id,'catalog':definition(engine.r,r.source_id)['battle_tool'],
                    'instance_id':obj['id'],'needed':'GMState.observe_magic_flute(manufactured_condition, calendar_owner, day, available, reason); never choose condition during use'})
+    if not __import__('glitch_bender').frequency_allowed(r.user,FREQ.parse(FREQUENCY)[0]):raise ValueError('Access Denied permits only At-Will actions this round')
     if not FREQ.physical_activation_allowed(engine,obj,r.source_id,FREQUENCY):
         raise ValueError('this physical Magic Flute was already used today')
     targets=_recipients(engine,r.user)
@@ -185,7 +186,7 @@ def consume(engine,r):
         cured=[];retained=[]
         for target in targets:
             afflicted=profile['condition'] in target.conditions
-            e.cure_status(target,profile['condition'])
+            if not __import__('glitch_bender').benefits_blocked(target):e.cure_status(target,profile['condition'])
             if afflicted:(retained if profile['condition'] in target.conditions else cured).append(target.entity_id)
         result={'source':r.source_id,'instance_id':obj['id'],'condition':profile['condition'],
                 'recipients':[c.entity_id for c in targets],'cured':cured,'retained':retained,

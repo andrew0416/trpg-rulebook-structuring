@@ -288,6 +288,9 @@ def reroll(e,a,purpose,first,roll_again):
   if not offer:continue
   uid=owner.entity_id
   if offer['actor_id']!=a.entity_id or offer['purpose']!=purpose:continue
+  if offer.get('source')==__import__('glitch_bender').REALITY:
+   return __import__('glitch_bender').reroll(e,owner,a,purpose,first,roll_again)
+  if offer.get('source')!=PROBABILITY:raise ValueError('native reroll offer source has no actual provider')
   _require_probability_provider(e,owner,a)
   callback=getattr(e,'_native_roll_decisions',{}).get(uid)
   if not callable(callback):raise ValueError('native reroll observation requires fresh live choice authentication after load')

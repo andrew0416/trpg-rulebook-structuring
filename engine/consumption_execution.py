@@ -56,7 +56,7 @@ def finish_immediate(engine, actor, target, identity, header, result):
         raise ValueError('actual immediate item execution result required')
     outcome='applied' if result[0]>0 and result[1]==0 else 'no_effect'
     finish(actor,row['item_stock'],target_id=target.entity_id,outcome=outcome,
-           results=[{'kind':'immediate_item_target','id':target.entity_id}])
+           results=[] if row.get('benefit_suppression') else [{'kind':'immediate_item_target','id':target.entity_id}])
     row['native_immediate_result']={'done':result[0],'held':result[1]}
     return result
 
@@ -92,3 +92,21 @@ def finish(actor, paid, *, target_id, outcome, results=()):
         return row
     row.update(proposed)
     return row
+
+def suppress_benefit(engine,actor,target,paid):
+    """Retain ordinary stock payment; only the sourced benefit becomes no-effect."""
+    import glitch_bender as B,combat_timing as TIME
+    causes=B.code_rows(target,'object_not_found')
+    if not causes:return False
+    rows=validate(actor)
+    if isinstance(paid,str):row=rows.get(paid)
+    else:
+        matches=[r for r in rows.values() if r['item_stock'] is paid]
+        row=matches[0] if len(matches)==1 else None
+    if row is None:raise ValueError('suppressed consumable needs its original stock payment')
+    proof=causes[0]['glitch_code']
+    finish(actor,row['item_stock'],target_id=target.entity_id,outcome='no_effect')
+    row['benefit_suppression']={'source':B.CODE,'attack_receipt':proof['attack_receipt'],
+        'effect_receipt':proof['receipt'],'effect_occurrence':proof['occurrence'],
+        'target_id':target.entity_id,'round':engine.round_no,'count':TIME.current(engine)}
+    return True

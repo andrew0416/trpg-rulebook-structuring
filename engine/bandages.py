@@ -97,7 +97,7 @@ def advance(e,c):
   if not _certain(e,record):
    record['timing_pending']='unknown_elapsed_interval';continue
   if e.elapsed_seconds>=record['expires_at']:
-   healed=INJURY.heal(e,c,record['count'],source='bandage')
+   healed=0 if __import__('glitch_bender').benefits_blocked(c) else INJURY.heal(e,c,record['count'],source='bandage')
    record.update(status='expired',ended_at=record['expires_at'],injuries_healed=healed)
    import clock_invocations as CLOCK
    CLOCK.child(e,c,record,kind='bandage')
@@ -184,7 +184,7 @@ def rest_healing(e,c,*,previous,rest_id,blocks,block_minutes,fraction,heavy_thre
  def amount(covered):
   rate=Fraction('1/8' if covered else fraction)+(Fraction(fraction) if caretaker else 0)
   return M.product(c.base_max_hp,str(rate))
- records=_live(c)
+ records=[] if __import__('glitch_bender').benefits_blocked(c) else _live(c)
  if not records:return blocks*amount(False) if c.injuries<heavy_threshold else 0
  if any(not _certain(e,x) for x in records):raise ValueError('bandage lifetime requires GM timing resolution before resting')
  carry=previous['carry_minutes'] if previous and rest_id is not None and previous['id']==rest_id else 0

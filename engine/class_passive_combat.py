@@ -639,6 +639,8 @@ def _ranged(move):
 
 def type_link_rank(engine, owner, type_name):
     """Resolve the trainer's explicit reviewed Type Link skill and rank."""
+    error=__import__('glitch_bender').type_ace_skill(engine,owner,type_name)
+    if error is not None:return error
     policy = _policy(engine.r)["type_link_skills"]
     allowed = policy.get(type_name)
     if allowed is None:

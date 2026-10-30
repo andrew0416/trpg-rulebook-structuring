@@ -18,7 +18,7 @@ def preflight(actor,effects,source):
     for effect in effects:
         if effect.get('type')=='counter':
             if type(effect.get('name')) is not str or not effect['name']:raise ValueError('identified counter required')
-            if effect.get('requires') and not prerequisite(actor,effect['requires']):raise ValueError('actual counter prerequisite not met')
+            if effect.get('requires') and not effect.get('noop_when_unmet') and not prerequisite(actor,effect['requires']):raise ValueError('actual counter prerequisite not met')  # noop_when_unmet: paid 'does nothing' (Swallow r598/en11923)
             for field in ('set','delta'):
                 if field in effect:C.integer(effect[field],'counter '+field)
             if 'max' in effect:C.integer(effect['max'],'counter cap',1)

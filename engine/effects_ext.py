@@ -446,6 +446,8 @@ def h_repeat_last_move(engine, a, t, e, ctx):
 
 
 def h_attack(engine, a, t, e, ctx):
+    if e.get("_rule_id")==__import__("glitch_bender").CODE:
+        return __import__("glitch_bender").code_attack(engine,a,t,e,ctx)
     __import__('condition_instances').require_target(a,t)
     from ruleset import UnresolvedRuleSelection
     origin = e.get("_rule_id")

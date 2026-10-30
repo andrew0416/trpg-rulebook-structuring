@@ -86,6 +86,7 @@ def prepare_power_herb(engine, actor, buff, move_id, owner_consent_by=None):
 
 
 def power_herb_plan(engine, actor, move_id):
+    if __import__('glitch_bender').benefits_blocked(actor):return None
     buff = validate_power_herb_choice(actor)
     if buff is None or actor.spec['food_move_choice']['move_id'] != move_id:
         return None
@@ -277,8 +278,9 @@ def consume(engine, request):
         result = apply_mushroom(staged, actor, uid, plan)
         result.update(status='consumed', item=uid, instance_id=obj['id'], item_stock=receipt)
         import consumption_execution as EXECUTION
-        EXECUTION.finish(actor, receipt, target_id=actor.entity_id, outcome='applied',
-                         results=[{'kind': 'mushroom', 'id': obj['id']}])
+        if not EXECUTION.suppress_benefit(staged,actor,actor,receipt):
+            EXECUTION.finish(actor, receipt, target_id=actor.entity_id, outcome='applied',
+                             results=[{'kind': 'mushroom', 'id': obj['id']}])
         return result
 
     return GRANTS.transition(engine, r.user, apply)
@@ -290,12 +292,13 @@ def apply_mushroom(engine, actor, uid, plan):
     if plan['stats'] != _derive_stats(uid, plan['faces']) or plan['item_id'] != uid:
         raise ValueError('actual Mushroom origin plan required')
     cured = []
+    blocked=__import__('glitch_bender').benefits_blocked(actor)
     protected=__import__('study_books').fungi(engine,actor)
     if uid == 'item/작은버섯':
         if not protected:engine.lose_hp(actor, 5, source=uid)
     elif uid == 'item/큰버섯':
         if not protected:engine.apply_status(actor, '독', source=uid)
-    else:
+    elif not blocked:
         import boss_transitions as BOSS
         for condition in ('화상', '마비', '독'):
             stored = BOSS.condition_variant(actor, condition)
@@ -305,7 +308,7 @@ def apply_mushroom(engine, actor, uid, plan):
                 cured.append(condition)
     delta = -1 if uid == 'item/향기버섯' else 1
     changed = []
-    if delta > 0 or cured and not protected:
+    if delta > 0 and not blocked or cured and not protected:
         for stat in plan['stats']:
             engine.change_stage(actor, stat, delta)
             changed.append(stat)

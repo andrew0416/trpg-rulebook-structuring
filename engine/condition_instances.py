@@ -101,7 +101,7 @@ def prepare(engine,actor,condition,*,parameters=None,applied_by=None):
     return payload,life
 
 
-def grant(engine,actor,condition,*,source=None,parameters=None,applied_by=None,force=False):
+def grant(engine,actor,condition,*,source=None,parameters=None,applied_by=None,force=False,after_gain=None):
     payload,life=prepare(engine,actor,condition,parameters=parameters,applied_by=applied_by)
     source=source or 'condition/'+condition
     if not force and engine.immune_to(actor,condition):return False
@@ -112,6 +112,8 @@ def grant(engine,actor,condition,*,source=None,parameters=None,applied_by=None,f
         raise ValueError('unresolved legacy condition must be explicitly cured before sourced replacement')
     import enduring_resilience as RESILIENCE
     if not force and RESILIENCE.prevent(engine,actor,condition=condition,source=source,attacker=applied_by):return False
+    replacement=__import__('glitch_bender').replace_status(engine,actor,condition,source=source,parameters=parameters,applied_by=applied_by,force=force)
+    if replacement is not None:return replacement
     row=E.create(engine,actor,kind=KIND,source=source,payload=payload,
         capacity={'bucket':'condition:'+condition,'source':'condition/'+condition},lifetime=life,applied_by=applied_by)
     if condition=='헤롱헤롱':row['beloved']=applied_by
@@ -142,6 +144,7 @@ def grant(engine,actor,condition,*,source=None,parameters=None,applied_by=None,f
     if not force and applied_by is not None and applied_by is not actor:
         import effects as FX
         FX.fire_event(engine,applied_by,{'event':'on_inflict_status','status':condition},actor)
+    if after_gain is not None:after_gain()
     return True
 
 

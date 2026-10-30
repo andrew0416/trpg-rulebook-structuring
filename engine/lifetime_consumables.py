@@ -69,10 +69,13 @@ def validate(actor):
             C.integer(receipt.get('at'),'consumption time',last_at);last_at=receipt['at']
             before,after=receipt.get('before'),receipt.get('after')
             if not isinstance(before,dict) or not isinstance(after,dict):raise ValueError('growth input and result required')
-            C.integer(before.get('level'),'previous level',1,99);C.integer(after.get('level'),'resulting level',2,100)
+            C.integer(before.get('level'),'previous level',1,99);C.integer(after.get('level'),'resulting level',1 if receipt.get('benefit_suppressed') is True else 2,100)
             C.integer(before.get('exp'),'previous XP',0);C.integer(after.get('exp'),'resulting XP',0)
             import downtime as D
-            if D.level_for_exp(actor.r,before['exp'])!=before['level'] or after['level']!=before['level']+1 or after['exp']!=D.exp_for_level(actor.r,after['level']) or after['exp']<=before['exp']:
+            if receipt.get('benefit_suppressed') is True:
+                if before!=after or D.level_for_exp(actor.r,before['exp'])!=before['level']:
+                    raise ValueError('suppressed growth must retain its actual prior level and XP')
+            elif D.level_for_exp(actor.r,before['exp'])!=before['level'] or after['level']!=before['level']+1 or after['exp']!=D.exp_for_level(actor.r,after['level']) or after['exp']<=before['exp']:
                 raise ValueError('growth receipt disagrees with the next-level threshold')
             stock=receipt.get('item_stock')
             if not isinstance(stock,dict) or stock.get('item_id')!=uid or type(stock.get('count'))is not int or stock['count']!=1 or stock.get('kind') not in ('quantity','held_instance'):
@@ -97,14 +100,14 @@ def observe(engine, actor, *, item, count, reason):
     return G.transition(engine,actor,apply)
 
 
-def consume(engine,user,target,uid,*,free=False,held_selection=None):
+def prepare_effect(engine,user,target,uid):
     key,policy=definition(engine.r,uid)
     if target.kind!=policy['target_kind']:raise ValueError('lifetime consumable requires a Pokemon target')
     validate(target)
     row=target.spec.get(KEY,{}).get('quotas',{}).get(key)
     if row is None:return C.PendingDecision('Actual lifetime consumption history must be observed before this item can grant growth',basis={'actor_id':target.entity_id,'source':uid})
     if row['initial_count']+len(row['receipts'])>=policy['maximum']:
-        return (0,0)
+        return dict(uid=uid,key=key,policy=deepcopy(policy),no_effect=True)
     effects,_=engine.r.item_effects(uid)
     if len(effects or [])!=1 or {k:v for k,v in effects[0].items() if k!='note'}!={'type':'exp_gain','value':'to next level','target':'target'}:
         raise ValueError('selected growth item requires its reviewed next-level effect')
@@ -113,25 +116,49 @@ def consume(engine,user,target,uid,*,free=False,held_selection=None):
     if D.level_for_exp(engine.r,target.spec['exp'])!=target.level:raise ValueError('actual XP and level disagree; reconcile before growth')
     if target.level>=engine.r.mech('pokemon/experience-table')['max_level']:
         return C.PendingDecision('No next level exists in the selected source; this application grants no reviewed growth')
+    return dict(uid=uid,key=key,policy=deepcopy(policy),no_effect=False)
+
+
+def apply_paid(e,t,u,plan,paid):
+    """Commit the native lifetime quota and growth from an actual paid dose."""
+    import consumption_execution as EXECUTION, downtime as D
+    receipt=EXECUTION.validate(u)[EXECUTION.payment_id(u,paid)]
+    if receipt['outcome']!='paid' or paid['item_id']!=plan['uid']:
+        raise ValueError('lifetime growth needs its unused actual item payment')
+    uid,key,policy=(plan[k] for k in ('uid','key','policy'))
+    if plan!=prepare_effect(e,u,t,uid):raise ValueError('lifetime effect plan changed before its paid application')
+    if plan['no_effect']:
+        EXECUTION.finish(u,paid,target_id=t.entity_id,outcome='no_effect')
+        return (0,0)
+    before={'level':t.level,'exp':t.spec['exp']}
+    suppressed=EXECUTION.suppress_benefit(e,u,t,paid)
+    # Suppression removes the benefit, not the actual consumed lifetime dose.
+    if not suppressed:D._gain_exp_combatant(e,t,'to next level')
+    # Growth may replace the recipient spec, including a self-user payment graph.
+    paid=EXECUTION.validate(u)[receipt['receipt_id']]['item_stock']
+    current=t.spec[KEY]['quotas'][key]
+    current['receipts'].append({'source':uid,'actor_id':t.entity_id,'user_id':u.entity_id,
+        'ordinal':current['initial_count']+len(current['receipts'])+1,'at':e.elapsed_seconds,
+        'before':before,'after':{'level':t.level,'exp':t.spec['exp']},'item_stock':paid,
+        **({'benefit_suppressed':True} if suppressed else {})})
+    if not suppressed:
+        EXECUTION.finish(u,paid,target_id=t.entity_id,outcome='applied',
+                         results=[{'kind':'lifetime_consumable','id':t.entity_id+':'+key+':'+str(current['receipts'][-1]['ordinal'])}])
+    validate(t)
+    e.log(f'    {t.name}: lifetime growth use {current["initial_count"]+len(current["receipts"])}/{policy["maximum"]}',uid)
+    return (0,0) if suppressed else (1,0)
+
+def consume(engine,user,target,uid,*,free=False,held_selection=None):
+    import item_stock as STOCK,state_grants as G
+    plan=prepare_effect(engine,user,target,uid)
+    if isinstance(plan,C.PendingDecision):return plan
+    if plan['no_effect']:return (0,0)
     if free and engine.encounter_active:raise ValueError('a waived growth-item cost requires actual action permission')
     if engine.encounter_active and (user.injuries>=5 and not __import__('taskmaster').ignores_acting_loss(user)) and not free:raise ValueError('growth item Standard needs reviewed heavy-injury composition')
     stock=STOCK.prepare(engine,user,uid,held_selection=held_selection,allow_empty=True)
     if stock is None:return (0,0)
     def apply(e,t,u):
         import turn as TURN
-        if not TURN.spend(e,u,'free' if free else policy['action'],uid):return (0,0)
-        before={'level':t.level,'exp':t.spec['exp']}
-        paid=STOCK.debit(e,u,stock)
-        # Deterministic growth is already inside this one admitted transaction.
-        D._gain_exp_combatant(e,t,'to next level')
-        current=t.spec[KEY]['quotas'][key]
-        current['receipts'].append({'source':uid,'actor_id':t.entity_id,'user_id':u.entity_id,
-            'ordinal':current['initial_count']+len(current['receipts'])+1,'at':e.elapsed_seconds,
-            'before':before,'after':{'level':t.level,'exp':t.spec['exp']},'item_stock':paid})
-        import consumption_execution as EXECUTION
-        EXECUTION.finish(u,paid,target_id=t.entity_id,outcome='applied',
-                         results=[{'kind':'lifetime_consumable','id':t.entity_id+':'+key+':'+str(current['receipts'][-1]['ordinal'])}])
-        validate(t)
-        e.log(f'    {t.name}: lifetime growth use {current["initial_count"]+len(current["receipts"])}/{policy["maximum"]}',uid)
-        return (1,0)
+        if not TURN.spend(e,u,'free' if free else plan['policy']['action'],uid):return (0,0)
+        return apply_paid(e,t,u,plan,STOCK.debit(e,u,stock))
     return G.transition(engine,target,apply,participants=(user,))

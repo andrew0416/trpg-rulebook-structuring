@@ -310,6 +310,8 @@ def move_allowed(engine,c,mid,*,outside_combat=None):
     if engine.r.move(mid).get('class')=='항상':
         return False,'상시 기술은 학습 상태이며 직접 발동하는 행동이 아님'
     kind,cap=move_frequency(engine,mid,c)
+    if not __import__('glitch_bender').frequency_allowed(c,kind):
+        return False,'Access Denied permits only At-Will actions this round'
     if not __import__('focused_command').frequency_allowed(engine,c,kind):
         return False,'Focused Command permits only At-Will actions this round'
     if __import__('type_ace').frequency_exception(engine,c,mid):return True,''
@@ -438,6 +440,7 @@ def activation_allowed(c,key,frequency,*,engine=None,action_actor=None):
     if kind=='every_other_turn':
         if cap!=1:raise ValueError('EOT activation has exactly one use per eligible owner turn')
         if engine is None:raise ValueError('EOT activation requires its actual engine clock')
+    if action_actor is not None and not __import__('glitch_bender').frequency_allowed(action_actor,kind):return False
     if engine is not None and action_actor is not None and not __import__('focused_command').frequency_allowed(engine,action_actor,kind):return False
     if engine is not None:bind_session(engine,c)
     st=state(c);old=st['activations'].get(key,{})
@@ -455,6 +458,8 @@ def consume_activation(c,key,frequency,*,engine=None,action_actor=None):
     if kind=='every_other_turn':
         if cap!=1:raise ValueError('EOT activation has exactly one use per eligible owner turn')
         if engine is None:raise ValueError('EOT activation requires its actual engine clock')
+    if action_actor is not None and not __import__('glitch_bender').frequency_allowed(action_actor,kind):
+        raise ValueError('Access Denied permits only At-Will actions this round')
     if engine is not None and action_actor is not None and not __import__('focused_command').frequency_allowed(engine,action_actor,kind):
         raise ValueError('Focused Command permits only At-Will actions this round')
     if engine is not None:bind_session(engine,c)

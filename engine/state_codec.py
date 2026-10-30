@@ -505,6 +505,16 @@ class _Encoder:
             attrs = dict(vars(value))
             if attrs.pop('_native_roll_deciding',False):
                 _fail('cannot save while a native roll decision callback is executing')
+            if attrs.pop('_glitch_replacing_status',False):
+                _fail('cannot save inside an executing I Am Error replacement')
+            metronome_choices=attrs.pop('_glitch_metronome_choices',None)
+            if metronome_choices is not None and (type(metronome_choices)is not dict or any(type(k)is not str or type(v)is not tuple or len(v)!=2 or not callable(v[0]) or type(v[1])is not bool for k,v in metronome_choices.items())):
+                _fail('invalid live Metronome decision bindings')
+            if attrs.get('_glitch_metronome_child') is not None:
+                _fail('cannot save inside an executing Metronome child source grant')
+            glitch_choices=attrs.pop('_glitch_error_choices',None)
+            if glitch_choices is not None and (type(glitch_choices)is not dict or any(type(k)is not str or not callable(v) for k,v in glitch_choices.items())):
+                _fail('invalid live I Am Error decision bindings')
             for key in ('_coordinator_damage_decisions','_coordinator_nuanced_decisions'):
                 live=attrs.pop(key,None)
                 if live is not None and (type(live)is not dict or any(type(k)is not str or not callable(v) for k,v in live.items())):_fail('invalid live Coordinator decision bindings')

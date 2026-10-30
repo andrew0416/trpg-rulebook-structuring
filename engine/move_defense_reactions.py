@@ -270,13 +270,30 @@ def routed(e, event_id):
                 _defense(e, event) is not None)
 
 
+def require_snatch_route(e,args):
+    """A fully declined/failed native watch preserves the original Self hit."""
+    event=e._passive_events[args['passive_event']]
+    state=_defense(e,event)
+    if state is None:return
+    if (state['phase']!='resolving' or state.get('source_route') or state.get('active_attempt')
+            or state['cursor']!=len(state['facts']['watch']['requests'])
+            or state['children'] or state['total'] or args['attacker'] is not args['target']
+            or state['recipients']!=[{'actor_id':args['target'].entity_id,'hit':True,'intercepted':False}]
+            or any(a['outcome'] in ('intercepted','avoided') for a in state['attempts'])):
+        raise ValueError('Snatch needs its successful existing defense-route composition consumer')
+
+
 def source_route(e,args,recipient,proof):
-    """Route a printed position-exchange reaction through native recipients."""
+    """Route a printed source reaction while preserving prior native decisions."""
     event=e._passive_events[args['passive_event']]
     if 'continuation' not in event:raise ValueError('position-exchange route requires the actual native accuracy continuation')
-    if event.get('defense_watch'):raise ValueError('resolve the actual existing defense choices before a position-exchange route')
-    event['defense_watch']={'requests':[],'reason':'actual completed Ally Switch'}
-    begin_boundary(e,event,args)
+    if event.get('defense_watch'):
+        if proof.get('source')!=__import__('combat_move_reactions').SNATCH:
+            raise ValueError('resolve the actual existing defense choices before a position-exchange route')
+        require_snatch_route(e,args)
+    else:
+        event['defense_watch']={'requests':[],'reason':'actual completed Snatch' if proof.get('source')==__import__('combat_move_reactions').SNATCH else 'actual completed Ally Switch'}
+        begin_boundary(e,event,args)
     state=_defense(e,event);state['phase']='resolving';state['source_route']=deepcopy(proof)
     state['recipients']=[{'actor_id':recipient.entity_id,'hit':args['hit'],'intercepted':True}]
 
@@ -796,11 +813,14 @@ def cancel_waiting(e, event):
     ability_wait=(state['phase']=='resolving' and
         event.get('ability_interrupts',{}).get('phase')=='choices' and
         not state['children'] and not state['total'])
-    if (state['phase'] != 'choices' and not ability_wait) or state.get('active_attempt'):
+    import natural_fighter_moves as NATURAL_MOVES
+    awareness_wait = NATURAL_MOVES.waiting_recipient_awareness(e,event)
+    if (state['phase'] != 'choices' and not ability_wait and not awareness_wait) or state.get('active_attempt'):
         # Already delivered recipient effects must finish their own receipts.
         return False
     if not (event['actor'].fainted or event['actor'].dead):
         raise ValueError('defense cancellation requires an ineligible actual attacker')
+    if awareness_wait:NATURAL_MOVES.cancel_recipient_awareness(e,event)
     state['phase'] = 'cancelled'
     state['recipients'] = []
     event['defense_routed'] = True
@@ -959,6 +979,8 @@ def _finish(e, args):
         token = (event['id'],event['target'].entity_id,uid)
         options = {key:args[key] for key in ('move_id','move','mm','conf','nat','crit','set_damage','precision_event','weather_attack','ordinary_single','completion_id')}
         with _recipient_scope(e,token):
+            __import__('natural_fighter_moves').prepare_redirected_recipient(
+                e,event,recipient,args,token,hit=recipient_plan['hit'])
             child = PASSIVE.begin_recipient(e,event,recipient,hit=recipient_plan['hit'],token=token)
             state['children'][uid] = child['id']
             import precise_actions as PRECISE
@@ -1143,18 +1165,6 @@ def validate_world(e,index):
             if state['phase'] not in ('choices','resolving','complete','cancelled'):
                 raise ValueError('known native defense phase required')
             interrupted=_heavy_interrupted_child(e,row,event,state)
-            if 'source_route' in state:
-                proof=state['source_route'];actor=index.get(proof.get('actor_id'))
-                import combat_move_reactions as REACTIONS,warper as WARPER
-                response=getattr(e,'_move_completions',{}).get(proof.get('response_completion'))
-                reaction=None if actor is None else actor.spec.get(REACTIONS.EVENTS,{}).get(proof.get('reaction_id'))
-                if proof.get('source')!=WARPER.SWITCH or reaction is None or response is None or response['actor']is not actor or response['move_id']!=WARPER.SWITCH or response['phase']!='complete' or reaction['completion_id']!=token:raise ValueError('position-exchange route lost its actual response Move')
-                REACTIONS.validate_event(e,actor,reaction)
-                choice=reaction['warper_choice'];replacement=choice['ally_id'] if original_id==actor.entity_id else actor.entity_id
-                if original_id not in (actor.entity_id,choice['ally_id']) or state['recipients']!=[{'actor_id':replacement,'hit':facts['hit'],'intercepted':True}]:raise ValueError('Ally Switch original recipient exchange changed')
-                owned={uid:r for uid,r in row.get('received',{}).items() if r['event_id']==event['id']}
-                if state['total']!=sum(r['dealt'] for r in owned.values()) or state['children']!={**{uid:r['child_event'] for uid,r in owned.items()},**interrupted}:raise ValueError('position-exchange route differs from native recipient results')
-                continue
             requests = facts['watch']['requests']
             if len(state['attempts']) != state['cursor'] or not 0 <= state['cursor'] <= len(requests):
                 raise ValueError('defense decision order changed')
@@ -1217,6 +1227,30 @@ def validate_world(e,index):
                         expected_cells=sorted((destination[0]+x,destination[1]+y) for x,y in plan['ally_body_offsets'])
                         if attempt['push']['moved']!=1 or [tuple(c) for c in attempt['ally_cells_after']]!=expected_cells:
                             raise ValueError('Intercept area membership differs from the actual ally push')
+            if 'source_route' in state:
+                if facts['watch']['requests'] and (
+                        state.get('active_attempt') or state['cursor']!=len(facts['watch']['requests'])
+                        or any(a['outcome'] in ('intercepted','avoided') for a in state['attempts'])
+                        or state['source_route'].get('source')!=__import__('combat_move_reactions').SNATCH):
+                    raise ValueError('source route cannot bypass a prior successful or unfinished defense')
+                proof=state['source_route'];actor=index.get(proof.get('actor_id'))
+                import combat_move_reactions as REACTIONS,warper as WARPER
+                response=getattr(e,'_move_completions',{}).get(proof.get('response_completion'))
+                reaction=None if actor is None else actor.spec.get(REACTIONS.EVENTS,{}).get(proof.get('reaction_id'))
+                source=proof.get('source')
+                if source not in (WARPER.SWITCH,REACTIONS.SNATCH) or reaction is None or response is None or response['actor']is not actor or response['move_id']!=source or response['phase']!='complete' or reaction['completion_id']!=token or reaction['result_completion']!=response['id']:raise ValueError('source route lost its actual response Move')
+                REACTIONS.validate_event(e,actor,reaction)
+                if source==REACTIONS.SNATCH:
+                    received=COMPLETE.recipient_result(response,row['actor'])
+                    if reaction['kind']!='self_move' or reaction['target_id']!=original_id or original_id!=row['actor'].entity_id or received is None or not received['hit'] or received.get('cancelled') or not REACTIONS._self_move(e,row['actor'],row['move']):raise ValueError('Snatch route requires its actual Self Move and successful response')
+                    replacement=actor.entity_id
+                else:
+                    choice=reaction['warper_choice'];replacement=choice['ally_id'] if original_id==actor.entity_id else actor.entity_id
+                    if original_id not in (actor.entity_id,choice['ally_id']):raise ValueError('Ally Switch original recipient exchange changed')
+                if state['recipients']!=[{'actor_id':replacement,'hit':facts['hit'],'intercepted':True}]:raise ValueError('source route actual recipient changed')
+                owned={uid:r for uid,r in row.get('received',{}).items() if r['event_id']==event['id']}
+                if state['total']!=sum(r['dealt'] for r in owned.values()) or state['children']!={**{uid:r['child_event'] for uid,r in owned.items()},**interrupted}:raise ValueError('position-exchange route differs from native recipient results')
+                continue
             expected = []
             terminal = next((a for a in state['attempts'] if a['outcome'] in ('intercepted','avoided')),None)
             if state['phase'] == 'cancelled':
@@ -1374,7 +1408,10 @@ def native_attack_interested(e,target):
 
 def native_event(e,event_id):
  event=next((r for r in e._precision_events if r['id']==event_id),None)
- if event is None or event.get('producer')!='combat_maneuver' or event['kind']!='attack':raise ValueError('actual native maneuver Attack observation required')
+ if event is None or event['kind']!='attack':raise ValueError('actual native Attack observation required')
+ if event.get('producer')=='glitch_bender.code_attack':
+  __import__('glitch_bender').code_event(e,event)
+ elif event.get('producer')!='combat_maneuver':raise ValueError('actual native maneuver Attack observation required')
  return event
 
 def _native_facts(event,origin):
@@ -1397,12 +1434,20 @@ def validate_native_splash_request(e,window,request):
 
 def native_splash(e,event,origin):
  """Actual accuracy producer only. A no-response player choice is a decline."""
- if event['result']!='accuracy_hit' or not native_attack_interested(e,event['target']):return None
+ if event['result']!='accuracy_hit':return None
  import initiative_interrupts as I,jump_move_actions as J,skill_modifiers as SK
  actor=event['target'];state=event.get(NATIVE_DEFENSE)
+ if state is None and not native_attack_interested(e,actor):return None
  if state is not None:
   if state['phase']=='complete' or state['phase']=='declined':return state
-  if state['phase']=='jump_pending':return CHECKS.PendingDecision('finish the actual Splash Jump before resuming this Attack')
+  if state['phase'] in ('reacting','jump_pending'):
+   if getattr(e,'_passive_pending',None) or getattr(e,'_heavy_pending',None):
+    return CHECKS.PendingDecision('finish the actual Splash child before resuming this Attack')
+   import initiative_interrupts as INTERRUPTS
+   frame=INTERRUPTS.frame(e)
+   rows=[] if frame is None else [r for uid,r in e._move_completions.items() if uid not in frame['completion_ids_before'] and r['actor'] is event['target']]
+   if len(rows)==1 and rows[0]['move_id']==SPLASH and rows[0]['phase']=='complete':return finish_native_splash(e,event['id'])
+   return CHECKS.PendingDecision('finish the actual Splash Jump before resuming this Attack')
  else:
   import frequency as F,tumbler as T
   if not F.activation_allowed(actor,T.FLIP+':Splash',{'kind':'scene','uses':1},engine=e):return None
@@ -1451,6 +1496,9 @@ def native_parent_action(e):
  window=getattr(e,I.KEY)['windows'][frame['window_id']]
  if window['trigger']['kind']!='native_accuracy':return None
  event=native_event(e,window['trigger']['event_id']);state=event[NATIVE_DEFENSE];origin=state['facts']['origin']
+ if origin['kind']=='code_injection':
+  row=__import__('glitch_bender').code_event(e,event)
+  return row['code_injection']['native_frame']['id']
  if origin['kind']!='maneuver':return None
  record=event['actor'].custom_conditions.get(SM.RECEIPTS,{}).get(origin['receipt'])
  if record is None or record.get('precision_id')!=event['id']:raise ValueError('native Interrupt lost the original paid maneuver')

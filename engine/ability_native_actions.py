@@ -251,6 +251,8 @@ def _actual_owner(actor, reg):
 
 def _frequency(engine, actor, target, source, declaration, action):
     import frequency as F
+    if action is not None and not __import__('glitch_bender').frequency_allowed(actor,declaration['kind']):
+        raise ValueError('Access Denied permits only At-Will actions this round')
     if action is not None and not __import__('focused_command').frequency_allowed(engine,actor,declaration['kind']):
         raise ValueError('Focused Command permits only At-Will actions this round')
     if declaration['kind'] == 'encounter':

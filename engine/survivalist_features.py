@@ -346,6 +346,10 @@ def continue_approach(e,a,target,options):
 
 
 def activity(e,a,activity,**options):
+ if activity=='natural_fighter':
+  return __import__('natural_fighter').activate(e,a,**options)
+ if activity=='natural_fighter_finish_heavy':
+  return __import__('natural_fighter').finish_heavy(e,a,**options)
  import survivalist_class as CLASS_RULES
  handlers={'observe_environment':observe_environment,'begin_night':begin_night,'finish_night':finish_night,'select_terrain':select_terrain,'choose_talents':choose_talents,'select_csv_terrains':select_csv_terrains,'withdraw_csv_terrains':withdraw_csv_terrains,
   'create_trap_tool':CLASS_RULES.create_trap_tool,'deploy_trap_tool':CLASS_RULES.deploy_trap_tool,'wilderness_guide':CLASS_RULES.wilderness_guide,'adaptive_geography':CLASS_RULES.adaptive_geography}

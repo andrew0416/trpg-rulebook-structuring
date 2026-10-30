@@ -667,6 +667,9 @@ def _finish_intake(e,user,target,plan,payment):
   raise ValueError('recipient cannot gain another Digestion Buff')
  stock_receipt=payment if payment is not None else _debit(e,user,plan['stock'])
  ACTION.record_action(e,target,'extended')
+ if EXECUTION.suppress_benefit(e,user,target,stock_receipt):
+  record={'source':uid,'item_stock':stock_receipt,'at':e.elapsed_seconds,'outcome':'no_effect'}
+  return {'status':'consumed','item':uid,'outcome':'no_effect'},stock_receipt,record
  if kind=='drink':
   record={'item_stock':stock_receipt,'source':DRINK_SOURCE,'item':uid,'at':e.elapsed_seconds,
           'gap_count':plan['gap_count'],'given_by':user.spec.get('id'),'duration_reason':plan['reason']}
@@ -739,6 +742,7 @@ def consumption_allowed(e,actor,buff,*,optional=False):
  if protected and not CSV.designated_form_authorized(e,actor,buff):raise ValueError('Dynamax Mushroom requires its actual designated native form entry')
  import ability_target_limits as TARGET_LIMITS
  blocked=not protected and TARGET_LIMITS.blocked(e,actor,'food_buff')
+ if optional and __import__('glitch_bender').benefits_blocked(actor):return False
  if blocked and not optional:
   raise ValueError('Unnerve forbids Digestion Buff consumption')
  for key in ('food_buff_consumed','lim:food_buff_consumed'):C.integer(actor.counters.get(key,0),'actual food consumption counter',0)
@@ -835,7 +839,7 @@ def remove_buff(e,actor,buff,*,producer='food_action'):
   if actor.spec.get(key,{}).get('buff_id')==buff['id']:actor.spec.pop(key)
  import class_actor_state_actions as CLASS_STATE_ACTIONS
  if not retained:CLASS_STATE_ACTIONS.observe_food_buff_consumed(e,actor,receipt)
- if producer!='actual_attack':
+ if producer!='actual_attack' and not __import__('glitch_bender').benefits_blocked(actor):
   import chef_cooking as CHEF
   CHEF.apply_taste_bonus(e,actor,buff,receipt)
  return receipt
@@ -917,6 +921,13 @@ def immediate_preflight(e,actor,buff,*,ignore_conditions=False,owner_consent_by=
 def _apply_immediate(e,actor,buff,effect,reason,receipt,result,owner_consent_by,*,item=None,effect_source=None):
  item=buff['item'] if item is None else item
  effect_source=buff['effect_source'] if effect_source is None else effect_source
+ blocked=__import__('glitch_bender').benefits_blocked(actor)
+ if blocked:
+  result['suppressed_by']=__import__('glitch_bender').CODE
+  # Suppression removes benefits, not the consumed berry or mushroom's drawbacks.
+  harmful=(effect['kind']=='berry_flavor' or effect['kind']=='native_consumable' and item in __import__('herb_mushroom_rules').MUSHROOMS
+           or effect['kind']=='stage_change' and effect['delta']<0 or effect['kind']=='stat_suppression')
+  if not harmful:return result
  if effect['kind']=='heal':result['healed']=e.heal(actor,effect['amount'],source_kind='ordinary_item')
  elif effect['kind']=='stage_change':
   before=actor.stages[effect['stat']]
@@ -946,7 +957,7 @@ def _apply_immediate(e,actor,buff,effect,reason,receipt,result,owner_consent_by,
   disposition=_flavor_disposition(actor,effect['flavor']);edition=receipt.get('berry_choices',{}).get('flavor_edition')
   heal=disposition!='disliked' or edition=='core_en_1_05'
   result.update(disposition=disposition,flavor=effect['flavor'],edition=edition or 'agreeing_printed_effect')
-  result['healed']=e.heal(actor,M.ratio(actor.base_max_hp,6 if disposition=='liked' else 8),source_kind='ordinary_item') if heal else 0
+  result['healed']=e.heal(actor,M.ratio(actor.base_max_hp,6 if disposition=='liked' else 8),source_kind='ordinary_item') if heal and not blocked else 0
   result['confusion_applied']=bool(e.apply_status(actor,'혼란',source=item,applied_by=actor)) if disposition=='disliked' else False
  elif effect['kind']=='berry_critical':
   import state_grants as G,combat_timing as TIMING
@@ -1071,6 +1082,7 @@ def _chef_apply_dislike(e,actor,buff,disposition):
 
 
 def _chef_prepare(e,actor,buff,owner_consent_by=None):
+ if __import__('glitch_bender').benefits_blocked(actor):return {'status':'suppressed','buff_id':buff['id']}
  effect=_chef_payload(buff);trigger=effect['trigger']
  if trigger=='self_activation':return _chef_activate_sweet(e,actor,buff,owner_consent_by)
  key=CHEF_ATTACK_CHOICE if trigger=='attack' else CHEF_RECEIVED_CHOICE
@@ -1104,6 +1116,7 @@ def _chef_activate_sweet(e,actor,buff,owner_consent_by=None):
 
 
 def _chef_choice(actor,key,trigger,move):
+ if __import__('glitch_bender').benefits_blocked(actor):return None
  choice=actor.spec.get(key)
  if choice is None:return None
  if not isinstance(choice,dict) or set(choice) not in ({'buff_id','item','trigger'},{'buff_id','item','trigger','owner_id'}) or choice.get('trigger')!=trigger:raise ValueError('typed Chef attack choice required')
@@ -1443,6 +1456,7 @@ def _consume_buff(e,actor,*,buff_id,action_kind=None,action_reason=None,save_con
 
 
 def save_preflight(e,actor,condition):
+ if __import__('glitch_bender').benefits_blocked(actor):return None
  choice=actor.spec.get('food_save_choice')
  if not choice or choice['condition']!=condition:return None
  buff=get_buff(actor,choice['buff_id']);consumption_allowed(e,actor,buff)
@@ -1455,6 +1469,7 @@ def save_bonus(e,actor,condition):
  receipt=remove_buff(e,actor,buff,producer='saving_check');receipt['benefit']={'save_condition':condition,'bonus':buff['effect']['amount']};return buff['effect']['amount']
 
 def turn_start(e,actor):
+ if __import__('glitch_bender').benefits_blocked(actor):return
  plans=[]
  for record in actor.spec.get('food_turn_healing',[]):
   selected(e,record['source']);selected(e,record['item'])
@@ -1490,7 +1505,7 @@ def herbal_consumed(e,actor,uid):
  prepared=__import__('study_books').herbal_provider(e,actor)
  if prepared is not None:result.update(study_book=deepcopy(prepared['provider']),repeat_food_buff=prepared['repeat_food_buff'])
  if state['count']==1 or prepared is not None and prepared['repeat_food_buff']:
-  buff=grant_buff(e,actor,uid,{'kind':'save_bonus','amount':2},source=MEDICINE)
+  buff=None if __import__('glitch_bender').benefits_blocked(actor) else grant_buff(e,actor,uid,{'kind':'save_bonus','amount':2},source=MEDICINE)
   result['buff_id']=buff['id'] if buff else None
  elif state['count']>=3 and prepared is None:
   faces=[row['face'] for row in POOLS.recursive(e.rng,1,repeat=True)]
@@ -1553,6 +1568,7 @@ def salty_hit_pending(e,actor,*,attacker):
 
 
 def _hit_resistance_buff(actor,move_type,multiplier,*,attacker):
+ if __import__('glitch_bender').benefits_blocked(actor):return None
  choice=actor.spec.get('food_hit_choice')
  if not choice:return None
  buff=get_buff(actor,choice['buff_id']);effect=_consumer_effect(buff)
@@ -1593,7 +1609,7 @@ def berry_after_hit(e,attacker,target,move,event,damage_receipt):
  its native response and every composite benefit form one atomic exchange.
  """
  choice=target.spec.get(BERRY_HIT_CHOICE)
- if choice is None or attacker is target:return None
+ if choice is None or attacker is target or __import__('glitch_bender').benefits_blocked(target):return None
  buff=get_buff(target,choice['buff_id']);effect=_consumer_effect(buff)
  if effect['kind']!='berry_reactive':raise ValueError('actual hit Berry payload changed')
  if event.get('attacker') is not attacker or event.get('target') is not target or event.get('move')!=move:raise ValueError('Berry reaction needs the actual native hit participants')
@@ -1650,6 +1666,7 @@ def berry_after_hit(e,attacker,target,move,event,damage_receipt):
 def priority_berry(e,actor,move_id,*,commit=False):
  """Preflight the loan; exchange once inside its actual native Move."""
  choice=actor.spec.get(BERRY_PRIORITY_CHOICE)
+ if __import__('glitch_bender').benefits_blocked(actor):return None
  if choice is None or choice['move_id']!=move_id:return None
  if commit:
   import initiative_interrupts as INTERRUPTS
