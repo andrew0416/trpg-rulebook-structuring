@@ -1,6 +1,5 @@
-"""Bounded read-only diagnostic of AA run40992541826; no admission or games."""
+"""Bounded read-only diagnostic of AA run40997127480; no admission or games."""
 import ast
-from collections import Counter
 import hashlib
 import json
 import os
@@ -17,27 +16,19 @@ from ci_remote_h import crypt
 from ci_aa_recovery import ArtifactRedirect
 
 REPO = 'andrew0416/trpg-rulebook-structuring'
-FAILED_HEAD = 'a5ae917e182e3caf129ad4df6fc78ff9057c6001'
+FAILED_HEAD = '0a02f079925b993daf703ce1c6759a4daa820035'
 BRANCH = 'refs/heads/codex/aa-admission-diagnostic-1030'
-RUN = 40992541826
-ARTIFACT = 12949961574
-OUTER_SHA = 'f40eeaa7c9d9d252001244b38eb1303c52a3870c61a79f4f4aa59d8fcc75775a'
-CIPHER_SHA = '0ae8f954c4b7711a4d72d884d135a6ed7a30737b25243997af739237e57236b9'
+RUN = 40997127480
+ARTIFACT = 12951832286
+OUTER_SHA = 'ae75e5b0618cc2f00259c9bad223231e81aada07e10851f67f22ccecb34030eb'
+CIPHER_SHA = '38d0a5aa56ab59193bc1131d79721d7b6c1d13094500e26a2eae1f27edc74100'
 BUNDLE = '.ci/aa-acceptance.zip.enc'
 BLOB = '5778c37c9e25549de67dcaf2babf02ddb13cd0ef'
 PUBLIC_SOURCES = ('tools/ci_aa_acceptance.py', 'tools/ci_validate.py',
-                  'tools/ci_remote_h.py', 'tools/ci_aa_recovery.py')
-KNOWN_KEYS = {'version','schema_version','source_count','source_members','member_count',
-              'allowed_replacements','files','members','entries','path','role','size',
-              'expected_sha256','source','snapshot','hash_status','source_manifest','status'}
-ROLES = {'existing_prior_raw_log','current_canonical_metadata','aa_source_review'}
-OVERRIDES = {'data/verification/'+name for name in (
-    'category2-edge-work-plan.json','category2-work-checkpoint.json','template-reuse-checks.json',
-    'template-reuse-contracts.json','category2-class-csv-clause-status.json',
-    'category2-csv-abilities-moves-status.json','category2-optional-clause-status.json',
-    'category2-tabular-core-status.json','category2-progress.json')}
-
-
+                  'tools/ci_remote_h.py', 'tools/ci_aa_recovery.py',
+                  'work/reuse-partials/reconcile_batch.py',
+                  'work/reuse-partials/acceptance_evidence.py',
+                  'tools/report_category2_progress.py', 'tools/build_reuse_vault.py')
 def require(ok, message):
     if not ok:
         raise ValueError(message)
@@ -48,50 +39,16 @@ def git(root, *args):
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout
 
 
-def key_shape(mapping):
-    return dict(known=sorted(set(mapping) & KNOWN_KEYS),
-                unknown_key_sha256=sorted(hashlib.sha256(key.encode()).hexdigest()
-                                          for key in mapping if key not in KNOWN_KEYS))
-
-
-def manifest_shape(value):
-    result = dict(type=type(value).__name__)
-    if not isinstance(value, dict):
-        return result
-    result.update(key_shape(value))
-    result['field_types'] = {key:type(value[key]).__name__ for key in sorted(set(value)&KNOWN_KEYS)}
-    result['declared_counts'] = {key:value[key] for key in (
-        'version','schema_version','source_count','source_members','member_count')
-        if type(value.get(key)) is int}
-    replacements = value.get('allowed_replacements')
-    if isinstance(replacements, list):
-        result['replacements'] = dict(count=len(replacements),
-            exact_approved_set=all(isinstance(x,str) for x in replacements) and set(replacements)==OVERRIDES)
-    result['entry_lists'] = {}
-    for label in ('files','members','entries'):
-        rows = value.get(label)
-        if not isinstance(rows, list):
-            continue
-        objects = [row for row in rows if isinstance(row,dict)]
-        roles = Counter(row.get('role') for row in objects if isinstance(row.get('role'),str))
-        result['entry_lists'][label] = dict(count=len(rows), object_count=len(objects),
-            key_shapes=[json.loads(text) for text in sorted({json.dumps(key_shape(row),sort_keys=True) for row in objects})],
-            known_role_counts={key:roles[key] for key in sorted(ROLES)},
-            unknown_roles=[dict(sha256=hashlib.sha256(role.encode()).hexdigest(),count=count)
-                           for role,count in sorted(roles.items()) if role not in ROLES],
-            hash_field_present=sum('expected_sha256' in row for row in objects),
-            null_hash_count=sum('expected_sha256' in row and row['expected_sha256'] is None for row in objects))
-    return result
-
-
 def reduce_error(body, sources):
     body = body.replace('\r\n', '\n')
     constants = {node.value for source in sources.values() for node in ast.walk(ast.parse(source))
                  if isinstance(node,ast.Constant) and isinstance(node.value,str) and len(node.value)<=240}
-    reasons = re.findall(r'^ValueError: ([^\r\n]*)$',body,re.MULTILINE)
-    reason = reasons[-1] if reasons else None
-    result = dict(exception_type='ValueError' if reason is not None else 'unclassified',
+    reasons = re.findall(r'^(ValueError|RuntimeError|AssertionError|FileNotFoundError|OSError|KeyError|TypeError|ImportError|ModuleNotFoundError|AttributeError|PermissionError):? ?([^\r\n]*)$',body,re.MULTILINE)
+    reason = reasons[-1][1] if reasons else None
+    result = dict(exception_type=reasons[-1][0] if reasons else 'unclassified',
                   static_reason=reason if reason in constants else None,
+                  static_reason_prefixes=sorted(value for value in constants
+                      if len(value)>=16 and value.endswith(': ') and reason is not None and reason.startswith(value)),
                   unknown_reason_sha256=hashlib.sha256(reason.encode()).hexdigest()
                       if reason is not None and reason not in constants else None, frames=[])
     for filename,number in re.findall(r'^  File "([^"]+)", line ([0-9]+), in .+$',body,re.MULTILINE):
@@ -107,7 +64,7 @@ def archive_names(archive, allowed, limit):
     require(len(entries)==len({e.filename for e in entries})
             and {e.filename for e in entries}<=allowed
             and sum(e.file_size for e in entries)<=limit
-            and all(not e.is_dir() and stat.S_IFMT(e.external_attr>>16) in (0,stat.S_IFREG)
+            and all(not e.is_dir() and not e.flag_bits & 1 and stat.S_IFMT(e.external_attr>>16) in (0,stat.S_IFREG)
                     for e in entries), 'Bounded diagnostic archive shape differs')
     return {e.filename for e in entries}
 
@@ -129,7 +86,7 @@ def main():
     work=temporary/'aa-failure-diagnostic';work.mkdir(exist_ok=False)
     public=root/'output/ci/aa-failure-diagnostic';public.mkdir(parents=True,exist_ok=False)
     report=dict(status='AA_FAILURE_DIAGNOSTIC_NOT_COMPLETE',source_run=RUN,source_head=FAILED_HEAD,
-                diagnostic_head=os.environ['GITHUB_SHA'],game_runs=0,admission_runs=0,
+                diagnostic_head=os.environ['GITHUB_SHA'],game_runs=0,admission_runs=0,gate_runs=0,h_reruns=0,
                 clause_credit=0,canonical_published=False)
     try:
         report['stage']='authenticate_fixed_failure_artifact'
@@ -140,19 +97,19 @@ def main():
         with opener.open(urllib.request.Request(url,headers=headers),timeout=90) as response:
             metadata=json.load(response)
         require(metadata['id']==ARTIFACT and metadata['name']==f'aa4-retained-admission-{RUN}-1'
-                and metadata['size_in_bytes']==2224 and metadata['digest']=='sha256:'+OUTER_SHA
+                and metadata['size_in_bytes']==1323453 and metadata['digest']=='sha256:'+OUTER_SHA
                 and metadata['expired'] is False and metadata['workflow_run']['id']==RUN
                 and metadata['workflow_run']['head_sha']==FAILED_HEAD,'Fixed failure artifact identity differs')
         outer=work/'original-failure.zip'
         with opener.open(urllib.request.Request(url+'/zip',headers=headers),timeout=90) as response,outer.open('xb') as out:
             shutil.copyfileobj(response,out)
-        require(outer.stat().st_size==2224 and ci.file_hash(outer)==OUTER_SHA,'Fixed outer bytes differ')
+        require(outer.stat().st_size==1323453 and ci.file_hash(outer)==OUTER_SHA,'Fixed outer bytes differ')
         with zipfile.ZipFile(outer) as archive:
-            names=archive_names(archive,{'summary.json','acceptance.zip.enc','adapter-console.log.enc'},65536)
+            names=archive_names(archive,{'summary.json','acceptance.zip.enc','adapter-console.log.enc'},4194304)
             require(names=={'summary.json','acceptance.zip.enc','adapter-console.log.enc'},'Fixed outer members differ')
             summary=json.loads(archive.read('summary.json'))
             require(summary['status']=='AA_ADMISSION_NOT_ACCEPTED' and summary['run']==str(RUN)
-                    and summary['head']==FAILED_HEAD and summary['failure_stage']=='approved802_prepare_and_manifest_schema'
+                    and summary['head']==FAILED_HEAD and summary['failure_stage']=='current17_transform_and_existing_gate'
                     and summary['failure_code']=='AA_ADMISSION_GUARD_OR_RUNTIME_FAILURE'
                     and summary['failure_type']=='ValueError' and summary['encrypted_output_sha256']==CIPHER_SHA
                     and summary['new_game_runs']==summary['completion_credit']==0
@@ -165,28 +122,49 @@ def main():
         # The reducer may emit only immutable public source and exact static messages.
         check=reduce_error('ValueError: PRIVATE_MARKER_DO_NOT_EMIT',sources)
         require('PRIVATE_MARKER_DO_NOT_EMIT' not in json.dumps(check),'Diagnostic reducer leaked unknown text')
-        check_shape=manifest_shape({'PRIVATE_MARKER_DO_NOT_EMIT':[], 'files':[{'role':'PRIVATE_MARKER_DO_NOT_EMIT'}]})
-        require('PRIVATE_MARKER_DO_NOT_EMIT' not in json.dumps(check_shape),'Manifest reducer leaked unknown key or role')
+        for kind in ('RuntimeError','AssertionError','FileNotFoundError'):
+            check=reduce_error(kind+': PRIVATE_MARKER_DO_NOT_EMIT',sources)
+            require(check['exception_type']==kind and 'PRIVATE_MARKER_DO_NOT_EMIT' not in json.dumps(check),
+                    'Gate diagnostic reducer leaked unknown text')
+        check=reduce_error('  File "D:/PRIVATE_MARKER_DO_NOT_EMIT/unknown.py", line 1, in secret\n'
+                           'RuntimeError: retained input SHA256 mismatch: PRIVATE_MARKER_DO_NOT_EMIT',sources)
+        require(not check['frames'] and check['static_reason_prefixes']==['retained input SHA256 mismatch: ']
+                and 'PRIVATE_MARKER_DO_NOT_EMIT' not in json.dumps(check),'Gate diagnostic prefix or frame reduction differs')
+        check=reduce_error('  File "D:/PRIVATE_MARKER_DO_NOT_EMIT/work/reuse-partials/reconcile_batch.py", line 581, in require\n'
+                           'RuntimeError: retained proof contains unassigned named coverage',sources)
+        require(len(check['frames'])==1 and check['frames'][0]['path']=='work/reuse-partials/reconcile_batch.py'
+                and check['static_reason']=='retained proof contains unassigned named coverage'
+                and 'PRIVATE_MARKER_DO_NOT_EMIT' not in json.dumps(check),'Public gate frame reduction differs')
         with zipfile.ZipFile(full) as archive:
-            names=archive_names(archive,{'records/private-error.txt','records/package-manifest-shape.json'},2097152)
-            require('records/private-error.txt' in names,'Original private error missing')
-            report['original_failure']=reduce_error(archive.read('records/private-error.txt').decode('utf-8-sig'),sources)
-            report['original_shape_record_present']='records/package-manifest-shape.json' in names
-        report['stage']='read_existing802_manifest_shape_only'
-        package=work/'existing802.zip';crypt(root,'decrypt',root/BUNDLE,package,key)
-        with zipfile.ZipFile(package) as archive:
-            entries=archive.infolist();name='acceptance-input-manifest.json'
-            matches=[entry for entry in entries if entry.filename==name]
-            require(len(matches)==1 and matches[0].file_size<=2097152,'Bounded internal manifest required')
-            unsafe=0
+            entries=archive.infolist()
+            records={'records/private-error.txt','records/package-manifest-shape.json',
+                     'records/authenticated-package.json','records/original-physical-binding.json',
+                     'records/current-physical-binding.json','records/current17-physical-binding.json',
+                     'records/current8-to-current17-reviewed.patch','records/current17-transform.json',
+                     'records/canonical-pre-migration.json','records/publication-baseline-binding.json',
+                     'records/preflight.log','records/reconcile.log'}
+            require(len(entries)<=4096,'Bounded retained diagnostic member count required')
             for entry in entries:
-                try:ci.fixture_path(entry.orig_filename)
-                except ValueError:unsafe+=1
-            report['package_archive_shape']=dict(member_count=len(entries),
-                directory_count=sum(entry.is_dir() for entry in entries),unsafe_path_count=unsafe,
-                duplicate_casefold_count=len(entries)-len({entry.filename.casefold() for entry in entries}),
-                entry_type_counts=dict(Counter(str(stat.S_IFMT(entry.external_attr>>16)) for entry in entries)))
-            report['manifest_shape']=manifest_shape(json.loads(archive.read(matches[0])))
+                ci.fixture_path(entry.orig_filename)
+            allowed=records|{entry.filename for entry in entries if entry.filename.startswith('publication-stage/')}
+            names=archive_names(archive,allowed,67108864)
+            require(len(names)==len({name.casefold() for name in names})
+                    and {'records/private-error.txt','records/preflight.log'}<=names,
+                    'Original retained gate diagnostic shape differs')
+            require(archive.getinfo('records/private-error.txt').file_size<=2097152,'Bounded original error required')
+            report['original_failure']=reduce_error(archive.read('records/private-error.txt').decode('utf-8-sig'),sources)
+            report['retained_gate_logs']={}
+            for label in ('preflight','reconcile'):
+                name='records/'+label+'.log'
+                if name not in names:
+                    report['retained_gate_logs'][label]={'present':False}
+                    continue
+                require(archive.getinfo(name).file_size<=2097152,'Bounded retained gate log required')
+                body=archive.read(name).decode('utf-8-sig')
+                report['retained_gate_logs'][label]=dict(present=True,**reduce_error(body,sources))
+                if label=='preflight':
+                    report['retained_gate_logs'][label]['pass_marker_present']='Candidate metadata preflight PASS' in body.splitlines()
+        report['reducer_self_checks_passed']=True
         report.update(status='AA_FAILURE_DIAGNOSTIC_COMPLETE',artifact_id=ARTIFACT,outer_sha256=OUTER_SHA,
                       encrypted_diagnostic_sha256=CIPHER_SHA,approved802_git_blob=BLOB)
         report.pop('stage',None)

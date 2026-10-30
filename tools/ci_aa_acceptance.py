@@ -125,9 +125,16 @@ def prepare_inputs(checkout, work, key, policy, expected_blob):
     git(checkout, 'merge-base', '--is-ancestor', TESTED_HEAD, 'HEAD')
     changed = set(git(checkout, 'diff', '--name-only', TESTED_HEAD, 'HEAD').decode().splitlines())
     require(changed <= {BUNDLE, 'tools/ci_aa_acceptance.py', 'tools/ci_aa_recovery.py',
-                        'tools/test_ci_aa_current17_transform.py',
+                        'tools/test_ci_aa_current17_transform.py', '.gitattributes',
                         REVIEWED_SOURCE_PATCH, '.ci/source-snapshot.json', '.github/workflows/validate.yml'},
             'Admission child contains an unreviewed source change')
+    attributes = git(checkout, 'show', TESTED_HEAD+':.gitattributes')
+    require(attributes.count(b'CI.md text eol=lf') == 1,
+            'AA_ATTRIBUTES_PREIMAGE_DIFFERS')
+    expected_attributes = attributes.replace(b'CI.md text eol=lf', b'CI.md -text')
+    require(git(checkout, 'show', 'HEAD:.gitattributes') == expected_attributes
+            and (checkout/'.gitattributes').read_bytes() == expected_attributes,
+            'AA_ATTRIBUTES_CHANGE_EXCEEDS_CI_MD_BYTE_PRESERVATION')
     require(not git(checkout, 'status', '--porcelain', '--untracked-files=no').strip(),
             'Tracked checkout is modified')
     source_pins = ci.input_hashes(checkout, tracked)
@@ -662,6 +669,12 @@ def main():
         summary['failure_code'] = (message.split(':', 1)[0] if re.fullmatch(r'AA_[A-Z0-9_]+(?::.*)?', message)
                                    else 'AA_ADMISSION_GUARD_OR_RUNTIME_FAILURE')
         summary['failure_type'] = type(error).__name__
+        public_owners = {str(checkout/name).replace('\\', '/').casefold(): name for name in (
+            'tools/ci_aa_acceptance.py', 'tools/ci_validate.py',
+            'tools/ci_remote_h.py', 'tools/ci_aa_recovery.py')}
+        summary['failure_public_frames'] = [dict(path=public_owners[frame.filename.replace('\\', '/').casefold()], line=frame.lineno)
+            for frame in traceback.extract_tb(error.__traceback__)
+            if frame.filename.replace('\\', '/').casefold() in public_owners]
         (work/'records/private-error.txt').write_text(traceback.format_exc(), encoding='utf-8')
     try:
         plaintext = work/'generated-artifacts.zip'
