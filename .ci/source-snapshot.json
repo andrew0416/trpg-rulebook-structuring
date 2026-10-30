@@ -24,9 +24,9 @@
   "previous_failed_run": 40228157654,
   "final_composition_sha256": "a03168867aaf1a88d6b7aa2724db5d9d9b0544b1768db865505cc4f0089ca77f",
   "final_required_union_sha256": "3ec15cbff1f7c371cdd0b0b5169309cfa4c48efa74e677b6929a27ef48cc69f1",
-  "active_repair": "clause-method-repair01",
-  "active_repair_scope": "IMPL-01 shared blinded movement cost and continuation; IMPL-02 independent Stacked Deck oracle; IMPL-03 Gas-only refusal and success control; IMPL-04 Entrainment Scene/AC/range boundaries.",
-  "active_repair_required_tests": 17,
+  "active_repair": "clause-oracle-mutation-1030",
+  "active_repair_scope": "Intentional Frozen GROUPS mutation; independent oracle rejection diagnostic only. Native failure and H rejection remain original outcomes.",
+  "active_repair_required_tests": 1,
   "active_repair_groups": [
     "changed_revisions"
   ],
@@ -42,7 +42,7 @@
   "separately_pending_frequency_equivalence_methods": 1029,
   "separately_pending_procedural_runners": 21,
   "ordinary_shard_count": 18,
-  "active_repair_phase": "bounded_native_repair_verification",
+  "active_repair_phase": "intentional_negative_oracle_diagnostic",
   "active_repair_procedural_runners": 0,
   "full_method_obligations": 13847,
   "ordinary_methods_separate_run": 40141538702,
@@ -77,14 +77,14 @@
   "phase2_metadata_methods_mandatory": 0,
   "phase2_additional_procedural_runners": 0,
   "unaffected_previous_PASS_reused": 0,
-  "selected_method_obligations": 17,
+  "selected_method_obligations": 1,
   "partial_prerequisite_refresh": true,
   "full_method_scope_executed": false,
   "source_fresh_native_prerequisites": 1404,
   "native_prerequisite_run": "40241811271",
   "activation_current_evidence_current": false,
   "previous_activation_evidence": "historical_only_not_current",
-  "active_repair_source_commit": "efbc0b2477c3dffddae0208e68cafdfe3f301cfd",
+  "active_repair_source_commit": "b47e38089463d57d48692b24e5033a364be7e1ce",
   "active_repair_source_plan_path": ".ci/suites/changed_revisions.json",
   "historical_source_contract_repair": {
     "source_commit": "2f8975c41bd76cf48c904df85cf92a489430dbbc",
@@ -1019,5 +1019,15 @@
     "registry_boundary": "Five existing remote registry/progress inputs differ from current canonical metadata; this run validates runtime only, not canonical ledger acceptance.",
     "completion_credit": 0
   },
-  "active_repair_source_note": "Source commit above is the unchanged parent baseline. CI run.json git_sha and physical input hashes bind the actual repaired head. Historical full-method totals are not a fresh inventory of these added boundary tests."
+  "active_repair_source_note": "Exact parent is baseline17. CI run.json binds the new mutation head. No ordinary PASS or completion credit is implied by mutation_killed.",
+  "oracle_mutation": {
+    "baseline_run": 40989718755,
+    "native_and_H_outcomes": "Preserve FAIL/H rejection; diagnostic boolean is separate",
+    "baseline_native_passes": 17,
+    "diagnostic_result": "output/ci/oracle-mutation/diagnostic.json",
+    "completion_credit": 0,
+    "baseline_head": "b47e38089463d57d48692b24e5033a364be7e1ce",
+    "mutation": "engine/trickster.py GROUPS only: 얼음 group 1 -> group 2",
+    "baseline_H": "H_PHYSICAL_ACCEPTED"
+  }
 }

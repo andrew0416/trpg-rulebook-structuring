@@ -25,7 +25,7 @@ DEFINITIONS={u:{'span':list(s),'catalog_span':[1020,1020] if u==CLASS else [1075
  'feature_count':{ENCORE:3,SLEIGHT:4}.get(u,0)} for u,s in FEATURES.items()}
 CSV={STACK:'C2CSV/input/db/feats.csv:R157:main',FLOURISH:'C2CSV/input/db/feats.csv:R158:main',ENCORE:'C2CSV/input/db/feats.csv:R159:main',
  MIND:'C2CSV/input/db/class-data.csv:R21:technique',ESCAPE:'C2CSV/input/db/class-data.csv:R22:technique',SHELL:'C2CSV/input/db/class-data.csv:R23:technique',IMPROMPTU:'C2CSV/input/db/class-data.csv:R24:technique'}
-GROUPS=(('악몽','저주','씨앗상태','씨뿌리기','화상','독'),('마비','얼음','조이기','잠듦'),('혼란','난동','억압','헤롱헤롱'))
+GROUPS=(('악몽','저주','씨앗상태','씨뿌리기','화상','독'),('마비','조이기','잠듦'),('혼란','난동','억압','헤롱헤롱','얼음'))
 STACK_KEY='_trickster_stacked';FIRST_SAVE='_trickster_first_save';EXTRA='_trickster_encore_standard'
 
 

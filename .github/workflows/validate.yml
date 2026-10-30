@@ -212,6 +212,116 @@ jobs:
           $env:TMPDIR = $taskTemp
           $env:RUNNER_TEMP = $taskTemp
           python -B -X utf8 tools/ci_remote_h.py --root "$env:GITHUB_WORKSPACE"
+      - name: Record the bounded independent oracle mutation result
+        if: ${{ always() && matrix.suite == 'changed_revisions' && github.ref == 'refs/heads/codex/clause-oracle-mutation-1030' }}
+        shell: pwsh
+        run: |
+          $taskTemp = 'D:\trpg-rulebook-structuring\ci-temp\{0}-{1}-oracle-mutation' -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT
+          New-Item -ItemType Directory -Path $taskTemp -Force -ErrorAction Stop | Out-Null
+          $env:TEMP = $taskTemp
+          $env:TMP = $taskTemp
+          $env:TMPDIR = $taskTemp
+          $env:RUNNER_TEMP = $taskTemp
+          $taskCode = @'
+          from hashlib import sha256
+          import json, os, re
+          from pathlib import Path
+
+          TEST = 'tools.test_book_trickster_full.TricksterFullTests.test_stacked_all_four_save_conditions_and_all_four_volatile_conditions'
+          FAILED = TEST + " (condition='얼음')"
+          REST = ('조이기', '잠듦', '혼란', '난동', '억압', '헤롱헤롱')
+          root = Path(os.environ['GITHUB_WORKSPACE']).resolve()
+          head = os.environ.get('GITHUB_SHA', '')
+          hashes = {}
+          killed = False
+
+          def require(condition):
+              if not condition:
+                  raise ValueError('Mutation evidence did not match the reviewed diagnostic')
+
+          def raw(path, label, limit=16777216):
+              require(path.is_file() and path.stat().st_size <= limit)
+              body = path.read_bytes()
+              hashes[label] = sha256(body).hexdigest()
+              return body
+
+          def document(path, label):
+              return json.loads(raw(path, label).decode('utf-8-sig'))
+
+          try:
+              require(re.fullmatch('[0-9a-f]{40}', head) is not None)
+              require(os.environ.get('GITHUB_REF') == 'refs/heads/codex/clause-oracle-mutation-1030')
+              runs = list((root / 'output/ci').glob('*/run.json'))
+              require(len(runs) == 1)
+              output = runs[0].parent
+              run = document(runs[0], 'run')
+              require(run.get('suite') == 'changed_revisions' and run.get('git_sha') == head
+                      and run.get('ci', {}).get('GITHUB_SHA') == head
+                      and run.get('tracked_changes') is False and run.get('inputs_unchanged') is True)
+              require(run.get('verifier_outcome', {}).get('exit_code') == 1)
+              reports = list((output / 'verifier').glob('tests-*.json'))
+              require(len(reports) == 1)
+              report = document(reports[0], 'raw_report')
+              log_path = reports[0].with_suffix('.log')
+              log = raw(log_path, 'raw_log', 67108864).decode('utf-8-sig')
+              physical = document(output / 'physical/ci-native.json', 'physical_metadata')
+              packet = document(root / '.ci/suites/changed_revisions.json', 'packet')
+              require(packet.get('id') == 'clause-oracle-mutation-1030'
+                      and packet.get('required_unique_count') == 1
+                      and [case for row in packet['completed'].values() for case in row['tests']] == [TEST])
+              require(report.get('kind') == 'run' and report.get('successful') is False
+                      and report.get('tests_run') == 1 and report.get('collected') == [TEST]
+                      and report.get('requested') == [TEST] and report.get('retry_ids') == [TEST]
+                      and report.get('stage') == run.get('execution_stage')
+                      and report.get('discovery_errors') == [] and report.get('errors') == []
+                      and report.get('expected_failures') == [] and report.get('unexpected_successes') == [])
+              require([row.get('id') for row in report.get('test_durations', [])] == [TEST])
+              failures = report.get('failures', [])
+              require(len(failures) == 1 and failures[0].get('id') == FAILED)
+              trace = failures[0].get('traceback')
+              require(isinstance(trace, str) and trace.strip().splitlines()[-1] == 'AssertionError: 2 != 1'
+                      and "self.assertEqual(record['group'],1)" in trace)
+              require(report.get('skipped') == [
+                  {'id': TEST + " (condition='" + condition + "')",
+                   'reason': 'blocked by failed preceding actual condition: 얼음'}
+                  for condition in REST])
+              method = TEST.rsplit('.', 1)[1]
+              require(('FAIL: ' + method + ' (' + TEST + ") (condition='얼음')") in log.splitlines())
+              require('AssertionError: 2 != 1' in log.splitlines()
+                      and re.search(r'(?m)^Ran 1 test in [0-9.]+s\s*$', log) is not None
+                      and re.search(r'(?m)^FAILED \(failures=1, skipped=6\)\s*$', log) is not None)
+              require(physical.get('successful') is False and physical.get('exit_code') == 1
+                      and physical.get('test_ids') == [TEST] and physical.get('actual_test_ids') == [TEST]
+                      and physical.get('tests') == 1 and physical.get('failure_ids') == [FAILED]
+                      and physical.get('error_ids') == [] and physical.get('exception') is None
+                      and physical.get('stable_hashes') is True
+                      and physical.get('complete_pre_input_capture') is True
+                      and physical.get('complete_loaded_input_capture') is True
+                      and not physical.get('changed_origin_errors')
+                      and not physical.get('input_read_errors'))
+              require(physical.get('original_cli_report') == str(reports[0])
+                      and physical.get('original_cli_log') == str(log_path))
+              pins = physical['runtime_test_data_sha256_before']
+              for relative, label in (('engine/trickster.py', 'mutated_runtime'),
+                                      ('tools/test_book_trickster_full.py', 'unchanged_oracle')):
+                  raw(root / relative, label)
+                  require(pins.get(str(Path(run['execution_stage']) / relative)) == hashes[label])
+              require(physical['runtime_test_data_sha256_after'] == pins)
+              killed = True
+          except Exception:
+              # Never expose raw report fields, private paths or tracebacks.
+              killed = False
+          destination = root / 'output/ci/oracle-mutation/diagnostic.json'
+          destination.parent.mkdir(parents=True, exist_ok=True)
+          with destination.open('x', encoding='utf-8') as stream:
+              json.dump({'mutation_killed': killed, 'head': head if re.fullmatch('[0-9a-f]{40}', head) else None,
+                         'test_ids': [TEST], 'raw_sha256': hashes}, stream, indent=2)
+              stream.write('\n')
+          print('Bounded mutation diagnostic saved; native and H outcomes are unchanged.')
+          raise SystemExit(0 if killed else 1)
+          '@
+          python -I -B -X utf8 -c $taskCode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Preserve small encrypted diagnostics
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -237,6 +347,7 @@ jobs:
             output/ci/*/evidence.zip.enc
             output/ci/remote-h/h-summary.json
             output/ci/remote-h/h-proof.json.enc
+            output/ci/oracle-mutation/diagnostic.json
           if-no-files-found: warn
           retention-days: 14
 

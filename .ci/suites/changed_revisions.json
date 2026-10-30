@@ -1,52 +1,28 @@
 {
   "schema_version": 1,
-  "id": "clause-method-repair01",
-  "purpose": "IMPL-01 shared blinded movement cost and continuation; IMPL-02 independent Stacked Deck oracle; IMPL-03 Gas-only refusal and success control; IMPL-04 Entrainment Scene/AC/range boundaries.",
+  "id": "clause-oracle-mutation-1030",
+  "purpose": "Intentional negative diagnostic: move only Frozen from Stacked Deck save group to volatile group; the independent source oracle must reject it. Native/H failure is preserved, never converted to PASS.",
   "completion_credit": 0,
-  "required_unique_count": 17,
+  "required_unique_count": 1,
   "completed": {
-    "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests": {
-      "tests": [
-        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_rough_and_slow_costs_share_both_turns_and_survive_restore",
-        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_bad_blindness_declaration_rejects_before_action_or_distance",
-        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_failed_check_charges_only_the_actual_entered_slow_cell",
-        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_entry_failure_rolls_back_position_pool_shift_and_rng",
-        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_actual_entry_pending_restore_resumes_once_including_zero_remaining",
-        "tools.test_blinded_living_weapon_movement.BlindedLivingWeaponMovementTests.test_returned_entry_with_exhausted_live_pool_stops_before_the_next_cell"
-      ]
-    },
-    "tools.test_living_weapon_movement_noguard_source_revision.LivingWeaponMovementNoGuardSourceRevisionTests": {
-      "tests": [
-        "tools.test_living_weapon_movement_noguard_source_revision.LivingWeaponMovementNoGuardSourceRevisionTests.test_shared_pool_uses_trainer_or_pokemon_holder_speed_across_turns_restore_and_rounds",
-        "tools.test_living_weapon_movement_noguard_source_revision.LivingWeaponMovementNoGuardSourceRevisionTests.test_partial_paid_path_rejected_step_and_resumed_prefix_debit_only_committed_cost",
-        "tools.test_living_weapon_movement_noguard_source_revision.LivingWeaponMovementNoGuardSourceRevisionTests.test_native_entry_failure_rolls_back_joint_position_pool_action_and_rng"
-      ]
-    },
     "tools.test_book_trickster_full.TricksterFullTests": {
       "tests": [
-        "tools.test_book_trickster_full.TricksterFullTests.test_stacked_failed_save_does_not_consume_next_success_and_success_trips_slows",
-        "tools.test_book_trickster_full.TricksterFullTests.test_stacked_accuracy_evasion_minus_two_lasts_only_selected_volatile_condition",
-        "tools.test_book_trickster_full.TricksterFullTests.test_stacked_all_four_save_conditions_and_all_four_volatile_conditions",
-        "tools.test_book_trickster_full.TricksterFullTests.test_stacked_scene_per_foe_quota_is_not_per_condition"
-      ]
-    },
-    "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests": {
-      "tests": [
-        "tools.test_csv_ability_exchange_contracts.AbilityExchangeContractsTests.test_real_interrupt_offer_use_is_blocked_after_gas_enters_but_decline_is_free"
-      ]
-    },
-    "tools.test_entrainment_header_boundaries.EntrainmentHeaderBoundaryTests": {
-      "tests": [
-        "tools.test_entrainment_header_boundaries.EntrainmentHeaderBoundaryTests.test_entrainment_scene_quota_survives_encounter_then_resets_at_scene_boundary",
-        "tools.test_entrainment_header_boundaries.EntrainmentHeaderBoundaryTests.test_entrainment_ac2_uses_speed_evasion_threshold",
-        "tools.test_entrainment_header_boundaries.EntrainmentHeaderBoundaryTests.test_entrainment_range_four_accepts_edge_and_rejects_fifth_meter_before_cost"
+        "tools.test_book_trickster_full.TricksterFullTests.test_stacked_all_four_save_conditions_and_all_four_volatile_conditions"
       ]
     }
   },
   "provenance": {
-    "runtime_base_main": "bd97815ba3e1e7258cd8b775bd0915a3ae0f17b3",
-    "base_commit": "efbc0b2477c3dffddae0208e68cafdfe3f301cfd",
-    "original_evidence": "Existing historical PASS and mixed failures are preserved; no PASS is transferred to changed tests.",
-    "status": "SOURCE_REVIEWED_PENDING_REMOTE_EXECUTION"
+    "base_commit": "b47e38089463d57d48692b24e5033a364be7e1ce",
+    "baseline_native_run": 40989718755,
+    "baseline_native_passes": 17,
+    "baseline_independent_H": "H_PHYSICAL_ACCEPTED",
+    "mutated_runtime": "engine/trickster.py#GROUPS",
+    "unchanged_oracle": "tools/test_book_trickster_full.py#STACKED_EXPECTED",
+    "expected_parent_failures": 1,
+    "expected_errors": 0,
+    "expected_failed_condition": "얼음",
+    "expected_assertion": "AssertionError: 2 != 1",
+    "status": "SOURCE_PREPARED_NOT_EXECUTED",
+    "publication_boundary": "Diagnostic branch only; never publish this mutated runtime as the repaired canonical implementation."
   }
 }
