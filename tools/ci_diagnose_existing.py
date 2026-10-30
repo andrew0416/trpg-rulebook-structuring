@@ -30,6 +30,23 @@ EXCEPTIONS = {'AssertionError', 'ValueError', 'TypeError', 'KeyError', 'NameErro
               'ModuleNotFoundError', 'FileNotFoundError', 'PermissionError', 'TimeoutError', 'StateCodecError'}
 
 
+MESSAGE_LIMIT = 6
+MESSAGE_CHARS = 240
+
+
+def masked_message(kind, text):
+    """Engine-authored exception text with every Hangul run, long hex digest and number run masked.
+
+    Rule names, Move/condition names and sheet values never leave the runner; world-integrity
+    codes and the engine's own English refusal wording do, so a failure can be attributed.
+    """
+    text = re.sub(r'[\uac00-\ud7a3\u3131-\u318e]+', '\u25a1', text)
+    text = re.sub(r'[0-9a-f]{12,}', '#', text)
+    text = re.sub(r'(?<![A-Za-z_])[0-9]{3,}(?![A-Za-z_])', 'N', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return kind + ': ' + text[:MESSAGE_CHARS] + ('\u2026' if len(text) > MESSAGE_CHARS else '')
+
+
 def require(condition):
     if not condition:
         raise ValueError('Fixed diagnostic binding rejected')
@@ -106,7 +123,7 @@ def diagnose(root, private, key, token):
     require(len(ids) == len(set(ids)) == packet['required_unique_count'] == 222)
     require(all(isinstance(uid, str) and re.fullmatch(r'(?:tools|tests)(?:\.[A-Za-z_][A-Za-z0-9_]*){2,}\.test_[A-Za-z0-9_]+', uid) for uid in ids))
     allowed = set(ids)
-    rows = {uid: {'id': uid, 'status': 'not_reported', 'exception_classes': [], 'public_frames': []} for uid in ids}
+    rows = {uid: {'id': uid, 'status': 'not_reported', 'exception_classes': [], 'public_frames': [], 'messages': []} for uid in ids}
     with zipfile.ZipFile(io.BytesIO(body)) as outer:
         names = outer.namelist()
         require(len(names) == 3 and len(set(names)) == 3)
@@ -162,9 +179,14 @@ def diagnose(root, private, key, token):
             if uid is None or not isinstance(detail, str):
                 continue
             for text in detail.splitlines():
-                kind = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)(?::|$)', text)
-                if kind and kind[1] in EXCEPTIONS and kind[1] not in rows[uid]['exception_classes']:
-                    rows[uid]['exception_classes'].append(kind[1])
+                # Exception lines may be module-qualified (state_codec.StateCodecError: ...).
+                kind = re.match(r'^(?:[A-Za-z_][A-Za-z0-9_]*\.)*([A-Za-z_][A-Za-z0-9_]*)(?::\s?(.*))?$', text)
+                if kind and kind[1] in EXCEPTIONS:
+                    if kind[1] not in rows[uid]['exception_classes']:
+                        rows[uid]['exception_classes'].append(kind[1])
+                    message = masked_message(kind[1], kind[2] or '')
+                    if message not in rows[uid]['messages'] and len(rows[uid]['messages']) < MESSAGE_LIMIT:
+                        rows[uid]['messages'].append(message)
                 frame = re.fullmatch(r'  File "([^"\r\n]+)", line ([1-9][0-9]*)(?:, in [^\r\n]*)?', text)
                 if not frame:
                     continue
