@@ -38,9 +38,10 @@ class StockpileFamilyTests(unittest.TestCase):
   for _ in range(count):COUNTERS.change(self.e,self.a,{'name':'stockpile','delta':1,'max':3},S.STOCKPILE)
  def paid(self):return deepcopy((self.a.budget,self.a.move_uses,self.a.counters,self.a.stages))
  def injure(self):
-  self.e.lose_hp(self.a,self.a.base_max_hp-1,source='gm/fixture-injury');return self.a.hp
+  self.e.gm.set_hp(self.a,1,reason='actual fixture injury without a massive-damage injury');return self.a.hp
  def heal_expected(self,hp,num,den):
-  return min(self.a.base_max_hp,hp+M.ratio(self.a.base_max_hp*num,den))
+  # r598 / en11923 heal by the current maximum HP ('현재최대체력'), capped at that maximum
+  return min(self.a.max_hp,hp+M.ratio(self.a.max_hp*num,den))
 
  def test_spit_up_is_refused_before_cost_without_a_count(self):
   before=self.paid()

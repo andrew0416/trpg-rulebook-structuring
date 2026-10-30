@@ -138,10 +138,8 @@ class NaturalFighterMoveTests(unittest.TestCase):
         self.cast(MOVES.SAND)
         self.next_actor_turn()
         def gameplay():
-            return deepcopy((self.a.hp, self.t.hp, self.a.budget, self.a.spec, self.t.spec,
-                self.a.conditions, self.t.conditions, self.a.custom_conditions,
-                self.t.custom_conditions, self.a.move_uses, self.t.move_uses,
-                self.e.rng.getstate()))
+            # The native codec dump compares timed records by content, not by object identity.
+            return deepcopy((CODEC.dump_engine(self.e), self.e.rng.getstate()))
         before = gameplay()
         self.assertEqual(self.e.use_move_on(self.a, self.t, MOVES.SAND, self.e.everyone), 0)
         self.assertEqual(before, gameplay())

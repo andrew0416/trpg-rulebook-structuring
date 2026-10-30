@@ -237,7 +237,7 @@ class GlitchBenderFullTests(unittest.TestCase):
 
  def test_22_homebrew_error_connection_type_ace_equivalence_no_auto_other_class(self):
   self.scene(edition='homebrew');self.acquire();self.assertEqual(B.type_ace_skill(self.e,self.a,'에러'),6)
-  self.assertEqual(len(AC.class_instances(self.a)),1);self.assertNotIn('class/타입-에이스',self.a.spec['classes']);self.family(B.NULL);self.family(B.SHUFFLE)
+  self.assertEqual(len(AC.class_instances(self.a)),1);self.assertNotIn('class/타입-에이스',self.a.spec.get('classes',[]));self.family(B.NULL);self.family(B.SHUFFLE)
   self.assertEqual(AC.count_for_class(self.a,'class/타입-에이스'),3);self.assertEqual(len(B.type_ace_features(self.a)),3);self.restore();self.valid()
 
  def test_23_homebrew_actual_two_tp_extended_ability_once_each_pokemon_native_branch(self):
