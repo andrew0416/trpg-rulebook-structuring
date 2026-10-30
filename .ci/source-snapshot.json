@@ -1,7 +1,7 @@
 {
   "canonical_completed": 1503,
-  "fixture_files": 1569,
-  "fixture_zip_sha256": "3e3c3c899854625278a5b3133b72646fd937ed4203dc727facd465d20d913c85",
+  "fixture_files": 1571,
+  "fixture_zip_sha256": "d6c6a42b384cdd70a3529d88438be693687db13121fc0f67defbb93f8413d849",
   "scope": "Full fixed185-finding/406-clause revision drafts plus accepted shared-runtime regressions and explicitly separate personal type permissions; no current PASS or completion credit.",
   "revision_groups": [
     "final_revisions_01",
@@ -1033,5 +1033,26 @@
       "GLITCH",
       "WEATHER-SCOPE"
     ]
+  },
+  "survivalist_policy1_fixture_preparation": {
+    "status": "AUTHENTICATED_APPEND_ONE_PREPARED_NOT_NATIVE_TESTED",
+    "source_base": "5cb633a442822bf477b2edd53d494e9c33201617",
+    "preparation_parent": "0081583af8a28463ace16bf8c8ade5cc54e199bd",
+    "policy_path": "data/survivalist-hb-definitions.json",
+    "policy_size": 1912,
+    "policy_sha256": "1789492d711e5d51287c174936e246c20521e57331e09a1e4daa3b0cb2198d39",
+    "input_cipher_sha256": "128df9cc9d78e6673dc6ca40a9e449e63882940c7fc30388293bdb7308c03e83",
+    "preserved_members": 1570,
+    "added_members": 1,
+    "result_members": 1571,
+    "prior_snapshot_fixture_files": 1569,
+    "prior_snapshot_fixture_zip_sha256": "3e3c3c899854625278a5b3133b72646fd937ed4203dc727facd465d20d913c85",
+    "actual_prior_zip_sha256": "0c8e57ae29754b08349e5b06d163180a36e034ae8a38e3424a425c778d838682",
+    "fixture_zip_sha256": "d6c6a42b384cdd70a3529d88438be693687db13121fc0f67defbb93f8413d849",
+    "fixture_cipher_sha256": "89f8e71c5bfcbb2cbc67041bdcaf09aad48e46c47a33ab66e12db7bb64f2d61f",
+    "private_policy_sidecar_unchanged": true,
+    "native_runs": 0,
+    "completion_credit": 0,
+    "main_merge": false
   }
 }
