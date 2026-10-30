@@ -895,6 +895,7 @@ jobs:
                       scope=label,tracked_path_count=len(known),status=channels(raw),nul_status=channels(nul),
                       public_tracked_records=records,unknown_content_exported=False,game_runs=0,clause_credit=0)
           destination.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+          print(json.dumps(report))
           if any(result.returncode for result in (head,tree,raw,nul)) or not report['checkout_head_matches']:
               raise SystemExit('Checkout provenance command or head check failed')
           if '--require-clean' in sys.argv and (raw.stdout.strip() or nul.stdout.strip()):
