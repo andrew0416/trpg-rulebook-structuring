@@ -25,12 +25,76 @@ def actor_id(actor):
 
 
 def actors(engine, extra=()):
-    """Traverse actual state references, including off-field/delayed actors.
+    """Actors of the current world: the rosters first, then every actor held by an engine
+    registry (a field value, an item of a list or dict field, or an item one level inside
+    such a container), then the extra participants.
 
+    The reference definition is _walk_actors (a full state-graph traversal); this registry
+    view gives the same set in a few microseconds instead of a walk over every record and
+    history. PTK_ACTOR_INDEX_CHECK=1 compares the two on every call and fails on a difference.
     Historical snapshots are deliberately not members of the current world.
-    Repeated references to one actor are fine; distinct actors sharing an ID
-    are checked separately by actor_index.
     """
+    import os
+    found = _registry_actors(engine, extra)
+    if os.environ.get('PTK_ACTOR_INDEX_CHECK'):
+        walked = {id(a): a for a in _walk_actors(engine, extra)}
+        if set(walked) != set(found):
+            missing = [a.spec.get('id') for k, a in walked.items() if k not in found]
+            extra_ids = [a.spec.get('id') for k, a in found.items() if k not in walked]
+            raise ValueError('actor enumeration: registry view differs from the state-graph walk; missing '
+                             + repr(missing) + ', extra ' + repr(extra_ids))
+    return tuple(found.values())
+
+
+def _registry_actors(engine, extra=()):
+    """Rosters first, then a bounded walk of the engine registries: dict/list/tuple/set
+    containers and record dataclasses down to a few levels, never descending into an actor
+    (its spec, histories and last_target chains are what make the full walk expensive) and
+    skipping the execution-trace log, whose rows hold no actors."""
+    from state_codec import native_data_types, _types
+    from dataclasses import fields
+    actor_type = _types()[1]
+    records = native_data_types()
+    found = {}
+    def visit(value, depth):
+        kind = type(value)
+        if kind is actor_type:
+            found.setdefault(id(value), value)
+            return
+        if depth == 0:
+            return
+        if kind is dict:
+            for key, item in value.items():
+                if type(key) is actor_type:
+                    found.setdefault(id(key), key)
+                if type(item) not in (str, int, float, bool, bytes, type(None)):
+                    visit(item, depth - 1)
+        elif kind in (list, tuple, set, frozenset):
+            for item in value:
+                if type(item) not in (str, int, float, bool, bytes, type(None)):
+                    visit(item, depth - 1)
+        elif kind in records:
+            for field in fields(value):
+                visit(getattr(value, field.name), depth - 1)
+    for roster in (getattr(getattr(engine, 'gm', None), 'everyone', None), getattr(engine, 'everyone', None)):
+        if isinstance(roster, (list, tuple)):
+            for member in roster:
+                if type(member) is actor_type:
+                    found.setdefault(id(member), member)
+    for field, value in vars(engine).items():
+        if field in ('r', 'gm', 'rulings', 'rng', '_execution_traces'):
+            continue
+        visit(value, 6)
+    for item in extra:
+        if type(item) is actor_type:
+            found.setdefault(id(item), item)
+    return found
+
+
+def _walk_actors(engine, extra=()):
+    """Reference enumeration: traverse actual state references, including off-field/delayed
+    actors. Repeated references to one actor are fine; distinct actors sharing an ID are
+    checked separately by actor_index."""
     from state_codec import native_data_types, native_batch_type, _types
     pure_records = native_data_types();batch_type=native_batch_type();actor_type=_types()[1]
     found = {}; seen = set()

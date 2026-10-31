@@ -129,6 +129,21 @@ def latest(rules,key):
 
 
 _RESOLVED_SOURCES={}
+_PARSED_JSON={}
+
+
+def read_json(path):
+ """Parse a JSON file once per content. The bytes are read on every call and compared, so a
+ changed file is re-parsed; an unchanged one returns the same parsed object, which callers
+ treat as read-only (copy before editing)."""
+ import json
+ path=str(path)
+ with open(path,'rb') as handle:data=handle.read()
+ cached=_PARSED_JSON.get(path)
+ if cached is not None and cached[0]==data:return cached[1]
+ value=json.loads(data.decode('utf-8'))
+ _PARSED_JSON[path]=(data,value)
+ return value
 
 
 def verified_source(rules, reference, *, label='policy', source_root='input'):

@@ -300,8 +300,8 @@ def _species_family(actor, species):
         if selected.get("_source", {}).get("file") != "db/pokemon.csv":
             return None
         names = ACTIVITIES._evolution_family(actor, selected["id"])
-        catalog = {row["species"]: row for row in json.loads(
-            (Path(actor.r.root) / "output/entities/learnsets.json").read_text(encoding="utf-8"))}
+        # Read-only comparison against the saved catalog; parsed once per file content.
+        catalog = {row["species"]: row for row in __import__('source_context').read_json(Path(actor.r.root) / "output/entities/learnsets.json")}
         if any(actor.r.learnsets.get(name) != catalog.get(name) or name not in catalog for name in names):
             return None
         return sorted(species_lookup(actor.r, name)["id"] for name in names)

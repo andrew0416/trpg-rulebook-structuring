@@ -74,11 +74,74 @@ def _excluded_move_admission(fn):
 
 
 class Rules:
+    # In-process templates: a Rules object built from unchanged corpus files is cloned (pickle)
+    # instead of rebuilt. Keyed by (root, ruleset, the corpus manifest); only plain
+    # Rules(root, ruleset=...) calls qualify, every other argument shape builds fresh.
+    # Each clone is an independent object with its own tables. PTK_RULES_TEMPLATE=0 disables.
+    _templates = {}
+
     def __init__(self, *args, **kwargs):
+        if self._from_template(args, kwargs):
+            return
         # Loading one Rules object is one source-verification scope (source_selection).
         import source_selection as SOURCES
         with SOURCES.verification_scope():
             self._construct(*args, **kwargs)
+        self._store_template(args, kwargs)
+
+    def __copy__(self):
+        # A shallow copy shares the rule tables, so it may share their cached fingerprint
+        # pieces (identity-keyed); the clone gets its own cache dict so touch() stays per object.
+        clone = self.__class__.__new__(self.__class__)
+        clone.__dict__.update(self.__dict__)
+        import state_codec as CODEC
+        CODEC.piece_cache(clone).update(CODEC.piece_cache(self))
+        return clone
+
+    @staticmethod
+    def _template_key(args, kwargs):
+        import os as _os
+        if _os.environ.get('PTK_RULES_TEMPLATE', '1') == '0':
+            return None
+        if len(args) != 1 or not isinstance(args[0], (str, _os.PathLike)) or set(kwargs) - {'ruleset'}:
+            return None
+        ruleset = kwargs.get('ruleset')
+        if ruleset is not None and type(ruleset) is not str:
+            return None
+        try:
+            import state_codec as CODEC
+            from pathlib import Path
+            root = Path(args[0])
+            manifest = tuple((p.relative_to(root).as_posix(), CODEC._corpus_digest(p)) for p in CODEC._corpus_paths(root))
+        except Exception:
+            return None
+        return (_os.path.abspath(args[0]), type(args[0]).__name__, ruleset, manifest)
+
+    def _from_template(self, args, kwargs):
+        key = self._template_key(args, kwargs)
+        if key is None:
+            return False
+        entry = Rules._templates.get(key)
+        if entry is None:
+            return False
+        import pickle
+        import state_codec as CODEC
+        blob, pieces = entry
+        self.__dict__.update(pickle.loads(blob).__dict__)
+        CODEC.piece_cache(self).update(pieces)       # clones start with a warm fingerprint cache
+        return True
+
+    def _store_template(self, args, kwargs):
+        key = self._template_key(args, kwargs)
+        if key is None:
+            return
+        import pickle
+        import state_codec as CODEC
+        try:
+            CODEC.rules_fingerprint(self)              # warm the pieces once for every clone
+            Rules._templates[key] = (pickle.dumps(self, protocol=5), dict(CODEC.piece_cache(self)))
+        except Exception:
+            pass                                      # a Rules that cannot be pickled or fingerprinted is simply not a template
 
     def _construct(self, root, use_hand=True, rulings_path=None, ruleset=None, custom_species=None):
         self.root = root
