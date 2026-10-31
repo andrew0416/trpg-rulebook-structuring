@@ -953,7 +953,7 @@ class Engine:
         # Admission must not alter earlier actors when a later candidate fails.
         for c in actors:
             FREQ.validate_session_binding(self,c);INJURY.validate_clock(c)
-        self._time_actors = actors
+        self._time_actors = actors;__import__('world_entities').roster_changed(self)
         for c in self._time_actors:
             FREQ.bind_session(self,c);INJURY.observe_actor(self,c)
         return list(self._time_actors)

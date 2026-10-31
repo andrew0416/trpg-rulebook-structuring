@@ -189,8 +189,10 @@ class NumericMeleeReachSourceRevisionTests(unittest.TestCase):
         self.choose(actor,'core_size_rule')
         catalog=self.r.species[actor.spec['species']]
         with patch.dict(catalog,{'size':'중형'}):
+            self.r.touch('species')   # an edit inside an existing species row is declared
             assert_rejected_unchanged(self.e,lambda:self.e.use_move(actor,target,'move/몸통박치기'),
                                       reason_pattern='cells disagree with the current catalog')
+        self.r.touch('species')       # patch.dict restored the row in place
         with patch.dict(self.r.selection.aliases,{BODY.REACH_SOURCE:'edge/미용사'}):
             assert_rejected_unchanged(self.e,lambda:self.e.use_move(actor,target,'move/몸통박치기'),
                                       reason_pattern='selected Reach source')

@@ -387,7 +387,8 @@ def in_range(engine,left,right,reach,*,left_position=None,move=None):
     if CONTROL.ignores_range(engine,left,move):reach=float('inf')
     a=attack_cells(engine,left,move,position=left_position);b=at_position(right)
     import body_modes as MODES
-    return any(cheb(x,y)<=reach and not engine.grid.blocked(x,y) and not MODES.blocks_line(engine,x,y,ignored=(left,right)) for x in a for y in b)
+    grid=engine.grid   # a scene without a grid (contest hall, downtime) has no blocking cells
+    return any(cheb(x,y)<=reach and not (grid is not None and grid.blocked(x,y)) and not MODES.blocks_line(engine,x,y,ignored=(left,right)) for x in a for y in b)
 
 
 def can_place(engine,actor,position,*,origin=None,altitude=None,ignore_actors=(),underground=None):

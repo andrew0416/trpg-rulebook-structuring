@@ -264,7 +264,7 @@ def extended_action(engine, actor, skill, dc, options, adjudication):
             native_options=deepcopy(options,memo)
             # The existing adapter binds an explicitly supplied actor to its
             # durable task. Preserve that native admission for detached new IDs.
-            if task_id not in staged._extended_checks:staged._extended_checks[task_id]={'actor':actual}
+            if task_id not in staged._extended_checks:staged._extended_checks[task_id]={'actor':actual};__import__('world_entities').roster_changed(staged)
             if existing is None:JOBS._start(staged,actual,helpers,job_id=job_id,source='gameplay/skill-check',policy=policy,context={'task_id':task_id})
             if terminal:
                 action,record=resolve(staged,observed,actual,native_options)
@@ -276,7 +276,7 @@ def extended_action(engine, actor, skill, dc, options, adjudication):
                 JOBS._work(staged,JOBS._row(staged,job_id),interval_id=interval_id,seconds=seconds,
                            roller=native_roll,contribution=contributor)
                 action,record=payload[0]
-            record['job_id']=job_id;staged._extended_checks[task_id]=record
+            record['job_id']=job_id;staged._extended_checks[task_id]=record;__import__('world_entities').roster_changed(staged)
             JOBS.validate_world(staged,W.actor_index(staged))
             return action
         return G.transition(engine,actor,apply,participants=participants)

@@ -51,7 +51,8 @@ def _roll_type(e,fixed_d20=None):
 
 
 def _is_power(move):
-    return move.get('name','').startswith('잠재파워') or move.get('eng','').startswith('Hidden Power')
+    # A move record may carry eng=None (no English name); only Hidden Power's names count.
+    return (move.get('name') or '').startswith('잠재파워') or (move.get('eng') or '').startswith('Hidden Power')
 
 
 def records(actor, feature=None, active=False):

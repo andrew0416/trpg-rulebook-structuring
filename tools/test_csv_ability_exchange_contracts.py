@@ -483,12 +483,12 @@ class AbilityExchangeContractsTests(unittest.TestCase):
         try:
             for effects in variants:
                 with self.subTest(effects=effects):
-                    self.r.moves_llm['동료만들기']['effects']=deepcopy(original);self.setUp()
+                    self.r.moves_llm['동료만들기']['effects']=deepcopy(original);self.r.touch('moves_llm');self.setUp()
                     self.give(self.a,['단순']);self.choose(self.a,self.t,X.ENTRAIN,'단순')
-                    self.r.moves_llm['동료만들기']['effects']=deepcopy(effects)
+                    self.r.moves_llm['동료만들기']['effects']=deepcopy(effects);self.r.touch('moves_llm')
                     assert_rejected_unchanged(self.e,lambda:self.hit(move=X.ENTRAIN),
                                               reason_pattern='Entrainment requires its exact reviewed legacy grant declaration')
-        finally:self.r.moves_llm['동료만들기']['effects']=original
+        finally:self.r.moves_llm['동료만들기']['effects']=original;self.r.touch('moves_llm')
 
     def test_receiver_bequeath_respects_allys_actual_ability_shield(self):
         receiver=self.actor('shielded bequeath source',['리시버','엽록소'],(5,5),'party',pokemon=True)

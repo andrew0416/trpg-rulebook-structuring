@@ -39,6 +39,10 @@ def _species(actor):
 
 
 def _stock_species(actor, name):
+    # A sheet without a species identity cannot be the stock CSV species; synthetic
+    # fixtures and partial actors reach the skill-pool projection without one.
+    if not isinstance(actor.spec.get("species"), str):
+        return False
     row = _species(actor)
     return row.get("id") == "pokemon/" + name and row.get("_source", {}).get("file") == "db/pokemon.csv"
 

@@ -254,6 +254,19 @@ def _piece(value):
     return json.dumps(_plain(value), **_FINGERPRINT_JSON)
 
 
+def _shape(value):
+    """Shallow shape of a cached table: its length and the identities of its direct values.
+
+    Replacing, adding or removing an entry (``rules.species[uid] = row``, ``patch.dict``) changes
+    the shape and misses the cache without a declaration; an edit inside an existing entry
+    (``rules.moves[mid]['type'] = ...``) does not, and still needs Rules.touch()."""
+    if type(value) is dict:
+        return (len(value), tuple(map(id, value.values())))
+    if type(value) is list:
+        return (len(value), tuple(map(id, value)))
+    return None
+
+
 def _selected_digest(rules, manifest, policy):
     """sha256 of exactly the compact JSON json_fingerprint produces for
     {'files': manifest, 'selected': policy}, assembled from per-attribute pieces.
@@ -272,7 +285,10 @@ def _selected_digest(rules, manifest, policy):
         value = policy[key]
         entry = cache.get(key) if cache is not None else None
         if key == 'selection' and type(value) is dict:
-            identity = tuple((k, id(v)) for k, v in sorted(value.items()))
+            # Selection containers (units, names, ...) are registered into in place by eleven
+            # derived-identity sites; their sizes are part of the identity so a registration or
+            # removal misses the cache without a declaration (an edit of an existing unit still needs touch).
+            identity = tuple((k, id(v), len(v) if hasattr(v, '__len__') else None) for k, v in sorted(value.items()))
             if entry is not None and entry[0] == identity:
                 text, blob = entry[2], entry[3]
             else:
@@ -281,7 +297,8 @@ def _selected_digest(rules, manifest, policy):
                 if cache is not None:
                     cache[key] = (identity, tuple(value.values()), text, blob)
         else:
-            if entry is not None and entry[0] is value:
+            shape = _shape(value)
+            if entry is not None and entry[0] is value and entry[3] == shape:
                 text, blob = entry[1], entry[2]
             else:
                 text = _piece(value)
@@ -289,7 +306,7 @@ def _selected_digest(rules, manifest, policy):
                 # Only large tables are cached; a small policy is re-read on every call, so an
                 # in-place edit of it is still detected without a declaration.
                 if cache is not None and len(text) >= _CACHED_PIECE_MIN:
-                    cache[key] = (value, text, blob)
+                    cache[key] = (value, text, blob, shape)
         if cache is not None and os.environ.get('PTK_FINGERPRINT_CHECK') and text != _piece(value):
             _fail('fingerprint cache stale for ' + key + ' (in-place edit without Rules.touch)')
         if not first:

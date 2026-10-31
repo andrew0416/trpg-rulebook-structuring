@@ -531,7 +531,9 @@ class HobbyistTests(unittest.TestCase):
   changed=deepcopy(self.e.r.feats_mech.get(source,{'coverage':'full','effects':effects or [],'header':header}))
   changed.setdefault('header',{})['frequency']={'action':'free','kind':'at_will','raw':'임의 - 자유 행동'}
   with patch.dict(self.e.r.feats_mech,{source:changed}):
+   self.e.r.touch('feats_mech')  # patch.dict edits the table in place
    self.reject(lambda:self.e.pokemon_activity(self.a,'craft_item',item=CA.ADVANCED_BALLS[0],minutes=1,reason='actual changed-header rejection'),'changed Poké Ball Crafter')
+  self.e.r.touch('feats_mech')  # patch.dict restored the table in place
   for name in CA.ADVANCED_BALLS:
    result=self.e.pokemon_activity(self.a,'craft_item',item=name,minutes=1,reason='actual GM-specified crafting duration')
    self.assertEqual(result['money_spent'],700);self.assertEqual(self.a.spec['items'][name],1)

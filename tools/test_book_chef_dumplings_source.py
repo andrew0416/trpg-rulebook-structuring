@@ -1074,7 +1074,7 @@ class DumplingsSourceTests(unittest.TestCase):
         self.addCleanup(setattr,self.rules,'rulings',previous_rulings)
         # This existing synthetic attack fixture isolates the actual native
         # Mettle response; the added Berry is still actually crafted/served.
-        self.rules.moves[mid]['type']='격투'
+        self.rules.moves[mid]['type']='격투';self.rules.touch('moves')  # in-place rule edit declared
         e.gm.set_types(target,['노말'],reason='actual selected Fighting weakness')
         chef=self.add_chef(e,items={'의문열매':1})
         made=FIX.cook(e,chef,recipe='preserves',origin='item/의문열매')

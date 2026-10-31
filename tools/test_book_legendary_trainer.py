@@ -295,7 +295,7 @@ class BookLegendaryTrainerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'^distinct actors share identity:'):
             self.e.gm.observe_legendary_classification(copy(self.p),'ordinary',source='gm/example',reason='clone is not actual')
         original=self.e.r._selected_rule
-        with patch.object(self.e.r,'_selected_rule',side_effect=lambda uid:'feat/other' if uid==LEGENDARY.FEATURE else original(uid)):
+        with patch.object(self.e.r,'_selected_rule',side_effect=lambda uid,**kw:'feat/other' if uid==LEGENDARY.FEATURE else original(uid,**kw)):
             with self.assertRaisesRegex(ValueError,'selected static Feature'):self.command()
         with patch.dict(FEATURES.STATIC_SOURCE,sha256='0'*64):
             with self.assertRaisesRegex(ValueError,'source changed'):self.command()
