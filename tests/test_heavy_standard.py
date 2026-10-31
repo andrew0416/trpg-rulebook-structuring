@@ -7,8 +7,8 @@ from engine import Rules,Engine,Combatant
 import heavy_injury_adapter as H
 import heavy_standard_adapter as S
 import turn as TURN
-import effects as FX
 import temporary_hp as TEMP_HP
+import effects as FX
 
 class Tests(unittest.TestCase):
  @classmethod
@@ -268,6 +268,24 @@ class Tests(unittest.TestCase):
   # This debt is a turn-start input; current native use does not consume it.
   e.use_move(a,b,'struggle',set_damage=True)
   self.assertEqual((a.hp,b.hp,a.pending_action_loss),(45,99,{'shift':1}))
+ def test_038_gained_or_unexpected_struggle_keywords_remain_pending(self):
+  import musician as MUSIC
+  for kind in ('gained','unexpected'):
+   with self.subTest(kind=kind):
+    e,a,b=self.pair();original=MUSIC.project_move
+    if kind=='gained':
+     FX.run_effects(e,a,a,[{'type':'gain_keyword','keyword':'소리','target':'self'}],
+                    {'attacker':a,'target':a,'engine':e,'hit':True},'gm/keyword-negative')
+     self.assertIn('소리',MUSIC.project_move(e,a,e.r.move('struggle'))['keywords'])
+    def projected(engine,actor,move):
+     actual=original(engine,actor,move)
+     return dict(actual,keywords=['unreviewed']) if kind=='unexpected' else actual
+    with mock.patch.object(MUSIC,'project_move',projected):
+     with self.assertRaises(H.HeavyPending):e.use_move(a,b,'struggle',set_damage=True)
+    self.assertEqual((a.hp,b.hp),(50,110))
+    packet=self.standard(e)[0]
+    self.assertFalse(packet['semantic_commit_proven']);self.assertEqual(packet['status'],'pending')
+    self.assertIn('not_empty_mech_native_struggle',packet['issues'])
 class Results(unittest.TextTestResult):
  def __init__(self,*a,**k):super().__init__(*a,**k);self.rows=[]
  def addSuccess(self,t):super().addSuccess(t);self.rows.append(dict(id='HEAVY-STANDARD-'+t._testMethodName,status='pass'))

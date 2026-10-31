@@ -78,6 +78,27 @@ def read_object(path):
     return value
 
 
+def packet_test_groups(packet):
+    """Read execution declarations without turning prepared tests into completions."""
+    groups = packet['completed']
+    if not isinstance(groups, dict):
+        raise ValueError('completed must be an object of test groups')
+    if not groups:
+        refs = packet.get('required_test_ids')
+        if (not isinstance(refs, list) or not refs
+                or not all(isinstance(ref, str) and ref.strip() for ref in refs)
+                or len(refs) != len(set(refs))):
+            raise ValueError('empty completed requires distinct nonempty required_test_ids')
+        groups = {'required_test_ids': {'tests': refs}}
+    for group, row in groups.items():
+        if (not isinstance(row, dict) or not isinstance(row.get('tests'), list)
+                or not row['tests'] or not all(
+                    isinstance(case, str) and case.strip() for case in row['tests'])):
+            raise ValueError(f'{group}: tests must be a nonempty list of case IDs')
+    return groups
+
+
+
 def test_module(value, stage, canonical, *, preserve_selector=False):
     """Normalize a test reference; only direct inputs retain class/method tails.
 
@@ -224,13 +245,7 @@ def workflow_plan(targets, *, stage=None, canonical=None):
     if packets:
         # Validate now, before any imports/fixtures. The runner reuses this contract.
         for path in packets:
-            groups = read_object(path)['completed']
-            if not isinstance(groups, dict) or not groups:
-                raise ValueError(f'no completed test groups: {path}')
-            for row in groups.values():
-                if (not isinstance(row.get('tests'), list) or not row['tests']
-                        or not all(isinstance(case, str) and case.strip() for case in row['tests'])):
-                    raise ValueError(f'invalid packet test declarations: {path}')
+            packet_test_groups(read_object(path))
         state |= WorkflowState.PACKET
     if not packets and not modules:
         raise ValueError('no declared workflow scope')
@@ -552,15 +567,9 @@ def packet_allocation(paths, parser):
     allocation = []
     for path in paths:
         try:
-            packet = json.loads(path.read_text(encoding='utf-8-sig'))
-            groups = packet['completed']
-            if not isinstance(groups, dict) or not groups:
-                raise ValueError('completed must contain test groups')
+            groups = packet_test_groups(read_object(path))
             for group, details in groups.items():
                 cases = details['tests']
-                if not isinstance(cases, list) or not cases or not all(
-                        isinstance(case, str) and case.strip() for case in cases):
-                    raise ValueError(f'{group}: tests must be a nonempty list of case IDs')
                 allocation.append({'packet': str(path.resolve()), 'group': group,
                                    'tests': [module_name(case) for case in cases]})
         except (OSError, ValueError, KeyError, TypeError) as exc:
