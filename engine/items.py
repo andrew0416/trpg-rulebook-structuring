@@ -855,7 +855,7 @@ def project_owned_pokemon_features(engine, owner, targets):
     return count
 
 
-def register_feats(engine, c, pokemon=None):
+def _register_feats(engine, c, pokemon=None):
     """트레이너 spec['feats'] / spec['edges'] 의 mech 를 등록. 상시(항상) 수정치는 패시브, 발동조건은 트리거, 대상이 자기 포켓몬이면 pokemon 목록 각각에."""
     import intercept_profiles as INTERCEPT_PROFILES
     INTERCEPT_PROFILES.preflight_owned(engine,c)
@@ -1290,3 +1290,10 @@ def destroy_equipment(engine,actor,selection,*,reason,consent_by=()):
         __import__('csv_item_form_contracts').physical_changed(e,actual["instance_id"])
         return {"destroyed":True,"instance_id":actual["instance_id"],"source":reason}
     return GRANTS.transition(engine,actor,apply)
+
+def register_feats(*args, **kwargs):
+    import source_selection as SOURCES
+    with SOURCES.verification_scope():
+        return _register_feats(*args, **kwargs)
+register_feats.__doc__ = _register_feats.__doc__
+

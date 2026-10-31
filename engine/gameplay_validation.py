@@ -9,7 +9,7 @@ class WorldIntegrityError(ValueError):
     """Findings returned by the world's reference-integrity inspection."""
 
 
-def validate(engine, actors):
+def _validate(engine, actors):
     import body_modes as BODY_MODES
     from state_fields import validate_actor
     from world_entities import validate_mount_relations, validate_world
@@ -69,4 +69,10 @@ def validate(engine, actors):
     __import__('fashion_items').validate_world(engine)
     __import__('movement_actions').validate_commands(engine)
     __import__('stellar_tera_blast').validate_world(engine)
+
+def validate(*args, **kwargs):
+    import source_selection as SOURCES
+    with SOURCES.verification_scope():
+        return _validate(*args, **kwargs)
+validate.__doc__ = _validate.__doc__
 

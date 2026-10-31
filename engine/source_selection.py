@@ -14,6 +14,12 @@ from root_resolution import fingerprint
 _VERIFICATION_SCOPE = ContextVar('source_verification_scope', default=None)
 
 
+def operation_memo():
+    """The current verification scope's memo (None outside a scope); other owners may
+    memoize per-operation derived indexes in it under their own keys."""
+    return _VERIFICATION_SCOPE.get()
+
+
 @contextmanager
 def verification_scope():
     """Within one native state transition each selected definition's source bytes are

@@ -628,7 +628,7 @@ def _validate_static_acquisitions(actor):
             raise ValueError('actual active Ranked acquisition and rank projection differ')
 
 
-def acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequisite_source=None, branch=None, rank=None, selection=None, source_id=None):
+def _acquire_static(engine, actor, feature_id, *, acquisition_request_id, prerequisite_source=None, branch=None, rank=None, selection=None, source_id=None):
     """Acquire a reviewed Feature; source variants select their exact book or CSV clause."""
     import native_acquisition_adapters as NATIVE
     native = feature_id in NATIVE.DEFINITIONS
@@ -1620,3 +1620,10 @@ def acquire_personal_tutor(engine, actor, *, acquisition_request_id, selected_va
         return deepcopy(receipt)
 
     return STATE.transition(engine, actor, apply)
+
+def acquire_static(*args, **kwargs):
+    import source_selection as SOURCES
+    with SOURCES.verification_scope():
+        return _acquire_static(*args, **kwargs)
+acquire_static.__doc__ = _acquire_static.__doc__
+

@@ -567,7 +567,7 @@ def set_controller(engine, actor, controller, *, reason, source='gm/control'):
     return deepcopy(proposed)
 
 
-def validate_world(engine):
+def _validate_world(engine):
     """Return integrity findings, never a rulebook/category completion claim."""
     issues = []; index = {}; roster = actors(engine)
     def issue(code, entity, message):
@@ -1116,3 +1116,10 @@ def transfer_owner(engine, pokemon, old_owner, new_owner, *, reason, request_id)
     import pokemon_party
     return pokemon_party.transfer(engine, old_owner, target=pokemon, new_owner=new_owner,
                                   reason=reason, request_id=request_id)
+
+def validate_world(*args, **kwargs):
+    import source_selection as SOURCES
+    with SOURCES.verification_scope():
+        return _validate_world(*args, **kwargs)
+validate_world.__doc__ = _validate_world.__doc__
+

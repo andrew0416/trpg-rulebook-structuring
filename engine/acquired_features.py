@@ -32,6 +32,19 @@ def _prefix_ids(keys,prefix,rune_class,berserker_class,arcanist_class=ARCANIST_C
 
 def _names(actor,prefix):
     units=actor.r.selection.units
+    # Within one operation (a verification scope) the catalog is read once per prefix;
+    # outside a scope every call re-snapshots, so live edits stay immediately visible.
+    import source_selection as SOURCES
+    memo=SOURCES.operation_memo();memo_key=('acquired_feature_names',id(units),prefix)
+    if memo is not None:
+        cached=memo.get(memo_key)
+        if cached is not None and cached[0] is units:return cached[1]
+    result=_names_uncached(units,prefix)
+    if memo is not None:memo[memo_key]=(units,result)
+    return result
+
+
+def _names_uncached(units,prefix):
     # Re-snapshot keys on every call: additions, removals and order changes are
     # immediately visible. Exact builtins make this path free of user callbacks;
     # custom mappings/strings retain the original iteration and error behavior.
