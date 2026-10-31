@@ -27,7 +27,7 @@ class HunterPackTests(fixture.HunterScene, unittest.TestCase):
 
     def away(self, actor, destination=(12, 6), face=15):
         """The actor leaves its cell toward a far point; adjacent enemies take their Attacks of Opportunity."""
-        pseudo = deepcopy(actor)
+        pseudo = deepcopy(actor, {id(actor.r): actor.r})   # a detached copy that shares the live Rules
         pseudo.pos = destination
         with patch.object(Engine, 'd20', return_value=face):
             return self.e.approach(actor, pseudo, movement_mode='land')

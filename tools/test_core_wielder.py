@@ -106,7 +106,7 @@ class CoreWielderTests(unittest.TestCase):
                 GRANTS.grant(b,'capabilities','Telekinetic','fixture:telekinetic','fixture')
                 self.start(e,b);observed=[];original=Engine.opposed_check
                 def resolve(current,*args,**kwargs):
-                    observed.append(deepcopy(kwargs));return original(current,*args,**kwargs)
+                    observed.append(deepcopy(kwargs,{id(current.r):current.r,id(current):current}));return original(current,*args,**kwargs)
                 with patch.object(Engine,'opposed_check',resolve):
                     options=dict(defender_skill='전투',item_name=key,fixed_accuracy=20,
                         challenger_options={'fixed':[6]*6,'mods':3},defender_options={'fixed':[1]*6,'mods':4})

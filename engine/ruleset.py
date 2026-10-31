@@ -348,6 +348,23 @@ class RuleSelection:
                     raise ValueError(f"Unknown rule identity in {field}: {uid}")
 
 
+_PARSED_FILES = {}
+
+
+def _parsed_file(path, parse):
+    """Parse a catalog file once per content: the bytes are read on every call and compared,
+    so a changed file is re-parsed, while an unchanged one reuses the parsed records (which
+    source_unit copies from, never mutates)."""
+    with open(path, "rb") as handle:
+        data = handle.read()
+    cached = _PARSED_FILES.get(path)
+    if cached is not None and cached[0] == data:
+        return cached[1]
+    parsed = parse(data.decode("utf-8"))
+    _PARSED_FILES[path] = (data, parsed)
+    return parsed
+
+
 def build_runtime_selection(rules):
     """Join saved source identities with runtime records without guessing by name.
 
@@ -358,21 +375,17 @@ def build_runtime_selection(rules):
     source_snapshots = {}
     path = os.path.join(rules.root, "output/ruleunits.jsonl")
     if os.path.exists(path):
-        with open(path, encoding="utf-8") as handle:
-            for line in handle:
-                if not line.strip(): continue
-                unit = json.loads(line)
-                if unit["id"] in catalog: raise ValueError("Duplicate catalog rule ID: " + unit["id"])
-                catalog[unit["id"]] = source_unit(unit)
+        for unit in _parsed_file(path, lambda text: [json.loads(line) for line in text.splitlines() if line.strip()]):
+            if unit["id"] in catalog: raise ValueError("Duplicate catalog rule ID: " + unit["id"])
+            catalog[unit["id"]] = source_unit(unit)
     # Reviewed exact source identities absent from the legacy entity export.
     # Preserve exported identities when later extraction repairs the omission.
     path = os.path.join(rules.root, "data/content-source-identities.json")
     if os.path.exists(path):
-        with open(path, encoding="utf-8") as handle:
-            supplement = json.load(handle)
-            source_snapshots = supplement.get("source_snapshots", {})
-            for unit in supplement["units"]:
-                catalog.setdefault(unit["id"], source_unit(unit))
+        supplement = _parsed_file(path, json.loads)
+        source_snapshots = supplement.get("source_snapshots", {})
+        for unit in supplement["units"]:
+            catalog.setdefault(unit["id"], source_unit(unit))
     for uid, unit in getattr(rules, "units", {}).items():
         normalized = source_unit(dict(unit, id=uid))
         # These two hand-authored lookup units cite the exact saved sheet label.
@@ -389,11 +402,10 @@ def build_runtime_selection(rules):
                 catalog[uid] = source_unit(dict(record, id=uid))
     path = os.path.join(rules.root, "output/entities/abilities.json")
     if os.path.exists(path):
-        with open(path, encoding="utf-8") as handle:
-            for record in json.load(handle):
-                # Legacy fixtures without metadata may still be classified by
-                # their known exported table, but explicit metadata is preserved.
-                catalog[record["id"]] = source_unit(record, "db/abilities.csv")
+        for record in _parsed_file(path, json.loads):
+            # Legacy fixtures without metadata may still be classified by
+            # their known exported table, but explicit metadata is preserved.
+            catalog[record["id"]] = source_unit(record, "db/abilities.csv")
     for record in getattr(rules, "core_abilities", {}).values():
         if record["id"] in catalog:
             raise ValueError("Duplicate explicit core ability identity: " + record["id"])

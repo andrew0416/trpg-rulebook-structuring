@@ -254,7 +254,7 @@ class DuelistMomentumTests(unittest.TestCase):
                     events=[];roll=type(self.e).roll_damage
                     def observed(e,*args,**kwargs):
                         result=roll(e,*args,**kwargs)
-                        if kwargs.get('_reaction_event') is not None:events.append(deepcopy(kwargs['_reaction_event']['damage_formula']))
+                        if kwargs.get('_reaction_event') is not None:events.append(deepcopy(kwargs['_reaction_event']['damage_formula'],{id(e.r):e.r,id(e):e}))
                         return result
                     before=D.momentum(self.p)
                     with patch.object(type(self.e),'roll_damage',new=observed):self.attack(actor=actor,target=target,move='move/화염방사')

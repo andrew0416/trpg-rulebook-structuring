@@ -73,7 +73,7 @@ class MovementTests(unittest.TestCase):
   with self.assertRaises(ValueError):self.e.move_profile(self.a)
  def test_native_sprint_cost_standard_once_and_extends_actual_shift(self):
   self.turn();rng=self.e.rng.getstate();self.assertTrue(self.e.sprint(self.a,source_policy="ch06_once"));self.assertEqual(self.a.budget['standard'],0)
-  target=deepcopy(self.a);target.pos=(20,1)
+  target=deepcopy(self.a,{id(self.a.r):self.a.r});target.pos=(20,1)
   self.e.approach(self.a,target,movement_mode='land')
   self.assertEqual(self.a.pos[0],10);self.assertEqual(self.a.budget['shift'],0);self.assertNotIn('질주',self.a.custom_conditions);self.assertEqual(self.e.rng.getstate(),rng)
  def test_sprint_source_conflict_requires_explicit_choice(self):

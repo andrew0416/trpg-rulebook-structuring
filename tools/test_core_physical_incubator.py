@@ -224,7 +224,7 @@ class PhysicalIncubatorTests(unittest.TestCase):
         self.assertTrue(self.e.validate_state()['valid'])
     def test_actual_identity_empty_observation_source_and_remote_hold_are_required_before_storage(self):
         row=self.egg();before=dump_engine(self.e)
-        with self.assertRaises(ValueError):INC.store(self.e,deepcopy(self.a),'box',row['entity_id'],reason='forged actor')
+        with self.assertRaises(ValueError):INC.store(self.e,deepcopy(self.a,{id(self.a.r):self.a.r}),'box',row['entity_id'],reason='forged actor')
         with self.assertRaises(ValueError):INC.store(self.e,self.a,'box','unregistered-egg',reason='fake egg id')
         with self.assertRaises(ValueError):INC.observe_empty(self.e,self.a,'box',reason='cannot reset known history')
         self.assertEqual(dump_engine(self.e),before)

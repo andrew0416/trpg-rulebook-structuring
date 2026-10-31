@@ -55,7 +55,7 @@ class ChannelerScene:
  def damage(self,actor=None,target=None,move='move/몸통박치기',face=15):
   rows=[];original=Engine.roll_damage
   def observe(e,a,t,m,*args,**kwargs):
-   value=original(e,a,t,m,*args,**kwargs);rows.append((a.entity_id,t.entity_id,m['id'],value,deepcopy(kwargs.get('_reaction_event',{}))));return value
+   value=original(e,a,t,m,*args,**kwargs);rows.append((a.entity_id,t.entity_id,m['id'],value,deepcopy(kwargs.get('_reaction_event',{}),{id(e.r):e.r,id(e):e})));return value
   with patch.object(Engine,'roll_damage',observe):result=self.hit(actor,target,move,face)
   return result,rows
  def reject(self,fn,reason=None):return assert_rejected_unchanged(self.e,fn,reason_pattern=reason)

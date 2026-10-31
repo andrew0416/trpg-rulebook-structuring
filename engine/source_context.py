@@ -128,6 +128,9 @@ def latest(rules,key):
  return deepcopy(records[key])
 
 
+_RESOLVED_SOURCES={}
+
+
 def verified_source(rules, reference, *, label='policy', source_root='input'):
  """Read current source bytes inside the explicit source boundary; never cache freshness.
 
@@ -143,9 +146,28 @@ def verified_source(rules, reference, *, label='policy', source_root='input'):
   raise ValueError(label+' source file and sha256 required')
  if source_root not in ('input','source-audit'):
   raise ValueError(label+' source boundary must be input or source-audit')
- path=root.joinpath(reference['file']).resolve()
- if not path.is_relative_to(root.joinpath(source_root).resolve()):
-  raise ValueError(label+' source must be inside '+source_root)
+ # The resolved path is reused while the file it names is the same object (device and
+ # index); a retargeted link or a replaced file re-resolves and re-checks the boundary.
+ # The bytes are still read and hashed on every call.
+ import os
+ key=(str(root),source_root,reference['file'])
+ cached=_RESOLVED_SOURCES.get(key)
+ path=None
+ if cached is not None:
+  try:
+   stat=os.stat(cached[0])
+   if (stat.st_dev,stat.st_ino)==cached[1]:path=cached[0]
+  except OSError:
+   path=None
+ if path is None:
+  path=root.joinpath(reference['file']).resolve()
+  if not path.is_relative_to(root.joinpath(source_root).resolve()):
+   raise ValueError(label+' source must be inside '+source_root)
+  try:
+   stat=os.stat(path)
+   _RESOLVED_SOURCES[key]=(path,(stat.st_dev,stat.st_ino))
+  except OSError:
+   pass
  content=path.read_bytes()
  # At most 8 MiB of exact content is retained. Custom hashers/bytes preserve
  # their original callbacks, and every call still resolves and reads the path.

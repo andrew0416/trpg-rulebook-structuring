@@ -276,6 +276,10 @@ class Rules:
         if cache:
             for name in (names or tuple(cache)):
                 cache.pop(name, None)
+        memo = __import__('source_selection').operation_memo()
+        if memo:   # an in-place rule edit may change what a move name resolves to
+            for key in [k for k in memo if type(k) is tuple and k[0] == 'move_id' and k[1] == id(self)]:
+                memo.pop(key, None)
 
     def _apply_ruleset(self):
         """룰셋 필터: 제외된 기술/특성과 코어판→변형판 치환표를 만든다 (데이터는 지우지 않고 조회 때 거부/치환)."""
@@ -497,7 +501,20 @@ class Rules:
         return row['payload']['class'] if row else None
 
     def move_id(self, name):
-        """기술 이름 → id (별칭·룰셋 치환 반영). 없으면 None."""
+        """기술 이름 → id (별칭·룰셋 치환 반영). 없으면 None.
+
+        Inside one operation the answer for a name is memoized per Rules object; touch()
+        (every in-place rule-table edit, including weapon registration) drops the memo."""
+        memo=__import__('source_selection').operation_memo()
+        if memo is None or type(name) is not str:return self._move_id(name)
+        key=('move_id',id(self),name)
+        hit=memo.get(key)
+        if hit is not None and hit[0] is self:return hit[1]
+        result=self._move_id(name)
+        memo[key]=(self,result)
+        return result
+
+    def _move_id(self, name):
         import special_entities as SPECIAL
         if SPECIAL.prime_instance(self,name) is not None:return name
         if __import__('coordinator').innovation_instance(self,name) is not None:return name
@@ -4465,6 +4482,7 @@ class Engine:
     @__import__('arcanist').atomic_move
     @__import__('marksman').atomic_move
     @__import__('skirmisher').atomic_move
+    @__import__('source_selection').scoped   # one move = one operation: selected sources verified once
     @__import__('fling_move').atomic_move
     @ACTION.resolved_move
     @MOVE_ACTIVATION.effect_contributions

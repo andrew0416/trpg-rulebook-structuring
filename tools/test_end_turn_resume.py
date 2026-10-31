@@ -190,7 +190,7 @@ class EndTurnResumeTests(unittest.TestCase):
         token, _ = self.suspend()
         before = dump_engine(self.e)
         with self.assertRaisesRegex(ValueError, 'owner'):
-            self.e.resolve_effect_condition(deepcopy(self.a), token, target_was_asleep=True,
+            self.e.resolve_effect_condition(deepcopy(self.a, {id(self.a.r): self.a.r}), token, target_was_asleep=True,
                                             reason='wrong observation owner')
         self.assertEqual(dump_engine(self.e), before)
         self.e.elapsed_seconds += 1

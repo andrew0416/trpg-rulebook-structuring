@@ -62,6 +62,16 @@ def verified_declaration(rules, attr, verify):
     return value
 
 
+def scoped(fn):
+    """Run one engine action inside a verification scope (its own operation boundary)."""
+    import functools
+    @functools.wraps(fn)
+    def run(*args, **kwargs):
+        with verification_scope():
+            return fn(*args, **kwargs)
+    return run
+
+
 class SourceChangedError(ValueError):
     """A selected native definition no longer has its reviewed source bytes."""
 
