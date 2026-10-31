@@ -477,6 +477,7 @@ def generated_weapon_transaction(rules,*,engine=None):
                 else:
                     if contents is not None:old[:]=contents
                     mapping[key]=old
+        rules.touch('moves','moves_mech','selection')  # journal rollback edited tables in place
         raise
     else:
         # A successful sibling/original-graph commit survives suspended candidates.
@@ -542,6 +543,7 @@ def require_runtime_weapon(rules, uid):
         capture_runtime_weapon(rules,uid,record['name'])
         rules.selection.register_derived({"id": uid, "title": record["name"],
             "source": {"file": "ch09-equipment.md"}, "tags": ["derived-weapon"]}, dependencies)
+        rules.touch('selection')  # derived identity registered in place
     for dependency in dependencies:
         rules.selection.require_supported_version(dependency, supports_versions=(dependency == "combat/struggle"))
     return rules.selection.require_supported_version(uid)

@@ -210,13 +210,76 @@ def _corpus_paths(root):
             yield path
 
 
+_CORPUS_DIGESTS = {}
+
+
+def _corpus_digest(path):
+    # The digest of unchanged bytes is reused; any change of size, modification
+    # time or file identity re-reads and re-hashes the file.
+    stat = path.stat()
+    key = str(path)
+    cached = _CORPUS_DIGESTS.get(key)
+    signature = (stat.st_size, stat.st_mtime_ns, stat.st_ino, stat.st_dev)
+    if cached is not None and cached[0] == signature:
+        return cached[1]
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    _CORPUS_DIGESTS[key] = (signature, digest)
+    return digest
+
+
+_FINGERPRINT_JSON = {'sort_keys': True, 'ensure_ascii': False, 'allow_nan': False, 'separators': (',', ':')}
+_CACHED_PIECE_MIN = 32768
+
+
+def _piece(value):
+    return json.dumps(_plain(value), **_FINGERPRINT_JSON)
+
+
+def _selected_digest(rules, manifest, policy):
+    """sha256 of exactly the compact JSON json_fingerprint produces for
+    {'files': manifest, 'selected': policy}, assembled from per-attribute pieces.
+
+    A piece is reused while the attribute still holds the same object. A reassigned
+    attribute misses the cache; an in-place change is declared with Rules.touch().
+    PTK_FINGERPRINT_FULL=1 recomputes every piece (the self-check path)."""
+    cache = None if os.environ.get('PTK_FINGERPRINT_FULL') else rules.__dict__.setdefault('_fingerprint_cache', {})
+    parts = []
+    for key in sorted(policy):
+        if type(key) is not str:
+            _fail('selected rule fingerprint requires text keys')
+        value = policy[key]
+        entry = cache.get(key) if cache is not None else None
+        if key == 'selection' and type(value) is dict:
+            identity = tuple((k, id(v)) for k, v in sorted(value.items()))
+            if entry is not None and entry[0] == identity:
+                text = entry[2]
+            else:
+                text = _piece(value)
+                if cache is not None:
+                    cache[key] = (identity, tuple(value.values()), text)
+        else:
+            if entry is not None and entry[0] is value:
+                text = entry[1]
+            else:
+                text = _piece(value)
+                # Only large tables are cached; a small policy is re-read on every call, so an
+                # in-place edit of it is still detected without a declaration.
+                if cache is not None and len(text) >= _CACHED_PIECE_MIN:
+                    cache[key] = (value, text)
+        if cache is not None and os.environ.get('PTK_FINGERPRINT_CHECK') and text != _piece(value):
+            _fail('fingerprint cache stale for ' + key + ' (in-place edit without Rules.touch)')
+        parts.append(json.dumps(key, **_FINGERPRINT_JSON) + ':' + text)
+    document = '{"files":' + json.dumps(manifest, **_FINGERPRINT_JSON) + ',"selected":{' + ','.join(parts) + '}}'
+    return hashlib.sha256(document.encode()).hexdigest()
+
+
 def rules_fingerprint(rules):
     """Hash selected in-memory policy and the actual saved source/data corpus."""
     root = Path(rules.root)
-    manifest = [(path.relative_to(root).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest())
+    manifest = [(path.relative_to(root).as_posix(), _corpus_digest(path))
                 for path in _corpus_paths(root)]
     policy = {k: v for k, v in vars(rules).items()
-              if k not in ('root', 'rulings', 'ruleset', 'selection', '_source_context_reads', '_coordinator_contest_reader', '_runtime_weapon_declarations')}
+              if k not in ('root', 'rulings', 'ruleset', 'selection', '_source_context_reads', '_coordinator_contest_reader', '_runtime_weapon_declarations', '_fingerprint_cache')}
     # Loading a policy cache is not a rules change. Use its saved definition
     # when cold and its actual contents when warm, preserving override checks.
     # Keep this registry explicit: arbitrary private rule state is still hashed.
@@ -405,8 +468,7 @@ def rules_fingerprint(rules):
     selection = vars(rules.selection)
     policy['selected_profile'] = vars(rules.ruleset)
     policy['selection'] = {k: v for k, v in selection.items() if k not in ('filter', 'dependencies')}
-    data = {'files': manifest, 'selected': _plain(policy)}
-    digest = _FINGERPRINTS.json_fingerprint(data, sort_keys=True, compact=True, allow_nan=False)
+    digest = _selected_digest(rules, manifest, policy)
     result={'sha256': digest, 'profile': rules.ruleset.name, 'file_count': len(manifest)}
     generated=__import__('weapon_actions').generated_declarations(rules)
     if generated:result['generated_weapons']=generated

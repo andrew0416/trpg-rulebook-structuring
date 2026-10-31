@@ -161,6 +161,7 @@ def load_and_validate(rules, path):
     for an, ad in (data.get("custom_abilities") or {}).items():
         rules.ability_effects[an] = list(ad.get("mech") or [])
         rules.ability_freq[an] = ad.get("frequency", "항상")
+    rules.touch("moves", "moves_mech", "moves_reviewed", "ability_effects", "ability_freq")
     # 학습 데이터 (엔티티 꼴 + 링크 꼴)
     ls_raw = data.get("learnset") or {}
     move_names = {norm(m["name"]): m["id"] for m in rules.moves.values() if m.get("id") != "struggle"}

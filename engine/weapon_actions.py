@@ -157,7 +157,7 @@ def restore_generated(rules,declarations):
         if mid in rules.moves or mid in rules.selection.units:raise ValueError('generated weapon cannot overwrite another selected definition')
         seen.add(mid);staged.append((mid,move,mechanics,deepcopy(row['weapon'])))
     for mid,move,mechanics,weapon in staged:
-        rules.moves[mid]=move;rules.moves_mech[mid]=mechanics
+        rules.moves[mid]=move;rules.moves_mech[mid]=mechanics;rules.touch('moves','moves_mech')
         require_runtime_weapon(rules,mid)
         rules._runtime_weapon_declarations[mid]=weapon
     generated_declarations(rules)

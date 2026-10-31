@@ -49,6 +49,7 @@ def install(rules):
     if old is not None and old!=definition:raise ValueError('core Sniper body cannot overwrite another source')
     rules.core_abilities[CORE_SNIPER]=definition
     rules.ability_freq[CORE_SNIPER_NAME]='항상';rules.ability_effects[CORE_SNIPER_NAME]=[]
+    rules.touch('core_abilities','ability_freq','ability_effects')
 
 
 def sniper_policy(actor):

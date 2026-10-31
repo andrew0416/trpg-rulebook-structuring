@@ -56,6 +56,7 @@ def install(rules):
         validate_core_definition(rules,rules.core_abilities[uid])
         rules.ability_effects[row['title']]=deepcopy(rules.core_abilities[uid]['effects'])
         rules.ability_freq.setdefault(row["title"], "항상")
+        rules.touch("ability_effects", "ability_freq")
     return tuple(DERIVED)
 
 

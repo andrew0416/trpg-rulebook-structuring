@@ -80,6 +80,7 @@ class StateCodecTests(unittest.TestCase):
         self.assertEqual(saved['rules'], dump_engine(restored)['rules'])
         self.assertEqual((a.entity_id, a.pos), (restored.everyone[0].entity_id, restored.everyone[0].pos))
         r.capability_policy['weight_limits_kg']['1']['staggering'] += 1
+        r.touch('capability_policy')  # in-place table edits are declared; reassignment needs no declaration
         with self.assertRaisesRegex(StateCodecError, 'fingerprint mismatch'):
             load_engine(r, saved)
 

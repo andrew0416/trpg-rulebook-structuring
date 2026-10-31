@@ -52,6 +52,7 @@ def install(rules):
         if slot:header['trainer_slot']=slot
         rules.items_mech[uid]={'name':name,'coverage':'full','header':header,'effects':[],
             'desc':'Actual hb-zmoves.md source; not the typed daily CSV variant.'}
+        rules.touch('items_mech')
 
 
 def acquired(trainer):

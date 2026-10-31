@@ -261,8 +261,19 @@ class Rules:
         import source_context as SOURCE_CONTEXT
         return SOURCE_CONTEXT.mech_read(self,uid,base,resolved) if hasattr(self,"selection") else resolved
 
+    def touch(self, *names):
+        """Declare an in-place change of rule tables; the next fingerprint re-reads them.
+
+        Reassigning an attribute needs no declaration. Without names every cached
+        fingerprint piece is dropped. See state_codec._selected_digest."""
+        cache = self.__dict__.get('_fingerprint_cache')
+        if cache:
+            for name in (names or tuple(cache)):
+                cache.pop(name, None)
+
     def _apply_ruleset(self):
         """룰셋 필터: 제외된 기술/특성과 코어판→변형판 치환표를 만든다 (데이터는 지우지 않고 조회 때 거부/치환)."""
+        self.touch()  # derived selection state is rebuilt below
         rf = self.ruleset
         self.excluded_moves, self.move_alias = {}, {}
         units = [source_unit(m, "db/moves.csv") for m in self.moves.values() if m["id"] != "struggle"]

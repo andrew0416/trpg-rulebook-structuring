@@ -613,6 +613,7 @@ def _equip_weapon(engine, c, weapon):
     __import__('ruleset').capture_runtime_weapon(engine.r,mid,weapon['name']+' 발버둥')
     engine.r.moves[mid] = generated_move
     engine.r.moves_mech[mid] = generated_mechanics
+    engine.r.touch('moves', 'moves_mech')
     engine.r._runtime_weapon_declarations[mid] = copy.deepcopy(weapon)
     # The actual producer admits its derived source before publishing the grant.
     # A later read, including a failed staged attack, must not change Rules.
