@@ -1319,7 +1319,7 @@ def validate_world(engine,index):
    choice=actor.spec.get(key,{})
    if 'owner_id' in choice:
     import vitamin_moves as V
-    if V.owner_consent(engine,actor,index.get(choice['owner_id'])) is None:raise ValueError('food choice needs its actual current owner')
+    if V.recorded_consent(engine,actor,index.get(choice['owner_id'])) is None:raise ValueError('food choice needs its recorded consenting owner')
   import combat_timing as TIMING
   for record in TIMING.records(actor):
    if record.get('chef_snack') and index.get(record['turn_owner'].entity_id) is not record['turn_owner']:raise ValueError('Chef timed effect turn owner is missing')

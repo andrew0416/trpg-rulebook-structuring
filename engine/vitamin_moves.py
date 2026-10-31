@@ -11,6 +11,19 @@ SUPPRESSANT='item/억제제'
 SUPPRESSANT_BERRIES=dict(zip(('item/유석열매','item/시마열매','item/파비열매','item/로매열매','item/또뽀열매','item/토망열매'),('hp','atk','def','spa','spd','spe')))
 
 
+def recorded_consent(e,target,owner):
+ """A stored food choice keeps the trainer who consented when it was prepared.
+ Current ownership is re-checked by owner_consent at the moment the choice is used,
+ so a transfer after preparation survives save/restore and is refused at use time."""
+ import world_entities as W
+ W.require_actors(e,target)
+ if target.kind!='pokemon':raise ValueError('stat suppression requires a Pokemon target')
+ if owner is None:return None
+ W.require_actors(e,owner)
+ if owner.kind!='trainer':raise ValueError('stat suppression consent must identify a trainer')
+ return owner.entity_id
+
+
 def owner_consent(e,target,owner):
  import world_entities as W
  W.require_actors(e,target)

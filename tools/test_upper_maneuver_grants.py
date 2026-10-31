@@ -133,8 +133,13 @@ class Tests(unittest.TestCase):
    self.setUp();damage=self.e.use_move(self.a,self.b,source);self.assertGreater(damage,0)
    row=next(iter(self.a.custom_conditions[MG.RECORDS].values()));self.assertEqual(row['pending'].tag,'AwaitingInput');self.assertEqual(self.a._action_history,['standard']);self.assertEqual(self.b.pos,(2,1));self.assertNotIn('넘어짐',self.b.conditions)
    before=(self.a.hp,self.b.hp,deepcopy(self.a.spec.get('frequency_state')),deepcopy(self.a.move_uses))
-   result=self.e.resolve_maneuver_grant(self.a,row['id'],**self.opts());self.assertEqual(result.tag,'Completed');self.assertEqual(self.a._action_history,['standard','free']);self.assertEqual((self.a.hp,self.b.hp,self.a.spec.get('frequency_state'),self.a.move_uses),before)
-   self.assertIs(self.e.resolve_maneuver_grant(self.a,row['id']),result);self.assertEqual((self.a.hp,self.b.hp,self.a.spec.get('frequency_state'),self.a.move_uses),before)
+   # Printed Recoil (Take Down 1/3) is applied exactly once at move completion, after all
+   # recipients and after the granted child; damage, frequency and the standard action are not replayed.
+   import arithmetic_policy as M
+   recoil=M.ratio(damage,3) if source=='move/돌진' else 0
+   after=(before[0]-recoil,*before[1:])
+   result=self.e.resolve_maneuver_grant(self.a,row['id'],**self.opts());self.assertEqual(result.tag,'Completed');self.assertEqual(self.a._action_history,['standard','free']);self.assertEqual((self.a.hp,self.b.hp,self.a.spec.get('frequency_state'),self.a.move_uses),after)
+   self.assertIs(self.e.resolve_maneuver_grant(self.a,row['id']),result);self.assertEqual((self.a.hp,self.b.hp,self.a.spec.get('frequency_state'),self.a.move_uses),after)
  def test_native_parent_miss_has_no_granted_child(self):
   with patch.object(self.e,'accuracy_check',return_value=(False,1,False)):
    self.assertEqual(self.e.use_move(self.a,self.b,'move/괴력'),0)

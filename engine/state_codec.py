@@ -285,17 +285,24 @@ def rules_fingerprint(rules):
         for name in names:
             vars(checked).pop(name, None)
         return checked
+    def derived(compute, label):
+        # A derived index is recomputed from the selected root's files. A root that
+        # cannot supply them is a source mismatch, exactly like a missing saved policy.
+        try:
+            return compute()
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            _fail('selected rule/profile/source fingerprint mismatch: derived ' + label + ' unavailable: ' + str(exc))
     weather_name = '_native_weather_action_sources'
     if weather_name in policy:
         import ability_native_actions as NATIVE_ACTIONS
-        expected_weather = NATIVE_ACTIONS.weather_action_sources(uncached(weather_name))
+        expected_weather = derived(lambda: NATIVE_ACTIONS.weather_action_sources(uncached(weather_name)), 'weather action sources')
         if (json.dumps(_plain(policy[weather_name]), sort_keys=True, ensure_ascii=False, allow_nan=False)
                 == json.dumps(_plain(expected_weather), sort_keys=True, ensure_ascii=False, allow_nan=False)):
             policy.pop(weather_name)
     hb_name = '_survivalist_hb_definitions'
     if hb_name in policy:
         import survivalist_class as SURVIVAL
-        expected_hb = SURVIVAL.hb_definitions(uncached(hb_name))
+        expected_hb = derived(lambda: SURVIVAL.hb_definitions(uncached(hb_name)), 'Survivalist HB definitions')
         if (json.dumps(_plain(policy[hb_name]), sort_keys=True, ensure_ascii=False, allow_nan=False)
                 == json.dumps(_plain(expected_hb), sort_keys=True, ensure_ascii=False, allow_nan=False)):
             policy.pop(hb_name)
