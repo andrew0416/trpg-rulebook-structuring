@@ -16,14 +16,14 @@ class GMFaintSourceEndingTests(unittest.TestCase):
                 fixture=FIXTURE.WeaponUnionCrownedSourceRevisionTests()
                 e,actor,_,_,item,_=fixture.scene(species)
                 fixture.enter(e,actor,item)
-                before=CODEC.dump_engine(e);native=UNION._end_weapon_union
+                before=CODEC.snapshot_engine(e);native=UNION._end_weapon_union
                 def fail(*args,**kwargs):
                     native(*args,**kwargs)
                     raise ValueError('actual faint form receiver failed')
                 with patch.object(UNION,'_end_weapon_union',side_effect=fail):
                     with self.assertRaisesRegex(ValueError,'actual faint form receiver failed'):
                         e.gm.set_hp(actor,value=0,reason='actual observed knockout')
-                self.assertEqual(CODEC.dump_engine(e),before)
+                self.assertEqual(CODEC.snapshot_engine(e),before)
                 self.assertFalse(actor.fainted)
                 self.assertIn('weapon_union',actor.spec[UNION.STATE])
 

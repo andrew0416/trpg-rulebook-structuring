@@ -8,7 +8,7 @@ import test_foundation_policy_training as fixtures
 from builder import build_pokemon,build_trainer
 import creation_egg as E,pokemon_entities as P,pokemon_party as PARTY,pokemon_progression as PROGRESSION,world_entities as W
 import learning_grant as L,move_state as M,activity_jobs as J
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 
 
 class EggTests(unittest.TestCase):
@@ -95,9 +95,9 @@ class EggTests(unittest.TestCase):
  def test_transfer_json_restore_and_request_replay_preserve_actual_parentage_and_source(self):
   row=self.create();other=self.add(build_trainer(self.r,'receiver',20,dict.fromkeys(('hp','atk','def','spa','spd','spe'),10),skills={'명령':3},extra={'edges':[]}))
   self.e.gm.transfer_egg(self.a,other,row['entity_id'],reason='real egg gift',request_id='gift')
-  loaded=load_engine(self.r,json.loads(json.dumps(self.snap(),ensure_ascii=False)));actors=W.actor_index(loaded);before=dump_engine(loaded)
+  loaded=load_engine(self.r,json.loads(json.dumps(self.snap(),ensure_ascii=False)));actors=W.actor_index(loaded);before=snapshot_engine(loaded)
   out=loaded.create_declared_egg(actors[self.a.entity_id],[actors[p.entity_id] for p in self.parents],self.policy(),request_id='egg',compatible=True,species='pokemon/이상해씨',inheritance_moves=['move/뿌리박기'],reason='actual observed breeding')
-  self.assertEqual(out['entity_id'],row['entity_id']);self.assertEqual(out['owner_id'],other.entity_id);self.assertEqual(before,dump_engine(loaded))
+  self.assertEqual(out['entity_id'],row['entity_id']);self.assertEqual(out['owner_id'],other.entity_id);self.assertEqual(before,snapshot_engine(loaded))
   child=loaded.hatch_declared_egg(actors[other.entity_id],row['entity_id'],name='gift child',ready=True,reason='actual recipient observes readiness',choices=self.choices())['pokemon']
   self.assertEqual(child.spec['trainer_id'],other.entity_id);self.assertEqual(child.spec['inheritance_moves'],['move/뿌리박기'])
   self.assertNotIn('move/뿌리박기',child.spec['moves'])

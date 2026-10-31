@@ -89,8 +89,8 @@ class TaskmasterTests(unittest.TestCase):
         self.train(count=0,request='zero-healthy');self.assertIsNone(T.active(self.p))
         self.injury(self.p,1);result=self.train(count=0,request='zero-injured')
         self.assertEqual(self.p.injuries,1);self.assertIsNotNone(T.active(self.p))
-        before=self.e.export_state();self.assertEqual(self.train(count=0,request='zero-injured'),result)
-        self.assertEqual(self.e.export_state(),before)
+        before=self.e.snapshot_state();self.assertEqual(self.train(count=0,request='zero-injured'),result)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.answer('taskmaster',4)
         self.rejected(lambda:self.train(count=4,request='invalid-count'),'Taskmaster injury grant')
         self.train(count=3,request='three');self.assertEqual(self.p.injuries,4)
@@ -224,14 +224,14 @@ class TaskmasterTests(unittest.TestCase):
         self.answer('press_on',True);self.hp(self.p,1)
         self.answer('pain_resistance','invalid');self.combat(self.b)
         self.rejected(lambda:self.attack(self.b,self.p),'explicit Pain Resistance')
-        self.answer('pain_resistance',True);before=self.e.export_state()
+        self.answer('pain_resistance',True);before=self.e.snapshot_state()
         original=Engine._take_damage
         def fail(e,c,amount):
             original(e,c,amount)
             raise ValueError('late actual native damage failure')
         with patch.object(Engine,'_take_damage',fail):
             self.rejected(lambda:self.attack(self.b,self.p),'late actual native damage failure')
-        self.assertEqual(self.e.export_state(),before);self.valid()
+        self.assertEqual(self.e.snapshot_state(),before);self.valid()
 
     def all_features(self):
         self.a.spec.setdefault('feats',[]).append(T.PRESS_ACTION)

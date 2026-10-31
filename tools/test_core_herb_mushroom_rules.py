@@ -145,9 +145,9 @@ class HerbMushroomTests(unittest.TestCase):
             self.assertEqual(FOOD.herbal_state(self.p)['count'], 1)
             self.assertEqual(self.a.spec['items']['파스'], 0)
             self.assertEqual(len(self.p.spec['bandages']), 1)
-            before = CODEC.dump_engine(engine)
+            before = CODEC.snapshot_engine(engine)
             self.assertEqual(use(), out)
-            self.assertEqual(CODEC.dump_engine(engine), before)
+            self.assertEqual(CODEC.snapshot_engine(engine), before)
 
     def test_restoratives_snacks_and_mushrooms_keep_their_actual_action_routes(self):
         self.a.spec['items']['힘의뿌리'] = 1
@@ -190,7 +190,7 @@ class HerbMushroomTests(unittest.TestCase):
         self.e.apply_status(self.p, '혼란')
         self.e.apply_status(self.p, '헤롱헤롱', applied_by=self.q)
         self.e.apply_status(self.p, '독')
-        before = CODEC.dump_engine(self.e)
+        before = CODEC.snapshot_engine(self.e)
         original = HERB.immediate_commit
         def fail(*args):
             original(*args)
@@ -199,7 +199,7 @@ class HerbMushroomTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'late Mental Herb fault'):
                 self.e.consume_food_buff(self.p, buff_id=mental['buff_id'],
                     action_kind='swift', action_reason='actual failed herb activation')
-        self.assertEqual(before, CODEC.dump_engine(self.e))
+        self.assertEqual(before, CODEC.snapshot_engine(self.e))
         result = self.e.consume_food_buff(self.p, buff_id=mental['buff_id'],
             action_kind='swift', action_reason='GM declared actual herb buff timing')
         self.assertEqual(set(result['cured']), {'혼란', '헤롱헤롱'})
@@ -217,12 +217,12 @@ class HerbMushroomTests(unittest.TestCase):
         self.e.change_stage(self.q, 'spa', 2)
         self.q.accuracy_stage = -1
         base = deepcopy(self.q.spec[STAGES.STATE]['base'])
-        before = CODEC.dump_engine(self.e)
+        before = CODEC.snapshot_engine(self.e)
         with patch.object(STAGES, 'assign_combat', side_effect=ValueError('late White Herb fault')):
             with self.assertRaisesRegex(ValueError, 'late White Herb fault'):
                 self.e.consume_food_buff(self.q, buff_id=white['buff_id'], action_kind='swift',
                     action_reason='actual failed White Herb activation')
-        self.assertEqual(before, CODEC.dump_engine(self.e))
+        self.assertEqual(before, CODEC.snapshot_engine(self.e))
         self.e.consume_food_buff(self.q, buff_id=white['buff_id'], action_kind='swift',
                                   action_reason='GM actual White Herb buff activation')
         self.assertEqual((self.q.stages['atk'], self.q.stages['def'], self.q.stages['spa']), (0, 0, 2))

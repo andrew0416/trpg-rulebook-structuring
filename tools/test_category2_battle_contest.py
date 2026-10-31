@@ -267,9 +267,9 @@ class BattleContestTests(unittest.TestCase):
                         combat_options={"set_damage":True,"situational":100})
                 self.assertGreater(out['combat'],0)
                 self.assertEqual(actor.hp,hp-out['combat']//denominator)
-                completion=out['completion_id'];before=engine.export_state()
+                completion=out['completion_id'];before=engine.snapshot_state()
                 COMPLETE.refresh(engine,completion);COMPLETE.refresh(engine,completion)
-                self.assertEqual(engine.export_state(),before)
+                self.assertEqual(engine.snapshot_state(),before)
                 cold=CODEC.load_engine(self.rules,json.loads(json.dumps(CODEC.dump_engine(engine))))
                 restored=next(a for a in cold.everyone if a.entity_id==actor.entity_id)
                 after=restored.hp;COMPLETE.refresh(cold,completion)
@@ -308,8 +308,8 @@ class BattleContestTests(unittest.TestCase):
         self.assertEqual(target.hp,target_hp-actual['dealt'])
         self.assertEqual(actor.hp,hp-actual['dealt']//2,
                          'Smite miss dealt '+str(actual['dealt'])+' and still owes printed Recoil')
-        before=engine.export_state();COMPLETE.refresh(engine,out['completion_id'])
-        self.assertEqual(engine.export_state(),before)
+        before=engine.snapshot_state();COMPLETE.refresh(engine,out['completion_id'])
+        self.assertEqual(engine.snapshot_state(),before)
 
     def test_native_recoil_miss_has_no_loss_or_recall_window(self):
         from native_scenario_fixture import assert_rejected_unchanged

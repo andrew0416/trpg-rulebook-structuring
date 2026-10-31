@@ -37,12 +37,12 @@ class WeatherPassiveNativeRecipientTests(unittest.TestCase):
         original_hp, interceptor_hp = fixture.t.hp, fixture.r.hp
         completion = fixture.completion()
         self.assertNotIn(fixture.r, completion['targets'])
-        before = fixture.e.export_state()
+        before = fixture.e.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'active native hit producer'):
             WEATHER.water_hit(fixture.e, fixture.a, fixture.r, self.rules.move('move/물대포'), {},
                 completion['id'], substitute=None, natural=12, critical=False,
                 defense_token=(event, fixture.t.entity_id, fixture.r.entity_id))
-        self.assertEqual(fixture.e.export_state(), before)
+        self.assertEqual(fixture.e.snapshot_state(), before)
         fixture.fresh()
         fixture.choose(event, options=fixture.ranged())
         completion = fixture.completion()
@@ -53,10 +53,10 @@ class WeatherPassiveNativeRecipientTests(unittest.TestCase):
         self.assertTrue(completion['received'][fixture.r.entity_id]['hit_prevented'])
         self.assertEqual(fixture.a.move_uses['move/물대포'], 1)
         self.assertIsNone(fixture.e._passive_pending)
-        before = fixture.e.export_state()
+        before = fixture.e.snapshot_state()
         with self.assertRaises(ValueError):
             fixture.choose(event, options=fixture.ranged())
-        self.assertEqual(fixture.e.export_state(), before)
+        self.assertEqual(fixture.e.snapshot_state(), before)
         fixture.fresh()
         self.assertEqual(fixture.r.hp, interceptor_hp + fixture.e.tick(fixture.r))
 
@@ -69,16 +69,16 @@ class WeatherPassiveNativeRecipientTests(unittest.TestCase):
         with patch.object(Engine, 'accuracy_check', return_value=(True, 12, False)):
             event = fixture.waiting('move/물대포')
         completion = fixture.completion()
-        before = fixture.e.export_state()
+        before = fixture.e.snapshot_state()
         target_hp = fixture.t.hp
         with self.assertRaisesRegex(ValueError, 'active native hit producer'):
             WEATHER.water_hit(fixture.e, fixture.a, fixture.t, self.rules.move('move/물대포'), {},
                 completion['id'], substitute=None, natural=12, critical=False)
-        self.assertEqual(fixture.e.export_state(), before)
+        self.assertEqual(fixture.e.snapshot_state(), before)
         with self.assertRaisesRegex(ValueError, 'active native hit producer'):
             WEATHER.fire_hit(fixture.e, fixture.a, fixture.t, self.rules.move('move/물대포'),
                 completion['id'], 'Fire')
-        self.assertEqual(fixture.e.export_state(), before)
+        self.assertEqual(fixture.e.snapshot_state(), before)
         fixture.choose(event, use=False)
         self.assertEqual(fixture.t.hp, target_hp + fixture.e.tick(fixture.t))
         self.assertEqual(fixture.a.move_uses['move/물대포'], 1)

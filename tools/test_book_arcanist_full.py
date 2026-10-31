@@ -105,9 +105,9 @@ class ArcanistFullTests(unittest.TestCase):
             for row in A.records(self.a):
                 feature=row['feature_id'];snapshot=row['snapshot']
                 self.assertEqual(snapshot['source'],A.source(self.rules,feature,snapshot['selection']['edition'],snapshot['rank_number']))
-                before=self.e.export_state()
+                before=self.e.snapshot_state()
                 self.acquire(feature,rank=snapshot['rank_number'],manipulation=snapshot['selection'].get('manipulation'))
-                self.assertEqual(self.e.export_state(),before)
+                self.assertEqual(self.e.snapshot_state(),before)
             self.valid();self.restore();self.valid()
 
     def test_prerequisites_exact_boundaries_class_capacity_and_source_tamper(self):
@@ -364,7 +364,7 @@ class ArcanistFullTests(unittest.TestCase):
 
     def test_late_native_failure_rolls_back_cost_swift_rng_hp_targets_and_recoup(self):
         self.scene();self.combat();A.arm(self.e,self.a,'move/물대포','power_overdrive')
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         observed=[];native=Engine.resolve_attack_damage;hp=(self.a.hp,self.b.hp)
         def late(engine,attacker,target,*args,**kwargs):
             native(engine,attacker,target,*args,**kwargs)
@@ -374,11 +374,11 @@ class ArcanistFullTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'late damage failure'):self.attack()
         self.assertEqual(len(observed),1)
         self.assertLess(observed[0][0],hp[0]);self.assertLess(observed[0][1],hp[1])
-        self.assertEqual(self.e.export_state(),before)
-        self.attack(roll=1);token=self.completion()['id'];before=self.e.export_state()
+        self.assertEqual(self.e.snapshot_state(),before)
+        self.attack(roll=1);token=self.completion()['id'];before=self.e.snapshot_state()
         with patch('action_point_account.ActionPointAccount.refund_spend',side_effect=ValueError('actual refund failure')):
             with self.assertRaisesRegex(ValueError,'refund failure'):A.recoup(self.e,self.a,token)
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
 
     def test_investment_two_ap_actual_weapon_moves_equip_release_and_rebind(self):
         self.scene();self.weapon();before=AP.available(self.a)

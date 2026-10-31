@@ -70,10 +70,10 @@ class SurvivalistCellLocalityTests(unittest.TestCase):
 
     def test_noncombat_native_teleport_out_and_back_keeps_interruption(self):
         e, a, _ = self.fixture()
-        before=CODEC.dump_engine(e)
+        before=CODEC.snapshot_engine(e)
         pending=e.teleport(a,(0,3),surface_contact=True,reason_text='trainer Teleporter source remains unspecified')
         self.assertIsInstance(pending,C.PendingDecision)
-        self.assertEqual(CODEC.dump_engine(e),before)
+        self.assertEqual(CODEC.snapshot_engine(e),before)
         # Trainer Teleporter authority is unresolved; use its existing native Pokemon owner.
         f=NATIVE_TELEPORT.MovementTests(); f.r=self.r; f.setUp()
         e,a=f.e,f.a

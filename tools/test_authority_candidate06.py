@@ -98,11 +98,11 @@ class TypeAceCandidateTests(unittest.TestCase):
         import turn as TURN
         original = self.devious_hit()
         self.assertTrue(TURN.spend(self.e, self.p, 'swift', 'actual intervening Swift action'))
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'immediate native Move completion'):
             TA.react(self.e, self.t, self.p, TA.uid('Devious'), original,
                      target=self.b, move='move/거짓울음')
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
 
     def test_c01_devious_immediate_completion_survives_cold_restore_once(self):
         original = self.devious_hit()
@@ -112,11 +112,11 @@ class TypeAceCandidateTests(unittest.TestCase):
             TA.react(self.e, self.t, self.p, TA.uid('Devious'), original,
                      target=self.b, move='move/거짓울음')
         self.assertEqual(self.p.move_uses['move/거짓울음'], 1)
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with self.assertRaises(ValueError):
             TA.react(self.e, self.t, self.p, TA.uid('Devious'), original,
                      target=self.b, move='move/거짓울음')
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         self.valid()
 
     def test_c02_aqua_vortex_direct_target_control(self):
@@ -219,11 +219,11 @@ class StellarLifetimeCandidateTests(unittest.TestCase):
             self.engine.use_move(self.owner, self.foe, 'move/몸통박치기', set_damage=True)
         opportunity = self.owner.spec[STELLAR.STATE]['opportunities'][-1]
         self.owner.abilities_suppressed = True
-        before = self.engine.export_state()
+        before = self.engine.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'actual active ability'):
             self.engine.gm.activate_stellar_blast(self.owner, opportunity['id'], '불꽃',
                                                 reason='suppressed source cannot authorize a new activation')
-        self.assertEqual(self.engine.export_state(), before)
+        self.assertEqual(self.engine.snapshot_state(), before)
         self.owner.abilities_suppressed = False
         self.engine.gm.activate_stellar_blast(self.owner, opportunity['id'], '불꽃',
                                             reason='restored active source uses original current hit')

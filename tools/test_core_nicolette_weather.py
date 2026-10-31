@@ -76,9 +76,9 @@ class NicoletteWeatherTests(unittest.TestCase):
  def test_adoption_binds_actual_individual_and_does_not_infer_from_name_or_species(self):
   e,t,r,target=self.fixture(adopt=False)
   other=self.pokemon(e,'ordinary/rudolf',species='캐스퐁',abilities=('기분파',),trainer=t,name='Rudolf',pos=(4,4),side='gym')
-  before=e.export_state()
+  before=e.snapshot_state()
   with self.assertRaises(ValueError):GYM.configure_weather(e,t,gm_id='gm/sample',reason='not winter',winter=False)
-  self.assertEqual(e.export_state(),before)
+  self.assertEqual(e.snapshot_state(),before)
   GYM.configure_weather(e,t,gm_id='gm/sample',reason='winter source adopted',winter=True)
   with self.assertRaises(ValueError):GYM.configure_rudolf(e,target,gm_id='gm/sample',reason='wrong individual')
   GYM.configure_rudolf(e,r,gm_id='gm/sample',reason='actual unique individual',ground_weather_ball=True)
@@ -119,16 +119,16 @@ class NicoletteWeatherTests(unittest.TestCase):
  def test_climate_control_rejects_wrong_actual_actor_gm_and_failed_native_move_atomically(self):
   e,t,r,target=self.fixture();self.turn(e,r)
   for actual,producer,gm in [(target,r,'gm/sample'),(t,target,'gm/sample'),(t,r,'gm/other')]:
-   before=e.export_state()
+   before=e.snapshot_state()
    with self.assertRaises(ValueError):GYM.use_climate_control(e,actual,producer,gm_id=gm,reason='rejected source binding')
-   self.assertEqual(e.export_state(),before)
+   self.assertEqual(e.snapshot_state(),before)
   e.use_move(r,r,'move/모래바람');before=e.export_state()
   # The ordinary Move really replaced the Hail; an observation cannot revive it.
   with self.assertRaises(ValueError):GYM.use_climate_control(e,t,r,gm_id='gm/sample',reason='no live adopted Hail')
-  self.assertEqual(e.export_state(),before)
-  e,t,r,target=self.fixture();self.turn(e,r);r.budget['standard']=0;before=e.export_state()
+  self.assertEqual(e.snapshot_state(),before)
+  e,t,r,target=self.fixture();self.turn(e,r);r.budget['standard']=0;before=e.snapshot_state()
   with self.assertRaises(ValueError):GYM.use_climate_control(e,t,r,gm_id='gm/sample',reason='native Move cannot complete')
-  self.assertEqual(e.export_state(),before)
+  self.assertEqual(e.snapshot_state(),before)
 
  def test_layer_expires_at_native_five_round_original_count_without_ending_hail(self):
   e,t,r,target=self.fixture();storm=self.layer(e,t,r);hail_id=e._weather_state['active']['id']

@@ -9,7 +9,7 @@ class Tests(unittest.TestCase):
         _fixture_test_category2_forced_move_chains.ForcedMoveChainTests.setUpClass()
         f = _fixture_test_category2_forced_move_chains.ForcedMoveChainTests()
         f.setUp()
-        before = f.e.export_state()
+        before = f.e.snapshot_state()
         random_before = f.e.rng.getstate()
         for call in (lambda: f.e.use_move(f.a, f.b, f.rollout),
                      lambda: f.e.use_move_on(f.a, f.b, f.rollout, f.e.everyone)):
@@ -17,5 +17,5 @@ class Tests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'Pass Move requires use_pass_move'):
                     call()
             rng.assert_not_called()
-            self.assertEqual(f.e.export_state(), before)
+            self.assertEqual(f.e.snapshot_state(), before)
             self.assertEqual(f.e.rng.getstate(), random_before)

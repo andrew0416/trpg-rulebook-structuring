@@ -8,7 +8,7 @@ import test_category2_progression_state as _fixture_test_category2_progression_s
 from engine import Rules
 from builder import build_pokemon
 import ability_mastery as A,state_grants as G,downtime as D
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 
 class AbilityMasteryTests(unittest.TestCase):
  @classmethod
@@ -126,7 +126,7 @@ class AbilityMasteryTests(unittest.TestCase):
   out=self.e.execute_source_policy_teaching(self.a,self.p,document,**args)
   self.assertEqual(out['status'],'PolicyTeachingCompleted');self.assertFalse(out['replayed'])
   loaded=self.restored();teacher=next(c for c in loaded.everyone if c.entity_id==self.a.entity_id);target=next(c for c in loaded.everyone if c.entity_id==self.p.entity_id)
-  before=dump_engine(loaded);again=loaded.execute_source_policy_teaching(teacher,target,document,**args)
-  self.assertTrue(again['replayed']);self.assertEqual(dump_engine(loaded),before)
+  before=snapshot_engine(loaded);again=loaded.execute_source_policy_teaching(teacher,target,document,**args)
+  self.assertTrue(again['replayed']);self.assertEqual(snapshot_engine(loaded),before)
 
 if __name__=='__main__':unittest.main()

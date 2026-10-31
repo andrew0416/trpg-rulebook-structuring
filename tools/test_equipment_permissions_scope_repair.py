@@ -216,9 +216,9 @@ class EquipmentPermissionsScopeRepairTests(unittest.TestCase):
                 engine = self.restore(engine); actor, target = self.actual(engine, actor), self.actual(engine, target)
                 self.assertNotIn("legacy_encounter_scope", self.state(engine, uid))
                 engine.apply_status(actor, "구속", source="gm/repair", applied_by=target)
-                before = engine.export_state()
+                before = engine.snapshot_state()
                 self.assertEqual(VARIANTS.activate_slipstream(engine, actor)["reason"], "encounter_frequency_spent")
-                self.assertEqual(engine.export_state(), before)
+                self.assertEqual(engine.snapshot_state(), before)
                 self.next_battle(engine, actor, target)
                 self.assertEqual(actor.spec["frequency_state"]["scene"], scene)
                 self.assertTrue(VARIANTS.activate_slipstream(engine, actor)["activated"])
@@ -280,7 +280,7 @@ class EquipmentPermissionsScopeRepairTests(unittest.TestCase):
                         duplicate = copy(actor)
                         assert_rejected_unchanged(engine, lambda: engine.begin_encounter([duplicate]),
                                                   reason_pattern="distinct actors share identity")
-                        before = engine.export_state()
+                        before = engine.snapshot_state()
                         receipt = self.state(engine, uid)["encounter_uses"][0]
                         original_at = receipt["at"]
                         receipt["at"] = -1
@@ -289,7 +289,7 @@ class EquipmentPermissionsScopeRepairTests(unittest.TestCase):
                                 engine.begin_encounter([actor, target])
                         finally:
                             receipt["at"] = original_at
-                        self.assertEqual(engine.export_state(), before)
+                        self.assertEqual(engine.snapshot_state(), before)
                     self.bound_turn(engine, actor, target)
                     self.assertEqual(self.state(engine, uid)["legacy_encounter_scope"]["encounter"][1], 1)
                     self.assertTrue(VARIANTS.activate_slipstream(engine, actor)["activated"])

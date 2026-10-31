@@ -9,7 +9,7 @@ ROOT=Path(__file__).resolve().parents[1]
 if not (ROOT/'output').is_dir():ROOT=Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
 from engine import Rules,Combatant,Engine
 from builder import build_pokemon,build_trainer
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import test_foundation_egg_creation as eggs
 import test_foundation_fossil_creation as fossils
 import csv_item_capability_contracts as CAP,creation_egg as CREATION
@@ -41,10 +41,10 @@ class CoreEggWarmerTests(unittest.TestCase):
         saved=json.loads(json.dumps(dump_engine(self.e)))
         self.e=load_engine(self.r,saved);index=W.actor_index(self.e)
         self.a,self.p=index[self.a.entity_id],index[self.p.entity_id]
-        row=P.egg_index(self.e)[row['entity_id']][1];before=dump_engine(self.e)
+        row=P.egg_index(self.e)[row['entity_id']][1];before=snapshot_engine(self.e)
         for source,fixed in ((CAP.EGG_WARMER,{'fixed_d10':2}),(CAP.EGG_HATCHER,{'fixed_d2':2})):
             with self.assertRaisesRegex(ValueError,'24-hour'):CAP.heat_egg(self.e,self.p,row['entity_id'],source=source,**fixed)
-            self.assertEqual(dump_engine(self.e),before)
+            self.assertEqual(snapshot_engine(self.e),before)
         self.e.advance_time(1,[])
         with self.assertRaisesRegex(ValueError,'waiting time'):self.hatch(row,ready=None)
         receipt=self.warm(row,2);self.assertEqual(receipt['seconds'],7200)
@@ -80,9 +80,9 @@ class CoreEggWarmerTests(unittest.TestCase):
         self.e.gm.transfer_egg(self.a,receiver,row['entity_id'],reason='actual warmed egg gift',request_id='gift')
         self.e=load_engine(self.r,json.loads(json.dumps(dump_engine(self.e))));index=W.actor_index(self.e)
         self.a=index[receiver.entity_id];self.p=index[self.p.entity_id];row=P.egg_index(self.e)[row['entity_id']][1]
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError,'readiness'):self.hatch(row,ready=None)
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         child=self.hatch(row,ready=True)['pokemon']
         self.assertEqual(child.spec['egg_entity_id'],row['entity_id']);self.assertEqual(row[CREATION.CONTRACT],original)
         self.assertEqual(CAP.egg_heat_seconds(self.e,row),36000)
@@ -95,25 +95,25 @@ class CoreEggWarmerTests(unittest.TestCase):
     def test_source_live_capability_actual_pokemon_and_die_inputs_before_use(self):
         row=self.egg(7200)
         for fixed in (True,False,0,11,2.0):
-            before=dump_engine(self.e)
+            before=snapshot_engine(self.e)
             with self.assertRaises(ValueError):self.warm(row,fixed)
-            self.assertEqual(dump_engine(self.e),before)
+            self.assertEqual(snapshot_engine(self.e),before)
         for actor in (self.a,deepcopy(self.p)):
-            before=dump_engine(self.e)
+            before=snapshot_engine(self.e)
             with self.assertRaises(ValueError):self.warm(row,2,actor=actor)
-            self.assertEqual(dump_engine(self.e),before)
+            self.assertEqual(snapshot_engine(self.e),before)
         self.p.spec['capabilities']=['알부화기'];before=dump_engine(self.e)
         with self.assertRaisesRegex(ValueError,'actual capability'):self.warm(row,2)
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         G.grant(self.p,'capabilities','알 부화기','test/live-warmer','capability')
         self.warm(row,2);G.revoke(self.p,'test/live-warmer',engine=self.e)
         self.hatch(row,ready=None)
     def test_homebrew_stays_d2_one_day_and_uses_same_native_hatch_consumer(self):
         row=self.egg(86400);receipt=CAP.heat_egg(self.e,self.p,row['entity_id'],fixed_d2=2)
         self.assertEqual((receipt['d2'],receipt['seconds'],receipt['reduced_seconds']),(2,86400,86400))
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError,'24-hour'):self.warm(row,10)
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.assertEqual(self.hatch(row,ready=None)['pokemon'].spec['egg_entity_id'],row['entity_id'])
 
 
@@ -131,9 +131,9 @@ class CoreFossilWarmerTests(unittest.TestCase):
         row=self.restore(policy)['egg'];actual=P.egg_index(self.e)[row['entity_id']][1]
         self.assertNotIn(CREATION.CONTRACT,actual)
         heater=self.add(build_pokemon(self.r,'피카츄',5,moves=[],abilities=[],extra={'capabilities':['알 부화기']}))
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError,'waiting time'):self.hatch(row,ready=None)
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         CAP.heat_egg(self.e,heater,row['entity_id'],source=CAP.EGG_WARMER,fixed_d10=2)
         original=deepcopy(actual[CAP.HEAT][0]);actual[CAP.HEAT][0]['seconds']+=3600
         self.assertFalse(self.e.validate_state()['valid']);actual[CAP.HEAT][0]=original

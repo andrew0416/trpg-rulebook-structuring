@@ -212,21 +212,21 @@ class FortressCurrentIntegrationTests(FortressFixture,unittest.TestCase):
   for error_type in (HEAVY.HeavyPending,ClaimedHeavy,PASSIVE.PassiveEventPending,ValueError):
    with self.subTest(error=error_type.__name__):
     key,mid,event=self.guardian_intercept()
-    before=self.e.export_state()
+    before=self.e.snapshot_state()
     with patch.object(Engine,'_resolve_move_recipient',side_effect=error_type('unregistered-test-claim')):
      with self.assertRaises(error_type):self.intercept(event)
-    self.assertEqual(self.e.export_state(),before)
+    self.assertEqual(self.e.snapshot_state(),before)
     self.assertEqual(self.a.budget['swift'],1)
     self.assertFalse(self.a.custom_conditions['fortress_guardian_attack']['paid'])
   key,mid,event=self.guardian_intercept()
   self.e.gm.set_injuries(self.other,value=5,reason='actual Heavy recipient for subclass rejection')
-  before=self.e.export_state();original=Engine._resolve_move_recipient
+  before=self.e.snapshot_state();original=Engine._resolve_move_recipient
   def claim(engine,*args,**kwargs):
    try:return original(engine,*args,**kwargs)
    except HEAVY.HeavyPending as error:raise ClaimedHeavy(error.event_id) from error
   with patch.object(Engine,'_resolve_move_recipient',claim):
    with self.assertRaises(ClaimedHeavy):self.intercept(event)
-  self.assertEqual(self.e.export_state(),before)
+  self.assertEqual(self.e.snapshot_state(),before)
   self.assertIsNone(self.e._heavy_pending)
   self.assertFalse(self.a.custom_conditions['fortress_guardian_attack']['paid'])
 
@@ -258,10 +258,10 @@ class FortressSwarmBoundaryTests(unittest.TestCase):
   import swarm_transitions as SWARM
   self.open_turn(3)
   self.assertTrue(turn.spend(self.e,self.p,'standard','actual first swarm window'))
-  before=self.e.export_state()
+  before=self.e.snapshot_state()
   with self.assertRaisesRegex(ValueError,'real turn end'):
    self.e.end_of_turn(self.p,fortress_mark='not-a-native-Fortress-completion')
-  self.assertEqual(self.e.export_state(),before)
+  self.assertEqual(self.e.snapshot_state(),before)
   with patch.object(F,'end_turn',wraps=F.end_turn) as ending:
    result=self.e.end_of_turn(self.p)
   self.assertEqual(result['status'],'swarm_action_pending');ending.assert_not_called()

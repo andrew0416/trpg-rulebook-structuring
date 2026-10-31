@@ -40,10 +40,10 @@ class LocalGrassTests(unittest.TestCase):
         budget=deepcopy(self.a.budget);row=self.activate()
         self.assertEqual(self.a.budget['shift'],budget['shift']-1)
         self.assertNotIn([4,4],row['cells']);self.assertNotIn([6,4],row['cells'])
-        before=CODEC.dump_engine(self.e)
-        self.assertEqual(self.activate(),row);self.assertEqual(CODEC.dump_engine(self.e),before)
+        before=CODEC.snapshot_engine(self.e)
+        self.assertEqual(self.activate(),row);self.assertEqual(CODEC.snapshot_engine(self.e),before)
         with self.assertRaises(ValueError):self.activate('grass/2')
-        self.assertEqual(CODEC.dump_engine(self.e),before)
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
         self.e.gm.set_position(self.a,(8,8),reason='creator leaves fixed field')
         self.assertEqual(FIELD.terrain_for(self.e,self.t)['name'],'그래스')
         self.assertIsNone(FIELD.terrain_for(self.e,self.a))
@@ -83,13 +83,13 @@ class LocalGrassTests(unittest.TestCase):
 
     def test_bad_ownership_and_unknown_geometry_are_atomic_before_payment(self):
         self.a.abilities_suppressed=True
-        before=CODEC.dump_engine(self.e)
+        before=CODEC.snapshot_engine(self.e)
         with self.assertRaises(ValueError):self.activate()
-        self.assertEqual(CODEC.dump_engine(self.e),before)
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
         self.a.abilities_suppressed=False;self.e.grid=None
-        before=CODEC.dump_engine(self.e)
+        before=CODEC.snapshot_engine(self.e)
         with self.assertRaises(ValueError):self.activate()
-        self.assertEqual(CODEC.dump_engine(self.e),before)
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
 
     def test_both_restores_and_original_receipt_tamper_are_atomic(self):
         row=self.activate();self.e.gm.snapshot('grass')
@@ -98,12 +98,12 @@ class LocalGrassTests(unittest.TestCase):
         self.assertEqual(FIELD.validate_local(loaded)[0],row)
         self.e.gm.restore('grass')
         snapshot=self.e.gm.snapshots['grass']['engine'][FIELD.LOCAL_KEY]
-        original=deepcopy(snapshot);before=CODEC.dump_engine(self.e)
+        original=deepcopy(snapshot);before=CODEC.snapshot_engine(self.e)
         for key,value in [('source_row_sha256','wrong'),('cells',[]),('until','encounter_end'),('creator_id','missing')]:
             snapshot.clear();snapshot.update(deepcopy(original))
             snapshot['receipts']['grass/1'][key]=value
             with self.assertRaises(ValueError):self.e.gm.restore('grass')
-            self.assertEqual(CODEC.dump_engine(self.e),before)
+            self.assertEqual(CODEC.snapshot_engine(self.e),before)
             saved=deepcopy(getattr(self.e,FIELD.LOCAL_KEY))
             getattr(self.e,FIELD.LOCAL_KEY)['receipts']['grass/1'][key]=value
             encoder=CODEC._Encoder(self.e);bad=deepcopy(payload)

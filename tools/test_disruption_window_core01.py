@@ -230,14 +230,14 @@ class DisruptionWindowCoreTests(unittest.TestCase):
 
     def test_actual_staged_action_closure_rolls_back_with_existing_native_transaction(self):
         original = self.actual_hit()
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         def rejected(staged, actor, *_participants):
             self.assertTrue(TURN.spend(staged, actor, 'swift', 'actual staged ordinary action'))
             self.assertIsNotNone(staged._move_completions[original]['disruption_window']['closed_by'])
             raise ValueError('bounded late-refusal diagnostic')
         with self.assertRaisesRegex(ValueError, 'bounded late-refusal diagnostic'):
             G.transition(self.e, self.p, rejected, participants=(self.t, self.b), include_rulings=True)
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         self.apply_once(original)
 
     def test_saved_actual_index_and_child_parent_cannot_claim_another_native_completion(self):

@@ -5,7 +5,7 @@ ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(RO
 import test_foundation_grant_payments as F
 import state_grants as G
 import composition_reconcile as C
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 
 class ReconciliationTests(unittest.TestCase):
  @classmethod
@@ -30,9 +30,9 @@ class ReconciliationTests(unittest.TestCase):
   self.assertIn('witness/a',G.effective(f.c,'capabilities'));self.assertEqual(f.c.spec['tutor_points'],3)
   self.lower();self.assertEqual(f.c.spec['tutor_points'],3)
  def test_dependency_conflict_rolls_back_parent_mutation_and_all_refunds(self):
-  f=self.f;self.bind();f.e.bind_grant_dependencies(f.c,'child/b',['child/a']);before=dump_engine(f.e)
+  f=self.f;self.bind();f.e.bind_grant_dependencies(f.c,'child/b',['child/a']);before=snapshot_engine(f.e)
   with self.assertRaisesRegex(C.ReconciliationPending,'retained grant depends'):self.lower()
-  self.assertEqual(dump_engine(f.e),before)
+  self.assertEqual(snapshot_engine(f.e),before)
  def test_retention_contract_survives_restore(self):
   f=self.f;self.bind();e=load_engine(f.rules,dump_engine(f.e));c=e.everyone[2]
   G.transition(e,c,lambda engine,actor:actor.spec.update(level=9))
@@ -41,9 +41,9 @@ class ReconciliationTests(unittest.TestCase):
   f=self.f
   self.row['inputs']={'owner':{'type':'string','authority':'state','question':'Actual owner','binding':{'subject':'target','field':'owner_id'}}}
   self.row['values']['retained']={'op':'eq','left':{'$input':'owner'},'right':f.owner.entity_id}
-  self.bind();before=dump_engine(f.e)
+  self.bind();before=snapshot_engine(f.e)
   with self.assertRaises(C.ReconciliationPending):G.transition(f.e,f.c,lambda e,c:c.spec.pop('trainer_id'))
-  self.assertEqual(dump_engine(f.e),before)
+  self.assertEqual(snapshot_engine(f.e),before)
  def test_weather_change_retracts_bound_source_in_world_only_transition(self):
   f=self.f;f.e.weather='rain'
   self.row['inputs']={'rain':{'type':'boolean','authority':'state','question':'Actual rain','binding':{'subject':'world','field':'weather_is','weather':'rain'}}}
@@ -55,9 +55,9 @@ class ReconciliationTests(unittest.TestCase):
   f=self.f;first,second=list(f.rules.species)[:2];f.c.spec['species']=first
   self.row['inputs']={'species':{'type':'string','authority':'state','question':'Actual species','binding':{'subject':'target','field':'species_id'}}}
   self.row['values']['retained']={'op':'eq','left':{'$input':'species'},'right':first}
-  self.bind();before=dump_engine(f.e)
+  self.bind();before=snapshot_engine(f.e)
   with self.assertRaises(C.ReconciliationPending):G.transition(f.e,f.c,lambda e,c:c.spec.pop('species'))
-  self.assertEqual(dump_engine(f.e),before)
+  self.assertEqual(snapshot_engine(f.e),before)
   G.transition(f.e,f.c,lambda e,c:c.spec.update(species=second))
   self.assertNotIn('child/a',f.c.spec[G.KEY]['sources'])
 
@@ -105,9 +105,9 @@ class ReconciliationTests(unittest.TestCase):
   variant['source']={'file':'input/'+file,'sha256':sha256((ROOT/'input'/file).read_bytes()).hexdigest()}
   f.e.bind_grant_withdrawal_policy(f.c,source,{'prerequisite_loss':{'allowed':True,'refund_mode':'none'}})
   f.e.bind_grant_reconciliation(f.c,source,doc,cause='prerequisite_loss')
-  self.bind();before=dump_engine(f.e)
+  self.bind();before=snapshot_engine(f.e)
   with self.assertRaisesRegex(C.ReconciliationPending,'forgotten-move choice'):self.lower()
-  self.assertEqual(dump_engine(f.e),before)
+  self.assertEqual(snapshot_engine(f.e),before)
   # Supply the player's concrete forgetting choice in the same transaction.
   def resolve(e,c):
    G.set_baseline(c,'moves',moves[:-1]);c.spec['level']=9

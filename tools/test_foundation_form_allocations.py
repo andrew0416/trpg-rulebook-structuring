@@ -4,7 +4,7 @@ import sys,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 import test_foundation_grant_payments as F
 import state_grants as G,form_allocations as FORMS,effects_ext as EXT
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 
 class FormTests(unittest.TestCase):
  @classmethod
@@ -16,9 +16,9 @@ class FormTests(unittest.TestCase):
   f.e.configure_form_allocations(f.c,self.forms,active='normal',source='combat/struggle')
  def test_shared_source_updates_inactive_projection_without_copying_effective_base(self):
   f=self.f;G._source(f.c,'boost','feature',rule_id='combat/struggle');G.stat(f.c,'atk',3,'boost')
-  before=dump_engine(f.e);out=f.e.form_allocation_projection(f.c)
+  before=snapshot_engine(f.e);out=f.e.form_allocation_projection(f.c)
   self.assertEqual((out['normal']['effective']['atk'],out['alternate']['effective']['atk']),(13,23))
-  self.assertEqual(out['alternate']['base']['atk'],20);self.assertEqual(dump_engine(f.e),before)
+  self.assertEqual(out['alternate']['base']['atk'],20);self.assertEqual(snapshot_engine(f.e),before)
   hp=f.c.hp
   for form,expected in [('alternate',23),('normal',13),('alternate',23)]:
    EXT.h_form_change(f.e,f.c,f.c,{'form':form},{})
@@ -32,17 +32,17 @@ class FormTests(unittest.TestCase):
   FORMS.switch(e,c,'normal');self.assertEqual(c.stats['atk'],13)
   self.assertEqual(c.spec[FORMS.KEY]['forms'],self.forms)
  def test_unknown_form_and_mismatched_hp_reject_without_partial_state(self):
-  f=self.f;before=dump_engine(f.e)
+  f=self.f;before=snapshot_engine(f.e)
   with self.assertRaises(ValueError):FORMS.switch(f.e,f.c,'unknown')
   with self.assertRaises(ValueError):EXT.h_form_change(f.e,f.c,f.c,{'forms':['unknown'],'at':'turn start'},{})
   bad=deepcopy(self.forms);bad['alternate']['hp']+=1
   with self.assertRaisesRegex(ValueError,'shared HP'):f.e.configure_form_allocations(f.c,bad,active='normal',source='combat/struggle')
-  self.assertEqual(dump_engine(f.e),before)
+  self.assertEqual(snapshot_engine(f.e),before)
  def test_shared_modifier_invalid_in_inactive_form_rolls_back(self):
-  f=self.f;before=dump_engine(f.e)
+  f=self.f;before=snapshot_engine(f.e)
   def apply(e,c):
    G._source(c,'penalty','feature',rule_id='combat/struggle');G.stat(c,'def',-6,'penalty')
   with self.assertRaisesRegex(ValueError,'effective statistics invalid'):G.transition(f.e,f.c,apply)
-  self.assertEqual(dump_engine(f.e),before)
+  self.assertEqual(snapshot_engine(f.e),before)
 
 if __name__=='__main__':unittest.main()

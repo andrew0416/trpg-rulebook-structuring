@@ -62,10 +62,10 @@ class EquipmentTests(unittest.TestCase):
   self.assertGreater(loaded.use_move(owner,target,'move/강타',set_damage=True,weapon_id=key),0)
   self.valid(loaded)
   e,a,_,_=self.f.fixture(held=(None,None));a.spec['skills']['전투']='숙련'
-  before=e.export_state()
+  before=e.snapshot_state()
   with self.assertRaisesRegex(ValueError,'restricted to another weapon kind'):
    TURN.equip_weapon(e,a,{'name':'작은 도끼','kind':'소형 근접무기','moves':['백스윙']})
-  self.assertEqual(e.export_state(),before)
+  self.assertEqual(e.snapshot_state(),before)
   key=TURN.equip_weapon(e,a,{'name':'양손으로 휘두르는 거대한 금속 붓',
                            'kind':'대형 근접무기','moves':['백스윙']})
   self.assertIn('move/백스윙',a.custom_conditions['equipped_weapons'][key]['available_moves'])
@@ -326,9 +326,9 @@ class EquipmentTests(unittest.TestCase):
    loaded=self.roundtrip(e);who=W.actor_index(loaded)[holder.entity_id];newrow=E.pending(loaded)[0]
    E.resolve(loaded,who,newrow['id'],accept=True);self.assertEqual(who.item,'선제공격손톱');self.valid(loaded)
    e,a,b,holder=self.reaction(name,stored=stored);row=E.pending(e)[0];G.replace_baseline(e,holder,'abilities',[])
-   before=e.export_state();before_log=list(e.log_lines)
+   before=e.snapshot_state();before_log=list(e.log_lines)
    with self.assertRaisesRegex(ValueError,'reaction ability no longer available'):E.resolve(e,holder,row['id'],accept=True)
-   self.assertEqual(e.export_state(),before);self.assertEqual(e.log_lines,before_log)
+   self.assertEqual(e.snapshot_state(),before);self.assertEqual(e.log_lines,before_log)
    self.assertIsNone(holder.item)
 
 if __name__=='__main__':unittest.main(verbosity=2)

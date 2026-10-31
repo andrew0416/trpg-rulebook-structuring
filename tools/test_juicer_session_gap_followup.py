@@ -40,10 +40,10 @@ class JuicerSessionGapTests(unittest.TestCase):
         self.assertEqual(len(actor.buffs),1)
         self.assertEqual(actor.buffs[0]['effect'],{'kind':'heal','amount':30})
         self.assertNotIn('drink_history',actor.spec)
-        before=engine.export_state()
+        before=engine.snapshot_state()
         with self.assertRaises(ValueError):
             engine.use_item(actor,'item/나무열매쥬스',shell_batch_id=batch,duration_minutes=1,duration_reason='duplicate shell Snack')
-        self.assertEqual(engine.export_state(),before)
+        self.assertEqual(engine.snapshot_state(),before)
         self.assertTrue(engine.validate_state()['valid'])
 
     def test_csv_known_session_bottles_and_drinks_despite_actual_elapsed_gap(self):
@@ -75,12 +75,12 @@ class JuicerSessionGapTests(unittest.TestCase):
         engine.gm.observe_empty_container(owner,container_selection='bottle/seconds',reason='actual empty seconds bottle')
         engine.start_round([actor,owner]);engine.end_encounter()
         self.assertTrue(engine.unresolved_time_intervals)
-        before=engine.export_state()
+        before=engine.snapshot_state()
         with self.assertRaisesRegex(ValueError,'continuity'):
             engine.use_item(actor,'item/나무열매쥬스',shell_batch_id=batch,duration_minutes=1,duration_reason='unresolved seconds Snack')
-        self.assertEqual(engine.export_state(),before)
+        self.assertEqual(engine.snapshot_state(),before)
         with self.assertRaisesRegex(ValueError,'continuity'):
             engine.pokemon_activity(owner,'collect_matured_item',target=actor,batch_id=batch,container_selection='bottle/seconds',reason='unresolved seconds bottling')
-        self.assertEqual(engine.export_state(),before)
+        self.assertEqual(engine.snapshot_state(),before)
         self.assertEqual(actor.spec[M.KEY][batch]['stage'],'juice')
 

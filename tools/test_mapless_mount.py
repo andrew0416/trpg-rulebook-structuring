@@ -58,17 +58,17 @@ class Tests(unittest.TestCase):
             if restored is self.e:self.e.gm.restore(saved)
             actors=W.actor_index(restored);a,b=actors[self.a.entity_id],actors[self.b.entity_id]
             self.assertIs(W.mount_relation(actors,a),b);self.assertIs(getattr(b,M.RIDERS)[0],a)
-            before=restored.export_state();paid=deepcopy(a.budget);hp=b.hp;rng=restored.rng.getstate()
+            before=restored.snapshot_state();paid=deepcopy(a.budget);hp=b.hp;rng=restored.rng.getstate()
             self.assertEqual(restored.move_abstract(a,event_id='ride')['phase'],'complete')
             self.assertEqual(a.budget,paid);self.assertEqual(b.hp,hp);self.assertEqual(restored.rng.getstate(),rng)
             self.assertEqual(getattr(b,M.POOL)['used'],2)
             for c in (a,b):self.assertEqual(W.location_of(c)['place_id'],'fountain')
-            self.assertEqual(before,restored.export_state())
+            self.assertEqual(before,restored.snapshot_state())
             TURN.reset_budget(restored,b)
             restored.gm.observe_mapless_movement(b,event_id='next',destination='corridor',movement_cost=3,contacts_after=[],reason='actual shared remaining')
-            before=restored.export_state()
+            before=restored.snapshot_state()
             with self.assertRaisesRegex(ValueError,'allowance'):restored.move_abstract(b,event_id='next')
-            self.assertEqual(before,restored.export_state())
+            self.assertEqual(before,restored.snapshot_state())
 
     def test_native_retention_loss_stops_paid_group_without_refund_or_transport(self):
         self.mounted(contacts=[[self.b.entity_id,self.c.entity_id]])

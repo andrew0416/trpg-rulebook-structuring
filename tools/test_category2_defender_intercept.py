@@ -129,10 +129,10 @@ class DefenderInterceptTests(unittest.TestCase):
         self.assertEqual(self.attempt(f)['cost_profile']['modifier_sources'],[])
 
     def test_decline_and_invalid_path_leave_defender_shift_debt_and_rng_unchanged(self):
-        f=self.fixture();self.acquire(f);f.watch();event=f.waiting();before=f.e.export_state()
+        f=self.fixture();self.acquire(f);f.watch();event=f.waiting();before=f.e.snapshot_state()
         invalid=self.faces(f);invalid['path']=[(3,5),(3,2)]
         with self.assertRaises(ValueError):f.choose(event,options=invalid)
-        self.assertEqual(f.e.export_state(),before)
+        self.assertEqual(f.e.snapshot_state(),before)
         rng=f.e.rng.getstate();f.choose(event,use=False)
         self.assertEqual(RESOURCES.pending(f.r),{})
         self.assertEqual(f.e.rng.getstate(),rng)
@@ -144,9 +144,9 @@ class DefenderInterceptTests(unittest.TestCase):
         self.assertEqual(f.r._action_history,['shift']);self.assertEqual(RESOURCES.pending(f.r),{'shift':1})
         self.assertEqual(f.e.rng.getstate(),rng)
         self.assertEqual(f.a.move_uses['move/막치기'],1)
-        before=f.e.export_state()
+        before=f.e.snapshot_state()
         with self.assertRaises(ValueError):f.choose(event,options=self.faces(f))
-        self.assertEqual(f.e.export_state(),before)
+        self.assertEqual(f.e.snapshot_state(),before)
         f.fresh()
 
     def test_actual_pass_producer_holds_unsupported_reactive_scope_atomically(self):
@@ -155,10 +155,10 @@ class DefenderInterceptTests(unittest.TestCase):
         import pass_moves as PASS, move_completion as COMPLETE
         f=self.fixture();self.acquire(f);f.watch()
         f.a.moves[0]=f.a.spec['moves'][0]='move/풀베기'
-        before=f.e.export_state()
+        before=f.e.snapshot_state()
         with self.assertRaisesRegex(ValueError,'Pass Move requires use_pass_move'):
             f.e.use_move(f.a,f.t,'move/풀베기')
-        self.assertEqual(f.e.export_state(),before)
+        self.assertEqual(f.e.snapshot_state(),before)
         hp=(f.t.hp,f.r.hp)
         with patch.object(type(f.e),'d20',return_value=20):
             with self.assertRaises(PASSIVE.PassiveEventPending):
@@ -208,11 +208,11 @@ class DefenderInterceptTests(unittest.TestCase):
         f.fresh()
 
     def test_source_selection_change_refuses_before_reaction_payment(self):
-        f=self.fixture();self.acquire(f);f.watch();event=f.waiting();before=f.e.export_state()
+        f=self.fixture();self.acquire(f);f.watch();event=f.waiting();before=f.e.snapshot_state()
         selected=self.rules._selected_rule
         with patch.object(self.rules,'_selected_rule',side_effect=lambda uid,*a,**kw:uid+'/unreviewed' if uid==PROFILES.DEFENDER else selected(uid,*a,**kw)):
             with self.assertRaises(ValueError):f.choose(event,options=self.faces(f))
-        self.assertEqual(f.e.export_state(),before)
+        self.assertEqual(f.e.snapshot_state(),before)
 
     def test_historical_profile_requires_actual_persisted_receipt_and_owner(self):
         f=self.fixture();self.acquire(f);value=PROFILES.profile(f.e,f.r,{},'maneuver/근접-가로채기')

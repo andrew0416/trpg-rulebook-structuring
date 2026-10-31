@@ -70,12 +70,12 @@ class Tests(unittest.TestCase):
                 self.base.valid(e)
 
     def test_pass_late_confusion_failure_rolls_back_path_all_recipients_costs_and_rng(self):
-        e,a,b,mid,adj=self.pass_test.fixture();self.confuse(e,a);before=e.export_state()
+        e,a,b,mid,adj=self.pass_test.fixture();self.confuse(e,a);before=e.snapshot_state()
         original=CONFUSION.finish_native
         def fail(*args,**kw):original(*args,**kw);raise ValueError('late parent self-loss')
         with patch.object(CONFUSION,'finish_native',fail):
             with self.assertRaisesRegex(ValueError,'late parent'):self.pass_test.execute(e,a,mid,adj)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         self.assertEqual(self.pass_test.execute(e,a,mid,adj)['confusion']['face'],1)
 
     def test_completed_object_and_pass_replay_survive_both_restores_without_self_hit(self):
@@ -90,14 +90,14 @@ class Tests(unittest.TestCase):
                 self.confuse(e,a);first=execute(e,a);snapshot=e.gm.snapshot();saved=e.export_state()
                 e.lose_hp(a,1);e.gm.restore(snapshot)
                 for world in (e,Engine.import_state(e.r,json.loads(json.dumps(saved,ensure_ascii=False)))):
-                    actor=W.actor_index(world)[a.entity_id];before=world.export_state()
-                    self.assertEqual(execute(world,actor),first);self.assertEqual(world.export_state(),before)
+                    actor=W.actor_index(world)[a.entity_id];before=world.snapshot_state()
+                    self.assertEqual(execute(world,actor),first);self.assertEqual(world.snapshot_state(),before)
                     self.base.valid(world)
 
     def test_refused_other_conditions_and_tampered_parent_link_are_not_admitted(self):
         e,a,b,mid,uid=self.base.fixture();self.confuse(e,a);e.apply_status(a,'잠듦');before=e.export_state()
         with self.assertRaisesRegex(ValueError,'conditions'):self.base.attack(e,a,mid,uid)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         e,a,b,mid,adj=self.pass_test.fixture();self.confuse(e,a);row=self.pass_test.execute(e,a,mid,adj)
         child=e._move_completions[row['completion_id']]
         child['confusion_parent']['event_id']='foreign'

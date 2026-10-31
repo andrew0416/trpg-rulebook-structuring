@@ -24,10 +24,10 @@ class ElementalConnectionSourceChoiceRevisionTests(unittest.TestCase):
         self.a.spec['edge_choices'] = {ELEM.SOURCE: list(types)}
 
     def choice(self, interpretation):
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         pending = ELEM.source_choices(self.e, self.a)
         self.assertEqual(pending['status'], 'PolicyInputsRequired')
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         return {'value': interpretation,
                 'reason': 'GM explicitly selects current native Elemental source and overlap interpretation',
                 'scope': pending['decision_scope']}

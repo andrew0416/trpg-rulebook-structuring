@@ -24,7 +24,7 @@ import pokemon_party as PARTY
 import world_entities as W
 from builder import build_pokemon, build_trainer
 from engine import Combatant, Engine, Rules
-from state_codec import dump_engine, load_engine
+from state_codec import dump_engine, load_engine, snapshot_engine
 
 STATS = ('hp', 'atk', 'def', 'spa', 'spd', 'spe')
 GRID = ['평안 귀여운 산만 위풍당당 과감 끈기', '절박 노력 외로움 고집 개구쟁이 용감',
@@ -84,7 +84,7 @@ class AuditEggEvidenceTests(unittest.TestCase):
         checkpoint = loaded.gm.snapshot()
         loaded.gm.restore(checkpoint)
         actors = W.actor_index(loaded)
-        before = dump_engine(loaded)
+        before = snapshot_engine(loaded)
         replay = loaded.create_declared_egg(actors[self.a.entity_id],
             [actors[parent.entity_id] for parent in self.parents], self.policy(),
             request_id='egg', compatible=True, species='pokemon/이상해씨',
@@ -92,7 +92,7 @@ class AuditEggEvidenceTests(unittest.TestCase):
         self.assertEqual(replay['entity_id'], row['entity_id'])
         self.assertEqual(replay['pokemon_id'], child.entity_id)
         self.assertEqual(replay['owner_id'], other.entity_id)
-        self.assertEqual(before, dump_engine(loaded))
+        self.assertEqual(before, snapshot_engine(loaded))
 
     def test_missing_producer_receipt_rejects_native_state_json_restore_and_hatch(self):
         row = self.create()
@@ -195,10 +195,10 @@ class AuditEggEvidenceTests(unittest.TestCase):
                 result = loaded.choose_growth_ability(actual, stage, choice, reason='actual attained level choice')
                 self.assertFalse(result['replayed'])
                 self.assertEqual(actual.abilities, ['심록', choice])
-                before = dump_engine(loaded)
+                before = snapshot_engine(loaded)
                 replay = loaded.choose_growth_ability(actual, stage, choice, reason='actual attained level choice')
                 self.assertTrue(replay['replayed'])
-                self.assertEqual(before, dump_engine(loaded))
+                self.assertEqual(before, snapshot_engine(loaded))
                 again = restored(self.r, loaded)
                 self.assertEqual(W.actor_index(again)[child.entity_id].abilities, ['심록', choice])
 

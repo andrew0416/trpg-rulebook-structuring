@@ -137,10 +137,10 @@ class AthleticMoveLearningTests(unittest.TestCase):
         self.select([['조이기','블록']]);self.register()
         self.assertIn(BIND,self.c.spec[G.KEY]['sources'][self.source(UID)]['grants']['moves'])
         self.e.start_round([self.c]);self.e.start_of_turn(self.c,initiative_count=10)
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         with self.assertRaisesRegex(ValueError,'static learned Move'):
             self.e.use_move(self.c,self.c,BIND)
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.assertNotIn(BIND,encounter.usable_moves(self.e,self.c))
 
 

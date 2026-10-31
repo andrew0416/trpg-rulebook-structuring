@@ -50,10 +50,10 @@ class DisruptionWindowTests(unittest.TestCase):
         return row['id']
 
     def reject_unchanged(self, completion_id):
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with self.assertRaises(ValueError):
             TA.react(self.e, self.t, self.p, TA.uid('Disruption Order'), completion_id)
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         self.assertFalse(any(r.get('ace_disruption') for r in TIME.records(self.b)))
 
     def apply_once(self, completion_id):
@@ -63,10 +63,10 @@ class DisruptionWindowTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['accuracy_modifier'], -3)
         self.assertEqual(self.t._action_history, trainer_history + ['free'])
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'already consumed'):
             TA.react(self.e, self.t, self.p, TA.uid('Disruption Order'), completion_id)
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         self.assertIs(self.e.rulings, self.e.r.rulings)
         self.valid()
 

@@ -13,7 +13,7 @@ PROJECT = STAGE if (STAGE / "data" / "core-rules.json").exists() else Path(
 sys.path[:0] = [str(STAGE / "engine"), str(PROJECT / "engine"), str(PROJECT / "tools")]
 
 from engine import Combatant, Engine, Rules
-from state_codec import dump_engine, load_engine
+from state_codec import dump_engine, load_engine, snapshot_engine
 
 
 def _overlay(name):
@@ -135,24 +135,24 @@ class TrainerFeatureAcquisitionTests(unittest.TestCase):
     def test_request_replay_is_idempotent_and_payload_collision_rejects(self):
         engine, actor = self.fixture()
         first = self.acquire(engine, actor)
-        after = dump_engine(engine)
+        after = snapshot_engine(engine)
         replay = self.acquire(engine, actor)
         self.assertEqual(replay, first)
-        self.assertEqual(dump_engine(engine), after)
+        self.assertEqual(snapshot_engine(engine), after)
         with self.assertRaisesRegex(ValueError, "waiver"):
             self.acquire(engine, actor, waivers=[{"reason": "forged replay"}])
-        self.assertEqual(dump_engine(engine), after)
+        self.assertEqual(snapshot_engine(engine), after)
         with self.assertRaisesRegex(ValueError, "different payload"):
             self.acquire(engine, actor, selected=self.moves[1:4])
-        self.assertEqual(dump_engine(engine), after)
+        self.assertEqual(snapshot_engine(engine), after)
 
     def test_new_request_cannot_reselect_or_reacquire_feature(self):
         engine, actor = self.fixture()
         self.acquire(engine, actor)
-        before = dump_engine(engine)
+        before = snapshot_engine(engine)
         with self.assertRaisesRegex(ValueError, "immutable|reselection"):
             self.acquire(engine, actor, request="request/2", selected=self.moves[1:4])
-        self.assertEqual(dump_engine(engine), before)
+        self.assertEqual(snapshot_engine(engine), before)
 
     def test_acquisition_snapshot_survives_later_known_move_change(self):
         engine, actor = self.fixture()

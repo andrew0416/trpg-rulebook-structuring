@@ -8,7 +8,7 @@ sys.path[:0] = [str(ROOT/'engine'), str(ROOT/'tools')]
 from engine import Rules, Engine, Combatant
 from builder import build_trainer
 from rulings import Rulings
-from state_codec import dump_engine, load_engine, StateCodecError
+from state_codec import dump_engine, load_engine, StateCodecError, snapshot_engine
 import initiative_derivation as D
 import combat_timing as TIME
 import world_entities as WORLD
@@ -44,12 +44,12 @@ class InitiativeFoundationTests(unittest.TestCase):
         self.a.conditions.add('마비'); self.a.initiative_bonus = 4
         self.assertIsNone(self.e.initiative_value(self.a).value)
         p = self.procedure(['add','multiply'])
-        before = dump_engine(self.e)
+        before = snapshot_engine(self.e)
         out = self.e.initiative_value(self.a, procedure=p)
         self.assertEqual(out.value, 12)
         self.assertEqual(out.derivation['exact'], {'numerator':25,'denominator':2})
         self.assertEqual(self.e.initiative_value(self.a, procedure=self.procedure(['multiply','add'])).value, 14)
-        self.assertEqual(dump_engine(self.e), before)
+        self.assertEqual(snapshot_engine(self.e), before)
         self.assertEqual(self.e.initiative([self.a,self.b],procedures={self.a.entity_id:p}), [self.b,self.a])
 
     def test_unknown_order_is_pending_before_clock_or_random_consumption(self):

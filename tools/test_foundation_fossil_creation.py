@@ -6,7 +6,7 @@ import json,sys,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 import test_foundation_policy_training as fixtures
 from builder import build_trainer
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 from native_scenario_fixture import assert_rejected_unchanged
 import growth_milestones as MILESTONES
 import creation_fossil as F,crafting_recipes as Q,pokemon_entities as P,pokemon_party as PARTY,pokemon_progression as PROGRESSION,world_entities as W
@@ -122,9 +122,9 @@ class FossilTests(unittest.TestCase):
  def test_transfer_json_restore_and_replay_keep_the_original_restorer(self):
   row=self.default()['egg'];other=self.add(build_trainer(self.r,'recipient',20,dict.fromkeys(('hp','atk','def','spa','spd','spe'),10),extra={'edges':[]}))
   self.e.gm.transfer_egg(self.a,other,row['entity_id'],reason='actual gift',request_id='gift')
-  loaded=load_engine(self.r,json.loads(json.dumps(self.snap(),ensure_ascii=False)));actors=W.actor_index(loaded);before=dump_engine(loaded)
+  loaded=load_engine(self.r,json.loads(json.dumps(self.snap(),ensure_ascii=False)));actors=W.actor_index(loaded);before=snapshot_engine(loaded)
   out=loaded.restore_declared_fossil(actors[self.a.entity_id],self.fossil['entity_id'],self.policy(0),request_id='restore',inputs=None,reason='actual owned fossil and machine')
-  self.assertTrue(out['replayed']);self.assertEqual(out['egg']['owner_id'],other.entity_id);self.assertEqual(before,dump_engine(loaded))
+  self.assertTrue(out['replayed']);self.assertEqual(out['egg']['owner_id'],other.entity_id);self.assertEqual(before,snapshot_engine(loaded))
   child=loaded.hatch_restored_fossil(actors[other.entity_id],row['entity_id'],name='gift offspring',ready=True,reason='GM observed gift readiness',details=self.details())['pokemon']
   self.assertEqual(child.spec['trainer_id'],other.entity_id);actual=P.fossil_index(loaded)[self.fossil['entity_id']][1]
   self.assertEqual(actual['restored_by'],self.a.entity_id);self.assertEqual(actual['pokemon_id'],child.entity_id)

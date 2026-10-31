@@ -57,13 +57,13 @@ class StaticMoveIdentityTests(unittest.TestCase):
         self.assertNotIn('move/조이기',encounter.usable_moves(restored,actor))
 
     def test_static_move_cannot_execute_through_single_free_or_multi_target_entrypoints(self):
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         for kind in ('single','free','multi'):
             with self.subTest(entrypoint=kind):
                 with self.assertRaisesRegex(ValueError,'static learned Move'):
                     if kind=='multi':self.e.use_move_on(self.a,self.b,'move/조이기',self.e.everyone)
                     else:self.e.use_move(self.a,self.b,'move/조이기',set_damage=True,
                                         count_use=kind!='free',free_action=kind=='free')
-                self.assertEqual(self.e.export_state(),before)
+                self.assertEqual(self.e.snapshot_state(),before)
 
 if __name__=='__main__':unittest.main()

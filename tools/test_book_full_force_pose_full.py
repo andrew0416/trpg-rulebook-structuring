@@ -223,13 +223,13 @@ class FullForcePoseTests(unittest.TestCase):
         self.reject(lambda:A.prepare(self.e,self.p,forged),'projection source changed')
         self.reject(lambda:self.e.use_move(self.p,deepcopy(self.foe),'move/불꽃세례'),'distinct actors share identity:')
         self.assertFalse(self.p.spec.get(Z.HISTORY));self.assertTrue(F.activation_allowed(self.p,Z.CRYSTAL,Z.QUOTA))
-        self.begin();before=self.e.export_state()
+        self.begin();before=self.e.snapshot_state()
         with patch.object(A,'_eligible',side_effect=ValueError('injected changed source before admission')):
             with self.assertRaisesRegex(ValueError,'changed source'):self.e.use_move_on(self.p,self.foe,'move/불꽃세례',[self.foe])
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         with patch.object(Engine,'d20',return_value=18),patch.object(A,'after_target',side_effect=ValueError('injected late native failure')):
             with self.assertRaisesRegex(ValueError,'late native failure'):self.e.use_move_on(self.p,self.foe,'move/불꽃세례',[self.foe])
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.assertFalse(self.p.spec.get(Z.HISTORY));self.assertTrue(F.activation_allowed(self.p,Z.CRYSTAL,Z.QUOTA))
 
     def test_save_restore_preserves_crystal_choice_completed_use_and_quota(self):

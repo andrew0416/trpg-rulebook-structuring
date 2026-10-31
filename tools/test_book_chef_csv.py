@@ -171,9 +171,9 @@ class ChefCsvTests(unittest.TestCase):
         self.assertEqual(ORIGIN.read(e, 'actual/chef-vitamin')['native_ref']['production_id'], result['production_id'])
         e, index = FIX.restore(self.rules, e)
         chef, p = index[chef.entity_id], index[p.entity_id]
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         self.assertEqual(FIX.cook(e, chef, recipe='vitamin', item='item/타우린', product_policy=policy, event_id='actual/chef-vitamin-work'), result)
-        self.assertEqual(CODEC.dump_engine(e), before)
+        self.assertEqual(CODEC.snapshot_engine(e), before)
         attack = p.spec['stats']['atk']
         ITEMS.equip_held(e, chef, 'item/타우린', source_instance_id='actual/chef-vitamin')
         e.use_item(chef, 'item/타우린', p, held_selection='actual/chef-vitamin')

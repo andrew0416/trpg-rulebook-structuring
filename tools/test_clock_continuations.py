@@ -9,7 +9,7 @@ sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 from engine import Rules,Engine,Combatant
 from builder import build_trainer
 import effects as FX,clock_invocations as CLOCK,combat_timing as LIFE,world_entities as W
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 
 
 class ClockContinuationTests(unittest.TestCase):
@@ -46,11 +46,11 @@ class ClockContinuationTests(unittest.TestCase):
         actual=self.e._effect_dispatch_receipts[clock['children'][0]['record']['receipt']]
         self.assertEqual(actual['result'],{'condition':False,'applied':False})
     def test_wrong_owner_receipt_and_changed_interval_are_inert(self):
-        self.install();clock=self.advance();before=dump_engine(self.e)
+        self.install();clock=self.advance();before=snapshot_engine(self.e)
         for call in (lambda:self.advance(seconds=13),lambda:self.e.advance_time(1,[self.a]),
                      lambda:self.e.resolve_effect_condition(self.a,object(),target_was_asleep=True,reason='wrong original')):
             with self.assertRaises(ValueError):call()
-            self.assertEqual(before,dump_engine(self.e))
+            self.assertEqual(before,snapshot_engine(self.e))
         self.answer(clock)
         with self.assertRaises(ValueError):self.answer(clock,truth=False)
     def test_save_restore_keeps_pending_original_and_completed_replay(self):
@@ -60,13 +60,13 @@ class ClockContinuationTests(unittest.TestCase):
         self.assertEqual((self.e.elapsed_seconds,self.a.stages['atk']),(12,1))
         self.e=load_engine(self.rules,json.loads(json.dumps(dump_engine(self.e),ensure_ascii=False)))
         self.a=W.actor_index(self.e)[self.a.entity_id]
-        before=dump_engine(self.e);self.advance();self.assertEqual(before,dump_engine(self.e))
+        before=snapshot_engine(self.e);self.advance();self.assertEqual(before,snapshot_engine(self.e))
     def test_completed_old_query_and_reply_do_not_release_later_wait(self):
         self.install();old=self.advance();self.answer(old);self.advance()
         self.install();current=self.advance('second',9)
         self.assertEqual((current['status'],self.e.elapsed_seconds),('waiting',17))
-        before=dump_engine(self.e);self.advance();self.answer(old)
-        self.assertEqual(before,dump_engine(self.e));self.assertEqual(current['status'],'waiting')
+        before=snapshot_engine(self.e);self.advance();self.answer(old)
+        self.assertEqual(before,snapshot_engine(self.e));self.assertEqual(current['status'],'waiting')
     def test_two_due_children_wait_separately_without_replaying_prefix(self):
         self.install(stat='atk');self.install(stat='def')
         clock=self.advance();self.answer(clock);again=self.advance()

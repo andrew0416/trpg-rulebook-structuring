@@ -130,10 +130,10 @@ class CandidateReview05Tests(unittest.TestCase):
         self.assertEqual(PROTECTION.status(engine, pokemon, selected, 'drop')['status'], 'needs_consent')
         with self.assertRaises(PROTECTION.EquipmentConsentRequired):
             PROTECTION.require(engine, pokemon, selected, 'drop', (giver,))
-        before = CODEC.dump_engine(engine)
+        before = CODEC.snapshot_engine(engine)
         with self.assertRaises(ValueError):
             engine.give_equipment(giver, pokemon, incoming_id)
-        self.assertEqual(CODEC.dump_engine(engine), before)
+        self.assertEqual(CODEC.snapshot_engine(engine), before)
         result = engine.give_equipment(giver, pokemon, incoming_id, replace_selection=old_id)
         self.assertTrue(result['equipped'])
         self.assertEqual(giver.budget['standard'], 0)

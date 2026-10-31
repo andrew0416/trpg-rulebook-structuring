@@ -60,9 +60,9 @@ class SpiritBodyModesTests(unittest.TestCase):
         self.assertEqual((out['body_mode']['mode'],BODY.cells(self.p),self.p.budget['standard']),('phasing',original,0))
         self.e.end_of_turn(self.p);self.e.end_round()
         self.assertEqual(self.p.hp,hp-loss)
-        snapshot=self.e.export_state()
+        snapshot=self.e.snapshot_state()
         with self.assertRaisesRegex(ValueError,'no open round'):self.e.end_round()
-        self.assertEqual(self.e.export_state(),snapshot)
+        self.assertEqual(self.e.snapshot_state(),snapshot)
         self.e.start_round(self.e.everyone);self.e.start_of_turn(self.p,initiative_count=20)
         before=self.resources(self.p)
         for cost in ('standard','full'):

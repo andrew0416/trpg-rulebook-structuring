@@ -44,14 +44,14 @@ class TotalBlindnessRelativeIndependentTests(unittest.TestCase):
             movement_id=identity,blindness_options=options)
 
     def test_unbound_direction_or_undeclared_pace_refuses_before_native_cost_or_rng(self):
-        e,a=self.fixture(frame=False);before=e.export_state()
+        e,a=self.fixture(frame=False);before=e.snapshot_state()
         with self.assertRaises(ValueError):self.move(e,a)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         e.observe_relative_directions(a,directions={'hand-forward':(1,0)},
             quickly_trip_placement='before_entry',reason='GM translates only the understood relative label')
-        before=e.export_state()
+        before=e.snapshot_state()
         with self.assertRaises(ValueError):self.move(e,a,pace='ordinary')
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
 
     def test_slowly_uses_native_minimum_and_odd_even_slowness_once_without_status_grant(self):
         for movement,slowed,expected in ((1,False,1),(5,False,2),(6,False,3),(6,True,3)):
@@ -88,10 +88,10 @@ class TotalBlindnessRelativeIndependentTests(unittest.TestCase):
         state=json.loads(json.dumps(e.export_state(),ensure_ascii=False))
         e=Engine.import_state(Rules(ROOT,ruleset='core'),state)
         a=next(actor for actor in e.everyone if actor.entity_id==identity)
-        before=e.export_state()
+        before=e.snapshot_state()
         with patch.object(e,'skill_roll',side_effect=AssertionError('completed Shift cannot roll again')):
             again=self.move(e,a)
-        self.assertEqual(again,result);self.assertEqual(e.export_state(),before)
+        self.assertEqual(again,result);self.assertEqual(e.snapshot_state(),before)
         self.assertEqual(set(again),{'movement_id','state','distance','tripped'})
         self.assertEqual(a._action_history,['shift'])
 

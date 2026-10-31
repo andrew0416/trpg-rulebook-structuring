@@ -99,9 +99,9 @@ class HarvestTests(unittest.TestCase):
   self.assertEqual(out['amount'],3);self.assertEqual(out['receipt']['mulch_bonus'],0)
  def test_completed_event_replay_after_restore_never_rerolls_or_recreates_yield(self):
   self.ready();value=self.policy();out=self.harvest(value,fixed=[2],event_id='one');loaded=self.restored()
-  actor=next(c for c in loaded.gm.everyone if c.entity_id==self.a.entity_id);before=CODEC.dump_engine(loaded)
+  actor=next(c for c in loaded.gm.everyone if c.entity_id==self.a.entity_id);before=CODEC.snapshot_engine(loaded)
   replay=loaded.harvest_growth(actor,value,plant_id='plant:first',fixed=[2],event_id='one')
-  self.assertEqual(replay,out);self.assertEqual(before,CODEC.dump_engine(loaded))
+  self.assertEqual(replay,out);self.assertEqual(before,CODEC.snapshot_engine(loaded))
   with self.assertRaises(ValueError):loaded.harvest_growth(actor,value,plant_id='plant:first',fixed=[3],event_id='one')
  def test_gm_and_json_restore_retain_used_period_real_body_and_product_receipt(self):
   self.ready();value=self.policy(1);out=self.harvest(value,fixed=[4,4]);self.harvest(value,fixed=[4,4])

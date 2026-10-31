@@ -68,9 +68,9 @@ class CsvClockSourceTests(unittest.TestCase):
                 self.assertIs(activity['payment'], actor.buffs[0]['item_stock'])
                 self.assertIs(next(iter(STOCK.validate(actor).values()))['item_stock'], activity['payment'])
                 e = self.restored(e); actor = WORLD.actor_index(e)[actor.entity_id]
-                before = CODEC.dump_engine(e)
+                before = CODEC.snapshot_engine(e)
                 self.assertEqual(self.intake(e, actor, item, resumable=True, request_id='csv-clock'), result)
-                self.assertEqual(before, CODEC.dump_engine(e))
+                self.assertEqual(before, CODEC.snapshot_engine(e))
 
     def test_waiting_json_and_gm_restore_resume_the_actual_boundary_without_double_payment(self):
         e, actor, other = self.waiting()
@@ -139,12 +139,12 @@ class CsvClockSourceTests(unittest.TestCase):
 
     def test_explicit_csv_intake_does_not_admit_generic_automatic_selection(self):
         e, actor, other = self.fixture('item/회복허브')
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         for operation in (lambda:CONTRACTS.source_profile(e, 'item/회복허브'),
                           lambda:e.advance_time(1,[actor],resumable=True,request_id='generic',source='item/회복허브'),
                           lambda:e.r.item_effects('item/회복허브')):
             with self.assertRaises(ExcludedRuleSelection): operation()
-        self.assertEqual(before, CODEC.dump_engine(e))
+        self.assertEqual(before, CODEC.snapshot_engine(e))
         self.intake(e,actor,'item/회복허브',resumable=True,request_id='csv-clock')
         with self.assertRaises(ExcludedRuleSelection): CONTRACTS.source_profile(e,'item/회복허브')
         with self.assertRaises(ValueError):

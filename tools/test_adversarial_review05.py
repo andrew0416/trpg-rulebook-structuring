@@ -199,10 +199,10 @@ class StellarAdversarial05Tests(unittest.TestCase):
         history=deepcopy(self.owner.spec[STELLAR.STATE]['history'])
         loaded=Engine.import_state(self.rules,json.loads(json.dumps(self.engine.export_state())))
         index=WORLD.actor_index(loaded);owner=index[self.owner.entity_id];ally=index[self.ally.entity_id]
-        before=loaded.export_state()
+        before=loaded.snapshot_state()
         self.assertEqual(STELLAR.active_radiation(loaded,owner)['radiated_type'],'불꽃')
         self.assertEqual(STELLAR.damage_roll_bonus(loaded,ally,'불꽃')[0],10)
-        self.assertEqual(loaded.export_state(),before)
+        self.assertEqual(loaded.snapshot_state(),before)
         self.assertEqual(owner.spec[STELLAR.STATE]['history'],history)
         loaded.gm.set_ability(owner,'스텔라버스트',add=False,reason='actual source loss after legacy restore')
         self.assertIsNone(STELLAR.active_radiation(loaded,owner))

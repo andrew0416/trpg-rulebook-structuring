@@ -60,9 +60,9 @@ class RetrainingEdgeChoiceTests(unittest.TestCase):
     f.valid();f.restore();f.valid()
     self.assertEqual(SKILLS.effective_rank(self.rules,f.a,'전투'),6)
     self.assertEqual(len(f.e.skill_roll(f.a,'전투',fixed=[1]*6).faces),6)
-    before=f.e.export_state()
+    before=f.e.snapshot_state()
     self.assertEqual(f.e.retrain_trainer_source(f.a,VIRTUOSO,**decision),result)
-    self.assertEqual(f.e.export_state(),before)
+    self.assertEqual(f.e.snapshot_state(),before)
  def test_other_choice_edge_withdrawal_preserves_virtuoso_and_removes_only_its_bonus(self):
   f=self.fixture();decision=self.decisions(f,ENHANCEMENT)
   f.e.retrain_trainer_source(f.a,ENHANCEMENT,**decision)

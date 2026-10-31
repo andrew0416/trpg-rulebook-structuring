@@ -85,9 +85,9 @@ class EnvironmentalActualTypeRevisionTests(unittest.TestCase):
                 loaded = Engine.import_state(self.r, json.loads(json.dumps(before, ensure_ascii=False)))
                 for world in (e, loaded):
                     holder = WORLD.actor_index(world)[t.entity_id]
-                    saved = world.export_state()
+                    saved = world.snapshot_state()
                     self.assertEqual(self.observe(world, holder, material=material, native_attack=reference), row)
-                    self.assertEqual(world.export_state(), saved)
+                    self.assertEqual(world.snapshot_state(), saved)
                 e.gm.set_weather('rain', reason='later unrelated weather'); e.gm.restore(snapshot)
                 self.assertEqual(self.observe(e, t, material=material, native_attack=reference), row)
 
@@ -230,11 +230,11 @@ class EnvironmentalActualTypeRevisionTests(unittest.TestCase):
         self.assertEqual(first['move_type'], '전기')
         self.assertEqual(a.spec, producer_state)
         self.assertFalse(DECLARATIVE.live(a, 'next_normal_attack_type'))
-        replay_state = e.export_state()
+        replay_state = e.snapshot_state()
         self.assertEqual(self.observe(e, t, move_id='move/몸통박치기', native_attack=reference), first)
         self.assertEqual(a.spec, producer_state)
         self.assertFalse(DECLARATIVE.live(a, 'next_normal_attack_type'))
-        self.assertEqual(e.export_state(), replay_state)
+        self.assertEqual(e.snapshot_state(), replay_state)
 
     def test_multiple_weather_requires_pre_cost_choice_and_preserves_rudolf_ground_exception(self):
         for ground, selected in ((False, '얼음'), (True, '땅')):
@@ -293,9 +293,9 @@ class EnvironmentalActualTypeRevisionTests(unittest.TestCase):
         legacy.pop('type_evidence'); legacy['sha256'] = TX.request_fingerprint({k:v for k,v in legacy.items() if k!='sha256'})
         saved = e.export_state(); loaded = Engine.import_state(self.r, json.loads(json.dumps(saved, ensure_ascii=False)))
         holder = WORLD.actor_index(loaded)[t.entity_id]
-        before = loaded.export_state()
+        before = loaded.snapshot_state()
         self.assertEqual(self.observe(loaded, holder, 'legacy-camera', move_id='move/물대포'), legacy)
-        self.assertEqual(loaded.export_state(), before)
+        self.assertEqual(loaded.snapshot_state(), before)
         SCENARIO.assert_rejected_unchanged(loaded,
             lambda: self.observe(loaded, holder, 'legacy-camera', move_id='move/물대포', actual_type='전기'),
             reason_pattern='replay changed')

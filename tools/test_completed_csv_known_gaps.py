@@ -90,10 +90,10 @@ class CompletedCsvKnownGaps(unittest.TestCase):
         e=self.fixture(actor)
         obj=self.physical(e,actor,'csv/not-a-cube','item/녹슨검',kind='physical_object')
         obj['zygarde_cells']={'available':100,'assemblies':[]}
-        before=e.export_state()
+        before=e.snapshot_state()
         with self.assertRaises(ValueError):
             FORMS.configure_zygarde(e,actor,obj['id'],cells=10,form_percent=10)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
 
     def test_zygarde_cube_actual_forms_cells_learning_and_irreversible_ability(self):
         actor=self.pokemon('cube-owner',species='지가르데',capabilities=('지가르데 세포',))
@@ -194,13 +194,13 @@ class CompletedCsvKnownGaps(unittest.TestCase):
                 before=(before[0],permanent,before[2],before[3])
                 for operation in (lambda:FORMS.merge_necrozma(e,partner,target,willing=True),
                                   lambda:FORMS.mount_as_one(e,partner,target,ability='정전기',gm_mount_reason='GM suitable mount')):
-                    snapshot=e.export_state()
+                    snapshot=e.snapshot_state()
                     with self.assertRaisesRegex(ValueError,'independently'):operation()
-                    self.assertEqual(e.export_state(),snapshot)
+                    self.assertEqual(e.snapshot_state(),snapshot)
                 e.start_round([actor,target]);e.start_of_turn(actor,initiative_count=20)
-                snapshot=e.export_state()
+                snapshot=e.snapshot_state()
                 with self.assertRaisesRegex(ValueError,'independently'):e.use_move(partner,target,'move/몸통박치기')
-                self.assertEqual(e.export_state(),snapshot)
+                self.assertEqual(e.snapshot_state(),snapshot)
                 with patch.object(e,'d20',return_value=20):e.use_move(actor,target,signature,set_damage=True)
                 e.end_of_turn(actor)
                 restored=Engine.import_state(self.r,e.export_state())
@@ -223,15 +223,15 @@ class CompletedCsvKnownGaps(unittest.TestCase):
         self.assertEqual(row['signature_move'],'move/전광석화')
         self.assertNotIn('move/섀도레이',actor.moves)
         FORMS.release_necrozma(e,actor)
-        before=e.export_state()
+        before=e.snapshot_state()
         with self.assertRaises(ValueError):FORMS.merge_necrozma(e,actor,partner,willing=True,signature_move='move/화염방사')
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         full=self.pokemon('full-merge',species='네크로즈마',capabilities=('바이러스 합체',),moves=tuple(list(self.r.moves)[:6]))
         moon=self.pokemon('moon',species='루나아라')
         e=self.fixture(full,moon)
-        before=e.export_state()
+        before=e.snapshot_state()
         with self.assertRaisesRegex(ValueError,'capacity'):FORMS.merge_necrozma(e,full,moon,willing=True)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
 
     def test_necrozma_power_jump_real_actions_live_partner_and_restore(self):
         import capability_actions as LOAD
@@ -301,9 +301,9 @@ class CompletedCsvKnownGaps(unittest.TestCase):
         self.assertIn('move/블리자드랜스',rider.moves)
         e.start_round([rider,target]);e.start_of_turn(rider,initiative_count=20)
         for actor,victim in ((mount,target),(target,mount)):
-            before=e.export_state()
+            before=e.snapshot_state()
             with self.assertRaisesRegex(ValueError,'independently'):e.use_move(actor,victim,'move/몸통박치기')
-            self.assertEqual(e.export_state(),before)
+            self.assertEqual(e.snapshot_state(),before)
         with self.assertRaisesRegex(ValueError,'independently'):e.activate_ability(mount,'백의울음',target)
         with self.assertRaisesRegex(ValueError,'independently'):e.activate_ability(target,'통찰',mount)
         import action_lifecycle as ACTION
@@ -317,9 +317,9 @@ class CompletedCsvKnownGaps(unittest.TestCase):
         self.assertIn('move/블리자드랜스',usable_moves(e,rider))
         for operation in (lambda:FORMS.merge_necrozma(e,mount,target,willing=True),
                           lambda:FORMS.mount_as_one(e,mount,target,ability='정전기',gm_mount_reason='GM suitable mount')):
-            snapshot=e.export_state()
+            snapshot=e.snapshot_state()
             with self.assertRaisesRegex(ValueError,'independently'):operation()
-            self.assertEqual(e.export_state(),snapshot)
+            self.assertEqual(e.snapshot_state(),snapshot)
         e.end_of_turn(rider)
         e.gm.recall(rider,reason='actual combined ball recall')
         self.assertFalse(rider.on_field);self.assertFalse(mount.on_field)
@@ -330,11 +330,11 @@ class CompletedCsvKnownGaps(unittest.TestCase):
         self.assertFalse(rider.on_field);self.assertFalse(mount.on_field)
         self.assertEqual(rider.spec[FORMS.STATE]['as_one']['mount_id'],mount.entity_id)
         self.assertEqual(mount.spec['off_field_reason'],{'kind':'as_one_mount','owner_id':rider.entity_id})
-        before=e.export_state()
+        before=e.snapshot_state()
         with self.assertRaisesRegex(ValueError,'independently'):e.gm.recall(mount,reason='invalid independent ball')
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         with self.assertRaisesRegex(ValueError,'independently'):e.gm.send_out(mount,reason='invalid independent send')
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         e.gm.send_out(rider,reason='same combined Pokemon returns')
         self.assertTrue(rider.on_field);self.assertFalse(mount.on_field)
         actual,other=rider,mount
@@ -367,18 +367,18 @@ class CompletedCsvKnownGaps(unittest.TestCase):
         rider=self.pokemon('gm-rider',species='버드렉스',capabilities=('혼연일체',))
         mount=self.pokemon('레이스포스',species='피카츄',abilities=('정전기','불가사의부적','긴장감'))
         e=self.fixture(rider,mount)
-        before=e.export_state()
+        before=e.snapshot_state()
         with self.assertRaises(ValueError):FORMS.mount_as_one(e,rider,mount,ability='정전기')
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         for ability in ('불가사의부적','긴장감'):
             with self.assertRaises(ValueError):FORMS.mount_as_one(e,rider,mount,ability=ability,gm_mount_reason='GM accepts this mount')
-            self.assertEqual(e.export_state(),before)
+            self.assertEqual(e.snapshot_state(),before)
         FORMS.mount_as_one(e,rider,mount,ability='정전기',gm_mount_reason='GM accepts this mount')
         self.assertIn('정전기',rider.abilities)
         self.assertNotIn('move/아스트랄비트',rider.moves)
-        before=e.export_state()
+        before=e.snapshot_state()
         with self.assertRaisesRegex(ValueError,'independently'):e.gm.send_out(mount,reason='removed GM mount has no independent body')
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
 
     def test_weapon_union_two_actual_items_permissions_faint_and_exit(self):
         for species,item,form,move in (('자시안','item/녹슨검','검왕','move/거수참'),
@@ -416,6 +416,6 @@ class CompletedCsvKnownGaps(unittest.TestCase):
             with self.subTest(custom_species=name),patch.dict(self.r.species,{custom['id']:custom}):
                 actor=self.pokemon('real-custom-body',species=custom['id'],capabilities=('무기합일',))
                 e=self.fixture(actor);self.physical(e,actor,'csv/custom-weapon',item,kind='physical_object')
-                before=e.export_state()
+                before=e.snapshot_state()
                 with self.assertRaisesRegex(ValueError,'limited'):FORMS.weapon_union(e,actor,'csv/custom-weapon')
-                self.assertEqual(e.export_state(),before)
+                self.assertEqual(e.snapshot_state(),before)

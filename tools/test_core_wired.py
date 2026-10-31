@@ -59,9 +59,9 @@ class CoreWiredTests(unittest.TestCase):
 
     def test_actual_nonvehicle_connection_requires_current_cord_and_grants_no_machine_commands_or_cost(self):
         self.p.spec['species'] = '폴리곤'
-        before = CODEC.dump_engine(self.e)
+        before = CODEC.snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError, 'cord'):self.connect(cord=False)
-        self.assertEqual(before, CODEC.dump_engine(self.e))
+        self.assertEqual(before, CODEC.snapshot_engine(self.e))
         budget = deepcopy(self.p.budget)
         self.connect(); self.connect('device/B', 'route/B')
         self.assertEqual(self.p.budget, budget)
@@ -92,10 +92,10 @@ class CoreWiredTests(unittest.TestCase):
         self.e.disconnect_remote_control(self.p, 'route/B', reason='actual B cord disconnect')
         self.assertNotIn('move/냉동빔', self.p.moves)
         self.assertIn('move/파괴광선', self.p.moves)
-        before = CODEC.dump_engine(self.e)
+        before = CODEC.snapshot_engine(self.e)
         for values in (['missing move'], ['파괴광선', '파괴광선'], ['struggle']):
             with self.assertRaises(ValueError):self.allow(values)
-            self.assertEqual(before, CODEC.dump_engine(self.e))
+            self.assertEqual(before, CODEC.snapshot_engine(self.e))
 
     def test_current_species_capability_device_and_cord_losses_revoke_only_dependent_permissions(self):
         self.connect(); self.allow(['파괴광선', '냉동빔'])
@@ -159,9 +159,9 @@ class CoreWiredTests(unittest.TestCase):
         WIRED.observe_cord(self.e, self.p, 'device/B', 'device/A/cord', connected=True, reason='same actual cord moved to B')
         self.assertEqual(self.e.remote_control_routes(self.p)['route/A']['status'], 'closed')
         self.assertNotIn('move/파괴광선', self.p.moves)
-        before = CODEC.dump_engine(self.e)
+        before = CODEC.snapshot_engine(self.e)
         with self.assertRaises(ValueError):self.connect(actor=copy(self.p))
-        self.assertEqual(before, CODEC.dump_engine(self.e))
+        self.assertEqual(before, CODEC.snapshot_engine(self.e))
         value = WIRED.native(); value['maximum'] = 1
         with self.assertRaisesRegex(ValueError, 'exact source'):REMOTE.declaration(value)
         value = WIRED.native(); value['commands'] = ['move']

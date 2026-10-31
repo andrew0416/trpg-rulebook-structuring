@@ -65,7 +65,7 @@ class MoveDefenseShieldTests(unittest.TestCase):
 
     def test_actual_dive_source_rows_ignore_native_shield_as_policy_query_only(self):
         engine,shield,attacker=self.fixture();self.proof(engine,shield)
-        before=engine.export_state()
+        before=engine.snapshot_state()
         for uid,source_row in (('move/고스트다이브',314),('move/섀도다이브',320)):
             with self.subTest(move=uid):
                 move=engine.r.move(uid);mechanics,confidence=engine.r.move_mech(uid)
@@ -76,7 +76,7 @@ class MoveDefenseShieldTests(unittest.TestCase):
                 self.assertTrue(any('shield' in effect.get('unavoidable_by',()) for effect in effects))
                 self.assertIn('shield',engine.r.move_defense_policy['prohibited_moves'][uid])
                 self.assertFalse(DEFENSE.shield_allowed(engine,attacker,shield,move))
-                self.assertEqual(engine.export_state(),before)
+                self.assertEqual(engine.snapshot_state(),before)
         self.assertFalse(engine.r.move_defense_policy['source_specific_disappearance_implemented'])
 
     def test_changed_completion_owner_or_source_provenance_is_rejected_without_consumption(self):

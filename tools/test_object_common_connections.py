@@ -107,9 +107,9 @@ class CommonConnectionsTests(unittest.TestCase):
         first=F.restore_daily_moves(f.e,f.p,request_id='native-rest')
         self.assertFalse(first['applied']);self.assertFalse(first['eligibility']['moves'][0]['eligible'])
         self.assertEqual(f.p.move_uses[mid],1)
-        before=CODEC.dump_engine(f.e)
+        before=CODEC.snapshot_engine(f.e)
         with self.assertRaises(ValueError):F.restore_daily_moves(f.e,f.p,center=True,request_id='native-rest')
-        self.assertEqual(before,CODEC.dump_engine(f.e))
+        self.assertEqual(before,CODEC.snapshot_engine(f.e))
         F.restore_daily_moves(f.e,f.p,center=True,request_id='native-center');self.assertNotIn(mid,f.p.move_uses)
 
     def test_old_form_end_never_ends_new_activation_and_save_checks_binding(self):
@@ -170,11 +170,11 @@ class CommonConnectionsTests(unittest.TestCase):
         receipt=f.e.advance_time(21600,[f.p],request_id='expiry',source='external/timer')
         self.assertEqual(receipt['status'],'complete')
         native=f.p.spec['bandages'][-1];self.assertIs(f.e._clock_invocations['expiry']['children'][0]['record'],native)
-        before=CODEC.dump_engine(f.e)
+        before=CODEC.snapshot_engine(f.e)
         def fail(e,c):e.rng.random();raise ValueError('late timer failure')
         with patch.object(BANDAGES,'advance',side_effect=fail):
             with self.assertRaises(ValueError):f.e.advance_time(1,[f.p],request_id='failed',source='external/timer')
-        self.assertEqual(before,CODEC.dump_engine(f.e));self.assertNotIn('failed',f.e._clock_invocations)
+        self.assertEqual(before,CODEC.snapshot_engine(f.e));self.assertNotIn('failed',f.e._clock_invocations)
 
     def test_origin_view_distinguishes_new_product_and_retained_repair(self):
         f=self.fixture(6);recipe,policy,result=f.made(seconds=200);identity='crafted:goggles'

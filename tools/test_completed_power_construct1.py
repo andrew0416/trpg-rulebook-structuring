@@ -58,16 +58,16 @@ class PowerConstructTests(unittest.TestCase):
 
  def test_half_boundary_daily_limit_and_scene_restore_are_atomic(self):
   e,c,_,_=self.fixture();self.start(e,c);maximum=c.base_max_hp
-  c.hp=(maximum+1)//2;before=e.export_state()
+  c.hp=(maximum+1)//2;before=e.snapshot_state()
   with self.assertRaisesRegex(ValueError,'below half'):self.activate(e,c)
-  self.assertEqual(e.export_state(),before)
+  self.assertEqual(e.snapshot_state(),before)
   c.hp=(maximum-1)//2;self.activate(e,c)
   quota=c.spec['frequency_state']['activations'][SOURCE]
   self.assertEqual((quota['kind'],quota['used']),('daily',1))
   e.end_scene([c]);self.assertEqual(c.form,'50%폼')
-  before=e.export_state()
+  before=e.snapshot_state()
   with self.assertRaises(ValueError):self.activate(e,c)
-  self.assertEqual(e.export_state(),before)
+  self.assertEqual(e.snapshot_state(),before)
   self.assertTrue(e.validate_state()['valid'])
 
  def test_restore_keeps_original_hp_authority_and_shared_stat_sources(self):
@@ -90,22 +90,22 @@ class PowerConstructTests(unittest.TestCase):
   with self.assertRaises(ValueError):forged.export_state()
 
  def test_each_forms_bst_is_checked_and_other_sources_keep_shared_hp(self):
-  e,c,declarations,_=self.fixture(configure=False);before=e.export_state()
+  e,c,declarations,_=self.fixture(configure=False);before=e.snapshot_state()
   bad=deepcopy(declarations)
   # Preserve total investment while putting a lower base stat above HP.
   values=bad[PERFECT]['investment'];values.update(dict.fromkeys(values,0));values['spe']=40
   with self.assertRaisesRegex(ValueError,'base relations'):
    e.configure_growth_forms(c,bad,active='50%폼',source=SOURCE)
-  self.assertEqual(e.export_state(),before)
+  self.assertEqual(e.snapshot_state(),before)
   forms={name:{stat:row['species_base'][stat]+row['investment'][stat] for stat in row['species_base']}
          for name,row in declarations.items()}
   with self.assertRaisesRegex(ValueError,'shared HP'):
    e.configure_form_allocations(c,forms,active='50%폼',source='combat/struggle')
-  self.assertEqual(e.export_state(),before)
+  self.assertEqual(e.snapshot_state(),before)
   e.configure_form_allocations(c,forms,active='50%폼',source=SOURCE)
-  self.start(e,c);c.hp=(c.base_max_hp-1)//2;before=e.export_state()
+  self.start(e,c);c.hp=(c.base_max_hp-1)//2;before=e.snapshot_state()
   with self.assertRaisesRegex(ValueError,'checked BST'):self.activate(e,c)
-  self.assertEqual(e.export_state(),before)
+  self.assertEqual(e.snapshot_state(),before)
 
  def test_actual_forms_keep_checked_bst_through_existing_growth_paths(self):
   import downtime as D, growth_stats as GROWTH
@@ -135,13 +135,13 @@ class PowerConstructTests(unittest.TestCase):
      kwargs={'choice':'풀','observation':{'environment':'숲','fact':{'source':'test/forest','reason':'actual forest'}}}
     def activate():return e.activate_ability_state(c,source,reason='authored native quota consumer',**kwargs)
     activate();self.assertEqual(c.spec['frequency_state']['activations'][source]['kind'],kind)
-    before=e.export_state()
+    before=e.snapshot_state()
     with self.assertRaisesRegex(ValueError,'frequency exhausted'):activate()
-    self.assertEqual(e.export_state(),before)
-    e.end_scene([c]);before=e.export_state()
+    self.assertEqual(e.snapshot_state(),before)
+    e.end_scene([c]);before=e.snapshot_state()
     if kind=='daily':
      with self.assertRaisesRegex(ValueError,'frequency exhausted'):activate()
-     self.assertEqual(e.export_state(),before)
+     self.assertEqual(e.snapshot_state(),before)
     else:
      activate();self.assertEqual(c.types,['풀'])
     self.assertTrue(e.validate_state()['valid'])

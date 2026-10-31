@@ -228,10 +228,10 @@ class RemainingCsvItemContractTests(unittest.TestCase):
                     PHYSICAL.resolve_pending(engine, holder, kind, accept=True)
                     self.assertEqual(PHYSICAL.damage_roll_bonus(engine, holder, move), 10)
                 elif kind == "eject_button":
-                    before = engine.export_state()
+                    before = engine.snapshot_state()
                     with self.assertRaisesRegex(ValueError, "replacement"):
                         PHYSICAL.resolve_pending(engine, holder, kind, accept=True)
-                    self.assertEqual(engine.export_state(), before)
+                    self.assertEqual(engine.snapshot_state(), before)
                     self.assertTrue(holder.on_field)
                     self.assertNotIn("consumed", obj)
                 else:
@@ -243,10 +243,10 @@ class RemainingCsvItemContractTests(unittest.TestCase):
         engine = self.fixture(holder); holder.on_field = True
         pack = self.equip(engine, holder, "csv/eject-pack", "item/탈출팩")
         PHYSICAL.after_stage_change(engine, holder, "atk", 0, -1)
-        before = engine.export_state()
+        before = engine.snapshot_state()
         with self.assertRaisesRegex(ValueError, "replacement"):
             PHYSICAL.resolve_pending(engine, holder, "eject_pack", accept=True)
-        self.assertEqual(engine.export_state(), before)
+        self.assertEqual(engine.snapshot_state(), before)
         self.assertTrue(holder.on_field); self.assertNotIn("consumed", pack)
 
         umbrella = self.trainer("umbrella")

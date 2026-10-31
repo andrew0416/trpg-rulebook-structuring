@@ -105,9 +105,9 @@ class WalkItOffTests(unittest.TestCase):
   self.assertEqual((self.a.injuries,self.a.hp,row['gained']),(3,base*7//10,1));self.assertGreater(row['requested'],1);self.valid()
 
  def test_missing_duration_or_reason_stays_pending_and_malformed_inputs_are_atomic(self):
-  self.acquire();before=self.e.export_state()
+  self.acquire();before=self.e.snapshot_state()
   for options in ({},{'duration_minutes':1},{'reason':'GM duration not supplied'}):
-   self.assertIsInstance(self.e.walk_it_off(self.a,**options),C.PendingDecision);self.assertEqual(self.e.export_state(),before)
+   self.assertIsInstance(self.e.walk_it_off(self.a,**options),C.PendingDecision);self.assertEqual(self.e.snapshot_state(),before)
   for minutes in (0,-1,True,1.5):self.reject(lambda minutes=minutes:self.use(duration_minutes=minutes),'duration minutes')
   self.reject(lambda:self.use(reason=''),'duration reason')
 

@@ -16,7 +16,7 @@ import control_vehicle as CONTROL
 import crafting_recipes as Q
 import world_entities as W
 from engine import Rules
-from state_codec import dump_engine, load_engine, StateCodecError
+from state_codec import dump_engine, load_engine, StateCodecError, snapshot_engine
 
 
 class VehicleUpgradeSourceRevisionTests(unittest.TestCase):
@@ -137,14 +137,14 @@ class VehicleUpgradeSourceRevisionTests(unittest.TestCase):
         for engine in (self.e, load_engine(self.poly, json.loads(json.dumps(saved, ensure_ascii=False)))):
             actor = W.actor_index(engine)[self.a.entity_id]
             for identity, choice in choices.items():
-                before = dump_engine(engine)
+                before = snapshot_engine(engine)
                 result = N.acquire_upgrade(engine, actor, identity, 'reinforced_alloys',
                     request_id='reinforced_alloys/1', reason='actual sourced upgrade purchase', source_choice=choice)
-                self.assertEqual(result, results[identity]); self.assertEqual(before, dump_engine(engine))
+                self.assertEqual(result, results[identity]); self.assertEqual(before, snapshot_engine(engine))
                 replay = N.hit(engine, actor, identity, move_type='독', after_defense=8,
                     passenger_after_defense={}, event_id='독', reason='actual typed attack resolved against vehicle',
                     breach_policy=self.breach())
-                self.assertEqual(replay['type_multiplier'], [0, 1]); self.assertEqual(before, dump_engine(engine))
+                self.assertEqual(replay['type_multiplier'], [0, 1]); self.assertEqual(before, snapshot_engine(engine))
 
     def test_source_choice_is_scoped_and_atomic_and_cannot_change_completed_intent(self):
         row = self.register(template='personal', occupied=False)

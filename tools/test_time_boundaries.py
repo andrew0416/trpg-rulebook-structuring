@@ -104,8 +104,8 @@ class TimeTests(unittest.TestCase):
             self.assertIn(INJURY.CLOCK,c.spec)
             self.assertFalse(hasattr(c,'budget'))
             self.assertFalse(FREQ.physical_activation_allowed(e,obj,'test_fixture/registration','하루'))
-        before=e.export_state();self.assertEqual(e.time_actors(cs),cs)
-        self.assertEqual(e.export_state(),before)
+        before=e.snapshot_state();self.assertEqual(e.time_actors(cs),cs)
+        self.assertEqual(e.snapshot_state(),before)
 
     def test_native_setup_and_gmax_reject_late_registration_without_state_change(self):
         from native_scenario_fixture import assert_rejected_unchanged,prepare_setup_move_scene,prepare_gmax_scene
@@ -132,7 +132,7 @@ class TimeTests(unittest.TestCase):
     def test_late_time_effect_failure_preserves_all_clocks_and_rng(self):
         from unittest.mock import patch
         import environmental_effects as ENV
-        e,cs=self.fixture();before=e.export_state()
+        e,cs=self.fixture();before=e.snapshot_state()
         original=ENV.advance
         def fail(engine,actor):
             original(engine,actor)
@@ -143,13 +143,13 @@ class TimeTests(unittest.TestCase):
         with patch.object(ENV,'advance',side_effect=fail):
             with self.assertRaisesRegex(ValueError,'late timed consequence'):
                 e.advance_time(60)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
 
     def test_round_consequences_and_clock_roll_back_together(self):
         from unittest.mock import patch
         import combat_timing as TIMING
         import environmental_effects as ENV
-        e,cs=self.fixture();e.start_round(cs);before=e.export_state()
+        e,cs=self.fixture();e.start_round(cs);before=e.snapshot_state()
         original=TIMING.finish_round
         def consequence(engine):
             original(engine)
@@ -158,7 +158,7 @@ class TimeTests(unittest.TestCase):
         with patch.object(TIMING,'finish_round',side_effect=consequence):
             with patch.object(ENV,'advance',side_effect=ValueError('late round clock failure')):
                 with self.assertRaisesRegex(ValueError,'late round clock failure'):e.end_round()
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         self.assertIs(e.everyone[0],cs[0])
         e.end_round()
         self.assertEqual(e.elapsed_seconds,10)
@@ -168,7 +168,7 @@ class TimeTests(unittest.TestCase):
         from unittest.mock import patch
         e,cs=self.fixture()
         for c in cs:c.hp-=5
-        before=e.export_state();messages=['existing'];original=Engine.heal
+        before=e.snapshot_state();messages=['existing'];original=Engine.heal
         def fail(engine,actor,*args,**kwargs):
             result=original(engine,actor,*args,**kwargs)
             if actor.entity_id==cs[-1].entity_id:raise ValueError('late rest benefit failure')
@@ -176,7 +176,7 @@ class TimeTests(unittest.TestCase):
         with patch.object(Engine,'heal',fail):
             with self.assertRaisesRegex(ValueError,'late rest benefit failure'):
                 DT.rest_many(e,cs,30,messages,rest_id='atomic-rest')
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         self.assertEqual(messages,['existing'])
         DT.rest_many(e,cs,30,messages,rest_id='atomic-rest')
         self.assertEqual(e.elapsed_seconds,1800)
@@ -197,7 +197,7 @@ class TimeTests(unittest.TestCase):
                 e.rulings.set_formula('tick','2','test scene','scene')
                 e.rulings.set_formula('stab','3','test campaign','campaign')
                 if boundary!='start_round':e.start_round(cs)
-                before=e.export_state();rulings=copy.deepcopy(vars(e.rulings));identity=e.rulings
+                before=e.snapshot_state();rulings=copy.deepcopy(vars(e.rulings));identity=e.rulings
                 original=getattr(module,symbol)
                 def fail(*args,**kwargs):
                     original(*args,**kwargs)
@@ -205,7 +205,7 @@ class TimeTests(unittest.TestCase):
                 with patch.object(module,symbol,side_effect=fail):
                     with self.assertRaisesRegex(ValueError,'late boundary failure'):
                         getattr(e,boundary)(cs)
-                self.assertEqual(e.export_state(),before)
+                self.assertEqual(e.snapshot_state(),before)
                 self.assertEqual(vars(e.rulings),rulings)
                 getattr(e,boundary)(cs)
                 self.assertIs(e.rulings,identity);self.assertIs(e.r.rulings,identity)

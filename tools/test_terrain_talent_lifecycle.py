@@ -198,7 +198,7 @@ class TerrainTalentLifecycleTests(unittest.TestCase):
     def test_late_talent_failure_restores_clock_quota_sources_rng_and_aliases(self):
         _, e, a = self.fixture()
         FREQUENCY.new_day(a)
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         spec = a.spec
         original = V.choose_talents
         def fail(staged, actor, **options):
@@ -208,7 +208,7 @@ class TerrainTalentLifecycleTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'late chosen talent failure'):
                 self.select(e, a)
         self.assertIs(a.spec, spec)
-        self.assertEqual(CODEC.dump_engine(e), before)
+        self.assertEqual(CODEC.snapshot_engine(e), before)
 
 
 if __name__ == '__main__':

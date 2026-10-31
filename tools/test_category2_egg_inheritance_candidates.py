@@ -8,7 +8,7 @@ CANON=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(CANON/'engine'),str(CANON/'tools')]
 import test_foundation_egg_creation as FIX
 from builder import build_pokemon
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import materialization_origins as ORIGIN,world_entities as WORLD
 
 def _overlay(name):
@@ -34,9 +34,9 @@ class EggInheritanceCandidateTests(unittest.TestCase):
   return {'gender':'female','nature':'노력','abilities':['심록'],'moves':[],'special_appearance':False,'inheritance_moves':self.inherited()}
 
  def test_actual_parent_sexes_species_candidates_and_source_partitions_are_bound(self):
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   plan=self.e.plan_egg_creation(self.a,self.parents,self.policy(),compatible=True,species='이상해씨',inheritance_moves=self.inherited(),reason='read-only exact candidate plan')
-  self.assertEqual(before,dump_engine(self.e))
+  self.assertEqual(before,snapshot_engine(self.e))
   self.assertEqual(plan['species_candidates'],['pokemon/이상해씨','pokemon/파라스'])
   self.assertEqual([x['gender'] for x in plan['parent_facts']],['female','male'])
   self.assertEqual(plan['inheritance_candidates'],self.inherited())
@@ -54,11 +54,11 @@ class EggInheritanceCandidateTests(unittest.TestCase):
   self.assertEqual(ORIGIN.read(loaded,restored.entity_id)['native_ref']['entity_id'],row['entity_id'])
 
  def test_omitted_unlearned_tm_and_reordered_list_reject_without_state_or_time_change(self):
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   invalid=(['move/뿌리박기'],['move/뿌리박기','move/솔라빔'],list(reversed(self.inherited())))
   for index,moves in enumerate(invalid):
    with self.assertRaises(ValueError):self.create(request_id='bad-'+str(index),inheritance_moves=moves)
-   self.assertEqual(dump_engine(self.e),before)
+   self.assertEqual(snapshot_engine(self.e),before)
 
  def test_parent_knowledge_is_snapshotted_and_later_forgetting_does_not_rewrite_the_egg(self):
   row=self.create();actual=next(x for x in self.a.spec['eggs'] if x['entity_id']==row['entity_id']);historical=deepcopy(actual[EGG.BINDING])

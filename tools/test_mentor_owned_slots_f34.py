@@ -86,8 +86,8 @@ class MentorOwnedSlotTests(unittest.TestCase):
                 receipt=self.transfer(case,pokemon,case.a,new);self.assert_capacity(pokemon,feature)
                 self.assertIn(old_key,receipt['cleanup']['sources']);self.assertNotIn(new_key,receipt['cleanup']['sources'])
                 self.assertNotIn(old_key,pokemon.spec[GRANTS.KEY]['sources']);self.assertIn(new_key,pokemon.spec[GRANTS.KEY]['sources'])
-                before=CODEC.dump_engine(case.e);self.assertEqual(self.transfer(case,pokemon,case.a,new),receipt)
-                self.assertEqual(CODEC.dump_engine(case.e),before)
+                before=CODEC.snapshot_engine(case.e);self.assertEqual(self.transfer(case,pokemon,case.a,new),receipt)
+                self.assertEqual(CODEC.snapshot_engine(case.e),before)
                 self.transfer(case,pokemon,new,case.a,'slots/back');self.assert_capacity(pokemon,feature)
                 self.assertIn(old_key,pokemon.spec[GRANTS.KEY]['sources']);self.assertNotIn(new_key,pokemon.spec[GRANTS.KEY]['sources'])
                 self.assertEqual((pokemon.spec.get('move_learning'),pokemon.spec.get(MOVES.HISTORY),pokemon.spec.get('move_learning_log')),history)
@@ -100,9 +100,9 @@ class MentorOwnedSlotTests(unittest.TestCase):
                 last=self.fill(case,pokemon,feature)
                 GRANTS.grant(pokemon,'capabilities','Jump=1','owner/refundable','feature',
                              owner_id=case.a.entity_id,lifetime='your_pokemon',rule_id='observed/owner-source',tutor_points=2)
-                before=CODEC.dump_engine(case.e);points=pokemon.spec['tutor_points'];spec=pokemon.spec;registry=case.a.spec['pokemon_registry']
+                before=CODEC.snapshot_engine(case.e);points=pokemon.spec['tutor_points'];spec=pokemon.spec;registry=case.a.spec['pokemon_registry']
                 with self.assertRaisesRegex(ValueError,'capacity'):self.transfer(case,pokemon,case.a,new)
-                self.assertEqual(CODEC.dump_engine(case.e),before);self.assertIs(pokemon.spec,spec);self.assertIs(case.a.spec['pokemon_registry'],registry)
+                self.assertEqual(CODEC.snapshot_engine(case.e),before);self.assertIs(pokemon.spec,spec);self.assertIs(case.a.spec['pokemon_registry'],registry)
                 case.e.gm.set_move(pokemon,last,add=False,reason='explicit forgotten move before ownership transfer')
                 learning=deepcopy(pokemon.spec.get('move_learning'));receipt=self.transfer(case,pokemon,case.a,new)
                 self.assertEqual(receipt['cleanup']['tutor_points_refunded'],2);self.assertEqual(pokemon.spec['tutor_points'],points+2)
@@ -117,10 +117,10 @@ class MentorOwnedSlotTests(unittest.TestCase):
                 self.assert_capacity(pokemon,feature)
                 self.roster(case,case.a,[pokemon]);self.assert_capacity(pokemon,feature)
                 sources=deepcopy(pokemon.spec[GRANTS.KEY]['sources']);self.roster(case,case.a,[pokemon]);self.assertEqual(pokemon.spec[GRANTS.KEY]['sources'],sources)
-                later=case.pokemon('브케인',5);before=CODEC.dump_engine(case.e)
+                later=case.pokemon('브케인',5);before=CODEC.snapshot_engine(case.e)
                 with patch.object(MOVES,'_require_slot_feature',side_effect=ValueError('selected slot source rejected')):
                     with self.assertRaisesRegex(ValueError,'selected slot'):self.roster(case,case.a,[pokemon,later])
-                self.assertEqual(CODEC.dump_engine(case.e),before)
+                self.assertEqual(CODEC.snapshot_engine(case.e),before)
 
     def test_actual_throw_ball_projects_both_policies_and_keeps_capture_receipt_once(self):
         for feature in (FEATURES[0],FEATURES[3]):
@@ -151,9 +151,9 @@ class MentorOwnedSlotTests(unittest.TestCase):
                 self.assertEqual(child.spec['egg_entity_id'],egg['entity_id'])
                 self.assertTrue(case.e.validate_state()['valid'])
                 self.assertEqual(child.spec['trainer_id'],recipient.entity_id)
-                before=CODEC.dump_engine(case.e)
+                before=CODEC.snapshot_engine(case.e)
                 with self.assertRaises(ValueError):case.e.hatch_declared_egg(recipient,egg['entity_id'],name='retry',ready=True,reason='retry',choices=case.choices())
-                self.assertEqual(CODEC.dump_engine(case.e),before)
+                self.assertEqual(CODEC.snapshot_engine(case.e),before)
 
     def test_both_codecs_preserve_capacity_owner_source_and_transfer_replay(self):
         case=self.fixture();features=[MOVES.GUIDANCE,'C2CSV/input/db/feats.csv:R110:main']
@@ -165,19 +165,19 @@ class MentorOwnedSlotTests(unittest.TestCase):
         self.assertEqual(MOVES.describe(self.r,pokemon.spec),expected)
         fresh=Rules(ROOT,ruleset='core');loaded=CODEC.load_engine(fresh,json.loads(json.dumps(CODEC.dump_engine(case.e),ensure_ascii=False)))
         actors=WORLD.actor_index(loaded);restored=actors[pokemon.entity_id]
-        self.assertEqual(MOVES.describe(fresh,restored.spec),expected);before=CODEC.dump_engine(loaded)
+        self.assertEqual(MOVES.describe(fresh,restored.spec),expected);before=CODEC.snapshot_engine(loaded)
         self.assertEqual(PARTY.transfer(loaded,actors[case.a.entity_id],target=restored,new_owner=actors[new.entity_id],
                                       reason='actual Mentor ownership transfer',request_id='slots/transfer'),receipt)
-        self.assertEqual(CODEC.dump_engine(loaded),before)
+        self.assertEqual(CODEC.snapshot_engine(loaded),before)
 
     def test_same_owner_rejection_and_selected_foiling_is_not_automatically_reissued(self):
         case=self.fixture();self.qualify(case,case.a,[MOVES.FOILING]);new=self.trainer(case,'new Guidance and unselected Foiling',[MOVES.GUIDANCE,MOVES.FOILING])
         pokemon=case.pokemon('이상해씨',50,case.mids()[:6]);self.roster(case,case.a,[pokemon]);self.roster(case,new,[])
         MOVES.select_foiling(case.e,case.a,pokemon,'씨뿌리기',reason='actual completed selection')
         case.e.gm.set_move(pokemon,'수면가루',reason='seventh known move under selected exemption')
-        before=CODEC.dump_engine(case.e)
+        before=CODEC.snapshot_engine(case.e)
         with self.assertRaisesRegex(ValueError,'different trainer'):self.transfer(case,pokemon,case.a,case.a)
-        self.assertEqual(CODEC.dump_engine(case.e),before)
+        self.assertEqual(CODEC.snapshot_engine(case.e),before)
         self.transfer(case,pokemon,case.a,new);view=MOVES.describe(self.r,pokemon.spec)
         self.assertEqual((view['total'],view['slot_count'],view['exempt']),(7,7,{}))
         self.assertEqual({row['rule_id'] for row in view['sources']},{MOVES.GUIDANCE})
@@ -188,9 +188,9 @@ class MentorOwnedSlotTests(unittest.TestCase):
         pokemon=case.pokemon('이상해씨',50,case.mids()[:6]);self.roster(case,case.a,[pokemon]);self.roster(case,new,[])
         MOVES.select_foiling(case.e,case.a,pokemon,'씨뿌리기',reason='actual source-owned selected exemption')
         for move in case.mids()[6:]:case.e.gm.set_move(pokemon,move,reason='actual learned move under both old sources')
-        self.assertEqual(len(MOVES.known(self.r,pokemon.spec)),8);before=CODEC.dump_engine(case.e)
+        self.assertEqual(len(MOVES.known(self.r,pokemon.spec)),8);before=CODEC.snapshot_engine(case.e)
         with self.assertRaisesRegex(ValueError,'capacity'):self.transfer(case,pokemon,case.a,new)
-        self.assertEqual(CODEC.dump_engine(case.e),before)
+        self.assertEqual(CODEC.snapshot_engine(case.e),before)
         case.e.gm.set_move(pokemon,case.mids()[7],add=False,reason='explicit chosen eighth move forgotten')
         self.transfer(case,pokemon,case.a,new);view=MOVES.describe(self.r,pokemon.spec)
         self.assertEqual((view['total'],view['slot_count'],view['exempt']),(7,7,{}))
@@ -208,18 +208,18 @@ class MentorOwnedSlotTests(unittest.TestCase):
         for feature in (MOVES.GUIDANCE,):
             with self.subTest(feature=feature):
                 case=FIRST.FirstOwnedSpeciesTests();case.r=self.r;case.setUp();self.qualify(case,case.a,[feature])
-                self.roster(case,case.a,[]);pokemon=case.pokemon();before=CODEC.dump_engine(case.e)
+                self.roster(case,case.a,[]);pokemon=case.pokemon();before=CODEC.snapshot_engine(case.e)
                 with patch.object(MOVES,'_require_slot_feature',side_effect=ValueError('slot source rejected')):
                     with self.assertRaisesRegex(ValueError,'slot source'):case.catch(pokemon)
-                self.assertEqual(CODEC.dump_engine(case.e),before)
+                self.assertEqual(CODEC.snapshot_engine(case.e),before)
                 case=EGG.EggTests();case.r=self.r;case.setUp();egg=case.create()
                 recipient=self.trainer(case,'failure recipient',[feature]);self.roster(case,recipient,[])
                 case.e.gm.transfer_egg(case.a,recipient,egg['entity_id'],reason='actual gift',request_id='slots/failure-egg')
-                before=CODEC.dump_engine(case.e)
+                before=CODEC.snapshot_engine(case.e)
                 with patch.object(MOVES,'_require_slot_feature',side_effect=ValueError('slot source rejected')):
                     with self.assertRaisesRegex(ValueError,'slot source'):
                         case.e.hatch_declared_egg(recipient,egg['entity_id'],name='child',ready=True,reason='actual hatch',choices=case.choices())
-                self.assertEqual(CODEC.dump_engine(case.e),before)
+                self.assertEqual(CODEC.snapshot_engine(case.e),before)
 
 
 if __name__=='__main__':unittest.main()

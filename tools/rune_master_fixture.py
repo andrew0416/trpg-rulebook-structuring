@@ -60,11 +60,11 @@ class RuneFixture:
         index=W.actor_index(self.e);self.a,self.b,*self.unown=[index[uid] for uid in ids]
 
     def rejected(self,callback):
-        before=CODEC.dump_engine(self.e)
+        before=CODEC.snapshot_engine(self.e)
         try:callback()
         except ValueError:pass
         else:raise AssertionError('expected native rejection')
-        self.assertEqual(CODEC.dump_engine(self.e),before)
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
 
     def investment(self):
         spec=build_pokemon(self.rules,'안농',self.a.level,moves=[],abilities=[])

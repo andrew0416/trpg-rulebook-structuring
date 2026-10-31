@@ -5,7 +5,7 @@ ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'engine'))
 from engine import Rules,Engine,Combatant
 from builder import build_pokemon
 import form_allocations as F,state_grants as G
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 
 class GrowthFormTests(unittest.TestCase):
  @classmethod
@@ -49,21 +49,21 @@ class GrowthFormTests(unittest.TestCase):
   owner.spec['classes']=[]
   loaded=load_engine(self.r,dump_engine(self.e));c=loaded.everyone[0]
   F.switch(loaded,c,'alternate');loaded.growth_stat_projection(c)
-  before=dump_engine(loaded)
+  before=snapshot_engine(loaded)
   with self.assertRaisesRegex(ValueError,'base relations'):
    D.gain_exp_combatant(loaded,c,'to next level',stat_choices={7:'hp'})
-  self.assertEqual(dump_engine(loaded),before)
+  self.assertEqual(snapshot_engine(loaded),before)
   D.gain_exp_combatant(loaded,c,'to next level',stat_choices={7:max(base,key=base.get)})
   self.assertEqual(c.level,7);self.assertNotIn('stat_relation_exempt',c.spec)
 
  def test_wrong_budget_or_inactive_form_drift_rejected_atomically(self):
-  before=dump_engine(self.e);self.forms['alternate']['investment']['atk']+=1
+  before=snapshot_engine(self.e);self.forms['alternate']['investment']['atk']+=1
   with self.assertRaisesRegex(ValueError,'budget'):self.configure()
-  self.assertEqual(dump_engine(self.e),before);self.forms['alternate']['investment']['atk']-=1;self.configure()
-  before=dump_engine(self.e)
+  self.assertEqual(snapshot_engine(self.e),before);self.forms['alternate']['investment']['atk']-=1;self.configure()
+  before=snapshot_engine(self.e)
   def mutate(e,c):c.spec['form_allocations']['forms']['alternate']['atk']+=1
   with self.assertRaisesRegex(ValueError,'untracked form'):G.transition(self.e,self.c,mutate)
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
 
  def test_all_form_nature_commit_preserves_switching_and_receipt(self):
   import nature_state as N
@@ -81,13 +81,13 @@ class GrowthFormTests(unittest.TestCase):
    F.switch(self.e,self.c,form);out=self.e.growth_stat_projection(self.c)
    self.assertEqual(sum(out['permanent']['investment'].values()),15)
    self.assertEqual(self.c.spec['form_growth_allocations']['nature'],nature)
-  before=dump_engine(self.e);self.assertTrue(self.e.commit_growth_nature(self.c,self.c,nature,**args)['replayed']);self.assertEqual(dump_engine(self.e),before)
+  before=snapshot_engine(self.e);self.assertTrue(self.e.commit_growth_nature(self.c,self.c,nature,**args)['replayed']);self.assertEqual(snapshot_engine(self.e),before)
  def test_one_invalid_form_nature_investment_rolls_back_every_form(self):
   self.configure();investments={name:deepcopy(row['investment']) for name,row in self.c.spec['form_growth_allocations']['plans'].items()}
-  investments['alternate']['atk']+=1;before=dump_engine(self.e)
+  investments['alternate']['atk']+=1;before=snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'budget'):
    self.e.commit_growth_nature(self.c,self.c,None,investment=investments,source='combat/struggle',reason='invalid alternate',ap_cost=0,hp_policy='preserve_fraction',request_id='invalid')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
 
  def test_native_level_growth_updates_every_form_and_survives_restore(self):
   import downtime as D
@@ -112,26 +112,26 @@ class GrowthFormTests(unittest.TestCase):
  def test_failed_inactive_form_growth_leaves_xp_and_every_form_unchanged(self):
   from unittest.mock import patch
   import downtime as D,growth_stats as GS
-  self.configure();before=dump_engine(self.e);native=GS.increment
+  self.configure();before=snapshot_engine(self.e);native=GS.increment
   def reject_inactive(rules,spec,*args,**kwargs):
    if kwargs.get('_base_stats',{}).get('atk',0)>100:raise ValueError('inactive form growth rejected')
    return native(rules,spec,*args,**kwargs)
   with patch.object(GS,'increment',side_effect=reject_inactive):
    with self.assertRaisesRegex(ValueError,'inactive form'):
     D.gain_exp_combatant(self.e,self.c,'to next level',stat_choices={6:'spe'})
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
 
  def test_conflicting_hp_growth_rolls_back_all_forms(self):
   from unittest.mock import patch
   import downtime as D,growth_stats as GS
-  self.configure();before=dump_engine(self.e);native=GS.increment
+  self.configure();before=snapshot_engine(self.e);native=GS.increment
   def different_choices(rules,spec,points,strategy,choice,**kwargs):
    chosen='spe' if kwargs.get('_base_stats',{}).get('atk',0)>100 else 'hp'
    return native(rules,spec,points,strategy,chosen,**kwargs)
   with patch.object(GS,'increment',side_effect=different_choices):
    with self.assertRaisesRegex(ValueError,'shared HP'):
     D.gain_exp_combatant(self.e,self.c,'to next level')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
 
  def vitamin_owner(self):
   from builder import build_trainer
@@ -177,11 +177,11 @@ class GrowthFormTests(unittest.TestCase):
   import vitamin_moves as V,vitamin_capacity as CAPACITY
   self.configure();owner=self.vitamin_owner()
   self.e.start_round([owner,self.c]);self.e.start_of_turn(owner)
-  before=dump_engine(self.e);uid=next(k for k,v in V.STAT_BY_ITEM.items() if v=='atk')
+  before=snapshot_engine(self.e);uid=next(k for k,v in V.STAT_BY_ITEM.items() if v=='atk')
   with patch.object(CAPACITY,'record',side_effect=ValueError('late dose failure')):
    with self.assertRaisesRegex(ValueError,'late dose'):
     self.e.use_item(owner,uid,self.c)
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
 
  def evolution_setup(self):
   from builder import species_lookup
@@ -209,16 +209,16 @@ class GrowthFormTests(unittest.TestCase):
    F.switch(loaded,c,name);out=loaded.growth_stat_projection(c)
    self.assertEqual(out['permanent']['investment'],declarations[name]['investment'])
    self.assertEqual(c.stats['atk'],out['permanent']['stats']['atk']+3)
-  before=dump_engine(loaded)
+  before=snapshot_engine(loaded)
   self.assertFalse(D.evolve_combatant(loaded,c,'갸라도스',form_declarations=declarations)['evolved'])
-  self.assertEqual(dump_engine(loaded),before)
+  self.assertEqual(snapshot_engine(loaded),before)
 
  def test_missing_or_invalid_evolution_form_leaves_entire_actor_unchanged(self):
   import downtime as D
-  declarations=self.evolution_setup();before=dump_engine(self.e)
+  declarations=self.evolution_setup();before=snapshot_engine(self.e)
   bad=deepcopy(declarations);bad['alternate']['investment']['atk']+=1
   for proposal in (None,{'normal':declarations['normal']},bad):
    with self.assertRaises(ValueError):D.evolve_combatant(self.e,self.c,'갸라도스',form_declarations=proposal)
-   self.assertEqual(dump_engine(self.e),before)
+   self.assertEqual(snapshot_engine(self.e),before)
 
 if __name__=='__main__':unittest.main()

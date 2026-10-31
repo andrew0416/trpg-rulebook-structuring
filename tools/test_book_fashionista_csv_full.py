@@ -312,11 +312,11 @@ class FashionistaCSVFullTests(unittest.TestCase):
     def test_focus_band_nonattack_loss_and_late_error_roll_back_rng_hp_and_scene_use(self):
         self.hold(self.p, 'band', 'item/기합의머리띠')
         maximum = self.p.base_max_hp
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with patch.object(Engine, 'check_fainted', side_effect=ValueError('late life validation')):
             with self.assertRaisesRegex(ValueError, 'late life validation'):
                 self.e.lose_hp(self.p, maximum, source='actual passive damage')
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         with patch.object(Engine, 'd20', return_value=20):
             self.e.lose_hp(self.p, maximum, source='actual passive damage')
         self.assertEqual(self.p.hp, 1)
@@ -551,7 +551,7 @@ class FashionistaCSVFullTests(unittest.TestCase):
         for actor in (self.u, self.v):
             self.e.gm.set_hp(actor, value=1, reason='actual positive linked HP')
         self.assertTrue(FASHION.focus_interested(self.e, self.u))
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         replace = FASHION.replace_hp
         def late_failure(engine, actor, *args, **kwargs):
             result = replace(engine, actor, *args, **kwargs)
@@ -564,7 +564,7 @@ class FashionistaCSVFullTests(unittest.TestCase):
         with patch.object(FASHION, 'replace_hp', side_effect=late_failure), patch.object(Engine, 'd20', face):
             with self.assertRaisesRegex(ValueError, 'late actual partner failure'):
                 self.e.lose_hp(self.u, 1)
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         with patch.object(Engine, 'd20', return_value=16):
             self.e.lose_hp(self.u, 1)
         self.assertTrue(self.u.fainted)

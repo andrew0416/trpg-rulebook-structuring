@@ -9,7 +9,7 @@ sys.path[:0] = [str(ROOT / "engine"), str(ROOT / "tools")]
 import action_points as AP
 import state_grants as G
 import test_foundation_grant_payments as F
-from state_codec import dump_engine, load_engine
+from state_codec import dump_engine, load_engine, snapshot_engine
 
 
 class ResponsibilityComponentTests(unittest.TestCase):
@@ -88,7 +88,7 @@ class ResponsibilityComponentTests(unittest.TestCase):
         account = f.owner.ap_account
         ledger = f.owner.acquisitions
         effects = f.owner.active_effects
-        before = dump_engine(f.e)
+        before = snapshot_engine(f.e)
         available = account.available()
         receipts = ledger.read(f.e)
 
@@ -101,7 +101,7 @@ class ResponsibilityComponentTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "late component failure"):
             G.transition(f.e, f.owner, fail)
-        self.assertEqual(dump_engine(f.e), before)
+        self.assertEqual(snapshot_engine(f.e), before)
         self.assertEqual(account.available(), available)
         self.assertEqual(ledger.read(f.e), receipts)
         self.assertTrue(effects.remove(f.e, source))

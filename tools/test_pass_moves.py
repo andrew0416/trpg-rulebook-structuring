@@ -128,39 +128,39 @@ class Tests(unittest.TestCase):
         row=self.execute(e,a,mid,adj,destination=(3,3))
         self.assertEqual(row['distance'],4);self.assertEqual(a._diagonal_steps,3)
         e,a,b,mid,adj=self.fixture(ropes=False,creature=False);a._diagonal_steps=1
-        before=e.export_state()
+        before=e.snapshot_state()
         with self.assertRaisesRegex(ValueError,'four metres'):self.execute(e,a,mid,adj,destination=(3,3))
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         e,a,b,mid,adj=self.fixture(ropes=False,creature=False);e.grid.slow.add((1,0))
-        before=e.export_state()
+        before=e.snapshot_state()
         with self.assertRaisesRegex(ValueError,'four metres'):self.execute(e,a,mid,adj)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
 
     def test_public_free_flags_fake_activation_and_direct_pass_cannot_bypass_path(self):
-        e,a,b,mid,adj=self.fixture();before=e.export_state()
+        e,a,b,mid,adj=self.fixture();before=e.snapshot_state()
         for call in (lambda:e.use_move(a,b,mid),lambda:e.use_move_on(a,b,mid,[a,b]),
                      lambda:self.base.attack(e,a,mid,'rope1'),
                      lambda:MOVEMENT.follow_paid_path(e,a,[(1,0)],mode='land',maximum_distance=4,pass_scope={}),
                      lambda:ACTIVATION.open_scope(e,a,mid,[b],shared=False,_prepaid={}).__enter__()):
             with self.assertRaises(ValueError):call()
-            self.assertEqual(e.export_state(),before)
+            self.assertEqual(e.snapshot_state(),before)
 
     def test_failed_native_recipient_rolls_back_earlier_movement_object_damage_rng_and_costs(self):
-        e,a,b,mid,adj=self.fixture();before=e.export_state();rng=e.rng.getstate()
+        e,a,b,mid,adj=self.fixture();before=e.snapshot_state();rng=e.rng.getstate()
         original=Engine.use_move
         def fail_after_native(staged,*args,**kw):
             original(staged,*args,**kw)
             raise ValueError('actual native recipient failed')
         with patch.object(Engine,'use_move',fail_after_native):
             with self.assertRaisesRegex(ValueError,'recipient failed'):self.execute(e,a,mid,adj)
-        self.assertEqual(e.export_state(),before);self.assertEqual(e.rng.getstate(),rng)
+        self.assertEqual(e.snapshot_state(),before);self.assertEqual(e.rng.getstate(),rng)
 
     def test_complete_receipts_replay_restore_and_validate_cross_owner_integrity(self):
-        e,a,b,mid,adj=self.fixture();row=self.execute(e,a,mid,adj);before=e.export_state()
-        self.assertEqual(self.execute(e,a,mid,adj),row);self.assertEqual(e.export_state(),before)
+        e,a,b,mid,adj=self.fixture();row=self.execute(e,a,mid,adj);before=e.snapshot_state()
+        self.assertEqual(self.execute(e,a,mid,adj),row);self.assertEqual(e.snapshot_state(),before)
         changed=deepcopy(adj);changed['rope1']['damage_before_dr']+=1
         with self.assertRaisesRegex(ValueError,'conflicts'):self.execute(e,a,mid,changed)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         e.gm.snapshot('pass');e.end_of_turn(a);e.gm.restore('pass',reason='restore actual paid Pass')
         loaded=Engine.import_state(e.r,json.loads(json.dumps(e.export_state())))
         actor=WORLD.actor_index(loaded)[a.entity_id];self.assertEqual(actor.pos,(4,0));self.base.valid(loaded)

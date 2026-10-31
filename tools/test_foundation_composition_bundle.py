@@ -5,7 +5,7 @@ import sys,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 import test_foundation_policy_replay as F
 import native_rule_policy as N
-from state_codec import dump_engine
+from state_codec import dump_engine, snapshot_engine
 
 class BundleTests(unittest.TestCase):
  @classmethod
@@ -25,12 +25,12 @@ class BundleTests(unittest.TestCase):
   f=self.f
   return f.e.evaluate_source_policy_composition_bundle(f.c,f.c,{'document':self.p},contributors if contributors is not None else [{'document':self.a},{'document':self.b}])
  def test_independent_sources_compose_with_selected_law_without_consumption(self):
-  before=dump_engine(self.f.e);out=self.run_bundle()
+  before=snapshot_engine(self.f.e);out=self.run_bundle()
   self.assertEqual(out['composition']['value'],150)
   self.assertEqual(out['contributors']['bonus-b']['selected_id'],self.second)
   self.plan['steps'][0]['law']='percent_product'
   self.assertEqual(self.run_bundle()['composition']['value'],156)
-  self.assertEqual(dump_engine(self.f.e),before)
+  self.assertEqual(snapshot_engine(self.f.e),before)
  def test_inapplicable_source_leaves_independent_contribution(self):
   self.b['variants'][0]['when']=False
   out=self.run_bundle();self.assertEqual(out['composition']['value'],120);self.assertEqual(out['excluded'],['b'])
@@ -39,16 +39,16 @@ class BundleTests(unittest.TestCase):
  def test_one_unresolved_source_never_becomes_zero(self):
   row=self.b['variants'][0];row['inputs']['amount']={'type':'integer','authority':'gm','question':'Explicit amount'}
   row['values']['composition_contributions'][0]['value']={'$input':'amount'}
-  before=dump_engine(self.f.e);out=self.run_bundle()
+  before=snapshot_engine(self.f.e);out=self.run_bundle()
   self.assertEqual(out['status'],'PolicyCompositionPending');self.assertNotIn('composition',out)
-  self.assertEqual(out['pending_policies'],['bonus-b']);self.assertEqual(dump_engine(self.f.e),before)
+  self.assertEqual(out['pending_policies'],['bonus-b']);self.assertEqual(snapshot_engine(self.f.e),before)
  def test_stale_or_impersonated_source_rejects_before_any_state_change(self):
-  before=dump_engine(self.f.e)
+  before=snapshot_engine(self.f.e)
   row=self.b['variants'][0];row['values']['composition_contributions'][0]['source']='combat/struggle'
   with self.assertRaisesRegex(ValueError,'independently selected'):self.run_bundle()
   row['values']['composition_contributions'][0]['source']=self.second;row['source']['sha256']='0'*64
   with self.assertRaises(ValueError):self.run_bundle()
-  self.assertEqual(dump_engine(self.f.e),before)
+  self.assertEqual(snapshot_engine(self.f.e),before)
  def test_exact_membership_rejects_missing_duplicate_and_extra_rows(self):
   for docs in [[{'document':self.a}],[{'document':self.a},{'document':self.b},{'document':self.b}]]:
    with self.assertRaises(ValueError):self.run_bundle(docs)

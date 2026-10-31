@@ -169,22 +169,22 @@ class Tests(unittest.TestCase):
         self.assertEqual(restored[q.entity_id].stats["spe"],q.stats["spe"])
 
     def test_template_and_multipart_late_publication_failures_preserve_graph_and_rng(self):
-        before=self.e.export_state();original=self.p.spec
+        before=self.e.snapshot_state();original=self.p.spec
         with patch.object(type(self.e.gm),"_rec",side_effect=ValueError("injected late publication")):
             with self.assertRaisesRegex(ValueError,"late publication"):self.configure("swarm")
-        self.assertEqual(before,self.e.export_state());self.assertIs(self.p.spec,original)
+        self.assertEqual(before,self.e.snapshot_state());self.assertIs(self.p.spec,original)
         self.configure("swarm")
         state=deepcopy(self.p.spec["encounter_template"]);state["hp_bars"]["spent"]=1;state["multiplier"]=2
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         with patch.object(type(self.e.gm),"_rec",side_effect=ValueError("injected late publication")):
             with self.assertRaisesRegex(ValueError,"late publication"):
                 self.e.gm.record_encounter_template(self.p,state=state,reason="observed bar loss",request_id="not-published")
-        self.assertEqual(before,self.e.export_state());self.assertIs(self.p.spec,original)
+        self.assertEqual(before,self.e.snapshot_state());self.assertIs(self.p.spec,original)
         spec=builder.build_pokemon(self.r,"꼬렛",10,abilities=[],extra={"id":"pokemon/rollback-part"})
-        q=Combatant(self.r,spec);self.e.gm.add_combatant(q);before=self.e.export_state()
+        q=Combatant(self.r,spec);self.e.gm.add_combatant(q);before=self.e.snapshot_state()
         with patch.object(type(self.e.gm),"_rec",side_effect=ValueError("injected late publication")):
             with self.assertRaisesRegex(ValueError,"late publication"):
                 self.e.gm.set_multipart_entity(parent_id="not-published",part_ids=[self.p.entity_id,q.entity_id],reason="actual multipart observation")
-        self.assertEqual(before,self.e.export_state());self.assertNotIn("multipart_parent_id",q.spec)
+        self.assertEqual(before,self.e.snapshot_state());self.assertNotIn("multipart_parent_id",q.spec)
 
 if __name__=="__main__": unittest.main(verbosity=2)

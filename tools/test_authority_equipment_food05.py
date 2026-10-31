@@ -51,10 +51,10 @@ class EquipmentFoodAuthorityTests(unittest.TestCase):
             engine.apply_status(target, '마비')
         engine.start_round(engine.everyone)
         engine.start_of_turn(actor, initiative_count=20)
-        before = CODEC.dump_engine(engine)
+        before = CODEC.snapshot_engine(engine)
         with self.assertRaisesRegex(ValueError, 'outside 20 metres'):
             OPTIONAL.activate_heartwarming_flute(engine, actor, protected_allies=(ally,))
-        self.assertEqual(CODEC.dump_engine(engine), before)
+        self.assertEqual(CODEC.snapshot_engine(engine), before)
         self.place(engine, ally, 'map-a', (4, 2))
         result = OPTIONAL.activate_heartwarming_flute(engine, actor, protected_allies=(actor, ally))
         self.assertTrue(result['activated'])

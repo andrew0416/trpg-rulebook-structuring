@@ -11,7 +11,7 @@ sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
 from engine import Rules, Engine, Combatant
 from builder import build_trainer, build_pokemon
 from rulings import Rulings
-from state_codec import dump_engine, load_engine
+from state_codec import dump_engine, load_engine, snapshot_engine
 import directive_features as D
 import combat_timing as TIME
 import items as ITEMS
@@ -50,20 +50,20 @@ class DirectiveFeatureTests(unittest.TestCase):
                     if row.get('source_id') == D.SOURCE)
 
     def assertAtomic(self, operation, exception=ValueError):
-        before = dump_engine(self.e)
+        before = snapshot_engine(self.e)
         with self.assertRaises(exception):
             operation()
-        self.assertEqual(dump_engine(self.e), before)
+        self.assertEqual(snapshot_engine(self.e), before)
 
     def test_exact_selected_csv_identity_registration_and_coordinator(self):
         definition = D.definition(self.r)
         self.assertEqual(definition['source']['cells'][2], '코디네이터')
         self.assertEqual(definition['source']['record'], 91)
         self.assertEqual(self.r.selection.units[D.FEATURE]['source']['file'], 'db/feats.csv')
-        before = dump_engine(self.e)
+        before = snapshot_engine(self.e)
         ITEMS.register_feats(self.e, self.a)
         ITEMS.register_feats(self.e, self.a)
-        self.assertEqual(dump_engine(self.e), before)
+        self.assertEqual(snapshot_engine(self.e), before)
         self.assertNotIn(D.FEATURE, self.a.spec.get('unknown_feats', []))
 
     def test_actual_standard_positive_and_explicit_negative_unowned_enemy(self):
@@ -177,14 +177,14 @@ class DirectiveFeatureTests(unittest.TestCase):
         self.assertAtomic(self.use)
         self.e.start_round(self.e.everyone)
         self.e.start_of_turn(self.a)
-        before = dump_engine(self.e)
+        before = snapshot_engine(self.e)
         self.a.spec['skills']['매력'] = 7
         try:
             with self.assertRaises(ValueError):
                 self.use()
         finally:
             self.a.spec['skills']['매력'] = 3
-        self.assertEqual(dump_engine(self.e), before)
+        self.assertEqual(snapshot_engine(self.e), before)
 
     def test_selected_source_corruption_and_late_install_failure_roll_back(self):
         unit = self.r.selection.units[D.FEATURE]
@@ -206,14 +206,14 @@ class DirectiveFeatureTests(unittest.TestCase):
         self.assertAtomic(lambda: self.e.use_decisive_director(self.a, clone, adjustment='increase'))
         outsider = Combatant(self.r, build_pokemon(self.r, '이상해씨', 20, name='not in this world'))
         self.assertAtomic(lambda: self.e.use_decisive_director(self.a, outsider, adjustment='increase'))
-        before = dump_engine(self.e)
+        before = snapshot_engine(self.e)
         self.r.ruleset.exclude_units.add(D.SOURCE)
         try:
             with self.assertRaises(ValueError):
                 self.use()
         finally:
             self.r.ruleset.exclude_units.remove(D.SOURCE)
-        self.assertEqual(dump_engine(self.e), before)
+        self.assertEqual(snapshot_engine(self.e), before)
 
     def test_real_new_atwill_actions_compose_independent_fixed_receipts(self):
         first = self.use()

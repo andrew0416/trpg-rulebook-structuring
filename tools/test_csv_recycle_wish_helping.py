@@ -77,7 +77,7 @@ class CsvReuseWishTests(unittest.TestCase):
             lambda: self.e.use_move(self.p, self.t, WISH.SOURCE, wish_edition='future'),
             lambda: self.e.use_move(self.p, self.t, 'struggle', wish_edition='ptu105')],
             reason_pattern=['exact Wish edition', 'exact Wish edition'])
-        before = CODEC.dump_engine(self.e)
+        before = CODEC.snapshot_engine(self.e)
         for grouped in (False, True):
             with self.subTest(strict_native_arguments=grouped):
                 method = self.e.use_move_on if grouped else self.e.use_move
@@ -88,7 +88,7 @@ class CsvReuseWishTests(unittest.TestCase):
                 for positional, keywords in (((), dict(public, unreviewed_source_choice=True)),
                                              ((self.p,), public), ((), missing)):
                     with self.assertRaises(TypeError):method(*positional, **keywords)
-                    self.assertEqual(CODEC.dump_engine(self.e), before)
+                    self.assertEqual(CODEC.snapshot_engine(self.e), before)
         self.e.use_move_on(self.p, primary=self.t, move_id=WISH.SOURCE, everyone=self.e.gm.everyone,
             wish_edition='csv-row623', recycle_receipt_id=None)
         self.assertEqual(self.p.budget['standard'], 0)

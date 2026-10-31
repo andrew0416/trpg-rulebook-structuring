@@ -104,24 +104,24 @@ class PushButtonsMandatoryDemoralizeTests(ProvocateurScene,unittest.TestCase):
         source=RETRAIN.owned_source(self.e,self.a,P.PUSH)
         row=G.state(self.a)['sources'][source];owner=row['owner_id'];row['owner_id']=self.b.entity_id
         self.reject(lambda:self.adopt(),'provenance changed');row['owner_id']=owner
-        previous=self.e.r.ruleset;before=self.e.export_state()
+        previous=self.e.r.ruleset;before=self.e.snapshot_state()
         self.e.r.ruleset=RuleFilter({'sources':['core'],'variants':[],'exclude_units':[P.PUSH]});self.e.r._apply_ruleset()
         try:
             with self.assertRaisesRegex(ValueError,'selected static Feature'):self.adopt()
         finally:self.e.r.ruleset=previous;self.e.r._apply_ruleset()
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         G.revoke(self.a,source,engine=self.e)
         self.reject(lambda:self.adopt(),'ended Push Buttons')
         self.setup();self.holder();receipt=self.adopt()
         parent=G.state(self.a)['sources'][receipt['source_id']]
-        before=self.e.export_state();sources=list(parent['effect_sources'])
+        before=self.e.snapshot_state();sources=list(parent['effect_sources'])
         child='feature:'+self.a.entity_id+':'+P.DEMO;parent['effect_sources'].remove(child)
         corrupt=list(parent['effect_sources'])
         try:
             with self.assertRaisesRegex(ValueError,'connected owned sources'):self.adopt()
             self.assertEqual(parent['effect_sources'],corrupt)
         finally:parent['effect_sources'][:]=sources
-        self.assertEqual(self.e.export_state(),before);self.valid()
+        self.assertEqual(self.e.snapshot_state(),before);self.valid()
 
     def test_actual_declared_seven_and_ten_acquire_and_restore_without_a_local_upper_cap(self):
         for name,rank,dice,english in (('초월',7,7,'Epic'),('신화',10,7,'Mythic')):

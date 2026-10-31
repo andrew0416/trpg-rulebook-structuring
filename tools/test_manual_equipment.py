@@ -54,10 +54,10 @@ class Tests(unittest.TestCase):
         WORLD.register_object(e,other,location={'kind':'unknown'},reason='second physical belt',
                               kind='item_instance',item_rule_id='item/기합의띠',owner_id=a.entity_id,weight_kg=1)
         CAP.set_carried(e,a,[{'id':uid,'weight_kg':1},{'id':other,'weight_kg':1}],'two belts')
-        before=e.export_state()
+        before=e.snapshot_state()
         with self.assertRaisesRegex(ValueError,'registration did not acquire'):
             e.equip_equipment(a,other)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         e.equip_equipment(a,other,replace_selection=uid)
         self.assertEqual(a.budget['standard'],0)
         self.assertNotIn('equipped_by',e._physical_objects[uid])
@@ -68,16 +68,16 @@ class Tests(unittest.TestCase):
 
     def test_own_turn_and_actual_possession_not_legal_owner_are_required(self):
         e,a,b,uid=self.fixture()
-        before=e.export_state()
+        before=e.snapshot_state()
         for call in (lambda:e.equip_equipment(b,uid),lambda:e.give_equipment(b,a,uid),
                      lambda:e.equip_equipment(a,'missing')):
             with self.assertRaises(ValueError):call()
-            self.assertEqual(e.export_state(),before)
+            self.assertEqual(e.snapshot_state(),before)
         # Remote ownership does not confer physical possession.
         CAP.set_carried(e,a,[],'put down the belt')
-        before=e.export_state()
+        before=e.snapshot_state()
         with self.assertRaisesRegex(ValueError,'physical possession'):e.equip_equipment(a,uid)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
 
     def test_failed_cost_and_recipient_capacity_roll_back_effects_carriers_and_rng(self):
         for unavailable in ('cost','load','distance'):
@@ -86,9 +86,9 @@ class Tests(unittest.TestCase):
                 if unavailable=='cost':a.budget['standard']=0
                 if unavailable=='load':b.spec['movement']['power']=1;e._physical_objects[uid]['weight_kg']=100;a.spec['_carried_load']['objects'][0]['weight_kg']=100
                 if unavailable=='distance':b.pos=(20,0)
-                before=e.export_state();obj=e._physical_objects[uid]
+                before=e.snapshot_state();obj=e._physical_objects[uid]
                 with self.assertRaises(ValueError):e.give_equipment(a,b,uid)
-                self.assertEqual(e.export_state(),before)
+                self.assertEqual(e.snapshot_state(),before)
                 self.assertIs(e._physical_objects[uid],obj)
 
     def test_free_drop_requires_own_turn_records_free_and_places_same_instance(self):
@@ -110,9 +110,9 @@ class Tests(unittest.TestCase):
         e,a,b,uid=self.fixture()
         ITEMS.register_item(e,a,'달인의띠',source_instance_id=uid,as_held=True)
         e.apply_status(a,'잠듦')
-        before=e.export_state()
+        before=e.snapshot_state()
         with self.assertRaisesRegex(ValueError,'action unavailable'):e.drop_held_equipment(a,uid)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
 
     def test_handoff_survives_both_restores_without_automatically_equipping(self):
         e,a,b,uid=self.fixture(True)
@@ -159,9 +159,9 @@ class Tests(unittest.TestCase):
                 e,a,b,uid=self.fixture()
                 if restriction=='sleep':e.apply_status(a,'잠듦')
                 else:a.budget['standard']=0
-                before=e.export_state()
+                before=e.snapshot_state()
                 with self.assertRaisesRegex(ValueError,'action unavailable'):e.equip_equipment(a,uid)
-                self.assertEqual(e.export_state(),before)
+                self.assertEqual(e.snapshot_state(),before)
                 self.assertNotIn('equipped_by',e._physical_objects[uid])
                 self.assertFalse(getattr(a,'_item_reg',{}))
 

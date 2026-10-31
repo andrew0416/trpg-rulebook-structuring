@@ -5,7 +5,7 @@ from hashlib import sha256
 import json, sys, unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'engine'))
 from engine import Rules, Engine, Combatant
-from state_codec import dump_engine, load_engine
+from state_codec import dump_engine, load_engine, snapshot_engine
 import state_grants as G
 import world_entities as W
 
@@ -72,9 +72,9 @@ class PolicyGrantTests(unittest.TestCase):
   for bindings in cases:
    with self.subTest(bindings=bindings):
     op=deepcopy(self.op);op['withdrawal_policies']=bindings;doc=self.doc(op)
-    before=dump_engine(self.e)
+    before=snapshot_engine(self.e)
     with self.assertRaises(ValueError):self.run_policy(doc,request_id='bad-binding')
-    self.assertEqual(dump_engine(self.e),before)
+    self.assertEqual(snapshot_engine(self.e),before)
     published=deepcopy(getattr(self.r,'_source_policy_documents',{}))
     with self.assertRaises(ValueError):self.load(doc)
     self.assertEqual(getattr(self.r,'_source_policy_documents',{}),published)
@@ -105,25 +105,25 @@ class PolicyGrantTests(unittest.TestCase):
  def test_pending_and_not_applicable_have_no_payments_or_evidence(self):
   self.op['points']={'$input':'cost'}
   doc=self.load(self.doc(self.op,inputs={'cost':{'type':'integer','authority':'gm','question':'Total cost?'}}))
-  before=dump_engine(self.e);self.assertEqual(self.run_policy(doc)['status'],'PolicyInputsRequired')
-  self.assertEqual(dump_engine(self.e),before)
+  before=snapshot_engine(self.e);self.assertEqual(self.run_policy(doc)['status'],'PolicyInputsRequired')
+  self.assertEqual(snapshot_engine(self.e),before)
   declined=deepcopy(doc);declined['variants'][0]['when']=False
   self.assertEqual(self.run_policy(declined)['status'],'PolicyNotApplicable')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
   self.run_policy(doc,decisions={'cost':{'value':1,'reason':'explicit cost'}})
   self.assertEqual(self.c.spec['tutor_points'],2)
  def test_late_native_failure_rolls_back_all_state_and_policy_evidence(self):
   self.op['grants'].append({'source_id':'child/bad','field':'moves','value':'move/nonexistent','learning_route':'taught'})
-  doc=self.load(self.doc(self.op));before=dump_engine(self.e)
+  doc=self.load(self.doc(self.op));before=snapshot_engine(self.e)
   with self.assertRaises(ValueError):self.run_policy(doc)
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
  def test_unknown_allocation_cannot_be_invented_by_json_adapter(self):
   self.run_policy(self.load(self.doc(self.op)))
   op=self.refund();op['sources']=['child/a'];doc=self.doc(op,'policy/partial')
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   from source_policy import PolicyExecutionPending
   with self.assertRaisesRegex(PolicyExecutionPending,'explicit allocation required'):self.run_policy(doc)
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
   op['allocations']={'group/one':{'child/a':{'$input':'share'},'child/b':0}}
   doc=self.load(self.doc(op,'policy/allocated',{'share':{'type':'integer','authority':'gm','question':'Chosen share?'}}))
   self.run_policy(doc,decisions={'share':{'value':1,'reason':'explicit allocation'}})
@@ -142,26 +142,26 @@ class PolicyGrantTests(unittest.TestCase):
   with self.assertRaisesRegex(ValueError,'input type mismatch'):
    self.load(self.doc(self.op,inputs={'cost':{'type':'string','authority':'context','question':'Cost?'}}))
  def test_stale_source_and_profile_cannot_replay_a_payment(self):
-  doc=self.load(self.doc(self.op));self.run_policy(doc);before=dump_engine(self.e)
+  doc=self.load(self.doc(self.op));self.run_policy(doc);before=snapshot_engine(self.e)
   stale=deepcopy(doc);stale['variants'][0]['source']['sha256']='0'*64
   with self.assertRaisesRegex(ValueError,'source changed'):self.run_policy(stale)
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
   self.r.ruleset.exclude_units.add('combat/struggle')
   with self.assertRaises(ValueError):self.run_policy(doc)
   self.r.ruleset.exclude_units.remove('combat/struggle')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
  def test_actual_participants_required_and_effect_entry_cannot_execute_grants(self):
-  doc=self.load(self.doc(self.op));before=dump_engine(self.e)
+  doc=self.load(self.doc(self.op));before=snapshot_engine(self.e)
   fake=copy(self.c)
   with self.assertRaises(ValueError):self.e.execute_source_policy_grants(self.a,fake,doc)
   with self.assertRaises(ValueError):self.e.execute_source_policy_effects(self.a,self.c,doc)
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
 
  def test_json_stat_investment_uses_typed_delta_and_native_refund(self):
   self.op['grants']=[{'source_id':'child/stat','field':'stats','stat':'atk','delta':{'$input':'delta'},'minimum':1}]
   doc=self.load(self.doc(self.op,inputs={'delta':{'type':'integer','authority':'gm','question':'Declared stat change?'}}))
-  before=dump_engine(self.e);self.assertEqual(self.run_policy(doc)['status'],'PolicyInputsRequired')
-  self.assertEqual(dump_engine(self.e),before)
+  before=snapshot_engine(self.e);self.assertEqual(self.run_policy(doc)['status'],'PolicyInputsRequired')
+  self.assertEqual(snapshot_engine(self.e),before)
   self.run_policy(doc,decisions={'delta':{'value':-20,'reason':'synthetic bounded contribution'}})
   self.assertEqual(self.c.stats['atk'],1);self.assertEqual(self.c.spec['stats']['atk'],10)
   op=self.refund();op['sources']=['child/stat']

@@ -87,10 +87,10 @@ class FashionSaveReceiptTests(unittest.TestCase):
         receiver_spec = snapshot['combatants'][id(fixture.q)]['spec']
         self.assertNotIn('fashion_next_save', receiver_spec)
         receiver_spec['fashion_next_save'] = deepcopy(source_spec['fashion_next_save'])
-        before = CODEC.dump_engine(fixture.e)
+        before = CODEC.snapshot_engine(fixture.e)
         with self.assertRaisesRegex(ValueError, 'Fashion save activation'):
             fixture.e.gm.restore('one-native-fashion-activation', reason='reject inconsistent derived receipt')
-        self.assertEqual(CODEC.dump_engine(fixture.e), before)
+        self.assertEqual(CODEC.snapshot_engine(fixture.e), before)
 
     def test_native_save_benefit_stays_with_original_wearer_after_item_transfer(self):
         fixture, instance_id, issued = self.fashion()
@@ -216,10 +216,10 @@ class FashionSaveReceiptTests(unittest.TestCase):
         self.assertEqual(PROTECTION.status(engine, pokemon, selected, 'drop')['status'], 'needs_consent')
         with self.assertRaises(PROTECTION.EquipmentConsentRequired):
             PROTECTION.require(engine, pokemon, selected, 'drop', (giver,))
-        before = CODEC.dump_engine(engine)
+        before = CODEC.snapshot_engine(engine)
         with self.assertRaises(ValueError):
             engine.give_equipment(giver, pokemon, incoming_id)
-        self.assertEqual(CODEC.dump_engine(engine), before)
+        self.assertEqual(CODEC.snapshot_engine(engine), before)
         result = engine.give_equipment(giver, pokemon, incoming_id, replace_selection=old_id)
         self.assertTrue(result['equipped'])
         self.assertEqual(giver.budget['standard'], 0)

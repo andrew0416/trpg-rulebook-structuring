@@ -84,9 +84,9 @@ class CsvSweetPendingTurnEnd(unittest.TestCase):
         self.assertEqual(actor.spec['items']['item/단맛-과자'], 1)
         self.assertEqual(len(actor.spec['food_consumption_receipts']), 1)
         self.assertEqual(FREQ.state(actor)['activations'][SOURCE]['used'], 1)
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         e.resolve_effect_condition(actor, token, target_was_asleep=True,
                                   reason='actual accepted historical condition observation')
-        self.assertEqual(CODEC.dump_engine(e), before)
+        self.assertEqual(CODEC.snapshot_engine(e), before)
         self.restored(e)
 

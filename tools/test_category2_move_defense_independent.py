@@ -54,9 +54,9 @@ class IndependentMoveDefenseTests(unittest.TestCase):
 
     def test_total_blindness_cannot_attempt_intercept_or_pay_its_cost(self):
         self.e.apply_status(self.r,'완전 실명',source='independent native status')
-        self.watch();event=self.waiting();before=self.e.export_state()
+        self.watch();event=self.waiting();before=self.e.snapshot_state()
         with self.assertRaises(ValueError):self.choose(event,options=self.melee())
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.choose(event,use=False)
 
     def test_area_pending_cold_restore_keeps_original_group_and_one_received_hit(self):
@@ -97,13 +97,13 @@ class IndependentMoveDefenseTests(unittest.TestCase):
 
     def test_forged_accuracy_trigger_cannot_create_reaction_window(self):
         import initiative_interrupts as INTERRUPTS
-        self.watch();event=self.waiting();before=self.e.export_state()
+        self.watch();event=self.waiting();before=self.e.snapshot_state()
         with self.assertRaises((ValueError,PASSIVE.PassiveEventPending)):
             INTERRUPTS.queue(self.e,[{'id':'forged','actor_id':self.r.entity_id,
                 'source':DEFENSE.MELEE,'priority':0,'mode':'reaction','payment':'next',
                 'budget':{'standard':1,'shift':1},'clock':'none'}],
                 trigger={'kind':'accuracy','event_id':event})
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
 
     def test_original_accuracy_target_cannot_be_changed_even_with_new_fact_hash(self):
         self.watch();event=self.waiting();state=self.completion()['defense'][self.t.entity_id]

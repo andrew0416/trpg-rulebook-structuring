@@ -295,13 +295,13 @@ class Tests(unittest.TestCase):
     if code.startswith('HM'):
      policy=self.e.hm_teaching_policy(self.a,target=self.p,instance_id='m')
      options['hm_decision']={'value':1,'reason':'GM choice for this HM instance and target','scope':policy['decision_scope']}
-    before=self.e.export_state();native=JOBS.run_fixed
+    before=self.e.snapshot_state();native=JOBS.run_fixed
     def fail(*args,**kwargs):
      native(*args,**kwargs);args[0].rng.random();raise ValueError('late machine teaching failure')
     with patch.object(JOBS,'run_fixed',side_effect=fail):
      with self.assertRaisesRegex(ValueError,'late machine teaching failure'):
       self.act('teach_machine',target=self.p,instance_id='m',**options)
-    self.assertEqual(self.e.export_state(),before)
+    self.assertEqual(self.e.snapshot_state(),before)
     out=self.act('teach_machine',target=self.p,instance_id='m',**options)
     self.assertEqual((out['seconds'],self.e.elapsed_seconds,self.p.spec['tutor_points']),(3600,3600,2))
     self.assertEqual(self.a.spec['teaching_machines']['m']['status'],'owned' if code.startswith('HM') else 'consumed')

@@ -7,7 +7,7 @@ import json,sys,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 import test_category2_progression_state as fixtures
 from builder import build_pokemon
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import world_entities as W,pokemon_teaching as T
 
 class PolicyTeachingTests(unittest.TestCase):
@@ -50,14 +50,14 @@ class PolicyTeachingTests(unittest.TestCase):
     self.assertEqual(restored.activity_job_status(job['id']),view)
  def test_late_common_job_failure_rolls_back_teaching_time_and_all_receipts(self):
   import activity_jobs as J
-  before=dump_engine(self.e);rng=self.e.rng.getstate();run=J.run_fixed
+  before=snapshot_engine(self.e);rng=self.e.rng.getstate();run=J.run_fixed
   def fail_after_work(*args,**kw):
    run(*args,**kw)
    raise ValueError('failure after actual common work')
   with patch.object(J,'run_fixed',side_effect=fail_after_work):
    with self.assertRaisesRegex(ValueError,'after actual common work'):
     self.e.pokemon_activity(self.a,'teach_edge',target=self.p,edge='poke_edge/공격-충돌',stat='atk',safe=True)
-  self.assertEqual(before,dump_engine(self.e));self.assertEqual(rng,self.e.rng.getstate())
+  self.assertEqual(before,snapshot_engine(self.e));self.assertEqual(rng,self.e.rng.getstate())
  def test_pending_then_edge_cost_and_durable_request_replay(self):
   self.load();before=dump_engine(self.e)
   self.assertEqual(self.run_policy()['status'],'PolicyInputsRequired');self.assertEqual(before,dump_engine(self.e))
@@ -78,13 +78,13 @@ class PolicyTeachingTests(unittest.TestCase):
   out=self.run_policy(request_id='machine-once')
   self.assertEqual(out['teaching_result']['point_cost'],1);self.assertIn('move/화염방사',self.p.spec['moves'])
   self.assertEqual(self.p.spec['tutor_points'],5);self.assertEqual(self.a.spec['items'].get('TM35',0),0)
-  before=dump_engine(self.e);self.assertTrue(self.run_policy(request_id='machine-once')['replayed']);self.assertEqual(before,dump_engine(self.e))
+  before=snapshot_engine(self.e);self.assertTrue(self.run_policy(request_id='machine-once')['replayed']);self.assertEqual(before,snapshot_engine(self.e))
  def test_native_mentor_permission_duration_and_nonowned_target(self):
   self.a.spec.update(feats=[T.MENTOR],skills={'매력':5,'포켓몬학':3});T.select_mentor_skills(self.e,self.a,['매력','포켓몬학'],reason='actual choice')
   self.p=self.pokemon('브케인',32);self.p.spec.pop('trainer_id')
   self.doc=self.document(T.MENTOR,{'kind':'feature','feature':T.MENTOR,'move_id':'화염방사','seconds':{'$input':'duration'},'reason':'observed Extended activity'},
     {'duration':{'type':'integer','authority':'gm','question':'Observed duration'}})
-  self.load();before=dump_engine(self.e);self.assertEqual(self.run_policy()['status'],'PolicyInputsRequired');self.assertEqual(before,dump_engine(self.e))
+  self.load();before=snapshot_engine(self.e);self.assertEqual(self.run_policy()['status'],'PolicyInputsRequired');self.assertEqual(before,snapshot_engine(self.e))
   out=self.run_policy(decisions={'duration':{'value':60,'reason':'GM observed one minute'}},request_id='mentor-once')
   self.assertEqual(out['teaching_result']['classification'],'natural');self.assertEqual(self.e.elapsed_seconds,60);self.assertEqual(self.p.spec['tutor_points'],5)
  def test_qualification_false_condition_and_late_failure_leave_no_records(self):
@@ -106,7 +106,7 @@ class PolicyTeachingTests(unittest.TestCase):
   self.a.spec['edges']=['edge/미용사'];self.a.spec['items']['미용사 킷']=1
   options={'context':{'skill':'육상','credit':True},'request_id':'groomed-edge'};before=dump_engine(self.e)
   with self.assertRaises(ValueError):self.run_policy(**options)
-  self.assertEqual(before,dump_engine(self.e))
+  self.assertEqual(before,snapshot_engine(self.e))
   self.e.pokemon_activity(self.a,'groom',targets=[self.p],safe=True);self.run_policy(**options)
   self.assertEqual(self.e.elapsed_seconds,3600);self.assertEqual(self.p.spec['tutor_points'],5)
   self.assertEqual(len(self.p.spec['training_credit']['applications']),1)

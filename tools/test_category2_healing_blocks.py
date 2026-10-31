@@ -164,10 +164,10 @@ class HealingBlockTests(unittest.TestCase):
 
     def test_heal_block_survives_ordinary_cure_and_only_its_three_boundaries_end_it(self):
         self.apply(HEAL_BLOCK)
-        before = CODEC.dump_engine(self.engine)
+        before = CODEC.snapshot_engine(self.engine)
         with self.assertRaisesRegex(ValueError, 'replacement, Breather, or encounter end'):
             self.engine.cure_status(self.target, '회복봉인')
-        self.assertEqual(CODEC.dump_engine(self.engine), before)
+        self.assertEqual(CODEC.snapshot_engine(self.engine), before)
         STATUS.cure_group(self.engine, self.target)
         self.assertTrue(BLOCKS.blocked(self.target))
 

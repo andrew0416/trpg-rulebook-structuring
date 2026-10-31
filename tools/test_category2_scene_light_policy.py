@@ -8,7 +8,7 @@ sys.path.insert(0, str(ROOT / 'engine'))
 from engine import Rules, Engine, Combatant
 import scene_light_policy as LIGHT
 import state_grants as GRANTS
-from state_codec import dump_engine
+from state_codec import dump_engine, snapshot_engine
 
 
 class SceneLightPolicyTests(unittest.TestCase):
@@ -72,10 +72,10 @@ class SceneLightPolicyTests(unittest.TestCase):
                 dict(kind='glow',owner=owner,size='대형'),
                 dict(kind='lantern',size='중형'),dict(kind='lantern',radiant=True),
                 dict(kind='glow',owner=owner,radiant=1)]:
-            before = dump_engine(self.e)
+            before = snapshot_engine(self.e)
             with self.subTest(options=options), self.assertRaises(ValueError):
                 LIGHT.radius(self.e, **options)
-            self.assertEqual(before, dump_engine(self.e))
+            self.assertEqual(before, snapshot_engine(self.e))
 
 
 if __name__ == '__main__':

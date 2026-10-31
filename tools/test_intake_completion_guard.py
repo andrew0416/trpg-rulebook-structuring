@@ -190,10 +190,10 @@ class IntakeCompletionGuardTests(unittest.TestCase):
         e.gm.add_combatant(recipient, reason='distinct food recipient')
         recipient.hp = 1
         self.timer(e, recipient)
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         with self.assertRaisesRegex(ValueError, 'conscious food consumer required at completion'):
             e.use_item(giver, item, recipient, **self.options(policy))
-        self.assertEqual(before, CODEC.dump_engine(e))
+        self.assertEqual(before, CODEC.snapshot_engine(e))
         self.assertEqual((giver.hp, recipient.hp, giver.spec['items'][item]), (5, 1, 1))
         self.no_benefit(recipient)
         self.restored(e, recipient)

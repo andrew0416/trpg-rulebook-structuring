@@ -5,7 +5,7 @@ from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 import test_reuse_partial_completion as FIX
 from engine import Rules
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import coat_effects as COATS
 import damage_coats as DAMAGE_COATS
 import custom_condition_effects as CUSTOM
@@ -25,9 +25,9 @@ class Tests(unittest.TestCase):
   row=CUSTOM.definition(self.r,'move/소금절이')
   self.assertEqual(self.e.apply_effect(self.a,self.b,row['raw'],nat=None,hit=True,dealt=0,src='move/소금절이'),(1,0))
  def test_coat_effectiveness_queries_are_read_only_and_keep_actual_creator(self):
-  self.coat();before=dump_engine(self.e);move=self.r.move('move/불꽃세례')
+  self.coat();before=snapshot_engine(self.e);move=self.r.move('move/불꽃세례')
   for _ in range(2):self.assertEqual(EXT.effectiveness_hook(self.e,self.a,self.b,move,{},1,{}),1.5)
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
   self.assertEqual(COATS.live(self.b)[0]['effect_instance']['applied_by_actor_id'],self.a.entity_id)
  def test_real_matching_damage_consumes_once_after_application(self):
   self.coat();self.e.accuracy_check=lambda *a,**k:(True,10,False)

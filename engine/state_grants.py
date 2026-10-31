@@ -1295,6 +1295,21 @@ def record_native_pending(engine, error, pending):
     return False
 
 
+def _frozen_rows(engine):
+    """Identity map of containers that never change after they enter the graph: stored execution
+    trace rows. They are shared between the live and staged graphs instead of being copied."""
+    rows=getattr(engine,'_execution_traces',None)
+    if type(rows) is not dict:return {}
+    return {id(row):row for row in rows.values() if isinstance(row,(dict,list))}
+
+
+def _frozen_signature(engine):
+    import json
+    rows=getattr(engine,'_execution_traces',None)
+    if type(rows) is not dict:return None
+    return [json.dumps(row,sort_keys=True,ensure_ascii=False,default=repr) for row in rows.values()]
+
+
 def transition(engine,c,apply,*,participants=(),include_rulings=False,include_grid=False,completion=None):
     # Native equipment can publish derived Move definitions into shared Rules.
     # Keep those publications inside the same outer failure boundary as the graph.
@@ -1307,9 +1322,17 @@ def transition(engine,c,apply,*,participants=(),include_rulings=False,include_gr
 def _transition(engine,c,apply,*,participants=(),include_rulings=False,include_grid=False,completion=None,_publication=None):
     # One native transition verifies each selected definition's source once (source_selection).
     import source_selection as SOURCES
+    import os
+    check=bool(os.environ.get('PTK_TRANSITION_CHECK'))
+    before=_frozen_signature(engine) if check else None
     with SOURCES.verification_scope():
-        return _transition_body(engine,c,apply,participants=participants,include_rulings=include_rulings,
+        result=_transition_body(engine,c,apply,participants=participants,include_rulings=include_rulings,
                                 include_grid=include_grid,completion=completion,_publication=_publication)
+    if check:
+        after=_frozen_signature(engine)
+        if before is not None and after[:len(before)]!=before:
+            raise ValueError('execution trace row changed during a native transition (frozen rows must be immutable)')
+    return result
 
 
 def _transition_body(engine,c,apply,*,participants=(),include_rulings=False,include_grid=False,completion=None,_publication=None):
@@ -1337,9 +1360,12 @@ def _transition_body(engine,c,apply,*,participants=(),include_rulings=False,incl
     if getattr(engine,'_setup_move_scopes',()):fields.add('_setup_move_scopes')
     # Keep original container identities before staging. These include spec,
     # runtime registries and aliases reached through different actor/engine paths.
+    # Execution trace rows are immutable once stored (event_trace stores and reads
+    # deep copies), so they are shared by identity instead of being copied twice.
+    frozen=_frozen_rows(engine)
     originals={}
     def collect(value):
-        if id(value) in originals:return
+        if id(value) in frozen or id(value) in originals:return
         if isinstance(value,(dict,list,set,tuple)):
             originals[id(value)]=value
             if isinstance(value,dict):
@@ -1366,7 +1392,7 @@ def _transition_body(engine,c,apply,*,participants=(),include_rulings=False,incl
     original_rulings=engine.rulings if include_rulings else None
     original_grid=engine.grid if include_grid else None
     token_anchors=_transition_token_anchors(engine)
-    memo={id(engine.r):engine.r,**token_anchors}
+    memo={id(engine.r):engine.r,**token_anchors,**frozen}
     if include_rulings:
         # Rules data stays shared; only mutable adjudications belong to this commit.
         from copy import copy
@@ -1463,7 +1489,7 @@ def _transition_body(engine,c,apply,*,participants=(),include_rulings=False,incl
         raise ValueError('state transition cannot replace an existing actor identity')
     payload={"actors":{key:vars(actor) for key,actor in staged_actors.items()},"gm_everyone":staged_engine.gm.everyone,
              "engine":{key:getattr(staged_engine,key) for key in fields if hasattr(staged_engine,key)},"result":result}
-    anchors={id(staged_engine):engine,id(engine.r):engine.r,**token_anchors,
+    anchors={id(staged_engine):engine,id(engine.r):engine.r,**token_anchors,**frozen,
              **{id(staged):actors[key] for key,staged in staged_actors.items()}}
     if not stateful_rng:
         payload['rng']=vars(staged_engine.rng)
@@ -1514,7 +1540,7 @@ def _transition_body(engine,c,apply,*,participants=(),include_rulings=False,incl
         if changed:break
     if changed:raise ValueError('stale state transition: original world changed before commit')
     from resolution_transaction import commit_graph
-    committed=commit_graph(payload,anchors,replacements)
+    committed=commit_graph(payload,anchors,replacements,frozen=frozen)
     engine.gm.everyone=committed["gm_everyone"]
     for key in fields-committed["engine"].keys():vars(engine).pop(key,None)
     for key,value in committed["engine"].items():setattr(engine,key,value)

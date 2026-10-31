@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
 from engine import Rules, Engine, Combatant
 from rulings import Rulings
-from state_codec import dump_engine, load_engine
+from state_codec import dump_engine, load_engine, snapshot_engine
 import initiative_interrupts as INTERRUPTS
 import priority_actions as PRIORITY
 import turn
@@ -63,10 +63,10 @@ class PriorityActionTests(unittest.TestCase):
         self.t, self.p, self.foe = [index[uid] for uid in ids]
 
     def unchanged(self, callback):
-        before = dump_engine(self.e)
+        before = snapshot_engine(self.e)
         with self.assertRaises(ValueError):
             callback()
-        self.assertEqual(before, dump_engine(self.e))
+        self.assertEqual(before, snapshot_engine(self.e))
 
     def complete_round(self):
         self.e.finish_initiative_reaction()

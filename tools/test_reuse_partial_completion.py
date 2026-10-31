@@ -10,7 +10,7 @@ from builder import build_trainer
 import move_completion as COMPLETE
 import combat_stage_sources as STAGES
 import counter_effects as COUNTERS
-from state_codec import dump_engine,load_engine,StateCodecError
+from state_codec import dump_engine,load_engine,StateCodecError, snapshot_engine
 
 class Tests(unittest.TestCase):
  @classmethod
@@ -51,7 +51,7 @@ class Tests(unittest.TestCase):
   row=list(self.e._move_completions.values())[-1]
   self.assertEqual((row['phase'],len(row['results'])),('complete',2))
   del self.e.targets_in_range
-  before=dump_engine(self.e);COMPLETE.refresh(self.e,row['id']);self.assertEqual(dump_engine(self.e),before)
+  before=snapshot_engine(self.e);COMPLETE.refresh(self.e,row['id']);self.assertEqual(snapshot_engine(self.e),before)
  def test_after_use_counter_advances_once_even_when_all_miss(self):
   self.e.targets_in_range=lambda *args:[self.b,self.c]
   seen=[]

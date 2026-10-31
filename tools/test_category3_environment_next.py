@@ -128,12 +128,12 @@ class EnvironmentTests(unittest.TestCase):
    self.assertEqual(out["damage_distance"],2 if passed else 3)
  def test_falling_check_rejects_unregistered_actor_without_mutating_world(self):
   stranger=self.actor("unregistered falling actor")
-  before=self.e.export_state();hp=stranger.hp
+  before=self.e.snapshot_state();hp=stranger.hp
   with self.assertRaisesRegex(ValueError,"actual registered actor/target"):
    self.e.falling_damage(stranger,action_id="unregistered-fall",meters=3,intentional=False,
       reason="GM observed fall does not register its actor",acrobatics=True,
       acrobatics_options={"fixed":[3]*5})
-  self.assertEqual(self.e.export_state(),before)
+  self.assertEqual(self.e.snapshot_state(),before)
   self.assertEqual(stranger.hp,hp)
   self.assertNotIn("_fall_events",stranger.spec)
  def test_same_intentional_jump_uses_live_high_jump_running_and_separate_boost(self):

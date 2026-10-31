@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(RO
 from engine import Rules,Engine,Combatant
 from builder import build_trainer
 from grid import Grid
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 from ruleset import ExcludedRuleSelection
 import combat_timing as TIME,effect_lifetimes as LIFE,turn as TURN
 
@@ -53,9 +53,9 @@ class OpportunityLimitTests(unittest.TestCase):
     self.assertTrue(TURN.can_aoo(self.e,self.t));self.assertEqual(self.a.move_uses[mid],1)
     self.assertEqual(self.a.budget['standard'],0)
  def test_missing_initiative_count_rejects_before_cost_rng_or_state(self):
-  self.begin(count=None);before=dump_engine(self.e)
+  self.begin(count=None);before=snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'initiative count'):self.e.use_move(self.a,self.t,MOVES[0])
-  self.assertEqual(before,dump_engine(self.e))
+  self.assertEqual(before,snapshot_engine(self.e))
  def test_actual_opportunity_attempt_is_unspent_until_full_round_count_expires(self):
   self.begin();self.hit();hp=self.mover.hp
   TURN.trigger_aoo(self.e,self.mover,'actual adjacent departure',enemies=[self.t])
@@ -97,10 +97,10 @@ class OpportunityLimitTests(unittest.TestCase):
     self.assertFalse(LIFE.forbids(self.t,'attack_of_opportunity'));self.assertEqual(self.t.stages['atk'],0)
  def test_unreviewed_action_prohibition_and_excluded_variants_fail_before_payment(self):
   self.begin();bad=copy.deepcopy(self.r.moves_reviewed[MOVES[0]]);bad['effects'][0]['actions']=['standard']
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   with patch.dict(self.r.moves_reviewed,{MOVES[0]:bad}):
    with self.assertRaisesRegex(ValueError,'native action consumer'):self.e.use_move(self.a,self.t,MOVES[0])
-  self.assertEqual(before,dump_engine(self.e))
+  self.assertEqual(before,snapshot_engine(self.e))
   for mid in MOVES[1:]:
    with self.assertRaises(ExcludedRuleSelection):self.core.move_mech(mid)
 

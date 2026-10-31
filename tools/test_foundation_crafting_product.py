@@ -51,9 +51,9 @@ class ProductTests(unittest.TestCase):
   self.assertIsNot(self.e._physical_objects[policy['instance_ids'][0]],self.e._physical_objects[policy['instance_ids'][1]])
  def test_same_event_after_restore_returns_proof_without_cost_time_or_new_copy(self):
   recipe,policy,result=self.made();loaded=self.restored();actor=next(x for x in loaded.gm.everyone if x.entity_id==self.a.entity_id)
-  before=CODEC.dump_engine(loaded)
+  before=CODEC.snapshot_engine(loaded)
   replay=loaded.craft_recipe(actor,recipe,product_policy=policy,event_id='make-one',reason='actual reviewed recipe duration')
-  self.assertEqual(replay,result);self.assertEqual(before,CODEC.dump_engine(loaded))
+  self.assertEqual(replay,result);self.assertEqual(before,CODEC.snapshot_engine(loaded))
   changed=deepcopy(recipe);changed['seconds']+=1
   with self.assertRaises(ValueError):loaded.craft_recipe(actor,changed,product_policy=policy,event_id='make-one',reason='actual reviewed recipe duration')
  def test_existing_identity_or_duplicate_instance_selection_rejects_before_work(self):

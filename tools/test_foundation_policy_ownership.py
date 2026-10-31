@@ -6,7 +6,7 @@ import sys,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'engine'))
 from engine import Rules,Engine,Combatant
 from builder import build_trainer
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import acquired_features as A
 import world_entities as W
 
@@ -45,14 +45,14 @@ class OwnershipTests(unittest.TestCase):
  def test_external_predicate_tracks_actual_ownership_and_refuses_context_override(self):
   uid='edge/기본-스킬';doc=self.document(uid);before=dump_engine(self.e)
   self.assertEqual(self.e.execute_source_policy_effects(self.c,self.c,doc)['status'],'PolicyNotApplicable')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
   with self.assertRaises(ValueError):self.e.execute_source_policy_effects(self.c,self.c,doc,context={'owned':1})
   self.c.spec['edges']=[uid]
   result=self.e.execute_source_policy_effects(self.c,self.c,doc)
   self.assertEqual(result['status'],'PolicyEffectsCompleted');self.assertEqual(result['input_values']['owned'],1)
-  self.c.spec['edges']=[];before=dump_engine(self.e)
+  self.c.spec['edges']=[];before=snapshot_engine(self.e)
   self.assertEqual(self.e.execute_source_policy_effects(self.c,self.c,doc)['status'],'PolicyNotApplicable')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
  def test_excluded_or_unknown_source_is_not_reported_as_false_ownership(self):
   uid='edge/기본-스킬';self.c.spec['edges']=[uid]
   self.r.ruleset.exclude_units.add(uid)

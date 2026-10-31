@@ -105,9 +105,9 @@ class DefenseCurlSourceTests(unittest.TestCase):
         self.assertFalse(CURL.critical_immune(self.a));self.assertNotIn('둔화',CONDITIONS.effective_conditions(self.a))
         self.assertTrue(self.e.accuracy_check(self.a,self.foe,self.e.r.move(TACKLE),fixed_roll=5)[0])
         self.assertTrue(self.e.accuracy_check(self.foe,self.a,self.e.r.move(TACKLE),fixed_roll=20)[2])
-        before=CODEC.dump_engine(self.e)
+        before=CODEC.snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError,'active Core'):self.e.stop_defense_curl(self.a)
-        self.assertEqual(CODEC.dump_engine(self.e),before)
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
         self.e.end_of_turn(self.a);self.e.end_scene([self.a,self.foe],round_elapsed_seconds=10)
         self.assertFalse(CURL.live(self.a));self.assertEqual(self.a.stages['def'],0)
         self.restore()
@@ -150,17 +150,17 @@ class DefenseCurlSourceTests(unittest.TestCase):
         self.assertEqual(observed['september_playtest'],observed['uncurled']+10)
 
     def test_late_september_stage_failure_rolls_back_cost_state_history_and_rng(self):
-        self.world(variant='september_playtest');before=CODEC.dump_engine(self.e)
+        self.world(variant='september_playtest');before=CODEC.snapshot_engine(self.e)
         with patch.object(Engine,'change_stage',side_effect=ValueError('actual Curl stage receiver failed')):
             with self.assertRaisesRegex(ValueError,'actual Curl stage receiver failed'):
                 self.e.use_move(self.a,self.a,CURL.MOVE)
-        self.assertEqual(CODEC.dump_engine(self.e),before)
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
         self.assertFalse(CURL.live(self.a))
 
     def test_invalid_choice_or_tampered_producing_variant_rejects_before_native_payment(self):
-        self.world();before=CODEC.dump_engine(self.e)
+        self.world();before=CODEC.snapshot_engine(self.e)
         with self.assertRaises(ValueError):self.e.choose_defense_curl_source(self.a,'not-a-source',reason='invalid selection')
-        self.assertEqual(CODEC.dump_engine(self.e),before)
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
         self.cast();self.next_turn();row=CURL.live(self.a);row['effect']['variant']='september_playtest'
         budget=deepcopy(self.a.budget);uses=deepcopy(self.a.move_uses);rng=self.e.rng.getstate()
         with self.assertRaises(ValueError):self.e.use_move(self.a,self.a,CURL.MOVE)

@@ -87,23 +87,23 @@ class Tests(unittest.TestCase):
   I.equip_held(self.e,self.a,'오랭열매',source_instance_id='berry')
   self.assertEqual(self.e._physical_objects['berry']['equipped_by'],self.a.entity_id)
  def test_remote_registration_cannot_desynchronize_actual_weight_from_held_load(self):
-  self.objects([1]);self.lift();before=CODEC.dump_engine(self.e)
+  self.objects([1]);self.lift();before=CODEC.snapshot_engine(self.e)
   with self.assertRaises(ValueError):
    W.register_object(self.e,'remote0',location={'kind':'grid','cell':(8,2)},weight_kg=2,reason='correct actual object weight while remotely held')
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
   self.e.release_telekinetic_load(self.a,reason='release before correcting the actual observed weight')
   W.register_object(self.e,'remote0',location={'kind':'grid','cell':(8,2)},weight_kg=2,reason='correct released object weight')
   self.assertEqual(self.lift()['weight_kg'],2)
  def test_remote_reobservation_cannot_leave_successful_gm_input_with_invalid_world(self):
-  self.objects([1]);self.lift();before=CODEC.dump_engine(self.e)
+  self.objects([1]);self.lift();before=CODEC.snapshot_engine(self.e)
   try:
    W.register_object(self.e,'remote0',location={'kind':'grid','cell':(8,2)},weight_kg=2,reason='new actual weight observation')
   except ValueError:
-   self.assertEqual(CODEC.dump_engine(self.e),before)
+   self.assertEqual(CODEC.snapshot_engine(self.e),before)
   report=W.validate_world(self.e);self.assertTrue(report['valid'],report)
   self.assertEqual(LOAD.load(self.a)['weight_kg'],self.e._physical_objects['remote0']['weight_kg'])
  def test_remote_multiobject_late_failure_rolls_back_positions_cost_history_and_rng(self):
-  self.objects([1,1]);self.lift(['remote0','remote1']);self.turn();before=CODEC.dump_engine(self.e)
+  self.objects([1,1]);self.lift(['remote0','remote1']);self.turn();before=CODEC.snapshot_engine(self.e)
   original=type(self.e.gm)._rec
   def fail_after_record(gm,*args,**kw):
    result=original(gm,*args,**kw)
@@ -112,32 +112,32 @@ class Tests(unittest.TestCase):
   with patch.object(type(self.e.gm),'_rec',fail_after_record):
    with self.assertRaisesRegex(ValueError,'late remote'):
     self.e.move_telekinetic_objects(self.a,{'remote0':[(8,2),(8,3)],'remote1':[(9,2),(9,3)]},action_cost='shift',maximum_distance=1,reason='GM allowance')
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
  def test_caster_movement_rechecks_actual_target_range_before_next_remote_action(self):
   self.objects([1,1]);self.lift(['remote1']);self.turn()
   self.assertTrue(self.e.disengage(self.a,(0,2)))
   self.assertEqual(self.a.pos,(0,2));self.assertEqual(W.location_of(self.e._physical_objects['remote1'])['cell'],(9,2))
-  before=CODEC.dump_engine(self.e)
+  before=CODEC.snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'eight'):
    self.e.move_telekinetic_objects(self.a,{'remote1':[(9,2),(8,2)]},action_cost='standard',maximum_distance=1,reason='GM allowance after caster movement')
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
   self.e.release_telekinetic_load(self.a,reason='GM explicitly releases; no automatic landing inferred')
   self.assertNotIn('telekinetic_holder_id',self.e._physical_objects['remote1'])
  def test_lost_current_capability_blocks_remote_move_and_focus_check_before_cost_rng(self):
   self.objects([30]);self.lift();self.turn()
-  G.revoke(self.a,'fixture:telekinetic',engine=self.e);before=CODEC.dump_engine(self.e)
+  G.revoke(self.a,'fixture:telekinetic',engine=self.e);before=CODEC.snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'current Telekinetic'):
    self.e.move_telekinetic_objects(self.a,{'remote0':[(8,2),(8,3)]},action_cost='shift',maximum_distance=1,reason='GM allowance after capability loss')
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
   with self.assertRaisesRegex(ValueError,'current Telekinetic'):self.e.carry_check(self.a,fixed=[4,3,3])
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
   self.e.release_telekinetic_load(self.a,reason='GM explicitly releases after capability loss')
   self.assertEqual(LOAD.load(self.a)['band'],'normal')
  def test_current_focus_rank_replaces_physical_power_and_rejected_total_is_atomic(self):
   self.e.gm.set_skill(self.a,'집중',2,reason='current Focus rank observed')
-  self.objects([14,14]);before=CODEC.dump_engine(self.e)
+  self.objects([14,14]);before=CODEC.snapshot_engine(self.e)
   with self.assertRaises(ValueError):self.lift(['remote0','remote1'])
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
   self.e.gm.set_skill(self.a,'집중',3,reason='current Focus rank now three')
   self.assertEqual(self.lift(['remote0','remote1'])['weight_kg'],28)
   self.turn();self.assertTrue(self.e.carry_check(self.a,fixed=[4,3,3]).passed)
@@ -145,11 +145,11 @@ class Tests(unittest.TestCase):
   self.objects([1])
   for location in ({'kind':'unknown'},{'kind':'grid','cell':(8,2),'map_id':'other-map'}):
    W.register_object(self.e,'remote0',location=location,weight_kg=1,reason='GM records actual target location')
-   before=CODEC.dump_engine(self.e)
+   before=CODEC.snapshot_engine(self.e)
    with self.assertRaisesRegex(ValueError,'same-map'):self.lift()
-   self.assertEqual(CODEC.dump_engine(self.e),before)
+   self.assertEqual(CODEC.snapshot_engine(self.e),before)
   W.register_object(self.e,'remote0',location={'kind':'grid','cell':(8,2)},weight_kg=1,reason='same mapped target')
-  self.a.spec['_movement_altitude']=1;before=CODEC.dump_engine(self.e)
+  self.a.spec['_movement_altitude']=1;before=CODEC.snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'vertical'):self.lift()
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
 if __name__=='__main__':unittest.main()

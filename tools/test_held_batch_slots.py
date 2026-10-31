@@ -54,7 +54,7 @@ class HeldBatchSlotsTests(unittest.TestCase):
 
     def test_batch_preflight_duplicate_stale_slots_and_late_failure_are_atomic(self):
         engine, actor, prepared = self.fixture()
-        before = CODEC.dump_engine(engine)
+        before = CODEC.snapshot_engine(engine)
         for invalid in ("duplicate", "stale_slots"):
             changed = deepcopy(prepared)
             if invalid == "duplicate":
@@ -64,7 +64,7 @@ class HeldBatchSlotsTests(unittest.TestCase):
             with self.assertRaises(ValueError), patch.object(ITEMS, "_unregister_selected") as removed:
                 GRANTS.transition(engine, actor, lambda e, c: STOCK.debit(e, c, changed))
             removed.assert_not_called()
-            self.assertEqual(CODEC.dump_engine(engine), before)
+            self.assertEqual(CODEC.snapshot_engine(engine), before)
         finish = WORLD.finish_physical_use
         calls = []
         def fail_second(e, obj, *args, **kwargs):
@@ -76,7 +76,7 @@ class HeldBatchSlotsTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "late batch terminal failure"):
                 GRANTS.transition(engine, actor, lambda e, c: STOCK.debit(e, c, prepared))
         self.assertEqual(calls, ["batch/accessory", "batch/held"])
-        self.assertEqual(CODEC.dump_engine(engine), before)
+        self.assertEqual(CODEC.snapshot_engine(engine), before)
 
 
 if __name__ == "__main__":

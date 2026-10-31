@@ -235,9 +235,9 @@ class EffectLifetimeTests(unittest.TestCase):
                  {'repeat':{'event':'turn_end','owner':'user','times':2}})
         for controls in cases:
             with self.subTest(controls=controls):
-                self.setUp(); before = self.e.export_state()
+                self.setUp(); before = self.e.snapshot_state()
                 with self.assertRaises(ValueError):self.apply(self.modifier(**controls))
-                self.assertEqual(self.e.export_state(),before); self.assertFalse(TIME.records(self.a))
+                self.assertEqual(self.e.snapshot_state(),before); self.assertFalse(TIME.records(self.a))
 
     def test_ambiguous_or_unbounded_declarations_fail_before_installation(self):
         for controls in ({'until':{'event':'turn_end'}}, {'repeat':'every turn'},

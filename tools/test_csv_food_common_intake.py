@@ -77,21 +77,21 @@ class CsvFoodCommonIntake(unittest.TestCase):
     def test_missing_duration_refusal_combat_and_ordinary_action_permission_have_no_cost(self):
         for item in CLAUSES:
             e, actor, other = self.fixture(item)
-            before = CODEC.dump_engine(e)
+            before = CODEC.snapshot_engine(e)
             pending = e.use_item(actor, item, food_policy=CLAUSES[item])
             self.assertTrue(getattr(pending, 'pending', False) or type(pending).__name__ == 'PendingDecision')
-            self.assertEqual(before, CODEC.dump_engine(e))
+            self.assertEqual(before, CODEC.snapshot_engine(e))
             self.intake(e, actor, item, accepted=False)
             self.assertEqual((e.elapsed_seconds,actor.spec['items'][item],actor.buffs),(0,2,[]))
             e.start_round([actor, other]); e.start_of_turn(actor, initiative_count=20)
-            before = CODEC.dump_engine(e)
+            before = CODEC.snapshot_engine(e)
             with self.assertRaises(ValueError):
                 self.intake(e, actor, item)
-            self.assertEqual(before, CODEC.dump_engine(e))
+            self.assertEqual(before, CODEC.snapshot_engine(e))
 
     def test_intake_late_native_grant_fault_rolls_back_time_stock_action_and_slot(self):
         e, actor, other = self.fixture('item/흉내허브')
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         original = FOOD.grant_buff
         attempted = []
         def fail(engine, target, *args, **options):
@@ -103,19 +103,19 @@ class CsvFoodCommonIntake(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'bounded fault'):
                 self.intake(e, actor, 'item/흉내허브')
         self.assertEqual(attempted, [{'elapsed': 60, 'slots': 1, 'stock': 1}])
-        self.assertEqual(before, CODEC.dump_engine(e))
+        self.assertEqual(before, CODEC.snapshot_engine(e))
 
     def test_exact_csv_selection_cannot_change_chef_default_or_admit_arbitrary_variant(self):
         e, actor, other = self.fixture('item/단맛-과자')
         result = e.use_item(actor, 'item/단맛-과자', duration_minutes=1, duration_reason='Chef source')
         self.assertEqual(actor.buffs[0]['effect'], FOOD.chef_effect(e.r, 'item/단맛-과자'))
         self.assertNotIn('csv_food_source', actor.buffs[0])
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         for requested, clause in [('item/초코바', CLAUSES['item/단맛-과자']),
                                    ('item/단맛-과자', 'C2CSV/inventory:999:7')]:
             with self.assertRaises(ValueError):
                 e.use_item(actor, requested, food_policy=clause, duration_minutes=1, duration_reason='wrong source')
-            self.assertEqual(before, CODEC.dump_engine(e))
+            self.assertEqual(before, CODEC.snapshot_engine(e))
 
     def test_recovery_actual_native_save_choice_survives_json_and_spends_once(self):
         e, actor, other = self.fixture('item/회복허브')
@@ -162,10 +162,10 @@ class CsvFoodCommonIntake(unittest.TestCase):
         e, actor, other = self.fixture('item/다이버섯')
         self.intake(e, actor, 'item/다이버섯')
         buff = self.buff(actor, 'item/다이버섯')
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         with self.assertRaisesRegex(ValueError, 'native form entry'):
             CSV.consume_dynamax(e, actor, buff['id'], form_source='dynamax')
-        self.assertEqual(before, CODEC.dump_engine(e))
+        self.assertEqual(before, CODEC.snapshot_engine(e))
         self.assertIsNone(FOOD.transfer_live_preflight(e, other, actor, 'move/벌레먹기'))
         e.start_round([actor, other]); e.start_of_turn(actor, initiative_count=20)
         result = e.enter_gigantamax(actor, source_id='item/다이버섯', reason='actual designated form')
@@ -174,16 +174,16 @@ class CsvFoodCommonIntake(unittest.TestCase):
         self.assertEqual(actor.spec['food_consumption_receipts'][0]['producer'], 'designated_dynamax_form')
         e = self.restored(e); actor = WORLD.actor_index(e)[actor.entity_id]
         e.exit_gigantamax(actor, reason='bounded form end')
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         with self.assertRaisesRegex(ValueError, 'one actual Dynamax'):
             e.enter_gigantamax(actor, source_id='item/다이버섯', reason='cannot reuse spent buff')
-        self.assertEqual(before, CODEC.dump_engine(e))
+        self.assertEqual(before, CODEC.snapshot_engine(e))
 
     def test_native_dynamax_late_consumer_fault_rolls_back_form_and_common_receipt(self):
         e, actor, other = self.fixture('item/다이버섯')
         self.intake(e, actor, 'item/다이버섯')
         e.start_round([actor, other]); e.start_of_turn(actor, initiative_count=20)
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         original = CSV._spend
         attempted = []
         def fail(engine, target, *args):
@@ -194,7 +194,7 @@ class CsvFoodCommonIntake(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'bounded native form'):
                 e.enter_gigantamax(actor, source_id='item/다이버섯', reason='late failure')
         self.assertTrue(attempted)
-        self.assertEqual(before, CODEC.dump_engine(e))
+        self.assertEqual(before, CODEC.snapshot_engine(e))
 
 
 if __name__ == '__main__':

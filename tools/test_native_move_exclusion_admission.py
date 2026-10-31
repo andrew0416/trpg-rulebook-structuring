@@ -94,7 +94,7 @@ class NativeMoveExclusionTests(unittest.TestCase):
                 with self.subTest(entry=entry, failure=failure):
                     rules = Rules(ROOT, ruleset='core')
                     case = self.fixture(rules=rules)
-                    before = case.e.export_state()
+                    before = case.e.snapshot_state()
                     move_id = 'move/폴리곤-쇼크'
                     if failure == 'unresolved':
                         rules.unresolved_moves[move_id] = ['move/a', 'move/b']
@@ -112,14 +112,14 @@ class NativeMoveExclusionTests(unittest.TestCase):
                             del rules.unresolved_moves[move_id]
                         else:
                             rules.ruleset.exclude_units.remove('move/물대포')
-                    self.assertEqual(case.e.export_state(), before)
+                    self.assertEqual(case.e.snapshot_state(), before)
 
     def test_selected_source_corruption_keeps_real_error_and_unchanged_world(self):
         for entry in ('use_move', 'use_move_on'):
             with self.subTest(entry=entry):
                 rules = Rules(ROOT, ruleset='core')
                 case = self.fixture(rules=rules)
-                before = case.e.export_state()
+                before = case.e.snapshot_state()
                 origin = rules.selection.units['move/물대포']['source']
                 original = deepcopy(origin)
                 origin['sha256'] = '0' * 64
@@ -129,7 +129,7 @@ class NativeMoveExclusionTests(unittest.TestCase):
                 finally:
                     origin.clear()
                     origin.update(original)
-                self.assertEqual(case.e.export_state(), before)
+                self.assertEqual(case.e.snapshot_state(), before)
 
     def test_selected_Taskmaster_and_Duelist_keep_actual_native_move_consumers(self):
         case = self.fixture(hardened=True)

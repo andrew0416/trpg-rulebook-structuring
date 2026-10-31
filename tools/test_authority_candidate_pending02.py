@@ -283,19 +283,19 @@ class CandidatePending02Tests(unittest.TestCase):
         with patch.object(Engine,'d20',return_value=18):
             with self.assertRaises(PASSIVE.PassiveEventPending) as caught:
                 self.transfer(f.e,mover,destination,'aerial')
-        event=caught.exception.event_id;before=f.e.export_state()
+        event=caught.exception.event_id;before=f.e.snapshot_state()
         with self.assertRaisesRegex(ValueError,'original paid'):
             self.transfer(f.e,mover,(8,1),'aerial')
-        self.assertEqual(f.e.export_state(),before)
+        self.assertEqual(f.e.snapshot_state(),before)
         with patch.object(Engine,'d20',side_effect=AssertionError('paid attack must not reroll')):
             f.e.choose_move_defense(event,mover,use=False,reason='finish actual departure defense')
-        before=f.e.export_state()
+        before=f.e.snapshot_state()
         with self.assertRaisesRegex(ValueError,'paid movement'):
             TURN.spend(f.e,mover,'swift','unrelated action while movement unfinished')
-        self.assertEqual(f.e.export_state(),before)
+        self.assertEqual(f.e.snapshot_state(),before)
         with self.assertRaisesRegex(ValueError,'paid movement'):
             f.e.advance_time(1,[mover])
-        self.assertEqual(f.e.export_state(),before)
+        self.assertEqual(f.e.snapshot_state(),before)
         self.transfer(f.e,mover,destination,'aerial')
         self.assertEqual(mover.pos,destination)
 
@@ -417,10 +417,10 @@ class CandidatePending02Tests(unittest.TestCase):
         f,mover,destination=self.completed_departure_wait('aerial')
         f.e.gm.remove_combatant(mover,reason='actual actor removed before stale-copy request')
         stale=copy(mover);stale.spec=deepcopy(mover.spec)
-        before=f.e.export_state();paid=self.movement_payment(mover)
+        before=f.e.snapshot_state();paid=self.movement_payment(mover)
         with self.assertRaisesRegex(ValueError,'actual registered'):
             self.transfer(f.e,stale,destination,'aerial')
-        self.assertEqual(f.e.export_state(),before)
+        self.assertEqual(f.e.snapshot_state(),before)
         self.assertEqual(self.movement_payment(mover),paid)
         self.assertIn(MOVE.COMMAND,mover.spec)
         self.assertIs(self.transfer(f.e,mover,destination,'aerial'),False)

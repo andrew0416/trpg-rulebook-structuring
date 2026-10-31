@@ -9,7 +9,7 @@ from builder import build_pokemon,species_lookup
 from engine import Rules
 import underdog_edges as U,underdog_lessons as L,pokemon_teaching as T
 import learning_grant as LEARN,move_state as M,state_grants as G,downtime as D
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 
 
 class UnderdogLessonsTests(unittest.TestCase):
@@ -176,8 +176,8 @@ class UnderdogLessonsTests(unittest.TestCase):
   out=self.e.execute_source_policy_teaching(self.a,self.p,document,**args)
   self.assertEqual(out['status'],'PolicyTeachingCompleted');self.assertFalse(out['replayed'])
   loaded=self.restored();teacher=next(a for a in loaded.gm.everyone if a.entity_id==self.a.entity_id);target=next(a for a in loaded.gm.everyone if a.entity_id==self.p.entity_id)
-  before=dump_engine(loaded);again=loaded.execute_source_policy_teaching(teacher,target,document,**args)
-  self.assertTrue(again['replayed']);self.assertEqual(dump_engine(loaded),before)
+  before=snapshot_engine(loaded);again=loaded.execute_source_policy_teaching(teacher,target,document,**args)
+  self.assertTrue(again['replayed']);self.assertEqual(snapshot_engine(loaded),before)
 
 
 if __name__=='__main__':unittest.main()

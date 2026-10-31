@@ -112,22 +112,22 @@ class TrainingSourceBindingRevisionTests(unittest.TestCase):
 
     def test_wrong_selected_definition_and_changed_source_reject_without_state_or_rng_change(self):
         e, a, p, _ = self.scene()
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         with patch.object(e.r, '_selected_rule', return_value=TRAIN.CSV_CLAUSES[TRAIN.BRUTAL]):
             with self.assertRaisesRegex(ValueError, 'selected acquisition source needs its own ownership query'):
                 e.manual_feat(a, TRAIN.FOCUSED, p)
-        self.assertEqual(CODEC.dump_engine(e), before)
+        self.assertEqual(CODEC.snapshot_engine(e), before)
         original = Path.read_bytes
         for name in (TRAIN.FOCUSED, TRAIN.CSV_CLAUSES[TRAIN.FOCUSED]):
             file = 'ch03-skills-edges-feats.md' if name == TRAIN.FOCUSED else 'feats.csv'
             def changed(path):
                 raw = original(path)
                 return raw + b'\nchanged\n' if path.name == file else raw
-            before = CODEC.dump_engine(e)
+            before = CODEC.snapshot_engine(e)
             with patch.object(Path, 'read_bytes', changed):
                 with self.assertRaisesRegex(ValueError, 'source changed'):
                     e.manual_feat(a, name, p)
-            self.assertEqual(CODEC.dump_engine(e), before)
+            self.assertEqual(CODEC.snapshot_engine(e), before)
 
     def test_history_uses_retained_policy_without_reselecting_and_rejects_forged_values(self):
         e, a, p, _ = self.scene(own=True)

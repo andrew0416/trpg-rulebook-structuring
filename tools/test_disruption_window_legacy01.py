@@ -117,10 +117,10 @@ class LegacyDisruptionTests(unittest.TestCase):
                 deepcopy(case.p.move_uses), deepcopy(case.u.spec.get('frequency_state')))
 
     def reject_unproved(self, case, parent):
-        before = case.e.export_state()
+        before = case.e.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'current native hit trigger window'):
             TA.react(case.e, case.t, case.p, TA.uid('Disruption Order'), parent)
-        self.assertEqual(case.e.export_state(), before)
+        self.assertEqual(case.e.snapshot_state(), before)
         case.valid()
 
     def test_old_duelist_current_hit_before_payment_loads_read_only_then_new_seize_preserves_parent(self):
@@ -152,10 +152,10 @@ class LegacyDisruptionTests(unittest.TestCase):
         self.assertEqual(case.e._trickster_trigger, child)
         # The old receipt proves child ancestry, but never recorded whether
         # another actor acted between parent completion and Seize admission.
-        state = case.e.export_state()
+        state = case.e.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'current native hit trigger window'):
             TA.react(case.e, case.a, case.p, TA.uid('Disruption Order'), parent)
-        self.assertEqual(case.e.export_state(), state)
+        self.assertEqual(case.e.snapshot_state(), state)
         self.assertEqual(self.paid_duel_state(case), before)
         case.valid()
 

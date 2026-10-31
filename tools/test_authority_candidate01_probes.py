@@ -195,10 +195,10 @@ class Candidate01Probes(unittest.TestCase):
         result = engine.resolve_class_actor_state_action(owner, event_id, use=True)
         self.assertTrue(result['used']); self.assertGreater(patient.hp, before[0])
         self.assertEqual(other.hp, before[1]); self.assertEqual(AP.available(owner), before[2] - 1)
-        state = engine.export_state()
+        state = engine.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'pending'):
             engine.resolve_class_actor_state_action(owner, event_id, use=True)
-        self.assertEqual(engine.export_state(), state)
+        self.assertEqual(engine.snapshot_state(), state)
         declined, owner, patient, other = self.restored(original.r, payload, owner, patient, other)
         before = (patient.hp, other.hp, AP.available(owner))
         self.assertFalse(declined.resolve_class_actor_state_action(owner, event_id, use=False)['used'])
@@ -219,12 +219,12 @@ class Candidate01Probes(unittest.TestCase):
             return  # Rejection at the import boundary is acceptable.
         payments = list(STOCK.validate(owner).values())
         self.assertEqual(payments[0]['target_id'], patient.entity_id)
-        before = engine.export_state()
+        before = engine.snapshot_state()
         before_hp = other.hp
         try:
             result = engine.resolve_class_actor_state_action(owner, event_id, use=True)
         except ValueError:
-            self.assertEqual(engine.export_state(), before)
+            self.assertEqual(engine.snapshot_state(), before)
             return  # Rejection at consumption must be atomic.
         self.fail('single-field saved target edit accepted: original medicine target=' + patient.entity_id
                   + ', changed target=' + other.entity_id + ', other HP=' + str(before_hp) + '->' + str(other.hp)

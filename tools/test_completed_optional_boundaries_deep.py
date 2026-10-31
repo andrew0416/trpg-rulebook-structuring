@@ -17,9 +17,9 @@ import life as LIFE
 class StateBoundaryTests(_fixture_test_category2_optional_state_effect_eight.OptionalStateEffectEightTests):
  def test_public_validation_without_optional_state_remains_read_only(self):
   e,owner,a,b,foe=self.fixture(None)
-  before=e.export_state()
+  before=e.snapshot_state()
   self.assertTrue(e.validate_state()['valid'])
-  self.assertEqual(e.export_state(),before)
+  self.assertEqual(e.snapshot_state(),before)
   self.assertFalse(any(STATE.STATE in c.spec for c in e.everyone))
 
  def test_one_round_common_clock_rejects_changed_source_value_and_deadline_on_restore(self):

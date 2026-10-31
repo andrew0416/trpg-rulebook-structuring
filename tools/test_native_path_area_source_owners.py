@@ -107,16 +107,16 @@ class NativePathAreaSourceTests(unittest.TestCase):
                 self.restore();self.assertTrue(self.e.validate_state()['valid'])
 
     def test_roller_blocked_path_and_late_entry_failure_are_atomic(self):
-        self.prepare_roller();self.e.grid.blocking.add((6,2));before=CODEC.dump_engine(self.e)
+        self.prepare_roller();self.e.grid.blocking.add((6,2));before=CODEC.snapshot_engine(self.e)
         with self.assertRaises(ValueError):self.e.use_pass_move(self.a,SOURCE.ROLLER,(6,2),event_id='blocked',object_adjudications={},source='gm/path',reason='actual blocked endpoint')
-        self.assertEqual(CODEC.dump_engine(self.e),before)
-        self.e.grid.blocking.remove((6,2));before=CODEC.dump_engine(self.e);native=FIELD.clear_terrain_at
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
+        self.e.grid.blocking.remove((6,2));before=CODEC.snapshot_engine(self.e);native=FIELD.clear_terrain_at
         def fail(*args,**kwargs):
             native(*args,**kwargs);raise ValueError('late actual Terrain receiver failure')
         with patch.object(FIELD,'clear_terrain_at',side_effect=fail):
             with self.assertRaisesRegex(ValueError,'late actual Terrain receiver failure'):
                 self.e.use_pass_move(self.a,SOURCE.ROLLER,(6,2),event_id='late',object_adjudications={},source='gm/path',reason='actual admitted endpoint')
-        self.assertEqual(CODEC.dump_engine(self.e),before)
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
 
     def test_missing_mechanics_header_keeps_moulds_actual_six_metre_source_range(self):
         with self.assertRaisesRegex(ExcludedRuleSelection,'variant:홈브류'):

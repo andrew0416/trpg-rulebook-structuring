@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parents[1]
 if not (ROOT/'data').exists():ROOT=Path(r'D:\trpg-rulebook-structuring\ptk-structure-experiment')
 sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 import test_reuse_partial_party as FIX
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import effects_ext as EXT
 
 class RecallTests(unittest.TestCase):
@@ -21,11 +21,11 @@ class RecallTests(unittest.TestCase):
         for mode in ('league','full_contact'):
             for switching in (False,True):
                 with self.subTest(mode=mode,switching=switching):
-                    self.setup_world(mode);self.trap(self.p);before=dump_engine(self.e)
+                    self.setup_world(mode);self.trap(self.p);before=snapshot_engine(self.e)
                     with self.assertRaisesRegex(ValueError,'Trapped'):
                         if switching:self.switch()
                         else:self.e.act_on_party(self.a,recall=[self.p],request_id='recall',reason='actual recall')
-                    self.assertEqual(dump_engine(self.e),before)
+                    self.assertEqual(snapshot_engine(self.e),before)
                     self.e.cure_status(self.p,'수렁')
                     if switching:self.switch()
                     else:self.e.act_on_party(self.a,recall=[self.p],request_id='recall',reason='actual recall')
@@ -33,10 +33,10 @@ class RecallTests(unittest.TestCase):
                     self.assertEqual(self.a.budget['standard' if switching else 'shift'],0)
 
     def test_pair_recall_rejects_all_if_second_subject_is_trapped(self):
-        self.setup_world();self.q.on_field=True;self.trap(self.q);before=dump_engine(self.e)
+        self.setup_world();self.q.on_field=True;self.trap(self.q);before=snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError,'Trapped'):
             self.e.act_on_party(self.a,recall=[self.p,self.q],request_id='pair',reason='actual paired recall')
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
 
     def test_restored_actual_condition_still_blocks_and_cure_allows_exactly_one_payment(self):
         self.setup_world();self.trap(self.p)
@@ -45,11 +45,11 @@ class RecallTests(unittest.TestCase):
         self.assertIn('수렁',self.p.conditions)
         self.e=load_engine(self.r,json.loads(json.dumps(dump_engine(self.e))))
         self.a,self.p,self.q,self.z=self.e.everyone
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError,'Trapped'):self.switch()
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.e.cure_status(self.p,'수렁');row=self.switch();paid=dump_engine(self.e)
-        self.assertEqual(self.switch(),row);self.assertEqual(dump_engine(self.e),paid)
+        self.assertEqual(self.switch(),row);self.assertEqual(snapshot_engine(self.e),paid)
 
     def test_ghost_pokemon_immunity_flows_through_actual_application_and_recall(self):
         self.setup_world();self.p.types=['고스트'];self.trap(self.p)
@@ -81,10 +81,10 @@ class RecallTests(unittest.TestCase):
         outgoing,incoming=teams[0][:2]
         e.start_of_turn(outgoing)
         e.gm.add_condition(outgoing,'수렁',force=False,reason='actual observed Trapped')
-        before=dump_engine(e)
+        before=snapshot_engine(e)
         with self.assertRaisesRegex(ValueError,'Trapped'):
             FIXTURE.BATTLE.switch(e,cid,trainers[0],outgoing,incoming)
-        self.assertEqual(dump_engine(e),before)
+        self.assertEqual(snapshot_engine(e),before)
 
     def test_held_item_recall_rolls_back_actual_item_consumption(self):
         import test_category2_csv_remaining_item_contracts as FIXTURE
@@ -94,9 +94,9 @@ class RecallTests(unittest.TestCase):
         fixture.equip(e,holder,'actual/trapped-button','item/탈출버튼')
         FIXTURE.PHYSICAL.after_attack_damage(e,attacker,holder,self.r.move('move/몸통박치기'),fixture.hit_receipt())
         e.gm.add_condition(holder,'수렁',force=False,reason='actual observed Trapped')
-        before=dump_engine(e)
+        before=snapshot_engine(e)
         with self.assertRaisesRegex(ValueError,'Trapped'):
             FIXTURE.PHYSICAL.resolve_pending(e,holder,'eject_button',accept=True)
-        self.assertEqual(dump_engine(e),before)
+        self.assertEqual(snapshot_engine(e),before)
 
 if __name__=='__main__':unittest.main()

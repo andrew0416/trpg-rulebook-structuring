@@ -27,24 +27,24 @@ class SharedBindingTests(unittest.TestCase):
   self.assertIs(native,self.a.spec['resource_transformations'][0])
   self.assertEqual((self.e.elapsed_seconds,profile['level']),(11,6))
   self.assertEqual(SKILLS.event(self.e,self.a,profile['roll_id']).final.total,6)
-  before=CODEC.dump_engine(self.e)
+  before=CODEC.snapshot_engine(self.e)
   with self.assertRaises(ValueError):self.make('over-cap','tag:over-cap')
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
   self.a.spec['skills']['오컬트학']=4
   second=self.make('independent-two','tag:independent-two',[1,1,1,1])
   self.assertEqual(second[TAG.PROFILE]['level'],4)
   self.assertEqual(TAG.level(self.e,profile['instance_id']),6)
-  before=CODEC.dump_engine(self.e)
+  before=CODEC.snapshot_engine(self.e)
   with self.assertRaises(ValueError):self.make('third','tag:third',[1,1,1,1])
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
  def test_generic_transform_cannot_publish_unbound_tag_and_rolls_back(self):
   recipe=TAG._recipe(self.work)
   product={'mode':'create','instance_ids':['tag:unbound'],'owner_id':self.a.entity_id,
            'state':'intact','attachments':[]}
-  before=CODEC.dump_engine(self.e)
+  before=CODEC.snapshot_engine(self.e)
   with self.assertRaises(ValueError):
    self.e.craft_recipe(self.a,recipe,product_policy=product,event_id='unbound',reason=self.work['reason'])
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
  def test_native_save_validates_bound_level_and_cold_restore_original(self):
   result=self.make();profile=result[TAG.PROFILE]
   saved=CODEC.dump_engine(self.e)

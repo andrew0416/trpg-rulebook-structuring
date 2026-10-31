@@ -10,7 +10,7 @@ sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
 from engine import Rules, Engine, Combatant
 from builder import build_trainer, build_pokemon
 from grid import Grid
-from state_codec import dump_engine, load_engine
+from state_codec import dump_engine, load_engine, snapshot_engine
 import combat_timing as TIME
 import combat_stage_sources as STAGES
 import coat_effects as COATS
@@ -153,10 +153,10 @@ class ReopenedConsumerTests(unittest.TestCase):
                 for holder in (b,c):
                     self.assertEqual(COATS.live(holder)[0]['effect_instance']['applied_by_actor_id'], a.entity_id)
                 n = self.restored(e); user, first, second = n.everyone[:3]
-                before = dump_engine(n)
+                before = snapshot_engine(n)
                 for _ in range(2):
                     self.assertLess(EXT.effectiveness_hook(n,user,first,self.r.move(attack),{},1,{}), 1)
-                self.assertEqual(dump_engine(n), before)
+                self.assertEqual(snapshot_engine(n), before)
                 self.next_turn(n,user)
                 self.cast(n,user,first,attack)
                 self.assertFalse(COATS.live(first)); self.assertEqual(len(COATS.live(second)),1)

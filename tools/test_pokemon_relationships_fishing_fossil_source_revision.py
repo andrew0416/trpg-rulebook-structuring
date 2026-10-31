@@ -28,10 +28,10 @@ class RelationshipsFishingSourceRevisionTests(unittest.TestCase):
     act = activities_fixture.PokemonActivityTests.act
 
     def source_choice(self, value, **options):
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         pending = self.act('befriend', target=self.p, source_query=True, **options)
         self.assertEqual(pending['status'], 'PolicyInputsRequired')
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         return {'value': value, 'reason': 'GM selects the actual current disposition source',
                 'scope': pending['decision_scope']}
 
@@ -70,22 +70,22 @@ class RelationshipsFishingSourceRevisionTests(unittest.TestCase):
         choice = self.source_choice('en_hostile_to_neutral')
         wrong = deepcopy(choice)
         wrong['scope']['definition_hash'] = 'foreign'
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with self.assertRaises(ValueError):
             self.act('befriend', target=self.p, source_choice=wrong, fixed=[6] * 4)
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         failed = self.act('befriend', target=self.p, source_choice=choice, fixed=[1] * 4)
         self.assertFalse(failed['check'].passed)
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with self.assertRaises(ValueError):
             self.act('befriend', target=self.p, source_choice=choice, fixed=[6] * 4)
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         self.act('disposition_ruling', target=self.p, disposition='두려움', allow_retry=True,
                  reason='GM changed circumstances allow this actual trainer another attempt')
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with self.assertRaises(ValueError):
             self.act('befriend', target=self.p, source_choice=choice, fixed=[2] * 4)
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         self.act('befriend', target=self.p, source_choice=self.source_choice('en_hostile_to_neutral'), fixed=[2] * 4)
         history = deepcopy(self.p.spec['disposition_history'])
         snapshot = self.e.gm.snapshot()
@@ -129,7 +129,7 @@ class RelationshipsFishingSourceRevisionTests(unittest.TestCase):
 
     def test_late_loss_failure_rolls_back_and_legacy_escape_waits_for_actual_physical_observation(self):
         self.hook()
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         # The actual loss has already been produced when the transaction tries
         # to return its copied result; this is a meaningful post-debit failure.
         original = ACTIVITIES.deepcopy
@@ -140,7 +140,7 @@ class RelationshipsFishingSourceRevisionTests(unittest.TestCase):
         with patch.object(ACTIVITIES, 'deepcopy', fail_after_loss):
             with self.assertRaises(RuntimeError):
                 self.act('fishing', phase='reel', target=self.p, fixed=[1] * 4, escape_d20=10)
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         self.act('fishing', phase='reel', target=self.p, fixed=[1] * 4, escape_d20=10)
         # Project the real failed check to the exact pre-Q43 producer fields:
         # escaped/actual target, no die/loss receipt, unchanged observed stock.
@@ -150,10 +150,10 @@ class RelationshipsFishingSourceRevisionTests(unittest.TestCase):
         state.pop('lure_loss')
         self.a.spec['items']['루어'] = 2
         history = deepcopy(state)
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'historical escape'):
             self.act('fishing', phase='start', rod='대단한낚싯대', attachment='루어')
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         self.assertEqual(self.a.spec['items']['루어'], 2)
         self.assertEqual(state, history)
         self.act('fishing', phase='lure_loss', target=self.p, cause='escaped', lost=False,

@@ -176,7 +176,7 @@ class ManipulateTests(unittest.TestCase):
   self.assertIs(TIMING.records(self.t)[0]['infatuation_source'],self.a)
   self.assertIs(self.a.custom_conditions['manipulate_uses'][0][1],self.t)
  def test_native_dirty_and_manipulate_json_keep_actual_target_source_and_spent_attempt(self):
-  from state_codec import dump_engine,load_engine
+  from state_codec import dump_engine,load_engine, snapshot_engine
   for family,kind,status in (('dirty','low_blow','취약'),('manipulate','flirt','헤롱헤롱')):
    with self.subTest(family=family):
     self.setUp();self.t.pos=(2,1);self.begin()
@@ -190,11 +190,11 @@ class ManipulateTests(unittest.TestCase):
     self.assertIs(a.custom_conditions[key][0][1],t);self.assertIsNot(a,self.a);self.assertIsNot(t,self.t)
     self.assertIn(status,t.conditions);self.assertEqual(a.budget['standard'],0)
     if family=='manipulate':self.assertIs(TIMING.records(t)[0]['infatuation_source'],a)
-    before=dump_engine(loaded)
+    before=snapshot_engine(loaded)
     with self.assertRaisesRegex(ValueError,'already been used'):
      if family=='dirty':loaded.dirty_trick(a,t,kind,**options)
      else:loaded.manipulate(a,t,kind,**self.options())
-    self.assertEqual(before,dump_engine(loaded))
+    self.assertEqual(before,snapshot_engine(loaded))
     loaded.end_of_turn(a);loaded.end_round();loaded.start_round(loaded.everyone)
     if family=='dirty':loaded.start_of_turn(a,initiative_count=20);loaded.end_of_turn(a)
     else:loaded.at_initiative_count(20)

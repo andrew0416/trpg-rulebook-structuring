@@ -81,9 +81,9 @@ class NativeContinuationTests(unittest.TestCase):
         self.assertIs(row['who'], self.t)
         self.assertEqual(self.p.budget['standard'], 0)
         self.assertEqual(self.p.move_uses[WISH.SOURCE], 1)
-        before_replay = CODEC.dump_engine(self.e)
+        before_replay = CODEC.snapshot_engine(self.e)
         self.assertEqual(self.e.deliver_passive_event(event_id), 'already_delivered')
-        self.assertEqual(CODEC.dump_engine(self.e), before_replay)
+        self.assertEqual(CODEC.snapshot_engine(self.e), before_replay)
         self.e.end_of_turn(self.p)
         self.assertEqual(self.t.hp, before_hp)
         self.next_round(self.t)
@@ -126,9 +126,9 @@ class NativeContinuationTests(unittest.TestCase):
                 if physical:
                     self.assertIn('consumed', self.e._physical_objects['original-consumable'])
                     self.assertFalse(__import__('held_equipment').entries(self.p))
-                before_replay = CODEC.dump_engine(self.e)
+                before_replay = CODEC.snapshot_engine(self.e)
                 self.assertEqual(self.e.deliver_passive_event(event_id), 'already_delivered')
-                self.assertEqual(CODEC.dump_engine(self.e), before_replay)
+                self.assertEqual(CODEC.snapshot_engine(self.e), before_replay)
                 self.assertTrue(self.e.validate_state()['valid'])
 
     def test_paid_continuation_selection_tamper_rejects_without_effect_or_another_cost(self):
@@ -248,9 +248,9 @@ class WarperWishTests(unittest.TestCase):
                     self.assertIs(self.e._passive_events[event_id]['hit'], True)
                     self.reject(lambda: COMPLETE.require_hit_return(self.e, event_id, self.a),
                                 'actual successful nonprevented recipient hit required')
-                    before_replay = CODEC.dump_engine(self.e)
+                    before_replay = CODEC.snapshot_engine(self.e)
                     self.assertEqual(self.e.deliver_passive_event(event_id), 'already_delivered')
-                    self.assertEqual(CODEC.dump_engine(self.e), before_replay)
+                    self.assertEqual(CODEC.snapshot_engine(self.e), before_replay)
                 else:
                     self.e.use_move(self.b, self.a, WISH.SOURCE, wish_edition=edition)
                 self.assertEqual(self.a.move_uses[WARPER.COAT], 1)

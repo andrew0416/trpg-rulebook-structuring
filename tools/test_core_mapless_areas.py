@@ -53,7 +53,7 @@ class Tests(unittest.TestCase):
             self.assertIs(restored._active_turn_actor,actor)
             result=restored.move_abstract(actor,event_id='walk')
             self.assertEqual(result['phase'],'complete');self.assertEqual(actor._action_history,['shift'])
-            before=restored.export_state();self.assertEqual(result,restored.move_abstract(actor,event_id='walk'));self.assertEqual(before,restored.export_state())
+            before=restored.snapshot_state();self.assertEqual(result,restored.move_abstract(actor,event_id='walk'));self.assertEqual(before,restored.snapshot_state())
             restored.end_of_turn(actor);self.assertIsNone(restored._active_turn_actor)
             self.assertEqual(W.location_of(actor)['place_id'],'fountain')
 

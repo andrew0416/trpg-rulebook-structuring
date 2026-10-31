@@ -172,16 +172,16 @@ class SourceSelectionTests(unittest.TestCase):
    with self.assertRaisesRegex(ValueError,'source changed'):self.rules.mech('combat/struggle')
  def test_source_change_rejects_real_training_before_time_xp_and_rng(self):
   import test_category2_progression_state as progression
-  from state_codec import dump_engine
+  from state_codec import dump_engine, snapshot_engine
   progression.ProgressionStateTests.r=self.rules
   fixture=progression.ProgressionStateTests();fixture.setUp();pokemon=fixture.pokemon(5)
-  before=dump_engine(fixture.e);original=Path.read_bytes
+  before=snapshot_engine(fixture.e);original=Path.read_bytes
   def changed(path):
    raw=original(path)
    return raw+b'\nchanged' if path.name=='ch05-pokemon.md' else raw
   with patch.object(Path,'read_bytes',changed):
    with self.assertRaisesRegex(ValueError,'source changed'):fixture.train(pokemon)
-  self.assertEqual(before,dump_engine(fixture.e))
+  self.assertEqual(before,snapshot_engine(fixture.e))
 
  def test_derived_reader_checks_dependency_source_before_returning_identity(self):
   from ruleset import RuleSelection

@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT/'engine'), str(ROOT/'tools')]
 from engine import Rules, Engine, Combatant
 from builder import build_pokemon, build_trainer, species_lookup, STATS
-from state_codec import dump_engine, load_engine
+from state_codec import dump_engine, load_engine, snapshot_engine
 import csv_item_form_contracts as C, growth_stats as GROWTH, state_grants as G
 import world_entities as W, items as I, downtime as DT, skill_modifiers as SKILL
 import native_scenario_fixture as N
@@ -65,23 +65,23 @@ class CsvLearnsetFormTests(unittest.TestCase):
         for record, _ in C.FORM_FAMILIES.values():
             source, proof = C.learnset_source(self.r, record)
             self.assertEqual(proof['record'], record); self.assertEqual(self.r._selected_rule(source['id']), source['id'])
-        c = self.forms('deoxys'); before = dump_engine(self.e)
+        c = self.forms('deoxys'); before = snapshot_engine(self.e)
         N.assert_rejected_unchanged(self.e,lambda:C.change_deoxys(self.e,c,'invented',seconds=5),reason_pattern='declared actual form')
-        self.assertEqual(before, dump_engine(self.e))
+        self.assertEqual(before, snapshot_engine(self.e))
         # The only catalog Pressure is an optional Playtest, not a core alias.
         core = Rules(str(ROOT), ruleset='core')
         with self.assertRaises(ValueError): core._selected_rule('ability/프레셔-playtest')
         bad = deepcopy(c.spec[C.STATE]); c.spec[C.STATE]['learnset_forms']['forms'].pop('테오키스 스피드폼')
         self.assertFalse(self.e.validate_state()['valid']); c.spec[C.STATE] = bad; self.valid()
     def test_deoxys_four_real_sheets_extended_outside_only_growth_and_both_restores(self):
-        selected=self.forms('deoxys'); before=dump_engine(self.e)
+        selected=self.forms('deoxys'); before=snapshot_engine(self.e)
         # Actual Weird Power rows differ and have no implemented damage owner.
         # This prerequisite remains deferred, never guessed from the first name.
         with self.assertRaises(ValueError): C.change_deoxys(self.e,selected,'테오키스 어택폼',seconds=5)
-        self.assertEqual(before,dump_engine(self.e))
-        c = self.forms('deoxys',abilities=[]); hp = c.hp; self.turn(c); before = dump_engine(self.e)
+        self.assertEqual(before,snapshot_engine(self.e))
+        c = self.forms('deoxys',abilities=[]); hp = c.hp; self.turn(c); before = snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError, 'outside'): C.change_deoxys(self.e, c, '테오키스 스피드폼', seconds=5)
-        self.assertEqual(before, dump_engine(self.e)); self.e.end_encounter()
+        self.assertEqual(before, snapshot_engine(self.e)); self.e.end_encounter()
         G._source(c, 'independent:atk', 'fixture'); G.stat(c, 'atk', 2, 'independent:atk')
         for name in C.FORM_FAMILIES['deoxys'][1]:
             C.change_deoxys(self.e, c, name, seconds=5)
@@ -100,9 +100,9 @@ class CsvLearnsetFormTests(unittest.TestCase):
         appliance = N.prepare_object(self.e, 'washer', kind='physical_object', owner_id=c.entity_id,
                                      location={'kind':'unknown'}, reason='actual compatible washing machine')
         appliance['rotom_appliance_form'] = '워시로토무'
-        before = dump_engine(self.e)
+        before = snapshot_engine(self.e)
         with self.assertRaises(ValueError): C.inhabit_appliance(self.e,c,'워시로토무',appliance_id='missing')
-        self.assertEqual(before,dump_engine(self.e))
+        self.assertEqual(before,snapshot_engine(self.e))
         C.inhabit_appliance(self.e,c,'워시로토무',appliance_id='washer')
         self.assertIn('ability/저수',c.abilities); self.assertIn('move/하이드로펌프',c.moves)
         self.assertEqual(c.types,['전기','물']); self.assertEqual((c.spec['size'],c.weight_class),('중형',3))
@@ -214,7 +214,7 @@ class CsvLearnsetFormTests(unittest.TestCase):
         self.assertEqual(self.e._passive_events,{})
         completion=list(self.e._move_completions.values())[-1]
         self.assertTrue(completion['results'][c.entity_id]['hit']); self.assertEqual(c.form,'쉐이미')
-        before=dump_engine(self.e); COMPLETE.refresh(self.e,completion['id']); self.assertEqual(before,dump_engine(self.e))
+        before=snapshot_engine(self.e); COMPLETE.refresh(self.e,completion['id']); self.assertEqual(before,snapshot_engine(self.e))
         self.e.end_encounter(); C.observe_form_environment(self.e,c,reason='actual rare flower again',sunlight=True,gracidea_instance='flower',choose_sky=True)
         c,=self.reload(c); C.observe_form_environment(self.e,c,reason='actual sunset',sunlight=False)
         self.assertEqual(c.form,'쉐이미'); self.valid()
@@ -240,7 +240,7 @@ class CsvLearnsetFormTests(unittest.TestCase):
         self.e.choose_move_defense(event,c,use=True,options={'path':[(3,4),(3,3),(3,2)],'skill':'육상','mode':'land','shove_destination':[4,2],'roll_options':{'fixed':[6]*SKILL.rank(self.r,c,'육상')[2]}},reason='actual allied recipient')
         row=list(self.e._move_completions.values())[-1]; self.assertEqual(set(row['received']),{c.entity_id})
         self.assertTrue(row['received'][c.entity_id]['hit']); self.assertEqual(c.form,'쉐이미'); self.assertEqual((protected.form,protected.hp),('쉐이미 스카이폼',hp))
-        before=dump_engine(self.e); COMPLETE.refresh(self.e,row['id']); self.assertEqual(before,dump_engine(self.e)); self.valid()
+        before=snapshot_engine(self.e); COMPLETE.refresh(self.e,row['id']); self.assertEqual(before,snapshot_engine(self.e)); self.valid()
     def test_forces_nature_actual_held_mirror_equip_remove_all_four_families(self):
         for family in ('tornadus','thundurus','landorus','enamorus'):
             with self.subTest(family=family):
@@ -262,18 +262,18 @@ class CsvLearnsetFormTests(unittest.TestCase):
         for nectar,form in C.NECTARS.items():
             C.drink_nectar(self.e,c,nectar,seconds=7,quantity_key=nectar)
             self.assertEqual(c.form,form); self.assertEqual(c.spec['items'][nectar],0); self.assertEqual(c.types[1],'비행')
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with self.assertRaises(ValueError): C.drink_nectar(self.e,c,'보라꿀',seconds=7,quantity_key='보라꿀')
-        self.assertEqual(before,dump_engine(self.e)); self.assertEqual(self.e.elapsed_seconds,28)
+        self.assertEqual(before,snapshot_engine(self.e)); self.assertEqual(self.e.elapsed_seconds,28)
         c,=self.reload(c); self.assertEqual(c.form,'춤추새 하늘하늘스타일'); self.valid()
     def test_kyurem_actual_willing_partner_disappears_xp_splits_and_extended_release(self):
         c=self.forms('kyurem'); partner=self.pokemon('제크로무')
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with self.assertRaises(ValueError): C.fuse_kyurem(self.e,c,partner,willing=False,seconds=10)
-        self.assertEqual(before,dump_engine(self.e))
+        self.assertEqual(before,snapshot_engine(self.e))
         with self.assertRaisesRegex(ValueError,'actual Gene Fusion partner'):
             C.fuse_kyurem(self.e,c,self.t,willing=True,seconds=10)
-        self.assertEqual(before,dump_engine(self.e))
+        self.assertEqual(before,snapshot_engine(self.e))
         C.fuse_kyurem(self.e,c,partner,willing=True,seconds=10)
         self.assertEqual(c.form,'블랙큐레무'); self.assertFalse(partner.on_field)
         with self.assertRaises(ValueError): C.require_independent(self.e,partner)
@@ -301,7 +301,7 @@ class CsvLearnsetFormTests(unittest.TestCase):
         self.e.advance_time(1,[]); self.assertEqual(c.form,'후파'); self.assertNotIn('난동',c.conditions)
         self.assertIn('move/이차원홀',c.moves); before=dump_engine(self.e)
         with self.assertRaises(ValueError): C.uncork_prison_bottle(self.e,c,'bottle',reason='actual attempted reuse')
-        self.assertEqual(before,dump_engine(self.e)); self.e.advance_time(3*86400,[])
+        self.assertEqual(before,snapshot_engine(self.e)); self.e.advance_time(3*86400,[])
         C.uncork_prison_bottle(self.e,c,'bottle',reason='actual cooldown completed reuse'); self.valid()
     def test_hoopa_native_physical_destruction_permanent_and_new_actual_bottle_seals(self):
         c=self.forms('hoopa'); self.physical(c,'bottle','굴레의항아리')

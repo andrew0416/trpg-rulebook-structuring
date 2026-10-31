@@ -43,7 +43,7 @@ class BarrierTests(unittest.TestCase):
         loaded=CODEC.load_engine(Rules(str(ROOT),ruleset='core'),CODEC.dump_engine(self.e))
         return loaded,W.actor_index(loaded)
     def test_actual_surface_and_radius_do_not_make_a_general_movement_wall(self):
-        before=CODEC.dump_engine(self.e)
+        before=CODEC.snapshot_engine(self.e)
         self.assertTrue(TAG.phasing_passage(self.e,self.p,(2,4)))
         self.p.pos=(5,1)
         self.assertTrue(TAG.phasing_passage(self.e,self.p,(7,1)))
@@ -57,7 +57,7 @@ class BarrierTests(unittest.TestCase):
         # allowed by the native body owner and the tag charges no invented cost.
         import body_state as BODY
         self.assertTrue(BODY.can_place(self.e,self.p,(2,2),origin=(2,1)))
-        self.assertEqual(CODEC.dump_engine(self.e),before)
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
     def test_equal_focus_fails_individual_clock_and_exact_3600_retry_destroys_same_tag(self):
         maker=deepcopy(self.e._physical_objects['tag:one'][TAG.PROFILE])
         self.assertFalse(self.gate()) # tag power10, Focus10: strict greater
@@ -66,9 +66,9 @@ class BarrierTests(unittest.TestCase):
         self.assertEqual((event.state,event.final.total),('final',10))
         self.assertEqual(TAG.level(self.e,'tag:one'),10)
         self.e.advance_time(3599,[self.a,self.p,self.q])
-        before=CODEC.dump_engine(self.e)
+        before=CODEC.snapshot_engine(self.e)
         self.assertFalse(self.gate(attempt='too-early',faces=[6]*4))
-        self.assertEqual(CODEC.dump_engine(self.e),before)
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
         self.e.advance_time(1,[self.a,self.p,self.q])
         self.assertTrue(self.gate(attempt='retry',faces=[3]*4))
         obj=self.e._physical_objects['tag:one']
@@ -81,9 +81,9 @@ class BarrierTests(unittest.TestCase):
         self.assertFalse(self.gate())
         self.e.gm.observe_cleanse_barrier('tag:one',event_id='remove',attached=False,reason='GM observed removal')
         self.mount(event='remount')
-        before=CODEC.dump_engine(self.e)
+        before=CODEC.snapshot_engine(self.e)
         self.assertFalse(self.gate(attempt='bypass-remount',faces=[6]*4))
-        self.assertEqual(CODEC.dump_engine(self.e),before)
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
         self.assertTrue(self.gate(actor=self.a,attempt='independent-A',faces=[3]*4))
     def test_retry_order_survives_dictionary_order_and_old_surface_removal(self):
         self.assertFalse(self.gate(attempt='z-first'))
@@ -111,9 +111,9 @@ class BarrierTests(unittest.TestCase):
         self.e.advance_time(3595,[self.a,self.p,self.q])
         self.e.unresolved_time_intervals.append({'known_seconds':0})
         self.assertIsInstance(self.gate(attempt='uncertain',faces=[6]*4),C.PendingDecision)
-        before=CODEC.dump_engine(self.e)
+        before=CODEC.snapshot_engine(self.e)
         with self.assertRaises(ValueError):self.e.gm.observe_cleanse_retry_elapsed('tag:one',self.p,3606,reason='outside bounds')
-        self.assertEqual(CODEC.dump_engine(self.e),before)
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
         self.e.gm.observe_cleanse_retry_elapsed('tag:one',self.p,3600,reason='GM observed five actual extra seconds')
         self.assertTrue(self.gate(attempt='observed-ready',faces=[3]*4))
     def test_both_restores_keep_failures_and_reject_forged_native_result_or_source(self):
@@ -128,18 +128,18 @@ class BarrierTests(unittest.TestCase):
         row['status']='passed';TAG._seal(row)
         with self.assertRaises(ValueError):CODEC.dump_engine(loaded)
         native=self.rules._selected_rule
-        before=CODEC.dump_engine(self.e)
+        before=CODEC.snapshot_engine(self.e)
         with patch.object(self.rules,'_selected_rule',side_effect=lambda uid:'other' if uid==TAG.ITEM else native(uid)):
             with self.assertRaises(ValueError):self.gate()
-        self.assertEqual(CODEC.dump_engine(self.e),before)
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
     def test_invalid_attachment_and_options_reject_before_any_actual_observation(self):
-        before=CODEC.dump_engine(self.e)
+        before=CODEC.snapshot_engine(self.e)
         for options in ({'method':'balanced'},{'walls':[[[4,1],[5,1]]]}, {'anchor_wall':[[5,1],[6,1]]}):
             with self.assertRaises(ValueError):self.mount(event='invalid',**options)
-            self.assertEqual(CODEC.dump_engine(self.e),before)
+            self.assertEqual(CODEC.snapshot_engine(self.e),before)
         with self.assertRaises(ValueError):self.gate(total=100)
         with self.assertRaises(ValueError):self.gate(faces=[7]*4)
-        self.assertEqual(CODEC.dump_engine(self.e),before)
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
     def test_observed_feature_error_resumes_same_focus_after_json_restore(self):
         self.p.kind='trainer';self.p.spec['kind']='trainer'
         self.p.spec['feats']=[SF.MONKEY]

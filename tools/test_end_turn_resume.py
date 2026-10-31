@@ -10,7 +10,7 @@ import combat_timing as TIME
 import effect_contracts as CONTRACTS
 import effect_lifetimes as LIFE
 import frequency as FREQ
-from state_codec import dump_engine, load_engine, StateCodecError
+from state_codec import dump_engine, load_engine, StateCodecError, snapshot_engine
 import test_historical_effect_source_closure as FIXTURE
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -62,9 +62,9 @@ class EndTurnResumeTests(unittest.TestCase):
         self.resolve(token)
         self.assertEqual((self.a.stages['atk'], self.a.stages['def'], self.a.stages['spe']), (1, 1, 1))
         self.assert_closed_once()
-        before = dump_engine(self.e)
+        before = snapshot_engine(self.e)
         self.resolve(token)
-        self.assertEqual(dump_engine(self.e), before)
+        self.assertEqual(snapshot_engine(self.e), before)
         self.e.advance_time(1, [self.a])
 
     def test_false_observation_skips_only_the_condition_and_finishes_suffix(self):
@@ -78,10 +78,10 @@ class EndTurnResumeTests(unittest.TestCase):
         for attempt in (lambda: self.e.advance_time(1, [self.a]),
                         lambda: self.e.end_of_turn(self.a),
                         lambda: ACTION.ordinary_permission(self.e, self.a)):
-            before = dump_engine(self.e)
+            before = snapshot_engine(self.e)
             with self.assertRaisesRegex(ValueError, 'turn.end|turn end|turn-end'):
                 attempt()
-            self.assertEqual(dump_engine(self.e), before)
+            self.assertEqual(snapshot_engine(self.e), before)
         self.resolve(token)
         self.assert_closed_once()
 
@@ -122,7 +122,7 @@ class EndTurnResumeTests(unittest.TestCase):
 
     def test_late_close_fault_rolls_back_observation_suffix_and_can_retry(self):
         token, _ = self.suspend()
-        before = dump_engine(self.e)
+        before = snapshot_engine(self.e)
         actual = TIME.end_turn
         def fail_after_native_close(engine, actor):
             actual(engine, actor)
@@ -130,7 +130,7 @@ class EndTurnResumeTests(unittest.TestCase):
         with patch.object(TIME, 'end_turn', side_effect=fail_after_native_close):
             with self.assertRaisesRegex(ValueError, 'late turn-end close fault'):
                 self.resolve(token)
-        self.assertEqual(dump_engine(self.e), before)
+        self.assertEqual(snapshot_engine(self.e), before)
         self.resolve(token)
         self.assertEqual((self.a.stages['atk'], self.a.stages['def'], self.a.stages['spe']), (1, 1, 1))
         self.assert_closed_once()
@@ -147,9 +147,9 @@ class EndTurnResumeTests(unittest.TestCase):
         self.e = load_engine(self.f.r, json.loads(json.dumps(dump_engine(self.e))))
         self.a = self.e.everyone[0]
         token = next(t for t, row in self.e._effect_dispatch_receipts.items() if 'condition_reply' in row)
-        before = dump_engine(self.e)
+        before = snapshot_engine(self.e)
         self.resolve(token)
-        self.assertEqual(dump_engine(self.e), before)
+        self.assertEqual(snapshot_engine(self.e), before)
 
     def test_gm_snapshot_restores_pending_close_phase_and_original_prefix(self):
         self.suspend()
@@ -166,11 +166,11 @@ class EndTurnResumeTests(unittest.TestCase):
 
     def test_changed_source_rejects_without_mutation_and_original_source_can_retry(self):
         token, _ = self.suspend()
-        before = dump_engine(self.e)
+        before = snapshot_engine(self.e)
         with self.f.changed_source():
             with self.assertRaisesRegex(ValueError, 'source changed'):
                 self.resolve(token)
-        self.assertEqual(dump_engine(self.e), before)
+        self.assertEqual(snapshot_engine(self.e), before)
         self.resolve(token)
         self.assert_closed_once()
 
@@ -188,16 +188,16 @@ class EndTurnResumeTests(unittest.TestCase):
 
     def test_wrong_actor_and_boundary_cannot_answer_the_pending_producer(self):
         token, _ = self.suspend()
-        before = dump_engine(self.e)
+        before = snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError, 'owner'):
             self.e.resolve_effect_condition(deepcopy(self.a, {id(self.a.r): self.a.r}), token, target_was_asleep=True,
                                             reason='wrong observation owner')
-        self.assertEqual(dump_engine(self.e), before)
+        self.assertEqual(snapshot_engine(self.e), before)
         self.e.elapsed_seconds += 1
         with self.assertRaisesRegex(ValueError, 'boundary'):
             self.resolve(token)
         self.e.elapsed_seconds -= 1
-        self.assertEqual(dump_engine(self.e), before)
+        self.assertEqual(snapshot_engine(self.e), before)
         self.resolve(token)
         self.assert_closed_once()
 
@@ -290,9 +290,9 @@ class EndTurnResumeTests(unittest.TestCase):
         self.resolve(token)
         self.assertEqual((self.a.stages['def'],self.a.stages['spe']),(1,1))
         self.assert_cost_once()
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         self.resolve(token)
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
 
     def test_head_unknown_false_retains_the_single_accepted_activation_cost(self):
         token=self.costed_head()
@@ -302,11 +302,11 @@ class EndTurnResumeTests(unittest.TestCase):
 
     def test_head_unknown_late_fault_and_retry_never_charge_again(self):
         token=self.costed_head()
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with patch.object(TIME,'end_turn',side_effect=ValueError('late head-unknown close fault')):
             with self.assertRaisesRegex(ValueError,'late head-unknown close fault'):
                 self.resolve(token)
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.assertEqual(self.a.spec['ap_spent'],2)
         self.resolve(token)
         self.assert_cost_once()
@@ -324,16 +324,16 @@ class EndTurnResumeTests(unittest.TestCase):
     def test_new_trigger_blocked_by_pending_suffix_rejects_the_native_producer_atomically(self):
         self.f.register(FIXTURE.SOURCE_B, [self.stage('spd',conditional=True), self.stage('spa')])
         self.f.register(effects=[self.stage('atk'), self.stage('def',conditional=True), self.stage('spe')])
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError,'unfinished required effect suffix'):
             self.e.end_of_turn(self.a)
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.assertIs(self.e._active_turn_actor,self.a)
         self.assertEqual(len(self.e._turn_closures),0)
 
     def test_removed_or_reselected_source_cannot_finish_the_pending_turn(self):
         token,_=self.suspend()
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         selected=self.f.r._selected_rule
         with patch.object(self.f.r,'_selected_rule',side_effect=lambda uid,*a,**k:
                           uid+'/changed' if uid==FIXTURE.SOURCE_A else selected(uid,*a,**k)):
@@ -345,7 +345,7 @@ class EndTurnResumeTests(unittest.TestCase):
                 self.resolve(token)
         finally:
             self.f.r.selection.units[FIXTURE.SOURCE_A]=definition
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.resolve(token)
         self.assert_closed_once()
 
@@ -407,9 +407,9 @@ class EndTurnResumeTests(unittest.TestCase):
         self.assertEqual((b.stages['spa'],b.stages['spd'],self.a.stages['spe']),(1,1,1))
         self.assertIsNone(self.e._active_turn_actor)
         self.assertEqual(len(self.e._turn_closures),3)
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         self.e.resolve_effect_condition(b,token,target_was_asleep=True,reason='actual nested historical observation')
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
 
     def test_removing_the_trigger_preserves_its_already_accepted_occurrence(self):
         token,_=self.suspend()

@@ -191,9 +191,9 @@ class NativeSwitchTransferRevisionTests(unittest.TestCase):
         self.assertEqual(self.q.stages['atk'],2)
         self.assertFalse(self.p.on_field);self.assertTrue(self.q.on_field)
         self.assertNotIn(SWITCH.TAG,self.t.spec)
-        saved=CODEC.dump_engine(self.e)
+        saved=CODEC.snapshot_engine(self.e)
         self.assertEqual(self.e.act_on_party(self.t,**options),result)
-        self.assertEqual(CODEC.dump_engine(self.e),saved)
+        self.assertEqual(CODEC.snapshot_engine(self.e),saved)
 
     def test_handoff_clock_or_recipient_cannot_borrow_an_unrelated_recall(self):
         self.open(self.t);self.e.manual_feat(self.t,TRAINING.FOCUSED,self.p)

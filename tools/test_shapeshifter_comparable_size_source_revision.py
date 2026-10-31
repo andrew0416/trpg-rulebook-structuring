@@ -42,10 +42,10 @@ class ShapeshifterComparableSizeSourceRevisionTests(unittest.TestCase):
                 'mass_ratio': 1}
 
     def judgement(self, actor, proposal, *, comparable=True):
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         pending = MODE.shapeshift_size_choices(self.e, actor, **proposal)
         self.assertEqual(pending['status'], 'PolicyInputsRequired')
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         return {'value': comparable,
                 'reason': 'GM compares this exact intended appearance with this actual original body',
                 'scope': pending['decision_scope']}

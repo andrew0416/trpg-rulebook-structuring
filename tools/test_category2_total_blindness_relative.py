@@ -61,21 +61,21 @@ class TotalBlindnessRelativeTests(unittest.TestCase):
         result=e.move_relative(a,**declaration)
         self.assertEqual(a.pos,(7,3));self.assertEqual(result['distance'],6)
         self.assertEqual(e.rng.getstate(),rng);self.assertNotIn('넘어짐',a.conditions)
-        e,a,t=self.fresh(e,a,t);before=e.export_state()
+        e,a,t=self.fresh(e,a,t);before=e.snapshot_state()
         self.assertEqual(e.move_relative(a,**declaration),result)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
 
     def test_unbound_direction_or_unsettled_check_frequency_rejects_before_cost(self):
-        e,a,t=self.fixture();before=e.export_state()
+        e,a,t=self.fixture();before=e.snapshot_state()
         bad=self.declaration();bad['direction']='north'
         with self.assertRaises(ValueError):e.move_relative(a,**bad)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         bad=self.declaration();bad['blindness_options']=None
         with self.assertRaises(ValueError):e.move_relative(a,**bad)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         bad=self.declaration();bad['destination']=(6,3)
         with self.assertRaises(TypeError):e.move_relative(a,**bad)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
 
     def test_quickly_actual_blocking_rough_and_slow_attempt_trip_without_illegal_entry(self):
         for kind in ('blocking','rough','slow'):
@@ -111,7 +111,7 @@ class TotalBlindnessRelativeTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError,'Priority or Interrupt'):
                         if method=='use_move':e.use_move(a,t,source,set_damage=True)
                         else:e.use_move_on(a,t,source,e.everyone)
-                    self.assertEqual(e.export_state(),before)
+                    self.assertEqual(e.snapshot_state(),before)
 
     def test_blindsense_uses_normal_relative_allowance_and_ordinary_move_is_not_forbidden(self):
         e,a,t=self.fixture(cause='darkness',capabilities=['Blindsense'])
@@ -122,15 +122,15 @@ class TotalBlindnessRelativeTests(unittest.TestCase):
         self.assertEqual(a.move_uses['move/전광석화'],1)
 
     def test_absolute_shift_cannot_bypass_relative_declaration_and_nonland_needs_native_observation(self):
-        e,a,t=self.fixture();before=e.export_state()
+        e,a,t=self.fixture();before=e.snapshot_state()
         with self.assertRaisesRegex(ValueError,'relative declaration'):
             TURN.spend(e,a,'shift','unbound absolute producer',movement=True)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         with self.assertRaisesRegex(ValueError,'relative declaration'):e.disengage(a,(2,3))
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         declaration=self.declaration();declaration['movement_mode']='sky'
         with self.assertRaisesRegex(ValueError,'native geometry/transfer'):e.move_relative(a,**declaration)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         result=e.move_relative(a,**self.declaration())
         self.assertEqual(result['distance'],3);self.assertEqual(a._action_history,['shift'])
 
@@ -141,10 +141,10 @@ class TotalBlindnessRelativeTests(unittest.TestCase):
         original=e.skill_roll
         with patch.object(e,'skill_roll',side_effect=ValueError('observed skill unavailable')):
             with self.assertRaisesRegex(ValueError,'observed skill'):e.move_relative(a,**declaration)
-        e,a,t=self.fresh(e,a,t);before=e.export_state()
+        e,a,t=self.fresh(e,a,t);before=e.snapshot_state()
         changed=deepcopy(declaration);changed['direction']='back'
         with self.assertRaisesRegex(ValueError,'replace'):e.move_relative(a,**changed)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         with self.assertRaisesRegex(ValueError,'already paid'):e.end_of_turn(a)
         row=a.spec[RELATIVE.KEY]['relative-one'];row['facts']['budget']+=1
         with self.assertRaises(ValueError):e.export_state()

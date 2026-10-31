@@ -9,7 +9,7 @@ import test_foundation_source_selection as SOURCE
 import test_foundation_training_rewards as REWARDS
 import test_category2_partial_entities as PARTIAL_FIXTURE
 from ruleset import RuleFilter,RuleSelection
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import source_context
 import training_features as TRAINING
 import world_entities as WORLD
@@ -110,9 +110,9 @@ class TrainingOwnerTests(unittest.TestCase):
         restored=load_engine(f.r,json.loads(json.dumps(dump_engine(f.e),ensure_ascii=False)))
         index=WORLD.actor_index(restored);owner=index[f.a.entity_id];target=index[p.entity_id]
         self.assertEqual(restored.initiative_value(target).value,value.value)
-        snapshot=dump_engine(restored)
+        snapshot=snapshot_engine(restored)
         restored.apply_training_rewards(owner,[index[x.entity_id] for x in f.ps],f.policy(),safe=True,request_id='reward')
-        self.assertEqual(dump_engine(restored),snapshot)
+        self.assertEqual(snapshot_engine(restored),snapshot)
         TRAINING.extended_rest(restored,owner)
         self.assertEqual(restored.initiative_value(target).value,before.value)
         self.assertFalse(TRAINING.active(target))
@@ -138,12 +138,12 @@ class PartialOwnerTests(unittest.TestCase):
         f=PARTIAL_FIXTURE.Tests();f.setUp()
         view=f.e.gm.observe_partial_entity(name='partial witness',actor_kind='trainer',reason='no combat facts observed')
         row=f.e._partial_entities[view['entity_id']]
-        before=dump_engine(f.e);rng=f.e.rng.getstate()
+        before=snapshot_engine(f.e);rng=f.e.rng.getstate()
         with patch('ability_state_projection.hp_change_interested',side_effect=AssertionError('projection reached before partial admission')):
             for action in (lambda:f.e.take_damage(row,5),lambda:f.e.heal(row,5)):
                 with self.subTest(action=action):
                     with self.assertRaisesRegex(ValueError,'missing stats are unknown'):action()
-                    self.assertEqual(dump_engine(f.e),before)
+                    self.assertEqual(snapshot_engine(f.e),before)
                     self.assertEqual(f.e.rng.getstate(),rng)
 
 

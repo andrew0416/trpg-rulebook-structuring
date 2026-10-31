@@ -243,8 +243,8 @@ class BattleContestPendingTests(unittest.TestCase):
             dealt=sum(COMPLETE.recipient_result(row,a)['dealt'] for a in COMPLETE.actual_recipients(row))
             self.assertGreater(dealt,0);self.assertEqual(self.a.hp,hp-dealt//3)
             self.assertEqual(self.a.move_uses[MOVE],1)
-            before=self.e.export_state();COMPLETE.refresh(self.e,token)
-            self.assertEqual(self.e.export_state(),before)
+            before=self.e.snapshot_state();COMPLETE.refresh(self.e,token)
+            self.assertEqual(self.e.snapshot_state(),before)
 
     def test_saved_pending_choice_and_completion_binding_tampering_are_rejected(self):
         self.fixture()

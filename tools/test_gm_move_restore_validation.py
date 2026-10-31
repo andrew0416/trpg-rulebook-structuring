@@ -21,9 +21,9 @@ class RestoreValidationTests(unittest.TestCase):
         row['selection']['values']=['move/코튼가드']
         spec[A.PROJECTION_KEY]=A._projection_from_rows(list(rows.values()))
         f.engine.advance_time(1,f.engine.everyone)
-        before=CODEC.dump_engine(f.engine)
+        before=CODEC.snapshot_engine(f.engine)
         with self.assertRaises(ValueError):f.engine.gm.restore('acquisition')
-        self.assertEqual(CODEC.dump_engine(f.engine),before)
+        self.assertEqual(CODEC.snapshot_engine(f.engine),before)
 
     def fixture(self):
         f=_fixture_test_category2_mentor_move_state.MentorMoveStateTests();f.r=self.r;f.setUp();p=f.pokemon();f.teach(p,'move/화염방사');return f,p

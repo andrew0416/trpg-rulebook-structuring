@@ -56,7 +56,7 @@ class HistoricalCsvFoodBoundaries(unittest.TestCase):
         self.choose(e)
         e.start_round([source, actor])
         e.start_of_turn(source, initiative_count=20)
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         original = Engine.change_stage
         attempted = []
         def fail_after_actual_stage(engine, target, stat, delta):
@@ -73,12 +73,12 @@ class HistoricalCsvFoodBoundaries(unittest.TestCase):
         self.assertEqual(attempted[0]['copied_stage'], 2)
         self.assertEqual((attempted[0]['native_event']['before'],
                           attempted[0]['native_event']['after']), (0, 2))
-        self.assertEqual(before, CODEC.dump_engine(e))
+        self.assertEqual(before, CODEC.snapshot_engine(e))
         self.assertEqual((source.stages['atk'], actor.stages['atk']), (0, 0))
         self.assertFalse(hasattr(e, '_csv_food_stage_event'))
         self.assertFalse(hasattr(e, '_csv_food_stage_transaction'))
         print('MIRROR_NATIVE_LATE_FAULT', json.dumps(
-            {'attempted': attempted, 'same_dump': before == CODEC.dump_engine(e)}, ensure_ascii=True))
+            {'attempted': attempted, 'same_dump': before == CODEC.snapshot_engine(e)}, ensure_ascii=True))
 
     def test_mirror_native_swords_dance_is_printed_actual_event_and_spent_once_after_restore(self):
         e, actor, source, buff = self.fixture('item/흉내허브')
@@ -167,10 +167,10 @@ class HistoricalCsvFoodBoundaries(unittest.TestCase):
     def test_mirror_fabricated_or_replayed_direct_observation_is_rejected_without_mutation(self):
         e, actor, source, buff = self.fixture('item/흉내허브')
         for when in ('before_actual_gain', 'after_actual_gain'):
-            before = CODEC.dump_engine(e)
+            before = CODEC.snapshot_engine(e)
             with self.assertRaisesRegex(ValueError, 'actual native stage event'):
                 FOOD.observe_positive_stage(e, source, 'atk', 0, 2, recipient=actor)
-            self.assertEqual(before, CODEC.dump_engine(e))
+            self.assertEqual(before, CODEC.snapshot_engine(e))
             if when == 'before_actual_gain':
                 e.change_stage(source, 'atk', 2)
         self.assertEqual(actor.buffs[0]['id'], buff['id'])
@@ -212,10 +212,10 @@ class HistoricalCsvFoodBoundaries(unittest.TestCase):
         with self.assertRaises(CODEC.StateCodecError):
             CODEC.load_engine(restored.r,json.loads(json.dumps(CODEC.dump_engine(restored))))
         timing.pop('skill_modifier')
-        before = CODEC.dump_engine(restored)
+        before = CODEC.snapshot_engine(restored)
         with self.assertRaisesRegex(ValueError, 'one actual'):
             restored.consume_food_buff(holder,buff_id=buff['id'])
-        self.assertEqual(before, CODEC.dump_engine(restored))
+        self.assertEqual(before, CODEC.snapshot_engine(restored))
         restored.end_of_turn(holder)
         self.assertEqual(len(TIMING.records(holder)), 1)
         restored.end_round()

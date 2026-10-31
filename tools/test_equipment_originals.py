@@ -70,9 +70,9 @@ class EquipmentOriginalTests(unittest.TestCase):
 
     def test_pokemon_replacement_and_full_capacity_are_atomic_and_old_item_stays_carried(self):
         e,a,b,p,uid=self.fixture();self.physical(e,p,'예리한손톱','old')
-        before=e.export_state()
+        before=e.snapshot_state()
         with self.assertRaises(ValueError):e.give_equipment(a,p,uid)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         e.give_equipment(a,p,uid,replace_selection='old')
         self.assertEqual(H.entries(p)[0]['instance_id'],uid)
         self.assertEqual(e._physical_objects['old']['carrier_id'],p.entity_id)
@@ -106,9 +106,9 @@ class EquipmentOriginalTests(unittest.TestCase):
                     self.physical(e,holder,name,'cost-item')
                     if holder is p:e.end_of_turn(a);e.start_of_turn(p,initiative_count=18)
                     before=e.export_state();holder.budget['standard']=0
-                    spent=e.export_state()
+                    spent=e.snapshot_state()
                     with self.assertRaisesRegex(ValueError,'action unavailable'):e.drop_held_equipment(holder,'cost-item')
-                    self.assertEqual(e.export_state(),spent)
+                    self.assertEqual(e.snapshot_state(),spent)
                     holder.budget['standard']=1
                     e.drop_held_equipment(holder,'cost-item')
                     self.assertEqual(holder.budget['standard'],0);self.assertEqual(holder._action_history[-1],'standard')
@@ -140,12 +140,12 @@ class EquipmentOriginalTests(unittest.TestCase):
                 with self.subTest(name=name,resumable=resumable):
                     e,a,b,p,_=self.fixture();self.physical(e,p,name,'snack')
                     e.end_of_turn(a);e.start_of_turn(p,initiative_count=18)
-                    before=e.export_state()
+                    before=e.snapshot_state()
                     opts={'resumable':True,'request_id':'forbidden-intake'} if resumable else {}
                     with self.assertRaisesRegex(ValueError,'active encounter'):
                         e.use_item(p,name,held_selection='snack',duration_minutes=1,
                                    duration_reason='actual proposed combat intake',**opts)
-                    self.assertEqual(e.export_state(),before)
+                    self.assertEqual(e.snapshot_state(),before)
                     self.valid(e)
 
     def test_completed_held_berry_intake_replays_after_restore_and_combat_buff_exchange(self):
@@ -163,9 +163,9 @@ class EquipmentOriginalTests(unittest.TestCase):
         hp=pp.hp
         loaded.consume_food_buff(pp,buff_id=result['buff_id'],action_kind='free',action_reason='explicit GM exchange timing')
         self.assertEqual(pp.hp,hp+5);self.assertFalse(pp.buffs)
-        before=loaded.export_state()
+        before=loaded.snapshot_state()
         self.assertEqual(loaded.use_item(pp,'오랭열매',**options),result)
-        self.assertEqual(loaded.export_state(),before);self.valid(loaded)
+        self.assertEqual(loaded.snapshot_state(),before);self.valid(loaded)
 
     def test_heavy_boundary_preserves_paid_equipment_and_restorable_pending_event(self):
         import heavy_injury_adapter as HEAVY
@@ -185,9 +185,9 @@ class EquipmentOriginalTests(unittest.TestCase):
         hp=a.hp
         e.equip_equipment(a,uid)
         self.assertEqual((a.hp,a.temp_hp),(hp,3));self.assertEqual(len(e._heavy_events),1)
-        before=e.export_state()
+        before=e.snapshot_state()
         with self.assertRaisesRegex(ValueError,'action unavailable'):e.give_equipment(a,b,uid)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
 
     def test_encounter_end_releases_pending_handoff_lock(self):
         e,a,b,p,uid=self.fixture();e.give_equipment(a,p,uid)

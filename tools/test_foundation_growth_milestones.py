@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(RO
 from engine import Rules,Engine,Combatant
 from builder import build_pokemon
 import downtime as D,growth_milestones as M,state_grants as G
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 
 class GrowthMilestoneTests(unittest.TestCase):
  @classmethod
@@ -21,17 +21,17 @@ class GrowthMilestoneTests(unittest.TestCase):
   e=load_engine(self.r,dump_engine(self.e));c=e.everyone[0];chosen=row['offered']['options'][-1]
   result=e.choose_growth_ability(c,20,chosen,reason='explicit selection')
   self.assertFalse(result['replayed']);self.assertEqual(c.abilities,[chosen])
-  before=dump_engine(e);self.assertTrue(e.choose_growth_ability(c,20,chosen,reason='explicit selection')['replayed'])
-  self.assertEqual(dump_engine(e),before)
+  before=snapshot_engine(e);self.assertTrue(e.choose_growth_ability(c,20,chosen,reason='explicit selection')['replayed'])
+  self.assertEqual(snapshot_engine(e),before)
  def test_unearned_invalid_or_late_failed_choice_cannot_spend_right(self):
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   with self.assertRaises(ValueError):self.e.choose_growth_ability(self.c,20,'unknown',reason='invalid')
-  self.assertEqual(dump_engine(self.e),before);self.grow();before=dump_engine(self.e)
+  self.assertEqual(snapshot_engine(self.e),before);self.grow();before=snapshot_engine(self.e)
   with self.assertRaises(ValueError):self.e.choose_growth_ability(self.c,20,'unknown',reason='invalid')
   choice=self.c.spec[M.KEY]['ability:20']['offered']['options'][-1]
   with patch.object(G,'reconcile',side_effect=ValueError('late application')):
    with self.assertRaisesRegex(ValueError,'late application'):self.e.choose_growth_ability(self.c,20,choice,reason='chosen')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
  def test_generic_offer_keeps_empty_choice_pending_and_replay_is_detached(self):
   spec={};first=M.offer(spec,'stage/one',source='declared/source',stage={'kind':'creation'},options=[])
   self.assertIsNone(first['selection']);first['offered']['options'].append('invented')

@@ -141,13 +141,13 @@ class PokemaniacSourceTests(unittest.TestCase):
     self.reject(lambda:self.acquire(selection=selection),'edition selection')
 
  def test_selected_csv_exclusion_does_not_change_book_source(self):
-  before=self.e.export_state()
+  before=self.e.snapshot_state()
   self.rules.ruleset.exclude_units.add(P.MANIAC_CSV)
   try:
    with self.assertRaisesRegex(ValueError,'selection_profile_changed_rebuild_required'):self.acquire()
    with self.assertRaisesRegex(CODEC.StateCodecError,'selection_profile_changed_rebuild_required'):self.e.export_state()
   finally:self.rules.ruleset.exclude_units.discard(P.MANIAC_CSV)
-  self.assertEqual(self.e.export_state(),before)
+  self.assertEqual(self.e.snapshot_state(),before)
   # Rebuild admission before constructing the native world for this profile.
   self.rules=Rules(ROOT,ruleset='core')
   self.rules.ruleset.exclude_units.add(P.MANIAC_CSV)
@@ -219,9 +219,9 @@ class PokemaniacSourceTests(unittest.TestCase):
   self.world();self.acquire()
   for options,reason in (({'special':None},'special'),({'changes':None},'changes'),({'changes':'unobserved'},'changes')):
    with self.subTest(options=options):self.reject(lambda:self.observe(**options),reason)
-  before=self.e.export_state()
+  before=self.e.snapshot_state()
   with self.assertRaisesRegex(KeyError,'종 없음'):self.observe(original_species='not-an-actual-species')
-  self.assertEqual(self.e.export_state(),before)
+  self.assertEqual(self.e.snapshot_state(),before)
   self.begin();self.pending(lambda:self.use(fixed=[6,6,6,6]))
 
  def test_csv_failed_check_discloses_nothing_and_spends_real_standard(self):
@@ -259,13 +259,13 @@ class PokemaniacSourceTests(unittest.TestCase):
   self.assertTrue(self.use(fixed=[6]*4)['check'].passed)
 
  def test_late_roll_failure_rolls_back_native_action_rng_and_gm_observations(self):
-  self.acquire();self.observe();self.begin();before=self.e.export_state()
+  self.acquire();self.observe();self.begin();before=self.e.snapshot_state()
   native=Engine.skill_roll
   def late(engine,*args,**options):
    native(engine,*args,**options);engine.rng.random();raise RuntimeError('late native Pokemaniac check failure')
   with patch.object(Engine,'skill_roll',late):
    with self.assertRaisesRegex(RuntimeError,'late native'):self.use(fixed=[3]*4)
-  self.assertEqual(self.e.export_state(),before)
+  self.assertEqual(self.e.snapshot_state(),before)
 
  def test_actual_skill_feature_basis_keeps_source_and_observed_origin(self):
   self.acquire();self.observe(special=True,changes=['GM observed scales'])

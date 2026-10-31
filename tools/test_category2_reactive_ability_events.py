@@ -92,9 +92,9 @@ class ReactiveAbilityEventsTests(unittest.TestCase):
         self.assertEqual(actor.move_uses['struggle'], 1)
         self.assertEqual(actor._action_history, ['standard'])
         self.assertEqual(new.rng.getstate(), rng)
-        before = new.export_state()
+        before = new.snapshot_state()
         self.assertEqual(new.deliver_passive_event(event), 'already_delivered')
-        self.assertEqual(new.export_state(), before)
+        self.assertEqual(new.snapshot_state(), before)
 
     def test_color_change_native_hit_updates_only_after_damage_and_preserves_baseline(self):
         self.give(self.t, ['변색'])
@@ -118,10 +118,10 @@ class ReactiveAbilityEventsTests(unittest.TestCase):
         self.e.end_encounter(self.e.everyone)
         self.assertEqual(self.a.abilities, ['인분'])
         new, _, holder = self.fresh()
-        before = new.export_state()
+        before = new.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'frequency exhausted'):
             new.choose_reactive_ability(holder, 'ability/가시지않는향기', reason='same day next encounter')
-        self.assertEqual(new.export_state(), before)
+        self.assertEqual(new.snapshot_state(), before)
 
     def test_spirit_scene_use_not_replenished_by_source_withdrawal_and_return(self):
         self.give(self.t, ['떠도는영혼']); self.give(self.a, ['인분'])

@@ -134,10 +134,10 @@ class ActualDamageTypeRevisionTests(unittest.TestCase):
                     e.gm.choose_alternate_move_type(a,uid,actual,reason='actual matching alternate mode')
                     if restored:e,a,t=self.restore(e,a,t)
                     record=deepcopy(next(row for row in COATS.live(t) if row['source']==source))
-                    move=e.r.move(uid);mm=e.r.move_mech(uid)[0];before=e.export_state()
+                    move=e.r.move(uid);mm=e.r.move_mech(uid)[0];before=e.snapshot_state()
                     multiplier=EXT.effectiveness_hook(e,a,t,move,mm,1,{'actual_damage_type':actual})
                     self.assertEqual(multiplier,1.5 if source=='move/타르샷' else .5)
-                    self.assertEqual(e.export_state(),before)
+                    self.assertEqual(e.snapshot_state(),before)
                     dealt=self.hit(e,a,t,uid);self.assertGreater(dealt,0)
                     self.assertFalse(any(row['id']==record['id'] for row in COATS.live(t)))
                     history=[row for row in t.spec[COATS.HISTORY] if row['id']==record['id']]
@@ -400,11 +400,11 @@ class ActualDamageTypeRevisionTests(unittest.TestCase):
                              ('move/테라버스트',True),('move/몸통박치기','atk')):
             for area_entry in (False,True):
                 with self.subTest(move=uid,selected=selected,area_entry=area_entry):
-                    e,a,t=self.world([uid]);before=e.export_state()
+                    e,a,t=self.world([uid]);before=e.snapshot_state()
                     with self.assertRaisesRegex(ValueError,'Versatile'):
                         if area_entry:e.use_move_on(a,t,uid,e.everyone,versatile_stat=selected)
                         else:e.use_move(a,t,uid,versatile_stat=selected)
-                    self.assertEqual(e.export_state(),before)
+                    self.assertEqual(e.snapshot_state(),before)
 
     def test_versatile_choice_survives_real_defense_pending_json_and_resume_once(self):
         import test_category2_move_defense_reactions as FIXTURE
@@ -459,10 +459,10 @@ class ActualDamageTypeRevisionTests(unittest.TestCase):
         uid='move/천둥차기';e,a,t=self.world([uid],target_types=('땅',))
         self.equip_policy(e,t);self.coat(e,a,t,'move/흙놀이')
         e.gm.choose_alternate_move_type(a,uid,'전기',reason='actual source Electric attack')
-        move=e.r.move(uid);mm=e.r.move_mech(uid)[0];before=e.export_state()
+        move=e.r.move(uid);mm=e.r.move_mech(uid)[0];before=e.snapshot_state()
         self.assertEqual(e.type_multiplier('전기',t)[0],0)
         self.assertEqual(EXT.effectiveness_hook(e,a,t,move,mm,0,{'actual_damage_type':'전기'}),0)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         self.assertEqual(self.hit(e,a,t,uid),0)
         self.assertTrue(any(row['source']=='move/흙놀이' for row in COATS.live(t)))
         self.assertNotIn('weakness_policy',t.spec.get(PHYSICAL.PENDING,{}))

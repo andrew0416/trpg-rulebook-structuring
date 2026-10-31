@@ -100,9 +100,9 @@ class ChefRecipePermissionTests(unittest.TestCase):
   target=next(c for c in loaded.gm.everyone if c.entity_id==self.p.entity_id)
   self.assertIn(C.CHEF_CLASS,R.validate(actor)[-1]['sources']);loaded.pokemon_activity(actor,'craft_item',item='미네랄사이다',minutes=1,reason='restored actual class')
   target.hp=1;loaded.use_item(actor,'미네랄사이다',target,duration_minutes=1,duration_reason='restored native product');self.assertEqual(target.hp,31)
-  actor.spec['classes']=[];state=CODEC.dump_engine(loaded)
+  actor.spec['classes']=[];state=CODEC.snapshot_engine(loaded)
   with self.assertRaises(ValueError):loaded.pokemon_activity(actor,'craft_item',item='맛있는물',minutes=1,reason='restored withdrawn class')
-  self.assertEqual(CODEC.dump_engine(loaded),state)
+  self.assertEqual(CODEC.snapshot_engine(loaded),state)
   self.e.gm.restore(before);self.assertNotIn('resource_transformations',self.a.spec);self.assertEqual(self.a.spec['classes'],[C.CHEF_CLASS]);self.assertEqual(self.a.spec['money'],1000)
   self.assertEqual(self.craft()['count'],1)
  def test_late_native_record_failure_restores_item_cost_clock_rng_jobs_and_acquisition(self):

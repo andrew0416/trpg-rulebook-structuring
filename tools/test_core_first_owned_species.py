@@ -95,9 +95,9 @@ class FirstOwnedSpeciesTests(unittest.TestCase):
         self.assertEqual((recipient.level,recipient.spec['exp_bank']),(6,0))
         self.assertEqual(recipient.spec['caught_species'],['pokemon/이상해씨'])
         self.assertEqual(fixture.a.spec.get('exp_bank',0),0)
-        before=CODEC.dump_engine(fixture.e)
+        before=CODEC.snapshot_engine(fixture.e)
         with self.assertRaises(ValueError):self.hatch(fixture,recipient,row)
-        self.assertEqual(CODEC.dump_engine(fixture.e),before)
+        self.assertEqual(CODEC.snapshot_engine(fixture.e),before)
 
     def test_actual_hatch_of_an_initial_owned_species_only_records_history(self):
         fixture=EGG_FIXTURE.EggTests();fixture.setUpClass();fixture.setUp();row=fixture.create()

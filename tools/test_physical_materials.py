@@ -46,8 +46,8 @@ class Tests(unittest.TestCase):
         self.assertIs(e._physical_objects[uid],obj)
         self.assertTrue(WORLD.physical_lifecycle(obj)['destroyed'])
         self.assertEqual(a.budget['standard'],0);self.assertEqual(a.move_uses[mid],1)
-        before=e.export_state();self.assertEqual(self.base.attack(e,a,mid,uid,damage=55),result)
-        self.assertEqual(e.export_state(),before);self.base.valid(e)
+        before=e.snapshot_state();self.assertEqual(self.base.attack(e,a,mid,uid,damage=55),result)
+        self.assertEqual(e.snapshot_state(),before);self.base.valid(e)
 
     def test_nonsharp_nonfire_hit_pays_but_cannot_damage_or_break_rope(self):
         for name in ('엄청난힘','전기쇼크'):
@@ -74,21 +74,21 @@ class Tests(unittest.TestCase):
         self.assertEqual(plan['reduction'],0);self.assertTrue(plan['ignore_all_dr'])
         result=ATTACKS._calculation(e._physical_objects[uid][ATTACKS.FIELD]['profile'],True,12,plan)
         self.assertEqual(result['after_defense'],12)
-        before=e.export_state()
+        before=e.snapshot_state()
         with self.assertRaisesRegex(ValueError,'Pass Move'):self.base.attack(e,a,mid,uid)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
 
     def test_invalid_lengths_reset_and_definition_mutation_reject_atomically(self):
-        e,a,b,mid,uid=self.fixture();before=e.export_state()
+        e,a,b,mid,uid=self.fixture();before=e.snapshot_state()
         for length in (True,24,301,25.5):
             with self.assertRaises(ValueError):e.configure_rope(a,uid,length_feet=length,reason='invalid length')
-            self.assertEqual(e.export_state(),before)
+            self.assertEqual(e.snapshot_state(),before)
         with self.assertRaisesRegex(ValueError,'cannot reset'):
             e.configure_rope(a,uid,length_feet=75,reason='cannot reset')
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         with self.assertRaisesRegex(ValueError,'cannot reset'):
             e.configure_object_durability(a,uid,max_hp=99,reduction=0,minimum_damage=0,source='fake',reason='fake')
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         from unittest.mock import patch
         original=e.r.item_effects
         def changed(name):
@@ -96,7 +96,7 @@ class Tests(unittest.TestCase):
             return effects,definition
         with patch.object(e.r,'item_effects',changed):
             with self.assertRaisesRegex(ValueError,'changed'):e.rope_quote('item/다용도-밧줄',length_feet=25)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
 
     def test_gm_and_json_restore_material_history_and_reject_corrupt_source_projection(self):
         e,a,b,mid,uid=self.fixture('불꽃세례');self.base.attack(e,a,mid,uid,damage=12)

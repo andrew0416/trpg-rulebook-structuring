@@ -213,7 +213,7 @@ class StaticBindPassiveTests(unittest.TestCase):
             with self.subTest(defect=defect):
                 e, a, b = self.world()
                 self.learn(a)
-                before = e.export_state()
+                before = e.snapshot_state()
                 if defect == 'catalog':
                     context = patch.dict(self.r.moves)
                 elif defect == 'definition':
@@ -232,13 +232,13 @@ class StaticBindPassiveTests(unittest.TestCase):
                         self.r.moves.pop(BIND)
                     with self.assertRaises((ValueError, KeyError)):
                         self.enter(e, a, b)
-                self.assertEqual(e.export_state(), before)
+                self.assertEqual(e.snapshot_state(), before)
                 self.assertTrue(self.enter(e, a, b, accuracy=4 + b.evasion('변화') - 1))
         e, a, b = self.world()
-        before = e.export_state()
+        before = e.snapshot_state()
         with self.assertRaises(TypeError):
             e.grapple(a, b, _accuracy_bonus=99)
-        self.assertEqual(e.export_state(), before)
+        self.assertEqual(e.snapshot_state(), before)
 
 
 if __name__ == '__main__':

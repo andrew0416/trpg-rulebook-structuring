@@ -69,10 +69,10 @@ class CleanseTagTests(unittest.TestCase):
                 self.a.spec['skills']['오컬트학'] = rank
                 for n in range(rank // 2):
                     self.craft(str(n), skill_options={'fixed': [1] * rank})
-                before = self.e.export_state()
+                before = self.e.snapshot_state()
                 with self.assertRaisesRegex(ValueError, 'frequency exhausted'):
                     self.craft('exhausted', skill_options={'fixed': [1] * rank})
-                self.assertEqual(before, self.e.export_state())
+                self.assertEqual(before, self.e.snapshot_state())
                 self.a.spec['frequency_state']['day'] += 1
                 self.craft('next-day', skill_options={'fixed': [2] * rank})
                 self.assertEqual(TAG.level(self.e, 'tag:next-day'), rank * 2)
@@ -82,44 +82,44 @@ class CleanseTagTests(unittest.TestCase):
         for field, value in changes:
             old = self.a.spec[field]
             self.a.spec[field] = value
-            before = self.e.export_state()
+            before = self.e.snapshot_state()
             with self.assertRaises(ValueError):
                 self.craft()
-            self.assertEqual(before, self.e.export_state())
+            self.assertEqual(before, self.e.snapshot_state())
             self.a.spec[field] = old
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         for args in ({'work': dict(self.work, paper=False)}, {'work': dict(self.work, seconds=0)},
                      {'work': dict(self.work, source='unproved')}, {'skill_options': {'level': 100}},
                      {'skill_options': {'fixed': [7] * 4}}):
             with self.assertRaises(ValueError):
                 self.craft(**args)
-            self.assertEqual(before, self.e.export_state())
+            self.assertEqual(before, self.e.snapshot_state())
 
     def test_selected_source_and_identity_failure_are_atomic(self):
         native = self.rules._selected_rule
         for source in (TAG.SOURCE, TAG.ITEM):
-            before = self.e.export_state()
+            before = self.e.snapshot_state()
             with patch.object(self.rules, '_selected_rule', side_effect=lambda uid: 'other-version' if uid == source else native(uid)):
                 with self.assertRaises(ValueError):
                     self.craft()
-            self.assertEqual(before, self.e.export_state())
+            self.assertEqual(before, self.e.snapshot_state())
         self.craft()
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with self.assertRaises(ValueError):
             self.craft(instance_id='tag:copy')
-        self.assertEqual(before, self.e.export_state())
+        self.assertEqual(before, self.e.snapshot_state())
 
     def test_completed_replay_and_level_survive_edge_withdrawal_and_rank_change(self):
         first = self.craft()
         self.a.spec['edges'] = []
         self.a.spec['skills']['오컬트학'] = '미숙'
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         self.assertEqual(TAG.level(self.e, 'tag:one'), 10)
         self.assertEqual(self.craft(), first)
-        self.assertEqual(before, self.e.export_state())
+        self.assertEqual(before, self.e.snapshot_state())
         with self.assertRaises(ValueError):
             self.craft('new')
-        self.assertEqual(before, self.e.export_state())
+        self.assertEqual(before, self.e.snapshot_state())
 
     def test_late_failure_keeps_observed_roll_then_native_retry_without_redraw(self):
         native = PRODUCTS.publish
@@ -152,10 +152,10 @@ class CleanseTagTests(unittest.TestCase):
         self.craft()
         self.e.gm.restore('observed-tag')
         self.assertNotIn('tag:one', self.e._physical_objects)
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with self.assertRaises(ValueError):
             self.craft(work=dict(self.work, seconds=41))
-        self.assertEqual(before, self.e.export_state())
+        self.assertEqual(before, self.e.snapshot_state())
         self.assertEqual(self.craft()[TAG.PROFILE]['level'], 10)
         self.assertEqual(self.e.elapsed_seconds, 37)
 

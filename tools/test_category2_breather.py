@@ -55,19 +55,19 @@ class BreatherTests(unittest.TestCase):
   self.assertEqual(self.a.conditions,{'독','넘어짐','취약'});self.assertEqual(self.a.temp_hp,0)
  def test_failed_observed_save_never_recovers_or_triggers_and_cannot_be_rerolled(self):
   self.own();self.e.apply_status(self.a,'혼란');TEMP.grant(self.e,self.a,9)
-  result=self.take(fixed_save=1);state=CODEC.dump_engine(self.e)
+  result=self.take(fixed_save=1);state=CODEC.snapshot_engine(self.e)
   self.assertEqual(result['reason'],'save_failed');self.assertIn('혼란',self.a.conditions)
   self.assertEqual((self.a.temp_hp,self.a.budget['standard'],self.a.budget['shift']),(9,0,0))
-  self.assertEqual(self.take(fixed_save=1),result);self.assertEqual(CODEC.dump_engine(self.e),state)
+  self.assertEqual(self.take(fixed_save=1),result);self.assertEqual(CODEC.snapshot_engine(self.e),state)
   with self.assertRaisesRegex(ValueError,'declaration'):self.take(fixed_save=20)
  def test_success_only_is_explicit_table_policy_not_an_invented_failed_save_charge(self):
   result=self.take(fixed_save=1,save_cost='success_only')
   self.assertFalse(result['completed']);self.assertEqual((self.a.budget['standard'],self.a.budget['shift']),(1,1))
  def test_missing_unprinted_dc_cost_and_unimplemented_assistance_hold_before_rng_or_cost(self):
-  before=CODEC.dump_engine(self.e)
+  before=CODEC.snapshot_engine(self.e)
   for changes in ({'save_dc':None},{'save_cost':None},{'helper':self.b}):
    self.assertIsInstance(self.take(**changes),C.PendingDecision)
-   self.assertEqual(CODEC.dump_engine(self.e),before)
+   self.assertEqual(CODEC.snapshot_engine(self.e),before)
  def test_actual_curse_origin_at_twelve_metres_is_retained_beyond_twelve_cured(self):
   for endpoint,cured in ((14,False),(15,True)):
    with self.subTest(endpoint=endpoint):
@@ -79,8 +79,8 @@ class BreatherTests(unittest.TestCase):
     self.assertEqual('curse_origin' not in self.a.custom_conditions,cured)
  def test_fainted_curse_origin_cures_and_unknown_origin_does_not_guess(self):
   self.e.apply_status(self.a,'저주')
-  before=CODEC.dump_engine(self.e);self.assertIsInstance(self.take(),C.PendingDecision)
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  before=CODEC.snapshot_engine(self.e);self.assertIsInstance(self.take(),C.PendingDecision)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
   self.e.lose_hp(self.b,self.b.base_max_hp,source='test actual fainting')
   result=self.take(curse_origin=self.b,curse_reason='GM identifies the actual now-fainted Curse user')
   self.assertTrue(result['completed']);self.assertNotIn('저주',self.a.conditions)
@@ -111,9 +111,9 @@ class BreatherTests(unittest.TestCase):
   with self.assertRaisesRegex(ValueError,'unfinished'):self.take(request_id='breather:retry')
   with self.assertRaisesRegex(ValueError,'unfinished'):self.e.end_of_turn(self.a)
  def test_invalid_route_and_slower_capability_are_not_silent_partial_success(self):
-  before=CODEC.dump_engine(self.e)
+  before=CODEC.snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'continuous'):self.take(path=[(2,2),(6,2)])
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
   self.a.spec['movement']['sky']=8
   self.assertIsInstance(self.take(),C.PendingDecision)
   self.assertEqual(self.a.budget['standard'],1)
@@ -137,9 +137,9 @@ class BreatherTests(unittest.TestCase):
   self.assertEqual(actor.temp_hp,6);self.assertEqual(actor.budget['standard'],0)
   self.assertNotIn('혼란',actor.conditions)
  def test_fabricated_curse_origin_is_rejected_before_status_or_lifetime_changes(self):
-  before=CODEC.dump_engine(self.e)
+  before=CODEC.snapshot_engine(self.e)
   with self.assertRaises(ValueError):
    self.e.apply_status(self.a,'저주',source='move/저주',applied_by=self.make_actor('trainer/foreign'))
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
 
 if __name__=='__main__':unittest.main()

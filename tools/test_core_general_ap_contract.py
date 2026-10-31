@@ -12,7 +12,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'engine'))
 from engine import Rules,Engine,Combatant
 from builder import build_trainer
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import action_points as AP
 import effects as FX
 import effect_lifetimes as LIFE
@@ -68,14 +68,14 @@ class GeneralAPContractTests(unittest.TestCase):
         self.assertEqual(self.a._action_history,['free','free'])
 
     def test_source_ending_cannot_bypass_default_own_turn_free_action(self):
-        self.activate();before=dump_engine(self.e)
+        self.activate();before=snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError,'own-turn Free Action'):
             self.e.end_effects(self.b,source='gameplay/action-points')
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.e.end_of_turn(self.a);self.e.start_of_turn(self.b)
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         self.assertEqual(self.end().reason,'own_open_turn_required')
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
 
     def test_native_scene_and_qualified_rest_preserve_bound_effect_and_one_pool(self):
         import downtime as DT
@@ -127,9 +127,9 @@ class GeneralAPContractTests(unittest.TestCase):
             ('none_specified',[{'type':'damage_roll_mod','value':4},
                                {'type':'type_change','add_type':'not-a-type'}])]:
             with self.subTest(ending=ending,effects=effects):
-                before=dump_engine(self.e)
+                before=snapshot_engine(self.e)
                 with self.assertRaises(ValueError):self.activate(effects,ending=ending)
-                self.assertEqual(dump_engine(self.e),before)
+                self.assertEqual(snapshot_engine(self.e),before)
 
     def test_native_activation_failure_after_first_payload_is_atomic(self):
         from unittest.mock import patch
@@ -139,17 +139,17 @@ class GeneralAPContractTests(unittest.TestCase):
             calls.append(1)
             if len(calls)==2:raise ValueError('injected second native payload failure')
             return original(*args,**kwargs)
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with patch.object(effect_lifetimes,'install',fail_second),self.assertRaises(ValueError):self.activate()
-        self.assertEqual(len(calls),2);self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(len(calls),2);self.assertEqual(snapshot_engine(self.e),before)
 
     def test_manual_termination_failure_rolls_back_free_action_effects_and_AP(self):
         from unittest.mock import patch
         import state_grants
-        self.activate();before=dump_engine(self.e)
+        self.activate();before=snapshot_engine(self.e)
         with patch.object(state_grants.ActiveEffects,'remove',side_effect=ValueError('injected owned removal failure')):
             with self.assertRaises(ValueError):self.end()
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.assertEqual(self.end().status,'released')
 
     def test_actual_holder_and_modifier_aliases_hold_before_free_action_or_refund(self):
@@ -218,11 +218,11 @@ class GeneralAPContractTests(unittest.TestCase):
         self.activate()
         for condition in ('잠듦','얼음'):
             with self.subTest(condition=condition):
-                self.a.conditions.add(condition);before=dump_engine(self.e)
+                self.a.conditions.add(condition);before=snapshot_engine(self.e)
                 self.assertEqual(self.end().reason,'free_action_blocked_by_condition')
-                self.assertEqual(dump_engine(self.e),before);self.a.conditions.remove(condition)
-        self.e._league_runtime={'active':True};before=dump_engine(self.e)
-        self.assertEqual(self.end().status,'pending');self.assertEqual(dump_engine(self.e),before)
+                self.assertEqual(snapshot_engine(self.e),before);self.a.conditions.remove(condition)
+        self.e._league_runtime={'active':True};before=snapshot_engine(self.e)
+        self.assertEqual(self.end().status,'pending');self.assertEqual(snapshot_engine(self.e),before)
 
     def test_native_records_and_one_reservation_survive_existing_json_restore(self):
         self.activate();loaded=load_engine(self.r,dump_engine(self.e))

@@ -100,23 +100,23 @@ class RemainingTests(unittest.TestCase):
                     self.public(out); self.fresh(e, a, t)
         e, a, t, d = self.world(mode='levitate', pace='quickly', vector=(0, 0, 1), movement=6)
         d['distance'] = 4
-        before = e.export_state()
+        before = e.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'Levitate altitude'):
             e.move_relative(a, **d)
-        self.assertEqual(e.export_state(), before)
+        self.assertEqual(e.snapshot_state(), before)
 
     def test_relative_3d_requires_measured_mixed_geometry_without_coordinate_output(self):
         e, a, t, d = self.world(mode='sky', vector=(1, 0, 1))
-        before = e.export_state()
+        before = e.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'measured'):
             e.move_relative(a, **d)
-        self.assertEqual(e.export_state(), before)
+        self.assertEqual(e.snapshot_state(), before)
         d['native_options']['gm_step_distance'] = 2
         out = e.move_relative(a, **d)
         self.assertEqual((a.pos, a.spec['_movement_altitude'], out['distance']), ((2, 3), 1, 2))
         self.public(out)
-        e, a, t = self.fresh(e, a, t); before = e.export_state()
-        self.assertEqual(e.move_relative(a, **d), out); self.assertEqual(e.export_state(), before)
+        e, a, t = self.fresh(e, a, t); before = e.snapshot_state()
+        self.assertEqual(e.move_relative(a, **d), out); self.assertEqual(e.snapshot_state(), before)
 
     def test_burrow_reuses_real_tunnel_and_surface_transfer(self):
         for pace, expected in (('slowly', 3), ('quickly', 6)):
@@ -147,25 +147,25 @@ class RemainingTests(unittest.TestCase):
                 self.assertEqual(a.spec['_teleport']['used_round'], e.round_no)
                 self.assertEqual(a._action_history, ['standard', 'shift']); self.public(out)
                 e, a, t = self.fresh(e, a, t)
-                d2 = dict(d, movement_id='second-relative-teleport'); before = e.export_state()
+                d2 = dict(d, movement_id='second-relative-teleport'); before = e.snapshot_state()
                 with self.assertRaisesRegex(ValueError, 'once per combat round'):
                     e.move_relative(a, **d2)
-                self.assertEqual(e.export_state(), before)
+                self.assertEqual(e.snapshot_state(), before)
         e, a, t, d = self.world(mode='teleport', movement=4, vector=(1, 1))
         a._diagonal_steps = 1
         out = e.move_relative(a, **d)
         self.assertEqual((a.pos, out['distance']), ((2, 4), 1))
         self.assertEqual(a._diagonal_steps, 1); self.fresh(e, a, t)
         e, a, t, d = self.world(mode='teleport', pace='quickly')
-        e.grid.blocking.add((3, 3)); before = e.export_state()
+        e.grid.blocking.add((3, 3)); before = e.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'line of sight'):
             e.move_relative(a, **d)
-        self.assertEqual(e.export_state(), before)
+        self.assertEqual(e.snapshot_state(), before)
         e, a, t, d = self.world(mode='teleport')
-        d['native_options']['surface_contact'] = False; before = e.export_state()
+        d['native_options']['surface_contact'] = False; before = e.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'Sky or Levitate'):
             e.move_relative(a, **d)
-        self.assertEqual(e.export_state(), before)
+        self.assertEqual(e.snapshot_state(), before)
 
     def test_quickly_full_body_blocking_rough_slow_attempts(self):
         for mode in ('land', 'swim', 'burrow'):
@@ -211,8 +211,8 @@ class RemainingTests(unittest.TestCase):
                     if '지중 이동 ' in line or '순간이동 ' in line]
                 self.assertTrue(native_logs)
                 self.assertNotIn(str(a.pos), json.dumps(native_logs, ensure_ascii=False))
-                e, a, t = self.fresh(e, a, t); before = e.export_state()
-                self.assertEqual(e.move_relative(a, **external_declaration), out); self.assertEqual(e.export_state(), before)
+                e, a, t = self.fresh(e, a, t); before = e.snapshot_state()
+                self.assertEqual(e.move_relative(a, **external_declaration), out); self.assertEqual(e.snapshot_state(), before)
                 a.spec[RELATIVE.KEY][d['movement_id']]['cells'][-1]['plan']['parameters']['reason_text'] = 'replaced transfer'
                 with self.assertRaisesRegex(ValueError, 'native transfer plan'):
                     e.move_relative(a, **d)
@@ -224,7 +224,7 @@ class RemainingTests(unittest.TestCase):
                 if mode == 'swim':
                     TERRAIN.observe(e, [(x, y) for x in range(24) for y in range(16)],
                         base='underwater', reason='actual submerged route for the native producer')
-                before = e.export_state()
+                before = e.snapshot_state()
                 with self.assertRaisesRegex(ValueError, 'relative'):
                     if mode == 'swim':
                         e.approach(a, t, movement_mode='swim')
@@ -235,7 +235,7 @@ class RemainingTests(unittest.TestCase):
                             reason_text='valid native absolute tunnel')
                     else:
                         e.teleport(a, (3, 3), surface_contact=True, reason_text='valid native absolute transfer')
-                self.assertEqual(e.export_state(), before); self.assertNotIn(RELATIVE.KEY, a.spec)
+                self.assertEqual(e.snapshot_state(), before); self.assertNotIn(RELATIVE.KEY, a.spec)
 
     def test_actual_entry_new_impairment_requires_then_accepts_resumed_policy(self):
         for status in ('실명', '완전 실명'):
@@ -255,10 +255,10 @@ class RemainingTests(unittest.TestCase):
                 self.assertEqual(out['state'], 'complete'); self.assertEqual(out['distance'], 6)
                 self.assertEqual(len(a.spec[RELATIVE.KEY][d['movement_id']]['checks']), 1)
                 self.assertEqual(a._action_history, ['shift']); self.public(out); self.fresh(e, a, t)
-                before = e.export_state(); changed = dict(self.options(), frequency='each_hazard_cell')
+                before = e.snapshot_state(); changed = dict(self.options(), frequency='each_hazard_cell')
                 with self.assertRaisesRegex(ValueError, 'replace the resumed'):
                     e.move_relative(a, **d, resumed_blindness_options=changed)
-                self.assertEqual(e.export_state(), before)
+                self.assertEqual(e.snapshot_state(), before)
 
     def test_pending_total_to_ordinary_updates_policy_without_repayment_or_reroll(self):
         e, a, t, d = self.world(pace='quickly', kind='trainer')

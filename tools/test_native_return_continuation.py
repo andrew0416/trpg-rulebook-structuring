@@ -75,8 +75,8 @@ class NativeReturnContinuationTests(unittest.TestCase):
         self.assertEqual((self.a.stages['atk'],self.a.stages['def']),(1,1))
         self.assertEqual((self.a.move_uses[self.mid],self.a._action_history),(1,['standard']))
         self.assertEqual(COMPLETE.require_hit_return(self.e,event,target)['result']['hit'],True)
-        before=self.e.export_state();self.assertEqual(self.e.deliver_passive_event(event),'already_delivered')
-        self.assertEqual(self.e.export_state(),before)
+        before=self.e.snapshot_state();self.assertEqual(self.e.deliver_passive_event(event),'already_delivered')
+        self.assertEqual(self.e.snapshot_state(),before)
         assert_rejected_unchanged(self.e,lambda:self.choose(event,second),reason_pattern='listener already delivered')
         self.fresh();self.valid()
 
@@ -208,15 +208,15 @@ class NativeReturnContinuationTests(unittest.TestCase):
 
     def test_single_return_rejects_unknown_tail_and_completed_stray_frame_before_delivery(self):
         self.world();key=self.policy('single-admission');event=self.start()
-        ev=self.e._passive_events[event];frame=ev['continuation'];before=self.e.export_state()
+        ev=self.e._passive_events[event];frame=ev['continuation'];before=self.e.snapshot_state()
         frame['kind']='unknown_producer'
         with self.assertRaisesRegex(ValueError,'authenticated continuation'):self.choose(event,key)
         frame['kind']='recipient_return'
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.assertEqual(self.a.stages['atk'],0);self.assertFalse(self.e._passive_receipts)
         self.assertEqual(self.choose(event,key),'applied');self.assertEqual(self.a.stages['atk'],1)
-        ev=self.e._passive_events[event];before=self.e.export_state();ev['continuation']=frame
+        ev=self.e._passive_events[event];before=self.e.snapshot_state();ev['continuation']=frame
         with self.assertRaisesRegex(ValueError,'returned recipient retains executable continuation'):
             self.e.deliver_passive_event(event)
-        ev.pop('continuation');self.assertEqual(self.e.export_state(),before)
+        ev.pop('continuation');self.assertEqual(self.e.snapshot_state(),before)
         self.assertEqual(self.e.deliver_passive_event(event),'already_delivered');self.valid()

@@ -5,7 +5,7 @@ import sys,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 import test_category3_skill_feature_actions as N
 import skill_feature_actions as SF
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 
 class RollChoiceTests(unittest.TestCase):
  @classmethod
@@ -22,8 +22,8 @@ class RollChoiceTests(unittest.TestCase):
   out=f.e.resolve_roll_context([request],{'kind':'dc','dc':10},request_id='choice/one',observed_choices=choices)
   self.assertEqual(seen,[(6,6,6,6)]);self.assertEqual(out['result']['total'],6);self.assertFalse(out['result']['passed']);self.assertEqual(f.used(),1)
   self.assertEqual(out['observations'][0]['first']['total'],24);self.assertEqual(out['observations'][0]['state'],'final')
-  before=dump_engine(f.e);again=f.e.resolve_roll_context([request],{'kind':'dc','dc':10},request_id='choice/one',observed_choices=choices)
-  self.assertTrue(again['replayed']);self.assertEqual(len(seen),1);self.assertEqual(dump_engine(f.e),before)
+  before=snapshot_engine(f.e);again=f.e.resolve_roll_context([request],{'kind':'dc','dc':10},request_id='choice/one',observed_choices=choices)
+  self.assertTrue(again['replayed']);self.assertEqual(len(seen),1);self.assertEqual(snapshot_engine(f.e),before)
  def test_choice_failure_preserves_actual_first_and_resume_after_restore(self):
   f=self.f;request=self.request();rng=Random();rng.setstate(f.e.rng.getstate());expected=tuple(rng.randint(1,6) for _ in range(4))
   choices={'r':self.choice(lambda first:'invalid')}
@@ -37,10 +37,10 @@ class RollChoiceTests(unittest.TestCase):
  def test_changed_pending_reroll_observations_are_rejected(self):
   f=self.f;request=self.request(fixed=[1]*4);choices={'r':self.choice(lambda first:'invalid',reroll_faces=[2]*4)}
   with self.assertRaises(ValueError):f.e.resolve_roll_context([request],{'kind':'dc','dc':10},request_id='choice/one',observed_choices=choices)
-  before=dump_engine(f.e);choices={'r':self.choice(lambda first:True,reroll_faces=[6]*4)}
+  before=snapshot_engine(f.e);choices={'r':self.choice(lambda first:True,reroll_faces=[6]*4)}
   with self.assertRaisesRegex(ValueError,'observed scoped'):
    f.e.resolve_roll_context([request],{'kind':'dc','dc':10},request_id='choice/one',observed_choices=choices)
-  self.assertEqual(dump_engine(f.e),before)
+  self.assertEqual(snapshot_engine(f.e),before)
  def test_later_participant_failure_keeps_first_paid_resolution(self):
   f=self.f;requests=[self.request(fixed=[1]*4),self.request(f.b,'b',fixed=[2]*4)]
   choices={'r':self.choice(lambda first:True,reroll_faces=[3]*4),'b':self.choice(lambda first:'invalid')}

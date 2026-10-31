@@ -182,10 +182,10 @@ class PerishBodyTests(unittest.TestCase):
         self.watch()
         self.e.use_move(self.a, self.t, 'move/몸통박치기', set_damage=True)
         event = self.e.pending_ability_reactions()[0]['event_id']
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'overlapping linked'):
             self.choose(event)
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         self.assertEqual(self.count(self.a)['source'], LINKED.PERISH)
         self.assertEqual(self.count(self.t)['source'], LINKED.PERISH)
 
@@ -196,21 +196,21 @@ class PerishBodyTests(unittest.TestCase):
         self.watch(other)
         self.e.use_move(self.a, other, 'move/몸통박치기', set_damage=True)
         event = self.e.pending_ability_reactions()[0]['event_id']
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'overlapping linked'):
             self.choose(event, owner=other)
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         self.assertNotIn(PB.NAME, other.conditions)
         self.assertEqual(self.count(self.a)['effect_instance']['applied_by_actor_id'], self.t.entity_id)
 
     def test_direct_ability_condition_grant_and_fabricated_event_are_rejected(self):
         row = PB.condition_definition(self.r)
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with self.assertRaises(ValueError):
             CUSTOM.grant(self.e, self.t, self.a, row['raw'], PB.SOURCE)
         with self.assertRaises(ValueError):
             PB.prepare(self.e, self.t, 'fabricated-hit')
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
 
     def test_same_source_issuer_preflight_retains_existing_identity_and_progress(self):
         self.activate()

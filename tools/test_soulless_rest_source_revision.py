@@ -109,12 +109,12 @@ class SoullessRestSourceRevisionTests(unittest.TestCase):
         e.start_round(e.everyone)
         assert_rejected_unchanged(e,lambda:self.task(e,c,'task-in-combat'),reason_pattern='active encounter')
         e.end_encounter(round_elapsed_seconds=0)
-        before=e.export_state();original=deepcopy(e.r.ruleset.variant_choices)
+        before=e.snapshot_state();original=deepcopy(e.r.ruleset.variant_choices)
         try:
             e.r.ruleset.variant_choices[T.SOULLESS]='capability/unreviewed-soulless'
             with self.assertRaises(ValueError):self.task(e,c,'replaced-source-task')
         finally:e.r.ruleset.variant_choices=original
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
 
     def test_pending_actual_task_and_english_boundary_survive_gm_and_fresh_rules_json(self):
         for variant,minutes in (('korean_extended_action',2),('english_extended_rest',239)):

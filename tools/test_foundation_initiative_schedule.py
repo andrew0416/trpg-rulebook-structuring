@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT/'engine'),str(ROOT/'tools')]
 from engine import Rules,Engine,Combatant
 from rulings import Rulings
-from state_codec import dump_engine,load_engine,StateCodecError
+from state_codec import dump_engine,load_engine,StateCodecError, snapshot_engine
 import initiative_schedule as S
 import initiative_interrupts as I
 import combat_timing as TIME
@@ -261,10 +261,10 @@ class InitiativeScheduleTests(unittest.TestCase):
         self.assertEqual(before,(self.e.rng.getstate(),self.b.spec))
 
     def test_late_borrow_start_failure_rolls_back_owner_budget_and_future_debt(self):
-        self.start();q=self.queue(self.borrow(self.b));before=dump_engine(self.e)
+        self.start();q=self.queue(self.borrow(self.b));before=snapshot_engine(self.e)
         with patch('turn.reset_budget',side_effect=ValueError('late reset')):
             with self.assertRaises(ValueError):self.e.begin_initiative_reaction(q['window_id'],'borrow')
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.assertIs(self.e._active_turn_actor,self.a)
 
     def test_changed_reaction_policy_or_forged_future_receipt_cannot_save(self):
@@ -421,10 +421,10 @@ class InitiativeScheduleTests(unittest.TestCase):
             until={'event':'turn_end','owner':'target','after':1}),None,True,0,'gm/borrow-deadline')
         q=self.queue(self.borrow(self.b));self.e.begin_initiative_reaction(q['window_id'],'borrow')
         self.assertIn('물',self.b.types)
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with patch('combat_timing.end_turn',side_effect=ValueError('late owner end')):
             with self.assertRaises(ValueError):self.e.finish_initiative_reaction()
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.e.finish_initiative_reaction();self.assertNotIn('물',self.b.types)
         self.assertIs(self.e._active_turn_actor,self.a)
 
@@ -473,9 +473,9 @@ class InitiativeScheduleTests(unittest.TestCase):
     def test_distinct_future_action_costs_do_not_silently_coalesce_and_may_decline(self):
         self.start();q=self.queue(self.reaction(self.b,'one',10),self.reaction(self.b,'two',5))
         self.e.begin_initiative_reaction(q['window_id'],'one');self.e.finish_initiative_reaction()
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with self.assertRaises(ValueError):self.e.begin_initiative_reaction(q['window_id'],'two')
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.e.decline_initiative_reaction(q['window_id'],'two',source='homebrew/declared-reaction',reason='explicit pass')
         self.assertEqual(self.b.pending_action_loss,{'standard':1})
         self.assertEqual(self.e.initiative_reaction_status()['status'],'clear')
@@ -487,9 +487,9 @@ class InitiativeScheduleTests(unittest.TestCase):
         q=self.e.queue_initiative_reactions([one,two],trigger=trigger)
         for uid in ('one','two'):
             self.e.begin_initiative_reaction(q['window_id'],uid);self.e.finish_initiative_reaction()
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         self.assertEqual(self.e.queue_initiative_reactions([one,two],trigger=trigger)['status'],'already_queued')
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.assertEqual(self.b.pending_action_loss,{'standard':1})
 
     def test_forged_future_closure_and_settlement_are_rejected(self):
@@ -503,14 +503,14 @@ class InitiativeScheduleTests(unittest.TestCase):
         with self.assertRaises(StateCodecError):dump_engine(self.e)
 
     def test_actual_scheduled_turn_boundaries_are_atomic_after_late_failure(self):
-        self.prepare();self.e.start_round([self.a,self.b,self.c]);before=dump_engine(self.e)
+        self.prepare();self.e.start_round([self.a,self.b,self.c]);before=snapshot_engine(self.e)
         with patch('turn.reset_budget',side_effect=ValueError('late ordinary reset')):
             with self.assertRaises(ValueError):self.e.start_of_turn(self.a)
-        self.assertEqual(dump_engine(self.e),before)
-        self.e.start_of_turn(self.a);before=dump_engine(self.e)
+        self.assertEqual(snapshot_engine(self.e),before)
+        self.e.start_of_turn(self.a);before=snapshot_engine(self.e)
         with patch('combat_timing.end_turn',side_effect=ValueError('late ordinary end')):
             with self.assertRaises(ValueError):self.e.end_of_turn(self.a)
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.e.end_of_turn(self.a)
 
     def test_malformed_schedule_or_reaction_is_a_codec_error(self):

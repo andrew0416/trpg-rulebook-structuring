@@ -8,7 +8,7 @@ sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 import test_category2_priority_actions as P
 import class_passive_combat as CLASSES
 import priority_actions as PRIORITY
-from state_codec import dump_engine
+from state_codec import dump_engine, snapshot_engine
 
 
 class PriorityIndependentTests(unittest.TestCase):
@@ -50,13 +50,13 @@ class PriorityIndependentTests(unittest.TestCase):
                 self.assertEqual(self.p.move_uses[P.QUICK],1)
                 self.assertEqual(self.p.budget,{'standard':0,'shift':1,'swift':1})
                 self.assertEqual(len(self.e.initiative_reaction_status()['owed_turns']),1)
-                before=dump_engine(self.e)
+                before=snapshot_engine(self.e)
                 EVENTS.deliver(self.e,event)
-                self.assertEqual(before,dump_engine(self.e))
+                self.assertEqual(before,snapshot_engine(self.e))
                 with self.assertRaises(ValueError):
                     self.e.choose_ability_interrupt(event,self.foe,use=True,
                         options={'chosen_type':'강철'},reason='duplicate choice')
-                self.assertEqual(before,dump_engine(self.e))
+                self.assertEqual(before,snapshot_engine(self.e))
                 self.complete_round()
 
     def test_both_printed_electric_type_link_choices_feed_actual_advanced_activation(self):
@@ -93,7 +93,7 @@ class PriorityIndependentTests(unittest.TestCase):
 
     def test_changed_printed_move_header_or_record_cannot_grant_a_priority_turn(self):
         original=deepcopy(self.r.moves[P.QUICK])
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         changed=[]
         for field,value in (('range','근접, 대상 1, 우선(고급)'),('frequency','장면'),('type','전기')):
             row=deepcopy(original);row[field]=value;changed.append(row)
@@ -102,12 +102,12 @@ class PriorityIndependentTests(unittest.TestCase):
             with self.subTest(changed=row):
                 with patch.dict(self.r.moves,{P.QUICK:row}):
                     with self.assertRaises(ValueError):self.e.use_priority_move(self.p,self.foe,P.QUICK)
-                self.assertEqual(before,dump_engine(self.e))
+                self.assertEqual(before,snapshot_engine(self.e))
 
     def test_changed_general_or_feature_source_is_inert_before_any_free_cost(self):
         read_text=Path.read_text
         policy=PRIORITY.definition(self.r)
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         for key in ('priority','shocking_speed','electric_type_link'):
             authority=policy['authority'][key]
             def changed(path,*args,**kwargs):
@@ -118,7 +118,7 @@ class PriorityIndependentTests(unittest.TestCase):
             with self.subTest(authority=key),patch.object(Path,'read_text',changed):
                 with self.assertRaises(ValueError):
                     self.e.use_priority_move(self.p,self.foe,P.THUNDER,shocking_speed=self.t)
-            self.assertEqual(before,dump_engine(self.e))
+            self.assertEqual(before,snapshot_engine(self.e))
 
 
 class UnavailableScheduleTests(unittest.TestCase):
@@ -135,15 +135,15 @@ class UnavailableScheduleTests(unittest.TestCase):
         for reason in ('fainted','captured','off_field'):
             with self.subTest(reason=reason):
                 self.setUp();self.prepare();self.e.start_round(self.e.everyone)
-                before=dump_engine(self.e)
+                before=snapshot_engine(self.e)
                 with self.assertRaises(ValueError):S.skip_unavailable(self.e,self.a)
-                self.assertEqual(before,dump_engine(self.e))
+                self.assertEqual(before,snapshot_engine(self.e))
                 if reason=='fainted':self.a.hp=0;self.a.conditions.add('기절')
                 elif reason=='captured':self.a.captured=True
                 else:self.a.on_field=False
-                before=dump_engine(self.e)
+                before=snapshot_engine(self.e)
                 with self.assertRaises(ValueError):S.skip_unavailable(self.e,self.b)
-                self.assertEqual(before,dump_engine(self.e))
+                self.assertEqual(before,snapshot_engine(self.e))
                 clocks=(self.e.elapsed_seconds,self.e.rng.getstate(),deepcopy(self.e._turn_closures),
                         deepcopy(self.a.custom_conditions),deepcopy(getattr(self.a,'budget',None)))
                 S.skip_unavailable(self.e,self.a)
@@ -152,9 +152,9 @@ class UnavailableScheduleTests(unittest.TestCase):
                 self.e.gm.snapshot('skipped');self.e.gm.restore('skipped')
                 e=load_engine(P.Rules(ROOT,ruleset='core'),json.loads(json.dumps(dump_engine(self.e))))
                 self.assertEqual(S.status(e)['completed_steps'],1)
-                before=dump_engine(self.e)
+                before=snapshot_engine(self.e)
                 with self.assertRaises(ValueError):S.skip_unavailable(self.e,self.a)
-                self.assertEqual(before,dump_engine(self.e))
+                self.assertEqual(before,snapshot_engine(self.e))
                 self.close(self.b);self.close(self.c);self.e.end_round()
 
     def test_skipped_declaration_does_not_create_intent_or_skip_later_turn(self):
@@ -177,9 +177,9 @@ class UnavailableScheduleTests(unittest.TestCase):
         fixture.e.use_priority_move(fixture.p,fixture.foe,P.QUICK)
         fixture.e.finish_initiative_reaction();fixture.close(fixture.t)
         fixture.p.on_field=False
-        before=dump_engine(fixture.e)
+        before=snapshot_engine(fixture.e)
         with self.assertRaises(ValueError):S.skip_unavailable(fixture.e,fixture.p)
-        self.assertEqual(before,dump_engine(fixture.e))
+        self.assertEqual(before,snapshot_engine(fixture.e))
         fixture.e.settle_borrowed_turn()
         self.assertFalse(fixture.e.initiative_reaction_status()['owed_turns'])
         dump_engine(fixture.e)

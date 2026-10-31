@@ -128,9 +128,9 @@ class Table18ItemBoundaries(unittest.TestCase):
         e.start_round([a]);e.start_of_turn(a,initiative_count=20)
         e.change_stage(a,'atk',1);self.assertNotIn('eject_pack',a.spec.get(P.PENDING,{}))
         e.change_stage(a,'atk',-1);self.assertIn('eject_pack',a.spec[P.PENDING])
-        saved=CODEC.dump_engine(e)
+        saved=CODEC.snapshot_engine(e)
         with self.assertRaisesRegex(ValueError,'same controller'):P.resolve_pending(e,a,'eject_pack',send=x)
-        self.assertEqual(CODEC.dump_engine(e),saved)
+        self.assertEqual(CODEC.snapshot_engine(e),saved)
         budget=deepcopy(a.budget);P.resolve_pending(e,a,'eject_pack',send=b)
         self.assertFalse(a.on_field);self.assertTrue(b.on_field);self.assertEqual(a.budget,budget)
 

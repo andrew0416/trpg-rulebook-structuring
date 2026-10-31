@@ -6,7 +6,7 @@ import sys,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 import test_foundation_policy_training as fixtures
 import pokemon_teaching as TEACHING,training_features as T,training_sessions as H
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import world_entities as W
 
 class TrainingHourTests(unittest.TestCase):
@@ -27,34 +27,34 @@ class TrainingHourTests(unittest.TestCase):
   TEACHING.teach_edge(self.e,self.a,target=self.ps[0],edge=TEACHING.EDGE,skill='육상',from_training=True)
   self.assertEqual(self.e.elapsed_seconds,3600);self.assertEqual(self.ps[0].spec['tutor_points'],5)
   self.assertEqual(len(self.ps[0].spec[H.KEY]['applications']),3)
-  restored=load_engine(self.r,dump_engine(self.e));actors=W.actor_index(restored);before=dump_engine(restored)
+  restored=load_engine(self.r,dump_engine(self.e));actors=W.actor_index(restored);before=snapshot_engine(restored)
   self.assertEqual(restored.complete_training_hour(actors[self.a.entity_id],[actors[p.entity_id] for p in self.ps],safe=True,reason='observed safe training ground',request_id='hour'),receipt)
-  self.assertEqual(before,dump_engine(restored))
+  self.assertEqual(before,snapshot_engine(restored))
  def test_unsafe_and_missing_hour_reject_without_changes(self):
   for safety in (False,None,1):
-   before=dump_engine(self.e)
+   before=snapshot_engine(self.e)
    with self.assertRaises(ValueError):self.hour(safe=safety)
-   self.assertEqual(before,dump_engine(self.e))
-  before=dump_engine(self.e)
+   self.assertEqual(before,snapshot_engine(self.e))
+  before=snapshot_engine(self.e)
   with self.assertRaises(ValueError):self.e.pokemon_activity(self.a,'experience_training',targets=self.ps,from_training=True)
-  self.assertEqual(before,dump_engine(self.e))
+  self.assertEqual(before,snapshot_engine(self.e))
  def test_later_invalid_credit_rolls_back_group_awards(self):
-  self.hour();self.ps[-1].spec[H.KEY]['completed_at']+=1;before=dump_engine(self.e)
+  self.hour();self.ps[-1].spec[H.KEY]['completed_at']+=1;before=snapshot_engine(self.e)
   with self.assertRaises(ValueError):self.e.pokemon_activity(self.a,'experience_training',targets=self.ps,from_training=True)
-  self.assertEqual(before,dump_engine(self.e))
+  self.assertEqual(before,snapshot_engine(self.e))
  def test_typed_receipt_and_late_consumption_failure(self):
   self.hour();original=deepcopy(self.ps[0].spec[H.KEY])
   for key,value in (('day',False),('hours',True),('applications',['duplicate','duplicate'])):
-   self.ps[0].spec[H.KEY]=dict(deepcopy(original),**{key:value});before=dump_engine(self.e)
+   self.ps[0].spec[H.KEY]=dict(deepcopy(original),**{key:value});before=snapshot_engine(self.e)
    with self.assertRaises(ValueError):self.e.pokemon_activity(self.a,'experience_training',targets=self.ps,from_training=True)
-   self.assertEqual(before,dump_engine(self.e))
-  self.ps[0].spec[H.KEY]=original;before=dump_engine(self.e);native=H.consume
+   self.assertEqual(before,snapshot_engine(self.e))
+  self.ps[0].spec[H.KEY]=original;before=snapshot_engine(self.e);native=H.consume
   def fail(target,application):
    native(target,application)
    if target.entity_id==self.ps[-1].entity_id:raise ValueError('late application failure')
   with patch.object(H,'consume',side_effect=fail):
    with self.assertRaisesRegex(ValueError,'late application failure'):self.e.pokemon_activity(self.a,'experience_training',targets=self.ps,from_training=True)
-  self.assertEqual(before,dump_engine(self.e))
+  self.assertEqual(before,snapshot_engine(self.e))
  def test_policy_hour_then_policy_xp(self):
   self.op.update(kind='hour',safe=True,reason='observed safe training ground',request_id='native-hour');self.load()
   self.assertEqual(self.run_policy(request_id='policy-hour')['status'],'PolicyTrainingCompleted')
@@ -62,8 +62,8 @@ class TrainingHourTests(unittest.TestCase):
   self.op.update(kind='experience',from_training=True)
   self.assertEqual(self.run_policy(request_id='policy-xp')['training_result']['awards'],[7,7]);self.assertEqual(self.e.elapsed_seconds,3600)
  def test_mutually_exclusive_credit_sources_reject(self):
-  self.hour();before=dump_engine(self.e)
+  self.hour();before=snapshot_engine(self.e)
   with self.assertRaises(ValueError):self.e.pokemon_activity(self.a,'experience_training',targets=self.ps,from_training=True,from_grooming=True)
-  self.assertEqual(before,dump_engine(self.e))
+  self.assertEqual(before,snapshot_engine(self.e))
 
 if __name__=='__main__':unittest.main()

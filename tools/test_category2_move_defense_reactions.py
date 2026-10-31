@@ -147,20 +147,20 @@ class MoveDefenseReactionsTests(unittest.TestCase):
 
     def test_invalid_path_is_atomic_and_can_be_declined(self):
         self.watch();event=self.waiting()
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         options=self.melee();options['path']=[(3,5),(3,2)]
         with self.assertRaises(ValueError):self.choose(event,options=options)
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.choose(event,use=False)
         self.assertIsNone(self.e._passive_pending)
 
     def test_ranged_endpoint_outside_attack_segment_rejects_before_roll_or_payment(self):
         self.t.pos=(6,2);self.r.pos=(4,4)
         self.watch('maneuver/원거리-가로채기');event=self.waiting('move/물대포')
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         options=self.ranged();options['path']=[(4,4),(5,4),(5,3)]
         with self.assertRaises(ValueError):self.choose(event,options=options)
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
 
     def test_pending_cold_restore_continues_without_repaying_or_rerolling(self):
         self.watch();event=self.waiting();rng=self.e.rng.getstate()
@@ -170,9 +170,9 @@ class MoveDefenseReactionsTests(unittest.TestCase):
         self.assertEqual(self.e.rng.getstate(),rng)
         self.assertEqual(self.a.move_uses['move/막치기'],1)
         self.assertEqual(self.a._action_history,['standard'])
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         with self.assertRaises(ValueError):self.choose(event,options=self.melee())
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
 
     def test_dodge_actual_hit_becomes_miss_without_intercept_cost(self):
         G.replace_baseline(self.e,self.t,'abilities',['회피'])
@@ -201,13 +201,13 @@ class MoveDefenseReactionsTests(unittest.TestCase):
 
     def test_recipient_leaf_rejects_missing_or_forged_native_token(self):
         move=deepcopy(self.e.r.moves['move/막치기']);mm,conf=self.e.r.move_mech(move['id'])
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         for token in (None,object(),{'intercepted':True}):
             with self.assertRaises(ValueError):
                 self.e._resolve_move_recipient(self.a,self.r,move['id'],move,mm,conf,
                     True,12,False,True,None,None,ordinary_single=True,
                     completion_id=None,passive_event=None,defense_token=token)
-            self.assertEqual(self.e.export_state(),before)
+            self.assertEqual(self.e.snapshot_state(),before)
 
     def test_interceptor_knockout_reaches_actual_recipient_moxie_listener(self):
         G.replace_baseline(self.e,self.a,'abilities',['자기과신'])
@@ -224,16 +224,16 @@ class MoveDefenseReactionsTests(unittest.TestCase):
 
     def test_immobilized_interceptor_rejects_before_cost_movement_or_rng(self):
         self.e.apply_status(self.r,'구속')
-        self.watch();event=self.waiting();before=self.e.export_state()
+        self.watch();event=self.waiting();before=self.e.snapshot_state()
         with self.assertRaises(ValueError):self.choose(event,options=self.melee())
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.choose(event,use=False)
 
     def test_never_miss_move_prohibits_intercept_attempt_before_cost(self):
         self.watch();event=self.waiting('move/스피드스타')
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         with self.assertRaises(ValueError):self.choose(event,options=self.melee())
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.choose(event,use=False)
 
     def test_request_order_rejects_another_reactor_without_consuming_offer(self):
@@ -242,9 +242,9 @@ class MoveDefenseReactionsTests(unittest.TestCase):
             {'actor_id':self.r.entity_id,'source':'maneuver/근접-가로채기'},
             {'actor_id':self.t.entity_id,'source':'ability/회피'}],
             reason='actual owners choose explicit reaction order')
-        event=self.waiting();before=self.e.export_state()
+        event=self.waiting();before=self.e.snapshot_state()
         with self.assertRaises(ValueError):self.choose(event,reactor=self.t,options={})
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         with self.assertRaises(PASSIVE.PassiveEventPending):self.choose(event,use=False)
         hp=self.t.hp
         self.choose(event,reactor=self.t,options={})
@@ -255,14 +255,14 @@ class MoveDefenseReactionsTests(unittest.TestCase):
         self.watch('maneuver/원거리-가로채기')
         event=self.waiting('move/파도타기');before=self.e.export_state()
         with self.assertRaises(ValueError):self.choose(event,options=self.ranged())
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
 
     def test_priority_intercept_requires_strictly_greater_actual_speed(self):
         self.r.stats['spe']=self.a.staged('spe')
         self.r.spec['stats']['spe']=self.r.stats['spe']
         self.watch();event=self.waiting('move/전광석화');before=self.e.export_state()
         with self.assertRaises(ValueError):self.choose(event,options=self.melee())
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.choose(event,use=False)
 
     def test_priority_intercept_succeeds_for_faster_actual_reactor(self):
@@ -290,9 +290,9 @@ class MoveDefenseReactionsTests(unittest.TestCase):
 
     def test_pokemon_loyalty_below_three_prohibits_own_trainer_intercept(self):
         self.pokemon_reactor(2)
-        self.watch();event=self.waiting();before=self.e.export_state()
+        self.watch();event=self.waiting();before=self.e.snapshot_state()
         with self.assertRaises(ValueError):self.choose(event,options=self.melee())
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
 
     def test_pokemon_loyalty_three_permits_actual_own_trainer_only(self):
         self.pokemon_reactor(3)
@@ -302,9 +302,9 @@ class MoveDefenseReactionsTests(unittest.TestCase):
 
     def test_pokemon_loyalty_three_rejects_another_trainers_ally(self):
         self.pokemon_reactor(3,owner=self.r)
-        self.watch();event=self.waiting();before=self.e.export_state()
+        self.watch();event=self.waiting();before=self.e.snapshot_state()
         with self.assertRaises(ValueError):self.choose(event,options=self.melee())
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
 
     def test_pokemon_loyalty_six_permits_pokemon_ally_intercept(self):
         owner=self.t;owner.pos=(15,14)
@@ -322,9 +322,9 @@ class MoveDefenseReactionsTests(unittest.TestCase):
             with self.subTest(status=status):
                 self.setUp()
                 self.e.apply_status(self.r,status)
-                self.watch();event=self.waiting();before=self.e.export_state()
+                self.watch();event=self.waiting();before=self.e.snapshot_state()
                 with self.assertRaises(ValueError):self.choose(event,options=self.melee())
-                self.assertEqual(self.e.export_state(),before)
+                self.assertEqual(self.e.snapshot_state(),before)
 
     def test_area_push_keeps_ally_inside_and_hits_interceptor_once_with_later_alias(self):
         self.r.pos=(3,4)

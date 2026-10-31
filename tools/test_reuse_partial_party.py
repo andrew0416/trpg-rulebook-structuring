@@ -7,7 +7,7 @@ from engine import Rules,Engine,Combatant
 from grid import Grid
 import pokemon_party as PARTY
 import party_actions as ACTIONS
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 
 class Tests(unittest.TestCase):
  @classmethod
@@ -41,10 +41,10 @@ class Tests(unittest.TestCase):
  def test_individual_actions_count_as_switch_and_same_pokemon_cannot_return(self):
   self.setup_world('league')
   self.e.act_on_party(self.a,recall=[self.p],request_id='recall',reason='actual recall')
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'same Pokemon'):
    self.e.act_on_party(self.a,send=[(self.p,(2,0))],request_id='invalid-send',reason='invalid same round')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
   row=self.e.act_on_party(self.a,send=[(self.q,(2,0))],request_id='send',reason='actual new Pokemon')
   self.assertTrue(row['counts_as_switch']);self.assertEqual(self.a.budget['standard'],0)
   self.e.end_of_turn(self.a)
@@ -52,9 +52,9 @@ class Tests(unittest.TestCase):
    self.e.start_of_turn(self.q,initiative_count=10)
  def test_replay_after_json_does_not_pay_twice_and_changed_intent_is_rejected(self):
   self.setup_world();row=self.switch();e=load_engine(self.r,json.loads(json.dumps(dump_engine(self.e))))
-  a,p,q=e.everyone[:3];before=dump_engine(e)
+  a,p,q=e.everyone[:3];before=snapshot_engine(e)
   self.assertEqual(e.act_on_party(a,recall=[p],send=[(q,(2,0))],request_id='switch-1',reason='actual switch'),row)
-  self.assertEqual(dump_engine(e),before)
+  self.assertEqual(snapshot_engine(e),before)
   with self.assertRaisesRegex(ValueError,'changed'):
    e.act_on_party(a,recall=[p],send=[(q,(3,0))],request_id='switch-1',reason='actual switch')
  def test_invalid_distance_ownership_destination_and_cost_are_atomic(self):

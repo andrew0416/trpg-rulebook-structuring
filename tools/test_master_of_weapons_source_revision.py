@@ -163,13 +163,13 @@ class MasterOfWeaponsSourceRevisionTests(unittest.TestCase):
 
     def test_selected_master_and_current_ownership_remain_required_despite_retained_grants(self):
         self.world();self.assert_grants();uid=self.weapon()
-        original=self.e.r._selected_rule;before=self.e.export_state()
+        original=self.e.r._selected_rule;before=self.e.snapshot_state()
         def changed(rule,*args,**options):
             return 'other/master-source' if rule==FW.MASTER else original(rule,*args,**options)
         with patch.object(self.e.r,'_selected_rule',changed):
             with self.assertRaisesRegex(ValueError,'selected acquisition source'):
                 FW.bond(self.e,self.a,uid,family='steelheart')
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.a.spec['feats'].remove(FW.MASTER)
         self.assertCountEqual(set(G.effective_capabilities(self.a)).intersection(GRANTED),GRANTED)
         self.assertFalse(FW.owns(self.a,FW.CALL))

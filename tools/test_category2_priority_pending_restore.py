@@ -8,7 +8,7 @@ sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
 import test_category2_priority_actions as P
 import passive_events as PASSIVE
 import move_completion as COMPLETE
-from state_codec import dump_engine
+from state_codec import dump_engine, snapshot_engine
 
 
 class PriorityPendingRestoreTests(unittest.TestCase):
@@ -50,11 +50,11 @@ class PriorityPendingRestoreTests(unittest.TestCase):
         self.assertEqual(len(self.e.initiative_reaction_status()['owed_turns']), 1)
         returned = COMPLETE.require_returned_event(self.e, event)
         self.assertTrue(returned)
-        before = dump_engine(self.e)
+        before = snapshot_engine(self.e)
         with self.assertRaises(ValueError):
             self.e.choose_ability_interrupt(event, self.foe, use=True,
                 options={'chosen_type': '강철'}, reason='completed choice replay refused')
-        self.assertEqual(before, dump_engine(self.e))
+        self.assertEqual(before, snapshot_engine(self.e))
         self.complete_round()
         self.assertEqual(self.p.custom_conditions['combat_turn_serial'], 1)
         self.assertFalse(self.e.initiative_reaction_status()['owed_turns'])

@@ -57,10 +57,10 @@ class AbilityConsumerAliasTests(unittest.TestCase):
 
         # The English CSV label is metadata, not a declared source selector alias.
         self.assertNotIn('Stall', engine.r.selection.names)
-        before = engine.export_state(); before_logs = list(engine.log_lines)
+        before = engine.snapshot_state(); before_logs = list(engine.log_lines)
         with self.assertRaises(UnresolvedRuleSelection):
             engine.gm.set_ability(actor, 'Stall', reason='undeclared English metadata is not a source identity')
-        self.assertEqual(engine.export_state(), before)
+        self.assertEqual(engine.snapshot_state(), before)
         self.assertEqual(engine.log_lines, before_logs)
 
     def test_unowned_excluded_sources_remain_inapplicable_without_resolving_the_requested_uid(self):

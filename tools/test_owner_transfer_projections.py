@@ -195,8 +195,8 @@ class OwnerTransferProjectionTests(unittest.TestCase):
         f = self.finisher()
         receipt = self.transfer(f); key = self.key(f.b)
         GRANTS.revoke(f.p, key, engine=f.e)
-        before = CODEC.dump_engine(f.e)
-        self.assertEqual(self.transfer(f), receipt); self.assertEqual(CODEC.dump_engine(f.e), before)
+        before = CODEC.snapshot_engine(f.e)
+        self.assertEqual(self.transfer(f), receipt); self.assertEqual(CODEC.snapshot_engine(f.e), before)
         NATIVE.assert_rejected_unchanged(f.e, lambda: self.transfer(f, reason='changed intent'), reason_pattern='intent|different|changed')
         self.transfer(f, 'projection/return', old=f.b, new=f.a)
         self.assertIn(self.key(f.a), GRANTS.state(f.p)['sources']); self.assertNotIn(key, GRANTS.state(f.p)['sources'])
@@ -214,9 +214,9 @@ class OwnerTransferProjectionTests(unittest.TestCase):
         target = index[f.t.entity_id]; move = loaded.r.move('move/몸통박치기')
         self.assertEqual(FINISHER.FX.passive_damage_mods(loaded, p, target, move,
             {'attacker': p, 'target': target, 'hit': True, 'move': move, 'engine': loaded})[1], 5)
-        before = CODEC.dump_engine(loaded)
+        before = CODEC.snapshot_engine(loaded)
         self.assertEqual(PARTY.transfer(loaded, old, target=p, new_owner=new, reason='actual gift', request_id='projection/transfer'), receipt)
-        self.assertEqual(CODEC.dump_engine(loaded), before)
+        self.assertEqual(CODEC.snapshot_engine(loaded), before)
         f.e.gm.restore(snapshot)
         self.assertIn(self.key(f.a), GRANTS.state(f.p)['sources']); self.assertNotIn(self.key(f.b), GRANTS.state(f.p)['sources'])
         self.assertEqual(f.bonus(f.p), 5)
@@ -226,7 +226,7 @@ class OwnerTransferProjectionTests(unittest.TestCase):
         f.b.spec['classes'] = [STATIC.ENDURING]
         GRANTS.grant(f.p, 'capabilities', 'Jump=1', 'fixture:refundable', 'feature',
             owner_id=f.a.entity_id, lifetime='your_pokemon', rule_id='observed/source', tutor_points=2)
-        before = CODEC.dump_engine(f.e); rulings = deepcopy(f.e.rulings.log)
+        before = CODEC.snapshot_engine(f.e); rulings = deepcopy(f.e.rulings.log)
         identities = (f.p.spec, f.p.modifiers, f.a.spec['pokemon_registry'])
         original = ITEMS.project_owned_pokemon_features
         def fail(engine, owner, targets):
@@ -237,7 +237,7 @@ class OwnerTransferProjectionTests(unittest.TestCase):
         with patch.object(ITEMS, 'project_owned_pokemon_features', side_effect=fail):
             with self.assertRaisesRegex(RuntimeError, 'late projected generic'):
                 self.transfer(f)
-        self.assertEqual(CODEC.dump_engine(f.e), before); self.assertEqual(f.e.rulings.log, rulings)
+        self.assertEqual(CODEC.snapshot_engine(f.e), before); self.assertEqual(f.e.rulings.log, rulings)
         self.assertIs(f.p.spec, identities[0]); self.assertIs(f.p.modifiers, identities[1])
         self.assertIs(f.a.spec['pokemon_registry'], identities[2]); self.assertIs(WORLD.actor_index(f.e)[f.p.entity_id], f.p)
 
@@ -278,13 +278,13 @@ class OwnerTransferProjectionTests(unittest.TestCase):
                     self.assertNotIn(key, GRANTS.state(f.p)['sources'])
 
     def test_generic_projection_requires_actual_ownership_and_never_calls_dedicated_registrars(self):
-        f = self.finisher(); before = CODEC.dump_engine(f.e)
+        f = self.finisher(); before = CODEC.snapshot_engine(f.e)
         fake = Combatant(f.r, deepcopy(f.foreign.spec))
         for targets in ((f.p,), (fake,), (f.foreign, f.foreign)):
             with self.subTest(targets=[x.entity_id for x in targets]):
                 NATIVE.assert_rejected_unchanged(f.e, lambda: ITEMS.project_owned_pokemon_features(f.e, f.b, targets),
                     reason_pattern='distinct actual owned')
-        self.assertEqual(CODEC.dump_engine(f.e), before)
+        self.assertEqual(CODEC.snapshot_engine(f.e), before)
         f.b.spec['feats'] += [CLASS.SHINING_FLAME, 'feat/지침']
         import move_state as MOVES
         import training_features as TRAINING

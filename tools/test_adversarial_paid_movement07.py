@@ -117,11 +117,11 @@ class PaidMovementCrossBoundaryTests(unittest.TestCase):
 
     def test_compound_cost_cannot_escape_returned_paid_departure(self):
         case, f, mover, destination = self.returned_departure('burrow')
-        before = f.e.export_state()
+        before = f.e.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'paid movement'):
             TURN.spend(f.e, mover, META.ActionCost(('standard', 'swift')),
                        'unrelated compound activation during paid movement')
-        self.assertEqual(f.e.export_state(), before)
+        self.assertEqual(f.e.snapshot_state(), before)
         with patch.object(Engine, 'd20', side_effect=AssertionError('returned departure cannot reroll')):
             case.transfer(f.e, mover, destination, 'burrow')
         self.assertNotIn(MOVE.COMMAND, mover.spec)

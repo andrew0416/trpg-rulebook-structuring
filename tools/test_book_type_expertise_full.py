@@ -245,7 +245,7 @@ class TypeExpertiseTests(unittest.TestCase):
 
     def test_tampered_acquisition_and_stat_provenance_cannot_be_saved(self):
         self.acquire()
-        state = self.e.export_state()
+        state = self.e.snapshot_state()
         # Corrupt the actual live receipt in isolation; the native serializer must reject it.
         sid, _ = TYPE.records(self.a)[0]
         selection = self.a.spec[GRANTS.KEY]['sources'][sid]['static_acquisition']['snapshot']['selection']
@@ -258,7 +258,7 @@ class TypeExpertiseTests(unittest.TestCase):
                 self.e.export_state()
         finally:
             selection['type'] = original_type
-        self.assertEqual(self.e.export_state(), state)
+        self.assertEqual(self.e.snapshot_state(), state)
         original = self.a.spec[GRANTS.KEY]['stat_sources']['atk']['sources'].pop(sid)
         try:
             with self.assertRaisesRegex(ValueError, 'stat tag'):

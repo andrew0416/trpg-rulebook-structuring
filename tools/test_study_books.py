@@ -290,7 +290,7 @@ class StudyBooksTests(unittest.TestCase):
   self.assertEqual((quantity['money_spent'],quantity['product_instance_ids'],self.t.spec['items'][quantity['item']]),(36,[],1))
   AP.extended_rest(self.t,request_id='actual/refreshment-maker-rest')
   self.t,p=self.restore(self.t,p);p.hp=1
-  before=self.e.export_state();self.assertEqual(CHEF.cook(self.e,self.t,**options),made);self.assertEqual(self.e.export_state(),before)
+  before=self.e.snapshot_state();self.assertEqual(CHEF.cook(self.e,self.t,**options),made);self.assertEqual(self.e.snapshot_state(),before)
   native=self.t.spec['crafting_products'][quantity['production_id']]['transformation']['result']
   saved=native['meal_planner_book_discount']['owner_id'];native['meal_planner_book_discount']['owner_id']=p.entity_id
   with self.assertRaises(CODEC.StateCodecError):CODEC.dump_engine(self.e)
@@ -551,10 +551,10 @@ class StudyBooksTests(unittest.TestCase):
   from unittest.mock import patch
   p=self.pokemon();selected=deepcopy(self.rules.units['condition/풀죽음'])
   selected['mech']['data']['legacy_core247']='next turn that round; no next-round carry'
-  before=self.e.export_state()
+  before=self.e.snapshot_state()
   with patch.dict(self.rules.units,{'condition/풀죽음':selected}),self.assertRaisesRegex(ValueError,'reviewed source adapter'):
    self.e.apply_status(p,'풀죽음')
-  self.assertEqual(self.e.export_state(),before)
+  self.assertEqual(self.e.snapshot_state(),before)
 
  def test_fungi_negative_effect_immunity_applies_only_reader_and_owned_pokemon(self):
   import herb_mushroom_rules as M
@@ -883,9 +883,9 @@ class StudyBooksTests(unittest.TestCase):
    self.assertEqual(out['recovered'],1)
   self.assertEqual((I.healed_today(self.t),self.t.injuries),(4,2))
   self.assertGreaterEqual(AP.available(self.t),2)
-  before=self.e.export_state()
+  before=self.e.snapshot_state()
   self.assertIs(self.e.recover_injury(self.t,source='trainer_ap',duration_minutes=1,reason='daily cap already spent'),False)
-  self.assertEqual(self.e.export_state(),before)
+  self.assertEqual(self.e.snapshot_state(),before)
   self.assertEqual(B.care_injury_bonus(self.e,self.t),0)
 
  def test_caretaker_actual_bandage_hp_adds_rate_instead_of_multiplying_two_doublings(self):

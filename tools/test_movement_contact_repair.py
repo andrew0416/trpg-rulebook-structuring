@@ -267,9 +267,9 @@ class MovementContactRepairTests(unittest.TestCase):
         self.assertEqual(NICOLETTE.state(e)['broken_ice'], [])
         row=actor.spec['_survivalist_shift']
         self.assertEqual((row['moved'], len(row['checks'])), (3, 2))
-        before=e.export_state()
+        before=e.snapshot_state()
         e.approach(actor, goal, movement_mode='sky', blindness_options=options)
-        self.assertEqual(e.export_state(), before)
+        self.assertEqual(e.snapshot_state(), before)
         self.assertTrue(e.validate_state()['valid'])
 
     def test_native_teleport_entry_reuses_contact_hook_without_affecting_aerial_transfer(self):

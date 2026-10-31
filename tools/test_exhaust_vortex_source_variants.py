@@ -6,7 +6,7 @@ import json,sys,unittest
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 from engine import Rules,Combatant
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import exhaust_moves as EXHAUST,vortex_state as VORTEX,turn as TURN
 import test_category2_exhaust_action_debt as EX
 import test_category2_vortex_parameters as VX
@@ -97,16 +97,16 @@ class ExhaustSourceVariantTests(unittest.TestCase):
         e,_,p,_=self.fixture()
         good={'value':EN_EX,'reason':'actual source choice','scope':EXHAUST.source_choices(p)['decision_scope']}
         for bad in (EN_EX,{'value':EN_EX,'reason':'not scoped'},dict(good,scope=dict(good['scope'],profile_hash='changed'))):
-            before=dump_engine(e)
+            before=snapshot_engine(e)
             with self.assertRaises(ValueError):EXHAUST.select_source(e,p,bad)
-            self.assertEqual(dump_engine(e),before)
+            self.assertEqual(snapshot_engine(e),before)
         clone=Combatant(e.r,deepcopy(p.spec))
-        before=dump_engine(e)
+        before=snapshot_engine(e)
         with self.assertRaises(ValueError):EXHAUST.select_source(e,clone,good)
-        self.assertEqual(dump_engine(e),before)
+        self.assertEqual(snapshot_engine(e),before)
         with patch.object(e.r.ruleset,'exclude_units',e.r.ruleset.exclude_units|{'keyword/탈진'}):
             with self.assertRaises(ValueError):EXHAUST.select_source(e,p,good)
-        self.assertEqual(dump_engine(e),before)
+        self.assertEqual(snapshot_engine(e),before)
 
 
 class VortexSourceVariantTests(unittest.TestCase):
@@ -144,10 +144,10 @@ class VortexSourceVariantTests(unittest.TestCase):
         self.e.start_of_turn(self.t,initiative_count=20)
         for bad in (None,1):
             if bad is not None:answer(self.e,bad)
-            before=dump_engine(self.e)
+            before=snapshot_engine(self.e)
             with patch.object(self.e,'d20',side_effect=AssertionError('no roll before a valid attempt decision')):
                 with self.assertRaisesRegex(ValueError,'choose whether'):self.e.end_of_turn(self.t)
-            self.assertEqual(dump_engine(self.e),before)
+            self.assertEqual(snapshot_engine(self.e),before)
         answer(self.e,False)
         with patch.object(self.e,'d20',side_effect=AssertionError('declined escape must not roll')):
             self.e.end_of_turn(self.t)
@@ -215,15 +215,15 @@ class VortexSourceVariantTests(unittest.TestCase):
 
     def test_current_source_scope_and_registered_actor_are_required_before_future_selection(self):
         good={'value':EN_VX,'reason':'actual source choice','scope':VORTEX.source_choices(self.t)['decision_scope']}
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         for bad in (EN_VX,dict(good,scope=dict(good['scope'],definition_hash='changed'))):
             with self.assertRaises(ValueError):VORTEX.select_source(self.e,self.t,bad)
-            self.assertEqual(dump_engine(self.e),before)
+            self.assertEqual(snapshot_engine(self.e),before)
         clone=Combatant(self.r,deepcopy(self.t.spec))
         with self.assertRaises(ValueError):VORTEX.select_source(self.e,clone,good)
         with patch.object(self.r.ruleset,'exclude_units',self.r.ruleset.exclude_units|{VORTEX.SOURCE}):
             with self.assertRaises(ValueError):VORTEX.select_source(self.e,self.t,good)
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
 
 
 if __name__=='__main__':unittest.main(verbosity=2)

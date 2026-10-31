@@ -218,8 +218,8 @@ class PreciseThreadingsTests(unittest.TestCase):
   out=self.e.execute_source_policy_teaching(self.a,self.p,document,**args)
   self.assertEqual(out['status'],'PolicyTeachingCompleted');self.assertFalse(out['replayed'])
   loaded=self.restored();owner=next(x for x in loaded.everyone if x.entity_id==self.a.entity_id);p=next(x for x in loaded.everyone if x.entity_id==self.p.entity_id)
-  before=CODEC.dump_engine(loaded);again=loaded.execute_source_policy_teaching(owner,p,document,**args)
-  self.assertTrue(again['replayed']);self.assertEqual(CODEC.dump_engine(loaded),before)
+  before=CODEC.snapshot_engine(loaded);again=loaded.execute_source_policy_teaching(owner,p,document,**args)
+  self.assertTrue(again['replayed']);self.assertEqual(CODEC.snapshot_engine(loaded),before)
 
 if __name__=='__main__':unittest.main()
 

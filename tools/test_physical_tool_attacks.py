@@ -59,10 +59,10 @@ class Tests(unittest.TestCase):
     def test_sharp_breaks_basic_rope_and_replay_after_unequip_restores_no_action(self):
         e,a,b,key,rope,uid=self.fixture(rule='item/기본-밧줄')
         row=self.attack(e,a,rope,uid);self.assertTrue(WORLD.physical_lifecycle(e._physical_objects[rope])['destroyed'])
-        TURN.unequip_weapon(e,a,key);before=e.export_state()
-        self.assertEqual(self.attack(e,a,rope,uid),row);self.assertEqual(e.export_state(),before);self.valid(e)
+        TURN.unequip_weapon(e,a,key);before=e.snapshot_state()
+        self.assertEqual(self.attack(e,a,rope,uid),row);self.assertEqual(e.snapshot_state(),before);self.valid(e)
         with self.assertRaisesRegex(ValueError,'conflicts'):self.attack(e,a,rope,uid,damage=13)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
 
     def test_actual_four_weapon_ranges_and_long_range_minimum(self):
         for kind,distance in [('소형 근접무기',1),('대형 근접무기',1),('단거리 사격무기',4),('장거리 사격무기',12)]:
@@ -72,7 +72,7 @@ class Tests(unittest.TestCase):
                 self.assertEqual(self.attack(e,a,rope,uid)['applied_damage'],2);self.valid(e)
         e,a,b,key,rope,uid=self.fixture(kind='장거리 사격무기');before=e.export_state()
         with self.assertRaisesRegex(ValueError,'minimum range'):self.attack(e,a,rope,uid)
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
 
     def test_missing_observation_unequipped_other_holder_blocked_range_and_cost_refuse_atomically(self):
         for case in ('missing','unequipped','holder','wall','range','cost'):
@@ -82,15 +82,15 @@ class Tests(unittest.TestCase):
                 if case=='wall':e.grid.blocking.add((1,0))
                 if case=='range':WORLD.observe_location(e,e._physical_objects[rope],{'kind':'grid','cell':(3,0)},reason='out of reach')
                 if case=='cost':a.budget['standard']=0
-                before=e.export_state()
+                before=e.snapshot_state()
                 with self.assertRaises(ValueError):self.attack(e,b if case=='holder' else a,rope,uid)
-                self.assertEqual(e.export_state(),before)
+                self.assertEqual(e.snapshot_state(),before)
 
     def test_late_destruction_failure_rolls_back_weapon_use_and_same_hp(self):
         e,a,b,key,rope,uid=self.fixture(rule='item/기본-밧줄');obj=e._physical_objects[rope];before=e.export_state()
         with patch.object(WORLD,'finish_physical_use',side_effect=ValueError('late actual destruction failure')):
             with self.assertRaisesRegex(ValueError,'late actual'):self.attack(e,a,rope,uid)
-        self.assertEqual(e.export_state(),before);self.assertIs(e._physical_objects[rope],obj);self.valid(e)
+        self.assertEqual(e.snapshot_state(),before);self.assertIs(e._physical_objects[rope],obj);self.valid(e)
 
     def test_json_gm_restore_preserves_sourced_surface_and_damage_then_next_attack(self):
         e,a,b,key,rope,uid=self.fixture();first=self.attack(e,a,rope,uid)
@@ -102,12 +102,12 @@ class Tests(unittest.TestCase):
         self.assertEqual(self.attack(restored,ra,rope,uid,event='weapon/2')['hp_after'],16);self.valid(restored)
 
     def test_surface_cannot_be_reclassified_or_forged_and_bypassed_with_public_move(self):
-        e,a,b,key,rope,uid=self.fixture();before=e.export_state()
+        e,a,b,key,rope,uid=self.fixture();before=e.snapshot_state()
         with self.assertRaisesRegex(ValueError,'immutable'):
             e.observe_weapon_contact_surface(a,uid,contact_surface='blunt',source='gm/change',reason='try reset')
         with self.assertRaises(ValueError):e.attack_physical_object(a,rope,key,event_id='bypass',hit=True,
             damage_before_dr=999,source='gm/free-sharp',reason='no physical producer')
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         self.attack(e,a,rope,uid)
         e._physical_objects[uid][TOOLS.FIELD]['facts']['contact_surface']='blunt'
         self.assertFalse(e.validate_state()['valid'])

@@ -7,7 +7,7 @@ ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(RO
 import test_category2_special_entities as _fixture_test_category2_special_entities
 from engine import Engine,Rules
 from grid import Grid
-from state_codec import dump_engine,load_engine,StateCodecError
+from state_codec import dump_engine,load_engine,StateCodecError, snapshot_engine
 import network_connection as N,special_entities as S,world_entities as W,state_grants as G
 
 
@@ -55,7 +55,7 @@ class ConnectionTests(unittest.TestCase):
     row=e._physical_objects[c.entity_id+'/avatar'];self.assertEqual((row['status'],row['integrity']),('ejected',13))
    self.assertEqual(e._physical_objects['native-child/0/avatar']['temp_integrity'],7)
    self.assertEqual(bodies,{c.entity_id:(c.hp,c.location,c.budget) for c in index.values()});self.assertEqual(e.elapsed_seconds,before_time+3)
-   encoded=dump_engine(e);self.assertEqual(e.exit_network(a,'avatar',request_id='native-forced-exit',reason='SPOL-065 native forced anchor ejection',forced=True),result);self.assertEqual(encoded,dump_engine(e))
+   encoded=snapshot_engine(e);self.assertEqual(e.exit_network(a,'avatar',request_id='native-forced-exit',reason='SPOL-065 native forced anchor ejection',forced=True),result);self.assertEqual(encoded,snapshot_engine(e))
  def test_real_entry_and_exit_spend_standard_without_changing_physical_body(self):
   physical=(self.a.hp,self.a.location.copy(),self.a.stats.copy());out=self.enter();row=self.e._physical_objects['avatar']
   self.assertEqual((out['status'],row['integrity'],self.a.budget['standard']),('connected',40,0));self.assertEqual(physical,(self.a.hp,self.a.location,self.a.stats))

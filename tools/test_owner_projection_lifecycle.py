@@ -419,10 +419,10 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
             p = self.participant(b.e, owner)
             self.assertEqual(p.stats, p.spec['stats']); self.assertEqual(self.shine(b.e, p), 13)
             self.assertFalse(any(r.get('owner_id') == b.owner.entity_id for r in GRANTS.state(p)['sources'].values()))
-        before = CODEC.dump_engine(b.e); spec = deepcopy(b.target.spec)
+        before = CODEC.snapshot_engine(b.e); spec = deepcopy(b.target.spec)
         with self.assertRaisesRegex(ValueError, 'actual registered'):
             PARTY.project_current_owner(b.e, b.target)
-        self.assertEqual(CODEC.dump_engine(b.e), before); self.assertEqual(b.target.spec, spec)
+        self.assertEqual(CODEC.snapshot_engine(b.e), before); self.assertEqual(b.target.spec, spec)
         p = b.run(); self.assertEqual(self.shine(b.e, p), 15)
 
     def test_failed_capture_and_invalid_thrower_never_install_owner_effects(self):
@@ -497,7 +497,7 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
         for kind in BOUNDARIES:
             with self.subTest(boundary=kind):
                 b = self.boundary(kind, {'classes': [STATIC.ENDURING], 'feats': [SHINE, MOVES.GUIDANCE]})
-                before = CODEC.dump_engine(b.e); rulings = deepcopy(b.e.rulings.log)
+                before = CODEC.snapshot_engine(b.e); rulings = deepcopy(b.e.rulings.log)
                 owner_spec = b.owner.spec; rosters = (b.e.everyone, b.e.gm.everyone)
                 target_spec = None if b.target is None else b.target.spec
                 original = ITEMS.project_owned_pokemon_features
@@ -507,7 +507,7 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
                     raise ValueError('late owner projection failure')
                 with patch.object(ITEMS, 'project_owned_pokemon_features', side_effect=fail):
                     with self.assertRaisesRegex(ValueError, 'late owner projection failure'): b.run()
-                self.assertEqual(CODEC.dump_engine(b.e), before); self.assertEqual(b.e.rulings.log, rulings)
+                self.assertEqual(CODEC.snapshot_engine(b.e), before); self.assertEqual(b.e.rulings.log, rulings)
                 self.assertIs(b.owner.spec, owner_spec)
                 self.assertIs(b.e.everyone, rosters[0]); self.assertIs(b.e.gm.everyone, rosters[1])
                 if b.target is not None: self.assertIs(b.target.spec, target_spec)
@@ -570,10 +570,10 @@ class OwnerProjectionLifecycleTests(unittest.TestCase):
         receipt = PARTY.transfer(b.e, b.owner, target=p, new_owner=new, reason='actual later transfer', request_id='projection/transfer')
         self.assertEqual(p.stats, p.spec['stats']); self.assertEqual(self.shine(b.e, p), 13)
         self.assertEqual(MOVES.describe(b.e.r, p.spec)['total'], 6)
-        before = CODEC.dump_engine(b.e)
+        before = CODEC.snapshot_engine(b.e)
         self.assertEqual(PARTY.transfer(b.e, b.owner, target=p, new_owner=new,
             reason='actual later transfer', request_id='projection/transfer'), receipt)
-        self.assertEqual(CODEC.dump_engine(b.e), before)
+        self.assertEqual(CODEC.snapshot_engine(b.e), before)
 
 
 if __name__ == '__main__':

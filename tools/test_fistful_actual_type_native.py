@@ -233,10 +233,10 @@ class FistfulActualTypeTests(unittest.TestCase):
         import heavy_injury_adapter as HEAVY
         for kind in (PASSIVE.PassiveEventPending,HEAVY.HeavyPending):
             with self.subTest(exception=kind.__name__):
-                e,trainer,target,_=self.world();self.held(e,trainer);before=e.export_state()
+                e,trainer,target,_=self.world();self.held(e,trainer);before=e.snapshot_state()
                 with patch.object(Engine,'use_move_on',side_effect=kind('unissued-event')):
                     with self.assertRaises(kind):self.cast(e,trainer,target)
-                self.assertEqual(e.export_state(),before)
+                self.assertEqual(e.snapshot_state(),before)
                 self.assertIsNotNone(trainer.spec[RFS.KEY]['held_shard'])
                 self.assertNotIn(MID,trainer.moves)
 

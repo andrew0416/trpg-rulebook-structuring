@@ -23,12 +23,12 @@ class FortressFullTests(FortressFixture,unittest.TestCase):
    for name in ('철벽','방어'):self.assertIn(self.rules.move_id(name),self.a.moves)
    for feature in F.FEATURES:
     row=F.acquired(self.a,feature);self.assertEqual(row['snapshot']['source'],F.source(self.rules,feature,edition))
-    before=self.e.export_state();self.acquire(feature);self.assertEqual(self.e.export_state(),before)
+    before=self.e.snapshot_state();self.acquire(feature);self.assertEqual(self.e.snapshot_state(),before)
    self.assertEqual(F.acquired(self.a,F.GUARDIAN)['snapshot']['selection']['mark_scope'],'korean_own_mark')
    self.valid();self.restore();self.valid()
    self.scene(features=(F.CLASS,),edition=edition)
    default=lambda:T.acquire_static(self.e,self.a,F.GUARDIAN,acquisition_request_id='guardian/default-scope',selection={'edition':edition})
-   default();before=self.e.export_state();default();self.assertEqual(self.e.export_state(),before)
+   default();before=self.e.snapshot_state();default();self.assertEqual(self.e.snapshot_state(),before)
    self.assertEqual(F.acquired(self.a,F.GUARDIAN)['snapshot']['selection']['mark_scope'],'korean_own_mark')
 
  def test_class_is_not_automatic_features_and_raw_names_have_no_authority(self):

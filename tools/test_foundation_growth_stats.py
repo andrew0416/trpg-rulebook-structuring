@@ -86,7 +86,7 @@ class EvolutionAllocationTests(unittest.TestCase):
   from builder import build_pokemon
   from engine import Engine,Combatant
   import downtime as D,growth_stats as G,state_grants as S
-  from state_codec import dump_engine,load_engine
+  from state_codec import dump_engine,load_engine, snapshot_engine
   e=Engine(self.r);c=Combatant(self.r,build_pokemon(self.r,'잉어킹',20,moves=[],abilities=[]));e.everyone=e.gm.everyone=[c]
   S._source(c,'test/evolution-stat','feature',rule_id='combat/struggle');S.stat(c,'atk',3,'test/evolution-stat')
   D.evolve_combatant(e,c,'갸라도스');out=G.project(self.r,c.spec)
@@ -108,9 +108,9 @@ class ActorGrowthProjectionTests(unittest.TestCase):
   from state_codec import dump_engine
   c=self.c;base=c.spec['stats']['atk'];G._source(c,'clamp','feature',rule_id='combat/struggle')
   G.stat(c,'atk',-100,'clamp',minimum=2);G._source(c,'bonus','feature',rule_id='combat/struggle');G.stat(c,'atk',3,'bonus');c.stages['atk']=2
-  before=dump_engine(self.e);out=self.e.growth_stat_projection(c)
+  before=snapshot_engine(self.e);out=self.e.growth_stat_projection(c)
   self.assertEqual(out['permanent']['stats']['atk'],base);self.assertEqual(out['effective_stats']['atk'],5);self.assertEqual(out['combat_stages']['atk'],2)
-  self.assertEqual([x['after'] for x in out['source_operations']['atk']],[2,5]);self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual([x['after'] for x in out['source_operations']['atk']],[2,5]);self.assertEqual(snapshot_engine(self.e),before)
   out['combat_stages']['atk']=6;self.assertEqual(c.stages['atk'],2)
  def test_untracked_effective_or_legacy_offset_rejected(self):
   import state_grants as G
@@ -137,15 +137,15 @@ class ExplicitInvestmentTests(unittest.TestCase):
   from builder import build_pokemon
   from state_codec import dump_engine
   r=Rules(ROOT);e=Engine(r);c=Combatant(r,build_pokemon(r,'잉어킹',5,moves=[],abilities=[]));e.everyone=e.gm.everyone=[c]
-  before=dump_engine(e);out=e.plan_growth_nature(c,None)
-  self.assertEqual(out['permanent_stats'],c.spec['stats']);self.assertEqual(out['allocation']['investment'],c.spec['initial_allocation']['investment']);self.assertEqual(dump_engine(e),before)
+  before=snapshot_engine(e);out=e.plan_growth_nature(c,None)
+  self.assertEqual(out['permanent_stats'],c.spec['stats']);self.assertEqual(out['allocation']['investment'],c.spec['initial_allocation']['investment']);self.assertEqual(snapshot_engine(e),before)
   import nature_state as N,growth_stats as G
   from builder import species_lookup
   nature=next(name for name in r.mech('pokemon/natures')['by_name'] if not N.describe(r,name)['neutral'])
   proposal=G.allocate(species_lookup(r,c.spec['species'])['base_stats'],15,nature=nature,rules=r)
   changed=e.plan_growth_nature(c,nature,investment=proposal['investment'])
   self.assertEqual(changed['allocation']['nature_base'],proposal['nature_base']);self.assertTrue(any(changed['allocation']['nature_delta'].values()))
-  self.assertEqual(dump_engine(e),before)
+  self.assertEqual(snapshot_engine(e),before)
 
 
 if __name__=='__main__':unittest.main()

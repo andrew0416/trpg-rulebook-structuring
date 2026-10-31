@@ -104,9 +104,9 @@ class ChefTasteTests(unittest.TestCase):
                 served = FIX.serve(engine, chef, FIX.cook(engine, chef, recipe='tasty_snack', snack=snack)['batch_id'], partner)
                 payload = FOOD.get_buff(partner, served['buff_id'])['effect']
                 FIX.battle(engine, partner if payload['trigger'] != 'received_attack' else foe)
-                before = engine.export_state()
+                before = engine.snapshot_state()
                 self.assertIsInstance(engine.consume_food_buff(partner, buff_id=served['buff_id']), C.PendingDecision)
-                self.assertEqual(engine.export_state(), before)
+                self.assertEqual(engine.snapshot_state(), before)
                 FIX.ruling(engine, boundary)
                 initiative, evasion, status_evasion, saves, effect = (engine.initiative_value(partner).value, partner.evasion('물리', engine=engine),
                                                                       partner.evasion('변화', engine=engine), LIFETIMES.numeric(partner, 'save_modifier'), CHEF.effect_range_bonus(engine, partner, move))

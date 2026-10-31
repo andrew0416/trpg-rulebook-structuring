@@ -13,7 +13,7 @@ import unittest
 from engine import Rules, Engine, Combatant
 from builder import build_trainer
 from rulings import Rulings
-from state_codec import dump_engine, load_engine
+from state_codec import dump_engine, load_engine, snapshot_engine
 import combat_timing as TIME
 import effect_contracts as CONTRACTS
 import effect_lifetimes as LIFE
@@ -162,11 +162,11 @@ class AcceptedTriggerSources(unittest.TestCase):
     def test_eown_source_05_live_numeric_rechecks_current_registered_source_bytes(self):
         self.register()
         self.e.end_of_turn(self.a)
-        before = dump_engine(self.e)
+        before = snapshot_engine(self.e)
         with self.changed_source():
             with self.assertRaisesRegex(ValueError, 'source changed'):
                 LIFE.numeric(self.a, 'damage_reduction')
-        self.assertEqual(dump_engine(self.e), before)
+        self.assertEqual(snapshot_engine(self.e), before)
         self.assertEqual(LIFE.numeric(self.a, 'damage_reduction'), 5)
 
     def test_eown_source_06_condition_resume_rechecks_original_source_without_prefix_replay(self):
@@ -178,12 +178,12 @@ class AcceptedTriggerSources(unittest.TestCase):
         self.assertEqual((self.a.stages['atk'], self.a.stages['def'], self.a.stages['spe']), (1, 0, 0))
         token = next(token for token, row in self.e._effect_dispatch_receipts.items()
                      if row['status'] == 'condition_unknown')
-        before = dump_engine(self.e)
+        before = snapshot_engine(self.e)
         with self.changed_source():
             with self.assertRaisesRegex(ValueError, 'source changed'):
                 FX.resolve_condition(self.e, self.a, token, target_was_asleep=True,
                                      reason='actual historical observation after source changed')
-        self.assertEqual(dump_engine(self.e), before)
+        self.assertEqual(snapshot_engine(self.e), before)
         FX.resolve_condition(self.e, self.a, token, target_was_asleep=True,
                              reason='actual historical observation after original source restored')
         self.assertEqual((self.a.stages['atk'], self.a.stages['def'], self.a.stages['spe']), (1, 1, 1))

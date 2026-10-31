@@ -70,10 +70,10 @@ class AbilityStateProjectionTests(unittest.TestCase):
 
   mimic_e=self.engine();mimic=self.actor(mimic_e,'ability/의태');baseline=list(mimic.types)
   observation={'environment':'숲','fact':self.fact('forest')}
-  before=mimic_e.export_state()
+  before=mimic_e.snapshot_state()
   with self.assertRaises(ValueError):
    mimic_e.activate_ability_state(mimic,'ability/의태',choice='불꽃',observation=observation,reason='invalid field choice')
-  self.assertEqual(mimic_e.export_state(),before)
+  self.assertEqual(mimic_e.snapshot_state(),before)
   mimic_e.activate_ability_state(mimic,'ability/의태',choice='풀',observation=observation,reason='actual forest choice')
   self.assertEqual(mimic.types,['풀'])
   mimic_e.end_scene([mimic]);self.assertEqual(mimic.types,baseline)
@@ -96,10 +96,10 @@ class AbilityStateProjectionTests(unittest.TestCase):
 
   leafy=self.actor(e,'ability/잎사귀망토',name='leafy')
   choices=list(P.definition(self.r,'ability/잎사귀망토')['choices'])
-  before=e.export_state()
+  before=e.snapshot_state()
   with self.assertRaises(ValueError):
    e.activate_ability_state(leafy,'ability/잎사귀망토',choice=choices[0],reason='independent activation has no printed permission')
-  self.assertEqual(e.export_state(),before)
+  self.assertEqual(e.snapshot_state(),before)
   self.assertTrue(e.validate_state()['valid'])
 
  def test_hunger_switch_consumes_pending_choices_at_actual_turn_start(self):
@@ -119,13 +119,13 @@ class AbilityStateProjectionTests(unittest.TestCase):
   e=self.engine();c=self.actor(e,source,name='locked hunger',pos=(2,2))
   other=self.actor(e,'ability/멀티타입',name='other turn',pos=(3,2))
   def refuse():
-   before=e.export_state()
+   before=e.snapshot_state()()
    with self.assertRaisesRegex(ValueError,'native turn-start'):
     e.activate_ability_state(c,source,choice='배고픈 모양',reason='off-trigger change')
-   self.assertEqual(e.export_state(),before)
+   self.assertEqual(e.snapshot_state()(),before)
    with self.assertRaisesRegex(ValueError,'native turn-start'):
     P.activate(e,c,source,choice='배고픈 모양',reason='caller flag is not authority',_triggered=True)
-   self.assertEqual(e.export_state(),before)
+   self.assertEqual(e.snapshot_state()(),before)
   e.choose_ability_state(c,source,'배부른 모양',reason='first native turn choice')
   refuse()
   e.start_round(e.everyone);refuse()
@@ -135,9 +135,9 @@ class AbilityStateProjectionTests(unittest.TestCase):
   self.assertEqual(c.spec[P.KEY][source]['turn_choice_serial'],serial)
   e.choose_ability_state(c,source,'배고픈 모양',reason='next native turn choice')
   refuse()
-  before=e.export_state()
+  before=e.snapshot_state()
   with self.assertRaisesRegex(ValueError,'native turn-start'):P.start_turn(e,c)
-  self.assertEqual(e.export_state(),before)
+  self.assertEqual(e.snapshot_state(),before)
   e.end_of_turn(c);e.start_of_turn(other,initiative_count=19);refuse()
   self.assertEqual((c.form,c.accuracy_stage),('배부른 모양',2))
   saved=json.loads(json.dumps(e.export_state(),ensure_ascii=False))
@@ -181,10 +181,10 @@ class AbilityStateProjectionTests(unittest.TestCase):
 
  def test_hunger_switch_missing_choice_rolls_back_actual_turn_admission(self):
   e=self.engine();source='ability/꼬르륵스위치';c=self.actor(e,source)
-  e.start_round(e.everyone);before=e.export_state()
+  e.start_round(e.everyone);before=e.snapshot_state()
   with self.assertRaisesRegex(ValueError,'ability-state choice required'):
    e.start_of_turn(c,initiative_count=20)
-  self.assertEqual(e.export_state(),before)
+  self.assertEqual(e.snapshot_state(),before)
   e.choose_ability_state(c,source,'배부른 모양',reason='corrected turn choice')
   e.start_of_turn(c,initiative_count=20)
   self.assertEqual(c.spec[P.KEY][source]['turn_choice_serial'],1)
@@ -209,9 +209,9 @@ class AbilityStateProjectionTests(unittest.TestCase):
   manual_e=self.engine();manual=self.actor(manual_e,'ability/배틀스위치')
   manual_e.start_round(manual_e.everyone);manual_e.start_of_turn(manual,initiative_count=20)
   manual_e.activate_ability_state(manual,'ability/배틀스위치',choice='블레이드폼',reason='authored full action')
-  before=manual_e.export_state()
+  before=manual_e.snapshot_state()
   with self.assertRaises(ValueError):manual_e.activate_ability_state(manual,'ability/배틀스위치',choice='실드폼',reason='second full action')
-  self.assertEqual(manual_e.export_state(),before)
+  self.assertEqual(manual_e.snapshot_state(),before)
   self.assertTrue(e.validate_state()['valid']);self.assertTrue(manual_e.validate_state()['valid'])
 
  def test_creation_patterns_feed_the_actual_natural_ability_pool_consumer(self):

@@ -134,9 +134,9 @@ class DumplingsSourceTests(unittest.TestCase):
                 if csv:
                     self.reject(e, operation, 'CSV Dumplings cannot be sold or disassembled')
                 else:
-                    before = e.export_state()
+                    before = e.snapshot_state()
                     self.assertIsInstance(operation(), C.PendingDecision)
-                    self.assertEqual(e.export_state(), before)
+                    self.assertEqual(e.snapshot_state(), before)
                 self.assertEqual(CHEF.batches(chef)[dumpling['batch_id']]['count'], 1)
                 self.assertTrue(FIX.restore(self.rules, e)[0].validate_state()['valid'])
 
@@ -171,9 +171,9 @@ class DumplingsSourceTests(unittest.TestCase):
                 mixed = FIX.cook(e, chef, recipe='dumplings', ingredient_1={'item': CHEF.LEFTOVERS_ITEM}, ingredient_2={'batch_id': preserved['batch_id']})
                 served = FIX.serve(e, chef, mixed['batch_id'], p)
                 FIX.battle(e, p)
-                before = e.export_state()
+                before = e.snapshot_state()
                 self.assertIsInstance(e.consume_food_buff(p, buff_id=served['buff_id'], action_kind='free', action_reason='GM observed Berry trade-in'), C.PendingDecision)
-                self.assertEqual(e.export_state(), before)
+                self.assertEqual(e.snapshot_state(), before)
                 old = deepcopy(p.spec['stats'])
                 result = e.consume_food_buff(p, buff_id=served['buff_id'], action_kind='free', action_reason='GM observed Berry trade-in', owner_consent_by=chef)
                 self.assertEqual(result['components'][1]['item'], item)
@@ -220,10 +220,10 @@ class DumplingsSourceTests(unittest.TestCase):
                 self.assertEqual(p.hp, min(p.max_hp, 1+FOOD.DRINKS[uid]))
                 self.assertEqual(chef.spec['items'][uid], 0)
                 self.assertFalse(p.buffs)
-                before = e.export_state()
+                before = e.snapshot_state()
                 replay = FIX.cook(e, chef, recipe='meal_planner', item=uid, event_id='actual-meal-planner')
                 self.assertEqual(replay['production_id'], made['production_id'])
-                self.assertEqual(e.export_state(), before)
+                self.assertEqual(e.snapshot_state(), before)
                 self.assertTrue(FIX.restore(self.rules, e)[0].validate_state()['valid'])
 
     def test_meal_planner_real_csv_fruit_rank_is_selected_historically_without_mixing_homebrew_prices(self):
@@ -652,11 +652,11 @@ class DumplingsSourceTests(unittest.TestCase):
         self.reject(e,lambda:e.consume_food_buff(p,buff_id=served['buff_id'],move_id='move/몸통박치기'),'one quarter')
         p.hp=p.base_max_hp//4
         e.consume_food_buff(p,buff_id=served['buff_id'],move_id='move/몸통박치기')
-        before=e.export_state()
+        before=e.snapshot_state()
         self.assertEqual(FOOD.priority_berry(e,p,'move/몸통박치기'),'item/애슈열매')
         # A plain native food gate without the paid Custap loan cannot spend it.
         self.assertTrue(FOOD.move_allowed(e,p,self.rules.move('move/몸통박치기'),self.rules.move_mech('move/몸통박치기')[0]))
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         snapshot=e.gm.snapshot('Custap actual unacted turn')
         loaded,actors=FIX.restore(self.rules,e)
         for current,cook,user,target in ((e,chef,p,foe),(loaded,actors[chef.entity_id],actors[p.entity_id],actors[foe.entity_id])):

@@ -6,7 +6,7 @@ import sys,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'engine'))
 from engine import Rules,Engine,Combatant
 from builder import build_trainer
-from state_codec import dump_engine,load_engine,StateCodecError
+from state_codec import dump_engine,load_engine,StateCodecError, snapshot_engine
 import world_entities as W
 
 class SkillRewardTests(unittest.TestCase):
@@ -21,8 +21,8 @@ class SkillRewardTests(unittest.TestCase):
   rows=self.e.pending_trainer_skill_rewards(self.c)
   self.assertEqual([(r['level'],r['max_rank'],r['excluded_rank']) for r in rows],[(2,3,4),(6,4,5),(12,5,6)])
   self.assertEqual(self.c.spec.get('skills',{}),original)
-  self.assertEqual(result['skill_reward_levels'],[2,6,12]);before=dump_engine(self.e)
-  self.grow();self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(result['skill_reward_levels'],[2,6,12]);before=snapshot_engine(self.e)
+  self.grow();self.assertEqual(snapshot_engine(self.e),before)
   rows[0]['max_rank']=99;self.assertEqual(self.e.pending_trainer_skill_rewards(self.c)[0]['max_rank'],3)
   restored=load_engine(self.rules,dump_engine(self.e));c=W.actor_index(restored)[self.c.entity_id]
   self.assertEqual(restored.pending_trainer_skill_rewards(c),self.e.pending_trainer_skill_rewards(self.c))
@@ -45,12 +45,12 @@ class SkillRewardTests(unittest.TestCase):
    'when':{'op':'le','left':{'$input':'wanted'},'right':{'$input':'limit'}},
    'values':{'effects':[{'type':'stage_change','stat':'atk','delta':1,'target':'self'}]}}
   doc={'schema':1,'id':'skill-reward-condition','variants':[row]}
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   pending=self.e.execute_source_policy_effects(self.c,self.c,doc,context={'wanted':3})
-  self.assertEqual(pending['status'],'PolicyInputsRequired');self.assertEqual(dump_engine(self.e),before)
-  self.grow(10);before=dump_engine(self.e)
+  self.assertEqual(pending['status'],'PolicyInputsRequired');self.assertEqual(snapshot_engine(self.e),before)
+  self.grow(10);before=snapshot_engine(self.e)
   rejected=self.e.execute_source_policy_effects(self.c,self.c,doc,context={'wanted':4})
-  self.assertEqual(rejected['status'],'PolicyNotApplicable');self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(rejected['status'],'PolicyNotApplicable');self.assertEqual(snapshot_engine(self.e),before)
   allowed=self.e.execute_source_policy_effects(self.c,self.c,doc,context={'wanted':3})
   self.assertEqual(allowed['input_values']['limit'],3);self.assertEqual(allowed['status'],'PolicyEffectsCompleted')
   row['inputs']['limit']['binding']['milestone']=5

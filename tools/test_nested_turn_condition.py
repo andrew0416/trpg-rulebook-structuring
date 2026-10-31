@@ -24,7 +24,7 @@ import effect_contracts as EC
 import effects as FX
 import effects_ext as EXT
 import frequency as FREQ
-from state_codec import dump_engine, load_engine, StateCodecError
+from state_codec import dump_engine, load_engine, StateCodecError, snapshot_engine
 import test_end_turn_resume as BASE
 import test_historical_effect_source_closure as FIXTURE
 
@@ -56,11 +56,11 @@ class NestedTurnConditionTests(unittest.TestCase):
     def suspend(self):
         c = self.c
         self.register()
-        before = dump_engine(c.e)
+        before = snapshot_engine(c.e)
         try:
             self.returned = c.e.end_of_turn(c.a)
         except Exception as ex:
-            print('EXACT_NATIVE_REPRO', json.dumps(dict(error=str(ex), rollback=dump_engine(c.e) == before,
+            print('EXACT_NATIVE_REPRO', json.dumps(dict(error=str(ex), rollback=snapshot_engine(c.e) == before,
                   active_is_original=c.e._active_turn_actor is c.a, closures=len(c.e._turn_closures),
                   effects=self.effects), ensure_ascii=False))
             raise
@@ -83,9 +83,9 @@ class NestedTurnConditionTests(unittest.TestCase):
         self.assertEqual(FREQ.state(c.a)['activations'][FIXTURE.SOURCE_A]['used'], 1)
         self.assertEqual(c.a._action_history, ['free'])
         ACTION.validate_turn_end_closures(c.e)
-        before = dump_engine(c.e)
+        before = snapshot_engine(c.e)
         c.resolve(self.leaf, truth)
-        self.assertEqual(dump_engine(c.e), before)
+        self.assertEqual(snapshot_engine(c.e), before)
 
     def test_n01_native_branch_returns_actual_answerable_leaf_then_closes_once(self):
         self.suspend()
@@ -128,7 +128,7 @@ class NestedTurnConditionTests(unittest.TestCase):
     def test_n03_original_owner_source_boundary_and_leaf_request_guards(self):
         self.suspend()
         c = self.c
-        before = dump_engine(c.e)
+        before = snapshot_engine(c.e)
         with self.assertRaisesRegex(ValueError, 'owner'):
             c.e.resolve_effect_condition(object(), self.leaf, target_was_asleep=True, reason='wrong owner')
         with self.assertRaisesRegex(ValueError, 'missing historical'):
@@ -150,7 +150,7 @@ class NestedTurnConditionTests(unittest.TestCase):
                 c.resolve(self.leaf)
         finally:
             request['profile'] = original
-        self.assertEqual(dump_engine(c.e), before)
+        self.assertEqual(snapshot_engine(c.e), before)
         self.close()
 
     def test_n04_forged_request_and_child_graphs_are_rejected(self):
@@ -209,7 +209,7 @@ class NestedTurnConditionTests(unittest.TestCase):
     def test_n05_late_native_close_failure_rolls_back_leaf_suffix_and_retry(self):
         self.suspend()
         c = self.c
-        before = dump_engine(c.e)
+        before = snapshot_engine(c.e)
         original = TIME.end_turn
         def fail_after_native_close(engine, actor):
             original(engine, actor)
@@ -217,7 +217,7 @@ class NestedTurnConditionTests(unittest.TestCase):
         with patch.object(TIME, 'end_turn', side_effect=fail_after_native_close):
             with self.assertRaisesRegex(ValueError, 'late nested-condition native close fault'):
                 c.resolve(self.leaf)
-        self.assertEqual(dump_engine(c.e), before)
+        self.assertEqual(snapshot_engine(c.e), before)
         self.assertNotIn('condition_reply', self.rows[self.leaf])
         self.close()
 

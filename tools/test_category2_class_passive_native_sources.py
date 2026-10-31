@@ -81,13 +81,13 @@ class NativeClassPassiveTests(unittest.TestCase):
   with self.assertRaises(CODEC.StateCodecError):CODEC.dump_engine(e)
  def test_late_source_failure_rolls_back_native_sustain_cost_and_rng(self):
   e,t,p,q=self.fixture(feats=[C.TRICK_SHOT]);e.begin_encounter(e.everyone);e.start_round(e.everyone);e.start_of_turn(t)
-  before=CODEC.dump_engine(e);original=G._source
+  before=CODEC.snapshot_engine(e);original=G._source
   def fail_sustain(*args,**kwargs):
    if kwargs.get('sustain'):raise RuntimeError('late native sustain source')
    return original(*args,**kwargs)
   with patch.object(G,'_source',side_effect=fail_sustain):
    with self.assertRaisesRegex(RuntimeError,'late native'):e.activate_class_passive(t,p,C.TRICK_SHOT)
-  self.assertEqual(before,CODEC.dump_engine(e))
+  self.assertEqual(before,CODEC.snapshot_engine(e))
 
 
 if __name__=='__main__':unittest.main()

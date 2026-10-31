@@ -170,32 +170,32 @@ class PokemonActivityTests(unittest.TestCase):
     self.assertTrue(loaded.validate_state()['valid'],loaded.validate_state()['issues'])
  def test_fishing_late_failure_source_and_actual_membership_are_atomic(self):
   self.a.spec['items'].update({'대단한낚싯대':1,'루어':1})
-  before=self.e.export_state()
+  before=self.e.snapshot_state()
   with patch.object(self.rules,'_selected_rule',return_value='unreviewed-fishing-variant'):
    with self.assertRaisesRegex(ValueError,'selected fishing source'):
     self.act('fishing',phase='start',rod='대단한낚싯대',attachment='루어')
   foreign=self.actor('not-registered','trainer')
   with self.assertRaisesRegex(ValueError,'actual registered'):
    self.e.pokemon_activity(foreign,'fishing',phase='start',rod='대단한낚싯대',attachment='루어')
-  self.assertEqual(self.e.export_state(),before)
+  self.assertEqual(self.e.snapshot_state(),before)
   self.act('fishing',phase='start',rod='대단한낚싯대',attachment='루어');before=self.e.export_state()
   advance=Engine.advance_time
   def fail_after_time(engine,*args,**options):
    advance(engine,*args,**options);engine.rng.random();raise RuntimeError('after actual fishing time')
   with patch.object(Engine,'advance_time',fail_after_time):
    with self.assertRaisesRegex(RuntimeError,'after actual fishing time'):self.act('fishing',phase='wait')
-  self.assertEqual(self.e.export_state(),before)
-  self.act('fishing',phase='wait',roll_d20=15);before=self.e.export_state()
+  self.assertEqual(self.e.snapshot_state(),before)
+  self.act('fishing',phase='wait',roll_d20=15);before=self.e.snapshot_state()
   skill_roll=Engine.skill_roll
   def fail_after_roll(engine,*args,**options):
    skill_roll(engine,*args,**options);engine.rng.random();raise RuntimeError('after actual fishing roll')
   with patch.object(Engine,'skill_roll',fail_after_roll):
    with self.assertRaisesRegex(RuntimeError,'after actual fishing roll'):self.act('fishing',phase='reel',target=self.p)
-  self.assertEqual(self.e.export_state(),before)
-  self.p.spec['trainer_id']=self.a.spec['id'];before=self.e.export_state()
+  self.assertEqual(self.e.snapshot_state(),before)
+  self.p.spec['trainer_id']=self.a.spec['id'];before=self.e.snapshot_state()
   with self.assertRaisesRegex(ValueError,'unowned wild'):
    self.act('fishing',phase='reel',target=self.p,fixed=[2]*4)
-  self.assertEqual(self.e.export_state(),before)
+  self.assertEqual(self.e.snapshot_state(),before)
  def test_fishing_failed_bait_always_escapes_without_an_extra_random_roll(self):
   self.a.spec['items'].update({'대단한낚싯대':1,'미끼':1})
   self.act('fishing',phase='start',rod='대단한낚싯대',attachment='미끼')
@@ -203,9 +203,9 @@ class PokemonActivityTests(unittest.TestCase):
   result=self.act('fishing',phase='reel',target=self.p,fixed=[1]*4)
   self.assertEqual(result['status'],'bait_lost');self.assertIs(result['escaped'],True)
   self.assertEqual(self.a.spec['items']['미끼'],0);self.assertEqual(self.e.rng.getstate(),rng)
-  before=self.e.export_state()
+  before=self.e.snapshot_state()
   with self.assertRaises(ValueError):self.act('fishing',phase='reel',target=self.p,fixed=[2]*4)
-  self.assertEqual(self.e.export_state(),before)
+  self.assertEqual(self.e.snapshot_state(),before)
  def test_fishing_five_minutes_and_bite15_then_athletics8_not_capture(self):
   self.a.spec['items'].update({'낡은낚싯대':1,'미끼':1});self.p.level=10;self.p.spec.update(evolved=False,size='Small')
   self.act('fishing',phase='start',rod='낡은낚싯대',attachment='미끼')

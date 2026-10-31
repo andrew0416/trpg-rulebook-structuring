@@ -179,19 +179,19 @@ class GrappleTests(unittest.TestCase):
         from action_metadata import ActionCost
         import action_resources as RESOURCES
         self.enter();self.turn_b()
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         self.assertFalse(TURN.spend(self.e,self.b,'shift','nonmovement Shift effect'))
         self.assertFalse(TURN.spend(self.e,self.b,'shift',GR.SOURCE+'/escape'))
         self.assertFalse(TURN.spend_compound(self.e,self.b,ActionCost(('shift','swift')),'compound Shift effect'))
         self.assertFalse(TURN.spend(self.e,self.b,ActionCost(('standard','shift')),'compound Shift effect'))
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.assertTrue(TURN.spend(self.e,self.b,'standard','permitted Standard effect'))
         self.assertTrue(TURN.spend(self.e,self.b,'swift','permitted Swift effect'))
         self.setUp();self.enter();RESOURCES.schedule(self.b,{'shift':1});self.turn_b()
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         self.assertFalse(TURN.spend(self.e,self.b,'shift','would downgrade Standard'))
         self.assertFalse(TURN.spend_compound(self.e,self.b,ActionCost(('shift','swift')),'would downgrade Standard'))
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
 
     def test_grappled_trainer_ordinary_party_recall_is_rejected_atomically(self):
         import test_reuse_partial_party as party
@@ -221,9 +221,9 @@ class GrappleTests(unittest.TestCase):
         self.assertEqual(GR.relation(self.e,self.a)['dominant'],self.a.entity_id)
         self.assertEqual(self.b.budget,dict(standard=0,shift=0,swift=1));self.assertEqual(self.b._action_history,['full'])
         rolls=[SF.event(self.e,c,uid).first for c,uid in ((self.b,'paired-challenger'),(self.a,'paired-defender'))]
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         self.assertIsInstance(self.e.grapple_action(self.b,'contest',**options),C.PendingDecision)
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         assert_rejected_unchanged(self.e,lambda:self.e.grapple_action(self.b,'contest',
             **dict(options,winner_choices={self.a.entity_id:'steal'})),reason_pattern='keep or end')
         assert_rejected_unchanged(self.e,lambda:self.e.grapple_action(self.b,'contest',
@@ -233,9 +233,9 @@ class GrappleTests(unittest.TestCase):
         self.assertEqual(self.b._action_history,['full'])
         for (c,uid),roll in zip(((self.b,'paired-challenger'),(self.a,'paired-defender')),rolls):
             self.assertIs(SF.event(self.e,c,uid).first,roll)
-        stable=self.e.export_state()
+        stable=self.e.snapshot_state()
         self.assertEqual(self.e.grapple_action(self.b,'contest',**dict(options,winner_choices={self.a.entity_id:'keep'})),out)
-        self.assertEqual(self.e.export_state(),stable)
+        self.assertEqual(self.e.snapshot_state(),stable)
 
     def test_default_paired_contest_keeps_defender_tie_and_resumes_its_own_end_choice(self):
         self.enter();self.turn_b()

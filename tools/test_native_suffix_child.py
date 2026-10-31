@@ -8,7 +8,7 @@ import action_lifecycle as ACTION
 import combat_timing as TIME
 import effect_contracts as CONTRACTS
 import frequency as FREQ
-from state_codec import dump_engine, load_engine
+from state_codec import dump_engine, load_engine, snapshot_engine
 import test_end_turn_resume as BASE
 import test_historical_effect_source_closure as FIXTURE
 
@@ -105,16 +105,16 @@ class NativeSuffixChildTests(unittest.TestCase):
         self.assertNotEqual(after_rng, before_rng)
         self.resume_b(); self.assert_closed()
         self.assertEqual(self.c.e.rng.getstate(), after_rng)
-        before = dump_engine(self.c.e)
+        before = snapshot_engine(self.c.e)
         self.c.resolve(self.a_token); self.resume_b()
-        self.assertEqual(dump_engine(self.c.e), before)
+        self.assertEqual(snapshot_engine(self.c.e), before)
 
     def test_json_preserves_graph_before_and_after_native_child_is_issued(self):
         self.suspend(); self.restore_json(); self.resume_a(); self.restore_json()
         self.resume_b(); self.assert_closed(); self.restore_json()
-        before = dump_engine(self.c.e)
+        before = snapshot_engine(self.c.e)
         self.resume_b()
-        self.assertEqual(dump_engine(self.c.e), before)
+        self.assertEqual(snapshot_engine(self.c.e), before)
 
     def test_gm_restore_keeps_the_actual_child_and_original_close(self):
         self.suspend(); self.resume_a()
@@ -130,7 +130,7 @@ class NativeSuffixChildTests(unittest.TestCase):
 
     def test_late_child_close_fault_rolls_back_observation_suffix_and_native_close(self):
         self.suspend(); self.resume_a()
-        before = dump_engine(self.c.e)
+        before = snapshot_engine(self.c.e)
         actual = TIME.end_turn
         def fail_after_close(engine, actor):
             actual(engine, actor)
@@ -138,15 +138,15 @@ class NativeSuffixChildTests(unittest.TestCase):
         with patch.object(TIME, 'end_turn', side_effect=fail_after_close):
             with self.assertRaisesRegex(ValueError, 'late suffix-child native close fault'):
                 self.resume_b()
-        self.assertEqual(dump_engine(self.c.e), before)
+        self.assertEqual(snapshot_engine(self.c.e), before)
         self.resume_b(); self.assert_closed()
 
     def test_replay_and_source_owner_boundary_guards_preserve_the_child(self):
         self.suspend(); self.resume_a()
         c = self.c
-        before = dump_engine(c.e)
+        before = snapshot_engine(c.e)
         c.resolve(self.a_token)
-        self.assertEqual(dump_engine(c.e), before)
+        self.assertEqual(snapshot_engine(c.e), before)
         with self.assertRaisesRegex(ValueError, 'owner'):
             c.e.resolve_effect_condition(c.a, self.b_token, target_was_asleep=True, reason='wrong owner')
         selected = c.f.r._selected_rule
@@ -160,15 +160,15 @@ class NativeSuffixChildTests(unittest.TestCase):
                 self.resume_b()
         finally:
             c.e.elapsed_seconds -= 1
-        self.assertEqual(dump_engine(c.e), before)
+        self.assertEqual(snapshot_engine(c.e), before)
         for attempt in (lambda: c.e.end_of_turn(c.a), lambda: c.e.advance_time(1, [c.a, self.b])):
             with self.assertRaisesRegex(ValueError, 'turn.end|turn end|turn-end|unfinished'):
                 attempt()
-            self.assertEqual(dump_engine(c.e), before)
+            self.assertEqual(snapshot_engine(c.e), before)
         self.resume_b(); self.assert_closed()
-        before = dump_engine(c.e)
+        before = snapshot_engine(c.e)
         c.resolve(self.a_token); self.resume_b()
-        self.assertEqual(dump_engine(c.e), before)
+        self.assertEqual(snapshot_engine(c.e), before)
 
     def test_trigger_revocation_does_not_cancel_the_already_launched_child(self):
         self.suspend(); self.resume_a()

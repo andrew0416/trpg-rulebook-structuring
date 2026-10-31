@@ -10,7 +10,7 @@ sys.path[:0] = [str(ROOT / 'engine'), str(ROOT / 'tools')]
 from engine import Rules, Engine, Combatant
 from builder import build_pokemon, build_trainer, species_lookup
 from grid import Grid
-from state_codec import dump_engine, load_engine
+from state_codec import dump_engine, load_engine, snapshot_engine
 from native_scenario_fixture import prepare_body, prepare_object, assert_rejected_unchanged
 import csv_item_form_contracts as UNION
 import state_grants as G
@@ -176,11 +176,11 @@ class WeaponUnionCrownedSourceRevisionTests(unittest.TestCase):
                               rule_id='combat/struggle', mode='permission')
                 G.type_operation(a, 'add', ['물'], 'actual/later-type')
                 self.assertIn('투명', G.effective(a, 'capabilities'))
-                before = dump_engine(e)
+                before = snapshot_engine(e)
                 for _ in range(3):
                     CAP.power(a)
                     G.effective(a, 'capabilities')
-                self.assertEqual(dump_engine(e), before)
+                self.assertEqual(snapshot_engine(e), before)
                 UNION.end_weapon_union(e, a, minutes=1, reason='actual observed release')
                 self.assertEqual(CAP.power(a), power)
                 self.assertTrue(set(original) <= set(G.effective(a, 'capabilities')))

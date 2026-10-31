@@ -334,10 +334,10 @@ class AbilityExchangeContractsTests(unittest.TestCase):
 
     def test_actual_public_selection_rejects_forged_event_fields(self):
         self.give(self.t,['미라 [Playtest]','단순'])
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         with self.assertRaisesRegex(TypeError,'unexpected keyword'):
             self.e.gm.choose_ability_transition(self.t,self.t,X.MUMMY,ability='단순',reason='forged producer',completion_id='fake')
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
 
     def test_gas_keeps_nontriggered_arena_and_tail_native_activation_and_psychic_struggle(self):
         import ability_control_contracts as CONTROL

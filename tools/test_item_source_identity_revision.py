@@ -112,7 +112,7 @@ class CannonItemIdentityTests(unittest.TestCase):
             with self.subTest(route=route):
                 f=self.scene(loaded=False)
                 weapon={'name':'late published foot weapon','kind':'발 무기','grade':'조잡','moves':[]}
-                before=f.e.export_state()
+                before=f.e.snapshot_state()
                 before_keys=(set(f.r.moves),set(f.r.moves_mech),set(f.r.selection.units))
                 if route=='local':
                     original=FRAMEWORK.on_equip
@@ -129,7 +129,7 @@ class CannonItemIdentityTests(unittest.TestCase):
                         raise ValueError('late outer weapon publication')
                     with self.assertRaisesRegex(ValueError,'late outer weapon publication'):
                         GRANTS.transition(f.e,f.a,fail)
-                self.assertEqual(f.e.export_state(),before)
+                self.assertEqual(f.e.snapshot_state(),before)
                 self.assertEqual((set(f.r.moves),set(f.r.moves_mech),set(f.r.selection.units)),before_keys)
 
     def test_late_native_damage_failure_restores_load_stock_action_and_rng(self):
@@ -232,21 +232,21 @@ class PickupSourceCategoryTests(unittest.TestCase):
         actor=WORLD.actor_index(engine)[identity]
         self.assertEqual(actor.spec[CAP.STATE]['receipts'][-1],legacy)
         self.assertEqual(actor.spec['items'][legacy['item_id']],1)
-        before=engine.export_state()
+        before=engine.snapshot_state()
         decision=CAP.resolve_scavenge_reward(engine,actor,day=result['day'],item_id='TM1',
                                             reason='request reconciliation of historical loot')
         self.assertIsInstance(decision,C.PendingDecision)
         self.assertEqual(decision.basis['original_receipt'],legacy)
         self.assertEqual(decision.basis['printed_category'],'tm')
         self.assertFalse(decision.basis['automatic_inventory_adjustment'])
-        self.assertEqual(engine.export_state(),before)
+        self.assertEqual(engine.snapshot_state(),before)
         self.assertEqual(actor.spec[CAP.STATE]['scavenger_days'],[result['day']])
         NATIVE.assert_rejected_unchanged(engine,lambda:engine.scavenge(actor,duration_minutes=5,
             duration_reason='legacy day cannot grant another roll'),reason_pattern='daily use')
         actor.spec[CAP.STATE]['receipts'][-1]['item_id']='item/상처약'
         with self.assertRaises(CODEC.StateCodecError):CODEC.dump_engine(engine)
         actor.spec[CAP.STATE]['receipts'][-1]=deepcopy(legacy)
-        self.assertEqual(engine.export_state(),before)
+        self.assertEqual(engine.snapshot_state(),before)
 
     def test_none_wrong_category_non_tm_and_missing_gm_reason_reject_unchanged(self):
         engine,actor,result=self.search(3)

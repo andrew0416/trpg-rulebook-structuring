@@ -8,7 +8,7 @@ sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 import test_foundation_initiative_schedule as F
 import initiative_interrupts as I
 import turn
-from state_codec import dump_engine,load_engine,StateCodecError
+from state_codec import dump_engine,load_engine,StateCodecError, snapshot_engine
 from engine import Rules
 
 
@@ -86,19 +86,19 @@ class BetweenTurnWindowTests(unittest.TestCase):
 
     def test_wrong_or_stale_boundary_rejects_without_payment_rng_or_progress(self):
         self.open_round();stale=I.between_trigger(self.e);self.close(self.a)
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         for bad in (stale,dict(I.between_trigger(self.e),epoch=99),dict(I.between_trigger(self.e),surplus=True)):
             with self.assertRaises(ValueError):self.e.queue_initiative_reactions([self.borrow(self.b)],trigger=bad)
-            self.assertEqual(before,dump_engine(self.e))
-        self.e.start_of_turn(self.b);before=dump_engine(self.e)
+            self.assertEqual(before,snapshot_engine(self.e))
+        self.e.start_of_turn(self.b);before=snapshot_engine(self.e)
         with self.assertRaises(ValueError):I.between_trigger(self.e)
-        self.assertEqual(before,dump_engine(self.e))
+        self.assertEqual(before,snapshot_engine(self.e))
 
     def test_late_start_failure_restores_between_boundary_and_all_debts(self):
-        self.open_round();q=self.queue_between(self.borrow(self.b));before=dump_engine(self.e)
+        self.open_round();q=self.queue_between(self.borrow(self.b));before=snapshot_engine(self.e)
         with patch('turn.reset_budget',side_effect=ValueError('late reset')):
             with self.assertRaises(ValueError):self.e.begin_initiative_reaction(q['window_id'],'borrow')
-        self.assertEqual(before,dump_engine(self.e));self.assertIsNone(self.e._active_turn_actor)
+        self.assertEqual(before,snapshot_engine(self.e));self.assertIsNone(self.e._active_turn_actor)
 
     def test_nested_reaction_returns_to_borrow_then_actual_between_boundary(self):
         self.open_round();q=self.queue_between(self.borrow(self.b))

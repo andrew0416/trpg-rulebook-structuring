@@ -62,8 +62,8 @@ class BreatherTransferTests(unittest.TestCase):
   self.assertTrue(result['completed']);self.assertEqual((self.a.pos,self.a.temp_hp,transfer.call_count),((6,2),0,1))
   self.assertEqual(self.a.budget,{'standard':0,'shift':0,'swift':1});self.assertEqual(self.a._action_history.count('full'),1)
   self.assertEqual(self.a.spec['_teleport']['used_round'],self.e.round_no);self.assertNotIn('혼란',self.a.conditions)
-  before=CODEC.dump_engine(self.e);self.assertEqual(self.e.take_breather(self.a,**options),result)
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  before=CODEC.snapshot_engine(self.e);self.assertEqual(self.e.take_breather(self.a,**options),result)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
   with self.assertRaisesRegex(ValueError,'once per combat round'):
    self.e.teleport(self.a,(5,2),surface_contact=True,reason_text='second actual same-round attempt')
  def test_missing_or_invalid_teleport_world_observations_fail_before_full_or_save(self):
@@ -73,14 +73,14 @@ class BreatherTransferTests(unittest.TestCase):
          ({'surface_contact':True},[(2,2),(3,2),(6,2)],ValueError)]
   for observations,path,result_type in cases:
    with self.subTest(observations=observations,path=path):
-    self.setUp();options=self.transfer_options('teleport',movement_options=observations,path=path);before=CODEC.dump_engine(self.e)
+    self.setUp();options=self.transfer_options('teleport',movement_options=observations,path=path);before=CODEC.snapshot_engine(self.e)
     if result_type is C.PendingDecision:self.assertIsInstance(self.e.take_breather(self.a,**options),result_type)
     else:
      with self.assertRaises(result_type):self.e.take_breather(self.a,**options)
-    self.assertEqual(CODEC.dump_engine(self.e),before)
-  self.setUp();self.movement(teleport=6);before=CODEC.dump_engine(self.e)
+    self.assertEqual(CODEC.snapshot_engine(self.e),before)
+  self.setUp();self.movement(teleport=6);before=CODEC.snapshot_engine(self.e)
   self.assertIsInstance(self.take(path=[(2,2),(6,2)],movement_mode='teleport',movement_options={'surface_contact':True}),C.PendingDecision)
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
  def test_actual_teleport_reaction_then_changed_destination_resumes_after_json_without_repay_or_aoo(self):
   options=self.transfer_options('teleport');self.b.aoo_used=False;teleport_plan=M.teleport_plan
   def obstruct(e,c,*args,**kwargs):
@@ -115,16 +115,16 @@ class BreatherTransferTests(unittest.TestCase):
     self.assertEqual((len(getattr(restored,'_burrow_tunnels',[])),current.spec.get('_teleport',{}).get('used_round')),(tunnels,used))
     self.assertEqual(restored.take_breather(current,**options),result)
  def test_burrow_observations_and_underground_curse_hold_before_payment(self):
-  self.movement(burrow=6);before=CODEC.dump_engine(self.e)
+  self.movement(burrow=6);before=CODEC.snapshot_engine(self.e)
   self.assertIsInstance(self.take(movement_mode='burrow',movement_options={}),C.PendingDecision)
-  self.assertEqual(CODEC.dump_engine(self.e),before)
-  self.e.grid.blocking.add((6,2));before=CODEC.dump_engine(self.e)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
+  self.e.grid.blocking.add((6,2));before=CODEC.snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'blocked'):
    self.take(movement_mode='burrow',movement_options={'diggable':True,'surface':True})
-  self.assertEqual(CODEC.dump_engine(self.e),before);self.e.grid.blocking.clear()
+  self.assertEqual(CODEC.snapshot_engine(self.e),before);self.e.grid.blocking.clear()
   self.e.apply_status(self.a,'저주',source='move/저주',applied_by=self.b);before=CODEC.dump_engine(self.e)
   self.assertIsInstance(self.take(movement_mode='burrow',movement_options={'diggable':True}),C.PendingDecision)
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
  def test_stationary_highest_native_mode_does_not_create_a_transfer_or_frequency_use(self):
   for mode in ('burrow','teleport'):
    with self.subTest(mode=mode):

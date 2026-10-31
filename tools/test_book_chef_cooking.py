@@ -135,9 +135,9 @@ class ChefCookingTests(unittest.TestCase):
         self.rejected(engine, lambda: FIX.serve(engine, chef, batch_id, chef), 'exhausted')
         self.rejected(engine, lambda: FIX.serve(engine, chef, 'chef-batch:nobody:1', chef), 'owned Chef batch')
         partner.hp = 1
-        before = engine.export_state()
+        before = engine.snapshot_state()
         self.assertIsInstance(engine.consume_food_buff(partner, buff_id=first['buff_id'], action_kind='free', action_reason='actual berry benefit'), C.PendingDecision)
-        self.assertEqual(engine.export_state(), before)  # the sour taste bonus needs the GM lifetime ruling first
+        self.assertEqual(engine.snapshot_state(), before)  # the sour taste bonus needs the GM lifetime ruling first
         FIX.ruling(engine, 'encounter_end')
         result = engine.consume_food_buff(partner, buff_id=first['buff_id'], action_kind='free', action_reason='actual berry benefit')
         self.assertEqual((result['healed'], partner.hp, FIX.receipt(partner)['taste_bonus']['kind']), (5, 6, 'evasion_damaging'))
@@ -177,9 +177,9 @@ class ChefCookingTests(unittest.TestCase):
         self.rejected(engine, lambda: FIX.serve(engine, chef, meal['batch_id']), '20 minutes')
         fresh = FIX.cook(engine, chef, recipe='hearty_meal', ingredients='big_mushroom', units=1)
         engine.unresolved_time_intervals.append({'round': 0, 'reason': 'unobserved interval'})
-        before = engine.export_state()
+        before = engine.snapshot_state()
         self.assertIsInstance(FIX.serve(engine, chef, fresh['batch_id']), C.PendingDecision)
-        self.assertEqual(engine.export_state(), before)
+        self.assertEqual(engine.snapshot_state(), before)
         chef.spec[CHEF.MEAL] = {'source': CHEF.HEARTY_ITEM, 'recipe': CHEF.HEARTY, 'ap_bonus': 4, 'ends': 'extended_rest', 'eaten_at': 0, 'batch_id': 'x', 'cook_id': chef.entity_id, 'taste': None}
         self.assertFalse(engine.validate_state()['valid'])
 
@@ -271,9 +271,9 @@ class ChefCookingTests(unittest.TestCase):
         # Immediate-only composite: both effects apply in one explicit trade-in during an encounter.
         served = FIX.serve(engine, chef, immediate['batch_id'], partner)
         partner.hp = 1
-        before = engine.export_state()
+        before = engine.snapshot_state()
         self.assertIsInstance(engine.consume_food_buff(partner, buff_id=served['buff_id'], action_kind='free', action_reason='out of combat'), C.PendingDecision)
-        self.assertEqual(engine.export_state(), before)
+        self.assertEqual(engine.snapshot_state(), before)
         FIX.battle(engine, partner)
         result = engine.consume_food_buff(partner, buff_id=served['buff_id'], action_kind='free', action_reason='composite trade-in')
         self.assertEqual([row['kind'] for row in result['components']], ['heal', 'turn_heal'])

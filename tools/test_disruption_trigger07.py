@@ -40,10 +40,10 @@ class DisruptionTriggerTests(unittest.TestCase):
         self.assertIs(self.e.rulings, self.e.r.rulings)
 
     def reject_unchanged(self, original):
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'triggering native full turn'):
             TA.react(self.e, self.t, self.p, TA.uid('Disruption Order'), original)
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         self.assertFalse(any(row.get('ace_disruption') for row in TIME.records(self.b)))
 
     def test_disruption_native_hit_current_turn_survives_cold_restore_and_pays_once(self):
@@ -59,10 +59,10 @@ class DisruptionTriggerTests(unittest.TestCase):
                 self.assertEqual(rows[0]['accuracy_modifier'], -3)
                 self.assertEqual(rows[0]['turn_deadline'], self.p.custom_conditions['combat_turn_serial'] + 1)
                 self.assertEqual(self.t._action_history, before_history + ['free'])
-                before = self.e.export_state()
+                before = self.e.snapshot_state()
                 with self.assertRaisesRegex(ValueError, 'already consumed'):
                     TA.react(self.e, self.t, self.p, TA.uid('Disruption Order'), original)
-                self.assertEqual(self.e.export_state(), before)
+                self.assertEqual(self.e.snapshot_state(), before)
                 self.valid()
 
     def test_disruption_old_hit_rejected_after_another_native_turn_attack_even_after_restore(self):

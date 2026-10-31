@@ -176,7 +176,7 @@ class DelayedAttackTests(unittest.TestCase):
                     completion_id = engine.delayed[0]["completion_id"]
                     engine.end_of_turn(attacker)
                     engine.start_of_turn(target, initiative_count=20)
-                    before = CODEC.dump_engine(engine)
+                    before = CODEC.snapshot_engine(engine)
 
                     if failure == "roll_damage":
                         def fail_after_roll(staged, source, recipient, move, crit=False,
@@ -203,7 +203,7 @@ class DelayedAttackTests(unittest.TestCase):
 
                     with context, self.assertRaisesRegex(RuntimeError, message):
                         engine.end_of_turn(target)
-                    self.assertEqual(CODEC.dump_engine(engine), before)
+                    self.assertEqual(CODEC.snapshot_engine(engine), before)
                     self.assert_live_queue(engine, attacker, target, move_id)
                     old_hp = target.hp
                     engine.end_of_turn(target)

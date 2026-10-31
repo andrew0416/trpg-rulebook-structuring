@@ -8,7 +8,7 @@ ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(RO
 import test_category2_progression_state as fixtures
 from builder import build_pokemon
 import pokemon_activities as A,pokemon_progression as P,world_entities as W
-from state_codec import dump_engine,load_engine,rules_fingerprint
+from state_codec import dump_engine,load_engine,rules_fingerprint, snapshot_engine
 
 class SubstitutionTests(unittest.TestCase):
  setUpClass=classmethod(fixtures.ProgressionStateTests.setUpClass.__func__)
@@ -68,7 +68,7 @@ class SubstitutionTests(unittest.TestCase):
   doc={'schema':1,'id':'source-specific-training','variants':[{'rule_id':P.TRAINING,'source':{'file':path,'sha256':sha256((ROOT/path).read_bytes()).hexdigest()},'inputs':{},'values':{'training_operation':{'safe':True,'kind':'experience','targets':[p.entity_id for p in self.ps[:3]],'use_intimidate':True,'beast_policy':'csv_target_limit'}}}]}
   self.r.load_source_policy_package(json.dumps({'schema':1,'sources':[],'policies':[doc]}))
   out=self.e.execute_source_policy_training(self.a,doc,request_id='csv-once');self.assertEqual(out['training_result']['awards'],[2]*3)
-  loaded=load_engine(self.r,dump_engine(self.e));owner=W.actor_index(loaded)[self.a.entity_id];before=dump_engine(loaded)
-  self.assertTrue(loaded.execute_source_policy_training(owner,doc,request_id='csv-once')['replayed']);self.assertEqual(before,dump_engine(loaded))
+  loaded=load_engine(self.r,dump_engine(self.e));owner=W.actor_index(loaded)[self.a.entity_id];before=snapshot_engine(loaded)
+  self.assertTrue(loaded.execute_source_policy_training(owner,doc,request_id='csv-once')['replayed']);self.assertEqual(before,snapshot_engine(loaded))
 
 if __name__=='__main__':unittest.main()

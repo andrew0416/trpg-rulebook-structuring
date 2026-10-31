@@ -41,9 +41,9 @@ class SurvivalistCSVTests(unittest.TestCase):
     self.assertEqual(e.elapsed_seconds,120);self.assertEqual(a._action_history,['extended'])
     self.assertEqual(row['clause_id'],clause);self.assertEqual(row['frequency'],{'kind':'daily','period':0,'used':1})
     self.assertEqual(V.selected(e,a),('forest',));self.assertNotIn('_survivalist_nights',a.spec)
-    before=CODEC.dump_engine(e)
+    before=CODEC.snapshot_engine(e)
     with self.assertRaisesRegex(ValueError,'daily selection exhausted'):self.select(e,a,clause=V.CSV_CLAUSES[1],terrains=('cave',))
-    self.assertEqual(CODEC.dump_engine(e),before)
+    self.assertEqual(CODEC.snapshot_engine(e),before)
  def test_actual_five_skill_rolls_use_current_terrain_once_for_both_sources(self):
   for clause in V.CSV_CLAUSES:
    e,a,b=self.fixture();a.spec['feats']=['feat/내추럴-파이터']
@@ -99,17 +99,17 @@ class SurvivalistCSVTests(unittest.TestCase):
  def test_unknown_duplicate_capacity_unowned_and_changed_source_fail_atomically(self):
   invalids=[lambda e,a:self.select(e,a,('forest','cave')),lambda e,a:self.select(e,a,('forest','forest')),lambda e,a:self.select(e,a,('unknown',)),lambda e,a:self.select(e,a,clause='unreviewed'),lambda e,a:self.select(e,a,minutes=0)]
   for invoke in invalids:
-   e,a,b=self.fixture();before=CODEC.dump_engine(e)
+   e,a,b=self.fixture();before=CODEC.snapshot_engine(e)
    with self.assertRaises(ValueError):invoke(e,a)
-   self.assertEqual(before,CODEC.dump_engine(e))
+   self.assertEqual(before,CODEC.snapshot_engine(e))
   for classes,rank in [([],6),([V.SURVIVALIST],2)]:
-   e,a,b=self.fixture();a.spec['classes']=classes;a.spec['skills']['생존']=rank;before=CODEC.dump_engine(e)
+   e,a,b=self.fixture();a.spec['classes']=classes;a.spec['skills']['생존']=rank;before=CODEC.snapshot_engine(e)
    with self.assertRaises(ValueError):self.select(e,a)
-   self.assertEqual(before,CODEC.dump_engine(e))
-  e,a,b=self.fixture();before=CODEC.dump_engine(e);original=e.r._selected_rule
+   self.assertEqual(before,CODEC.snapshot_engine(e))
+  e,a,b=self.fixture();before=CODEC.snapshot_engine(e);original=e.r._selected_rule
   with patch.object(e.r,'_selected_rule',side_effect=lambda uid,**kw:'changed/source' if uid==V.CLASS_SOURCE else original(uid,**kw)):
    with self.assertRaises(ValueError):self.select(e,a)
-  self.assertEqual(before,CODEC.dump_engine(e))
+  self.assertEqual(before,CODEC.snapshot_engine(e))
  def test_corrupt_owner_source_quota_clock_and_projection_reject_persistence(self):
   changes=[lambda a:a.spec[V.CSV_STATE].update(owner_id='trainer/b'),lambda a:a.spec[V.CSV_STATE]['history'][-1].update(cell_sha256='wrong'),lambda a:a.spec[V.CSV_STATE]['history'][-1]['terrains'].append('cave'),lambda a:a.spec[V.CSV_STATE]['history'][-1].update(terrains=['cave']),lambda a:a.spec[V.CSV_STATE]['history'][-1].update(completed_seconds=1),lambda a:a.spec['frequency_state']['activations'][V.CSV_QUOTA].update(used=0),lambda a:GRANTS.state(a)['sources'].clear()]
   for mutate in changes:
@@ -117,13 +117,13 @@ class SurvivalistCSVTests(unittest.TestCase):
    self.assertFalse(WORLD.validate_world(e)['valid'])
    with self.assertRaises(CODEC.StateCodecError):CODEC.dump_engine(e)
  def test_late_source_failure_rolls_back_clock_frequency_action_rng_and_aliases(self):
-  e,a,b=self.fixture();before=CODEC.dump_engine(e);spec=a.spec;original=GRANTS._source
+  e,a,b=self.fixture();before=CODEC.snapshot_engine(e);spec=a.spec;original=GRANTS._source
   def fail(actor,source,kind,**metadata):
    if kind=='survivalist_csv_selection':raise RuntimeError('late CSV source failure')
    return original(actor,source,kind,**metadata)
   with patch.object(GRANTS,'_source',side_effect=fail):
    with self.assertRaisesRegex(RuntimeError,'late CSV source'):self.select(e,a)
-  self.assertIs(a.spec,spec);self.assertEqual(before,CODEC.dump_engine(e))
+  self.assertIs(a.spec,spec);self.assertEqual(before,CODEC.snapshot_engine(e))
 
 
 if __name__=='__main__':unittest.main(verbosity=2)

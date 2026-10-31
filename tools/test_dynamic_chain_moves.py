@@ -98,7 +98,7 @@ class DynamicChainTests(unittest.TestCase):
         with patch.object(Engine,'d20',return_value=16):pending=self.use([self.step(0)])
         self.assertEqual(pending['status'],'awaiting_chain_choice');token=pending['completion_id']
         self.assertFalse(self.row()['sealed']);self.assertFalse(DMC.live(self.a,'focus_until_switch'))
-        before=self.e.export_state();adapter=DMC.policy(self.e.r)['moves'][self.mid]
+        before=self.e.snapshot_state();adapter=DMC.policy(self.e.r)['moves'][self.mid]
         original=deepcopy(adapter['frequency'])
         for malformed in ('daily x1',None,{'kind':'daily','uses':True},{'kind':'daily','uses':2}):
             adapter['frequency']=malformed
@@ -106,7 +106,7 @@ class DynamicChainTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,'daily-once'):
                     self.e.continue_chain_move(token,stop=True)
             finally:adapter['frequency']=deepcopy(original)
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
 
         for operation in (lambda:self.e.use_move(self.a,self.targets[0],'struggle'),
                           lambda:self.e.end_of_turn(self.a),lambda:self.e.preflight_advance_time(1)):
@@ -314,10 +314,10 @@ class DynamicChainTests(unittest.TestCase):
             self.assertFalse(any(copied is row for row in staged._precision_events))
             self.assertIsNot(actual,copied)
         G.transition(self.e,self.a,actual_observation)
-        token=pending['completion_id'];before=self.e.export_state()
+        token=pending['completion_id'];before=self.e.snapshot_state()
         saved=self.row()['activation_continuation'];saved['scope']['total']+=1
         with self.assertRaisesRegex(ValueError,'authenticated completed prefix'):self.e.continue_chain_move(token,stop=True)
-        saved['scope']['total']-=1;self.assertEqual(self.e.export_state(),before)
+        saved['scope']['total']-=1;self.assertEqual(self.e.snapshot_state(),before)
         self.fresh();wrong=Rules(self.e.r.root,ruleset=self.e.r.ruleset.name);wrong.ruleset.profile='unselected'
         with self.assertRaisesRegex(ValueError,'profile|fingerprint'):Engine.import_state(wrong,self.e.export_state())
         original=deepcopy(self.e.r.moves[self.mid]);self.e.r.moves[self.mid]['effect']='changed source'

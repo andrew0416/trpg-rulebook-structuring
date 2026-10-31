@@ -8,7 +8,7 @@ if not (ROOT/'data/examples').is_dir():ROOT=Path(r'D:\trpg-rulebook-structuring\
 sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 from engine import Rules,Engine,Combatant
 from builder import build_trainer,build_pokemon
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import effects as FX,clock_invocations as CLOCK,combat_timing as LIFE,world_entities as W
 import skill_feature_actions as SF,item_stock as STOCK,food_effects as FOOD
 import test_category2_item_maturation as _fixture_test_category2_item_maturation
@@ -48,9 +48,9 @@ class TimedConsumerTests(unittest.TestCase):
         options=kwargs.pop('options',{'fixed':[2]*4})
         return self.e.attempt_activity_job('skill-work',self.a,'명령',interval_id='one',resumable=True,options=options,**kwargs)
     def inert(self,call):
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with self.assertRaises(ValueError):call()
-        self.assertEqual(before,dump_engine(self.e))
+        self.assertEqual(before,snapshot_engine(self.e))
     def test_bandage_waits_then_binds_actual_application_once_after_restore(self):
         self.install();out=self.use('붕대',identity='dressing')
         self.assertEqual((out['status'],self.e.elapsed_seconds,self.a.spec['items']['붕대']),('waiting',5,1))
@@ -61,8 +61,8 @@ class TimedConsumerTests(unittest.TestCase):
         self.assertIs(clock['bindings'][0]['record'],record)
         self.assertIs(clock['activity']['native'],record)
         self.assertIs(clock['activity']['payment'],record['item_stock'])
-        self.restore();before=dump_engine(self.e);self.assertEqual(self.use('붕대',identity='dressing'),out)
-        self.assertEqual(before,dump_engine(self.e))
+        self.restore();before=snapshot_engine(self.e);self.assertEqual(self.use('붕대',identity='dressing'),out)
+        self.assertEqual(before,snapshot_engine(self.e))
     def test_direct_self_bandage_activity_uses_same_resumption(self):
         self.install()
         def apply():return self.e.pokemon_activity(self.a,'apply_bandages',target=self.a,minutes=1,reason='native self application',resumable=True,request_id='self-dressing')
@@ -86,20 +86,20 @@ class TimedConsumerTests(unittest.TestCase):
         self.assertFalse(self.p.spec.get('drink_history'));self.restore();self.answer('intake')
         result=self.use('맛있는물');self.assertEqual((result['healed'],self.e.elapsed_seconds),(20,60))
         clock=self.e._clock_invocations['intake'];self.assertIs(clock['activity']['native'],self.p.spec['drink_history'][0])
-        self.restore();before=dump_engine(self.e);self.assertEqual(self.use('맛있는물'),result);self.assertEqual(before,dump_engine(self.e))
+        self.restore();before=snapshot_engine(self.e);self.assertEqual(self.use('맛있는물'),result);self.assertEqual(before,dump_engine(self.e))
     def test_snack_waits_before_storing_buff_and_replay_does_not_restore_consumed_buff(self):
         self.install();self.use('초코바');self.assertFalse(self.p.buffs)
         self.answer('intake');result=self.use('초코바');buff=self.p.buffs[0]
         self.assertIs(self.e._clock_invocations['intake']['activity']['payment'],buff['item_stock'])
         self.e.consume_food_buff(self.p,buff_id=buff['id'],action_kind='swift',action_reason='actual stored benefit consumed')
-        self.restore();before=dump_engine(self.e);self.assertEqual(self.use('초코바'),result)
-        self.assertEqual(before,dump_engine(self.e));self.assertFalse(self.p.buffs)
+        self.restore();before=snapshot_engine(self.e);self.assertEqual(self.use('초코바'),result)
+        self.assertEqual(before,snapshot_engine(self.e));self.assertFalse(self.p.buffs)
     def test_baby_food_waits_with_selected_policy_then_finishes_once(self):
         self.install();self.use('이유식',food_policy='book_xp20_level15')
         self.assertNotIn('baby_food',self.p.spec);self.answer('intake')
         result=self.use('이유식',food_policy='book_xp20_level15');self.assertTrue(result['eligible'])
-        self.restore();before=dump_engine(self.e);self.assertEqual(self.use('이유식',food_policy='book_xp20_level15'),result)
-        self.assertEqual(before,dump_engine(self.e));self.assertEqual(self.p.spec['baby_food']['at'],60)
+        self.restore();before=snapshot_engine(self.e);self.assertEqual(self.use('이유식',food_policy='book_xp20_level15'),result)
+        self.assertEqual(before,snapshot_engine(self.e));self.assertEqual(self.p.spec['baby_food']['at'],60)
     def test_changed_item_target_duration_reason_and_policy_are_inert_while_waiting(self):
         self.install();self.use('맛있는물')
         for call in (lambda:self.use('초코바'),lambda:self.use('맛있는물',target=self.a),
@@ -142,8 +142,8 @@ class TimedConsumerTests(unittest.TestCase):
         result=self.attempt(options=options)
         self.assertEqual((result['status'],result['total'],self.e.elapsed_seconds),('complete',10,60))
         self.assertEqual(SF.event(self.e,self.a,'feature-work').first,observed)
-        self.assertEqual(state,self.e.rng.getstate());before=dump_engine(self.e);self.attempt(options=options)
-        self.assertEqual(before,dump_engine(self.e))
+        self.assertEqual(state,self.e.rng.getstate());before=snapshot_engine(self.e);self.attempt(options=options)
+        self.assertEqual(before,snapshot_engine(self.e))
     def test_skill_finish_failure_keeps_observation_for_native_retry(self):
         self.job();native=__import__('activity_jobs')._finish_work
         def fail(*args,**kwargs):
@@ -163,7 +163,7 @@ class TimedConsumerTests(unittest.TestCase):
         result=self.use('붕대',held_selection='dressing-instance')
         self.assertEqual((self.a.spec['items']['붕대'],result['record']['item_stock']['instance_id']),(1,'dressing-instance'))
         self.assertEqual(self.e._physical_objects['dressing-instance']['consumed']['at'],60)
-        self.restore();before=dump_engine(self.e);self.use('붕대',held_selection='dressing-instance');self.assertEqual(before,dump_engine(self.e))
+        self.restore();before=snapshot_engine(self.e);self.use('붕대',held_selection='dressing-instance');self.assertEqual(before,dump_engine(self.e))
     def test_container_drink_waits_and_keeps_its_empty_reusable_body_on_replay(self):
         import item_containers as CONTAINERS
         _fixture_test_category2_medicine_stock.MedicineStockTests.held(self,self.a,'item/빈병','jar')
@@ -172,7 +172,7 @@ class TimedConsumerTests(unittest.TestCase):
         self.install();self.p.hp=1;self.assertEqual(self.use('맛있는물',container_selection='jar')['status'],'waiting')
         self.assertIsNotNone(self.e._physical_objects['jar'][CONTAINERS.KEY]['current']);self.restore();self.answer('intake')
         self.assertEqual(self.use('맛있는물',container_selection='jar')['healed'],20)
-        self.assertIsNone(self.e._physical_objects['jar'][CONTAINERS.KEY]['current']);before=dump_engine(self.e)
+        self.assertIsNone(self.e._physical_objects['jar'][CONTAINERS.KEY]['current']);before=snapshot_engine(self.e)
         self.use('맛있는물',container_selection='jar');self.assertEqual(before,dump_engine(self.e))
         self.assertNotIn('consumed',self.e._physical_objects['jar'])
 
@@ -200,7 +200,7 @@ class TimedPhysicalIntakeTests(unittest.TestCase):
         uid=self.p.entity_id;self.e=load_engine(self.r,json.loads(json.dumps(dump_engine(self.e),ensure_ascii=False)));self.p=W.actor_index(self.e)[uid]
         self.answer();result=self.use();self.assertEqual((result['status'],self.e.elapsed_seconds,self.p.hp),('digestion_buff_gained',1296030,hp))
         self.assertEqual(payment,self.p.buffs[-1]['item_stock']);self.assertNotIn('candy_at',self.row())
-        before=dump_engine(self.e);self.use();self.assertEqual(before,dump_engine(self.e))
+        before=snapshot_engine(self.e);self.use();self.assertEqual(before,snapshot_engine(self.e))
     def test_held_berry_intake_stops_maturation_at_start_and_pays_at_end(self):
         self.e.advance_time(86370);self.install()
         def use():return self.e.use_item(self.p,'오랭열매',held_selection='berry',duration_minutes=1,
@@ -208,7 +208,7 @@ class TimedPhysicalIntakeTests(unittest.TestCase):
         self.assertEqual(use()['status'],'waiting');self.assertEqual(self.row()['stage'],'cancelled')
         self.assertNotIn('consumed',self.e._physical_objects['berry']);self.answer();result=use()
         self.assertEqual(result['status'],'digestion_buff_gained');self.assertEqual(self.e._physical_objects['berry']['consumed']['at'],86430)
-        before=dump_engine(self.e);use();self.assertEqual(before,dump_engine(self.e))
+        before=snapshot_engine(self.e);use();self.assertEqual(before,snapshot_engine(self.e))
     def test_copied_pending_shell_payment_is_rejected_on_save(self):
         self.e.advance_time(86400);self.install();self.use()
         activity=self.e._clock_invocations['shell']['activity'];original=activity['payment']

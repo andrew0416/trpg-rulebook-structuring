@@ -91,10 +91,10 @@ class IronMindTests(unittest.TestCase):
   self.assertEqual(self.snap(),before)
  def test_durable_read_retry_and_both_restores_do_not_duplicate_notices(self):
   self.thought();options=self.fixed(False);self.read('saved',roll_options=options);expected=self.notices()
-  saved=self.e.gm.snapshot();loaded=self.restored();idx={x.entity_id:x for x in loaded.everyone};before=CODEC.dump_engine(loaded)
+  saved=self.e.gm.snapshot();loaded=self.restored();idx={x.entity_id:x for x in loaded.everyone};before=CODEC.snapshot_engine(loaded)
   out=loaded.read_telepathic_thought(idx[self.p.entity_id],idx[self.a.entity_id],request_id='saved',roll_options=options)
   self.assertTrue(out['replayed']);self.assertEqual(loaded.telepathy_attempts(idx[self.a.entity_id],notices_only=True),expected)
-  self.assertEqual(CODEC.dump_engine(loaded),before)
+  self.assertEqual(CODEC.snapshot_engine(loaded),before)
   G.transition(self.e,self.a,lambda e,c:c.spec['edges'].clear());self.e.gm.restore(saved)
   self.assertEqual(self.notices(),expected);self.assertTrue(self.read('saved',roll_options=options)['replayed'])
   self.assertEqual(self.notices(),expected)

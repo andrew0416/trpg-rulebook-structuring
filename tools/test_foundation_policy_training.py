@@ -7,7 +7,7 @@ import sys,json,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 import test_category2_progression_state as fixtures
 from builder import build_pokemon
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import pokemon_progression as P,downtime as D,world_entities as W
 
 class PolicyTrainingTests(unittest.TestCase):
@@ -45,16 +45,16 @@ class PolicyTrainingTests(unittest.TestCase):
   for p in self.ps:self.assertEqual(p.spec['training_credit']['applications'],['experience_training'])
   self.op['use_reserves']=True;self.a.spec['edges'].append('edge/예비-훈련');before=dump_engine(self.e)
   with self.assertRaisesRegex(ValueError,'cannot replace'):self.run_policy(request_id='bad-combination')
-  self.assertEqual(before,dump_engine(self.e))
+  self.assertEqual(before,snapshot_engine(self.e))
  def test_late_second_target_failure_rolls_back_whole_group_and_request(self):
-  self.load();before=dump_engine(self.e);native=D.gain_exp_combatant
+  self.load();before=snapshot_engine(self.e);native=D.gain_exp_combatant
   def fail(e,c,amount):
    out=native(e,c,amount)
    if c.entity_id==self.ps[1].entity_id:raise ValueError('late second award')
    return out
   with patch.object(D,'gain_exp_combatant',side_effect=fail):
    with self.assertRaisesRegex(ValueError,'late second award'):self.run_policy(request_id='retry')
-  self.assertEqual(before,dump_engine(self.e));self.assertFalse(self.run_policy(request_id='retry')['replayed'])
+  self.assertEqual(before,snapshot_engine(self.e));self.assertFalse(self.run_policy(request_id='retry')['replayed'])
  def test_missing_duplicate_other_owner_and_unconscious_trainer_reject(self):
   self.load();original=deepcopy(self.context)
   for bad in ('missing',self.ps[0].entity_id):
@@ -68,18 +68,18 @@ class PolicyTrainingTests(unittest.TestCase):
   with self.assertRaisesRegex(ValueError,'conscious'):self.run_policy()
   self.assertEqual(before,dump_engine(self.e))
  def test_false_condition_and_changed_request_do_not_train(self):
-  self.doc['variants'][0]['when']=False;before=dump_engine(self.e)
-  self.assertEqual(self.run_policy()['status'],'PolicyNotApplicable');self.assertEqual(before,dump_engine(self.e))
+  self.doc['variants'][0]['when']=False;before=snapshot_engine(self.e)
+  self.assertEqual(self.run_policy()['status'],'PolicyNotApplicable');self.assertEqual(before,snapshot_engine(self.e))
   self.doc['variants'][0]['when']=True;self.run_policy(request_id='fixed')
-  self.op['targets'].reverse();before=dump_engine(self.e)
+  self.op['targets'].reverse();before=snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'changed input'):self.run_policy(request_id='fixed')
-  self.assertEqual(before,dump_engine(self.e))
+  self.assertEqual(before,snapshot_engine(self.e))
  def test_pushed_skill_choices_cover_actual_group_and_use_native_effect(self):
   import researcher_features as RF
   self.a.spec.update(classes=[RF.RESEARCHER],feats=[RF.PUSHER,RF.SKILL_TRAINER],feature_choices={RF.RESEARCHER:[['pokemon_caretaking','paleontology']]})
   self.op['pushed_skills']={self.ps[0].entity_id:'육상'};self.load();before=dump_engine(self.e)
   with self.assertRaisesRegex(ValueError,'match every actual'):self.run_policy(request_id='push')
-  self.assertEqual(before,dump_engine(self.e));self.op['pushed_skills'][self.ps[1].entity_id]='육상'
+  self.assertEqual(before,snapshot_engine(self.e));self.op['pushed_skills'][self.ps[1].entity_id]='육상'
   original=[deepcopy(p.spec['skills']) for p in self.ps];self.run_policy(request_id='push')
   self.assertEqual(self.a._action_history,['free'])
   for p,skills in zip(self.ps,original):

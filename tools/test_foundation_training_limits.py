@@ -5,7 +5,7 @@ ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(RO
 import test_foundation_training_hour as fixtures
 from builder import build_pokemon
 import training_features as F
-from state_codec import dump_engine
+from state_codec import dump_engine, snapshot_engine
 
 class TrainingLimitsTests(unittest.TestCase):
  setUpClass=classmethod(fixtures.TrainingHourTests.setUpClass.__func__)
@@ -18,15 +18,15 @@ class TrainingLimitsTests(unittest.TestCase):
   self.e.train_pokemon(self.a,[(p,[next(iter(F.RULES))]) for p in self.ps[:6]],minutes=30,reason='completed shared hour',request_id='regimes',from_training=True)
   self.e.pokemon_activity(self.a,'experience_training',targets=self.ps[:4],from_training=True)
   self.assertEqual(self.e.elapsed_seconds,3600);self.assertEqual(self.a.spec['experience_training']['count'],4)
-  self.assertTrue(all(F.records(p) for p in self.ps[:6]));before=dump_engine(self.e)
+  self.assertTrue(all(F.records(p) for p in self.ps[:6]));before=snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'daily training target limit'):self.e.pokemon_activity(self.a,'experience_training',targets=[self.ps[4]],from_training=True)
-  self.assertEqual(before,dump_engine(self.e))
+  self.assertEqual(before,snapshot_engine(self.e))
  def test_eight_target_example_does_not_override_six_target_prose(self):
   for count in (7,8):
-   before=dump_engine(self.e)
+   before=snapshot_engine(self.e)
    with self.assertRaisesRegex(ValueError,'six'):self.e.complete_training_hour(self.a,self.ps[:count],safe=True,reason='example cannot enlarge prose limit',request_id='too-many')
-   self.assertEqual(before,dump_engine(self.e))
+   self.assertEqual(before,snapshot_engine(self.e))
    with self.assertRaisesRegex(ValueError,'six'):self.e.train_pokemon(self.a,[(p,[next(iter(F.RULES))]) for p in self.ps[:count]],minutes=30,reason='example cannot enlarge prose limit',request_id='too-many',safe=True)
-   self.assertEqual(before,dump_engine(self.e))
+   self.assertEqual(before,snapshot_engine(self.e))
 
 if __name__=='__main__':unittest.main()

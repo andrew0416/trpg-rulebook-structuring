@@ -61,9 +61,9 @@ class TotalBlindnessConsumersTests(unittest.TestCase):
                 result=engine.observe_target(actor,target,declaration)
                 self.assertEqual((result['status'],result['reason']),('not_observable','vision_blocked'))
                 self.assertEqual(result['values'],{})
-                target.pos=(8,1);before=engine.export_state()
+                target.pos=(8,1);before=engine.snapshot_state()
                 with self.assertRaises(ValueError):engine.approach(actor,target)
-                self.assertEqual(engine.export_state(),before)
+                self.assertEqual(engine.snapshot_state(),before)
 
     def test_explicit_total_blindness_remains_total_in_normal_light(self):
         engine,actor,target=self.fixture()
@@ -96,10 +96,10 @@ class TotalBlindnessConsumersTests(unittest.TestCase):
                 if cause=='external':
                     fixture.e.apply_status(fixture.r,'완전 실명',parameters={'cause':'external'})
                 else:self.observe(fixture.e,fixture.r)
-                fixture.watch();event=fixture.waiting();before=fixture.e.export_state()
+                fixture.watch();event=fixture.waiting();before=fixture.e.snapshot_state()
                 with self.assertRaisesRegex(ValueError,'condition prohibits Intercept'):
                     fixture.choose(event,options=fixture.melee())
-                self.assertEqual(fixture.e.export_state(),before)
+                self.assertEqual(fixture.e.snapshot_state(),before)
                 fixture.choose(event,use=False)
                 self.assertIsNone(fixture.e._passive_pending)
 
@@ -119,10 +119,10 @@ class TotalBlindnessConsumersTests(unittest.TestCase):
                 engine,actor,target=self.fixture()
                 if cause=='external':engine.apply_status(actor,'완전 실명',parameters={'cause':'external'})
                 else:self.observe(engine,actor)
-                before=engine.export_state()
+                before=engine.snapshot_state()
                 with self.assertRaises(ValueError):
                     engine.use_move(actor,target,'move/전광석화',set_damage=True)
-                self.assertEqual(engine.export_state(),before)
+                self.assertEqual(engine.snapshot_state(),before)
 
     def test_actual_priority_control_is_available_normally_and_with_blindsense_in_darkness(self):
         for capabilities,dark in (([],False),(['Blindsense'],True)):

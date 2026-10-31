@@ -77,7 +77,7 @@ class LocalGrassIndependentTests(unittest.TestCase):
     def test_valid_actor_with_no_source_payment_cannot_claim_resealed_receipt(self):
         self.activate()
         self.engine.gm.snapshot('paid-field')
-        before = CODEC.dump_engine(self.engine)
+        before = CODEC.snapshot_engine(self.engine)
         snapshot = self.engine.gm.snapshots['paid-field']['engine'][FIELD.LOCAL_KEY]
         original = deepcopy(snapshot)
         row = snapshot['receipts']['independent/grass']
@@ -85,7 +85,7 @@ class LocalGrassIndependentTests(unittest.TestCase):
         row['seal'] = FIELD._local_seal(row)
         with self.assertRaisesRegex(ValueError, 'Scene payment'):
             self.engine.gm.restore('paid-field')
-        self.assertEqual(CODEC.dump_engine(self.engine), before)
+        self.assertEqual(CODEC.snapshot_engine(self.engine), before)
         snapshot.clear()
         snapshot.update(original)
         saved = deepcopy(getattr(self.engine, FIELD.LOCAL_KEY))
@@ -100,7 +100,7 @@ class LocalGrassIndependentTests(unittest.TestCase):
         setattr(self.engine, FIELD.LOCAL_KEY, saved)
         with self.assertRaises(ValueError):
             Engine.import_state(Rules(str(ROOT), ruleset='core'), payload)
-        self.assertEqual(CODEC.dump_engine(self.engine), before)
+        self.assertEqual(CODEC.snapshot_engine(self.engine), before)
 
 
 if __name__ == '__main__':

@@ -102,17 +102,17 @@ class DisruptionMixedTests(unittest.TestCase):
         rows = [row for row in TIME.records(target) if row.get('ace_disruption')]
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['accuracy_modifier'], -3)
-        before = case.e.export_state()
+        before = case.e.snapshot_state()
         with self.assertRaises(ValueError):
             TA.react(case.e, trainer, pokemon, TA.uid('Disruption Order'), root_id)
-        self.assertEqual(case.e.export_state(), before)
+        self.assertEqual(case.e.snapshot_state(), before)
         case.valid()
 
     def reject_parent(self, case, trainer, pokemon, root_id):
-        before = case.e.export_state()
+        before = case.e.snapshot_state()
         with self.assertRaises(ValueError):
             TA.react(case.e, trainer, pokemon, TA.uid('Disruption Order'), root_id)
-        self.assertEqual(case.e.export_state(), before)
+        self.assertEqual(case.e.snapshot_state(), before)
 
     def test_actual_bug_overflow_seize_child_preserves_parent_disruption_after_return_and_cold_restore(self):
         for cold in (False, True):
@@ -158,10 +158,10 @@ class DisruptionMixedTests(unittest.TestCase):
                     case.restore()
                 self.assertIs(case.e.rulings, case.e.r.rulings)
                 self.apply_once(case, case.a, case.p, case.t, root_id)
-                before = case.e.export_state()
+                before = case.e.snapshot_state()
                 replay = case.action(J.ROUND, completion_id=root_id, request='mixed07-round-trip')
                 self.assertEqual(replay, receipt)
-                self.assertEqual(case.e.export_state(), before)
+                self.assertEqual(case.e.snapshot_state(), before)
 
     def test_round_trip_does_not_create_hit_authority_and_unrelated_free_closes_real_hit(self):
         case, missed_id = self.juggler_hit(face=1)
@@ -170,10 +170,10 @@ class DisruptionMixedTests(unittest.TestCase):
         case, hit_id = self.juggler_hit()
         self.assertTrue(TURN.spend(case.e, case.p, 'free', 'ordinary unrelated Free after Bug hit'))
         self.reject_parent(case, case.a, case.p, hit_id)
-        before = case.e.export_state()
+        before = case.e.snapshot_state()
         with self.assertRaises(ValueError):
             case.action(J.ROUND, completion_id=hit_id, request='mixed07-stale-round-trip')
-        self.assertEqual(case.e.export_state(), before)
+        self.assertEqual(case.e.snapshot_state(), before)
 
 
 if __name__ == '__main__':

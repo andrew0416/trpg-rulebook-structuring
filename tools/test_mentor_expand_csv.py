@@ -37,9 +37,9 @@ class ExpandCsvTests(unittest.TestCase):
         self.assertEqual(self.e.elapsed_seconds,60)
         self.assertEqual(p.spec.get('learned_poke_edges',[]),before_edges)
         self.assertEqual(len(p.spec['mentor_expansion_history']),1)
-        state=CODEC.dump_engine(self.e)
+        state=CODEC.snapshot_engine(self.e)
         self.assertEqual(self.expand(p),result)
-        self.assertEqual(CODEC.dump_engine(self.e),state)
+        self.assertEqual(CODEC.snapshot_engine(self.e),state)
         self.reject(lambda:self.expand(p,'again'),lambda:self.expand(p,'book',source_id=M.EXPAND))
 
     def test_zero_starting_points_are_allowed_without_payment(self):

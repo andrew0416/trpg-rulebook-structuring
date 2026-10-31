@@ -2,7 +2,7 @@ from pathlib import Path
 import sys,unittest,json
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 import test_foundation_grant_payments as F
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 
 class ReceiptTests(unittest.TestCase):
  @classmethod
@@ -77,8 +77,8 @@ class ReceiptTests(unittest.TestCase):
   import downtime as D,pokemon_progression as PROG
   P.ProgressionStateTests.setUpClass();f=P.ProgressionStateTests();f.setUp();c=f.pokemon(level=1)
   D.gain_exp_combatant(f.e,c,D.exp_for_level(f.r,5))
-  before=dump_engine(f.e);account=f.e.acquisition_account(c)
-  self.assertEqual(dump_engine(f.e),before)
+  before=snapshot_engine(f.e);account=f.e.acquisition_account(c)
+  self.assertEqual(snapshot_engine(f.e),before)
   self.assertEqual(account['resource_events'][0]['kind'],'initial_award')
   self.assertEqual(account['resource_events'][0]['amount'],1)
   self.assertEqual(account['resource_events'][1]['kind'],'level_award')
@@ -89,8 +89,8 @@ class ReceiptTests(unittest.TestCase):
   import pokemon_progression as P
   f=self.fixture();f.c.spec.pop('tutor_points')
   P.prepare_level(f.rules,f.c.spec)
-  before=dump_engine(f.e);account=f.e.acquisition_account(f.c)
-  self.assertEqual(dump_engine(f.e),before);self.assertFalse(account['balance_known'])
+  before=snapshot_engine(f.e);account=f.e.acquisition_account(f.c)
+  self.assertEqual(snapshot_engine(f.e),before);self.assertFalse(account['balance_known'])
   self.assertEqual(account['resource_events'][0]['origin'],'unknown_import')
   P.observe_balance(f.e,f.c,balance=4,reason='actual current balance')
   account=f.e.acquisition_account(f.c)

@@ -185,8 +185,8 @@ class SendBodyTests(unittest.TestCase):
         self.assertEqual(MAP.base_at(self.e.grid,(5,0)),'underwater')
         self.assertEqual((self.q.spec['_respiration']['medium'],self.q.spec['_respiration']['breathing']),('water',False))
         self.assertEqual(self.q.hp,before)
-        frozen=self.e.export_state()
-        self.assertEqual(send(),receipt);self.assertEqual(self.e.export_state(),frozen)
+        frozen=self.e.snapshot_state()
+        self.assertEqual(send(),receipt);self.assertEqual(self.e.snapshot_state(),frozen)
 
 
 class NativeSwitchIceTests(unittest.TestCase):

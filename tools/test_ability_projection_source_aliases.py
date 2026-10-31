@@ -102,12 +102,12 @@ class ProjectionSourceAliasTests(unittest.TestCase):
 
     def test_explicit_excluded_projection_ID_stays_fail_closed_and_read_only(self):
         engine, actor = self.actor(self.core, '엽록소')
-        before = engine.export_state()
+        before = engine.snapshot_state()
         for resolver in (P.ability_registration, A.ability_id):
             with self.subTest(resolver=resolver.__name__):
                 with self.assertRaises(ExcludedRuleSelection):
                     resolver(self.core, PLAYTEST)
-                self.assertEqual(engine.export_state(), before)
+                self.assertEqual(engine.snapshot_state(), before)
         self.assertEqual(set(A.project_components(actor)), {CORE})
 
     def test_core_gale_wings_native_registration_rejects_excluded_variant_and_changed_source(self):
@@ -120,20 +120,20 @@ class ProjectionSourceAliasTests(unittest.TestCase):
                 self.assertIn(core, A.project_components(actor))
                 self.assertTrue(any(effect.get('_rule_id') == core and effect.get('type') == 'gain_keyword'
                     and effect.get('keyword') == '우선' for effect in actor.registry))
-        before = engine.export_state(); before_logs = list(engine.log_lines)
+        before = engine.snapshot_state(); before_logs = list(engine.log_lines)
         for requested in (excluded, '질풍날개 [썬문]'):
             for add in (True, False):
                 with self.subTest(excluded=requested, add=add):
                     with self.assertRaises(ExcludedRuleSelection):
                         engine.gm.set_ability(actor, requested, add=add, reason='explicit excluded edition request')
-                    self.assertEqual(engine.export_state(), before)
+                    self.assertEqual(engine.snapshot_state(), before)
                     self.assertEqual(engine.log_lines, before_logs)
         for changed in (core, excluded):
             unit = self.core.selection.units[changed]
             with self.subTest(changed_source=changed), patch.dict(unit, source=dict(unit['source'], record_span=[1, 1])):
                 with self.assertRaisesRegex(ValueError, 'catalog definition changed'):
                     engine.gm.set_ability(actor, core, reason='changed actual source must fail before mutation')
-            self.assertEqual(engine.export_state(), before)
+            self.assertEqual(engine.snapshot_state(), before)
             self.assertEqual(engine.log_lines, before_logs)
         with self.assertRaisesRegex(ValueError, 'no reviewed registration'):
             ACQUIRED.registration(Rules(ROOT, ruleset='all'), excluded)
@@ -201,19 +201,19 @@ class ProjectionSourceAliasTests(unittest.TestCase):
 
     def test_capacity_explicit_excluded_ID_and_real_ambiguous_english_alias_fail_closed(self):
         engine, _ = self.actor(self.core, '엽록소')
-        before = engine.export_state()
+        before = engine.snapshot_state()
         with self.assertRaises(ExcludedRuleSelection):
             CAP.registration(self.core, 'ability/먹보-playtest')
-        self.assertEqual(engine.export_state(), before)
+        self.assertEqual(engine.snapshot_state(), before)
         with self.assertRaises(UnresolvedRuleSelection):
             CAP.registration(Rules(ROOT, ruleset='all'), 'Gluttony')
         rules = Rules(ROOT, ruleset='all'); engine, actor = self.actor(rules, CORE)
-        before = engine.export_state(); before_logs = list(engine.log_lines)
+        before = engine.snapshot_state(); before_logs = list(engine.log_lines)
         for add in (True, False):
             with self.subTest(add=add):
                 with self.assertRaises(UnresolvedRuleSelection):
                     engine.gm.set_ability(actor, 'Gluttony', add=add, reason='ambiguous observed ability')
-                self.assertEqual(engine.export_state(), before)
+                self.assertEqual(engine.snapshot_state(), before)
                 self.assertEqual(engine.log_lines, before_logs)
 
     def test_gm_ability_alias_dedup_and_cross_remove_preserve_baseline_order_and_independent_grant(self):

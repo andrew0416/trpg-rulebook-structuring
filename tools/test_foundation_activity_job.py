@@ -7,7 +7,7 @@ ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(RO
 import test_category2_progression_state as fixtures
 import activity_jobs as J,world_entities as W,pokemon_teaching as T,training_features as TRAINING,downtime as D
 import resolution_transaction as TX
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 
 
 class ActivityJobTests(unittest.TestCase):
@@ -25,9 +25,9 @@ class ActivityJobTests(unittest.TestCase):
     def attempt(self,identity='job',interval='one',face=1,**kw):
         return self.e.attempt_activity_job(identity,self.a,'명령',interval_id=interval,options={'fixed':[face]*4},**kw)
     def unchanged(self,call,pattern=None):
-        before=dump_engine(self.e);rng=self.e.rng.getstate()
+        before=snapshot_engine(self.e);rng=self.e.rng.getstate()
         with self.assertRaisesRegex(ValueError,pattern or '.*'):call()
-        self.assertEqual(before,dump_engine(self.e));self.assertEqual(rng,self.e.rng.getstate())
+        self.assertEqual(before,snapshot_engine(self.e));self.assertEqual(rng,self.e.rng.getstate())
     def restore(self):
         restored=load_engine(self.r,json.loads(json.dumps(dump_engine(self.e),ensure_ascii=False)))
         return restored,W.actor_index(restored)
@@ -164,10 +164,10 @@ class ActivityJobTests(unittest.TestCase):
         self.unchanged(lambda:self.native_extended('three'),'terminal')
         restored,actors=self.restore();self.assertIs(restored._extended_checks['native-check']['actor'],actors[self.a.entity_id])
     def test_native_extended_unknown_duration_and_missing_interval_do_not_draw(self):
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         out=self.native_extended(interval={'amount':1,'unit':'unselected-scene'});self.assertIn('duration',out.required)
-        self.assertEqual(before,dump_engine(self.e))
-        out=self.native_extended(interval_completed=False);self.assertIn('interval',out.required);self.assertEqual(before,dump_engine(self.e))
+        self.assertEqual(before,snapshot_engine(self.e))
+        out=self.native_extended(interval_completed=False);self.assertIn('interval',out.required);self.assertEqual(before,snapshot_engine(self.e))
     def test_native_extended_zero_target_has_no_phantom_interval(self):
         out=self.native_extended(fixed=[1]*4,complexity=2,limited=False)
         self.assertEqual(self.e.elapsed_seconds,60)

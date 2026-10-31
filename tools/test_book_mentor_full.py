@@ -82,9 +82,9 @@ class MentorFullTests(unittest.TestCase):
         return document,decision
 
     def test_class_choice_does_not_auto_grant_other_features_and_replays_fixed_choice(self):
-        row=self.acquire();before=CODEC.dump_engine(self.e)
+        row=self.acquire();before=CODEC.snapshot_engine(self.e)
         self.assertEqual(self.acquire(),row)
-        self.assertEqual(CODEC.dump_engine(self.e),before)
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
         self.assertEqual(self.a.spec['mentor_skills'],['매력','포켓몬학'])
         for feature in set(M.FEATURES)-{M.CLASS}:self.assertIsNone(M.acquired(self.a,feature))
         self.reject(lambda:self.acquire(skills=('직감','협박')),
@@ -153,9 +153,9 @@ class MentorFullTests(unittest.TestCase):
         self.reject(lambda:self.e.expand_horizons(self.a,other,request_id='wrong',seconds=60,reason='actual instruction'))
         result=self.e.expand_horizons(self.a,p,request_id='expand',seconds=60,reason='actual instruction')
         self.assertEqual((result['points'],p.spec['tutor_points'],self.e.elapsed_seconds),(3,3,60))
-        before=CODEC.dump_engine(self.e)
+        before=CODEC.snapshot_engine(self.e)
         self.assertEqual(self.e.expand_horizons(self.a,p,request_id='expand',seconds=60,reason='actual instruction'),result)
-        self.assertEqual(CODEC.dump_engine(self.e),before)
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
         self.new_day();self.reject(lambda:self.e.expand_horizons(self.a,p,request_id='again',seconds=60,reason='actual instruction'))
 
     def test_expand_history_survives_json_restore_and_owner_transfer(self):

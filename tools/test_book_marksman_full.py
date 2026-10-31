@@ -564,8 +564,8 @@ class MarksmanFullTests(unittest.TestCase):
         self.assertEqual((self.a.move_uses[mid],self.a._action_history.count('standard'),self.a.stages['atk']),(1,1,2))
         self.assertIn(M.ARM,self.a.spec);self.assertNotIn(M.CLEAR,F.state(self.a)['activations'])
         for identity in (event,later):COMPLETE.require_returned_event(self.e,identity)
-        saved=self.e.export_state();self.assertEqual(self.e.deliver_passive_event(later),'already_delivered')
-        self.assertEqual(self.e.export_state(),saved);self.restore();self.assertTrue(self.e.validate_state()['valid'])
+        saved=self.e.snapshot_state();self.assertEqual(self.e.deliver_passive_event(later),'already_delivered')
+        self.assertEqual(self.e.snapshot_state(),saved);self.restore();self.assertTrue(self.e.validate_state()['valid'])
 
     def test_paid_overwatch_path_waits_for_actual_return_before_resuming_saved_prefix(self):
         import movement_actions as MOVE

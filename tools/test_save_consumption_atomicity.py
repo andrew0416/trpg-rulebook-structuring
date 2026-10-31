@@ -31,11 +31,11 @@ class SaveConsumptionAtomicityTests(TestCase):
         actor = fixture.pokemon('atomic-herb-holder')
         engine = fixture.fixture(actor, fixture.pokemon('atomic-herb-other'))
         buff_id = self.herb(engine, actor, '혼란')
-        before = CODEC.dump_engine(engine)
+        before = CODEC.snapshot_engine(engine)
         with patch.object(EXT, 'save_dc', side_effect=ValueError('late save fault')):
             with self.assertRaisesRegex(ValueError, 'late save fault'):
                 RECOVERY.saving_check(engine, actor, '혼란', 10, fixed=9)
-        self.assertEqual(CODEC.dump_engine(engine), before)
+        self.assertEqual(CODEC.snapshot_engine(engine), before)
         self.assertTrue(any(buff['id'] == buff_id for buff in actor.buffs))
         self.assertEqual(RECOVERY.saving_check(engine, actor, '혼란', 10, fixed=9)['food_bonus'], 2)
         self.assertEqual(RECOVERY.saving_check(engine, actor, '혼란', 10, fixed=9)['food_bonus'], 0)
@@ -49,11 +49,11 @@ class SaveConsumptionAtomicityTests(TestCase):
         buff_id = self.herb(fixture.e, fixture.p, '혼란')
         fixture.combat(fixture.p, fixture.a, fixture.q)
         fixture.e.activate_fashion_item(fixture.p, item)
-        before = CODEC.dump_engine(fixture.e)
+        before = CODEC.snapshot_engine(fixture.e)
         with patch.object(EXT, 'save_dc', side_effect=ValueError('late joint fault')):
             with self.assertRaisesRegex(ValueError, 'late joint fault'):
                 RECOVERY.saving_check(fixture.e, fixture.p, '혼란', 10, fixed=5)
-        self.assertEqual(CODEC.dump_engine(fixture.e), before)
+        self.assertEqual(CODEC.snapshot_engine(fixture.e), before)
         self.assertTrue(any(buff['id'] == buff_id for buff in fixture.p.buffs))
         first = RECOVERY.saving_check(fixture.e, fixture.p, '혼란', 10, fixed=5)
         second = RECOVERY.saving_check(fixture.e, fixture.p, '혼란', 10, fixed=5)
@@ -67,11 +67,11 @@ class SaveConsumptionAtomicityTests(TestCase):
         buff_id = self.herb(fixture.e, fixture.p, '네트')
         fixture.fire()
         fixture.p.budget = {'standard': 1, 'shift': 1, 'swift': 1}
-        before = CODEC.dump_engine(fixture.e)
+        before = CODEC.snapshot_engine(fixture.e)
         with patch.object(EXT, 'save_dc', side_effect=ValueError('late net fault')):
             with self.assertRaisesRegex(ValueError, 'late net fault'):
                 fixture.e.remove_net(fixture.p, fixed=10)
-        self.assertEqual(CODEC.dump_engine(fixture.e), before)
+        self.assertEqual(CODEC.snapshot_engine(fixture.e), before)
         self.assertIsNotNone(NET.active(fixture.p))
         self.assertTrue(any(buff['id'] == buff_id for buff in fixture.p.buffs))
         outcome = fixture.e.remove_net(fixture.p, fixed=8)

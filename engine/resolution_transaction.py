@@ -7,16 +7,18 @@ retain their original identity. Invalid resolution raises before commit.
 from copy import deepcopy
 
 
-def commit_graph(payload, anchors, replacements=()):
+def commit_graph(payload, anchors, replacements=(), frozen=()):
     """Allocate the complete result before applying anchored container changes.
 
     Anchors map staged identities to the original native objects/containers.
     Callers finish validation and callbacks before entering this commit phase.
+    Frozen identities are containers shared unchanged by both graphs; they are
+    neither walked nor rewritten.
     """
     anchors=dict(anchors)
     pending={}
     def visit(value):
-        if not isinstance(value,(dict,list,set,tuple)) or id(value) in pending:return
+        if not isinstance(value,(dict,list,set,tuple)) or id(value) in pending or id(value) in frozen:return
         pending[id(value)]=value
         if isinstance(value,dict):
             for key,child in value.items():visit(key);visit(child)

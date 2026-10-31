@@ -58,5 +58,5 @@ class TumblerAuditIntegrationTests(TumblerScene,unittest.TestCase):
   result=self.e.retrain_trainer_source(self.a,'edge/거장',**decision)
   self.assertNotIn('edge/거장',self.a.spec['edge_choices']);self.assertEqual(T.records(self.a),receipts)
   self.assertEqual((self.a.moves,self.a.stats['spe']),(moves,speed));self.assertEqual(SK.effective_rank(self.rules,self.a,'곡예'),6)
-  self.valid();self.restore();self.valid();before=self.e.export_state();self.assertEqual(self.e.retrain_trainer_source(self.a,'edge/거장',**decision),result);self.assertEqual(self.e.export_state(),before)
+  self.valid();self.restore();self.valid();before=self.e.snapshot_state();self.assertEqual(self.e.retrain_trainer_source(self.a,'edge/거장',**decision),result);self.assertEqual(self.e.snapshot_state(),before)
   self.incoming(12)

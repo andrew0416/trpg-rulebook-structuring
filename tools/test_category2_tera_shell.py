@@ -119,16 +119,16 @@ class TeraShellTests(unittest.TestCase):
 
     def test_nonresisting_immunity_unknown_and_extra_options_reject_atomically(self):
         event = self.waiting()
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         for chosen in ('불꽃', 'TYPO', '땅'):
             with self.subTest(chosen=chosen):
                 with self.assertRaises(ValueError):
                     self.choose(event, chosen)
-                self.assertEqual(self.e.export_state(), before)
+                self.assertEqual(self.e.snapshot_state(), before)
         with self.assertRaises(ValueError):
             self.e.choose_ability_interrupt(event, self.t, use=True,
                 options={'chosen_type': '물', 'hit': True}, reason='forged input')
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         self.choose(event)
 
     def test_direct_damage_and_fabricated_hit_do_not_authorize_activation(self):
@@ -250,10 +250,10 @@ class TeraShellTests(unittest.TestCase):
 
     def test_immunity_is_not_the_source_resisting_type_choice(self):
         event = self.waiting('move/몸통박치기')
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with self.assertRaises(ValueError):
             self.choose(event, '고스트')
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         self.choose(event, '바위')
         self.assertEqual(self.t.types, ['바위'])
 

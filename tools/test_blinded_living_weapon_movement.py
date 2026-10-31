@@ -183,9 +183,9 @@ class BlindedLivingWeaponMovementTests(unittest.TestCase):
                 self.assertEqual(holder._action_history.count('shift'), 1)
                 self.assertEqual(len(holder.spec['_survivalist_shift']['checks']), 1)
                 engine, holder, weapon, target = self.restore(engine, holder, weapon, target)
-                before = engine.export_state()
+                before = engine.snapshot_state()
                 engine.approach(holder, target, blindness_options=self.options())
-                self.assertEqual(engine.export_state(), before)
+                self.assertEqual(engine.snapshot_state(), before)
                 self.assertTrue(engine.validate_state()['valid'])
 
     def test_returned_entry_with_exhausted_live_pool_stops_before_the_next_cell(self):

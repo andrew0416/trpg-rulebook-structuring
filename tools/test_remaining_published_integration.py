@@ -74,12 +74,12 @@ class RemainingPublishedIntegrationTests(unittest.TestCase):
     self.assertEqual(h.t.spec,spec);self.assertEqual(h.e.rng.getstate(),rng)
     loaded=CODEC.load_engine(h.rules,json.loads(json.dumps(payload,ensure_ascii=False)))
     for engine in (h.e,loaded):
-     before=engine.export_state();rng=engine.rng.getstate()
+     before=engine.snapshot_state();rng=engine.rng.getstate()
      reader=WORLD.actor_index(engine)[h.t.entity_id]
      report=engine.validate_state()
      self.assertTrue(report['valid'],report);self.assertEqual(report['issues'],[])
      self.assertEqual(WORLD.validate_world(engine),report)
-     self.assertEqual(engine.export_state(),before);self.assertEqual(engine.rng.getstate(),rng)
+     self.assertEqual(engine.snapshot_state(),before);self.assertEqual(engine.rng.getstate(),rng)
      self.assertEqual(reader.spec,spec)
      if studied:
       self.assertEqual(engine._physical_objects[identity][BOOKS.OBJECT]['book'],'study_manual')

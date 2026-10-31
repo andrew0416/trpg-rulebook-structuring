@@ -59,7 +59,7 @@ class ResearcherFieldsPokemonTests(unittest.TestCase):
 
     def reject_invalid_fossil_evidence(self, egg, record, change):
         """Inject only the disputed evidence; compare the entire valid world/RNG after removing that injection."""
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         original_egg, original_record = deepcopy(egg), deepcopy(record)
         try:
             change(egg, record)
@@ -72,7 +72,7 @@ class ResearcherFieldsPokemonTests(unittest.TestCase):
             egg.clear(); egg.update(original_egg)
             if record is not None:
                 record.clear(); record.update(original_record)
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
 
     def saved_egg_node(self, payload, egg):
         return next(node for node in payload['nodes'].values()
@@ -386,7 +386,7 @@ class ResearcherFieldsPokemonTests(unittest.TestCase):
         ordinary = self.fossil('릴링', 'ordinary has no event', feature=False)
         for facts in ({}, None, deepcopy(genuine[RFS.FOSSIL_MARK])):
             with self.subTest(marker=facts):
-                before = self.e.export_state()
+                before = self.e.snapshot_state()
                 ordinary[RFS.FOSSIL_MARK] = deepcopy(facts)
                 bad = deepcopy(ordinary)
                 try:
@@ -395,8 +395,8 @@ class ResearcherFieldsPokemonTests(unittest.TestCase):
                     self.assertEqual(ordinary, bad)
                 finally:
                     ordinary.pop(RFS.FOSSIL_MARK)
-                self.assertEqual(self.e.export_state(), before)
-        before = self.e.export_state()
+                self.assertEqual(self.e.snapshot_state(), before)
+        before = self.e.snapshot_state()
         records = self.t.spec[RFS.KEY]['fossils']
         index = records.index(event)
         records.pop(index)
@@ -406,7 +406,7 @@ class ResearcherFieldsPokemonTests(unittest.TestCase):
             self.assertNotIn(event, records)
         finally:
             records.insert(index, event)
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         self.valid()
 
     def test_legacy_fossil_confirmation_preserves_already_hatched_child_after_ownership_transfer(self):

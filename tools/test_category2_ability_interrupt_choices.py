@@ -73,9 +73,9 @@ class AbilityInterruptChoiceTests(unittest.TestCase):
         self.assertEqual((self.t.hp,self.r.hp),hp)
         row=self.e._passive_events[event][CHOICES.KEY]
         self.assertEqual(row['offers'],[{'owner_id':self.r.entity_id,'source':TS.SOURCE}])
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         with self.assertRaises(ValueError):self.choose(event,self.t)
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.fresh();self.choose(event,self.r)
         self.assertEqual(self.t.hp,hp[0]);self.assertLess(self.r.hp,hp[1])
         self.assertEqual(self.r.types,['물']);self.assertEqual(self.t.types,['풀','독'])
@@ -99,9 +99,9 @@ class AbilityInterruptChoiceTests(unittest.TestCase):
 
     def test_source_withdrawn_while_waiting_rejects_use_but_allows_decline(self):
         event=self.waiting();G.replace_baseline(self.e,self.t,'abilities',[])
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         with self.assertRaises(ValueError):self.choose(event)
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.choose(event,use=False);self.assertIsNone(self.e._passive_pending)
         self.assertEqual(getattr(self.t,'_action_history',[]),[])
 

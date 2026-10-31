@@ -38,8 +38,8 @@ class NonlandBreatherTests(unittest.TestCase):
   self.assertEqual(entered,[((3,2),0,12),((5,2),0,12),((6,2),0,12)])
   self.assertEqual((self.a.temp_hp,follow.call_count,self.a._action_history.count('full')),(5,1,1))
   self.assertEqual(self.a.budget,{'standard':0,'shift':0,'swift':1});self.assertNotIn('혼란',self.a.conditions)
-  before=CODEC.dump_engine(self.e);self.assertEqual(self.take(path=path,movement_mode='sky'),result)
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  before=CODEC.snapshot_engine(self.e);self.assertEqual(self.take(path=path,movement_mode='sky'),result)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
   with self.assertRaisesRegex(ValueError,'declaration'):self.take(path=path,movement_mode='levitate')
  def test_swim_uses_slowed_highest_capability_and_existing_terrain_policy(self):
   self.movement(swim=6);self.e.apply_status(self.a,'둔화')
@@ -49,31 +49,31 @@ class NonlandBreatherTests(unittest.TestCase):
   self.assertEqual((result['movement']['distance'],result['movement']['mode'],self.a.pos),(2,'수중',(3,2)))
   self.assertEqual((self.a.temp_hp,self.a._action_history.count('full')),(5,1));self.assertNotIn('둔화',self.a.conditions)
  def test_levitate_height_and_unmeasured_mixed_route_fail_before_cost_or_save(self):
-  self.movement(levitate=6);before=CODEC.dump_engine(self.e)
+  self.movement(levitate=6);before=CODEC.snapshot_engine(self.e)
   invalid=[
    self.air(((2,2),0,None),((2,2),1,None),((2,2),2,None),((2,2),3,None),((2,2),4,None)),
    self.air(((2,2),0,None),((3,2),1,None))]
   for path in invalid:
    with self.subTest(path=path):
     with self.assertRaises(ValueError):self.take(path=path,movement_mode='levitate')
-    self.assertEqual(CODEC.dump_engine(self.e),before)
+    self.assertEqual(CODEC.snapshot_engine(self.e),before)
   path=self.air(((2,2),0,None),((2,2),1,None),((2,2),2,None),((2,2),3,None))
   result=self.take(path=path,movement_mode='levitate')
   self.assertTrue(result['completed']);self.assertEqual(result['movement']['altitude'],3);self.assertTrue(self.a.airborne)
  def test_actual_higher_mode_is_required_and_unmapped_modes_do_not_fall_back_to_walking(self):
-  self.movement(sky=6,teleport=8);before=CODEC.dump_engine(self.e)
+  self.movement(sky=6,teleport=8);before=CODEC.snapshot_engine(self.e)
   for mode in (None,'land','sky'):
    with self.subTest(mode=mode):
     self.assertIsInstance(self.take(movement_mode=mode),C.PendingDecision)
-    self.assertEqual(CODEC.dump_engine(self.e),before)
+    self.assertEqual(CODEC.snapshot_engine(self.e),before)
   # Teleport now has a native transfer producer; missing surface observation
   # is pending, while a multi-cell walking route is an invalid transfer.
   self.assertIsInstance(self.take(movement_mode='teleport',path=[(2,2),(6,2)]),C.PendingDecision)
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
   with self.assertRaisesRegex(ValueError,'one actual origin and destination'):self.take(movement_mode='teleport')
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
   with self.assertRaisesRegex(ValueError,'unknown'):self.take(movement_mode='invented')
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
  def test_interrupted_aerial_prefix_survives_json_restore_without_full_save_or_previous_legs(self):
   self.movement(sky=5)
   path=self.air(((2,2),0,None),((2,2),1,None),((3,2),1,None),
@@ -118,8 +118,8 @@ class NonlandBreatherTests(unittest.TestCase):
   self.assertEqual((self.a.budget['standard'],self.a.budget['shift'],self.a.temp_hp),(1,0,12))
  def test_unmeasured_curse_3d_distance_holds_without_planar_cure_or_cost(self):
   self.movement(sky=6);self.e.apply_status(self.a,'저주',source='move/저주',applied_by=self.b)
-  path=self.air(((2,2),0,None),((2,2),1,None));before=CODEC.dump_engine(self.e)
+  path=self.air(((2,2),0,None),((2,2),1,None));before=CODEC.snapshot_engine(self.e)
   self.assertIsInstance(self.take(path=path,movement_mode='sky'),C.PendingDecision)
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
 
 if __name__=='__main__':unittest.main()

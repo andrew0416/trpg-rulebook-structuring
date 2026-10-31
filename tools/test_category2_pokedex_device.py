@@ -58,18 +58,18 @@ class PokedexTests(unittest.TestCase):
         self.assertEqual(self.a.spec['pokedex_starting_instance'], 'dex/a')
         self.assertEqual(self.device()['value_points'], 12000)
         self.assertEqual(self.e._physical_objects['dex/a']['equipped_by'], self.a.entity_id)
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         for uid in ('dex/a', 'dex/another'):
             with self.assertRaisesRegex(ValueError, 'already received'):
                 self.e.gm.grant_starting_pokedex(self.a, uid, starting_character=True, reason='repeat')
-            self.assertEqual(self.e.export_state(), before)
+            self.assertEqual(self.e.snapshot_state(), before)
         for value in (11999, True):
             with self.assertRaises(ValueError):
                 self.e.gm.grant_starting_pokedex(self.b, 'dex/b', starting_character=True,
                                                value_points=value, reason='bad value')
         with self.assertRaises(ValueError):
             self.e.gm.grant_starting_pokedex(self.b, 'dex/b', starting_character=False, reason='not starting')
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         before_rulings = deepcopy(vars(self.e.rulings))
         before_logs = list(self.e.log_lines)
         before_spec = deepcopy(self.b.spec)
@@ -98,7 +98,7 @@ class PokedexTests(unittest.TestCase):
         self.assertNotIn('dex/b', self.e._physical_objects)
         self.assertEqual(self.b.spec, before_spec)
         self.assertEqual(getattr(self.b, '_item_reg', {}), before_held)
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         result = self.e.gm.grant_starting_pokedex(self.b, 'dex/b', starting_character=True,
                                                 value_points=14000, reason='GM optional starting grant')
         self.assertEqual((result['price_paid'], result['value_points']), (0, 14000))
@@ -138,10 +138,10 @@ class PokedexTests(unittest.TestCase):
 
     def test_scan_range_recognition_and_unknown_geometry_never_invent_success(self):
         self.p.pos = (11, 0)
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with self.assertRaisesRegex(ValueError, '10m'):
             self.scan()
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         self.p.pos = (10, 0)
         for changes in ({'recognized': None}, {'recognized': False}, {'readout': None}):
             result = self.scan(**changes)
@@ -195,12 +195,12 @@ class PokedexTests(unittest.TestCase):
         self.assertIsInstance(result, C.PendingDecision)
 
     def test_physical_device_access_and_source_selection_are_not_quantity_or_forged_copies(self):
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         with self.assertRaises(ValueError):
             self.e.scan_pokedex(self.b, self.p, 'dex/a', recognized=True, readout=self.observation(), reason='wrong holder')
         with self.assertRaises(ValueError):
             self.e.scan_pokedex(self.a, self.p, 'missing', recognized=True, readout=self.observation(), reason='no actual device')
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         obj = self.e._physical_objects['dex/a']
         obj['disabled'] = True
         with self.assertRaisesRegex(ValueError, 'unavailable'): self.scan()
@@ -211,7 +211,7 @@ class PokedexTests(unittest.TestCase):
             return original(uid, *args, **kwargs)
         with patch.object(self.r, '_selected_rule', excluded):
             with self.assertRaisesRegex(ValueError, 'excluded'): self.scan()
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
 
     def test_builtins_consume_actual_service_observations_without_invented_connectivity(self):
         self.e.start_round([self.a, self.p])
@@ -277,7 +277,7 @@ class PokedexTests(unittest.TestCase):
             self.e.configure_pokedex(self.b, 'dex/existing', value_points=12000, reason='changed value')
 
     def test_source_freshness_and_new_state_trust_boundaries_fail_before_device_mutation(self):
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         original = Path.read_bytes
         for filename in ('ch09-equipment.md', 'pokedex-core-1.05.txt'):
             def changed(path):
@@ -285,10 +285,10 @@ class PokedexTests(unittest.TestCase):
                 return content + b' changed' if path.name == filename else content
             with self.subTest(source=filename), patch.object(Path, 'read_bytes', changed):
                 with self.assertRaisesRegex(ValueError, 'source changed'): self.scan()
-            self.assertEqual(self.e.export_state(), before)
+            self.assertEqual(self.e.snapshot_state(), before)
         invalid = dict(source='gm/no-service', available=False, content='invented result')
         with self.assertRaises(ValueError): self.function('internet', observation=invalid)
         with self.assertRaises(ValueError):
             self.e.download_pokedex_app(self.a, 'dex/a', 'phone', download_completed=True,
                 source='gm/download', reason='builtin is not an additional app')
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)

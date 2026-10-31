@@ -81,15 +81,15 @@ class AbilityReactionChoiceTests(unittest.TestCase):
     def test_later_actual_action_closes_optional_offer_without_payment(self):
         event=self.offer();self.assertTrue(TURN.spend(self.e,self.a,'shift','actual later action'))
         self.assertEqual(self.e.pending_ability_reactions(),[])
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         with self.assertRaises(ValueError):self.choose(event)
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
 
     def test_source_withdrawal_rejects_activation_and_explicit_decline_remains_free(self):
         event=self.offer();G.replace_baseline(self.e,self.t,'abilities',[])
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         with self.assertRaises(ValueError):self.choose(event)
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.choose(event,use=False)
         self.assertEqual(RESOURCES.pending(self.t),{})
         self.assertNotIn(PB.KEY,self.t.spec)
@@ -106,19 +106,19 @@ class AbilityReactionChoiceTests(unittest.TestCase):
         offer=self.e.pending_ability_reactions()[0];event=offer['event_id']
         self.assertNotEqual(event,parent)
         self.assertEqual(self.e._passive_events[event]['defense_parent'],parent)
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         with self.assertRaises(ValueError):self.choose(parent)
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.choose(event);self.fresh()
 
     def test_late_adapter_failure_rolls_back_action_frequency_frame_and_both_counts(self):
-        event=self.offer();before=self.e.export_state();native=PB.activate
+        event=self.offer();before=self.e.snapshot_state();native=PB.activate
         def fail(engine,owner,plan):
             native(engine,owner,plan)
             raise ValueError('late adapter failure after both grants')
         with patch.object(PB,'activate',side_effect=fail):
             with self.assertRaisesRegex(ValueError,'late adapter failure'):self.choose(event)
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.choose(event)
         self.assertEqual(len(self.t._action_history),1)
 

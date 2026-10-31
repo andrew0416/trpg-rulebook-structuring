@@ -102,9 +102,9 @@ class HelpConsumerTests(unittest.TestCase):
   self.assertEqual(out['status'],'PolicyRollsCompleted')
   self.assertEqual(out['outcome']['result']['total'],17)
   self.assertTrue(out['outcome']['result']['passed']);self.spent()
-  before=self.e.export_state()
+  before=self.e.snapshot_state()
   again=self.e.execute_source_policy_rolls(submissions,{'kind':'dc','dc':15},request_id='help-consumer/policy')
-  self.assertTrue(again['replayed']);self.assertEqual(self.e.export_state(),before)
+  self.assertTrue(again['replayed']);self.assertEqual(self.e.snapshot_state(),before)
 
  def test_additional_focus_keeps_distinct_automatic_observation_ids(self):
   self.start();self.arm()

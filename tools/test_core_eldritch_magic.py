@@ -158,10 +158,10 @@ class EldritchMagicTests(unittest.TestCase):
         completion = list(self.e._move_completions.values())[-1]
         # A replay can only return the original recipient receipt; it cannot
         # re-inflict from the completed attack or convert its multihit suffix.
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         EM.after_hit(self.e, self.a, self.b, self.r.move('move/분노의앞니'), 20,
                      completion_id=completion['id'])
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         self.assertFalse(self.e.apply_status(self.b, '혼란', source='move/이상한빛', applied_by=self.a))
         self.assertNotIn('저주', self.b.conditions)
         second = self.actor('second actual Eldritch inflictor')
@@ -693,10 +693,10 @@ class EldritchMagicTests(unittest.TestCase):
                 event.update({key: value for key, value in mutation.items() if key != 'natural'})
                 if 'natural' in mutation:
                     event['check']['natural'] = mutation['natural']
-                before = self.e.export_state()
+                before = self.e.snapshot_state()
                 with self.assertRaises(ValueError):
                     self.e.gm.restore(checkpoint)
-                self.assertEqual(self.e.export_state(), before)
+                self.assertEqual(self.e.snapshot_state(), before)
                 self.e.gm.snapshots[checkpoint] = deepcopy(clean_snapshot, dict(actor_refs))
                 bad = deepcopy(original)
                 events = [node for node in bad['nodes'].values()
@@ -829,12 +829,12 @@ class EldritchMagicTests(unittest.TestCase):
                     self.valid(archived)
 
     def test_invalid_save_basis_rejects_before_adoption_state_or_rng_change(self):
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         for basis in (None, True, 'natural', '', []):
             with self.subTest(basis=basis):
                 with self.assertRaisesRegex(ValueError, 'save_band_basis'):
                     EM.adopt(self.e, self.a, reason='invalid GM choice', save_band_basis=basis)
-                self.assertEqual(self.e.export_state(), before)
+                self.assertEqual(self.e.snapshot_state(), before)
         self.adopt()
         self.assertEqual(self.a.spec[EM.ADOPTION]['save_band_basis'], 'modified_save')
         self.valid()
@@ -848,7 +848,7 @@ class EldritchMagicTests(unittest.TestCase):
         self.e.start_round(self.e.everyone)
         self.e.start_of_turn(self.b)
         self.e.rng.seed(1)
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         original = FX.run_effects
         def fail_after_stage(engine, actor, target, effects, *args, **kwargs):
             result = original(engine, actor, target, effects, *args, **kwargs)
@@ -858,7 +858,7 @@ class EldritchMagicTests(unittest.TestCase):
         with patch.object(FX, 'run_effects', side_effect=fail_after_stage):
             with self.assertRaisesRegex(RuntimeError, 'late Dementia native stage failure'):
                 self.e.end_of_turn(self.b)
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
         self.e.end_of_turn(self.b)
         event, = EM.active(self.b)['saves']
         self.assertEqual(event['check']['natural'], 5)

@@ -11,10 +11,10 @@ class TutoringAdmissionTests(unittest.TestCase):
  pokemon=fixture.MentorMoveStateTests.pokemon
  teach=fixture.MentorMoveStateTests.teach
  def attempt(self,level,name,allowed):
-  self.setUp();pokemon=self.pokemon(level);before=C.dump_engine(self.e)
+  self.setUp();pokemon=self.pokemon(level);before=C.snapshot_engine(self.e)
   if not allowed:
    with self.assertRaisesRegex(ValueError,'tutoring restriction'):self.teach(pokemon,name,T.MOVE_TUTOR)
-   self.assertEqual(C.dump_engine(self.e),before)
+   self.assertEqual(C.snapshot_engine(self.e),before)
   else:
    result=self.teach(pokemon,name,T.MOVE_TUTOR)
    self.assertEqual((result['point_cost'],pokemon.spec['tutor_points'],self.e.elapsed_seconds),(2,6,60))

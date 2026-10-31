@@ -3,7 +3,7 @@ import sys,unittest,copy
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 import acquisition_qualification as Q
 import test_foundation_policy_replay as F
-from state_codec import dump_engine
+from state_codec import dump_engine, snapshot_engine
 
 class QualificationTests(unittest.TestCase):
  @classmethod
@@ -31,12 +31,12 @@ class QualificationTests(unittest.TestCase):
  def test_external_policy_evaluates_without_granting_or_mutating(self):
   f=F.PolicyReplayTests();f.setUp();declaration=self.declaration();declaration.pop('source_id')
   f.row['values']={'qualification':declaration}
-  before=dump_engine(f.e)
+  before=snapshot_engine(f.e)
   result=f.e.evaluate_source_policy_qualification(f.c,f.c,f.doc)
   self.assertEqual(result['status'],'PolicyQualificationEvaluated')
   self.assertEqual(result['qualification']['status'],'qualified')
   self.assertFalse(result['qualification']['acquired']);self.assertFalse(result['effects_executed'])
-  self.assertEqual(dump_engine(f.e),before)
+  self.assertEqual(snapshot_engine(f.e),before)
   self.assertEqual(result['selected_id'],'combat/struggle')
 
  def test_json_stage_rank_cap_and_locked_selection_do_not_leak(self):
@@ -79,20 +79,20 @@ class QualificationTests(unittest.TestCase):
   first=f.run_policy(doc,request_id='qualified/one')
   self.assertEqual(first['qualification']['status'],'qualified')
   self.assertEqual(f.c.spec['tutor_points'],2)
-  restored=load_engine(f.r,dump_engine(f.e));a,c=restored.everyone;before=dump_engine(restored)
+  restored=load_engine(f.r,dump_engine(f.e));a,c=restored.everyone;before=snapshot_engine(restored)
   replay=restored.execute_source_policy_grants(a,c,doc,request_id='qualified/one')
   self.assertTrue(replay['replayed']);self.assertEqual(replay['qualification'],first['qualification'])
-  self.assertEqual(dump_engine(restored),before)
+  self.assertEqual(snapshot_engine(restored),before)
  def test_denied_pending_and_wrong_provider_grants_change_nothing(self):
   import source_policy as P
   for value in (False,None):
    f=self.grant_fixture();f.op['qualification']['checks'][0]['passed']=value
-   before=dump_engine(f.e)
+   before=snapshot_engine(f.e)
    with self.assertRaises(P.PolicyExecutionPending if value is None else ValueError):f.run_policy(f.doc(f.op))
-   self.assertEqual(dump_engine(f.e),before)
-  f=self.grant_fixture();f.op['qualification']['provider']='other-provider';before=dump_engine(f.e)
+   self.assertEqual(snapshot_engine(f.e),before)
+  f=self.grant_fixture();f.op['qualification']['provider']='other-provider';before=snapshot_engine(f.e)
   with self.assertRaisesRegex(ValueError,'actual granting actor'):f.run_policy(f.doc(f.op))
-  self.assertEqual(dump_engine(f.e),before)
+  self.assertEqual(snapshot_engine(f.e),before)
 
  def test_acquisition_reads_live_target_state_and_replay_keeps_original_evidence(self):
   f=self.grant_fixture()
@@ -100,15 +100,15 @@ class QualificationTests(unittest.TestCase):
    'test':{'op':'ge','left':{'$input':'level'},'right':10}}]
   doc=f.load(f.doc(f.op,inputs={'level':{'authority':'state','type':'integer','question':'Actual target level',
    'binding':{'subject':'target','field':'level'}}}))
-  f.c.level=9;before=dump_engine(f.e)
+  f.c.level=9;before=snapshot_engine(f.e)
   with self.assertRaisesRegex(ValueError,'qualification denied'):f.run_policy(doc,request_id='live/one')
-  self.assertEqual(dump_engine(f.e),before)
+  self.assertEqual(snapshot_engine(f.e),before)
   f.c.level=10;first=f.run_policy(doc,request_id='live/one')
   self.assertEqual(first['qualification']['checks'][0]['test']['left'],10)
-  f.c.level=9;before=dump_engine(f.e)
+  f.c.level=9;before=snapshot_engine(f.e)
   replay=f.run_policy(doc,request_id='live/one')
   self.assertTrue(replay['replayed']);self.assertEqual(replay['qualification'],first['qualification'])
-  self.assertEqual(dump_engine(f.e),before)
+  self.assertEqual(snapshot_engine(f.e),before)
 
  def replacement_fixture(self):
   f=self.grant_fixture();f.c.spec['capabilities']=['cap/a']
@@ -125,10 +125,10 @@ class QualificationTests(unittest.TestCase):
   self.assertIn('cap/new',G.effective(f.c,'capabilities'))
   self.assertIn('cap/a',G.effective(f.c,'capabilities'))
   self.assertEqual(f.c.spec['tutor_points'],2)
-  restored=load_engine(f.r,dump_engine(f.e));a,c=restored.everyone;before=dump_engine(restored)
+  restored=load_engine(f.r,dump_engine(f.e));a,c=restored.everyone;before=snapshot_engine(restored)
   result=restored.execute_source_policy_grants(a,c,doc,request_id='replace/one')
   self.assertTrue(result['replayed']);self.assertEqual(result['replacement'],first['replacement'])
-  self.assertEqual(dump_engine(restored),before)
+  self.assertEqual(snapshot_engine(restored),before)
  def test_invalid_replacement_never_spends_or_grants(self):
   import source_policy as P
   for mode in ('not_duplicate','wrong_provider','outside','already_owned','denied','pending'):
@@ -138,8 +138,8 @@ class QualificationTests(unittest.TestCase):
    elif mode=='outside':r['choice']='outside'
    elif mode=='already_owned':f.c.spec['capabilities'].append('cap/new')
    else:r['candidates']['cap/new'][0]['passed']=None if mode=='pending' else False
-   before=dump_engine(f.e)
+   before=snapshot_engine(f.e)
    with self.assertRaises(P.PolicyExecutionPending if mode=='pending' else ValueError):f.run_policy(f.doc(f.op),request_id='bad')
-   self.assertEqual(dump_engine(f.e),before)
+   self.assertEqual(snapshot_engine(f.e),before)
 
 if __name__=='__main__':unittest.main()

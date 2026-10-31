@@ -382,8 +382,8 @@ class StyleExpertTests(unittest.TestCase):
   self.setup('강인함');self.family(rank=2,edition='local_csv');self.combat(self.b)
   with patch.object(Engine,'d20',return_value=19):self.e.use_move_on(self.b,self.p,'move/몸통박치기',self.e.everyone,set_damage=True)
   event=next(k for k,v in reversed(list(self.e._passive_events.items())) if v.get('phase')=='producer_return_boundary')
-  before=self.e.export_state();self.assertIsInstance(spite.use(self.e,self.a,self.p,event),C.PendingDecision)
-  self.assertEqual(self.e.export_state(),before)
+  before=self.e.snapshot_state();self.assertIsInstance(spite.use(self.e,self.a,self.p,event),C.PendingDecision)
+  self.assertEqual(self.e.snapshot_state(),before)
   ap=AP.available(self.a);bide.reaction(self.e,self.p,event,trainer=self.a,ranked=S.RANKED[self.stat],payment='next')
   self.assertEqual(AP.available(self.a),ap-2);self.restored();self.assertIsNotNone(bide.pending(self.p))
 

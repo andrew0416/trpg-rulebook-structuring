@@ -75,11 +75,11 @@ class Tests(unittest.TestCase):
   self.assertEqual(milk.spec,before)
 
  def test_replaced_product_source_rejects_before_any_collection_payment(self):
-  self.jar();c=self.producer('몽나');before=self.e.export_state();original=self.r._selected_rule
+  self.jar();c=self.producer('몽나');before=self.e.snapshot_state();original=self.r._selected_rule
   def selected(uid):return 'item/꿈안개-1' if uid=='item/꿈안개' else original(uid)
   with patch.object(self.r,'_selected_rule',side_effect=selected):
    with self.assertRaisesRegex(ValueError,'exact sourced product'):self.collect(c,'capability/꿈안개')
-  self.assertEqual(self.e.export_state(),before)
+  self.assertEqual(self.e.snapshot_state(),before)
  def test_forged_csv_product_identity_cannot_replace_collected_core_source_on_save(self):
   self.jar();c=self.producer('몽나');row=self.collect(c,'capability/꿈안개')
   self.assertEqual(row['item_id'],'item/꿈안개')

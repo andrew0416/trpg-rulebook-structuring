@@ -304,10 +304,10 @@ class MusicianTests(unittest.TestCase):
         self.musician(ability='소리묻히기');foe=self.foe();self.combat(foe,count=15)
         self.e.gm.set_move(foe,'move/멸망의노래',reason='actual known Sonic Move')
         M.request_drown_out(self.e,self.t,reason='player wishes to counter this Sonic Move')
-        before=self.e.export_state();rng=self.e.rng.getstate()
+        before=self.e.snapshot_state();rng=self.e.rng.getstate()
         result=self.e.use_move_on(foe,self.t,'move/멸망의노래',self.e.everyone,aim=foe.pos)
         self.assertIsInstance(result,C.PendingDecision)
-        self.assertEqual(before,self.e.export_state());self.assertEqual(rng,self.e.rng.getstate())
+        self.assertEqual(before,self.e.snapshot_state());self.assertEqual(rng,self.e.rng.getstate())
 
     def test_playtest_drown_out_cancels_no_accuracy_move_without_a_focus_check(self):
         self.rules=Rules(ROOT,ruleset='all');self.setUp()

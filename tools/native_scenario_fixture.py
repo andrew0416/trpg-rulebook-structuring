@@ -194,7 +194,7 @@ def assert_logged_refusal_unchanged(engine, operation, *, expected_result, expec
     from unittest.mock import patch
     if not isinstance(expected_logs, list) or not expected_logs or any(type(line) is not str for line in expected_logs):
         raise ValueError('explicit nonempty exact refusal diagnostic sequence required')
-    before = engine.export_state()
+    before = engine.snapshot_state()
     prefix = list(engine.log_lines)
     result = operation()
     if result != expected_result:
@@ -202,6 +202,6 @@ def assert_logged_refusal_unchanged(engine, operation, *, expected_result, expec
     if engine.log_lines != prefix + expected_logs:
         raise AssertionError('unexpected native refusal diagnostic sequence')
     with patch.object(engine, 'log_lines', prefix):
-        if engine.export_state() != before:
+        if engine.snapshot_state() != before:
             raise AssertionError('refusal changed native world or RNG beyond its exact diagnostic')
     return result

@@ -102,10 +102,10 @@ class ProceduralTargetAndAreaTests(unittest.TestCase):
     def test_recalled_target_query_rejects_before_missing_body_geometry(self):
         e,a,b,c=self.scene()
         e.gm.recall(b,reason='actual recall removes its concrete location')
-        before=e.export_state()
+        before=e.snapshot_state()
         self.assertFalse(b.on_field)
         self.assertEqual(e.targets_in_range(a,e.r.move('move/흡수'),[a,b,c],b),[])
-        self.assertEqual(e.export_state(),before)
+        self.assertEqual(e.snapshot_state(),before)
         with self.assertRaisesRegex(ValueError,'concrete location'):
             BODY.cells(b,require_complete=True)
 

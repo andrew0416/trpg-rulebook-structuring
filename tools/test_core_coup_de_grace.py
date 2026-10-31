@@ -285,17 +285,17 @@ class CoupDeGraceTests(unittest.TestCase):
         f.e.gm.observe_coup_de_grace_target(f.t, properly_bound=True,
             completely_helpless=True, source='gm/current-rope-binding', reason='actual original target binding')
         f.watch()
-        before = f.e.export_state()
+        before = f.e.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'actual available defense owner'):
             f.e.watch_move_defense(f.t, [{'actor_id': f.t.entity_id, 'source': 'move/판별'}],
                                   reason='bound target cannot take its own Detect reaction')
-        self.assertEqual(f.e.export_state(), before)
+        self.assertEqual(f.e.snapshot_state(), before)
         f.e.gm.observe_coup_de_grace_target(f.r, properly_bound=True,
             completely_helpless=True, source='gm/reactor-rope-binding', reason='actual reactor cannot act')
-        before = f.e.export_state()
+        before = f.e.snapshot_state()
         with self.assertRaisesRegex(ValueError, 'actual available defense owner'):
             f.watch()
-        self.assertEqual(f.e.export_state(), before)
+        self.assertEqual(f.e.snapshot_state(), before)
         f.e.gm.observe_coup_de_grace_target(f.r, properly_bound=False,
             completely_helpless=False, source='gm/reactor-released', reason='reactor can now defend its ally')
         released_binding = deepcopy(f.r.custom_conditions[COUP.BINDING])
@@ -343,10 +343,10 @@ class CoupDeGraceTests(unittest.TestCase):
             completely_helpless=False, source='gm/restraints-removed', reason='actual release after reload')
         released.start_round(released.gm.everyone)
         released.start_of_turn(attacker, initiative_count=20)
-        before = fixture.CODEC.dump_engine(released)
+        before = fixture.CODEC.snapshot_engine(released)
         with self.assertRaisesRegex(ValueError, 'fainted or properly bound'):
             released.coup_de_grace(attacker, target, 'move/물대포', set_damage=True)
-        self.assertEqual(fixture.CODEC.dump_engine(released), before)
+        self.assertEqual(fixture.CODEC.snapshot_engine(released), before)
 
     def test_unreviewed_sniper_state_is_not_silently_given_the_core_bonus_policy(self):
         self.other.abilities.append('스나이퍼 [Playtest]')

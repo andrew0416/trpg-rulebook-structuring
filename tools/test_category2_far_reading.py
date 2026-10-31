@@ -198,9 +198,9 @@ class FarReadingTests(unittest.TestCase):
  def test_json_and_gm_restores_preserve_thought_retry_events_receipt_and_durable_replay(self):
   self.teach();self.thought();failed=self.read('stored-read',roll_options=self.fixed(False));self.telepath();self.allow()
   projected=self.e.project_telepathic_thought(self.p,[self.t],'stored projection',request_id='stored-group')
-  saved=self.e.gm.snapshot();loaded=self.restored();idx={x.entity_id:x for x in loaded.everyone};before=CODEC.dump_engine(loaded)
+  saved=self.e.gm.snapshot();loaded=self.restored();idx={x.entity_id:x for x in loaded.everyone};before=CODEC.snapshot_engine(loaded)
   out=loaded.read_telepathic_thought(idx[self.p.entity_id],idx[self.t.entity_id],request_id='stored-read',roll_options=self.fixed(False))
-  self.assertTrue(out['replayed']);self.assertEqual(out['event'],failed['event']);self.assertEqual(CODEC.dump_engine(loaded),before)
+  self.assertTrue(out['replayed']);self.assertEqual(out['event'],failed['event']);self.assertEqual(CODEC.snapshot_engine(loaded),before)
   self.e.gm.set_level(self.p,19,reason='temporary correction');self.e.gm.restore(saved)
   self.assertEqual(self.p.spec['tutor_points'],7)
   self.assertTrue(self.e.project_telepathic_thought(self.p,[self.t],'stored projection',request_id='stored-group')['replayed'])
@@ -242,9 +242,9 @@ class FarReadingTests(unittest.TestCase):
    'source':{'file':source,'sha256':sha256((Path(self.r.root)/source).read_bytes()).hexdigest()},
    'inputs':{},'values':{'teaching_operation':{'kind':'edge','edge':T.EDGE,'safe':True}}}]}
   result=self.e.execute_source_policy_teaching(self.a,self.p,document,request_id='far-reading/native')
-  self.assertEqual(result['status'],'PolicyTeachingCompleted');loaded=self.restored();idx={x.entity_id:x for x in loaded.everyone};before=CODEC.dump_engine(loaded)
+  self.assertEqual(result['status'],'PolicyTeachingCompleted');loaded=self.restored();idx={x.entity_id:x for x in loaded.everyone};before=CODEC.snapshot_engine(loaded)
   self.assertTrue(loaded.execute_source_policy_teaching(idx[self.a.entity_id],idx[self.p.entity_id],document,request_id='far-reading/native')['replayed'])
-  self.assertEqual(CODEC.dump_engine(loaded),before)
+  self.assertEqual(CODEC.snapshot_engine(loaded),before)
 
  def test_retry_penalty_does_not_coerce_boolean_skill_modifiers_into_valid_numbers(self):
   self.read('first-failure',roll_options=self.fixed(False));options=self.fixed(True);options['sender']['mods']=True;before=self.snap()

@@ -6,7 +6,7 @@ import sys,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'engine'))
 from engine import Rules,Engine,Combatant
 from builder import build_trainer
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import world_entities as W
 
 class PolicyReplayTests(unittest.TestCase):
@@ -31,9 +31,9 @@ class PolicyReplayTests(unittest.TestCase):
   original=effects.HANDLERS['stage_change']
   def apply(e,a,t,effect,ctx):e.rng.random();return original(e,a,t,effect,ctx)
   with patch.dict(effects.HANDLERS,{'stage_change':apply}):
-   first=self.run_policy();before=dump_engine(self.e);second=self.run_policy()
+   first=self.run_policy();before=snapshot_engine(self.e);second=self.run_policy()
   self.assertFalse(first['replayed']);self.assertTrue(second['replayed'])
-  self.assertEqual(first['execution_id'],second['execution_id']);self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(first['execution_id'],second['execution_id']);self.assertEqual(snapshot_engine(self.e),before)
   self.assertNotIn('receipt',second['outcomes'][0])
   second['values']['effects'].clear();self.assertEqual(self.run_policy()['values'],first['values'])
   self.run_policy('event/two');self.assertEqual(self.c.stages['atk'],2)
@@ -63,14 +63,14 @@ class PolicyReplayTests(unittest.TestCase):
   self.assertTrue(replay['replayed']);self.assertFalse(owner.modifiers)
  def test_binding_failure_rolls_back_action_and_reservation(self):
   self.prepare_binding();self.row['values']['ap']['ending_method']='invalid'
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   with self.assertRaises(ValueError):self.bound_action()
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
  def test_distinct_request_cannot_reuse_a_live_binding_identity(self):
   self.prepare_binding();self.row['values']['action']='free';self.bound_action()
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'already reserved'):self.bound_action('binding/two')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
 
  def test_recipient_debt_commits_once_and_next_budget_settles_without_action(self):
   import turn as TURN
@@ -93,16 +93,16 @@ class PolicyReplayTests(unittest.TestCase):
   import turn as TURN
   self.prepare_binding();self.c.pending_action_loss={'standard':1}
   self.c.spec['_burrow']={'standard_debt':True}
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'conjunction'):TURN.reset_budget(self.e,self.c)
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
   self.c.spec.pop('_burrow')
   self.row['values']={'action':'swift','ap':{'amount':1,'mode':'spend'},
       'recipient_debt':{'standard':1,'swift':1},
       'effects':[{'type':'stage_change','stat':'atk','delta':1,'target':'self'}]}
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'conjunction'):self.bound_action('debt/conflict')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
 
  def prepare_frequency(self,kind='scene',scope=None):
   self.prepare_binding()
@@ -114,10 +114,10 @@ class PolicyReplayTests(unittest.TestCase):
   from source_policy import PolicyExecutionPending
   self.prepare_frequency();self.bound_action('frequency/one')
   self.assertFalse(FREQ.activation_allowed(self.c,'combat/struggle',{'kind':'scene','uses':1}))
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   self.assertTrue(self.bound_action('frequency/one')['replayed'])
   with self.assertRaises(PolicyExecutionPending):self.bound_action('frequency/two')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
   FREQ.new_day(self.c)
   with self.assertRaises(PolicyExecutionPending):self.bound_action('frequency/two')
   FREQ.end_scene(self.e,self.c)
@@ -130,9 +130,9 @@ class PolicyReplayTests(unittest.TestCase):
   owner=Combatant(self.r,dict(deepcopy(self.c.spec),id='turn/owner',name='owner'))
   self.e.everyone.append(owner)
   quota=self.row['values']['frequency'];quota['turn_owner_id']=owner.entity_id
-  self.bound_action('turn/one');before=dump_engine(self.e)
+  self.bound_action('turn/one');before=snapshot_engine(self.e)
   with self.assertRaises(PolicyExecutionPending):self.bound_action('turn/two')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
   TURN.reset_budget(self.e,self.c);FREQ.start_turn(self.c)
   with self.assertRaises(PolicyExecutionPending):self.bound_action('turn/two')
   restored=load_engine(self.r,dump_engine(self.e));actor=restored.everyone[0]
@@ -141,9 +141,9 @@ class PolicyReplayTests(unittest.TestCase):
   self.bound_action('turn/two');self.assertEqual(self.c.stages['atk'],2)
   self.assertTrue(self.bound_action('turn/one')['replayed'])
   with self.assertRaises(PolicyExecutionPending):self.bound_action('turn/three')
-  quota['turn_owner_id']='missing';before=dump_engine(self.e)
+  quota['turn_owner_id']='missing';before=snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'turn owner'):self.bound_action('turn/invalid')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
 
  def test_scoped_frequency_distinguishes_actual_targets(self):
   from source_policy import PolicyExecutionPending
@@ -162,21 +162,21 @@ class PolicyReplayTests(unittest.TestCase):
   self.row['values']['frequency']['kind']='scene';self.bound_action('once/scene')
   FREQ.new_day(self.c);FREQ.end_scene(self.e,self.c)
   self.row['values']['frequency']['kind']='one_time'
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   with self.assertRaises(PolicyExecutionPending):self.bound_action('once/two')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
  def test_frequency_invalid_provider_and_late_effect_failure_do_not_debit(self):
   import frequency as FREQ
   self.prepare_frequency(scope=['provider']);self.row['values']['frequency']['provider_id']='missing'
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   with self.assertRaises(ValueError):self.bound_action('frequency/invalid')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
   self.row['values']['frequency']={'kind':'scene','uses':1,'scope':[]}
   self.row['values']['recipient_debt']={'standard':1,'swift':1}
   self.c.pending_action_loss={'standard':1}
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   with self.assertRaises(ValueError):self.bound_action('frequency/late-failure')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
   self.assertTrue(FREQ.activation_allowed(self.c,'combat/struggle',{'kind':'scene','uses':1}))
 
  def test_provider_action_dimensions_and_compound_order_share_only_intended_pool(self):
@@ -206,12 +206,12 @@ class PolicyReplayTests(unittest.TestCase):
   first=self.e.execute_source_policy_action(self.c,self.c,self.doc,request_id='action/one')
   self.assertEqual(self.c.spec['ap_removed'],2)
   restored=load_engine(self.r,dump_engine(self.e));c=W.actor_index(restored)[self.c.entity_id]
-  before=dump_engine(restored)
+  before=snapshot_engine(restored)
   result=restored.execute_source_policy_action(c,c,self.doc,request_id='action/one')
   self.assertTrue(result['replayed']);self.assertEqual(result['execution_id'],first['execution_id'])
-  self.assertEqual(dump_engine(restored),before)
+  self.assertEqual(snapshot_engine(restored),before)
  def test_changed_intent_mode_and_invalid_identity_are_rejected(self):
-  self.run_policy();before=dump_engine(self.e)
+  self.run_policy();before=snapshot_engine(self.e)
   self.row['values']['effects'][0]['delta']=2
   with self.assertRaisesRegex(ValueError,'changed input'):self.run_policy()
   self.row['values']['effects'][0]['delta']=1
@@ -219,20 +219,20 @@ class PolicyReplayTests(unittest.TestCase):
    self.e.execute_source_policy_action(self.c,self.c,self.doc,request_id='event/one')
   for uid in ['',False,1]:
    with self.assertRaises(ValueError):self.run_policy(uid)
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
  def test_pending_and_failed_attempts_do_not_mark_a_request_completed(self):
   self.row['inputs']={'delta':{'type':'integer','authority':'gm','question':'Delta?'}}
   self.row['values']['effects'][0]['delta']={'$input':'delta'}
-  before=dump_engine(self.e);self.assertEqual(self.run_policy()['status'],'PolicyInputsRequired')
-  self.assertEqual(dump_engine(self.e),before)
+  before=snapshot_engine(self.e);self.assertEqual(self.run_policy()['status'],'PolicyInputsRequired')
+  self.assertEqual(snapshot_engine(self.e),before)
   args={'decisions':{'delta':{'value':1,'reason':'explicit'}}}
   self.row['values']['effects'].append({'type':'not_implemented'})
   with self.assertRaises(ValueError):self.run_policy(**args)
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
   self.row['values']['effects'].pop()
   self.assertFalse(self.run_policy(**args)['replayed']);self.assertTrue(self.run_policy(**args)['replayed'])
  def test_completed_request_still_checks_current_source_and_actual_actor(self):
-  self.run_policy();before=dump_engine(self.e)
+  self.run_policy();before=snapshot_engine(self.e)
   good=self.row['source']['sha256'];self.row['source']['sha256']='0'*64
   with self.assertRaisesRegex(ValueError,'source changed'):self.run_policy()
   self.row['source']['sha256']=good
@@ -241,7 +241,7 @@ class PolicyReplayTests(unittest.TestCase):
   self.r.ruleset.exclude_units.add('combat/struggle')
   with self.assertRaises(ValueError):self.run_policy()
   self.r.ruleset.exclude_units.remove('combat/struggle')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
 
  def test_replay_reads_original_evidence_after_state_condition_changes(self):
   self.row['inputs']={'level':{'type':'integer','authority':'state','question':'Actual level',
@@ -253,12 +253,12 @@ class PolicyReplayTests(unittest.TestCase):
   self.assertEqual(self.run_policy('event/new')['status'],'PolicyNotApplicable')
  def test_rebuilt_changed_profile_cannot_reuse_completed_identity(self):
   from ruleset import RuleSelection
-  self.run_policy();before=dump_engine(self.e)
+  self.run_policy();before=snapshot_engine(self.e)
   self.r.ruleset.exclude_units.add('combat/tick-of-hit-points')
   self.r.selection=RuleSelection(self.r.ruleset,list(self.rules.selection.units.values()))
   with self.assertRaisesRegex(ValueError,'changed input'):self.run_policy()
   self.r.ruleset.exclude_units.remove('combat/tick-of-hit-points')
   self.r.selection=RuleSelection(self.r.ruleset,list(self.rules.selection.units.values()))
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
 
 if __name__=='__main__':unittest.main()

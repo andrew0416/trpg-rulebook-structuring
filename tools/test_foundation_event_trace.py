@@ -3,7 +3,7 @@ import sys,unittest,json
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 import test_foundation_event_subscriptions as FIX
 import source_context as SC
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 
 class TraceTests(unittest.TestCase):
  @classmethod
@@ -78,10 +78,10 @@ class TraceTests(unittest.TestCase):
      move=e.r.move('struggle')
      public=dict(attacker=a,target=b,move=move,set_damage=True)
      missing=dict(public);missing.pop('move')
-     before=dump_engine(e)
+     before=snapshot_engine(e)
      for args,kwargs in (((),dict(public,unreviewed_option=True)),((a,),public),((),missing)):
       with self.assertRaises(TypeError):e.resolve_attack_damage(*args,**kwargs)
-      self.assertEqual(dump_engine(e),before)
+      self.assertEqual(snapshot_engine(e),before)
       self.assertEqual(e.execution_traces(),[])
      hp=b.hp
      result=(e.resolve_attack_damage(a,target=b,move=move,set_damage=True) if mixed else
@@ -128,13 +128,13 @@ class TraceTests(unittest.TestCase):
  def test_transaction_discards_resource_and_trace_changes_on_failure(self):
   import state_grants as G
   e,a,b,doc,key=FIX.Subscriptions().fixture();e.enable_execution_trace()
-  before=dump_engine(e)
+  before=snapshot_engine(e)
   def fail(staged,actor):
    staged.lose_hp(actor,1)
    self.assertEqual(len(staged.execution_traces()),1)
    raise ValueError('rollback')
   with self.assertRaisesRegex(ValueError,'rollback'):G.transition(e,a,fail)
-  self.assertEqual(dump_engine(e),before)
+  self.assertEqual(snapshot_engine(e),before)
   G.transition(e,a,lambda staged,actor:staged.lose_hp(actor,1))
   self.assertEqual(len(e.execution_traces()),1)
  def test_shared_rules_do_not_merge_separate_engine_trace_parents(self):

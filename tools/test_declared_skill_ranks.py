@@ -10,7 +10,7 @@ sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools'),str(ROOT/'examples')]
 from engine import Rules,Engine,Combatant
 from builder import build_trainer,build_pokemon
 from rulings import Rulings
-from state_codec import dump_engine,load_engine,StateCodecError
+from state_codec import dump_engine,load_engine,StateCodecError, snapshot_engine
 import skill_modifiers as S
 import common_checks as C
 import state_fields as F
@@ -83,14 +83,14 @@ class DeclaredSkillRankTests(unittest.TestCase):
         configure(self.r)
         for rank,count in ((7,7),(10,7)):
             self.sheet(rank,Acrobatics=rank)
-            before=dump_engine(self.e)
+            before=snapshot_engine(self.e)
             plan=self.e.plan_skill_check(self.a,'Athletics',purpose='campaign climb',fixed=[2]*count)
             formula=self.e.plan_rank_context(self.a,'Athletics',purpose='campaign capacity',
                 targets=[self.a],source='combat/struggle')
             self.assertEqual((plan['ordinary_rank'],plan['effective_rank'],plan['dice_count']),(rank,rank,count))
             self.assertEqual((formula['ordinary_rank'],formula['effective_rank'],formula['dice_count']),(rank,rank,None))
             self.assertEqual(CAP.values(self.a)['land'],rank+3)
-            self.assertEqual(dump_engine(self.e),before)
+            self.assertEqual(snapshot_engine(self.e),before)
             result=self.e.skill_roll(self.a,'Athletics',fixed=[2]*count,roll_id='rank-'+str(rank))
             saved=json.loads(json.dumps(dump_engine(self.e),ensure_ascii=False))
             fresh=load_engine(self.base,saved)

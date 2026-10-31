@@ -63,10 +63,10 @@ class CsvFoodLifecycleBoundaries(unittest.TestCase):
         for _ in range(3):
             self.intake(e, actor, 'item/흉내허브')
         self.assertEqual(FOOD.slots(actor), 3)
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         with self.assertRaisesRegex(ValueError, 'another Digestion Buff'):
             self.intake(e, actor, 'item/회복허브')
-        self.assertEqual(before, CODEC.dump_engine(e))
+        self.assertEqual(before, CODEC.snapshot_engine(e))
         e.rulings.add_answer('mirror_herb', True, reason='actual optional Herb exchanges')
         e.change_stage(other, 'atk', 1)
         self.assertEqual(actor.stages['atk'], 3)
@@ -74,10 +74,10 @@ class CsvFoodLifecycleBoundaries(unittest.TestCase):
         self.assertFalse(actor.buffs)
         self.intake(e, actor, 'item/회복허브')
         buff = self.buff(actor, 'item/회복허브')
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         with self.assertRaisesRegex(ValueError, 'Gluttony scene'):
             e.consume_food_buff(actor, buff_id=buff['id'], save_condition='마비')
-        self.assertEqual(before, CODEC.dump_engine(e))
+        self.assertEqual(before, CODEC.snapshot_engine(e))
         e.end_scene([actor, other])
         e.consume_food_buff(actor, buff_id=buff['id'], save_condition='마비')
         self.assertEqual(RECOVERY.saving_check(e, actor, '마비', 11, fixed=9)['food_bonus'], 2)
@@ -112,10 +112,10 @@ class CsvFoodLifecycleBoundaries(unittest.TestCase):
         for operation in ('steal','consume','deny','reuse','transfer'):
             with self.assertRaisesRegex(ValueError, 'excludes'):
                 CSV.forbid_external_operation(actor, buff['id'], operation)
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         with self.assertRaisesRegex(ValueError, 'native form entry'):
             e.consume_food_buff(actor, buff_id=buff['id'], action_kind='free', action_reason='ordinary consumption')
-        self.assertEqual(before, CODEC.dump_engine(e))
+        self.assertEqual(before, CODEC.snapshot_engine(e))
         e.start_round([actor, other]); e.start_of_turn(actor, initiative_count=20)
         e.enter_gigantamax(actor, source_id='item/다이버섯', reason='source explicitly excludes denial')
         self.assertFalse(actor.buffs)
@@ -127,10 +127,10 @@ class CsvFoodLifecycleBoundaries(unittest.TestCase):
         choice = CSV.source_choice(e.r,'item/흉내허브',CLAUSES['item/흉내허브'])
         prepared = STOCK.prepare(e, actor, 'item/흉내허브', source_selection=choice)
         broken = deepcopy(prepared); broken['source_selection']['source_columns'] = [1, 3]
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         with self.assertRaisesRegex(ValueError, 'choice changed'):
             STOCK.debit(e, actor, broken)
-        self.assertEqual(before, CODEC.dump_engine(e))
+        self.assertEqual(before, CODEC.snapshot_engine(e))
         _fixture_test_category2_csv_remaining_item_contracts.RemainingCsvItemContractTests().equip(e, actor, 'csv-native-held-herb', 'item/흉내허브')
         self.intake(e, actor, 'item/흉내허브', held_selection='csv-native-held-herb')
         self.assertEqual(actor.spec['items']['item/흉내허브'], 2)
@@ -138,10 +138,10 @@ class CsvFoodLifecycleBoundaries(unittest.TestCase):
         self.assertEqual(buff['item_stock']['kind'], 'held_instance')
         self.assertEqual(buff['item_stock']['instance_id'], 'csv-native-held-herb')
         e = self.restored(e); actor = WORLD.actor_index(e)[actor.entity_id]
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         with self.assertRaises(ValueError):
             self.intake(e, actor, 'item/흉내허브', held_selection='csv-native-held-herb')
-        self.assertEqual(before, CODEC.dump_engine(e))
+        self.assertEqual(before, CODEC.snapshot_engine(e))
 
     def test_legacy_csv_restore_preserves_observation_without_fabricating_paid_common_effect(self):
         e, actor, other = self.fixture('item/흉내허브')
@@ -156,21 +156,21 @@ class CsvFoodLifecycleBoundaries(unittest.TestCase):
         self.assertEqual(actor.spec[CSV.STATE], legacy)
         self.assertFalse(actor.buffs)
         self.assertEqual(FOOD.slots(actor), 1)
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         with self.assertRaisesRegex(ValueError, 'another Digestion Buff'):
             self.intake(e, actor, 'item/흉내허브')
         with self.assertRaisesRegex(ValueError, 'one actual'):
             e.consume_food_buff(actor, buff_id=legacy['buffs'][0]['id'])
-        self.assertEqual(before, CODEC.dump_engine(e))
+        self.assertEqual(before, CODEC.snapshot_engine(e))
 
     def test_resumable_csv_intake_and_json_query_never_pay_or_advance_twice(self):
         e, actor, other = self.fixture('item/회복허브')
         self.intake(e, actor, 'item/회복허브', resumable=True, request_id='csv-public-intake')
         self.assertEqual((e.elapsed_seconds,actor.spec['items']['item/회복허브'],len(actor.buffs)),(60,1,1))
         e = self.restored(e); actor = WORLD.actor_index(e)[actor.entity_id]
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         self.intake(e, actor, 'item/회복허브', resumable=True, request_id='csv-public-intake')
-        self.assertEqual(before, CODEC.dump_engine(e))
+        self.assertEqual(before, CODEC.snapshot_engine(e))
 
     def test_mirror_observed_growth_uses_tier_two_yield_period_and_common_harvest(self):
         e, actor, other = self.fixture('item/흉내허브', trainer=True, count=0)

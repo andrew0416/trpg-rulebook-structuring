@@ -23,25 +23,25 @@ class SharedTimeTests(unittest.TestCase):
   self.assertTrue(all(p.spec['training_credit']['applications']==['training_regime'] for p in self.ps))
   self.assertEqual(self.train(),receipt)
   e,actors=self.load();choices=[(actors[p.entity_id],[uid]) for p,uid in zip(self.ps,T.RULES)]
-  before=CODEC.dump_engine(e);self.assertEqual(e.train_pokemon(actors[self.t.entity_id],choices,minutes=30,reason='apply Training to completed grooming',request_id='shared',from_grooming=True,safe=True),receipt);self.assertEqual(before,CODEC.dump_engine(e))
+  before=CODEC.snapshot_engine(e);self.assertEqual(e.train_pokemon(actors[self.t.entity_id],choices,minutes=30,reason='apply Training to completed grooming',request_id='shared',from_grooming=True,safe=True),receipt);self.assertEqual(before,CODEC.snapshot_engine(e))
   D.extended_rest(e,actors[self.t.entity_id],4);self.assertFalse(T.records(actors[self.ps[0].entity_id]))
  def test_missing_later_credit_and_excess_duration_change_nothing(self):
-  self.groom();self.ps[-1].spec.pop('training_credit');before=CODEC.dump_engine(self.e)
+  self.groom();self.ps[-1].spec.pop('training_credit');before=CODEC.snapshot_engine(self.e)
   with self.assertRaises(ValueError):self.train()
-  self.assertEqual(before,CODEC.dump_engine(self.e));self.groom();before=CODEC.dump_engine(self.e)
+  self.assertEqual(before,CODEC.snapshot_engine(self.e));self.groom();before=CODEC.snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'cover training duration'):self.train(minutes=61)
-  self.assertEqual(before,CODEC.dump_engine(self.e))
+  self.assertEqual(before,CODEC.snapshot_engine(self.e))
  def test_new_request_cannot_consume_same_credit_twice(self):
-  self.groom();self.train();before=CODEC.dump_engine(self.e)
+  self.groom();self.train();before=CODEC.snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'already consumed'):self.train(request_id='second')
-  self.assertEqual(before,CODEC.dump_engine(self.e))
+  self.assertEqual(before,CODEC.snapshot_engine(self.e))
  def test_late_credit_failure_rolls_back_all_effects_and_consumption(self):
-  self.groom();before=CODEC.dump_engine(self.e);native=TEACHING.consume_credit
+  self.groom();before=CODEC.snapshot_engine(self.e);native=TEACHING.consume_credit
   def fail(target,application):
    native(target,application)
    if target.entity_id==self.ps[-1].entity_id:raise ValueError('late consumption')
   with patch.object(TEACHING,'consume_credit',side_effect=fail):
    with self.assertRaisesRegex(ValueError,'late consumption'):self.train()
-  self.assertEqual(before,CODEC.dump_engine(self.e))
+  self.assertEqual(before,CODEC.snapshot_engine(self.e))
 
 if __name__=='__main__':unittest.main()

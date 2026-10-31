@@ -7,7 +7,7 @@ import action_lifecycle as ACTION
 import combat_timing as TIME
 import effect_contracts as CONTRACTS
 import frequency as FREQ
-from state_codec import dump_engine, load_engine
+from state_codec import dump_engine, load_engine, snapshot_engine
 import test_end_turn_resume as BASE
 import test_historical_effect_source_closure as FIXTURE
 
@@ -40,12 +40,12 @@ class ConditionNativeChildTests(unittest.TestCase):
 
     def resume_a(self, truth=True):
         c = self.c
-        before = dump_engine(c.e)
+        before = snapshot_engine(c.e)
         try:
             c.resolve(self.a_token, truth)
         except ValueError as ex:
             print('EXACT_CONDITION_CHILD_BEFORE', json.dumps(dict(
-                error=str(ex), unchanged=dump_engine(c.e)==before,
+                error=str(ex), unchanged=snapshot_engine(c.e)==before,
                 closures=len(c.e._turn_closures), active_is_original=c.e._active_turn_actor is c.a)))
             raise
         self.b_token = next((t for t, r in c.e._effect_dispatch_receipts.items()
@@ -102,9 +102,9 @@ class ConditionNativeChildTests(unittest.TestCase):
 
     def test_condition_head_native_child_waits_then_closes_original_turn_once(self):
         self.suspend(); self.resume_a(); self.resume_b(); self.assert_closed()
-        before = dump_engine(self.c.e)
+        before = snapshot_engine(self.c.e)
         self.c.resolve(self.a_token); self.resume_b()
-        self.assertEqual(dump_engine(self.c.e), before)
+        self.assertEqual(snapshot_engine(self.c.e), before)
 
     def test_final_condition_without_suffix_keeps_its_native_child(self):
         self.suspend(suffix=False); self.resume_a(); self.resume_b(); self.assert_closed()
@@ -133,7 +133,7 @@ class ConditionNativeChildTests(unittest.TestCase):
 
     def test_late_native_close_fault_rolls_back_child_observation_and_retry(self):
         self.suspend(); self.resume_a()
-        before = dump_engine(self.c.e)
+        before = snapshot_engine(self.c.e)
         actual = TIME.end_turn
         def fail_after_close(engine, actor):
             actual(engine, actor)
@@ -141,13 +141,13 @@ class ConditionNativeChildTests(unittest.TestCase):
         with patch.object(TIME, 'end_turn', side_effect=fail_after_close):
             with self.assertRaisesRegex(ValueError, 'late condition-child native close fault'):
                 self.resume_b()
-        self.assertEqual(dump_engine(self.c.e), before)
+        self.assertEqual(snapshot_engine(self.c.e), before)
         self.resume_b(); self.assert_closed()
 
     def test_actual_child_owner_source_boundary_and_revocation_remain_independent(self):
         self.suspend(); self.resume_a()
         c = self.c
-        before = dump_engine(c.e)
+        before = snapshot_engine(c.e)
         with self.assertRaisesRegex(ValueError, 'owner'):
             c.e.resolve_effect_condition(c.a, self.b_token, target_was_asleep=True, reason='wrong owner')
         selected = c.f.r._selected_rule
@@ -161,7 +161,7 @@ class ConditionNativeChildTests(unittest.TestCase):
                 self.resume_b()
         finally:
             c.e.elapsed_seconds -= 1
-        self.assertEqual(dump_engine(c.e), before)
+        self.assertEqual(snapshot_engine(c.e), before)
         self.assertTrue(c.a.active_effects.remove(c.e, 'external-row:' + FIXTURE.SOURCE_A))
         self.assertTrue(self.b.active_effects.remove(c.e, 'external-row:native-child'))
         self.assertEqual((c.a.ability_triggers, self.b.ability_triggers), ([], []))

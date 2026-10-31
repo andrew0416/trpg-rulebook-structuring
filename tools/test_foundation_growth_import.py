@@ -5,7 +5,7 @@ ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'engine'))
 from engine import Rules,Engine,Combatant
 from builder import build_pokemon
 import downtime as D,state_grants as G
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 
 class GrowthImportTests(unittest.TestCase):
  @classmethod
@@ -30,33 +30,33 @@ class GrowthImportTests(unittest.TestCase):
   projected=loaded.growth_stat_projection(owner)
   self.assertEqual(sum(projected['permanent']['investment'].values()),16)
   self.assertEqual(projected['effective_stats']['atk'],projected['permanent']['stats']['atk']+3)
-  before=dump_engine(loaded)
+  before=snapshot_engine(loaded)
   self.assertTrue(loaded.import_growth_investment(owner,self.investment,**self.args)['replayed'])
-  self.assertEqual(dump_engine(loaded),before)
+  self.assertEqual(snapshot_engine(loaded),before)
  def test_bad_budget_mismatch_and_existing_evidence_are_atomic(self):
   bad=deepcopy(self.investment);bad['atk']+=1
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'budget'):self.e.import_growth_investment(self.c,bad,**self.args)
-  self.assertEqual(dump_engine(self.e),before)
-  self.c.spec['stats']['spe']+=1;self.c.stats['spe']+=1;before=dump_engine(self.e)
+  self.assertEqual(snapshot_engine(self.e),before)
+  self.c.spec['stats']['spe']+=1;self.c.stats['spe']+=1;before=snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'does not match'):self.e.import_growth_investment(self.c,self.investment,**self.args)
-  self.assertEqual(dump_engine(self.e),before)
-  self.setUp();self.e.import_growth_investment(self.c,self.investment,**self.args);before=dump_engine(self.e)
+  self.assertEqual(snapshot_engine(self.e),before)
+  self.setUp();self.e.import_growth_investment(self.c,self.investment,**self.args);before=snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'existing allocation'):
    self.e.import_growth_investment(self.c,self.investment,**dict(self.args,request_id='another'))
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
  def test_untracked_runtime_source_and_late_failure_leave_no_import(self):
   from unittest.mock import patch
   import growth_stats as GS
-  self.c.stats['atk']+=1;before=dump_engine(self.e)
+  self.c.stats['atk']+=1;before=snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'untracked effective'):
    self.e.import_growth_investment(self.c,self.investment,**self.args)
-  self.assertEqual(dump_engine(self.e),before)
-  self.setUp();before=dump_engine(self.e)
+  self.assertEqual(snapshot_engine(self.e),before)
+  self.setUp();before=snapshot_engine(self.e)
   with patch.object(GS,'project_actor',side_effect=ValueError('late projection')):
    with self.assertRaisesRegex(ValueError,'late projection'):
     self.e.import_growth_investment(self.c,self.investment,**self.args)
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
  def test_existing_observed_growth_is_not_counted_twice(self):
   D.gain_exp_combatant(self.e,self.c,'to next level',stat_choices={6:'spe'})
   investment=deepcopy(self.investment);investment['spe']+=1

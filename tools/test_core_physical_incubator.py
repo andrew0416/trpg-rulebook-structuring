@@ -8,7 +8,7 @@ ROOT=Path(__file__).resolve().parents[1]
 if not (ROOT/'output').is_dir():ROOT=Path(r'D:/trpg-rulebook-structuring/ptk-structure-experiment')
 from engine import Rules
 from builder import build_trainer, build_pokemon
-from state_codec import dump_engine, load_engine
+from state_codec import dump_engine, load_engine, snapshot_engine
 import test_foundation_egg_creation as eggs
 import test_foundation_fossil_creation as fossils
 import physical_incubator as INC, creation_egg as E, pokemon_entities as P
@@ -49,26 +49,26 @@ class PhysicalIncubatorTests(unittest.TestCase):
     def test_four_actual_eggs_each_box_and_fifth_duplicate_or_foreign_body_reject_atomically(self):
         rows=[self.egg(identity='egg'+str(n)) for n in range(5)]
         for row in rows[:4]:self.store(row)
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError,'four'):self.store(rows[4])
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.box('other')
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError,'already'):self.store(rows[0],'other')
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.remove(rows[0]);self.store(rows[4]);self.store(rows[0],'other')
         self.box('csv',item='item/부화기-1');before=dump_engine(self.e)
         with self.assertRaisesRegex(ValueError,'actual.*Incubator'):INC.observe_empty(self.e,self.a,'csv',reason='separate CSV body')
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.assertEqual(INC.describe(self.e,'box'),{'source':INC.ITEM,'capacity':4,'hatch_rate':2,'price':2500,'egg_ids':[row['entity_id'] for row in rows[1:]]})
         self.assertTrue(self.e.validate_state()['valid'])
     def test_exact_double_speed_uses_original_native_declared_birth_and_frees_slot(self):
         row=self.egg();outside=self.egg(identity='outside');original=deepcopy(row[E.CONTRACT])
         self.store(row);self.e.advance_time(43199,[])
         self.assertEqual(E.hatch_remaining(self.e,row),2)
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError,'waiting time'):self.hatch(row,ready=None)
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.e.advance_time(1,[])
         child=self.hatch(row,ready=None)['pokemon']
         self.assertEqual(child.spec['egg_entity_id'],row['entity_id'])
@@ -103,11 +103,11 @@ class PhysicalIncubatorTests(unittest.TestCase):
         self.e.gm.transfer_egg(self.a,receiver,row['entity_id'],reason='egg ownership gift; still inside actual box',request_id='gift')
         self.e.advance_time(123,[]);self.restore()
         row=P.egg_index(self.e)[row['entity_id']][1];receiver=W.actor_index(self.e)[receiver.entity_id]
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError,'physically'):INC.remove(self.e,receiver,row['entity_id'],reason='cannot reach held box')
         with self.assertRaisesRegex(ValueError,'physically'):self.e.hatch_declared_egg(receiver,row['entity_id'],name='remote',reason='remote hatch',choices=self.choices())
         with self.assertRaisesRegex(ValueError,'physically'):self.e.gm.transfer_egg(receiver,self.a,row['entity_id'],reason='remote registry cannot move egg',request_id='remote')
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         C.set_carried(self.e,self.a,[],reason='actual box released')
         W.observe_location(self.e,self.e._physical_objects['box'],{'kind':'grid','cell':[9,9]},reason='box delivered to recipient')
         INC.remove(self.e,receiver,row['entity_id'],reason='actual recipient opens delivered box')
@@ -120,9 +120,9 @@ class PhysicalIncubatorTests(unittest.TestCase):
         CAP.heat_egg(self.e,heater,row['entity_id'],source=CAP.EGG_WARMER,fixed_d10=2)
         self.assertIsNone(E.hatch_remaining(self.e,row));self.remove(row);self.restore()
         row=P.egg_index(self.e)[row['entity_id']][1]
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError,'readiness'):self.hatch(row,ready=None)
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.assertEqual(INC.extra_seconds(self.e,row),500)
         self.assertEqual(CAP.egg_heat_seconds(self.e,row),7200)
         self.assertEqual(self.hatch(row,ready=True)['pokemon'].spec['egg_entity_id'],row['entity_id'])
@@ -146,9 +146,9 @@ class PhysicalIncubatorTests(unittest.TestCase):
         self.assertEqual(E.hatch_remaining(self.e,row),9930)
         W.observe_location(self.e,self.a,{'kind':'grid','cell':[8,8]},reason='owner walked away from released egg')
         receiver=self.add(build_trainer(self.r,'recipient',20,dict.fromkeys(('hp','atk','def','spa','spd','spe'),10),extra={'edges':[]}))
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError,'physically'):self.e.gm.transfer_egg(self.a,receiver,row['entity_id'],reason='cannot move remote released egg',request_id='bad')
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.restore();self.assertTrue(self.e.validate_state()['valid'])
     def test_new_interval_and_removal_late_failures_are_atomic_and_native_birth_failure_keeps_slot(self):
         row=self.egg(4)
@@ -162,7 +162,7 @@ class PhysicalIncubatorTests(unittest.TestCase):
             ('released location',lambda:self.remove(row),lambda:INC.observe_released_location(self.e,self.a,row['entity_id'],{'kind':'grid','cell':[2,1]},reason='actual released egg observation')))
         for label,prepare,operation in cases:
             with self.subTest(boundary=label):
-                prepare();before=dump_engine(self.e)
+                prepare();before=snapshot_engine(self.e)
                 ruling_alias=self.e.rulings.log;log_alias=self.e.log_lines;spec_alias=self.a.spec
                 body_alias=self.e._physical_objects['box'];empty_alias=self.e._physical_objects['unobserved-box']
                 history_alias=row.get(INC.HISTORY)
@@ -174,17 +174,17 @@ class PhysicalIncubatorTests(unittest.TestCase):
                 with patch.object(type(self.e.gm),'_rec',autospec=True,side_effect=record_then_fail):
                     with self.assertRaisesRegex(ValueError,'late actual container'):operation()
                 self.assertEqual(recorded,[(len(rulings)+1,len(logs)+1)])
-                self.assertEqual(dump_engine(self.e),before)
+                self.assertEqual(snapshot_engine(self.e),before)
                 self.assertEqual(self.e.rulings.log,rulings);self.assertEqual(self.e.log_lines,logs)
                 self.assertIs(self.e.rulings.log,ruling_alias);self.assertIs(self.e.log_lines,log_alias)
                 self.assertIs(self.a.spec,spec_alias);self.assertIs(P.egg_index(self.e)[row['entity_id']][1],row)
                 self.assertIs(self.e._physical_objects['box'],body_alias)
                 self.assertIs(self.e._physical_objects['unobserved-box'],empty_alias)
                 self.assertIs(row.get(INC.HISTORY),history_alias)
-        self.store(row);self.e.advance_time(2,[]);before=dump_engine(self.e)
+        self.store(row);self.e.advance_time(2,[]);before=snapshot_engine(self.e)
         with patch.object(PARTY,'finish_hatch',side_effect=ValueError('late native birth')):
             with self.assertRaisesRegex(ValueError,'late native birth'):self.hatch(row,ready=None)
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.assertEqual(INC.describe(self.e,'box')['egg_ids'],[row['entity_id']])
         self.hatch(row,ready=None)
     def test_changed_history_missing_body_and_capacity_are_rejected_by_actual_world_restore(self):
@@ -213,28 +213,28 @@ class PhysicalIncubatorTests(unittest.TestCase):
         W.observe_location(self.e,self.e._physical_objects['box'],{'kind':'unknown'},reason='actual box location currently unobserved')
         G.transition(self.e,self.a,lambda e,a:W.finish_physical_use(e,e._physical_objects['box'],'destroyed',{'source':'gm/observed-break','by_actor_id':a.entity_id}))
         self.assertEqual(W.effective_location(self.e,row),{'kind':'unknown'})
-        self.box('replacement');before=dump_engine(self.e)
+        self.box('replacement');before=snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError,'physically'):self.store(row,'replacement')
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         INC.observe_released_location(self.e,self.a,row['entity_id'],{'kind':'grid','cell':[1,1]},reason='GM observed the same intact egg beside the broken box')
         self.store(row,'replacement')
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError,'contained'):INC.observe_released_location(self.e,self.a,row['entity_id'],{'kind':'grid','cell':[4,4]},reason='cannot move contained egg independently')
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         self.assertTrue(self.e.validate_state()['valid'])
     def test_actual_identity_empty_observation_source_and_remote_hold_are_required_before_storage(self):
-        row=self.egg();before=dump_engine(self.e)
+        row=self.egg();before=snapshot_engine(self.e)
         with self.assertRaises(ValueError):INC.store(self.e,deepcopy(self.a,{id(self.a.r):self.a.r}),'box',row['entity_id'],reason='forged actor')
         with self.assertRaises(ValueError):INC.store(self.e,self.a,'box','unregistered-egg',reason='fake egg id')
         with self.assertRaises(ValueError):INC.observe_empty(self.e,self.a,'box',reason='cannot reset known history')
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         original=self.r._selected_rule
         with patch.object(self.r,'_selected_rule',side_effect=lambda uid: 'item/부화기-1' if uid==INC.ITEM else original(uid)):
             with self.assertRaisesRegex(ValueError,'selected'):self.store(row)
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         box=self.e._physical_objects['box'];box['telekinetic_holder_id']=self.a.entity_id
         with self.assertRaisesRegex(ValueError,'remote-held'):self.store(row)
-        box.pop('telekinetic_holder_id');self.assertEqual(dump_engine(self.e),before)
+        box.pop('telekinetic_holder_id');self.assertEqual(snapshot_engine(self.e),before)
 
 
 class PhysicalFossilIncubatorTests(unittest.TestCase):

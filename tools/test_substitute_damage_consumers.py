@@ -34,7 +34,7 @@ class SubstituteDamageConsumerTests(unittest.TestCase):
     if move=='move/용성군':self.assertEqual(a.stages['spa'],-2);self.assertEqual(a.hp,hp)
     else:self.assertEqual(a.hp,hp-damage//3)
     saved=CODEC.dump_engine(e);cold=CODEC.load_engine(self.rules,json.loads(json.dumps(saved)))
-    old=cold.export_state();MC.refresh(cold,out['completion_id']);self.assertEqual(cold.export_state(),old)
+    old=cold.snapshot_state();MC.refresh(cold,out['completion_id']);self.assertEqual(cold.snapshot_state(),old)
     actual=deepcopy(receipt)
     for kind in ('foreign_event','amount','index','removed'):
      with self.subTest(tamper=kind):

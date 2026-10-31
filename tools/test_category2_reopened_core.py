@@ -5,7 +5,7 @@ import json,sys,unittest
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 from engine import Rules
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import test_reuse_partial_payments as PAY
 import test_reuse_partial_party as PARTY
 import test_reuse_partial_terrain as TERRAIN_FIX
@@ -35,19 +35,19 @@ class ReopenedCoreTests(unittest.TestCase):
         self.e.commit_trainer_xp_payment(self.c,'actual-retrain',event_id='actual-consumption')
         e=self.restore();c=e.everyone[0]
         self.assertEqual({key:c.spec[key] for key in earned},earned)
-        before=dump_engine(e)
+        before=snapshot_engine(e)
         self.assertEqual(e.pay_trainer_retraining(c,'feature',request_id='actual-retrain',
             reason='retrain from bank',refund_policy='none'),paid)
-        self.assertEqual(dump_engine(e),before)
+        self.assertEqual(snapshot_engine(e),before)
 
     def test_separate_party_actions_combine_after_restore_and_expire_next_round(self):
         PARTY.Tests.setup_world(self,'league')
         self.e.act_on_party(self.a,recall=[self.p],request_id='first-recall',reason='actual recall')
         self.e=self.restore();self.a,self.p,self.q,self.z=self.e.everyone
-        before=dump_engine(self.e)
+        before=snapshot_engine(self.e)
         with self.assertRaisesRegex(ValueError,'same Pokemon'):
             self.e.act_on_party(self.a,send=[(self.p,(2,0))],request_id='blocked',reason='same round return')
-        self.assertEqual(dump_engine(self.e),before)
+        self.assertEqual(snapshot_engine(self.e),before)
         row=self.e.act_on_party(self.a,send=[(self.q,(2,0))],request_id='second-send',reason='actual send')
         self.assertTrue(row['counts_as_switch'])
         self.assertEqual((self.a.budget['shift'],self.a.budget['standard']),(0,0))
@@ -65,9 +65,9 @@ class ReopenedCoreTests(unittest.TestCase):
         self.assertEqual((self.p.on_field,self.q.on_field,self.a.budget['shift']),(False,False,1))
         self.assertEqual(row['payment']['funded'],{'standard':1})
         self.assertEqual(set(row['recalled']),{self.p.entity_id,self.q.entity_id})
-        e=self.restore();a,p,q=e.everyone[:3];before=dump_engine(e)
+        e=self.restore();a,p,q=e.everyone[:3];before=snapshot_engine(e)
         self.assertEqual(e.act_on_party(a,recall=[p,q],request_id='pair',reason='actual paired recall'),row)
-        self.assertEqual(dump_engine(e),before)
+        self.assertEqual(snapshot_engine(e),before)
 
     def test_body_base_and_naturewalk_overlays_remain_independent_after_restore(self):
         TERRAIN_FIX.Tests.setUp(self)

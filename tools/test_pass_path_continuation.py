@@ -54,9 +54,9 @@ class PassPathContinuationTests(unittest.TestCase):
         row=self.e._pass_moves['pass/1'];self.assertEqual(row['phase'],'pending')
         self.assertEqual((self.a.pos,row['travelled'],row['results']),((1,0),1,[]))
         self.assertEqual((self.b.hp,self.c.hp),hp)
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         with self.assertRaises(EVENTS.PassiveEventPending):self.use()
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.restore()
         with patch.object(Engine,'d20',return_value=16),self.assertRaises(EVENTS.PassiveEventPending):self.choose(event)
         later=self.e._passive_pending;self.assertNotEqual(event,later)
@@ -72,7 +72,7 @@ class PassPathContinuationTests(unittest.TestCase):
         self.assertEqual(self.a._action_history,['standard','shift'])
         completion=self.e._move_completions[row['completion_id']]
         self.assertEqual(completion['phase'],'complete');self.assertEqual(completion['started'],[self.b.entity_id,self.c.entity_id])
-        before=self.e.export_state();self.assertEqual(self.use(),row);self.assertEqual(self.e.export_state(),before)
+        before=self.e.snapshot_state();self.assertEqual(self.use(),row);self.assertEqual(self.e.snapshot_state(),before)
         assert_rejected_unchanged(self.e,lambda:self.choose(later),reason_pattern='actual waiting accuracy defense required')
         self.valid();self.restore();self.valid()
 
@@ -237,11 +237,11 @@ class PassPathContinuationTests(unittest.TestCase):
         f=DEFENSE.MoveDefenseReactionsTests();f.rules=self.e.r;f.setUp();f.r.pos=(3,4);f.watch()
         with patch.object(Engine,'d20',return_value=16),self.assertRaises(EVENTS.PassiveEventPending):
             f.e.use_move_on(f.a,f.t,'move/지진',f.e.everyone,set_damage=True)
-        event=f.e._passive_pending;row=f.completion();before=f.e.export_state()
+        event=f.e._passive_pending;row=f.completion();before=f.e.snapshot_state()
         original_items=list(row.items());prepared=row.pop('target_moves')
         legacy=json.loads(json.dumps(f.e.export_state(),ensure_ascii=False))
         row.clear();row.update(original_items)
-        self.assertEqual(f.e.export_state(),before)
+        self.assertEqual(f.e.snapshot_state(),before)
         first=next(iter(prepared));missing=prepared.pop(first)
         with self.assertRaisesRegex(ValueError,'prepared target Moves require their actual native starts'):
             COMPLETE.validate_world(f.e,WORLD.actor_index(f.e))

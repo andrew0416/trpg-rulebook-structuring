@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'engine')]
 from engine import Engine,Rules,Combatant
 from grid import Grid
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import scene_lighting as LIGHT
 import survivalist_features as SURVIVAL
 import vision_impairment as VISION
@@ -82,12 +82,12 @@ class SceneLightingTests(unittest.TestCase):
                         {'kind':'lantern','origin':(-1,0)},
                         {'kind':'lantern','owner':self.a,'radiant':True},
                         {'kind':'glow','owner':self.t}):
-            before=dump_engine(self.e)
+            before=snapshot_engine(self.e)
             with self.assertRaises(ValueError):self.e.observe_scene_light('bad',reason='invalid',**options)
-            self.assertEqual(before,dump_engine(self.e))
-        before=dump_engine(self.e)
+            self.assertEqual(before,snapshot_engine(self.e))
+        before=snapshot_engine(self.e)
         with self.assertRaises(ValueError):self.lantern()
-        self.assertEqual(before,dump_engine(self.e))
+        self.assertEqual(before,snapshot_engine(self.e))
         row=self.e._scene_lighting['sources']['lantern'];row['kind']='strong_artificial'
         with self.assertRaises(ValueError):dump_engine(self.e)
         row['kind']='lantern';dump_engine(self.e)

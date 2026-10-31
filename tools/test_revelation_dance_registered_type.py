@@ -166,9 +166,9 @@ class RevelationDanceRegisteredTypeTests(unittest.TestCase):
                 self.assertEqual(a.types[0], '물')
                 self.assertEqual(a.spec['species'], BAILE)
                 self.assertEqual(e.r.species[BAILE], registered)
-                before = e.export_state()
+                before = e.snapshot_state()
                 self.assertEqual(EXT.effective_type(e, a, t, e.r.move(MOVE), e.r.move_mech(MOVE)[0], consume=False), '불꽃')
-                self.assertEqual(e.export_state(), before)
+                self.assertEqual(e.snapshot_state(), before)
                 _, observed = self.actual_hit(e, a, t)
                 self.assertEqual(observed, [('불꽃', 1.0)])
 
@@ -217,7 +217,7 @@ class RevelationDanceRegisteredTypeTests(unittest.TestCase):
         rules = Rules(ROOT, ruleset='core')
         e, a, t = self.world(rules=rules)
         selected = Rules._selected_rule
-        before = e.export_state()
+        before = e.snapshot_state()
         def unavailable(current, uid, *args, **kwargs):
             if uid == BAILE:
                 raise ValueError('registered dancer source unavailable')
@@ -225,7 +225,7 @@ class RevelationDanceRegisteredTypeTests(unittest.TestCase):
         with patch.object(Rules, '_selected_rule', new=unavailable):
             with self.assertRaisesRegex(ValueError, 'registered dancer source unavailable'):
                 e.use_move(a, t, MOVE, set_damage=True)
-        self.assertEqual(e.export_state(), before)
+        self.assertEqual(e.snapshot_state(), before)
 
     def test_native_plasma_preserves_non_normal_dance_then_consumes_real_normal_attack(self):
         e, a, t = self.world(target_species='제라오라')

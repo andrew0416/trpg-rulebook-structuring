@@ -132,12 +132,12 @@ class WeaponTagTests(unittest.TestCase):
             {'actor_id':self.a.entity_id,'appendage_id':'actual:right-hand'})
 
     def test_appendage_observation_and_weapon_mutual_exclusion_are_atomic(self):
-        self.part();before=CODEC.dump_engine(self.e)
+        self.part();before=CODEC.snapshot_engine(self.e)
         with self.assertRaises(ValueError):self.e.use_move(self.a,self.p,'struggle',appendage_id='invented')
-        self.assertEqual(before,CODEC.dump_engine(self.e))
-        key=self.weapon();self.start();before=CODEC.dump_engine(self.e)
+        self.assertEqual(before,CODEC.snapshot_engine(self.e))
+        key=self.weapon();self.start();before=CODEC.snapshot_engine(self.e)
         with self.assertRaises(ValueError):self.e.use_move(self.a,self.p,key,weapon_id='weapon:one',appendage_id='actual:right-hand')
-        self.assertEqual(before,CODEC.dump_engine(self.e))
+        self.assertEqual(before,CODEC.snapshot_engine(self.e))
 
     def test_both_restores_keep_live_and_spent_attachment_and_reject_forged_receipt(self):
         key=self.weapon();self.attach();self.e.gm.snapshot('attached')
@@ -154,13 +154,13 @@ class WeaponTagTests(unittest.TestCase):
         key=self.weapon();self.attach();self.start()
         # Warm read-only policies before comparing state; source bytes are fixed.
         self.e.roll_damage(self.a,self.p,WA.prepare(self.e,self.a,self.rules.move(key),'weapon:one'),set_damage=True)
-        before=CODEC.dump_engine(self.e);native=W.finish_physical_use
+        before=CODEC.snapshot_engine(self.e);native=W.finish_physical_use
         def fail(*args,**kwargs):
             native(*args,**kwargs);raise RuntimeError('late terminal failure')
         with patch.object(Engine,'accuracy_check',return_value=(True,12,False)),patch.object(W,'finish_physical_use',side_effect=fail):
             with self.assertRaisesRegex(RuntimeError,'late terminal'):
                 self.e.use_move(self.a,self.p,key,weapon_id='weapon:one',set_damage=True)
-        self.assertEqual(before,CODEC.dump_engine(self.e))
+        self.assertEqual(before,CODEC.snapshot_engine(self.e))
 
     def test_multiple_actual_tags_do_not_stack_base_multiplier_and_each_expires_on_damage(self):
         self.a.spec['frequency_state']['day']+=1;self.craft('two')
@@ -183,13 +183,13 @@ class WeaponTagTests(unittest.TestCase):
         self.restore();self.assertTrue(self.e.validate_state()['valid'])
 
     def test_separate_surface_stock_or_second_attachment_rejects_same_attached_body(self):
-        self.weapon();self.attach();before=CODEC.dump_engine(self.e)
+        self.weapon();self.attach();before=CODEC.snapshot_engine(self.e)
         with self.assertRaises(ValueError):W.require_physical_access(self.e._physical_objects['tag:one'])
         import items as ITEMS
         with self.assertRaises(ValueError):ITEMS.register_item(self.e,self.a,TAG.ITEM,source_instance_id='tag:one')
         with self.assertRaises(ValueError):self.e.gm.observe_cleanse_barrier('tag:one',event_id='surface',attached=False,reason='invalid double use')
         with self.assertRaises(ValueError):TAG.observe_weapon(self.e,self.a,'tag:one',event_id='second',weapon_id='weapon:one',reason='second attach')
-        self.assertEqual(before,CODEC.dump_engine(self.e))
+        self.assertEqual(before,CODEC.snapshot_engine(self.e))
 
     def test_appendage_multiple_actual_recipients_spend_before_next_ghost_and_restore(self):
         self.part();self.restore();self.start();hp=(self.p.hp,self.q.hp)
@@ -261,12 +261,12 @@ class WeaponTagTests(unittest.TestCase):
         key,entry=next((key,row) for key,row in self.a.custom_conditions['equipped_weapons'].items() if row['instance_id']==uid)
         self.assertNotIn('framework_instance',entry['weapon']);self.attach(uid);self.start()
         self.e.roll_damage(self.a,self.p,WA.prepare(self.e,self.a,self.rules.move(key),item),set_damage=True)
-        before=CODEC.dump_engine(self.e);native=W.finish_physical_use
+        before=CODEC.snapshot_engine(self.e);native=W.finish_physical_use
         def fail(*args,**kwargs):native(*args,**kwargs);raise RuntimeError('optional terminal failure')
         with patch.object(Engine,'accuracy_check',return_value=(True,12,False)),patch.object(W,'finish_physical_use',side_effect=fail):
             with self.assertRaisesRegex(RuntimeError,'optional terminal'):
                 self.e.use_move(self.a,self.p,key,weapon_id=item,set_damage=True)
-        self.assertEqual(before,CODEC.dump_engine(self.e))
+        self.assertEqual(before,CODEC.snapshot_engine(self.e))
         with patch.object(Engine,'accuracy_check',return_value=(True,12,False)):
             self.assertGreater(self.e.use_move(self.a,self.p,key,weapon_id=item,set_damage=True),0)
         self.assertTrue(self.used())

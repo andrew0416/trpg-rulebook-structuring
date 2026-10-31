@@ -123,9 +123,9 @@ class CsvPsyshockContinuationTests(unittest.TestCase):
                 self.assertIn('취약',f.b.conditions)
                 self.assertEqual((f.a.budget['standard'],f.a.budget['swift'],AP.available(f.a)),(0,0,before_ap-2))
                 self.assertEqual(f.a.move_uses[TK.PSYCHIC],1)
-                f.restore();before=CODEC.dump_engine(f.e)
+                f.restore();before=CODEC.snapshot_engine(f.e)
                 self.assertEqual(f.e.deliver_passive_event(event_id),'already_delivered')
-                self.assertEqual(CODEC.dump_engine(f.e),before);f.valid()
+                self.assertEqual(CODEC.snapshot_engine(f.e),before);f.valid()
 
     def test_actual_faint_during_paid_csv_defense_wait_cancels_without_refund_or_new_damage(self):
         f=self.f;self.family(TK.OVERLOAD)

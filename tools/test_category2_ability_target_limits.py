@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(RO
 from engine import Rules,Engine,Combatant
 from builder import build_trainer,build_pokemon
 from grid import Grid
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import ability_target_limits as L,combat_timing as TIME,turn as TURN
 
 
@@ -47,9 +47,9 @@ class TargetLimitsTests(unittest.TestCase):
     self.e.change_stage(self.t,'def',-1);self.assertEqual(self.t.stages['def'],-1)
     self.e.change_stage(self.other,'atk',1);self.assertEqual(self.other.stages['atk'],1)
  def test_real_food_buff_rejection_is_atomic_until_exact_next_round_count(self):
-  buff=self.feed();self.begin();self.activate();before=dump_engine(self.e)
+  buff=self.feed();self.begin();self.activate();before=snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'Unnerve'):self.e.consume_food_buff(self.t,buff_id=buff,action_kind='free',action_reason='actual attempted consumption')
-  self.assertEqual(before,dump_engine(self.e));self.next_round();self.e.at_initiative_count(21)
+  self.assertEqual(before,snapshot_engine(self.e));self.next_round();self.e.at_initiative_count(21)
   self.assertTrue(L.blocked(self.e,self.t,'food_buff'));self.e.start_of_turn(self.t,initiative_count=20)
   self.assertFalse(L.blocked(self.e,self.t,'food_buff'));hp=self.t.hp
   result=self.e.consume_food_buff(self.t,buff_id=buff,action_kind='free',action_reason='actual allowed consumption')
@@ -67,16 +67,16 @@ class TargetLimitsTests(unittest.TestCase):
     elif invalid in ('absent_source','absent_target'):
      unknown=self.a if invalid=='absent_source' else self.t
      del unknown.side;unknown.spec.pop('side',None)
-    self.begin(count=invalid!='count');before=dump_engine(self.e)
+    self.begin(count=invalid!='count');before=snapshot_engine(self.e)
     with self.assertRaises(ValueError):self.activate()
-    self.assertEqual(before,dump_engine(self.e))
+    self.assertEqual(before,snapshot_engine(self.e))
  def test_at_will_reuses_next_swift_without_inventing_scene_quota(self):
   self.begin();self.activate()
   self.assertTrue(TURN.spend(self.e,self.a,'standard','actual completed Standard'))
   self.assertTrue(TURN.spend(self.e,self.a,'shift','actual completed Shift'))
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'Swift'):self.activate()
-  self.assertEqual(before,dump_engine(self.e));self.next_round();self.e.start_of_turn(self.a,initiative_count=20)
+  self.assertEqual(before,snapshot_engine(self.e));self.next_round();self.e.start_of_turn(self.a,initiative_count=20)
   self.assertFalse(L.blocked(self.e,self.t,'positive_stages'));self.activate()
   self.assertTrue(L.blocked(self.e,self.t,'positive_stages'));self.assertEqual(self.a.budget['swift'],0)
  def test_two_casters_keep_independent_full_round_deadlines(self):
@@ -96,16 +96,16 @@ class TargetLimitsTests(unittest.TestCase):
   actors={a.entity_id:a for a in loaded.everyone};a=actors[self.a.entity_id];t=actors[self.t.entity_id]
   record=next(r for r in TIME.records(t) if L.KEY in r)
   self.assertIs(record['applied_by'],a);self.assertIsNot(a,self.a);self.assertEqual(a.budget['swift'],0)
-  before=dump_engine(loaded)
+  before=snapshot_engine(loaded)
   with self.assertRaisesRegex(ValueError,'Unnerve'):loaded.consume_food_buff(t,buff_id=buff,action_kind='free',action_reason='actual restored attempted consumption')
-  self.assertEqual(before,dump_engine(loaded));loaded.end_of_turn(a);loaded.end_round();loaded.start_round(loaded.everyone)
+  self.assertEqual(before,snapshot_engine(loaded));loaded.end_of_turn(a);loaded.end_round();loaded.start_round(loaded.everyone)
   loaded.at_initiative_count(21);self.assertTrue(L.blocked(loaded,t,'positive_stages'))
   loaded.at_initiative_count(20);self.assertFalse(L.blocked(loaded,t,'positive_stages'))
  def test_late_install_failure_rolls_back_actual_budget_record_and_frequency(self):
-  self.begin();before=dump_engine(self.e)
+  self.begin();before=snapshot_engine(self.e)
   with patch.object(TIME,'install',side_effect=RuntimeError('late actual install failure')):
    with self.assertRaisesRegex(RuntimeError,'late actual'):self.activate()
-  self.assertEqual(before,dump_engine(self.e));self.activate();self.assertTrue(L.blocked(self.e,self.t,'positive_stages'))
+  self.assertEqual(before,snapshot_engine(self.e));self.activate();self.assertTrue(L.blocked(self.e,self.t,'positive_stages'))
 
 
 if __name__=='__main__':unittest.main()

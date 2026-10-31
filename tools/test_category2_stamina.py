@@ -29,7 +29,7 @@ class StaminaTests(unittest.TestCase):
  def test_ordinary_expert_either_skill_and_one_copy_are_actual_qualification(self):
   self.b.spec['skills']={'육상':4,'전투':4};before=CODEC.dump_engine(self.e)
   with self.assertRaisesRegex(ValueError,'Expert Athletics or Combat'):self.own()
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
   self.b.spec['skills']['전투']=5;self.own()
   with self.assertRaises(ValueError):self.own()
   self.assertEqual(self.b.spec['edges'],[STAMINA.SOURCE])
@@ -118,9 +118,9 @@ class StaminaTests(unittest.TestCase):
   self.assertEqual(self.rows()[0]['phase'],'interrupted')
   with self.assertRaisesRegex(ValueError,'complete triggering action'):self.e.resolve_stamina(self.b,self.rows()[0]['id'],skill='육상')
  def test_invalid_skill_choice_is_atomic_and_keeps_the_real_pending_action(self):
-  self.b.spec['skills']['전투']=6;self.own();self.turn();self.attack();before=CODEC.dump_engine(self.e)
+  self.b.spec['skills']['전투']=6;self.own();self.turn();self.attack();before=CODEC.snapshot_engine(self.e)
   with self.assertRaises(ValueError):self.e.resolve_stamina(self.b,self.rows()[0]['id'],skill='곡예')
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
  def test_completed_stamina_save_restore_does_not_award_again(self):
   self.own();self.turn();self.attack();action_id=self.rows()[0]['id']
   restored=CODEC.load_engine(self.r,CODEC.dump_engine(self.e));b=restored.everyone[1]

@@ -39,42 +39,42 @@ class IdentityOwnerIntegrationTests(unittest.TestCase):
 
     def test_native_partial_observation_rejects_fossil_before_recording(self):
         engine, owner, ids = self.fixture()
-        before = CODEC.dump_engine(engine)
+        before = CODEC.snapshot_engine(engine)
         with self.assertRaises(ValueError):
             engine.gm.observe_partial_entity(name="collision", actor_kind="object",
                 entity_id=ids["fossil"], reason="must retain actual fossil")
-        self.assertEqual(CODEC.dump_engine(engine), before)
+        self.assertEqual(CODEC.snapshot_engine(engine), before)
         self.assertNotIn(ids["fossil"], engine._partial_entities)
 
     def test_partial_registration_rejects_every_other_actual_store(self):
         for kind in ("actor", "physical", "partial", "egg", "fossil"):
             with self.subTest(kind=kind):
                 engine, owner, ids = self.fixture()
-                before = CODEC.dump_engine(engine)
+                before = CODEC.snapshot_engine(engine)
                 with self.assertRaises(ValueError):
                     engine.gm.observe_partial_entity(name="collision", actor_kind="object",
                         entity_id=ids[kind], reason="actual existing identity")
-                self.assertEqual(CODEC.dump_engine(engine), before)
+                self.assertEqual(CODEC.snapshot_engine(engine), before)
 
     def test_native_egg_producer_rejects_every_actual_store_without_mutation(self):
         for kind in ("actor", "physical", "partial", "egg", "fossil"):
             with self.subTest(kind=kind):
                 engine, owner, ids = self.fixture()
-                before = CODEC.dump_engine(engine)
+                before = CODEC.snapshot_engine(engine)
                 with patch.object(POKEMON.F, "new_id", return_value=ids[kind]):
                     with self.assertRaises(ValueError):
                         engine.pokemon_activity(owner, "observe_egg", egg_id="new-egg", reason="new actual egg")
-                self.assertEqual(CODEC.dump_engine(engine), before)
+                self.assertEqual(CODEC.snapshot_engine(engine), before)
 
     def test_fossil_preparation_rejects_every_foreign_actual_store(self):
         for kind in ("actor", "physical", "partial", "egg", "fossil"):
             with self.subTest(kind=kind):
                 engine, owner, ids = self.fixture()
-                before = CODEC.dump_engine(engine)
+                before = CODEC.snapshot_engine(engine)
                 with self.assertRaises(ValueError):
                     POKEMON.prepare_fossil(engine, owner, "different-source", {
                         "entity_id": ids[kind], "species": "pokemon/암나이트", "status": "fossil"})
-                self.assertEqual(CODEC.dump_engine(engine), before)
+                self.assertEqual(CODEC.snapshot_engine(engine), before)
 
     def test_same_fossil_original_can_be_prepared_again_without_identity_change(self):
         engine, owner, ids = self.fixture()
@@ -101,13 +101,13 @@ class IdentityOwnerIntegrationTests(unittest.TestCase):
         engine, owner, ids = self.fixture()
         PARTY.configure(engine, owner, mode="standard", roster=[],
             storage={"kind": "center", "id": "actual-center"}, reason="actual reserve policy")
-        before = CODEC.dump_engine(engine)
+        before = CODEC.snapshot_engine(engine)
         for kind, identity in ids.items():
             with self.subTest(kind=kind):
                 with self.assertRaisesRegex(ValueError, "reserve identity"):
                     engine.pokemon_activity(owner, "register_owned_reserve", pokemon_id=identity,
                         species="브케인", location="storage", reason="existing world identity")
-                self.assertEqual(CODEC.dump_engine(engine), before)
+                self.assertEqual(CODEC.snapshot_engine(engine), before)
         row = engine.pokemon_activity(owner, "register_owned_reserve", pokemon_id="reserve/new",
             species="브케인", location="storage", reason="actual stored reserve")
         self.assertTrue(row["sheet_pending"])
@@ -119,11 +119,11 @@ class IdentityOwnerIntegrationTests(unittest.TestCase):
         for kind in ("actor", "partial", "egg", "fossil"):
             with self.subTest(kind=kind):
                 engine, owner, ids = self.fixture()
-                before = CODEC.dump_engine(engine)
+                before = CODEC.snapshot_engine(engine)
                 with self.assertRaisesRegex(ValueError, "identity collides"):
                     engine.gm.set_carried_objects(owner, [{"id": ids[kind], "weight_kg": 1}],
                         reason="must keep the existing world entity")
-                self.assertEqual(CODEC.dump_engine(engine), before)
+                self.assertEqual(CODEC.snapshot_engine(engine), before)
         engine, owner, ids = self.fixture()
         body = engine._physical_objects[ids["physical"]]
         for weight in (1, 2):
@@ -142,13 +142,13 @@ class IdentityOwnerIntegrationTests(unittest.TestCase):
         for actor in parts:
             engine.gm.add_combatant(actor)
         part_ids = [actor.entity_id for actor in parts]
-        before = CODEC.dump_engine(engine)
+        before = CODEC.snapshot_engine(engine)
         for kind, identity in ids.items():
             with self.subTest(kind=kind):
                 with self.assertRaises(ValueError):
                     engine.gm.set_multipart_entity(parent_id=identity, part_ids=part_ids,
                         reason="existing actual entity cannot become a multipart parent")
-                self.assertEqual(CODEC.dump_engine(engine), before)
+                self.assertEqual(CODEC.snapshot_engine(engine), before)
         engine.gm.set_multipart_entity(parent_id="multipart/actual", part_ids=part_ids,
             reason="actual independent parts")
         parent = engine._physical_objects["multipart/actual"]
@@ -167,10 +167,10 @@ class IdentityOwnerIntegrationTests(unittest.TestCase):
                 with self.subTest(kind=kind):
                     helper.setUp()
                     ids = self.actual_stores(helper.e, helper.a)
-                    before = CODEC.dump_engine(helper.e)
+                    before = CODEC.snapshot_engine(helper.e)
                     with self.assertRaisesRegex(ValueError, "individual identity"):
                         helper.region(individual_id=ids[kind])
-                    self.assertEqual(CODEC.dump_engine(helper.e), before)
+                    self.assertEqual(CODEC.snapshot_engine(helper.e), before)
         finally:
             RegionalFixture.tearDownClass()
 
@@ -184,10 +184,10 @@ class IdentityOwnerIntegrationTests(unittest.TestCase):
             with self.subTest(kind=kind):
                 helper.setUp()
                 ids = self.actual_stores(helper.e, helper.a)
-                before = CODEC.dump_engine(helper.e)
+                before = CODEC.snapshot_engine(helper.e)
                 with self.assertRaisesRegex(ValueError, "identity collides"):
                     SPECIAL.observe(helper.e, helper.bot(ids[kind]), reason="existing actual identity")
-                self.assertEqual(CODEC.dump_engine(helper.e), before)
+                self.assertEqual(CODEC.snapshot_engine(helper.e), before)
         helper.setUp()
         bot = helper.bot("actual/bot")
         SPECIAL.observe(helper.e, bot, reason="actual bot observed")
@@ -206,10 +206,10 @@ class IdentityOwnerIntegrationTests(unittest.TestCase):
         identity = "pickup-copy:" + user.entity_id + ":1"
         engine.gm.observe_partial_entity(name="actual existing partial", actor_kind="object",
             entity_id=identity, reason="actual identity already observed")
-        before = CODEC.dump_engine(engine)
+        before = CODEC.snapshot_engine(engine)
         with self.assertRaises(ValueError):
             PICKUP.activate(engine, user, "픽업", target, held_selection="original")
-        self.assertEqual(CODEC.dump_engine(engine), before)
+        self.assertEqual(CODEC.snapshot_engine(engine), before)
 
 
 if __name__ == "__main__":

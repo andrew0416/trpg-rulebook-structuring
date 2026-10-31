@@ -374,11 +374,11 @@ class FocusedCommandFullTests(CommanderFixture,unittest.TestCase):
         self.e.watch_move_defense(self.b,[{'actor_id':reactor_id,'source':'maneuver/원거리-가로채기'}],reason='actual Voice child native defense')
         with patch.object(Engine,'d20',return_value=10),self.assertRaises(PASSIVE.PassiveEventPending):
             self.voice(O.STRIKE,options={'attack':{'move':'move/물대포','target_id':self.b.entity_id}})
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         for call in (lambda:self.e.prepare_focused_command_ap(self.a,'damage'),self.focused,self.voice,
                      lambda:self.e.manual_feat(self.a,F.FEATURE,adjustment={'pokemon_ids':[self.p.entity_id,self.p2.entity_id]})):
             with self.assertRaises(PASSIVE.PassiveEventPending):call()
-            self.assertEqual(self.e.export_state(),before)
+            self.assertEqual(self.e.snapshot_state(),before)
         self.assertEqual((self.a.budget['standard'],self.a.budget['swift']),(0,0));self.cold();self.valid()
         reactor=W.actor_index(self.e)[reactor_id]
         with patch.object(Engine,'d20',return_value=10):
@@ -392,13 +392,13 @@ class FocusedCommandFullTests(CommanderFixture,unittest.TestCase):
         from test_category3_batch15_pokemon import Tests as LeagueFixture
         fixture=LeagueFixture();fixture.r=Rules(ROOT,ruleset='core');fixture.setUp();e=fixture.e
         self.assertEqual(e.start_league([('a',fixture.a,fixture.p),('b',fixture.b,fixture.q)],mode='league')['status'],'ready')
-        before=e.export_state()
+        before=e.snapshot_state()
         for call in (lambda:e.prepare_focused_command_ap(fixture.a,'damage'),
                      lambda:e.focused_command(fixture.a,[fixture.p,fixture.q]),
                      lambda:e.focused_command_with_voice(fixture.a,[fixture.p,fixture.q],O.LONG),
                      lambda:e.manual_feat(fixture.a,F.FEATURE,adjustment={'pokemon_ids':[fixture.p.entity_id,fixture.q.entity_id]})):
             with self.assertRaisesRegex(ValueError,'League driver owns'):call()
-            self.assertEqual(e.export_state(),before)
+            self.assertEqual(e.snapshot_state(),before)
 
     def test_voice_does_not_retarget_original_allied_trainer_only_order_onto_pokemon(self):
         import moment_of_action as MOMENT

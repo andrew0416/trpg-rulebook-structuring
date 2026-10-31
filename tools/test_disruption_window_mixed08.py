@@ -106,10 +106,10 @@ class DisruptionMixedReactionTests(unittest.TestCase):
         rows=[row for row in TIME.records(target) if row.get('ace_disruption')]
         self.assertEqual(len(rows),1);self.assertEqual(rows[0]['accuracy_modifier'],-3)
         self.assertEqual(self.t._action_history,before+['free'])
-        state=self.e.export_state()
+        state=self.e.snapshot_state()
         with self.assertRaises(ValueError):
             ACE.react(self.e,self.t,self.p,ACE.uid('Disruption Order'),completion_id)
-        self.assertEqual(self.e.export_state(),state)
+        self.assertEqual(self.e.snapshot_state(),state)
 
     def test_bloom_accept_and_decline_preserve_original_disruption_through_cold_restore(self):
         for use in (False,True):
@@ -211,10 +211,10 @@ class DisruptionMixedReactionTests(unittest.TestCase):
                 self.e.resolve_class_actor_state_reaction(self.u,offer['id'],
                     use=use,**({'stats':('def',)} if use else {}))
                 self.assertTrue(TURN.spend(self.e,self.p,'free','actual unrelated ordinary Free action'))
-                before=self.e.export_state()
+                before=self.e.snapshot_state()
                 with self.assertRaises(ValueError):
                     ACE.react(self.e,self.t,self.p,ACE.uid('Disruption Order'),completion_id)
-                self.assertEqual(self.e.export_state(),before)
+                self.assertEqual(self.e.snapshot_state(),before)
                 self.assertFalse(any(row.get('ace_disruption') for row in TIME.records(self.v)))
 
     def test_bloom_rejects_another_real_hit_pair_even_with_equal_damage(self):

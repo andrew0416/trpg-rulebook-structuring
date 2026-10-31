@@ -47,8 +47,8 @@ class ConfusionTests(unittest.TestCase):
                 self.assertEqual((self.a.hp,self.a.temp_hp),(hp-expected+5,0))
                 self.assertEqual(self.a.budget['standard'],0)
                 if stat is None:self.assertEqual(self.a.stages['atk'],2)
-                before=self.e.export_state();self.e.resume_confusion_completion(row['id'])
-                self.assertEqual(self.e.export_state(),before)
+                before=self.e.snapshot_state();self.e.resume_confusion_completion(row['id'])
+                self.assertEqual(self.e.snapshot_state(),before)
 
     def test_successful_confusion_die_and_refused_attack_have_no_self_loss(self):
         self.e.rng.seed(0);hp=self.a.hp;self.use('move/스피드스타')
@@ -109,7 +109,7 @@ class ConfusionTests(unittest.TestCase):
                     row=EQUIPMENT.pending(e)[0];EQUIPMENT.resolve(e,row['target'],row['id'],choice='drop')
                     self.assertEqual(a.hp,hp-(a.staged('spa')//2 if n else 0))
                 self.assertEqual(e._move_completions[token]['phase'],'complete')
-                before=e.export_state();e.resume_confusion_completion(token);self.assertEqual(e.export_state(),before)
+                before=e.snapshot_state();e.resume_confusion_completion(token);self.assertEqual(e.snapshot_state(),before)
 
     def test_actual_sleep_before_pending_attack_finishes_prevents_confusion_loss(self):
         import equipment_actions as EQUIPMENT

@@ -210,14 +210,14 @@ class FireBurnReachabilityTests(unittest.TestCase):
                 self.assertIsNone(PASSIVE._declaration(e, foreign, uid))
                 late = self.pokemon(e, p.spec['species'], (4, 4), owner=trainer, moves=[])
                 self.book_passive_declaration(e, trainer, late, uid)
-                before = e.export_state()
+                before = e.snapshot_state()
                 with patch.object(Engine, 'register_abilities', side_effect=AssertionError('projection must not replay enter')):
                     for _ in range(2):
                         for pokemon in (p, q, late):
                             PARTY.project_current_owner(e, pokemon)
-                self.assertEqual(e.export_state(), before)
+                self.assertEqual(e.snapshot_state(), before)
                 self.assertEqual(self.acquire_pokemon_passive(e, trainer, uid), receipt)
-                self.assertEqual(e.export_state(), before)
+                self.assertEqual(e.snapshot_state(), before)
 
     def test_native_brightest_flame_restore_and_paid_withdrawal_preserve_csv_and_completed_attack(self):
         for uid in (PASSIVE.SHINING_FLAME, PASSIVE.GLACIAL_ICE):
@@ -273,9 +273,9 @@ class FireBurnReachabilityTests(unittest.TestCase):
                 if ice:
                     self.assertEqual(PASSIVE.damage_reduction(e, attacker, victim, self.rules.move('move/불꽃세례'), 2, False), 0)
                 self.assertEqual({parent: TA.acquired(trainer, parent, branch) for parent in parents}, parents)
-                before = e.export_state()
+                before = e.snapshot_state()
                 self.assertEqual(e.retrain_trainer_source(trainer, uid, **options), result)
-                self.assertEqual(e.export_state(), before)
+                self.assertEqual(e.snapshot_state(), before)
                 e.gm.restore(saved)
                 for pokemon in (p, q):
                     self.book_passive_declaration(e, trainer, pokemon, uid)

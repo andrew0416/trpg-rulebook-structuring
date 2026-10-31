@@ -82,12 +82,12 @@ class BreatherContinuationTests(unittest.TestCase):
     self.assertTrue(result['completed']);self.assertEqual(current.temp_hp,5)
     self.assertEqual(restored.take_breather(current,**options),result)
  def test_changed_declaration_foreign_continuation_and_displaced_prefix_cannot_bypass(self):
-  actor,options=self.ordinary();self.blocked(actor,options,actor,(4,2));before=CODEC.dump_engine(self.e)
+  actor,options=self.ordinary();self.blocked(actor,options,actor,(4,2));before=CODEC.snapshot_engine(self.e)
   changed=deepcopy(options);changed['fixed_save']=1
   with self.assertRaisesRegex(ValueError,'declaration'):self.e.take_breather(actor,**changed)
   with self.assertRaisesRegex(ValueError,'actual interrupted'):
    with ACTION.resolution(self.e,actor,B.SOURCE,kind='breather',_breather_attempt={}):pass
-  self.assertEqual(CODEC.dump_engine(self.e),before)
+  self.assertEqual(CODEC.snapshot_engine(self.e),before)
   self.e.grid.blocking.remove((4,2));actor.pos=(3,3)
   with self.assertRaisesRegex(ValueError,'prefix'):self.e.take_breather(actor,**options)
   self.assertEqual(actor.temp_hp,12)

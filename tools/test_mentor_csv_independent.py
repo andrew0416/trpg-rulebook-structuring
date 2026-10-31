@@ -27,12 +27,12 @@ class MentorIndependentTests(unittest.TestCase):
         f.e.gm.restore('three-paid-and-free')
         for e in (f.e,loaded):
             index={c.entity_id:c for c in e.everyone};a=index[f.a.entity_id];target=index[p.entity_id]
-            before=CODEC.dump_engine(e)
+            before=CODEC.snapshot_engine(e)
             for entry in ('csv','catalog'):
                 with self.assertRaisesRegex(ValueError,'daily frequency'):
                     if entry=='csv':CSV.teach(e,a,target=target,move_id='move/돌진',seconds=60,reason='actual fourth instruction')
                     else:T.teach_feature(e,a,target=target,move_id='move/돌진',feature=T.MENTOR,seconds=60,reason='actual fourth old entry')
-                self.assertEqual(CODEC.dump_engine(e),before)
+                self.assertEqual(CODEC.snapshot_engine(e),before)
             self.assertEqual((target.spec['tutor_points'],e.elapsed_seconds),(1,180))
 
     def test_actual_evolution_retains_original_learning_and_rejects_mirrored_proof_in_both_restores(self):

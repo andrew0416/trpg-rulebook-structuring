@@ -5,7 +5,7 @@ from unittest.mock import patch
 import json,sys,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 import test_foundation_repair_restore as _fixture_test_foundation_repair_restore
-from state_codec import dump_engine,load_engine,StateCodecError
+from state_codec import dump_engine,load_engine,StateCodecError, snapshot_engine
 import repair_breach as B,special_entities as S,world_entities as W,control_remote as REMOTE
 
 class BreachTests(unittest.TestCase):
@@ -89,9 +89,9 @@ class BreachTests(unittest.TestCase):
  def test_actual_capacity_damage_closes_existing_remote_vehicle_commands(self):
   from test_foundation_control_remote import RemoteTests
   remote=RemoteTests('test_actual_installed_route_moves_distant_machine_with_existing_action_budget');remote.poly=self.poly;remote.setUp();remote.connect()
-  remote.e.damage_vehicle(remote.a,'vehicle',15,self.policy(),event_id='actual-disable',reason='actual damage crossed capacity');self.assertFalse(S.vehicle_view(remote.row)['operable']);before=dump_engine(remote.e)
+  remote.e.damage_vehicle(remote.a,'vehicle',15,self.policy(),event_id='actual-disable',reason='actual damage crossed capacity');self.assertFalse(S.vehicle_view(remote.row)['operable']);before=snapshot_engine(remote.e)
   with self.assertRaises(ValueError):remote.move(request='after-disable')
-  self.assertEqual(before,dump_engine(remote.e))
+  self.assertEqual(before,snapshot_engine(remote.e))
  def test_native_structural_quantity_and_resigned_created_count_require_actual_damage(self):
   self.damage();before=self.snap()
   with self.assertRaisesRegex(ValueError,'available breaches'):self.e.repair_breaches(self.a,'vehicle',count=2,seconds=60,subset='patched_first',request_id='too-many',accessible=True,reason='missing actual structural damage')

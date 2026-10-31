@@ -179,7 +179,7 @@ class NativeReactionTests(unittest.TestCase):
 
     def test_late_quota_failure_rolls_back_effect_action_rng_and_pending_event(self):
         e, owner, pokemon, enemy, event = self.pending_hit(R.DEEP_COLD)
-        before = CODEC.dump_engine(e)
+        before = CODEC.snapshot_engine(e)
         aliases = owner.spec, owner.spec[R.STATE], enemy.stages, enemy.conditions
         real = F.consume_activation
         def fail_after_consuming(actor, key, declaration, **kwargs):
@@ -190,7 +190,7 @@ class NativeReactionTests(unittest.TestCase):
         with patch.object(F, "consume_activation", fail_after_consuming):
             with self.assertRaisesRegex(ValueError, "late target quota"):
                 e.resolve_class_actor_state_reaction(owner, event["id"], use=True)
-        self.assertEqual(CODEC.dump_engine(e), before)
+        self.assertEqual(CODEC.snapshot_engine(e), before)
         for actual, alias in zip((owner.spec, owner.spec[R.STATE], enemy.stages, enemy.conditions), aliases):
             self.assertIs(actual, alias)
 

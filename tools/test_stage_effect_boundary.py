@@ -189,16 +189,16 @@ class StageEffectBoundaryTests(unittest.TestCase):
 
     def test_invalid_source_and_late_reaction_failure_do_not_consume_fashion(self):
         helper, e, owner, attacker, target, identity = self.world('beauty')
-        before = e.export_state()
+        before = e.snapshot_state()
         for source, context, changes in (('', None, {'atk': -1}),
                 ('move/울음소리', {'source_id': 'condition/other'}, {'atk': -1}),
                 ('move/울음소리', None, {'atk': -1, 'def': 1})):
             with self.subTest(source=source), self.assertRaises(ValueError):
                 FX.apply_stage_changes(e, attacker, target, changes, source_id=source, context=context)
-            self.assertEqual(e.export_state(), before)
+            self.assertEqual(e.snapshot_state(), before)
         e.gm.set_ability(attacker, '위협', reason='actual native Ability acquired before its activation')
         helper.start(e, attacker)
-        before = e.export_state()
+        before = e.snapshot_state()
         native = FX.apply_stage_changes
 
         def fail_after_protection(*args, **kwargs):
@@ -210,7 +210,7 @@ class StageEffectBoundaryTests(unittest.TestCase):
 
         with patch.object(FX, 'apply_stage_changes', side_effect=fail_after_protection), self.assertRaisesRegex(ValueError, 'late stage boundary failure'):
             e.activate_ability(attacker, '위협', target)
-        self.assertEqual(e.export_state(), before)
+        self.assertEqual(e.snapshot_state(), before)
         self.assertEqual(FASHION._armed_instance(target, 'beauty'), identity)
 
 

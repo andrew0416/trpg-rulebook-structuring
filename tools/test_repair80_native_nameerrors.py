@@ -38,7 +38,7 @@ class VoiceTrainingNameErrorTests(_focused_fixture.CommanderFixture, unittest.Te
                     self.valid()
                     self.assertEqual([TRAINING.bonus(p, 'accuracy') for p in (self.p, self.p2)], [1, 1])
                     self.assertEqual(TRAINING.bonus(self.third, 'accuracy'), 0)
-                    before = self.e.export_state()
+                    before = self.e.snapshot_state()
                     for partner in (self.p, self.p2):
                         payment = TRAINING.active(partner)[0]['order_id']
                         self.assertTrue(COMMANDER.training_authority(self.a, partner, TRAINING.FOCUSED, payment))
@@ -47,7 +47,7 @@ class VoiceTrainingNameErrorTests(_focused_fixture.CommanderFixture, unittest.Te
                         self.assertFalse(COMMANDER.training_authority_id(self.a, partner.entity_id, TRAINING.INSPIRED, payment))
                         self.assertFalse(COMMANDER.training_authority(self.a, partner, TRAINING.FOCUSED, 'unpaid/voice'))
                         self.assertFalse(COMMANDER.training_authority(self.b, partner, TRAINING.FOCUSED, payment))
-                    self.assertEqual(self.e.export_state(), before)
+                    self.assertEqual(self.e.snapshot_state(), before)
                 self.close()
                 self.e.end_round()
                 self.e.start_round(self.e.everyone)
@@ -75,7 +75,7 @@ class VoiceTrainingNameErrorTests(_focused_fixture.CommanderFixture, unittest.Te
         self.battle()
         self.voice(TRAINING.FOCUSED, options={'edition': 'local_csv'})
         payment = TRAINING.active(self.p)[0]['order_id']
-        before = self.e.export_state()
+        before = self.e.snapshot_state()
         row = self.a.spec[COMMANDER.ACTIVATIONS][-1]
         original = deepcopy(row['orders'])
         try:
@@ -84,7 +84,7 @@ class VoiceTrainingNameErrorTests(_focused_fixture.CommanderFixture, unittest.Te
                 COMMANDER.training_authority(self.a, self.third, TRAINING.FOCUSED, payment)
         finally:
             row['orders'] = original
-        self.assertEqual(self.e.export_state(), before)
+        self.assertEqual(self.e.snapshot_state(), before)
 
 
 class NavigationNameErrorTests(unittest.TestCase):
@@ -99,9 +99,9 @@ class NavigationNameErrorTests(unittest.TestCase):
         engine = self.fixture(actor, partner)
         row = CAP.start_navigation(engine, actor, 'route/fractional', lightyears=1.1)
         self.assertEqual((row['dc'], row['total'], row['completed']), (17, 0, False))
-        before = engine.export_state()
+        before = engine.snapshot_state()
         self.assertEqual(CAP.start_navigation(engine, actor, 'route/fractional', lightyears=1.1), row)
-        self.assertEqual(engine.export_state(), before)
+        self.assertEqual(engine.snapshot_state(), before)
         row['dc'] = 999
         self.assertEqual(actor.spec[CAP.STATE]['navigation_routes']['route/fractional']['dc'], 17)
         CAP.navigation_check(engine, actor, 'route/fractional', skill='지각', total=8, check_id='first')
@@ -115,9 +115,9 @@ class NavigationNameErrorTests(unittest.TestCase):
         actor, partner = [WORLD.actor_index(engine)[p.entity_id] for p in (actor, partner)]
         self.assertEqual(CAP.navigation_jump(actor, 'route/fractional'),
                          {'safe': True, 'total': 17, 'dc': 17, 'gm_consequence_required': False})
-        before = engine.export_state()
+        before = engine.snapshot_state()
         CAP.navigation_contribute(engine, actor, partner, 'route/fractional', skill='집중', total=9, check_id='second')
-        self.assertEqual(engine.export_state(), before)
+        self.assertEqual(engine.snapshot_state(), before)
         self.assertTrue(engine.validate_state()['valid'])
 
     def test_native_navigation_rejects_invalid_input_and_route_rebinding_without_mutation(self):
@@ -143,7 +143,7 @@ class NavigationNameErrorTests(unittest.TestCase):
         assert_rejected_unchanged(engine,
             lambda: CAP.start_navigation(engine, actor, 'route/fixed', lightyears=2),
             reason_pattern='cannot change distance')
-        before = engine.export_state()
+        before = engine.snapshot_state()
         route = actor.spec[CAP.STATE]['navigation_routes']['route/fixed']
         try:
             route['dc'] = 16
@@ -151,7 +151,7 @@ class NavigationNameErrorTests(unittest.TestCase):
                 CAP.validate_actor(actor)
         finally:
             route['dc'] = 17
-        self.assertEqual(engine.export_state(), before)
+        self.assertEqual(engine.snapshot_state(), before)
 
 
 if __name__ == '__main__':

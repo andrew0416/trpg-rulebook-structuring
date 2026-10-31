@@ -7,7 +7,7 @@ from engine import Rules
 from grid import Grid
 import map_terrain as TERRAIN
 import movement_actions as MOVE
-from state_codec import dump_engine,load_engine,StateCodecError
+from state_codec import dump_engine,load_engine,StateCodecError, snapshot_engine
 
 class Tests(unittest.TestCase):
  @classmethod
@@ -65,13 +65,13 @@ class Tests(unittest.TestCase):
   self.assertEqual((slow,rough),({(1,0)},{(1,0)}))
  def test_invalid_staged_grid_or_observation_rolls_back_every_field(self):
   import state_grants as G
-  before=dump_engine(self.e);grid=self.e.grid
+  before=snapshot_engine(self.e);grid=self.e.grid
   def invalid(staged,actor):
    staged.grid.base_terrain={'1,0':'invented'}
    staged.grid.slow.add((1,0));actor.hp-=3
   with self.assertRaises(ValueError):G.transition(self.e,self.a,invalid,include_grid=True)
-  self.assertEqual(dump_engine(self.e),before);self.assertIs(self.e.grid,grid)
+  self.assertEqual(snapshot_engine(self.e),before);self.assertIs(self.e.grid,grid)
   with self.assertRaises(ValueError):self.e.observe_map_terrain([(1,0),(20,0)],base='underwater',slow=True,reason='invalid mixed observation')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
 
 if __name__=='__main__':unittest.main()

@@ -168,8 +168,8 @@ class SeismometerTests(unittest.TestCase):
   out=self.e.execute_source_policy_teaching(self.a,self.p,document,request_id='seismometer/native')
   self.assertEqual(out['status'],'PolicyTeachingCompleted');self.assertFalse(out['replayed'])
   loaded=self.restored();owner=next(c for c in loaded.everyone if c.entity_id==self.a.entity_id);p=next(c for c in loaded.everyone if c.entity_id==self.p.entity_id)
-  before=CODEC.dump_engine(loaded);again=loaded.execute_source_policy_teaching(owner,p,document,request_id='seismometer/native')
-  self.assertTrue(again['replayed']);self.assertEqual(CODEC.dump_engine(loaded),before)
+  before=CODEC.snapshot_engine(loaded);again=loaded.execute_source_policy_teaching(owner,p,document,request_id='seismometer/native')
+  self.assertTrue(again['replayed']);self.assertEqual(CODEC.snapshot_engine(loaded),before)
  def test_base_and_edge_source_selection_are_enforced_before_information_or_state_change(self):
   self.environment();before=self.snap();selected=self.r._selected_rule
   with patch.object(self.r,'_selected_rule',side_effect=lambda uid:uid+'/different' if uid==T.SOURCE else selected(uid)):

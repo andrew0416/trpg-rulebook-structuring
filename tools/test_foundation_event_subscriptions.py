@@ -5,7 +5,7 @@ import sys,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 import test_passive_event_runtime as FIX
 import passive_events as PE
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 
 class Subscriptions(unittest.TestCase):
  @classmethod
@@ -27,9 +27,9 @@ class Subscriptions(unittest.TestCase):
   self.assertEqual(a.stages['atk'],1);self.assertEqual(a._action_history,['standard'])
   ev=list(e._passive_events.values())[-1]
   self.assertEqual(ev['outcomes'][key]['status'],'applied')
-  loaded=load_engine(e.r,dump_engine(e));before=dump_engine(loaded)
+  loaded=load_engine(e.r,dump_engine(e));before=snapshot_engine(loaded)
   self.assertEqual(loaded.deliver_passive_event(ev['id']),'already_delivered')
-  self.assertEqual(dump_engine(loaded),before)
+  self.assertEqual(snapshot_engine(loaded),before)
  def test_miss_and_nonmove_hp_loss_cannot_assert_hit(self):
   e,a,b,doc,key=self.fixture(seed=31)
   e.use_move(a,b,'struggle',set_damage=True)
@@ -120,8 +120,8 @@ class Subscriptions(unittest.TestCase):
   self.assertLess(b.hp,8);self.assertEqual(a.stages['atk'],1)
   self.assertEqual(a.move_uses['struggle'],1);self.assertEqual(a._action_history,['standard'])
   self.assertEqual(restored.rng.getstate(),rng)
-  before=dump_engine(restored);self.assertEqual(restored.deliver_passive_event(eid),'already_delivered')
-  self.assertEqual(dump_engine(restored),before)
+  before=snapshot_engine(restored);self.assertEqual(restored.deliver_passive_event(eid),'already_delivered')
+  self.assertEqual(snapshot_engine(restored),before)
  def test_accuracy_listener_cannot_read_future_damage_observation(self):
   e,a,b,doc,key=self.fixture()
   with self.assertRaisesRegex(ValueError,'do not exist'):
@@ -136,13 +136,13 @@ class Subscriptions(unittest.TestCase):
   e,a,b,doc,key=self.fixture();self.accuracy_listener(e,a,doc)
   with self.assertRaises(PE.PassiveEventPending):e.use_move(a,b,'struggle',set_damage=True)
   eid=e._passive_pending
-  before=dump_engine(e)
+  before=snapshot_engine(e)
   with self.assertRaises(PE.PassiveEventPending):e.advance_time(1)
-  self.assertEqual(dump_engine(e),before)
+  self.assertEqual(snapshot_engine(e),before)
   e._passive_events[eid]['continuation']['args']['nat']=2
-  before=dump_engine(e)
+  before=snapshot_engine(e)
   with self.assertRaisesRegex(ValueError,'continuation changed'):e.deliver_passive_event(eid)
-  self.assertEqual(dump_engine(e),before);self.assertEqual(b.hp,8)
+  self.assertEqual(snapshot_engine(e),before);self.assertEqual(b.hp,8)
  def test_faint_during_wait_cancels_remaining_attack_without_refunding_or_repaying(self):
   e,a,b,doc,key=self.fixture();self.accuracy_listener(e,a,doc)
   with self.assertRaises(PE.PassiveEventPending):e.use_move(a,b,'struggle',set_damage=True)
@@ -153,10 +153,10 @@ class Subscriptions(unittest.TestCase):
   self.assertEqual(e._passive_events[eid]['continuation_cancelled'],'actor_no_longer_eligible')
  def test_nonordinary_intermediate_scope_rejects_before_cost(self):
   e,a,b,doc,key=self.fixture();self.accuracy_listener(e,a,doc)
-  before=dump_engine(e)
+  before=snapshot_engine(e)
   with self.assertRaisesRegex(ValueError,'standalone native'):
    e.use_move(a,b,'struggle',count_use=False,set_damage=True)
-  self.assertEqual(dump_engine(e),before)
+  self.assertEqual(snapshot_engine(e),before)
 
  def test_no_arbitrary_producer_or_context_field_and_no_redefinition(self):
   e,a,b,doc,key=self.fixture()

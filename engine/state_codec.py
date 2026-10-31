@@ -245,6 +245,21 @@ def _corpus_digest(path):
 
 
 _SAVED_POLICIES = {}
+_PARSED_FILES = {}
+
+
+def _parsed_file(path):
+    """JSON document parsed once per file version (same stat signature rule as _corpus_digest);
+    the fingerprint only reads it, so the parsed object is shared read-only."""
+    key = str(path)
+    stat = path.stat()
+    signature = (stat.st_size, stat.st_mtime_ns, stat.st_ino, stat.st_dev)
+    cached = _PARSED_FILES.get(key)
+    if cached is not None and cached[0] == signature:
+        return cached[1]
+    value = json.loads(path.read_text(encoding='utf-8'))
+    _PARSED_FILES[key] = (signature, value)
+    return value
 _PIECE_CACHES = __import__('weakref').WeakKeyDictionary()
 
 
@@ -526,13 +541,13 @@ def rules_fingerprint(rules):
             policy[name] = saved_policy(filename, member)
     if policy.get('_ability_native_actions_catalog') is None:
         native_sources = saved_policy('ability-native-actions-policy.json')['sources']
-        catalog = json.loads((root/'output/entities/abilities.json').read_text(encoding='utf-8'))
+        catalog = _parsed_file(root/'output/entities/abilities.json')
         policy['_ability_native_actions_catalog'] = {
             entry['id']: entry for entry in catalog if entry['id'] in native_sources}
     policy.setdefault('_poke_edge_variants_identity',
-                      (str(root.resolve()), hashlib.sha256((root/'data/poke-edge-variants.json').read_bytes()).hexdigest()))
+                      (str(root.resolve()), _corpus_digest(root/'data/poke-edge-variants.json')))
     training=saved_policy('training-source-policies.json')
-    training_identity=(str(root.resolve()),hashlib.sha256((root/'data/training-source-policies.json').read_bytes()).hexdigest())
+    training_identity=(str(root.resolve()),_corpus_digest(root/'data/training-source-policies.json'))
     for name,provider in (('_groomer_csv_policy','groomer'),('_beast_csv_policy','beast_master')):
         if policy.get(name) is None:policy[name]=training[provider]['csv_target_limit']
         policy.setdefault(name+'_identity',training_identity)

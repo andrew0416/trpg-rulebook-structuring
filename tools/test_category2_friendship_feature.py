@@ -110,7 +110,7 @@ class FriendshipFeatureTests(CATEGORY3.Tests):
         self.assertEqual(trainer._action_history, expected["actions"])
         self.assertTrue(loaded.validate_state()["valid"], loaded.validate_state())
 
-        before = loaded.export_state()
+        before = loaded.snapshot_state()
         with self.assertRaisesRegex(ValueError, "retry requires GM permission"):
             loaded.pokemon_activity(
                 trainer,
@@ -120,7 +120,7 @@ class FriendshipFeatureTests(CATEGORY3.Tests):
                 friendship_audience="performer",
                 fixed=[6] * 5,
             )
-        self.assertEqual(loaded.export_state(), before)
+        self.assertEqual(loaded.snapshot_state(), before)
 
         loaded.end_scene([trainer, performer, target])
         loaded.pokemon_activity(

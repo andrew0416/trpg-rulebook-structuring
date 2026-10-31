@@ -63,9 +63,9 @@ class RelativeFreeFloatPaidTests(ATHLETE_FIX.AthleteScene,unittest.TestCase):
                         self.assertEqual((result['distance'],result['state'],self.t.pos),(expected,'complete',(3,2)))
                         self.assertEqual((self.t.budget['standard'],self.t.budget['shift']),(0,0))
                         self.assertEqual('질주' in self.t.custom_conditions,policy=='ch07_turn')
-                        before=self.e.export_state()
+                        before=self.e.snapshot_state()
                         self.assertEqual(self.e.move_relative(self.t,**declaration),result)
-                        self.assertEqual(self.e.export_state(),before)
+                        self.assertEqual(self.e.snapshot_state(),before)
                         self.next_turn(self.t)
                         self.assertNotIn('질주',self.t.custom_conditions)
                         later=self.e.move_relative(self.t,**self.declaration('later-unboosted',distance=8))
@@ -93,9 +93,9 @@ class RelativeFreeFloatPaidTests(ATHLETE_FIX.AthleteScene,unittest.TestCase):
                 result=self.e.move_relative(self.t,**declaration)
                 self.assertEqual((result['distance'],result['state'],self.t.pos),(expected,'complete',(2+expected,2)))
                 self.assertEqual((self.t.budget['standard'],self.t.budget['shift']),(1,0))
-                before=self.e.export_state()
+                before=self.e.snapshot_state()
                 self.assertEqual(self.e.move_relative(self.t,**declaration),result)
-                self.assertEqual(self.e.export_state(),before)
+                self.assertEqual(self.e.snapshot_state(),before)
 
     def test_relative_cold_restore_keeps_cell_prefix_and_rejects_forged_offsets_or_discounts(self):
         self.scene()
@@ -109,9 +109,9 @@ class RelativeFreeFloatPaidTests(ATHLETE_FIX.AthleteScene,unittest.TestCase):
         saved=json.loads(json.dumps(self.e.export_state(),ensure_ascii=False))
         self.e=load_engine(self.rules,deepcopy(saved))
         self.t=WORLD.actor_index(self.e)[actor_id]
-        before=self.e.export_state()
+        before=self.e.snapshot_state()
         self.assertEqual(self.e.move_relative(self.t,**declaration),result)
-        self.assertEqual(self.e.export_state(),before)
+        self.assertEqual(self.e.snapshot_state(),before)
         self.assertEqual((self.t.budget['standard'],self.t.budget['shift']),(0,0))
         for field,value in (('free_float_distance_offset',0),('free_float_distance_offset',-1),('charged_distance',0)):
             with self.subTest(field=field,value=value):
@@ -148,9 +148,9 @@ class RelativeFreeFloatPaidTests(ATHLETE_FIX.AthleteScene,unittest.TestCase):
         saved=json.loads(json.dumps(engine.export_state(),ensure_ascii=False))
         restored=load_engine(self.rules,saved)
         restored_actor=WORLD.actor_index(restored)[actor_id]
-        before=restored.export_state()
+        before=restored.snapshot_state()
         self.assertEqual(restored.move_relative(restored_actor,**declaration),result)
-        self.assertEqual(restored.export_state(),before)
+        self.assertEqual(restored.snapshot_state(),before)
 
 
 if __name__=='__main__':

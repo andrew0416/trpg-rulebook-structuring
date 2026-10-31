@@ -139,13 +139,13 @@ class BrightestFlameEffectRangeSourceRevisionTests(unittest.TestCase):
         self.combat();self.attack();self.assertNotIn('화상',self.b.conditions);self.valid()
 
     def test_wrong_selected_source_rejects_before_native_cost_damage_or_rng(self):
-        self.world(training=True);self.combat();before=CODEC.dump_engine(self.e)
+        self.world(training=True);self.combat();before=CODEC.snapshot_engine(self.e)
         selected=self.e.r._selected_rule
         def other_source(uid):return FEATURE+'/unreviewed' if uid==FEATURE else selected(uid)
         with patch.object(self.e.r,'_selected_rule',side_effect=other_source):
             with self.assertRaisesRegex(ValueError,'selected feature variant'):
                 self.attack()
-        self.assertEqual(CODEC.dump_engine(self.e),before)
+        self.assertEqual(CODEC.snapshot_engine(self.e),before)
         self.assertNotIn('화상',self.b.conditions);self.valid()
 
     def test_natural_one_miss_and_nonfire_attack_keep_native_face_rules(self):

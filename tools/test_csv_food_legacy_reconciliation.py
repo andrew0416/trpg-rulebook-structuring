@@ -73,16 +73,16 @@ class CsvFoodLegacyReconciliation(unittest.TestCase):
                 self.assertEqual(FOOD.slots(actor),0)
                 self.assertEqual(len(actor.spec['food_consumption_receipts']),1)
                 self.restored(e)
-                before=CODEC.dump_engine(e)
+                before=CODEC.snapshot_engine(e)
                 with self.assertRaisesRegex(ValueError,'one actual legacy'):
                     e.consume_food_buff(actor,buff_id=old['id'],legacy_reason='cannot adopt twice')
-                self.assertEqual(before,CODEC.dump_engine(e))
+                self.assertEqual(before,CODEC.snapshot_engine(e))
 
     def test_late_adoption_fault_rolls_back_original_payment_history_and_slot(self):
         e,actor,other=self.fixture('item/흉내허브')
         old=OLD.consume(e,actor,actor,'item/흉내허브')
         e.gm.snapshot('before-legacy-reconciliation')
-        before=CODEC.dump_engine(e)
+        before=CODEC.snapshot_engine(e)
         original=FOOD.grant_buff
         observed=[]
         def fail(engine,target,*args,**options):
@@ -93,7 +93,7 @@ class CsvFoodLegacyReconciliation(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'bounded fault'):
                 e.consume_food_buff(actor,buff_id=old['id'],legacy_reason='verified original payment')
         self.assertEqual(observed,[(1,0)])
-        self.assertEqual(before,CODEC.dump_engine(e))
+        self.assertEqual(before,CODEC.snapshot_engine(e))
         e.consume_food_buff(actor,buff_id=old['id'],legacy_reason='successful retry of original unpaid application')
         self.assertEqual(actor.spec['items']['item/흉내허브'],1)
         e.gm.restore('before-legacy-reconciliation',reason='bounded history restore')
@@ -114,10 +114,10 @@ class CsvFoodLegacyReconciliation(unittest.TestCase):
                 else:
                     OLD.consume(e,actor,actor,'item/흉내허브')
                 e=self.restored(e);actor=WORLD.actor_index(e)[actor.entity_id]
-                before=CODEC.dump_engine(e)
+                before=CODEC.snapshot_engine(e)
                 with self.assertRaisesRegex(ValueError,'GM.*reconcil'):
                     e.consume_food_buff(actor,buff_id=old['id'],legacy_reason='must not invent paid provenance or capacity')
-                self.assertEqual(before,CODEC.dump_engine(e))
+                self.assertEqual(before,CODEC.snapshot_engine(e))
 
     def test_history_only_legacy_stays_history_and_adopted_source_cannot_be_rewritten(self):
         e,actor,other=self.fixture('item/회복허브')

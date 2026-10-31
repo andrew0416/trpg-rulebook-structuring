@@ -6,7 +6,7 @@ import sys,json,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'engine'))
 from engine import Rules,Engine,Combatant
 from builder import build_trainer
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import world_entities as W
 
 class PolicyProgressionTests(unittest.TestCase):
@@ -40,8 +40,8 @@ class PolicyProgressionTests(unittest.TestCase):
   self.assertEqual(c.level,7);self.assertEqual(len(restored.pending_trainer_entitlements(c)),2)
  def test_milestone_and_false_condition_preserve_bank(self):
   self.op.pop('amount');self.op['kind']='milestone';self.row['inputs']={};self.row['when']=False
-  self.load();before=dump_engine(self.e)
-  self.assertEqual(self.run_policy()['status'],'PolicyNotApplicable');self.assertEqual(dump_engine(self.e),before)
+  self.load();before=snapshot_engine(self.e)
+  self.assertEqual(self.run_policy()['status'],'PolicyNotApplicable');self.assertEqual(snapshot_engine(self.e),before)
   self.doc['variants'][0]['when']=True
   self.run_policy();self.assertEqual(self.c.level,6);self.assertEqual(self.c.spec['exp_bank'],3)
  def test_bad_package_is_not_published(self):
@@ -52,15 +52,15 @@ class PolicyProgressionTests(unittest.TestCase):
    self.assertEqual(getattr(self.r,'_source_policy_documents',{}),before)
  def test_late_reward_failure_rolls_back_policy_growth_and_entitlements(self):
   from unittest.mock import patch
-  self.load();before=dump_engine(self.e)
+  self.load();before=snapshot_engine(self.e)
   with patch('trainer_entitlements.verified_source',side_effect=ValueError('source changed')):
    with self.assertRaisesRegex(ValueError,'source changed'):self.run_policy(decisions={'amount':{'value':19,'reason':'observed award'}})
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
  def test_changed_event_intent_and_wrong_entry_do_not_change_growth(self):
-  self.load();self.run_policy(decisions={'amount':{'value':19,'reason':'observed award'}});before=dump_engine(self.e)
+  self.load();self.run_policy(decisions={'amount':{'value':19,'reason':'observed award'}});before=snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'changed input'):self.run_policy(decisions={'amount':{'value':20,'reason':'changed award'}})
   with self.assertRaises(ValueError):self.e.execute_source_policy_effects(self.c,self.c,self.doc,decisions={'amount':{'value':19,'reason':'observed award'}})
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
 
  def test_outer_policy_replay_cannot_hide_corrupt_native_growth_receipt(self):
   from copy import deepcopy
@@ -112,30 +112,30 @@ class PolicyProgressionTests(unittest.TestCase):
   from unittest.mock import patch
   self.reach_five();choice=self.milestone_document('milestone_choice',level=5,option='stats')
   self.e.execute_source_policy_progression(self.c,self.c,choice)
-  allocation=self.milestone_document('milestone_stats',level=5,stats={'atk':3,'spa':0},request_id='stat/one');before=dump_engine(self.e)
+  allocation=self.milestone_document('milestone_stats',level=5,stats={'atk':3,'spa':0},request_id='stat/one');before=snapshot_engine(self.e)
   with self.assertRaisesRegex(ValueError,'insufficient'):self.e.execute_source_policy_progression(self.c,self.c,allocation)
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
   allocation['variants'][0]['values']['progression_operation']['stats']['atk']=2
   import state_fields as F
   original=F.base_patch
   def late(*args,**kwargs):original(*args,**kwargs);raise ValueError('late failure')
   with patch('state_fields.base_patch',side_effect=late):
    with self.assertRaisesRegex(ValueError,'late failure'):self.e.execute_source_policy_progression(self.c,self.c,allocation)
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
  def test_json_choice_bound_by_actual_native_threshold(self):
   self.reach_five();doc=self.milestone_document('milestone_choice',level={'$input':'level'},option='edges')
   doc['variants'][0]['inputs']={'level':{'type':'integer','authority':'context','question':'Threshold'}}
-  self.r.load_source_policy_package(json.dumps({'schema':1,'sources':[],'policies':[doc]}));before=dump_engine(self.e)
+  self.r.load_source_policy_package(json.dumps({'schema':1,'sources':[],'policies':[doc]}));before=snapshot_engine(self.e)
   for level in (5,10):
    with self.assertRaises(ValueError):self.e.execute_source_policy_progression(self.c,self.c,doc,context={'level':level})
-   self.assertEqual(dump_engine(self.e),before)
+   self.assertEqual(snapshot_engine(self.e),before)
 
  def test_json_ordinary_growth_points_allocate_any_combat_stat(self):
   self.reach_five();doc=self.milestone_document('growth_stats',stats={'def':{'$input':'points'}},request_id='ordinary')
   doc['variants'][0]['inputs']={'points':{'type':'integer','authority':'gm','question':'Defense allocation'}}
   self.r.load_source_policy_package(json.dumps({'schema':1,'sources':[],'policies':[doc]}))
-  before=dump_engine(self.e);self.assertEqual(self.e.execute_source_policy_progression(self.c,self.c,doc)['status'],'PolicyInputsRequired')
-  self.assertEqual(dump_engine(self.e),before)
+  before=snapshot_engine(self.e);self.assertEqual(self.e.execute_source_policy_progression(self.c,self.c,doc)['status'],'PolicyInputsRequired')
+  self.assertEqual(snapshot_engine(self.e),before)
   args={'decisions':{'points':{'value':1,'reason':'explicit allocation'}}}
   self.e.execute_source_policy_progression(self.c,self.c,doc,**args)
   self.assertEqual(self.c.spec['stats']['def'],11);self.assertEqual(self.e.trainer_growth_stat_points(self.c)['available'],0)

@@ -218,9 +218,9 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
     def verify_request_replay(self, state):
         uid = state['uid']; first = state['receipt']
         e, a, selection = state['engine'], state['actor'], state['selection']
-        before = e.export_state()
+        before = e.snapshot_state()
         self.assertEqual(self.acquire(e, a, uid, selection), first)
-        self.assertEqual(e.export_state(), before)
+        self.assertEqual(e.snapshot_state(), before)
         changed = deepcopy(selection)
         changed['waivers'] = [{'source_id': uid, 'provider': 'native', 'stage': 'acquire',
                               'checks': ['trainer'], 'reason': 'explicit changed request intent'}]
@@ -254,9 +254,9 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
         self.assertNotIn(d['owned_value'], a.spec[d['field']])
         archived = N.receipts(a)[0]
         self.assertEqual((archived['state'], archived['snapshot']), ('ended', receipt['snapshot']))
-        before = e.export_state()
+        before = e.snapshot_state()
         self.assertEqual(self.acquire(e, a, uid, selection)['status'], 'withdrawn')
-        self.assertEqual(e.export_state(), before)
+        self.assertEqual(e.snapshot_state(), before)
         self.assertFalse(any(row['source_id'] == uid for row in A.class_instances(a)))
         restored, actor = self.restore(e, a)
         self.assertEqual(N.receipts(actor)[0]['state'], 'ended')
@@ -443,14 +443,14 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
         uid = 'feat/파캐스트'
         e, a, selection = self.fixture(uid)
         first = N.acquire(e, a, uid, acquisition_request_id='legacy/csv/farcast', selection=selection)
-        before = e.export_state()
+        before = e.snapshot_state()
         self.assertEqual(T.acquire_static(e, a, uid, acquisition_request_id='legacy/csv/farcast'), first)
-        self.assertEqual(e.export_state(), before)
+        self.assertEqual(e.snapshot_state(), before)
         self.withdraw(e, a, uid)
         e, a = self.restore(e, a)
-        before = e.export_state()
+        before = e.snapshot_state()
         self.assertEqual(T.acquire_static(e, a, uid, acquisition_request_id='legacy/csv/farcast')['status'], 'withdrawn')
-        self.assertEqual(e.export_state(), before)
+        self.assertEqual(e.snapshot_state(), before)
         self.reject(e, lambda: T.acquire_static(e, a, uid,
             acquisition_request_id='legacy/csv/farcast', source_id='C04-119'), 'changed intent or source')
 
@@ -523,9 +523,9 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
                     acquisition_request_id=request, source_id=book_source), 'changed intent or source')
                 e.gm.snapshot('top-source')
                 e.gm.set_skill(a, '명령', 1, reason='later skill loss preserves actual receipt')
-                before = e.export_state()
+                before = e.snapshot_state()
                 self.assertEqual(T.acquire_static(e, a, uid, acquisition_request_id=request), first)
-                self.assertEqual(e.export_state(), before)
+                self.assertEqual(e.snapshot_state(), before)
                 e.gm.restore('top-source')
                 self.assertEqual(T.acquire_static(e, a, uid, acquisition_request_id=request), first)
                 event_id = e.offer_top_percentage_at_max_level(a, pokemon)
@@ -540,10 +540,10 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
                 self.assertEqual(pokemon.spec['tutor_points'], tutor_points + 1)
                 self.withdraw(e, a, uid)
                 e, a = self.restore(e, a)
-                before = e.export_state()
+                before = e.snapshot_state()
                 self.assertEqual(T.acquire_static(e, a, uid, acquisition_request_id=request),
                                  dict(first, status='withdrawn'))
-                self.assertEqual(e.export_state(), before)
+                self.assertEqual(e.snapshot_state(), before)
                 self.reject(e, lambda: T.acquire_static(e, a, uid,
                     acquisition_request_id=request, source_id=book_source), 'changed intent or source')
                 pokemon = next(p for p in e.everyone if p.entity_id == pokemon_id)
@@ -551,10 +551,10 @@ class NativeAcquisitionAdapterTests(unittest.TestCase):
                 replacement = T.acquire_static(e, a, uid,
                     acquisition_request_id='replacement/book/top', source_id=book_source)
                 self.assertEqual(replacement['source']['clause_id'], book_source)
-                before = e.export_state()
+                before = e.snapshot_state()
                 self.assertEqual(T.acquire_static(e, a, uid, acquisition_request_id=request),
                                  dict(first, status='withdrawn'))
-                self.assertEqual(e.export_state(), before)
+                self.assertEqual(e.snapshot_state(), before)
                 self.reject(e, lambda: e.offer_top_percentage_at_max_level(a, pokemon), 'Core body|CSV59')
 
     def test_top_percentage_exact_source_exclusions_and_invalid_choice_are_atomic(self):

@@ -112,10 +112,15 @@ class Rules:
             import state_codec as CODEC
             from pathlib import Path
             root = Path(args[0])
+            # The key carries the effective filter, not the ruleset name: tests patch RuleFilter.load
+            # to inject exclusions, and two Rules with different filters must never share a template.
+            loaded = RuleFilter.load(args[0], ruleset)
+            profile = json.dumps(vars(loaded), sort_keys=True, ensure_ascii=False,
+                                 default=lambda o: sorted(o) if isinstance(o, (set, frozenset)) else repr(o))
             manifest = tuple((p.relative_to(root).as_posix(), CODEC._corpus_digest(p)) for p in CODEC._corpus_paths(root))
         except Exception:
             return None
-        return (_os.path.abspath(args[0]), type(args[0]).__name__, ruleset, manifest)
+        return (_os.path.abspath(args[0]), type(args[0]).__name__, ruleset, profile, manifest)
 
     def _from_template(self, args, kwargs):
         key = self._template_key(args, kwargs)

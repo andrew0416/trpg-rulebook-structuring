@@ -171,7 +171,7 @@ class CompleteMoveSlotTests(unittest.TestCase):
     self.e=Engine(self.r,seed=534);c=self.add(abilities=[uid])
     self.e.begin_encounter([c]);self.e.start_round([c]);self.e.start_of_turn(c)
     def before():return deepcopy((c.spec,c.moves,c.budget,c.form,self.e.rng.getstate()))
-    state=before();changed=P.policies(self.r);changed[uid]['definition']['effect']='changed source'
+    state=before();changed=deepcopy(P.policies(self.r));changed[uid]['definition']['effect']='changed source'
     with patch.object(P,'policies',return_value=changed):
      with self.assertRaisesRegex(ValueError,'source changed'):self.e.activate_form_ability(c,uid)
     self.assertEqual(before(),state)

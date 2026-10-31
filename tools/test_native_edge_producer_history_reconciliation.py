@@ -23,7 +23,7 @@ class NativeProducerHistoryTests(unittest.TestCase):
         self.assertEqual((result['point_cost'],pupil.spec['tutor_points']), (1,0))
         receipt=next(row for row in pupil.spec['learned_poke_edges'] if row['source']==CAPABILITIES.MOBILITY)
         VARIANTS.validate_receipt(case.r,receipt,history=True,minimum_level=20)
-        before=case.e.export_state()
+        before=case.e.snapshot_state()
         for changes in ({'training_source':'invented'}, {'mentor_source_id':'forged'}, {'point_cost':1}):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 VARIANTS.validate_receipt(case.r,dict(deepcopy(receipt),**changes),history=True,minimum_level=20)
@@ -31,7 +31,7 @@ class NativeProducerHistoryTests(unittest.TestCase):
         ordinary['training_source']='input/ch05-pokemon.md:274'
         with self.assertRaises(ValueError):
             VARIANTS.validate_receipt(case.r,ordinary,history=True,minimum_level=20)
-        self.assertEqual(case.e.export_state(),before)
+        self.assertEqual(case.e.snapshot_state(),before)
         self.assertTrue(case.e.validate_state()['valid'])
 
     def test_actual_connection_birth_keeps_paid_immediate_source_and_rejects_other_edges(self):
@@ -48,11 +48,11 @@ class NativeProducerHistoryTests(unittest.TestCase):
                          (CONNECTION.KEYWORD,1,0))
         self.assertEqual(case.e.elapsed_seconds,before_seconds)
         VARIANTS.validate_receipt(case.r,receipt,history=True,minimum_level=1)
-        before=case.e.export_state()
+        before=case.e.snapshot_state()
         for changes in ({'source':CAPABILITIES.TRAINING},{'point_cost':0},{'ability':'ability/not-a-source'}):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 VARIANTS.validate_receipt(case.r,dict(deepcopy(receipt),**changes),history=True,minimum_level=1)
-        self.assertEqual(case.e.export_state(),before)
+        self.assertEqual(case.e.snapshot_state(),before)
         self.assertTrue(case.e.validate_state()['valid'])
 
 

@@ -27,7 +27,7 @@ class BerserkerFullTests(BerserkerFixture,unittest.TestCase):
             for feature in B.FEATURES:
                 record=B.acquired(self.a,feature)
                 self.assertEqual(record['snapshot']['source'],B.source(self.rules,feature,edition))
-                before=self.e.export_state();self.acquire(feature);self.assertEqual(self.e.export_state(),before)
+                before=self.e.snapshot_state();self.acquire(feature);self.assertEqual(self.e.snapshot_state(),before)
             self.valid();self.restore();self.valid()
             self.assertEqual(B.acquired(self.a,B.POWER)['snapshot']['selection']['ability'],'화이트플레임')
             self.rejected(lambda:self.acquire(B.POWER,ability='불굴의격노'),'request|selection|choice|already')

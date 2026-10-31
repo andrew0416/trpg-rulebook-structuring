@@ -126,20 +126,20 @@ class BoundAPTests(unittest.TestCase):
         self._complete_stage(3)
     def test_duplicate_adoption_no_effect_or_AP_change(self):
         e,a,b,m,o=self._stage_input(0);before=self.projection(e,a)
-        full_before=e.export_state();rng_before=e.rng.getstate()
+        full_before=e.snapshot_state();rng_before=e.rng.getstate()
         z=e.adopt_bound_ap_modifier(a,'effect-A',modifier=m,ending_method='none_specified',source_ref='test_fixture')
         self.assertEqual(z.status,'rejected');self.assertEqual(self.projection(e,a),before)
-        self.assertEqual(e.export_state(),full_before)
+        self.assertEqual(e.snapshot_state(),full_before)
         self.assertEqual(e.rng.getstate(),rng_before)
         self._complete_stage(0)
     def test_overlapping_equal_modifiers_are_not_removed_by_value(self):
         e,a,b,m,o=self.fixture();self.release(e,a);self.assertEqual(len(a.modifiers),1);self.assertIs(a.modifiers[0],o)
     def test_same_modifier_cannot_belong_to_two_bindings(self):
         e,a,b,m,o=self._stage_input(1);before=self.projection(e,a)
-        full_before=e.export_state();rng_before=e.rng.getstate()
+        full_before=e.snapshot_state();rng_before=e.rng.getstate()
         z=e.adopt_bound_ap_modifier(a,'effect-B',modifier=m,ending_method='none_specified',source_ref='test_fixture')
         self.assertEqual(z.status,'rejected');self.assertEqual(self.projection(e,a),before)
-        self.assertEqual(e.export_state(),full_before)
+        self.assertEqual(e.snapshot_state(),full_before)
         self.assertEqual(e.rng.getstate(),rng_before)
         self._complete_stage(1)
     def test_snapshot_restores_identity_and_replay(self):

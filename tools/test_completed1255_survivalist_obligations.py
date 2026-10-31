@@ -101,11 +101,11 @@ class CompletedSurvivalistObligations(unittest.TestCase):
         f=CSV.SurvivalistCSVTests();f.r=Rules(CSV.ROOT,ruleset='all')
         e,a,b=f.fixture()
         self.assertNotIn('_survivalist_csv_policy',vars(e.r))
-        before=CODEC.dump_engine(e)
+        before=CODEC.snapshot_engine(e)
         with self.assertRaisesRegex(ValueError,'capacity'):
             f.select(e,a,terrains=('forest','cave'))
         self.assertIn('_survivalist_csv_policy',vars(e.r))
-        self.assertEqual(CODEC.dump_engine(e),before)
+        self.assertEqual(CODEC.snapshot_engine(e),before)
         same=CODEC.rules_fingerprint(e.r)
         e.r._survivalist_csv_policy=deepcopy(V.csv_policy(e.r))
         e.r._survivalist_csv_policy['contract']['skill_bonus']=99

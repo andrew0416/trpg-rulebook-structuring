@@ -15,7 +15,7 @@ import unittest
 import action_lifecycle as ACTION
 import combat_timing as TIME
 import effect_contracts as CONTRACTS
-from state_codec import dump_engine
+from state_codec import dump_engine, snapshot_engine
 import test_condition_native_child as CONDITION
 import test_historical_effect_source_closure as FIXTURE
 
@@ -85,9 +85,9 @@ class TimedNativeChildTests(CONDITION.ConditionNativeChildTests):
         self._suffix_born = True
         self.suspend(); self.resume_a(); self.resume_b(); self.assert_closed()
         self.assertEqual(self.c.a.stages['def'], 1)
-        before = dump_engine(self.c.e)
+        before = snapshot_engine(self.c.e)
         self.c.resolve(self.a_token); self.resume_b()
-        self.assertEqual(dump_engine(self.c.e), before)
+        self.assertEqual(snapshot_engine(self.c.e), before)
 
     def test_suffix_timed_child_json_and_gm_restore(self):
         self._suffix_born = True
@@ -134,9 +134,9 @@ class TimedNativeChildTests(CONDITION.ConditionNativeChildTests):
         self.assertEqual(rows[parent_token]['status'], 'completed')
         self.assertIsNone(c.e._active_turn_actor)
         self.assertEqual(len(c.e._turn_closures), 1)
-        before = dump_engine(c.e)
+        before = snapshot_engine(c.e)
         c.resolve(child_token)
-        self.assertEqual(dump_engine(c.e), before)
+        self.assertEqual(snapshot_engine(c.e), before)
 
 
 if __name__ == '__main__':

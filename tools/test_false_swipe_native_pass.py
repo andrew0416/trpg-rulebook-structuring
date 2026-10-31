@@ -96,8 +96,8 @@ class FalseSwipeNativePassTests(unittest.TestCase):
         loaded=Engine.import_state(Rules(ROOT,ruleset='core'),saved)
         actor=WORLD.actor_index(loaded)[a.entity_id];obj=loaded._physical_objects['object']
         self.assertEqual((actor.move_uses[MID],obj[OBJECTS.FIELD]['hp'],len(obj[OBJECTS.FIELD]['attacks'])),(1,1,1))
-        before=loaded.export_state();self.assertEqual(self.use(loaded,actor),row)
-        self.assertEqual(loaded.export_state(),before);self.valid(loaded)
+        before=loaded.snapshot_state();self.assertEqual(self.use(loaded,actor),row)
+        self.assertEqual(loaded.snapshot_state(),before);self.valid(loaded)
 
     def test_rehashed_floor_damage_calculation_and_path_tampering_cannot_restore(self):
         e,a,_=self.fixture(creature=False);self.use(e,a)

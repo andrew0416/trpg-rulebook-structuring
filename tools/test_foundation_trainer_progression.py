@@ -5,7 +5,7 @@ import sys,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'engine'))
 from engine import Rules,Engine,Combatant
 from builder import build_trainer
-from state_codec import dump_engine,load_engine
+from state_codec import dump_engine,load_engine, snapshot_engine
 import world_entities as W
 
 class TrainerProgressionTests(unittest.TestCase):
@@ -19,34 +19,34 @@ class TrainerProgressionTests(unittest.TestCase):
   return self.e.award_trainer_progression(self.c,**dict({'kind':'experience','amount':19,'request_id':'event/one','reason':'observed reward'},**kw))
  def test_repeated_experience_preserves_bank_levels_rng_and_logs(self):
   first=self.award();self.assertEqual(first['attained_levels'],[6,7]);self.assertEqual(self.c.spec['exp_bank'],2)
-  before=dump_engine(self.e);self.assertEqual(self.award(),first);self.assertEqual(dump_engine(self.e),before)
+  before=snapshot_engine(self.e);self.assertEqual(self.award(),first);self.assertEqual(snapshot_engine(self.e),before)
   first['attained_levels'].clear();self.assertEqual(self.award()['attained_levels'],[6,7])
   self.award(request_id='event/two');self.assertEqual(self.c.level,9);self.assertEqual(self.c.spec['exp_bank'],1)
  def test_saved_milestone_replay_preserves_bank_and_does_not_level_again(self):
   first=self.award(kind='milestone',amount=None);self.assertEqual(self.c.level,6);self.assertEqual(self.c.spec['exp_bank'],3)
-  restored=load_engine(self.rules,dump_engine(self.e));c=W.actor_index(restored)[self.c.entity_id];before=dump_engine(restored)
+  restored=load_engine(self.rules,dump_engine(self.e));c=W.actor_index(restored)[self.c.entity_id];before=snapshot_engine(restored)
   self.assertEqual(restored.award_trainer_progression(c,kind='milestone',request_id='event/one',reason='observed reward'),first)
-  self.assertEqual(dump_engine(restored),before)
+  self.assertEqual(snapshot_engine(restored),before)
  def test_changed_intent_invalid_amount_and_fake_actor_leave_no_partial_state(self):
-  self.award();before=dump_engine(self.e)
+  self.award();before=snapshot_engine(self.e)
   for kw in [{'amount':20},{'kind':'milestone','amount':None},{'request_id':'bad','amount':-1},{'request_id':'bad','amount':True}]:
    with self.subTest(kw=kw),self.assertRaises(ValueError):self.award(**kw)
-   self.assertEqual(dump_engine(self.e),before)
+   self.assertEqual(snapshot_engine(self.e),before)
   with self.assertRaises(ValueError):self.e.award_trainer_progression(copy(self.c),kind='milestone',request_id='fake',reason='fake')
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
  def test_late_validation_failure_rolls_back_entire_event(self):
   from unittest.mock import patch
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   with patch('state_fields.validate_actor',side_effect=ValueError('late validation')):
    with self.assertRaisesRegex(ValueError,'late validation'):self.award()
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
   self.assertEqual(self.award()['attained_levels'],[6,7])
 
  def test_ordinary_rights_issue_once_with_pending_qualified_choice(self):
   first=self.award();pending=self.e.pending_trainer_entitlements(self.c)
   self.assertEqual([(x['level'],x['kind'],x['status']) for x in pending],[(6,'edge','pending_choice'),(7,'feat','pending_choice')])
   self.assertEqual(first['entitlement_ids'],[x['entitlement_id'] for x in pending])
-  before=dump_engine(self.e);self.award();self.assertEqual(dump_engine(self.e),before)
+  before=snapshot_engine(self.e);self.award();self.assertEqual(snapshot_engine(self.e),before)
   pending[0]['status']='spent';self.assertEqual(self.e.pending_trainer_entitlements(self.c)[0]['status'],'pending_choice')
   self.assertEqual(self.c.spec.get('edges',[]),[]);self.assertEqual(self.c.spec.get('feats',[]),[])
  def test_current_level_alone_does_not_backfill_rights_and_no_level_awards_nothing(self):
@@ -65,10 +65,10 @@ class TrainerProgressionTests(unittest.TestCase):
   with self.assertRaises(StateCodecError):dump_engine(self.e)
  def test_entitlement_source_failure_rolls_back_level_and_bank(self):
   from unittest.mock import patch
-  before=dump_engine(self.e)
+  before=snapshot_engine(self.e)
   with patch('trainer_entitlements.verified_source',side_effect=ValueError('source changed')):
    with self.assertRaisesRegex(ValueError,'source changed'):self.award()
-  self.assertEqual(dump_engine(self.e),before)
+  self.assertEqual(snapshot_engine(self.e),before)
 
  def test_corrupt_completed_event_rejects_native_replay_and_save(self):
   from state_codec import StateCodecError
