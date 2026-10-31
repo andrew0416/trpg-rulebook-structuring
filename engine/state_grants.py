@@ -1305,6 +1305,14 @@ def transition(engine,c,apply,*,participants=(),include_rulings=False,include_gr
 
 
 def _transition(engine,c,apply,*,participants=(),include_rulings=False,include_grid=False,completion=None,_publication=None):
+    # One native transition verifies each selected definition's source once (source_selection).
+    import source_selection as SOURCES
+    with SOURCES.verification_scope():
+        return _transition_body(engine,c,apply,participants=participants,include_rulings=include_rulings,
+                                include_grid=include_grid,completion=completion,_publication=_publication)
+
+
+def _transition_body(engine,c,apply,*,participants=(),include_rulings=False,include_grid=False,completion=None,_publication=None):
     """Stage a state graph; preserve actors and surviving mutable-container aliases.
 
     A None primary permits world-only transitions such as an empty-world clock.

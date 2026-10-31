@@ -4,10 +4,28 @@ A selection identifies the entire definition, never a merge of its fields.
 Optional source bytes are verified on every call. A returned record is evidence,
 not an authorization token; validate() reselects before it can be reused.
 """
+from contextlib import contextmanager
+from contextvars import ContextVar
 from copy import deepcopy
 from pathlib import Path
 from types import MethodType
 from root_resolution import fingerprint
+
+_VERIFICATION_SCOPE = ContextVar('source_verification_scope', default=None)
+
+
+@contextmanager
+def verification_scope():
+    """Within one native state transition each selected definition's source bytes are
+    verified once; outside a transition every call verifies. Nested scopes share the outer one."""
+    if _VERIFICATION_SCOPE.get() is not None:
+        yield
+        return
+    token = _VERIFICATION_SCOPE.set({})
+    try:
+        yield
+    finally:
+        _VERIFICATION_SCOPE.reset(token)
 
 
 class SourceChangedError(ValueError):
@@ -16,6 +34,8 @@ class SourceChangedError(ValueError):
 
 def require_current_source(rules, selected):
     from source_context import verified_source
+    scope=_VERIFICATION_SCOPE.get();scope_key=(id(rules),selected)
+    if scope is not None and scope_key in scope:return set(scope[scope_key])
     seen=set();verified=set()
     def check(uid):
         uid=rules.selection.resolve(uid)
@@ -34,6 +54,7 @@ def require_current_source(rules, selected):
             verified.add((reference['file'],digest))
         for dependency in rules.selection.dependencies.get(uid,()):check(dependency)
     check(selected)
+    if scope is not None:scope[scope_key]=frozenset(verified)
     return verified
 
 

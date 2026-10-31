@@ -147,8 +147,8 @@ def selected_at_acquisition(actor,feature_id,feature_instance_id):
 
 
 def feature_rank(actor,source_id):
-    uid=_resolve(actor,source_id,"feat/")
     names=_names(actor,"feat/")
+    uid=_resolve(actor,source_id,"feat/",names)
     acquired=[]
     for value in actor.spec.get("feats",[]):
         if value in names:acquired.append(_resolve(actor,value,"feat/",names))
