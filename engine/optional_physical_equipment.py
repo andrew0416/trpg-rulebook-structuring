@@ -51,6 +51,11 @@ def _path(rules):
 
 
 def policy(rules):
+    import source_selection as SOURCES
+    return deepcopy(SOURCES.verified_declaration(rules, "_optional_physical_equipment_policy", lambda: _policy(rules)))
+
+
+def _policy(rules):
     value = getattr(rules, "_optional_physical_equipment_policy", None)
     if value is None:
         with open(_path(rules), encoding="utf-8") as handle:
@@ -86,7 +91,7 @@ def policy(rules):
         if expected != observed:
             raise ValueError("optional equipment source provenance changed: " + clause)
     rules._optional_physical_equipment_policy = value
-    return deepcopy(value)
+    return value
 
 
 def _require_selected(rules, item_id):

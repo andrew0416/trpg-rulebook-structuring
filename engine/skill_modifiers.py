@@ -22,13 +22,37 @@ def key(value):
 
 def skill_id(policy, name, *, required=False):
     normalized=key(name)
-    for uid,record in policy['skills'].items():
-        if normalized in {key(alias) for alias in record['aliases']}:
-            return uid
+    memo=__import__('source_selection').operation_memo()
+    if memo is None:
+        for uid,record in policy['skills'].items():
+            if normalized in {key(alias) for alias in record['aliases']}:
+                return uid
+    else:
+        # Inside one operation the alias index of this policy table is built once (first
+        # declaring skill wins, as in the scan above).
+        k=('skill_alias_index',id(policy));hit=memo.get(k)
+        if hit is not None and hit[0] is policy and hit[1] is policy['skills']:index=hit[2]
+        else:
+            index={}
+            for uid,record in policy['skills'].items():
+                for alias in record['aliases']:index.setdefault(key(alias),uid)
+            memo[k]=(policy,policy['skills'],index)
+        uid=index.get(normalized)
+        if uid is not None:return uid
     if required:raise ValueError('unknown PTK skill: '+str(name))
     return normalized  # Existing explicitly named custom skills remain supported.
 
 def _declared_ranks(rules):
+    # Inside one operation the declared rank table is validated once per Rules object.
+    memo=__import__('source_selection').operation_memo()
+    if memo is None:return _declared_ranks_uncached(rules)
+    k=('skill_ranks',id(rules));hit=memo.get(k)
+    if hit is not None and hit[0] is rules and hit[1] is rules.skill_policy:return hit[2]
+    value=_declared_ranks_uncached(rules)
+    memo[k]=(rules,rules.skill_policy,value)
+    return value
+
+def _declared_ranks_uncached(rules):
     ranks=rules.mech('gameplay/skill-rank-dice')['by_rank_name']
     if type(ranks) is not dict or not ranks:raise ValueError('nonempty declared skill rank table required')
     numbers=set();aliases={}

@@ -40,6 +40,11 @@ def _path(rules):
 
 
 def policy(rules):
+    import source_selection as SOURCES
+    return deepcopy(SOURCES.verified_declaration(rules, "_equipment_variant_contract_policy", lambda: _policy(rules)))
+
+
+def _policy(rules):
     # Cache the reviewed declaration, never an earlier freshness/selection
     # decision. Warm native reads retain the same provenance boundary.
     value = getattr(rules, "_equipment_variant_contract_policy", None)
@@ -83,7 +88,7 @@ def policy(rules):
     verified_source(rules, {"file": classifier.get("source_file"),
         "sha256": classifier.get("source_file_sha256")}, label="Punching Glove move classifier")
     rules._equipment_variant_contract_policy = value
-    return deepcopy(value)
+    return value
 
 
 def definition(rules, item_id):

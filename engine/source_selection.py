@@ -34,6 +34,30 @@ def verification_scope():
         _VERIFICATION_SCOPE.reset(token)
 
 
+def verified_declaration(rules, attr, verify):
+    """Validate a reviewed declaration cached on Rules under `attr` once per verification scope.
+
+    `verify()` performs the full validation (schema, source bytes, provenance) and returns the
+    validated declaration object, caching it on `rules.<attr>`. Inside a scope a later call with
+    the same Rules object and the same cached object skips the validation and returns the same
+    object; outside a scope every call validates, as before. PTK_DECLARATION_CHECK=1 re-validates
+    on every hit and fails if the result differs. Callers copy the result as they always did."""
+    import os
+    scope = _VERIFICATION_SCOPE.get()
+    if scope is None:
+        return verify()
+    key = ('declaration', id(rules), attr)
+    hit = scope.get(key)
+    current = getattr(rules, attr, None)
+    if hit is not None and hit[0] is rules and current is not None and hit[1] is current:
+        if os.environ.get('PTK_DECLARATION_CHECK') and verify() != hit[2]:
+            raise ValueError('declaration memo stale: ' + attr + ' changed inside one verification scope')
+        return hit[2]
+    value = verify()
+    scope[key] = (rules, getattr(rules, attr, None), value)
+    return value
+
+
 class SourceChangedError(ValueError):
     """A selected native definition no longer has its reviewed source bytes."""
 

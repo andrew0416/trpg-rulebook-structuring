@@ -34,6 +34,11 @@ def _path(rules):
 
 
 def policy(rules):
+    import source_selection as SOURCES
+    return deepcopy(SOURCES.verified_declaration(rules, "_csv_remaining_item_contract_policy", lambda: _policy(rules)))
+
+
+def _policy(rules):
     # Cache the reviewed declaration only. An earlier successful read is not
     # permission to use changed source bytes or a changed registered locator.
     value = getattr(rules, "_csv_remaining_item_contract_policy", None)
@@ -79,7 +84,7 @@ def policy(rules):
     rules._csv_remaining_item_contract_policy = value
     # Public callers may edit their returned data without rewriting a later
     # consumer's reviewed declaration through the private parse cache.
-    return deepcopy(value)
+    return value
 
 
 def definition(rules, *, clause_id=None, kind=None, item_id=None):
