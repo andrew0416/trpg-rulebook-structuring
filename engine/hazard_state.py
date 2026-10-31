@@ -45,8 +45,7 @@ def _sha256(path):
 
 
 def policy(rules):
-    with open(_policy_path(rules), encoding="utf-8") as handle:
-        value = json.load(handle)
+    value = __import__('source_context').read_json(_policy_path(rules))   # shared parse; callers read only
     if value.get("schema_version") != 1 or set(value.get("moves", {})) != NATIVE_MOVES | {COURT_CHANGE}:
         raise ValueError("Hazard policy schema changed")
     if set(value.get("derived_moves", {})) != DERIVED_MOVES:

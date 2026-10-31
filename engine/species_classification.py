@@ -13,7 +13,7 @@ def _canonical(rules, spec):
     species = rules.species.get(spec.get('species'))
     if species is None:raise ValueError('actual selected species identity required')
     if species.get('source', 'db') != 'db':return None
-    policy = json.loads((Path(rules.root)/'data/species-classification.json').read_text(encoding='utf-8'))
+    policy = __import__('source_context').read_json(Path(rules.root)/'data/species-classification.json')   # shared parse; read only
     if policy.get('schema_version') != 1:raise ValueError('reviewed species classification policy required')
     selected = policy['ultra_beasts'].get(spec['species'])
     if selected is not None and str(species.get('dex')) != selected['dex']:

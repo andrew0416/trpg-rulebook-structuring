@@ -36,8 +36,7 @@ def policy(rules):
         source_sha = hashlib.sha256(handle.read()).hexdigest()
     if source_sha != value.get("source_file_sha256"):
         raise ValueError("held-item reaction inventory source changed")
-    with open(os.path.join(rules.root, "data", "verification", "category2-item-table-status.json"), encoding="utf-8") as handle:
-        status = json.load(handle)
+    status = __import__('source_context').read_json(os.path.join(rules.root, "data", "verification", "category2-item-table-status.json"))   # shared parse; read only
     source_rows = {row["clause_id"]: row for row in status.get("new_clauses", ())}
     seen = set()
     for item_id, row in rows.items():

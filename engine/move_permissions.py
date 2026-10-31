@@ -5,7 +5,8 @@ import hashlib,json
 
 
 def policies(rules):
- return json.loads((Path(rules.root)/'data/category2-move-permission-policy.json').read_text(encoding='utf8'))['policies']
+ # Shared parsed policy: callers read it only (copy before editing).
+ return __import__('source_context').read_json(Path(rules.root)/'data/category2-move-permission-policy.json')['policies']
 
 
 def registration(rules,name):
@@ -13,7 +14,7 @@ def registration(rules,name):
  matches=[(uid,row) for uid,row in rows.items() if name in (uid,row['name'])]
  if not matches:return None
  uid,row=matches[0]
- actual=next((x for x in json.loads((Path(rules.root)/'output/entities/abilities.json').read_text(encoding='utf8')) if x.get('id')==uid),None)
+ actual=next((x for x in __import__('source_context').read_json(Path(rules.root)/'output/entities/abilities.json') if x.get('id')==uid),None)
  if actual is None or {k:actual.get(k) for k in row['definition']}!=row['definition']:raise ValueError('temporary move permission source changed; review required')
  if rules._selected_rule(uid)!=uid:raise ValueError('selected permission source requires a distinct policy')
  return {'name':row['name'],'source_id':uid,'permission_mode':row['mode']}
@@ -63,7 +64,7 @@ def activate_form(engine,actor,ability):
   G.scalar(c,'form','달마모드',grant_source)
   ctx={'source_id':uid,'form_permission_activation':uid,'permission_source':grant_source,'attacker':c,'target':c,'engine':e}
   c.custom_conditions['_form_permission_activation']=uid
-  try:EXT.h_grant_move(e,c,c,{'type':'grant_move','moves':row['moves']},ctx)
+  try:EXT.h_grant_move(e,c,c,{'type':'grant_move','moves':list(row['moves'])},ctx)
   finally:c.custom_conditions.pop('_form_permission_activation',None)
   TIMING.install(e,c,{'source':uid,'grant_source':grant_source,'permission_ability':reg['name'],'scene_only':True})
   return {'source':uid,'grant_source':grant_source,'moves':list(row['moves']),'ends':'scene_end'}

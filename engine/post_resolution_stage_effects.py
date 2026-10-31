@@ -15,7 +15,7 @@ def _path(rules):
 
 
 def policy(rules):
-    data = json.loads(_path(rules).read_text(encoding="utf-8"))
+    data = __import__('source_context').read_json(_path(rules))   # shared parse; callers read only
     if (data.get("schema_version") != 1 or
             data.get("contract") != "post_resolution_stage_rise_area_status"):
         raise ValueError("post-resolution stage effect policy identity changed")

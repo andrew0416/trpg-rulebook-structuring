@@ -35,7 +35,7 @@ def install(rules):
   if hashlib.sha256((Path(rules.root)/file).read_bytes()).hexdigest()!=sha:raise ValueError('Trickster source changed: '+file)
  # This is the selected Ability's printed keyword, not a category invented
  # from damage reduction or the name of a defensive maneuver.
- rows=json.loads((Path(rules.root)/'output/entities/abilities.json').read_text(encoding='utf-8'))
+ rows=__import__('source_context').read_json(Path(rules.root)/'output/entities/abilities.json')
  rules.trickster_defensive={r['id'] for r in rows if re.search(r'(?<!\w)(?:\[)?(?:방어적|Defensive)(?:\]|[.!]|\s*$)',r.get('effect',''))}
 
 

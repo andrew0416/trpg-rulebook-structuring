@@ -23,7 +23,7 @@ def declared(mm):
 
 
 def _document(rules):
-    document=json.loads((Path(rules.root)/POLICY).read_text(encoding='utf-8'))
+    document=__import__('source_context').read_json(Path(rules.root)/POLICY)   # shared parse; read only
     if hashlib.sha256((Path(rules.root)/document['source_file']).read_bytes()).hexdigest()!=document['source_sha256']:
         raise ValueError('dynamic chain source changed')
     return document

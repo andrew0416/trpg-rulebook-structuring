@@ -43,7 +43,7 @@ def install(rules):
         for payload in row['choices'].values():
             targets.update(payload.get('abilities',[]))
             for values in payload.get('ability_pools',{}).values():targets.update(values)
-    catalog={row['id']:row for row in json.loads((Path(rules.root)/'output/entities/abilities.json').read_text(encoding='utf-8')) if row['id'] in targets}
+    catalog={row['id']:__import__('copy').deepcopy(row) for row in __import__('source_context').read_json(Path(rules.root)/'output/entities/abilities.json') if row['id'] in targets}
     if set(catalog)!=targets:raise ValueError('projected ability identity is missing from the selected catalog')
     rules.ability_state_projection_policy=data
     rules.ability_state_projection_targets=catalog

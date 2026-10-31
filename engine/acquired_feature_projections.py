@@ -124,7 +124,7 @@ def _ability(rules, printed):
             "frequency": rules.ability_freq.get(unit.get("title")),
         }
         # Keep one fresh first-match snapshot for this candidate's catalog fields.
-        catalog = next((item for item in json.loads((Path(rules.root) / "output/entities/abilities.json").read_text(encoding="utf-8")) if item.get("id") == uid), {})
+        catalog = next((item for item in __import__('source_context').read_json(Path(rules.root) / "output/entities/abilities.json") if item.get("id") == uid), {})
         actual.update({
             "effect": catalog.get("effect"),
             "trigger": catalog.get("trigger"),

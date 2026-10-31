@@ -40,7 +40,7 @@ def registration(rules, name):
     if rules._selected_rule(SOURCE) != SOURCE:
         raise ValueError("Pickup selected source changed")
     rules.selection.require_supported_version(SOURCE)
-    rows = json.loads((Path(rules.root) / "output/entities/abilities.json").read_text(encoding="utf-8"))
+    rows = __import__('source_context').read_json(Path(rules.root) / "output/entities/abilities.json")
     row = next((entry for entry in rows if entry.get("id") == SOURCE), None)
     source = None if row is None else row.get("_source")
     if (row is None or row.get("name") != NAME or row.get("eng") != "Pickup"
@@ -52,7 +52,7 @@ def registration(rules, name):
     effects = rules.ability_effects.get(NAME)
     if effects != [COPY_EFFECT, CAPABILITY_EFFECT]:
         raise ValueError("Pickup reviewed copy/capability payload changed")
-    return {"name": NAME, "source_id": SOURCE, "row": row}
+    return {"name": NAME, "source_id": SOURCE, "row": deepcopy(row)}
 
 
 def deferred_registration(rules, effect):

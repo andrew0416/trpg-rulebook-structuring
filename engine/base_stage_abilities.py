@@ -19,7 +19,7 @@ def definitions(rules):
     source=root/policy['source_file']
     if hashlib.sha256(source.read_bytes()).hexdigest()!=policy['source_sha256']:raise ValueError('base-stage ability source changed')
     with source.open(encoding='utf-8-sig',newline='') as stream:original=list(csv.reader(stream))
-    entities={r['id']:r for r in json.loads((root/'output/entities/abilities.json').read_text(encoding='utf-8'))}
+    entities={r['id']:r for r in __import__('source_context').read_json(root/'output/entities/abilities.json')}
     out={}
     for row in policy['definitions']:
         if row['name'] in out or row['id'] not in row['source_ids'] or row['frequency']!='항상':raise ValueError('unique always-active base-stage definition required')

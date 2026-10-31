@@ -31,7 +31,7 @@ def install(rules):
         if hashlib.sha256((Path(rules.root)/path).read_bytes()).hexdigest()!=digest:
             raise ValueError('ability-exchange source changed: '+path)
     rules.ability_exchange_policy=policy
-    rows=json.loads((Path(rules.root)/'output/entities/abilities.json').read_text(encoding='utf-8'))
+    rows=__import__('source_context').read_json(Path(rules.root)/'output/entities/abilities.json')
     if isinstance(rows,dict):rows=rows.get('entities',rows.get('abilities',[]))
     rules.ability_exchange_triggered={r['id'] for r in rows if r.get('trigger')}
 

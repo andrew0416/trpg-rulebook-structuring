@@ -24,7 +24,7 @@ def _policy_path(rules):
 
 
 def policy(rules):
- data=json.loads(_policy_path(rules).read_text(encoding='utf-8'))
+ data=__import__('source_context').read_json(_policy_path(rules))   # shared parse; callers read only
  if data.get('schema_version')!=1 or data.get('contract')!='explicit_scene_alternate_move_type':
   raise ValueError('alternate Move mode policy identity changed')
  for path,digest in data.get('source_files',{}).items():

@@ -68,9 +68,9 @@ def policy(rules):
         if rules.ability_effects.get(row['name']) != row.get('effects'):
             raise ValueError('native Ability extraction changed: ' + source)
     catalog_path = Path(rules.root) / 'output/entities/abilities.json'
-    catalog_rows = json.loads(catalog_path.read_text(encoding='utf-8'))
+    catalog_rows = __import__('source_context').read_json(catalog_path)   # shared parse; the kept rows are copied
     catalog = {
-        entry['id']: entry
+        entry['id']: deepcopy(entry)
         for entry in catalog_rows
         if entry['id'] in data['sources']
     }
@@ -106,8 +106,8 @@ def weather_action_sources(rules):
         return cached
     with (Path(rules.root) / 'input/db/abilities.csv').open(encoding='utf-8-sig', newline='') as stream:
         rows = list(csv.reader(stream))
-    catalog = {entry['id']: entry for entry in json.loads(
-        (Path(rules.root) / 'output/entities/abilities.json').read_text(encoding='utf-8'))}
+    catalog = {entry['id']: entry for entry in __import__('source_context').read_json(
+        Path(rules.root) / 'output/entities/abilities.json')}
     result = {}
     for source, row in WEATHER_ACTIONS.items():
         raw = rows[row['record'] - 1]

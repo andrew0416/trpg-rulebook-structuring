@@ -35,7 +35,7 @@ def policy(rules):
     data=(root/'data/homebrew-weather-policy.json').read_bytes()
     if hashlib.sha256(data).hexdigest()!=POLICY_SHA256:
         raise ValueError('reviewed homebrew weather policy changed')
-    payload=json.loads(data)
+    payload=__import__('source_context').read_json(root/'data/homebrew-weather-policy.json',data)   # verified bytes; shared parse, read only
     if payload['schema_version']!=1 or payload['source']!=SOURCE or payload['source_files']!={'input/hb-weather.md':SOURCE_SHA256}:
         raise ValueError('homebrew weather policy provenance changed')
     if hashlib.sha256((root/'input/hb-weather.md').read_bytes()).hexdigest()!=SOURCE_SHA256:

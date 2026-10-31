@@ -11,7 +11,7 @@ def registration(rules,name):
  if name not in (*SOURCES,'배달부','배달새'):return None
  import json
  from pathlib import Path
- rows={x['id']:x for x in json.loads((Path(rules.root)/'output/entities/abilities.json').read_text(encoding='utf8')) if x.get('id') in SOURCES}
+ rows={x['id']:x for x in __import__('source_context').read_json(Path(rules.root)/'output/entities/abilities.json') if x.get('id') in SOURCES}
  if set(rows)!=set(SOURCES):raise ValueError('two-held exact source definitions missing')
  keys=('name','eng','frequency','effect','trigger','target','keyword','effect_primary','effect2','effect_additions')
  if any(rows['ability/배달부'].get(k)!=rows['ability/배달부-2'].get(k) for k in keys):raise ValueError('Handyman duplicate source equivalence changed; review required')

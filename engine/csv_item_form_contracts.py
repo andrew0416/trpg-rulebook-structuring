@@ -761,7 +761,7 @@ def ability_registration(rules, value):
         raise ValueError('reviewed form-family ability CSV changed')
     records = list(csv.reader(io.StringIO(raw.decode('utf-8-sig'), newline='')))
     rows = FORM_ABILITY_ROWS[family]
-    catalog = {row['id']: row for row in json.loads((root/'output/entities/abilities.json').read_text(encoding='utf-8'))}
+    catalog = {row['id']: row for row in __import__('source_context').read_json(root/'output/entities/abilities.json')}
     definitions = []
     for uid, number in rows:
         row = catalog[uid]; source = row.get('_source', {}); cells = records[number-1]

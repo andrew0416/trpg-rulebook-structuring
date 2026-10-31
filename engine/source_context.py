@@ -132,15 +132,22 @@ _RESOLVED_SOURCES={}
 _PARSED_JSON={}
 
 
-def read_json(path):
+def read_json(path, data=None):
  """Parse a JSON file once per content. The bytes are read on every call and compared, so a
  changed file is re-parsed; an unchanged one returns the same parsed object, which callers
- treat as read-only (copy before editing)."""
+ treat as read-only (copy before editing). PTK_DECLARATION_CHECK=1 re-parses on every hit
+ and fails if a caller edited the shared object. A caller that already read (and verified) the
+ bytes passes them as `data`, so the parse is of exactly those bytes."""
  import json
  path=str(path)
- with open(path,'rb') as handle:data=handle.read()
+ if data is None:
+  with open(path,'rb') as handle:data=handle.read()
  cached=_PARSED_JSON.get(path)
- if cached is not None and cached[0]==data:return cached[1]
+ if cached is not None and cached[0]==data:
+  import os
+  if os.environ.get('PTK_DECLARATION_CHECK') and json.loads(data.decode('utf-8'))!=cached[1]:
+   raise ValueError('read_json cache edited by a caller: '+path)
+  return cached[1]
  value=json.loads(data.decode('utf-8'))
  _PARSED_JSON[path]=(data,value)
  return value

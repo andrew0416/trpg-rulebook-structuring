@@ -77,6 +77,7 @@ class SourceChangedError(ValueError):
 
 
 def require_current_source(rules, selected):
+    import os
     from source_context import verified_source
     scope=_VERIFICATION_SCOPE.get();rid=id(rules)
     seen=set();verified=set()
@@ -98,8 +99,17 @@ def require_current_source(rules, selected):
                 raise SourceChangedError('unregistered source-audit snapshot for '+uid)
             reference={'file':file if source_root=='source-audit' else 'input/'+file.removeprefix('input/'),'sha256':digest}
             if (reference['file'],digest) in verified:continue
-            try:verified_source(rules,reference,source_root=source_root)
-            except (ValueError,OSError) as exc:raise SourceChangedError('selected source changed: '+uid) from exc
+            # Inside a scope one (Rules, file, expected digest) is verified once, whichever
+            # definition asks first; a different expected digest is its own check. Outside a
+            # scope every call verifies. PTK_DECLARATION_CHECK=1 re-verifies on hits.
+            key=(rid,'source-file',source_root,reference['file'],digest)
+            hit=scope is not None and key in scope
+            if not hit or os.environ.get('PTK_DECLARATION_CHECK'):
+                try:verified_source(rules,reference,source_root=source_root)
+                except (ValueError,OSError) as exc:
+                    if hit:raise SourceChangedError('source-file memo stale inside one verification scope: '+uid) from exc
+                    raise SourceChangedError('selected source changed: '+uid) from exc
+                if scope is not None:scope[key]=True
             verified.add((reference['file'],digest));subtree.add((reference['file'],digest))
         for dependency in rules.selection.dependencies.get(uid,()):subtree.update(check(dependency))
         memo=frozenset(subtree)
