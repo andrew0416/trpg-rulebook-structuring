@@ -20,10 +20,15 @@ def _item_status_index(content):
     return {row["clause_id"]: row for row in status.get("new_clauses", ())}
 
 
-def registered_item_rows(rules, clause_ids):
+def _registered_item_index(rules):
     """Read live status bytes; share parsing only, never a freshness decision."""
     with open(os.path.join(rules.root, "data", "verification", "category2-item-table-status.json"), "rb") as handle:
-        indexed = _item_status_index(handle.read())
+        return _item_status_index(handle.read())
+
+
+def registered_item_rows(rules, clause_ids):
+    """Detached copies of the registered rows for the given clauses (live bytes, see _registered_item_index)."""
+    indexed = _registered_item_index(rules)
     return {clause: deepcopy(indexed[clause]) for clause in clause_ids if clause in indexed}
 
 
@@ -34,8 +39,13 @@ def _path(rules):
 
 
 def policy(rules):
+    return deepcopy(_declaration(rules))
+
+
+def _declaration(rules):
+    """The validated declaration itself, shared read-only inside this module."""
     import source_selection as SOURCES
-    return deepcopy(SOURCES.verified_declaration(rules, "_csv_remaining_item_contract_policy", lambda: _policy(rules)))
+    return SOURCES.verified_declaration(rules, "_csv_remaining_item_contract_policy", lambda: _policy(rules))
 
 
 def _policy(rules):
@@ -57,7 +67,7 @@ def _policy(rules):
     from source_context import verified_source
     for relative, expected in inputs.items():
         verified_source(rules, {"file": relative, "sha256": expected}, label="remaining CSV item")
-    indexed = registered_item_rows(rules, rows)
+    indexed = _registered_item_index(rules)   # provenance comparison only reads the rows
     for clause_id, row in rows.items():
         if row.get("clause_id") != clause_id or row.get("domain") not in {"physical", "food", "form", "capability", "environment"}:
             raise ValueError("remaining CSV item identity or domain changed")
@@ -89,7 +99,7 @@ def _policy(rules):
 
 def definition(rules, *, clause_id=None, kind=None, item_id=None):
     matches = []
-    for row in policy(rules)["rows"].values():
+    for row in _declaration(rules)["rows"].values():
         if clause_id is not None and row["clause_id"] != clause_id:
             continue
         if kind is not None and row["kind"] != kind:
@@ -103,4 +113,4 @@ def definition(rules, *, clause_id=None, kind=None, item_id=None):
 
 
 def clauses(rules):
-    return frozenset(policy(rules)["rows"])
+    return frozenset(_declaration(rules)["rows"])

@@ -36,6 +36,25 @@ class RulesFingerprintCacheTests(unittest.TestCase):
         restored = CODEC.load_engine(r, saved)
         self.assertEqual(CODEC.dump_engine(restored)['rules'], saved['rules'])
 
+    def test_selected_digest_equals_the_whole_document_hash(self):
+        import hashlib, json
+        r = self.rules
+        manifest = [('input/a.md', 'a' * 64), ('data/b.json', 'b' * 64)]
+        big = {'rows': {str(i): {'name': 'row ' + str(i), 'tags': ['x', 'y', i]} for i in range(3000)}}
+        policy = {'small': {'k': [1, 2.5, None, True]}, 'big': big, 'z': 'text',
+                  'selection': {'units': {'u1': {'source': {'file': 'input/a.md'}}}, 'filter': 'f'}}
+        document = json.dumps(CODEC._plain({'files': manifest, 'selected': policy}), **CODEC._FINGERPRINT_JSON)
+        expected = hashlib.sha256(document.encode()).hexdigest()
+        r.touch()
+        for _ in range(2):   # cold (fills the piece cache) and warm (served from it)
+            self.assertEqual(CODEC._selected_digest(r, manifest, policy), expected)
+        self.assertIn('big', r._fingerprint_cache)
+        self.assertIn('selection', r._fingerprint_cache)
+        self.assertNotIn('small', r._fingerprint_cache)
+        with mock.patch.dict(os.environ, {'PTK_FINGERPRINT_FULL': '1'}):
+            self.assertEqual(CODEC._selected_digest(r, manifest, policy), expected)
+        r.touch()
+
     def test_reassigned_attribute_is_detected_without_declaration(self):
         r = self.rules
         before = CODEC.rules_fingerprint(r)

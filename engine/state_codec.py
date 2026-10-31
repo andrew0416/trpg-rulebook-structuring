@@ -192,18 +192,35 @@ def _plain(value):
     _fail('unsupported selected rule data: ' + kind.__name__)
 
 
+_CORPUS_STATS = {}
+
+
 def _corpus_paths(root):
-    """Enumerate live rule files without descending into excluded audit records."""
+    """Enumerate live rule files without descending into excluded audit records.
+
+    Each file's directory-listing stat is kept for _corpus_digest, so the manifest costs one
+    directory scan instead of two stat calls per file."""
     for directory in ('input', 'data', 'output/entities'):
         folder = root / directory
         if not folder.is_dir():
             _fail('rule corpus directory missing: ' + directory)
         paths = []
-        for parent, subdirs, files in os.walk(folder):
-            subdirs[:] = [name for name in subdirs if name != 'verification']
-            paths.extend(Path(parent) / name for name in files)
+        def scan(parent):
+            try:
+                entries = list(os.scandir(parent))
+            except OSError:
+                return
+            for entry in entries:
+                if entry.is_dir(follow_symlinks=False):
+                    if entry.name != 'verification':
+                        scan(entry.path)
+                elif entry.is_file():
+                    path = Path(entry.path)
+                    paths.append(path)
+                    _CORPUS_STATS[str(path)] = entry.stat()
+        scan(str(folder))
         for path in sorted(paths):
-            if not path.is_file() or 'verification' in path.relative_to(root).parts:
+            if 'verification' in path.relative_to(root).parts:
                 continue
             if directory != 'input' and path.suffix != '.json':
                 continue
@@ -216,8 +233,8 @@ _CORPUS_DIGESTS = {}
 def _corpus_digest(path):
     # The digest of unchanged bytes is reused; any change of size, modification
     # time or file identity re-reads and re-hashes the file.
-    stat = path.stat()
     key = str(path)
+    stat = _CORPUS_STATS.pop(key, None) or path.stat()
     cached = _CORPUS_DIGESTS.get(key)
     signature = (stat.st_size, stat.st_mtime_ns, stat.st_ino, stat.st_dev)
     if cached is not None and cached[0] == signature:
@@ -227,6 +244,8 @@ def _corpus_digest(path):
     return digest
 
 
+_SAVED_POLICIES = {}
+_DERIVED_INDEXES = {}
 _FINGERPRINT_JSON = {'sort_keys': True, 'ensure_ascii': False, 'allow_nan': False, 'separators': (',', ':')}
 _CACHED_PIECE_MIN = 32768
 
@@ -243,7 +262,10 @@ def _selected_digest(rules, manifest, policy):
     attribute misses the cache; an in-place change is declared with Rules.touch().
     PTK_FINGERPRINT_FULL=1 recomputes every piece (the self-check path)."""
     cache = None if os.environ.get('PTK_FINGERPRINT_FULL') else rules.__dict__.setdefault('_fingerprint_cache', {})
-    parts = []
+    # The document '{"files":<manifest>,"selected":{<key>:<piece>,...}}' is hashed piece by
+    # piece; UTF-8 encoding concatenates, so this equals hashing the joined text.
+    digest = hashlib.sha256(('{"files":' + json.dumps(manifest, **_FINGERPRINT_JSON) + ',"selected":{').encode())
+    first = True
     for key in sorted(policy):
         if type(key) is not str:
             _fail('selected rule fingerprint requires text keys')
@@ -252,25 +274,30 @@ def _selected_digest(rules, manifest, policy):
         if key == 'selection' and type(value) is dict:
             identity = tuple((k, id(v)) for k, v in sorted(value.items()))
             if entry is not None and entry[0] == identity:
-                text = entry[2]
+                text, blob = entry[2], entry[3]
             else:
                 text = _piece(value)
+                blob = (json.dumps(key, **_FINGERPRINT_JSON) + ':' + text).encode()
                 if cache is not None:
-                    cache[key] = (identity, tuple(value.values()), text)
+                    cache[key] = (identity, tuple(value.values()), text, blob)
         else:
             if entry is not None and entry[0] is value:
-                text = entry[1]
+                text, blob = entry[1], entry[2]
             else:
                 text = _piece(value)
+                blob = (json.dumps(key, **_FINGERPRINT_JSON) + ':' + text).encode()
                 # Only large tables are cached; a small policy is re-read on every call, so an
                 # in-place edit of it is still detected without a declaration.
                 if cache is not None and len(text) >= _CACHED_PIECE_MIN:
-                    cache[key] = (value, text)
+                    cache[key] = (value, text, blob)
         if cache is not None and os.environ.get('PTK_FINGERPRINT_CHECK') and text != _piece(value):
             _fail('fingerprint cache stale for ' + key + ' (in-place edit without Rules.touch)')
-        parts.append(json.dumps(key, **_FINGERPRINT_JSON) + ':' + text)
-    document = '{"files":' + json.dumps(manifest, **_FINGERPRINT_JSON) + ',"selected":{' + ','.join(parts) + '}}'
-    return hashlib.sha256(document.encode()).hexdigest()
+        if not first:
+            digest.update(b',')
+        first = False
+        digest.update(blob)
+    digest.update(b'}}')
+    return digest.hexdigest()
 
 
 def rules_fingerprint(rules):
@@ -316,7 +343,16 @@ def rules_fingerprint(rules):
     }
     def saved_policy(filename, member=None):
         try:
-            value = json.loads((root/'data'/filename).read_text(encoding='utf-8'))
+            path = root/'data'/filename
+            stat = path.stat()
+            signature = (stat.st_size, stat.st_mtime_ns, stat.st_ino, stat.st_dev)
+            cached = _SAVED_POLICIES.get(str(path))
+            if cached is not None and cached[0] == signature:
+                value = cached[1]
+            else:
+                # Parsed once per file version; the document is only read and hashed here.
+                value = json.loads(path.read_text(encoding='utf-8'))
+                _SAVED_POLICIES[str(path)] = (signature, value)
             return value if member is None else value[member]
         except (OSError, ValueError, KeyError, TypeError) as exc:
             _fail('selected rule/profile/source fingerprint mismatch: saved rule policy unavailable: ' + filename + ': ' + str(exc))
@@ -348,13 +384,22 @@ def rules_fingerprint(rules):
         for name in names:
             vars(checked).pop(name, None)
         return checked
+    manifest_key = tuple(manifest)
     def derived(compute, label):
         # A derived index is recomputed from the selected root's files. A root that
         # cannot supply them is a source mismatch, exactly like a missing saved policy.
+        # The recomputation is reused while the corpus manifest (every live file's digest)
+        # is unchanged; PTK_FINGERPRINT_FULL recomputes it.
+        key = (str(root), label)
+        cached = None if os.environ.get('PTK_FINGERPRINT_FULL') else _DERIVED_INDEXES.get(key)
+        if cached is not None and cached[0] == manifest_key:
+            return cached[1]
         try:
-            return compute()
+            value = compute()
         except (OSError, ValueError, KeyError, TypeError) as exc:
             _fail('selected rule/profile/source fingerprint mismatch: derived ' + label + ' unavailable: ' + str(exc))
+        _DERIVED_INDEXES[key] = (manifest_key, value)
+        return value
     weather_name = '_native_weather_action_sources'
     if weather_name in policy:
         import ability_native_actions as NATIVE_ACTIONS

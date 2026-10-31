@@ -6,6 +6,7 @@ two explicit activations into existing native consumers.
 """
 import arithmetic_policy as NUMERIC
 from copy import deepcopy
+from functools import lru_cache
 import json
 import os
 
@@ -50,6 +51,11 @@ def _path(rules):
     return staged if os.path.exists(staged) else canonical
 
 
+@lru_cache(maxsize=1)
+def _optional_status_index(content):
+    return {row["clause_id"]: row for row in json.loads(content.decode("utf-8")).get("rows", ())}
+
+
 def policy(rules):
     import source_selection as SOURCES
     return deepcopy(SOURCES.verified_declaration(rules, "_optional_physical_equipment_policy", lambda: _policy(rules)))
@@ -66,8 +72,8 @@ def _policy(rules):
     if not isinstance(rows, dict) or set(rows) != set(KINDS):
         raise ValueError("optional physical equipment policy must contain the exact reviewed items")
     optional_path = os.path.join(rules.root, "data", "verification", "category2-optional-clause-status.json")
-    with open(optional_path, encoding="utf-8") as handle:
-        indexed = {row["clause_id"]: row for row in json.load(handle).get("rows", ())}
+    with open(optional_path, "rb") as handle:
+        indexed = _optional_status_index(handle.read())   # live bytes every call; parsed once per content
     clauses = set()
     verified_files = set()
     for item_id, row in rows.items():

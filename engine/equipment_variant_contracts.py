@@ -40,8 +40,13 @@ def _path(rules):
 
 
 def policy(rules):
+    return deepcopy(_declaration(rules))
+
+
+def _declaration(rules):
+    """The validated declaration itself, shared read-only inside this module."""
     import source_selection as SOURCES
-    return deepcopy(SOURCES.verified_declaration(rules, "_equipment_variant_contract_policy", lambda: _policy(rules)))
+    return SOURCES.verified_declaration(rules, "_equipment_variant_contract_policy", lambda: _policy(rules))
 
 
 def _policy(rules):
@@ -59,9 +64,8 @@ def _policy(rules):
     from source_context import verified_source
     verified_source(rules, {"file": "input/db/inventory.csv",
         "sha256": value.get("inventory_file_sha256")}, label="equipment variant")
-    from csv_item_contract_policy import registered_item_rows
-    indexed = registered_item_rows(rules, (row.get("clause_id") for row in rows.values()
-                                         if isinstance(row.get("clause_id"), str)))
+    from csv_item_contract_policy import _registered_item_index
+    indexed = _registered_item_index(rules)   # provenance comparison only reads the rows
     clauses = set()
     for item_id, row in rows.items():
         if item_id != row.get("item_id") or row.get("kind") != KINDS[item_id] or row.get("wearer_kind") != "trainer":
@@ -387,7 +391,7 @@ def _punch_moves(rules):
 def damage_roll_bonus(engine, actor, move):
     result = 0
     if _active(engine, actor, "punching_glove"):
-        result += policy(engine.r)["rows"]["item/펀치글러브"]["damage_roll_bonus"] if move.get("id") in _punch_moves(engine.r) else 0
+        result += _declaration(engine.r)["rows"]["item/펀치글러브"]["damage_roll_bonus"] if move.get("id") in _punch_moves(engine.r) else 0
     import csv_item_physical_contracts as CSV_ITEMS
     return result + CSV_ITEMS.damage_roll_bonus(engine, actor, move)
 

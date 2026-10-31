@@ -46,15 +46,19 @@ def verified_declaration(rules, attr, verify):
     scope = _VERIFICATION_SCOPE.get()
     if scope is None:
         return verify()
-    key = ('declaration', id(rules), attr)
-    hit = scope.get(key)
+    # Keyed by the cached declaration object itself: shallow copies of Rules (as made by
+    # rules_fingerprint's derived-index recomputation) share it and its validation.
     current = getattr(rules, attr, None)
-    if hit is not None and hit[0] is rules and current is not None and hit[1] is current:
-        if os.environ.get('PTK_DECLARATION_CHECK') and verify() != hit[2]:
-            raise ValueError('declaration memo stale: ' + attr + ' changed inside one verification scope')
-        return hit[2]
+    if current is not None:
+        hit = scope.get(('declaration', attr, id(current)))
+        if hit is not None and hit[0] is current:
+            if os.environ.get('PTK_DECLARATION_CHECK') and verify() != hit[1]:
+                raise ValueError('declaration memo stale: ' + attr + ' changed inside one verification scope')
+            return hit[1]
     value = verify()
-    scope[key] = (rules, getattr(rules, attr, None), value)
+    current = getattr(rules, attr, None)
+    if current is not None:
+        scope[('declaration', attr, id(current))] = (current, value)
     return value
 
 
