@@ -981,6 +981,21 @@ def _martial_source(rules, clause_id):
 
 
 def _validate_martial_ability_catalog(rules):
+    # The catalog check reads and hashes abilities.csv and walks the selection; inside one
+    # verification scope it runs once per Rules (and per Rules.touch() epoch).
+    import os
+    import source_selection as SOURCES
+    memo = SOURCES.operation_memo()
+    key = ('martial_catalog', id(rules), SOURCES.touch_epoch(rules))
+    if memo is not None and key in memo and not os.environ.get('PTK_DECLARATION_CHECK'):
+        return memo[key]
+    result = _validate_martial_ability_catalog_uncached(rules)
+    if memo is not None:
+        memo[key] = result
+    return result
+
+
+def _validate_martial_ability_catalog_uncached(rules):
     path = Path(rules.root) / "input/db/abilities.csv"
     if sha256(path.read_bytes()).hexdigest() != MARTIAL_ABILITY_SOURCE_SHA256:
         raise ValueError("Martial Artist Ability catalog changed; review required")
@@ -1383,6 +1398,21 @@ def _active_rows(actor):
 
 
 def validate_actor(actor):
+    # Read-only; inside one save validation pass (gameplay_validation) an actor is checked once
+    # even when projection() and the world inspection reach it again.
+    import os
+    import source_selection as SOURCES
+    memo = SOURCES.operation_memo()
+    seen = memo.get('validation_pass') if memo is not None else None
+    marker = ('features', id(actor))
+    if seen is not None and marker in seen and not os.environ.get('PTK_VALIDATION_CHECK'):
+        return
+    _validate_actor_features(actor)
+    if seen is not None:
+        seen.add(marker)
+
+
+def _validate_actor_features(actor):
     import native_acquisition_adapters as NATIVE
     NATIVE.validate_actor(actor)
     _validate_static_acquisitions(actor)

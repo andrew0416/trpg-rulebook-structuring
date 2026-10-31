@@ -154,6 +154,30 @@ def read_json(path, data=None):
 
 
 def verified_source(rules, reference, *, label='policy', source_root='input'):
+ """Source bytes verified against the reference digest. Outside a verification scope every
+ call reads and hashes the file; inside one scope the same (root, boundary, file, expected
+ digest) is read once and the bytes are shared, which is the round-19 rule applied to every
+ caller. PTK_DECLARATION_CHECK=1 re-reads on every hit and fails if the bytes changed."""
+ import os
+ import source_selection as SOURCES
+ scope=SOURCES.operation_memo()
+ if (scope is None or not isinstance(reference,dict) or not isinstance(reference.get('file'),str)
+     or not isinstance(reference.get('sha256'),str)):
+  return _verified_source(rules,reference,label=label,source_root=source_root)
+ key=('source',str(rules.root),source_root,reference['file'],reference['sha256'])
+ hit=scope.get(key)
+ if hit is not None:
+  if os.environ.get('PTK_DECLARATION_CHECK'):
+   fresh=_verified_source(rules,reference,label=label,source_root=source_root)
+   if fresh!=hit:raise ValueError(label+' source memo stale: bytes changed inside one verification scope')
+   return fresh
+  return hit
+ content=_verified_source(rules,reference,label=label,source_root=source_root)
+ scope[key]=content
+ return content
+
+
+def _verified_source(rules, reference, *, label='policy', source_root='input'):
  """Read current source bytes inside the explicit source boundary; never cache freshness.
 
  This shared boundary checks provenance only, not rule interpretation or choice.
