@@ -172,7 +172,7 @@ def _start_round(e,actors,bindings,encounter_id=None):
   return _hold(e,'participant profile unsupported',evidence=agenda.pending)
  issues=_interaction_issues(e,actors)
  if issues:return _hold(e,'interaction outside supported phase placement',evidence=issues)
- e.everyone=e.gm.everyone=list(actors.values())
+ e.everyone=e.gm.everyone=list(actors.values());__import__('world_entities').roster_changed(e)
  import initiative_schedule as SCHEDULE
  common=SCHEDULE.prepare(e,list(actors.values()),source='gm/league-runtime-phase-layout',
     bindings=[{'slot':key,'actor_id':actors[key].entity_id,'role':role} for player,role,key in bindings],

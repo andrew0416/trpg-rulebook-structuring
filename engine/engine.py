@@ -4267,7 +4267,7 @@ class Engine:
         import native_area_hit_effects as AREA_HIT
         AREA_HIT.require_candidates(self,attacker,move,everyone,primary)
         WEAPONS.selected_targets(self,attacker,move,everyone,primary)
-        self.everyone = everyone
+        self.everyone = everyone;__import__('world_entities').roster_changed(self)
         native_mm = ENVIRON.mechanics(self,move,self.r.move_mech(move_id)[0])
         native_mm = __import__("jump_move_actions").mechanics(self.r,move_id,native_mm)
         native_mm = __import__('ace_trainer').mechanics(self,attacker,move,native_mm)

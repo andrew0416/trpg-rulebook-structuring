@@ -96,6 +96,7 @@ def load_encounter(root, path, ruleset=None, rulings_path=None, seed=None):
     # Native passives can read other actors and local weather during admission.
     e.gm.everyone = everyone
     e.everyone = everyone
+    __import__('world_entities').roster_changed(e)
     import world_entities as WORLD
     WORLD.actor_index(e)
     for c in everyone:

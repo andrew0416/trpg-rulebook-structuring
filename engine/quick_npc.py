@@ -279,6 +279,7 @@ def create(engine, name, level, *, moves=None, items=None, pos=(0, 0), side="npc
         for roster in (staged.everyone, staged.gm.everyone):
             if proposed not in roster:
                 roster.append(proposed)
+            __import__('world_entities').roster_changed(staged)
         for uid, request in sorted(native.items()):
             if uid == FEATURES.MARTIAL_ARTIST:
                 FEATURES.acquire_martial_artist(staged, proposed, **request,

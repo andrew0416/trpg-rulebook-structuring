@@ -60,6 +60,7 @@ def create(e,actor,*,base_species,variant_species,individual_id,name,level,regio
  target.on_field=False
  e.gm.everyone.append(target)
  if getattr(e,'everyone',None) is not e.gm.everyone:e.everyone.append(target)
+ __import__('world_entities').roster_changed(e)
  return target
 
 def validate_actor(e,target):

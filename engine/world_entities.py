@@ -57,6 +57,13 @@ def actors(engine, extra=()):
         elif isinstance(value, (list, tuple, set, frozenset)):
             for child in value:
                 if type(child) not in scalar_types:visit(child)
+    # Roster order first, so the index order does not depend on which actor-to-actor references
+    # (last_target, condition owners, ...) the walk happens to reach first; off-roster actors follow.
+    for roster in (getattr(getattr(engine, 'gm', None), 'everyone', None), getattr(engine, 'everyone', None)):
+        if isinstance(roster, (list, tuple)):
+            for member in roster:
+                if type(member) is actor_type and id(member) not in found:
+                    found[id(member)] = member
     visit(getattr(getattr(engine, 'gm', None), 'everyone', []))
     for field, value in vars(engine).items():
         if field not in ('r', 'gm', 'rulings', 'rng'):
@@ -65,7 +72,46 @@ def actors(engine, extra=()):
     return tuple(found.values())
 
 
+def roster_changed(engine):
+    """Declare that an actor entered or left this engine's world or its registries.
+    Drops the operation-scoped actor index for this engine (see actor_index)."""
+    import source_selection as SOURCES
+    memo = SOURCES.operation_memo()
+    if memo:
+        for key in [k for k in memo if type(k) is tuple and k[0] == 'actor_index' and k[1] == id(engine)]:
+            memo.pop(key, None)
+
+
 def actor_index(engine, extra=()):
+    """Validated identity -> actor map of the current world.
+
+    Inside one operation (a source_selection verification scope) the full state-graph
+    walk runs once per engine and roster composition; sites that add or remove actors
+    through registries (not the rosters) call roster_changed().
+    Outside a scope every call walks. PTK_ACTOR_INDEX_CHECK=1 re-walks on every hit and
+    fails if the memo is stale. The returned dict is always a fresh copy."""
+    import os
+    import source_selection as SOURCES
+    memo = SOURCES.operation_memo()
+    extra = tuple(extra)
+    rosters = tuple(tuple(id(x) for x in roster) if isinstance(roster, (list, tuple)) else id(roster)
+                    for roster in (getattr(getattr(engine, 'gm', None), 'everyone', None), getattr(engine, 'everyone', None)))
+    key = ('actor_index', id(engine), rosters, tuple(id(x) for x in extra))
+    if memo is not None:
+        cached = memo.get(key)
+        if cached is not None and cached[0] is engine and len(cached[1]) == len(extra) and all(a is b for a, b in zip(cached[1], extra)):
+            if os.environ.get('PTK_ACTOR_INDEX_CHECK'):
+                fresh = _actor_index(engine, extra)
+                if list(fresh) != [u for u, _ in cached[2]] or any(fresh[u] is not a for u, a in cached[2]):
+                    raise ValueError('actor index memo stale: an actor entered or left the world without world_entities.roster_changed')
+            return dict(cached[2])
+    result = _actor_index(engine, extra)
+    if memo is not None:
+        memo[key] = (engine, extra, tuple(result.items()))
+    return result
+
+
+def _actor_index(engine, extra=()):
     result = {}
     for actor in actors(engine, extra):
         uid = actor_id(actor)

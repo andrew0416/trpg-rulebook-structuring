@@ -1518,6 +1518,7 @@ def _transition_body(engine,c,apply,*,participants=(),include_rulings=False,incl
     engine.gm.everyone=committed["gm_everyone"]
     for key in fields-committed["engine"].keys():vars(engine).pop(key,None)
     for key,value in committed["engine"].items():setattr(engine,key,value)
+    WORLD.roster_changed(engine)   # the committed roster/registries replace the live ones
     if include_grid:engine.grid.__dict__=committed['grid']
     if stateful_rng:engine.rng.setstate(staged_engine.rng.getstate())
     return committed["result"]

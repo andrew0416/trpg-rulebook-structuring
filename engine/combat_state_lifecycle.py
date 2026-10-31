@@ -29,7 +29,7 @@ def join(engine, actors):
     planned = _members(engine, () if current is None else current, actors)
     import condition_recovery as RECOVERY
     for actor in planned:RECOVERY.invalidate(actor)
-    engine._encounter_actors = planned
+    engine._encounter_actors = planned;__import__('world_entities').roster_changed(engine)
     import csv_item_form_contracts as CSV_FORMS
     for actor in actors:CSV_FORMS.encounter_join(engine,actor)
     return planned

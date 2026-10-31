@@ -743,6 +743,7 @@ class GMState:
             for roster in (staged_engine.gm.everyone, staged_engine.everyone):
                 if staged_c not in roster:
                     roster.append(staged_c)
+            WORLD.roster_changed(staged_engine)
             staged_engine.register_abilities(staged_c)
             # A newly imported sheet gets its while-owned projections here.
             STATE_FIELDS.validate_actor(staged_c)
@@ -750,6 +751,7 @@ class GMState:
         for roster in (self.everyone, self.e.everyone):
             if c not in roster:
                 roster.append(c)
+        WORLD.roster_changed(self.e)
         if self.e.encounter_active and c.on_field:
             import combat_state_lifecycle as COMBAT_STATE
             COMBAT_STATE.join(self.e,[c])
@@ -760,6 +762,7 @@ class GMState:
         for roster in (self.everyone, self.e.everyone):
             if c in roster:
                 roster.remove(c)
+        __import__('world_entities').roster_changed(self.e)
         c.on_field = False
         __import__('ability_exchange_contracts').refresh(self.e)
         __import__('ability_control_contracts').refresh(self.e)
@@ -958,6 +961,7 @@ class GMState:
                 delattr(self.e, field)
         if "gm_everyone" in restored:
             self.everyone = restored["gm_everyone"]
+            __import__('world_entities').roster_changed(self.e)
         if restored.get("snapshot_version", 1) >= 2:
             self.e.grid = snap["grid_ref"]
             if self.e.grid is not None:

@@ -220,7 +220,7 @@ def bind_session(engine,c):
     """
     validate_session_binding(engine,c)
     if not getattr(engine,'session_frequency',False):return
-    if c not in engine._time_actors:engine._time_actors.append(c)
+    if c not in engine._time_actors:engine._time_actors.append(c);__import__('world_entities').roster_changed(engine)
     st=state(c)
     if st.get('daily_basis')=='session':return
     st['daily_basis']='session';st.setdefault('session',0)
