@@ -34,13 +34,18 @@ class SourceChangedError(ValueError):
 
 def require_current_source(rules, selected):
     from source_context import verified_source
-    scope=_VERIFICATION_SCOPE.get();scope_key=(id(rules),selected)
-    if scope is not None and scope_key in scope:return set(scope[scope_key])
+    scope=_VERIFICATION_SCOPE.get();rid=id(rules)
     seen=set();verified=set()
     def check(uid):
+        # Inside a verification scope each definition (with its dependency subtree) is
+        # verified once per Rules object; the memo holds the subtree's verified pairs.
         uid=rules.selection.resolve(uid)
-        if uid in seen:return
-        seen.add(uid);origin=rules.selection.units[uid]['source']
+        if uid in seen:return frozenset()
+        seen.add(uid)
+        if scope is not None:
+            memo=scope.get((rid,uid))
+            if memo is not None:verified.update(memo);return memo
+        subtree=set();origin=rules.selection.units[uid]['source']
         references=dict(origin.get('additional_snapshots',{}))
         if origin.get('sha256') is not None:references[origin['file']]=origin['sha256']
         for file,digest in references.items():
@@ -51,10 +56,12 @@ def require_current_source(rules, selected):
             if (reference['file'],digest) in verified:continue
             try:verified_source(rules,reference,source_root=source_root)
             except (ValueError,OSError) as exc:raise SourceChangedError('selected source changed: '+uid) from exc
-            verified.add((reference['file'],digest))
-        for dependency in rules.selection.dependencies.get(uid,()):check(dependency)
+            verified.add((reference['file'],digest));subtree.add((reference['file'],digest))
+        for dependency in rules.selection.dependencies.get(uid,()):subtree.update(check(dependency))
+        memo=frozenset(subtree)
+        if scope is not None:scope[(rid,uid)]=memo
+        return memo
     check(selected)
-    if scope is not None:scope[scope_key]=frozenset(verified)
     return verified
 
 

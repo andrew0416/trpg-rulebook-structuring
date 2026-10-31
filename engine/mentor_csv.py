@@ -136,17 +136,29 @@ def acquire(engine, actor, *, acquisition_request_id, skills, source_clause_id=S
     return G.transition(engine, actor, apply)
 
 
+_CATALOGS = {}
+
+
 def _catalog(rules):
     root = Path(rules.root)
-    if sha256((root / 'input/db/learnsets.csv').read_bytes()).hexdigest() != LEARNSET_SHA:
+    source = (root / 'input/db/learnsets.csv').read_bytes()
+    if sha256(source).hexdigest() != LEARNSET_SHA:
         raise ValueError('Mentor learnset original source changed; review required')
     path = root / 'output/entities/learnsets.json'
-    if sha256(path.read_bytes()).hexdigest() != EXTRACT_SHA:
+    extract = path.read_bytes()
+    if sha256(extract).hexdigest() != EXTRACT_SHA:
         raise ValueError('Mentor selected learnset extraction changed; review required')
-    records = json.loads(path.read_text(encoding='utf-8'))
-    with (root / 'input/db/learnsets.csv').open(encoding='utf-8-sig', newline='') as stream:
-        raw = list(csv.reader(stream))
-    return {row['species']: row for row in records}, raw
+    # Both files are read and authenticated on every call; only the parse of these exact
+    # bytes is reused (the two digests are fixed constants, so the key is the root).
+    cached = _CATALOGS.get(str(root))
+    if cached is not None and cached[0] == (len(source), len(extract)):
+        return cached[1]
+    records = json.loads(extract.decode('utf-8'))
+    import io
+    raw = list(csv.reader(io.StringIO(source.decode('utf-8-sig'), newline='')))
+    result = ({row['species']: row for row in records}, raw)
+    _CATALOGS[str(root)] = ((len(source), len(extract)), result)
+    return result
 
 
 def _learnset(rules, name, catalog):

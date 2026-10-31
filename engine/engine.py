@@ -74,7 +74,13 @@ def _excluded_move_admission(fn):
 
 
 class Rules:
-    def __init__(self, root, use_hand=True, rulings_path=None, ruleset=None, custom_species=None):
+    def __init__(self, *args, **kwargs):
+        # Loading one Rules object is one source-verification scope (source_selection).
+        import source_selection as SOURCES
+        with SOURCES.verification_scope():
+            self._construct(*args, **kwargs)
+
+    def _construct(self, root, use_hand=True, rulings_path=None, ruleset=None, custom_species=None):
         self.root = root
         self.use_hand = use_hand
         with open(os.path.join(root, "data/skill-check-policy.json"), encoding="utf-8") as policy_file:

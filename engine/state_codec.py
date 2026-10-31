@@ -775,7 +775,7 @@ def reauthenticate_common_checks(engine, registry, registration, principals):
         raise StateCodecError('common reauthentication failed: ' + str(exc)) from exc
 
 
-def dump_engine(engine):
+def _dump_engine(engine):
     """Return a JSON-compatible, versioned current-gameplay graph.
 
     Existing GM snapshot history is intentionally outside this API's save scope
@@ -1093,7 +1093,7 @@ class _Decoder:
         contests[0]._snapshots = {}
 
 
-def load_engine(rules, payload):
+def _load_engine(rules, payload):
     """Validate and load into a new Engine; supplied Rules are never mutated."""
     _, _, Rules, _, _, _ = _types()
     if type(rules) is not Rules or type(payload) is not dict:
@@ -1482,7 +1482,7 @@ def dump_contest(contest, contestants):
     return payload
 
 
-def load_contest(contest_rules,payload,*,native_rules=None):
+def _load_contest(contest_rules,payload,*,native_rules=None):
     """Return (new ContestEngine, ordered contestant tuple), preserving native refs."""
     _,_,ContestRules=_contest_types()
     if type(contest_rules) is not ContestRules or type(payload) is not dict:
@@ -1530,4 +1530,23 @@ def load_contest(contest_rules,payload,*,native_rules=None):
     except (TypeError,ValueError,KeyError,AttributeError,OverflowError,RecursionError) as exc:
         raise StateCodecError('malformed or unsupported contest save: '+str(exc)) from exc
 
+def dump_engine(engine):
+    import source_selection as SOURCES
+    with SOURCES.verification_scope():
+        return _dump_engine(engine)
+dump_engine.__doc__ = _dump_engine.__doc__
+
+
+def load_engine(rules, payload):
+    import source_selection as SOURCES
+    with SOURCES.verification_scope():
+        return _load_engine(rules, payload)
+load_engine.__doc__ = _load_engine.__doc__
+
+
+def load_contest(contest_rules,payload,*,native_rules=None):
+    import source_selection as SOURCES
+    with SOURCES.verification_scope():
+        return _load_contest(contest_rules,payload,native_rules=native_rules)
+load_contest.__doc__ = _load_contest.__doc__
 
