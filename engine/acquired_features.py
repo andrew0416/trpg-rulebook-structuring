@@ -136,7 +136,7 @@ def class_instances(actor):
     return tuple(result)
 
 
-def validate_class_slots(actor):
+def _validate_class_slots(actor):
     class_instances(actor)
     if actor.kind=="trainer":feature_instances(actor)
     import trainer_retraining as RETRAINING
@@ -275,4 +275,10 @@ def owned_rule_count(actor,source_id):
     import capture_techniques as CAPTURE
     granted = sum(row['rule_id'] == source_id for _, row in CAPTURE.skill_edges(actor))
     return sum(_resolve(actor,value,'edge/',names)==source_id for value in entries) + granted
+
+def validate_class_slots(*args, **kwargs):
+    import source_selection as SOURCES
+    with SOURCES.verification_scope():
+        return _validate_class_slots(*args, **kwargs)
+validate_class_slots.__doc__ = _validate_class_slots.__doc__
 

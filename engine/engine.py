@@ -578,6 +578,12 @@ class Rules:
 
 
 class Combatant:
+    def __init__(self, *args, **kwargs):
+        # Building one actor is one source-verification scope (source_selection).
+        import source_selection as SOURCES
+        with SOURCES.verification_scope():
+            self._construct(*args, **kwargs)
+
     @property
     def ap_account(self):
         return AP.ActionPointAccount(self)
@@ -592,7 +598,7 @@ class Combatant:
         from state_grants import ActiveEffects
         return ActiveEffects(self)
 
-    def __init__(self, rules, spec):
+    def _construct(self, rules, spec):
         STATE_FIELDS.validate_base(spec)
         import actor_templates as TEMPLATES
         TEMPLATES.validate_soulless_default(rules,spec)

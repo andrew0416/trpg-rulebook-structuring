@@ -88,7 +88,7 @@ def add_stat_points(rules, spec, points=1, strategy=None, choice=None, *, growth
     return stat_increment_plan(rules,spec,points,strategy,choice,growth_context=growth_context)['stats']
 
 
-def build_pokemon(rules, species, level, name=None, nature=None, strategy="balanced", moves=None, abilities=None, wild=False, side=None, pos=(0, 0), item=None, extra=None, creation_poke_edges=None):
+def _build_pokemon(rules, species, level, name=None, nature=None, strategy="balanced", moves=None, abilities=None, wild=False, side=None, pos=(0, 0), item=None, extra=None, creation_poke_edges=None):
     M.validate_source(rules)
     sp = species_lookup(rules, species)
     import example_species as EXAMPLES
@@ -196,7 +196,7 @@ def _evolutions_left(ls, name):
     return max(0, max(stages) - (mine if mine is not None else min(stages)))
 
 
-def build_trainer(rules, name, level, stats, moves=None, skills=None, items=None, pos=(0, 0), side="party", abilities=None, extra=None):
+def _build_trainer(rules, name, level, stats, moves=None, skills=None, items=None, pos=(0, 0), side="party", abilities=None, extra=None):
     from trainer_capabilities import CORE_POWER_POLICY
     spec = {"id": STATE_FIELDS.new_id("trainer"), "name": name, "kind": "trainer", "level": level, "stats": dict(stats), "types": [], "moves": list(dict.fromkeys([*(moves or []), "struggle"])),
             "skills": dict(skills or {}), "items": dict(items or {"poke_ball": 0}), "pos": tuple(pos), "side": side, "abilities": list(abilities or []), "movement": {}, "size": "중형", "movement_basis": "trainer_base", "power_basis": "derived", "power_policy": CORE_POWER_POLICY, "_built": True}
@@ -222,3 +222,17 @@ def build_quick_npc(rules, name, level, **options):
 def describe(spec):
     st = spec["stats"]
     return f"{spec['name']} (Lv{spec['level']} {spec.get('species', spec['kind'])}, {'/'.join(spec.get('types') or ['-'])}) HP{st['hp']} A{st['atk']} D{st['def']} SA{st['spa']} SD{st['spd']} S{st['spe']} | 기술 {[m.split('/')[-1] for m in spec['moves']]} | 특성 {spec.get('abilities')}"
+
+def build_pokemon(*args, **kwargs):
+    import source_selection as SOURCES
+    with SOURCES.verification_scope():
+        return _build_pokemon(*args, **kwargs)
+build_pokemon.__doc__ = _build_pokemon.__doc__
+
+
+def build_trainer(*args, **kwargs):
+    import source_selection as SOURCES
+    with SOURCES.verification_scope():
+        return _build_trainer(*args, **kwargs)
+build_trainer.__doc__ = _build_trainer.__doc__
+

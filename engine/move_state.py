@@ -44,7 +44,7 @@ def _list_union(field,groups,rules):
  return list(dict.fromkeys(value for values in groups for value in values))
 
 
-def current_natural_evidence(rules,spec):
+def _current_natural_evidence(rules,spec):
  """Current species/level evidence, without asserting how the move was learned."""
  _source(rules)
  if spec.get('species') is None:return {}  # Imported unknown species is not invented.
@@ -87,7 +87,7 @@ def current_natural_evidence(rules,spec):
  return result
 
 
-def validate_history(rules,spec):
+def _validate_history(rules,spec):
  from builder import species_lookup
  def species_identity(raw):
   try:return species_lookup(rules,raw)['id']
@@ -758,3 +758,17 @@ def observe_learning(engine,actor,move_id,*,method,source,paid_tp=0,replace=None
 def observe_vm_learning(engine,actor,move_id,*,application_id,replace=None,reason):
  """Observe a completed GM-timed VM application, without inventing time/cost."""
  return observe_learning(engine,actor,move_id,method='vm',source=VM_SOURCE,application_id=application_id,replace=replace,reason=reason)
+
+def current_natural_evidence(*args, **kwargs):
+    import source_selection as SOURCES
+    with SOURCES.verification_scope():
+        return _current_natural_evidence(*args, **kwargs)
+current_natural_evidence.__doc__ = _current_natural_evidence.__doc__
+
+
+def validate_history(*args, **kwargs):
+    import source_selection as SOURCES
+    with SOURCES.verification_scope():
+        return _validate_history(*args, **kwargs)
+validate_history.__doc__ = _validate_history.__doc__
+
