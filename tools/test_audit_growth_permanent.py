@@ -140,9 +140,9 @@ class InheritanceGrowthTests(unittest.TestCase):
         f.e.gm.set_move(c,'move/몸통박치기',False,reason='explicitly forget one Move')
         previous=deepcopy(f.r.selection.excluded)
         try:
-            f.r.selection.excluded[MILESTONES.INHERITANCE_SOURCE]='exclude_units'
+            f.r.selection.excluded[MILESTONES.INHERITANCE_SOURCE]='exclude_units';f.r.touch('selection')
             assert_rejected_unchanged(f.e,lambda:f.e.choose_growth_inheritance(c,20,'move/뿌리박기',reason='excluded source'),reason_pattern='inheritance source|[Ee]xcluded|제외')
-        finally:f.r.selection.excluded.clear();f.r.selection.excluded.update(previous)
+        finally:f.r.selection.excluded.clear();f.r.selection.excluded.update(previous);f.r.touch('selection')
         f.e.choose_growth_inheritance(c,20,'move/뿌리박기',reason='choose after making room')
     def test_species_distribution_rejects_impossible_gender_before_birth(self):
         f=self.f

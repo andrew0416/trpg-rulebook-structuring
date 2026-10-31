@@ -245,6 +245,24 @@ def _corpus_digest(path):
 
 
 _SAVED_POLICIES = {}
+_PIECE_CACHES = __import__('weakref').WeakKeyDictionary()
+
+
+def piece_cache(rules):
+    """The fingerprint piece cache of a Rules object. It lives beside the object, not in
+    vars(rules): the rule state a save or a test compares stays exactly the rule tables."""
+    cache = _PIECE_CACHES.get(rules)
+    if cache is None:
+        cache = _PIECE_CACHES[rules] = {}
+    return cache
+
+
+def drop_pieces(rules, names=()):
+    """Rules.touch(): forget the cached pieces of the named tables (all of them without names)."""
+    cache = _PIECE_CACHES.get(rules)
+    if cache:
+        for name in (names or tuple(cache)):
+            cache.pop(name, None)
 _DERIVED_INDEXES = {}
 _FINGERPRINT_JSON = {'sort_keys': True, 'ensure_ascii': False, 'allow_nan': False, 'separators': (',', ':')}
 _CACHED_PIECE_MIN = 32768
@@ -274,7 +292,7 @@ def _selected_digest(rules, manifest, policy):
     A piece is reused while the attribute still holds the same object. A reassigned
     attribute misses the cache; an in-place change is declared with Rules.touch().
     PTK_FINGERPRINT_FULL=1 recomputes every piece (the self-check path)."""
-    cache = None if os.environ.get('PTK_FINGERPRINT_FULL') else rules.__dict__.setdefault('_fingerprint_cache', {})
+    cache = None if os.environ.get('PTK_FINGERPRINT_FULL') else piece_cache(rules)
     # The document '{"files":<manifest>,"selected":{<key>:<piece>,...}}' is hashed piece by
     # piece; UTF-8 encoding concatenates, so this equals hashing the joined text.
     digest = hashlib.sha256(('{"files":' + json.dumps(manifest, **_FINGERPRINT_JSON) + ',"selected":{').encode())
@@ -530,7 +548,13 @@ def rules_fingerprint(rules):
     selection = vars(rules.selection)
     policy['selected_profile'] = vars(rules.ruleset)
     policy['selection'] = {k: v for k, v in selection.items() if k not in ('filter', 'dependencies')}
-    digest = _selected_digest(rules, manifest, policy)
+    if os.environ.get('PTK_FINGERPRINT_FULL'):
+        # The frozen common-owner form (tools/test_common_fingerprint_owner); the piece assembly
+        # below is byte-identical to it (tools/test_rules_fingerprint_cache) and is the fast path.
+        data = {'files': manifest, 'selected': _plain(policy)}
+        digest = _FINGERPRINTS.json_fingerprint(data, sort_keys=True, compact=True, allow_nan=False)
+    else:
+        digest = _selected_digest(rules, manifest, policy)
     result={'sha256': digest, 'profile': rules.ruleset.name, 'file_count': len(manifest)}
     generated=__import__('weapon_actions').generated_declarations(rules)
     if generated:result['generated_weapons']=generated
@@ -837,7 +861,21 @@ def reauthenticate_common_checks(engine, registry, registration, principals):
         raise StateCodecError('common reauthentication failed: ' + str(exc)) from exc
 
 
+def snapshot_engine(engine):
+    """Comparison snapshot: the same payload dump_engine would return, without the whole-world
+    validation pass. Two snapshots of one engine are equal exactly when two dumps would be, so
+    tests use it for before/after equality ("a rejection changed nothing"); it is never a save,
+    and a state that would fail validation is not detected here but at the next real save."""
+    import source_selection as SOURCES
+    with SOURCES.verification_scope():
+        return _encode_engine(engine, validate=False)
+
+
 def _dump_engine(engine):
+    return _encode_engine(engine, validate=True)
+
+
+def _encode_engine(engine, *, validate):
     """Return a JSON-compatible, versioned current-gameplay graph.
 
     Existing GM snapshot history is intentionally outside this API's save scope
@@ -853,7 +891,8 @@ def _dump_engine(engine):
         _fail('cannot save inside an executing native action')
     encoder = _Encoder(engine)
     root = encoder.value(engine)
-    _validate_current_state(engine, [actor for actor in _all_actor_values(engine)])
+    if validate:
+        _validate_current_state(engine, [actor for actor in _all_actor_values(engine)])
     payload = {'format': FORMAT, 'version': VERSION, 'rules': rules_fingerprint(engine.r),
                'root': root, 'nodes': encoder.nodes,
                'save_scope': {'current_gameplay': True, 'gm_checkpoint_history': False,
@@ -1596,7 +1635,7 @@ def dump_engine(engine):
     import source_selection as SOURCES
     with SOURCES.verification_scope():
         return _dump_engine(engine)
-dump_engine.__doc__ = _dump_engine.__doc__
+dump_engine.__doc__ = _encode_engine.__doc__
 
 
 def load_engine(rules, payload):

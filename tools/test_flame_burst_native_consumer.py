@@ -105,12 +105,16 @@ class FlameBurstNativeConsumerTests(unittest.TestCase):
     def test_changed_selected_payload_or_source_is_rejected_before_any_native_payment(self):
         e,a,t,*tail=self.scene();weapon=tail[-1]
         with patch.dict(e.r.moves_llm['불꽃튀기기'],effects=[dict(EFFECT,value=6)]):
+            e.r.touch('moves_llm')   # edit inside an existing move entry declared
             assert_rejected_unchanged(e,lambda:e.use_move_on(a,t,MOVE,e.everyone,weapon_id=weapon,set_damage=True),
                 reason_pattern='exact selected cardinal HP-loss source')
+        e.r.touch('moves_llm')   # patch.dict restored the entry in place
         origin=e.r.selection.units[MOVE]['source']
         with patch.dict(origin,record_span=[268,268]):
+            e.r.touch('selection')   # edit inside an existing selection unit declared
             assert_rejected_unchanged(e,lambda:FX.preflight_effects(e,a,t,[EFFECT],MOVE),
                 reason_pattern='exact selected cardinal HP-loss source')
+        e.r.touch('selection')   # patch.dict restored the unit in place
         assert_rejected_unchanged(e,lambda:FX.preflight_effects(e,a,t,[EFFECT],'move/몸통박치기'),
             reason_pattern='explicit native target-set binding')
 

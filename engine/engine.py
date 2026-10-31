@@ -272,10 +272,7 @@ class Rules:
 
         Reassigning an attribute needs no declaration. Without names every cached
         fingerprint piece is dropped. See state_codec._selected_digest."""
-        cache = self.__dict__.get('_fingerprint_cache')
-        if cache:
-            for name in (names or tuple(cache)):
-                cache.pop(name, None)
+        __import__('state_codec').drop_pieces(self, names)
         memo = __import__('source_selection').operation_memo()
         if memo:   # an in-place rule edit may change what a move name resolves to
             for key in [k for k in memo if type(k) is tuple and k[0] == 'move_id' and k[1] == id(self)]:
@@ -939,6 +936,11 @@ class Engine:
     def export_state(self):
         import state_codec
         return state_codec.dump_engine(self)
+
+    def snapshot_state(self):
+        """export_state without the validation pass; for before/after comparison only."""
+        import state_codec
+        return state_codec.snapshot_engine(self)
 
     @classmethod
     def import_state(cls, rules, payload):

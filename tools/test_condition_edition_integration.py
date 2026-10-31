@@ -27,6 +27,7 @@ class ConditionEditionIntegrationTests(unittest.TestCase):
         data=self.r.units['condition/마비']['mech']['data']
         base={key:deepcopy(value) for key,value in data.items() if key!=EDITIONS.CSV_VERSION}
         with patch.dict(data,{EDITIONS.CSV_VERSION:EDITIONS.edition('마비')}):
+            self.r.touch('units')   # edit inside an existing unit declared
             e,a,_=self.scene()
             self.begin(e,a,face=10)
             child=next(row for row in CLOCK.records(a) if 'paralysis_failed_save' in row)
@@ -46,9 +47,11 @@ class ConditionEditionIntegrationTests(unittest.TestCase):
         for metadata,change_base in ((changed,False),(EDITIONS.edition('마비'),True)):
             with self.subTest(change_base=change_base):
                 with patch.dict(data,{EDITIONS.CSV_VERSION:metadata}):
+                    self.r.touch('units')   # edit inside an existing unit declared
                     effects=deepcopy(data['effects'])
                     if change_base:next(effect for effect in effects if effect['type']=='save')['dc']=12
                     with patch.dict(data,{'effects':effects}):
+                        self.r.touch('units')
                         e,a,_=self.scene();e.apply_status(a,'마비');e.start_round(e.everyone)
                         with patch.object(Engine,'d20',return_value=10) as rolled:
                             assert_rejected_unchanged(e,lambda:e.start_of_turn(a,initiative_count=20),
@@ -76,6 +79,7 @@ class ConditionEditionIntegrationTests(unittest.TestCase):
         data=rules.units['condition/얼음']['mech']['data']
         altered=deepcopy(data['csv-homebrew']);altered['effects'][0]['type']='unreviewed_no_actions'
         with patch.dict(data,{'csv-homebrew':altered}):
+            rules.touch('units')   # edit inside an existing unit declared
             with self.assertRaisesRegex(ValueError,'reviewed CSV condition edition changed'):
                 EDITIONS.install(rules)
         malformed=deepcopy(data['csv-homebrew']);malformed['effects'][0]['type']='no_actions';malformed['effects'][0]['value']=True

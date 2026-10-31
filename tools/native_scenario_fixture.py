@@ -88,7 +88,7 @@ def assert_rejections_unchanged(engine, operations, *, reason_pattern):
             or any(not isinstance(pattern, str) or not pattern.strip() for pattern in patterns)):
         raise ValueError('explicit nonempty rejection reason pattern required for each operation')
     expected = [re.compile(pattern) for pattern in patterns]
-    before = engine.export_state()  # Native codec includes the actual RNG state.
+    before = engine.snapshot_state()  # Same payload as export_state (RNG included), without the validation pass.
     errors = []
     for operation, pattern, check in zip(operations, patterns, expected):
         try:
@@ -100,7 +100,7 @@ def assert_rejections_unchanged(engine, operations, *, reason_pattern):
         else:
             raise AssertionError('expected ValueError matching ' + repr(pattern))
         finally:
-            if engine.export_state() != before:
+            if engine.snapshot_state() != before:
                 raise AssertionError('rejection changed engine state or RNG')
     return errors
 

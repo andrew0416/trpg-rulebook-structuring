@@ -28,8 +28,8 @@ class RulesFingerprintCacheTests(unittest.TestCase):
         self.assertEqual(cold, self.full(r))
         warm = CODEC.rules_fingerprint(r)          # served from the cache
         self.assertEqual(warm, cold)
-        self.assertIn('_fingerprint_cache', vars(r))
-        self.assertGreater(len(r._fingerprint_cache), 10)
+        self.assertNotIn('_fingerprint_cache', vars(r))   # the cache lives beside the object, not in its rule state
+        self.assertGreater(len(CODEC.piece_cache(r)), 10)
         engine = Engine(r, seed=11)
         saved = CODEC.dump_engine(engine)
         self.assertEqual(saved['rules'], self.full(r))
@@ -48,9 +48,9 @@ class RulesFingerprintCacheTests(unittest.TestCase):
         r.touch()
         for _ in range(2):   # cold (fills the piece cache) and warm (served from it)
             self.assertEqual(CODEC._selected_digest(r, manifest, policy), expected)
-        self.assertIn('big', r._fingerprint_cache)
-        self.assertIn('selection', r._fingerprint_cache)
-        self.assertNotIn('small', r._fingerprint_cache)
+        self.assertIn('big', CODEC.piece_cache(r))
+        self.assertIn('selection', CODEC.piece_cache(r))
+        self.assertNotIn('small', CODEC.piece_cache(r))
         with mock.patch.dict(os.environ, {'PTK_FINGERPRINT_FULL': '1'}):
             self.assertEqual(CODEC._selected_digest(r, manifest, policy), expected)
         r.touch()
@@ -88,7 +88,7 @@ class RulesFingerprintCacheTests(unittest.TestCase):
         r = self.rules
         CODEC.rules_fingerprint(r)
         r.touch()
-        self.assertEqual(r._fingerprint_cache, {})
+        self.assertEqual(CODEC.piece_cache(r), {})
         digest = CODEC.rules_fingerprint(r)
         clone = deepcopy(r)
         self.assertEqual(CODEC.rules_fingerprint(clone), digest)

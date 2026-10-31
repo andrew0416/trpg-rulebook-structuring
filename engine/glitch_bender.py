@@ -457,7 +457,8 @@ def validate_actor(actor):
             for face in fixed:__import__('common_checks').integer(face,'observed I Am Error d10 face',1,10)
         if not records(actor,ERROR):raise ValueError('I Am Error offer lost its historical acquired source')
     payments=actor.spec.get(G.KEY,{}).get('payments',{})
-    group='glitch-ability-lesson:'+actor.entity_id
+    identity=getattr(actor,'entity_id',None) or actor.spec.get('id') or actor.spec.get('name','')
+    group='glitch-ability-lesson:'+identity   # a prepared NPC sheet (quick_npc) is validated before it has an entity_id
     sources=actor.spec.get(G.KEY,{}).get('sources',{})
     sources={**sources,**{x['source_id']:x['record'] for x in actor.spec.get(G.KEY,{}).get('ended_sources',[])}}
     for sid,row in sources.items():

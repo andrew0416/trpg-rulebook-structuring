@@ -189,11 +189,11 @@ class DirectiveFeatureTests(unittest.TestCase):
     def test_selected_source_corruption_and_late_install_failure_roll_back(self):
         unit = self.r.selection.units[D.FEATURE]
         before = deepcopy(unit['source'])
-        unit['source']['record_span'] = [90, 90]
+        unit['source']['record_span'] = [90, 90];self.r.touch('selection')
         try:
             self.assertAtomic(self.use)
         finally:
-            unit['source'] = before
+            unit['source'] = before;self.r.touch('selection')
         original = TIME.install
         def late(*args, **kwargs):
             original(*args, **kwargs)

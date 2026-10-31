@@ -68,7 +68,8 @@ class ChefRecipePermissionTests(unittest.TestCase):
    with self.subTest(uid=uid),patch.object(type(self.rules),'_selected_rule',new=lambda rules,value,*args,uid=uid,**kw: 'unselected' if value==uid else native(value,*args,**kw)):
     self.rejected()
   unit=self.rules.selection.units[C.CHEF_CLASS]
-  with patch.dict(unit,{'source':dict(unit['source'],sha256='0'*64)}):self.rejected()
+  with patch.dict(unit,{'source':dict(unit['source'],sha256='0'*64)}):self.rules.touch('selection');self.rejected()
+  self.rules.touch('selection')
  def test_external_recipe_metadata_uses_the_same_generic_class_permission_consumer(self):
   self.ready()
   recipe=C._recipe(self.e,self.a,'맛있는물',item_id='item/맛있는물',inventory_key='item/맛있는물',seconds=60)
