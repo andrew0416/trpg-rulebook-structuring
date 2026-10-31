@@ -73,6 +73,16 @@ def _validate(engine, actors):
 def validate(*args, **kwargs):
     import source_selection as SOURCES
     with SOURCES.verification_scope():
-        return _validate(*args, **kwargs)
+        # Every validator below is read-only, so inside one pass an actor reached twice
+        # (the explicit loop and the world inspection) is validated once; see state_fields.
+        memo = SOURCES.operation_memo()
+        outer = memo.get('validation_pass')
+        if outer is None:
+            memo['validation_pass'] = set()
+        try:
+            return _validate(*args, **kwargs)
+        finally:
+            if outer is None:
+                memo.pop('validation_pass', None)
 validate.__doc__ = _validate.__doc__
 

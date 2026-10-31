@@ -346,9 +346,51 @@ def _plan_one(actor,cid,row):
     return result
 
 
+_PLANS = {}
+_PLAN_LIMIT = 512
+
+
+def _signature_default(value):
+    if isinstance(value, (set, frozenset)):
+        return sorted(value, key=repr)
+    identity = getattr(value, 'entity_id', None)      # actor references inside a spec (bindings)
+    return 'actor:' + str(identity) if identity is not None else repr(value)
+
+
+def _actor_signature(actor):
+    import hashlib, json
+    blob = json.dumps((actor.kind, actor.level, actor.name, actor.spec),
+                      sort_keys=True, ensure_ascii=False, default=_signature_default).encode('utf-8')
+    return hashlib.sha256(blob).hexdigest()
+
+
 def plan(actor):
+    """Static grants planned for a trainer. The plan is a function of the actor's state and
+    the rule tables, so it is memoized per (actor, Rules, touch epoch, actor signature); a
+    changed spec, level or name, a different Rules object or Rules.touch() misses the memo.
+    PTK_VALIDATION_CHECK=1 recomputes every hit and fails on a difference."""
     if actor.kind != "trainer":
         return {}
+    import os
+    import source_selection as SOURCES
+    key = (id(actor), id(actor.r))
+    signature = (SOURCES.touch_epoch(actor.r), _actor_signature(actor))
+    entry = _PLANS.get(key)
+    if entry is not None and entry[0] is actor and entry[1] is actor.r and entry[2] == signature:
+        if not os.environ.get('PTK_VALIDATION_CHECK'):
+            return deepcopy(entry[3])
+        fresh = _plan_uncached(actor)
+        if fresh != entry[3]:
+            raise ValueError('static grant plan memo stale for ' + str(actor.entity_id))
+        return fresh
+    result = _plan_uncached(actor)
+    if len(_PLANS) >= _PLAN_LIMIT:
+        _PLANS.pop(next(iter(_PLANS)))
+    _PLANS[key] = (actor, actor.r, signature, deepcopy(result))
+    return result
+
+
+def _plan_uncached(actor):
     ACQUIRED.validate_class_slots(actor)
     result = {}
     for cid,row in _policy(actor.r)["rules"].items():

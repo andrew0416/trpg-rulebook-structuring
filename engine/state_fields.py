@@ -94,6 +94,18 @@ def validate_base(spec):
 
 
 def validate_actor(c):
+    import os
+    import source_selection as SOURCES
+    memo = SOURCES.operation_memo()
+    seen = memo.get('validation_pass') if memo is not None else None
+    if seen is not None and id(c) in seen and not os.environ.get('PTK_VALIDATION_CHECK'):
+        return
+    _validate_actor(c)
+    if seen is not None:
+        seen.add(id(c))
+
+
+def _validate_actor(c):
     validate_base(c.spec)
     import equipment_variant_contracts as EQUIPMENT_VARIANTS
     EQUIPMENT_VARIANTS.validate_actor(c)

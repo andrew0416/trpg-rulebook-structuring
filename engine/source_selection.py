@@ -14,6 +14,19 @@ from root_resolution import fingerprint
 _VERIFICATION_SCOPE = ContextVar('source_verification_scope', default=None)
 
 
+_TOUCH_EPOCHS = {}
+
+
+def touch_epoch(rules):
+    """Count of Rules.touch() declarations on this Rules object (0 until the first). Memos
+    derived from rule tables key on it so an in-place rule edit invalidates them."""
+    return _TOUCH_EPOCHS.get(id(rules), 0)
+
+
+def bump_touch_epoch(rules):
+    _TOUCH_EPOCHS[id(rules)] = _TOUCH_EPOCHS.get(id(rules), 0) + 1
+
+
 def operation_memo():
     """The current verification scope's memo (None outside a scope); other owners may
     memoize per-operation derived indexes in it under their own keys."""

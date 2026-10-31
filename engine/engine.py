@@ -341,6 +341,7 @@ class Rules:
         Reassigning an attribute needs no declaration. Without names every cached
         fingerprint piece is dropped. See state_codec._selected_digest."""
         __import__('state_codec').drop_pieces(self, names)
+        __import__('source_selection').bump_touch_epoch(self)
         memo = __import__('source_selection').operation_memo()
         if memo:   # an in-place rule edit may change what a move name resolves to
             for key in [k for k in memo if type(k) is tuple and k[0] == 'move_id' and k[1] == id(self)]:
