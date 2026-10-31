@@ -314,7 +314,8 @@ class RuleSelection:
         self.filter.require(unit)
         self.units[unit["id"]] = unit
         self.dependencies[unit["id"]] = tuple(dependencies)
-        self.names.setdefault(unit["title"], []).append(unit["id"])
+        # Same name index as the catalog constructor: untitled units are not name-resolvable.
+        if unit["title"]: self.names.setdefault(unit["title"], []).append(unit["id"])
         return unit["id"]
 
     def resolve_name(self, name, prefixes=()):
@@ -424,7 +425,8 @@ def build_runtime_selection(rules):
         registered = set(previous.dependencies) | set(getattr(rules, "_authored_policy_sources", {}))
         retained = {uid: deepcopy(unit) for uid, unit in previous.units.items()
                     if uid in registered and uid not in catalog}
-        catalog.update(retained)
+    # Snapshot stamps apply to units built from the catalog files above. Retained runtime
+    # registrations come back exactly as registered, so repeated rebuilds keep them equal.
     for unit in catalog.values():
         source=unit['source'];file=source.get('file','').removeprefix('input/')
         if file in source_snapshots:
@@ -433,6 +435,7 @@ def build_runtime_selection(rules):
             source['sha256']=expected
         additional=source.get('additional_files',[])
         if additional:source['additional_snapshots']={file:source_snapshots[file] for file in additional if file in source_snapshots}
+    catalog.update(retained)
     import mentor
     expand_csv=mentor.bind_expand_csv_source(rules,catalog)
     selection = RuleSelection(rules.ruleset, catalog.values())

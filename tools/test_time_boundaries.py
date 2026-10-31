@@ -186,9 +186,9 @@ class TimeTests(unittest.TestCase):
     def test_complete_boundaries_reject_late_failure_without_partial_commit(self):
         from unittest.mock import patch
         import effects as FX
-        import homebrew_state as HOME
+        import special_entities as SPECIAL
         import condition_recovery as RECOVERY
-        cases=[('start_round',FX,'fire_event'),('end_encounter',HOME,'end_encounter'),('end_scene',RECOVERY,'end_scene')]
+        cases=[('start_round',FX,'fire_event'),('end_encounter',SPECIAL,'expire_sentries'),('end_scene',RECOVERY,'end_scene')]
         for boundary,module,symbol in cases:
             with self.subTest(boundary=boundary):
                 e,cs=self.fixture()

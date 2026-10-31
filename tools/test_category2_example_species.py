@@ -2,7 +2,7 @@
 from pathlib import Path
 from copy import deepcopy
 from unittest.mock import patch
-import json,sys,unittest
+import json,os,sys,unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'engine'),str(ROOT/'tools')]
 from engine import Rules,Engine,Combatant
 from builder import build_pokemon,build_trainer,allocation_base
@@ -29,7 +29,8 @@ class ExampleSpeciesTests(unittest.TestCase):
   def unresolved(rules,identity):
    if identity==name:raise UnresolvedRuleSelection(identity,['unreviewed-machine-identity'])
    return original(rules,identity)
-  with patch.object(Rules,'move_id',unresolved):
+  # A warm Rules template would clone instead of constructing, so the patched reader never runs.
+  with patch.object(Rules,'move_id',unresolved),patch.dict(os.environ,{'PTK_RULES_TEMPLATE':'0'}):
    with self.assertRaisesRegex(UnresolvedRuleSelection,'unreviewed-machine-identity'):
     Rules(ROOT,ruleset='core')
 

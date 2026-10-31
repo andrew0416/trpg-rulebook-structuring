@@ -11,6 +11,18 @@ import cheerleader as CHEER,combat_precision_features as CPF
 
 
 class CommanderOrderTests(CommanderFixture,unittest.TestCase):
+    def second_own_pokemon(self):
+        from copy import deepcopy
+        from engine import Combatant
+        from native_scenario_fixture import prepare_body
+        spec=dict(deepcopy(self.p.spec),name='second own partner')
+        for key in ('entity_id','id'):spec.pop(key,None)
+        other=Combatant(self.r,spec)
+        self.e.gm.add_combatant(other,pos=(2,5),side='party',reason='actual second owned Pokemon')
+        prepare_body(self.e,other,size='중형',offsets=[(0,0)],reason='observed complete medium body')
+        self.e.gm.observe_loyalty(other,6,reason='observed willing partner');self.hears(other)
+        return other
+
     def test_mobilize_actual_opportunity_before_next_turn_during_and_after(self):
         self.scene();self.acquire(C.MOBILIZE);self.combat()
         self.e.gm.set_position(self.b,(3,2),reason='actual adjacent enemy')
@@ -98,14 +110,16 @@ class CommanderOrderTests(CommanderFixture,unittest.TestCase):
     def test_core_four_training_orders_pay_actual_standard_without_priority_and_restore_expiry(self):
         for uid in TRAIN.RULES:
             with self.subTest(feature=uid):
-                self.scene();self.acquire(uid);self.combat()
+                self.scene();self.acquire(uid);other=self.second_own_pokemon();self.combat()
                 result=self.e.manual_feat(self.a,uid,self.p,adjustment={'edition':'core'})
                 self.assertEqual(self.a.budget['standard'],0);self.assertEqual(PRIORITY.records(self.a),[])
                 payment=result['core_standard_payment']
                 self.assertEqual((payment['action'],payment['source']['pages']),('standard',[60,60]))
                 self.assertEqual(payment['source']['sha256'],C.CORE_SHA)
                 self.assertNotIn('priority_receipt',result)
-                self.rejected(lambda:self.e.manual_feat(self.a,uid,self.a,adjustment={'edition':'core'}),'Standard action unavailable')
+                # Core p60: as [Orders] it targets one of your Pokemon. A second legal target
+                # (not the issuer, no live Order) leaves the spent Standard as the only bar.
+                self.rejected(lambda:self.e.manual_feat(self.a,uid,other,adjustment={'edition':'core'}),'Standard action unavailable')
                 self.restore();self.valid();self.assertEqual(len(TRAIN.active(self.p)),1)
                 self.next_round();self.assertEqual(TRAIN.active(self.p),[])
 
