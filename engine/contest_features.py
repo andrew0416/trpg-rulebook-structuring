@@ -344,7 +344,7 @@ def _mistakes(e,trainer,pokemon,skill,dc,decision,reroll_faces,reroll_penalties,
  if reroll_penalties is not None:reroll_penalties=C.dice(reroll_penalties,options.get('penalty_count',0))
  if old is None:
   # Known source/action/input errors must not expose a speculative first roll.
-  staged=copy(e);staged.log_lines=[];staged._time_actors=list(getattr(e,'_time_actors',[]));shadow=copy(trainer);shadow.spec=deepcopy(trainer.spec);shadow._action_history=deepcopy(getattr(trainer,'_action_history',[]))
+  staged=copy(e);staged.log_lines=[];staged._time_actors=list(getattr(e,'_time_actors',[]));shadow=copy(trainer);shadow.spec=__import__('world_entities').spec_copy(trainer);shadow._action_history=deepcopy(getattr(trainer,'_action_history',[]))
   if not FREQ.activation_allowed(shadow,MISTAKES,quota,engine=staged):raise ValueError('Learn From Your Mistakes daily uses exhausted')
   require_trigger_free_action(staged,trainer)
   # The first Mistakes result is private; nested native choices use the shared commit guard.
@@ -399,7 +399,7 @@ def prepare_reliable_accuracy(e,trainer,pokemon):
  if pokemon.dead or pokemon.fainted:
   raise ValueError('conscious Pokemon required for Reliable Performance')
  staged=copy(e);staged.log_lines=[]
- actor=copy(trainer);actor.spec=deepcopy(trainer.spec)
+ actor=copy(trainer);actor.spec=__import__('world_entities').spec_copy(trainer)
  actor._action_history=deepcopy(getattr(trainer,'_action_history',[]))
  require_trigger_free_action(staged,trainer)
  AP.spend(actor,2)

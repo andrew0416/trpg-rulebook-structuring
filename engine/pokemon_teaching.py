@@ -171,7 +171,7 @@ def _teach_machine(e,actor,*,target,instance_id,replace=None,hm_decision=None):
  previous=target.spec.get('move_learning',{}).get(replacing,{})
  point_cost=hm_policy['values']['point_cost'] if hm_policy is not None else 0 if replacing is not None and classes[replacing]=='taught' and previous.get('method')=='tm' else 1
  if _balance(target.spec)<point_cost:raise ValueError('insufficient actual Tutor Points')
- candidate=deepcopy(target.spec)
+ candidate=__import__('world_entities').spec_copy(target)
  if replacing is not None:
   import move_type_sync as MOVE_SYNC
   MOVE_SYNC.forget_spec(e.r,candidate,replacing,at=e.elapsed_seconds,reason='completed physical machine replacement')
@@ -565,7 +565,7 @@ def _teach_feature(e,actor,*,target,move_id,feature,seconds,reason,replace,mento
  if feature==MENTOR and rank_evidence is not None:record['mentor_rank_evidence']=rank_evidence
  if csv_mentor:record.update(csv_plan,mentor_source_clause=CSV_MENTOR.SOURCE)
  if feature==MENTOR and target.spec.get('type_sync'):record['type_sync_id']=target.spec['type_sync']['history'][-1]['id']
- candidate=deepcopy(target.spec)
+ candidate=__import__('world_entities').spec_copy(target)
  if old is not None:
   import move_type_sync as MOVE_SYNC
   MOVE_SYNC.forget_spec(e.r,candidate,old,at=e.elapsed_seconds,reason=reason)

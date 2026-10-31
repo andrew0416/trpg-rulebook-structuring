@@ -288,7 +288,7 @@ def base_patch(c, changes, *, reason, source="gm/state", request_id=None, expect
     revision = getattr(c, "_state_revision", 0)
     if expected_revision is not None and expected_revision != revision:
         raise ValueError("permanent state revision changed")
-    proposed = deepcopy(c.spec)
+    proposed = __import__('world_entities').spec_copy(c)
     proposed.update(deepcopy(changes))
     validate_base(proposed)
     import iron_mind as IRON_MIND

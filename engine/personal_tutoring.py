@@ -242,7 +242,7 @@ def _teach(engine, actor, *, target, move_id, seconds, reason, replace, feature_
     old = engine.r.move_id(replace) if replace is not None else None
     if replace is not None and old not in baseline:
         raise ValueError('explicit replacement must name an actually learned permanent move')
-    candidate = deepcopy(target.spec)
+    candidate = __import__('world_entities').spec_copy(target)
     if old is not None:
         import move_type_sync as MOVE_SYNC
         MOVE_SYNC.forget_spec(engine.r, candidate, old, at=engine.elapsed_seconds, reason=reason)

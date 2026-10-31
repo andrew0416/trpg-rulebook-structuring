@@ -144,7 +144,7 @@ def teach(engine,owner,target,definition,selected,*,from_grooming=False,from_tra
         'lesson':selected,'origin_species':target.spec['species'],'lesson_id':SOURCE+':'+str(len(rows)+1),
         'strength_receipt':next(i for i,item in enumerate(target.spec['learned_poke_edges']) if item.get('source')==U.STRENGTH and item.get('status')=='active'),
         'definition_origin':{'clause_id':definition['clause_id'],'rule_id':definition['rule_id'],'record':definition['record']}}
-    candidate=deepcopy(target.spec);candidate.setdefault('learned_poke_edges',[]).append(deepcopy(row))
+    candidate=__import__('world_entities').spec_copy(target);candidate.setdefault('learned_poke_edges',[]).append(deepcopy(row))
     L.learn_moves(engine.r,candidate,candidates=pool,selected=[selected['move_id']],method='underdog_lessons',source=SOURCE,
         reason='actual final evolution lesson learned as a level-up Move',provider=owner.entity_id,paid_tp=1,
         details={'lesson_id':row['lesson_id'],'final_species':selected['species']})

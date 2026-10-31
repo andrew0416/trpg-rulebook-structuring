@@ -251,7 +251,7 @@ def _learn(engine,c,ability,linked,*,reason,transform=None,choice=None,prompt=Tr
   c.spec[G.KEY]['sources'][transform].setdefault('connection_moves',{}).update({mid:ability for mid in linked})
   G.materialize(c,'moves')
  else:
-  candidate=deepcopy(c.spec);candidate.setdefault('moves',[])
+  candidate=__import__('world_entities').spec_copy(c);candidate.setdefault('moves',[])
   if forget is not None:
    import move_type_sync as MOVE_SYNC
    forbid_forgetting(c,[m for m in candidate['moves'] if rules.move_id(m)!=forget])

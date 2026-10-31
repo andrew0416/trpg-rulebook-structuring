@@ -555,7 +555,7 @@ class ContestEngine:
         native = copy(engine)
         native.log_lines = []
         actor = copy(trainer)
-        actor.spec = deepcopy(trainer.spec)
+        actor.spec = __import__('world_entities').spec_copy(trainer)
         actor._action_history = deepcopy(getattr(trainer, "_action_history", []))
         if AP.available(actor) < amount:
             raise ValueError("Native trainer cannot pay the contest feature's AP")

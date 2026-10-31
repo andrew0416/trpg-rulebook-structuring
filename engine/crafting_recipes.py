@@ -211,7 +211,7 @@ def action_policy(engine, actor, source, seconds):
     if engine.encounter_active and (seconds or action=='extended'):raise ValueError('timed crafting requires an actual noncombat interval')
     if not TURN.can_act(engine,actor) or not ACTION.ordinary_permission(engine,actor) or not ACTION.status_permission(engine,actor,action):
         raise ValueError('crafter cannot perform the actual recipe action')
-    probe=copy(actor);probe.spec=deepcopy(actor.spec)
+    probe=copy(actor);probe.spec=__import__('world_entities').spec_copy(actor)
     if not FREQ.activation_allowed(probe,source,policy['frequency'],engine=engine):raise ValueError('specific crafting frequency exhausted')
     if seconds:engine.preflight_advance_time(seconds,[actor])
     return policy

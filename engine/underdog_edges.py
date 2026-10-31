@@ -189,7 +189,7 @@ def teach(engine,owner,target,config,*,growth=None,negative_decision=None,from_g
         for values in allocations.values():check_bonus_budget(values,budget)
         row.update(growth=deepcopy(choice),species_points=budget,bonus_investments=deepcopy(allocations),negative_decision=deepcopy(negative_decision),negative_policy=policy)
     elif growth is not None or negative_decision is not None:raise ValueError('Underdog Strength has no bonus point choice')
-    current=permanent(target);candidate=deepcopy(target.spec);candidate.setdefault('learned_poke_edges',[]).append(row);plans(engine.r,candidate,current)
+    current=permanent(target);candidate=__import__('world_entities').spec_copy(target);candidate.setdefault('learned_poke_edges',[]).append(row);plans(engine.r,candidate,current)
     if T.credit_mode(from_grooming,from_training):T.training_credit(engine,owner,target,uid,from_training=from_training)
     else:T.edge_training_hour(engine,owner,target,uid,uid,safe=safe)
     current=permanent(target)

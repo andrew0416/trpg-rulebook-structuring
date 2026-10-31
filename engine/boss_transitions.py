@@ -682,7 +682,7 @@ def prepare_capture_form(actor, level, choices):
     import growth_stats as GROWTH
     import pokemon_stat_edges as EDGES
     import arithmetic_policy as M
-    inherited=deepcopy(actor.spec)
+    inherited=__import__('world_entities').spec_copy(actor)
     inherited.update(level=level,moves=deepcopy(form['moves']),abilities=chosen)
     plan=builder.allocation_plan(builder.species_lookup(actor.r,inherited['species'])['base_stats'],
         M.floor(builder.calc(actor.r.mech('pokemon/stat-build')['stat_points'],{'level':level})),

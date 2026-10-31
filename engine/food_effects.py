@@ -1739,7 +1739,7 @@ def baby_training_plan(e,target,amount):
  selected(e,record['source'])
  # Native level growth needs the same allocation/source checks before time.
  import downtime as DT
- probe=deepcopy(target.spec);DT.gain_exp(e.r,probe,amount)
+ probe=__import__('world_entities').spec_copy(target);DT.gain_exp(e.r,probe,amount)
  extra=max(0,DT.exp_for_level(e.r,probe['level']+1)-probe.get('exp',DT.exp_for_level(e.r,probe['level'])))
  DT.gain_exp(e.r,probe,extra,source_kind='level_grant')
  return True

@@ -186,7 +186,7 @@ def execute(engine,trainer,targets,value,*,request_id=None,safe=None,from_traini
                 awards=[amount(t.level,eligibility['xp_rank'],node['formula']) for t in participants]
                 for target,award in zip(participants,awards):
                     if not target.spec.get('species'):raise ValueError('actual species required for native XP progression')
-                    D.gain_exp(e.r,deepcopy(target.spec),award)
+                    D.gain_exp(e.r,__import__('world_entities').spec_copy(target),award)
                 prepared[node['id']]={'awards':awards,'levels':[t.level for t in participants],
                     'baby':[FOOD.baby_training_plan(e,t,a) for t,a in zip(participants,awards)]}
                 if type_manual is not None:
@@ -200,7 +200,7 @@ def execute(engine,trainer,targets,value,*,request_id=None,safe=None,from_traini
                         baby_food=prepared[node['id']]['baby'][position],champion_trainer=FEATURES.owned(owner,'feat/챔피언-트레이너'))
                     prepared[node['id']]['manual_target']=target.entity_id if extra else None
                     if extra:
-                        probe=deepcopy(target.spec);D.gain_exp(e.r,probe,awards[position])
+                        probe=__import__('world_entities').spec_copy(target);D.gain_exp(e.r,probe,awards[position])
                         D.gain_exp(e.r,probe,max(0,D.exp_for_level(e.r,probe['level']+1)-probe['exp']),source_kind='level_grant')
             elif kind=='regime':prepared[node['id']]=F._targets(e,owner,[(t,node['choices'][t.entity_id]) for t in participants])
             if shared and kind in ('xp','regime','bonus'):

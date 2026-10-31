@@ -383,7 +383,7 @@ def evolve_combatant(engine,c,target_species,*,form_declarations=None,underdog_d
         if getattr(actor,'_nonadditive_stats',None):raise ValueError('evolution during a stat exchange needs its source-specific policy')
         import ability_state_projection as ABILITY_STATE_PROJECTION
         ABILITY_STATE_PROJECTION.preflight_evolution(e.r,actor.spec,target_species)
-        candidate=deepcopy(actor.spec);log=[]
+        candidate=__import__('world_entities').spec_copy(actor);log=[]
         changed=evolve(e.r,candidate,target_species,log,form_declarations=form_declarations,underdog_decision=underdog_decision)
         if not changed:return {'evolved':False,'log':log}
         import world_entities as WORLD
@@ -438,7 +438,7 @@ def _gain_exp_unsplit_combatant(engine, c, amount, *, stat_choices=None):
     hp_before = c.hp
     import state_grants as GRANTS
     from copy import deepcopy
-    candidate = deepcopy(c.spec)
+    candidate = __import__('world_entities').spec_copy(c)
     source_kind='level_grant' if amount=='to next level' else 'experience'
     if amount == "to next level":
         cur = c.spec.get("exp", exp_for_level(r, c.level))

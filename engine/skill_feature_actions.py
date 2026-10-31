@@ -75,7 +75,7 @@ def _feature_options(options,rank,penalty_count):
 
 def _preflight_cost(e,actor,feature):
  staged=copy(e);staged.log_lines=[];staged._time_actors=list(getattr(e,'_time_actors',[]))
- shadow=copy(actor);shadow.spec=deepcopy(actor.spec);shadow._action_history=list(getattr(actor,'_action_history',[]))
+ shadow=copy(actor);shadow.spec=__import__('world_entities').spec_copy(actor);shadow._action_history=list(getattr(actor,'_action_history',[]))
  if not FREQ.activation_allowed(shadow,feature,FREQUENCY,engine=staged):raise ValueError('Skill Monkey daily uses exhausted')
  FEATURES.require_trigger_free_action(staged,actor)
 

@@ -206,7 +206,7 @@ def overlay(c, source_id, **fields):
     replacement = {k:list(dict.fromkeys(v)) for k,v in fields.items()}
     from copy import copy
     probe = copy(c)
-    probe.spec = deepcopy(c.spec)
+    probe.spec = __import__('world_entities').spec_copy(c)
     state(probe)["overlays"][source_id] = replacement
     # Resolve the whole replacement before publishing any field or ledger row.
     for field in fields:effective(probe,field)

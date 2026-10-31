@@ -164,7 +164,7 @@ def plan_change(actor,*,baseline=None,granted=(),revoked=()):
     """Read-only plan before a learned ownership mutation; permissions do not enter it."""
     from copy import copy,deepcopy
     import state_grants as G,move_state as MOVES
-    probe=copy(actor);probe.spec=deepcopy(actor.spec);st=G.state(probe)
+    probe=copy(actor);probe.spec=__import__('world_entities').spec_copy(actor);st=G.state(probe)
     if baseline is not None:
         old=probe.spec.get('moves',[])
         st['legacy']['moves']=[v for v in st['legacy'].get('moves',[]) if v not in baseline and v not in old]

@@ -560,7 +560,7 @@ def preflight_baseline(actor,field,values):
   if any(not CSV_CAP.essence_move_allowed(actor,actor.r.move(mid)) for mid in added):
    raise ValueError('CSV Essence forbids learning Ghost/Aura Moves at Essence four or below')
  if actor.kind!='pokemon' or field not in ('moves','abilities'):return
- spec=deepcopy(actor.spec);st=spec.setdefault('state_grants',{})
+ spec=__import__('world_entities').spec_copy(actor);st=spec.setdefault('state_grants',{})
  if not st:st['legacy']={f:[v for v in getattr(actor,f,[]) if v not in actor.spec.get(f,[])] for f in ('moves','abilities')}
  if st:
   old=spec.get(field,[])
@@ -573,7 +573,7 @@ def preflight_move_grants(actor,values,source_id,kind,metadata):
  import csv_item_capability_contracts as CSV_CAP
  if 'csv_essence_projection' in actor.spec and any(not CSV_CAP.essence_move_allowed(actor,actor.r.move(mid)) for mid in values if mid not in actor.moves):
   raise ValueError('CSV Essence forbids learning Ghost/Aura Moves at Essence four or below')
- spec=deepcopy(actor.spec);st=spec.setdefault('state_grants',{})
+ spec=__import__('world_entities').spec_copy(actor);st=spec.setdefault('state_grants',{})
  if st and st.get('version')!=1:raise ValueError('unsupported source ledger')
  if not st:st['legacy']={f:[v for v in getattr(actor,f,[]) if v not in spec.get(f,[])] for f in ('moves','abilities')}
  row=st.setdefault('sources',{}).get(source_id)
@@ -587,7 +587,7 @@ def preflight_move_grants(actor,values,source_id,kind,metadata):
 
 def preflight_grant(actor,field,value,source_id,*,tutor_points=0):
  if actor.kind!='pokemon' or field not in ('moves','abilities'):return
- spec=deepcopy(actor.spec);st=spec.setdefault('state_grants',{})
+ spec=__import__('world_entities').spec_copy(actor);st=spec.setdefault('state_grants',{})
  if not st:
   st['legacy']={f:[v for v in getattr(actor,f,[]) if v not in spec.get(f,[])] for f in ('moves','abilities')}
  row=st.setdefault('sources',{}).setdefault(source_id,{'grants':{},'tutor_points':tutor_points})
@@ -597,7 +597,7 @@ def preflight_grant(actor,field,value,source_id,*,tutor_points=0):
 
 
 def preflight_revoke(actor,source_ids):
- spec=deepcopy(actor.spec);st=spec.get('state_grants',{})
+ spec=__import__('world_entities').spec_copy(actor);st=spec.get('state_grants',{})
  for source in source_ids:
   st.get('sources',{}).pop(source,None);st.get('overlays',{}).pop(source,None)
  __import__('ace_trainer').forget_missing(actor.r,spec,at=0,reason='preflight actual learned source withdrawal')
@@ -730,7 +730,7 @@ def observe_learning(engine,actor,move_id,*,method,source,paid_tp=0,replace=None
   if method=='vm':
    if any(row.get('application_id')==application_id for row in c.spec.get('move_learning_log',[]) if isinstance(row,dict)):raise ValueError('VM application has already been observed')
    record['application_id']=application_id
-  candidate=deepcopy(c.spec)
+  candidate=__import__('world_entities').spec_copy(c)
   if old is not None:
    import move_type_sync as MOVE_SYNC
    MOVE_SYNC.forget_spec(e.r,candidate,old,at=e.elapsed_seconds,reason=reason)

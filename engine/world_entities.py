@@ -1123,3 +1123,12 @@ def validate_world(*args, **kwargs):
         return _validate_world(*args, **kwargs)
 validate_world.__doc__ = _validate_world.__doc__
 
+def spec_copy(actor):
+    """deepcopy(actor.spec) that keeps the shared Rules object shared.
+
+    A spec may hold references to live actors (for example a Natural Fighter frame);
+    copying those must not copy the Rules they point at."""
+    from copy import deepcopy
+    rules = getattr(actor, 'r', None)
+    return deepcopy(actor.spec, {} if rules is None else {id(rules): rules})
+
